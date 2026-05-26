@@ -74,8 +74,8 @@
           </div>
         </div>
       {% else %}
-        <button class="btn btn-outline-nav" id="authModalBtn"><i class="fa-solid fa-circle-user"></i> Sign In</button>
-        <a href="{{ url_for('auth.register') }}" class="btn btn-primary-nav">Sign Up</a>
+        <button class="btn-outline-nav" id="authModalBtn">Sign In</button>
+        <a href="{{ url_for('auth.register') }}" class="btn-primary-nav">Sign Up</a>
       {% endif %}
 
       <button class="hamburger" id="hamburger"><i class="fa-solid fa-bars"></i></button>
