@@ -34,9 +34,9 @@ textarea, input, select, button { font-family: inherit; }
 .btn-primary:hover { background: var(--coral-dark); border-color: var(--coral-dark); transform: translateY(-1px); }
 .btn-outline-coral { background: transparent; color: var(--coral); border-color: var(--coral); }
 .btn-outline-coral:hover { background: var(--coral); color: white; }
-.btn-outline-nav { background: var(--navy-light); color: white; border: 2px solid var(--coral); border-radius: 8px; padding: 9px 20px; font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; }
+.btn-outline-nav { background: var(--navy-light); color: white; border: 2px solid var(--coral); border-radius: 8px; padding: 9px 0; font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 88px; }
 .btn-outline-nav:hover { background: var(--coral); color: white; }
-.btn-primary-nav { background: var(--coral); color: white; border: 2px solid var(--coral); border-radius: 8px; padding: 9px 20px; font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; }
+.btn-primary-nav { background: var(--coral); color: white; border: 2px solid var(--coral); border-radius: 8px; padding: 9px 0; font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; width: 88px; }
 .btn-primary-nav:hover { background: var(--coral-dark); border-color: var(--coral-dark); }
 .w-full { width: 100%; justify-content: center; }
 .mt-2 { margin-top: 12px; }
