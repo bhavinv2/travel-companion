@@ -1,13 +1,121 @@
 import os
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, session
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db, mail
 from app.models import User
 from flask_mail import Message as MailMessage
 from datetime import datetime
 import re
+import requests as http_requests
 
 auth_bp = Blueprint('auth', __name__)
+
+
+def _google_get_user_info(token):
+    resp = http_requests.get(
+        'https://www.googleapis.com/oauth2/v2/userinfo',
+        headers={'Authorization': f'Bearer {token}'},
+        timeout=10,
+    )
+    return resp.json() if resp.ok else None
+
+
+@auth_bp.route('/google')
+def google_login():
+    client_id = current_app.config.get('GOOGLE_OAUTH_CLIENT_ID')
+    if not client_id:
+        flash('Google login is not configured.', 'danger')
+        return redirect(url_for('auth.login'))
+    redirect_uri = url_for('auth.google_callback', _external=True)
+    scope = 'openid email profile'
+    google_auth_url = (
+        'https://accounts.google.com/o/oauth2/v2/auth'
+        f'?client_id={client_id}'
+        f'&redirect_uri={redirect_uri}'
+        f'&response_type=code'
+        f'&scope={scope}'
+        f'&access_type=offline'
+    )
+    return redirect(google_auth_url)
+
+
+@auth_bp.route('/google/authorized')
+def google_callback():
+    code = request.args.get('code')
+    error = request.args.get('error')
+    if error or not code:
+        flash('Google login was cancelled or failed.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    client_id = current_app.config.get('GOOGLE_OAUTH_CLIENT_ID')
+    client_secret = current_app.config.get('GOOGLE_OAUTH_CLIENT_SECRET')
+    redirect_uri = url_for('auth.google_callback', _external=True)
+
+    # Exchange code for token
+    token_resp = http_requests.post('https://oauth2.googleapis.com/token', data={
+        'code': code,
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'redirect_uri': redirect_uri,
+        'grant_type': 'authorization_code',
+    }, timeout=10)
+
+    if not token_resp.ok:
+        flash('Failed to authenticate with Google.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    access_token = token_resp.json().get('access_token')
+    user_info = _google_get_user_info(access_token)
+    if not user_info:
+        flash('Could not retrieve Google account info.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    google_id = user_info.get('id')
+    email = user_info.get('email', '').lower()
+    first_name = user_info.get('given_name', '')
+    last_name = user_info.get('family_name', '')
+    photo_url = user_info.get('picture')
+
+    # Find existing user by google id or email
+    user = User.query.filter_by(oauth_provider='google', oauth_id=google_id).first()
+    if not user:
+        user = User.query.filter_by(email=email).first()
+
+    if user:
+        # Update oauth info if missing
+        if not user.oauth_id:
+            user.oauth_provider = 'google'
+            user.oauth_id = google_id
+        user.last_login = datetime.utcnow()
+        db.session.commit()
+    else:
+        # Create new user
+        base_username = re.sub(r'[^a-z0-9]', '', (first_name + last_name).lower()) or 'user'
+        username = base_username
+        counter = 1
+        while User.query.filter_by(username=username).first():
+            username = f'{base_username}{counter}'
+            counter += 1
+
+        user = User(
+            email=email,
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            oauth_provider='google',
+            oauth_id=google_id,
+            photo_url=photo_url,
+            show_photo=True,
+            is_verified=True,
+        )
+        user.set_password(os.urandom(24).hex())
+        db.session.add(user)
+        db.session.commit()
+        flash(f'Welcome to Connecting Desis, {first_name}!', 'success')
+
+    login_user(user)
+    flash(f'Welcome back, {user.first_name or user.username}!', 'success') if user.last_login else None
+    return redirect(url_for('main.index'))
 
 
 def send_welcome_email(user):
