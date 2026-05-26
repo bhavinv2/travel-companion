@@ -1,25 +1,25 @@
 /* ===== RESET ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
-  --coral: #0d7377;
-  --coral-dark: #0a5c60;
-  --coral-light: #e6f4f4;
-  --coral-dark-text: #084a4d;
-  --gold: #c9963a;
-  --gold-light: #fdf3e3;
-  --navy: #14213d;
-  --navy-light: #1a2b4a;
-  --accent: #0d7377;
-  --accent-light: #e6f4f4;
+  --coral: #3a6fa8;
+  --coral-dark: #2d5f8a;
+  --coral-light: #e8f1f8;
+  --coral-dark-text: #1e4a72;
+  --gold: #3aaa8a;
+  --gold-light: #e6f7f3;
+  --navy: #0f2340;
+  --navy-light: #1a3050;
+  --accent: #3a6fa8;
+  --accent-light: #e8f1f8;
   --green: #2ecc71;
   --white: #fff;
-  --bg: #f5f8f8;
-  --border: #d8e8e8;
-  --text: #14213d;
-  --muted: #5a7070;
+  --bg: #f4f7fb;
+  --border: #c8d8ec;
+  --text: #0f2340;
+  --muted: #4a6080;
   --radius: 12px;
-  --shadow: 0 4px 24px rgba(13,115,119,0.08);
-  --shadow-lg: 0 12px 48px rgba(13,115,119,0.14);
+  --shadow: 0 4px 24px rgba(58,111,168,0.08);
+  --shadow-lg: 0 12px 48px rgba(58,111,168,0.14);
 }
 html { scroll-behavior: smooth; }
 body { font-family: 'Inter', sans-serif; color: var(--text); background: var(--white); font-size: 15px; line-height: 1.6; }
@@ -219,7 +219,7 @@ textarea { width: 100%; border: 1px solid var(--border); border-radius: 8px; pad
 
 /* Trip Card */
 .trip-card { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); transition: all 0.25s; user-select: none; -webkit-user-select: none; }
-.trip-card:hover { border-color: var(--coral); box-shadow: 0 8px 32px rgba(13,115,119,0.14); transform: translateY(-3px); }
+.trip-card:hover { border-color: var(--coral); box-shadow: 0 8px 32px rgba(58,111,168,0.14); transform: translateY(-3px); }
 .trip-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .trip-route { font-weight: 700; font-size: 15px; color: var(--navy); }
 .trip-route span { color: var(--coral); }
@@ -332,7 +332,7 @@ textarea { width: 100%; border: 1px solid var(--border); border-radius: 8px; pad
 
 /* ===== CHAT SIDEBAR ===== */
 .chat-sidebar { position: fixed; bottom: 24px; right: 24px; z-index: 8000; }
-.chat-toggle { background: var(--coral); color: white; border: none; width: 54px; height: 54px; border-radius: 50%; font-size: 22px; cursor: pointer; box-shadow: 0 4px 20px rgba(13,115,119,0.4); transition: all 0.2s; position: relative; }
+.chat-toggle { background: var(--coral); color: white; border: none; width: 54px; height: 54px; border-radius: 50%; font-size: 22px; cursor: pointer; box-shadow: 0 4px 20px rgba(58,111,168,0.4); transition: all 0.2s; position: relative; }
 .chat-toggle:hover { background: var(--coral-dark); transform: scale(1.05); }
 .chat-panel { position: absolute; bottom: 64px; right: 0; width: 320px; background: white; border-radius: 16px; box-shadow: var(--shadow-lg); border: 1px solid var(--border); overflow: hidden; }
 .chat-panel-header { background: var(--navy); color: white; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; font-weight: 700; }
