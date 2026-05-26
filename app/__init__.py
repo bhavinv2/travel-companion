@@ -19,8 +19,11 @@ csrf = CSRFProtect()
 def create_app():
     app = Flask(__name__)
 
-    app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key')
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///dev.db')
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key'))
+    db_url = os.environ.get('DATABASE_URL', 'sqlite:///dev.db')
+    if db_url.startswith('postgres://'):
+        db_url = db_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'app/static/uploads')
     app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('MAX_CONTENT_LENGTH', 16777216))
@@ -36,7 +39,8 @@ def create_app():
     # OAuth
     app.config['GOOGLE_OAUTH_CLIENT_ID'] = os.environ.get('GOOGLE_OAUTH_CLIENT_ID')
     app.config['GOOGLE_OAUTH_CLIENT_SECRET'] = os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET')
-    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # remove in production (HTTPS)
+    if os.environ.get('FLASK_ENV') != 'production':
+        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
     db.init_app(app)
     login_manager.init_app(app)
