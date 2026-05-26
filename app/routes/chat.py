@@ -84,6 +84,8 @@ def send_message():
 
         # Masked email relay — never expose sender's email
         try:
+            if not current_app.config.get('MAIL_PASSWORD'):
+                raise Exception('Mail not configured')
             relay_msg = MailMessage(
                 subject=f"[Connecting Desis] {subject}",
                 recipients=[recipient.email],

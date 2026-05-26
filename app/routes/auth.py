@@ -11,6 +11,8 @@ auth_bp = Blueprint('auth', __name__)
 
 
 def send_welcome_email(user):
+    if not current_app.config.get('MAIL_PASSWORD'):
+        return
     try:
         msg = MailMessage(
             subject="Welcome to Connecting Desis!",
