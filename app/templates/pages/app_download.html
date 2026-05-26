@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Download the App – Connecting Desis{% endblock %}
+{% block content %}
+<div class="static-page">
+  <div class="app-download-page">
+    <div class="app-dl-text">
+      <h1>Connecting Desis App</h1>
+      <p>Find travel companions anywhere, anytime. Our app puts the entire Desi travel community in your pocket.</p>
+      <ul>
+        <li><i class="fa-solid fa-check"></i> Post and find trips on the go</li>
+        <li><i class="fa-solid fa-check"></i> Real-time chat with companions</li>
+        <li><i class="fa-solid fa-check"></i> Push notifications for new matches</li>
+        <li><i class="fa-solid fa-check"></i> Secure &amp; private messaging</li>
+      </ul>
+      <div class="app-badges mt-4">
+        <a href="#" class="app-badge large">
+          <i class="fa-brands fa-google-play"></i>
+          <div><small>Get it on</small><strong>Google Play</strong></div>
+        </a>
+        <a href="#" class="app-badge large">
+          <i class="fa-brands fa-apple"></i>
+          <div><small>Download on the</small><strong>App Store</strong></div>
+        </a>
+      </div>
+    </div>
+    <div class="app-dl-img">
+      <img src="/static/img/app-mockup.png" alt="App preview" onerror="this.style.display='none'"/>
+    </div>
+  </div>
+</div>
+{% endblock %}

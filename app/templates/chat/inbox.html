@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% block title %}Inbox – Connecting Desis{% endblock %}
+{% block content %}
+<div class="inbox-page">
+  <div class="inbox-sidebar">
+    <div class="inbox-header">
+      <h2>Messages</h2>
+      <input type="text" id="inboxSearch" placeholder="Search..." class="inbox-search"/>
+    </div>
+    <div class="inbox-rooms" id="inboxRooms">
+      {% for room in rooms %}
+        {% set other = room.user2 if room.user1_id == current_user.id else room.user1 %}
+        {% set last_msg = last_messages.get(room.id) %}
+        <div class="inbox-room-item" onclick="openRoom({{ room.id }}, '{{ other.username }}')" data-room="{{ room.id }}">
+          <div class="inbox-avatar">
+            {% if other.photo_url and other.show_photo %}
+              <img src="{{ other.photo_url }}" alt="{{ other.username }}"/>
+            {% else %}
+              <i class="fa-solid fa-circle-user"></i>
+            {% endif %}
+          </div>
+          <div class="inbox-room-info">
+            <strong>{{ other.username }}</strong>
+            <span>{{ last_msg.message[:40] if last_msg else 'No messages yet' }}...</span>
+          </div>
+          <div class="inbox-meta">
+            <small>{{ last_msg.created_at.strftime('%b %d') if last_msg else '' }}</small>
+          </div>
+        </div>
+      {% else %}
+        <div class="inbox-empty">
+          <i class="fa-solid fa-inbox"></i>
+          <p>No conversations yet. Connect with a Desi traveller!</p>
+          <a href="{{ url_for('main.index') }}" class="btn btn-primary">Browse Trips</a>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="inbox-chat-area" id="inboxChatArea">
+    <div class="inbox-chat-placeholder">
+      <i class="fa-solid fa-comments"></i>
+      <p>Select a conversation to start chatting</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let activeRoomId = null;
+let pollInterval = null;
+let lastMsgId = 0;
+
+function openRoom(roomId, username) {
+  activeRoomId = roomId;
+  lastMsgId = 0;
+  document.querySelectorAll('.inbox-room-item').forEach(el => el.classList.remove('active'));
+  document.querySelector(`[data-room="${roomId}"]`)?.classList.add('active');
+
+  const area = document.getElementById('inboxChatArea');
+  area.innerHTML = `
+    <div class="inbox-chat-header">
+      <strong>${username}</strong>
+    </div>
+    <div class="inbox-messages" id="inboxMessages"></div>
+    <div class="inbox-input-row">
+      <input type="text" id="inboxMsgInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendInboxMsg()"/>
+      <button onclick="sendInboxMsg()" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i></button>
+    </div>
+  `;
+
+  fetchMessages();
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(fetchMessages, 3000);
+}
+
+function fetchMessages() {
+  if (!activeRoomId) return;
+  fetch(`/api/messages/${activeRoomId}?since_id=${lastMsgId}`)
+    .then(r => r.json())
+    .then(data => {
+      if (!data.messages?.length) return;
+      const container = document.getElementById('inboxMessages');
+      data.messages.forEach(m => {
+        const div = document.createElement('div');
+        div.className = `msg-bubble ${m.sender_id === CURRENT_USER_ID ? 'sent' : 'received'}`;
+        div.innerHTML = m.message_type === 'image'
+          ? `<img src="${m.file_url}" style="max-width:200px"/>`
+          : `<span>${m.message}</span>`;
+        container.appendChild(div);
+        lastMsgId = Math.max(lastMsgId, m.id);
+      });
+      container.scrollTop = container.scrollHeight;
+    });
+}
+
+function sendInboxMsg() {
+  const input = document.getElementById('inboxMsgInput');
+  const msg = input.value.trim();
+  if (!msg || !activeRoomId) return;
+  input.value = '';
+  fetch(`/api/messages/${activeRoomId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+    body: JSON.stringify({ message: msg })
+  }).then(r => r.json()).then(() => fetchMessages());
+}
+</script>
+{% endblock %}

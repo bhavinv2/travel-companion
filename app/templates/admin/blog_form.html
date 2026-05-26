@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}New Blog Post – Admin{% endblock %}
+{% block content %}
+<div class="admin-page">
+  <aside class="admin-sidebar">
+    <h3>Admin Panel</h3>
+    <nav>
+      <a href="{{ url_for('admin.dashboard') }}"><i class="fa-solid fa-gauge"></i> Dashboard</a>
+      <a href="{{ url_for('admin.users') }}"><i class="fa-solid fa-users"></i> Users</a>
+      <a href="{{ url_for('admin.listings') }}"><i class="fa-solid fa-list"></i> Listings</a>
+      <a href="{{ url_for('admin.feedback') }}"><i class="fa-solid fa-star"></i> Feedback</a>
+      <a href="{{ url_for('admin.new_blog') }}" class="active"><i class="fa-solid fa-pen"></i> New Blog Post</a>
+    </nav>
+  </aside>
+  <main class="admin-main">
+    <h1>New Blog Post</h1>
+    <form method="POST" class="admin-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <div class="field-group">
+        <label>Title *</label>
+        <input type="text" name="title" required placeholder="Blog post title"/>
+      </div>
+      <div class="field-group">
+        <label>Content *</label>
+        <textarea name="content" rows="12" required placeholder="Write your blog post..."></textarea>
+      </div>
+      <label class="flex-check"><input type="checkbox" name="is_published"/> Publish immediately</label>
+      <label class="flex-check"><input type="checkbox" name="send_notification" checked/> Notify all users by email</label>
+      <button type="submit" class="btn btn-primary mt-2">Save Post</button>
+    </form>
+  </main>
+</div>
+{% endblock %}

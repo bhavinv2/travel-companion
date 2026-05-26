@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Login – Connecting Desis{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <h1>Welcome Back</h1>
+      <p>Sign in to your Connecting Desis account</p>
+    </div>
+
+    <div class="oauth-row">
+      <a href="#" class="oauth-btn google"><i class="fa-brands fa-google"></i> Continue with Google</a>
+      <a href="#" class="oauth-btn facebook"><i class="fa-brands fa-facebook"></i> Continue with Facebook</a>
+    </div>
+    <div class="or-divider"><span>or sign in with email</span></div>
+
+    <form method="POST" class="auth-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <div class="field-group">
+        <label>Email Address</label>
+        <input type="email" name="email" required placeholder="your@email.com"/>
+      </div>
+      <div class="field-group">
+        <label>Password</label>
+        <div class="input-with-icon">
+          <input type="password" name="password" id="passwordField" required placeholder="••••••••"/>
+          <button type="button" class="eye-btn" onclick="togglePassword()">
+            <i class="fa-solid fa-eye"></i>
+          </button>
+        </div>
+      </div>
+      <div class="form-row-space">
+        <label class="flex-check"><input type="checkbox" name="remember"/> Remember me</label>
+        <a href="{{ url_for('auth.forgot_password') }}" class="forgot-link">Forgot password?</a>
+      </div>
+      <button type="submit" class="btn btn-primary w-full mt-2">
+        <i class="fa-solid fa-right-to-bracket"></i> Login
+      </button>
+      <p class="auth-switch">Don't have an account? <a href="{{ url_for('auth.register') }}">Sign up free</a></p>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+function togglePassword() {
+  const el = document.getElementById('passwordField');
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+</script>
+{% endblock %}

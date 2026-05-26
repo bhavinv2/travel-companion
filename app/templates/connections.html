@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}My Connections – Connecting Desis{% endblock %}
+
+{% block extra_css %}
+<style>
+.connections-page { padding: 40px 5% 60px; max-width: 900px; margin: 0 auto; }
+.connections-page h1 { font-family: 'Poppins', sans-serif; font-size: 26px; font-weight: 800; margin-bottom: 6px; }
+.connections-page .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+.conn-tabs { display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 2px solid var(--border); padding-bottom: 0; }
+.conn-tab { padding: 10px 22px; border: none; background: none; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.2s; }
+.conn-tab.active { color: var(--coral); border-bottom-color: var(--coral); }
+.conn-list { display: flex; flex-direction: column; gap: 14px; }
+.conn-card { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); display: flex; align-items: center; gap: 16px; transition: box-shadow 0.2s; }
+.conn-card:hover { box-shadow: 0 6px 24px rgba(0,0,0,0.08); }
+.conn-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.conn-avatar-icon { width: 44px; height: 44px; border-radius: 50%; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 22px; color: var(--muted); flex-shrink: 0; }
+.conn-info { flex: 1; min-width: 0; }
+.conn-name { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
+.conn-route { font-size: 13px; color: var(--muted); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.conn-meta { font-size: 12px; color: var(--muted); }
+.conn-actions { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
+.status-badge { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; }
+.status-pending { background: #fff3cd; color: #856404; }
+.status-accepted { background: #d1e7dd; color: #0a5c36; }
+.status-denied { background: #f8d7da; color: #842029; }
+.conn-empty { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 15px; }
+.conn-empty i { font-size: 40px; margin-bottom: 12px; display: block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="connections-page">
+  <h1><i class="fa-solid fa-handshake" style="color:var(--coral)"></i> My Connections</h1>
+  <p class="subtitle">Track who has reached out to you and trips you've connected on</p>
+
+  <div class="conn-tabs">
+    <button class="conn-tab active" id="tabReceived" onclick="switchTab('received')">
+      Received <span id="receivedBadge"></span>
+    </button>
+    <button class="conn-tab" id="tabSent" onclick="switchTab('sent')">
+      Sent <span id="sentBadge"></span>
+    </button>
+  </div>
+
+  <div id="receivedPanel" class="conn-list">
+    <div class="conn-empty"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</div>
+  </div>
+  <div id="sentPanel" class="conn-list" style="display:none">
+    <div class="conn-empty"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let _connections = null;
+
+function switchTab(tab) {
+  document.getElementById('tabReceived').classList.toggle('active', tab === 'received');
+  document.getElementById('tabSent').classList.toggle('active', tab === 'sent');
+  document.getElementById('receivedPanel').style.display = tab === 'received' ? 'flex' : 'none';
+  document.getElementById('sentPanel').style.display = tab === 'sent' ? 'flex' : 'none';
+}
+
+function statusBadge(status) {
+  return `<span class="status-badge status-${status}">${status}</span>`;
+}
+
+function avatarHtml(user) {
+  if (user.photo_url) return `<img src="${user.photo_url}" class="conn-avatar" alt="${user.username}"/>`;
+  return `<div class="conn-avatar-icon"><i class="fa-solid fa-circle-user"></i></div>`;
+}
+
+function renderReceived(connections) {
+  const panel = document.getElementById('receivedPanel');
+  if (!connections.length) {
+    panel.innerHTML = '<div class="conn-empty"><i class="fa-solid fa-inbox"></i> No connection requests received yet.</div>';
+    return;
+  }
+  panel.innerHTML = '';
+  connections.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'conn-card';
+    card.id = `conn-${c.id}`;
+
+    let actions = '';
+    if (c.status === 'pending') {
+      actions = `
+        <button class="btn-sm-outline" onclick="respond(${c.id}, 'accept')"><i class="fa-solid fa-check"></i> Accept</button>
+        <button class="btn-sm-outline danger" onclick="respond(${c.id}, 'deny')"><i class="fa-solid fa-xmark"></i> Decline</button>`;
+    } else if (c.status === 'accepted') {
+      actions = `${statusBadge('accepted')} <a href="/inbox" class="btn-sm-outline"><i class="fa-solid fa-comments"></i> Chat</a>`;
+    } else {
+      actions = statusBadge(c.status);
+    }
+
+    card.innerHTML = `
+      ${avatarHtml(c.other_user)}
+      <div class="conn-info">
+        <div class="conn-name">${c.other_user.username}</div>
+        <div class="conn-route"><i class="fa-solid fa-${c.travel_type === 'air' ? 'plane' : 'car'}" style="color:var(--coral);font-size:11px"></i> ${c.route}</div>
+        <div class="conn-meta">${c.travel_date ? 'Travel: ' + c.travel_date : ''} &nbsp;·&nbsp; ${new Date(c.created_at).toLocaleDateString()}</div>
+      </div>
+      <div class="conn-actions">${actions}</div>`;
+    panel.appendChild(card);
+  });
+}
+
+function renderSent(connections) {
+  const panel = document.getElementById('sentPanel');
+  if (!connections.length) {
+    panel.innerHTML = '<div class="conn-empty"><i class="fa-solid fa-paper-plane"></i> You haven\'t sent any connection requests yet.</div>';
+    return;
+  }
+  panel.innerHTML = '';
+  connections.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'conn-card';
+
+    let actions = '';
+    if (c.status === 'accepted') {
+      actions = `${statusBadge('accepted')} <a href="/inbox" class="btn-sm-outline"><i class="fa-solid fa-comments"></i> Chat</a>`;
+    } else {
+      actions = statusBadge(c.status);
+    }
+
+    card.innerHTML = `
+      ${avatarHtml(c.other_user)}
+      <div class="conn-info">
+        <div class="conn-name">${c.other_user.username}</div>
+        <div class="conn-route"><i class="fa-solid fa-${c.travel_type === 'air' ? 'plane' : 'car'}" style="color:var(--coral);font-size:11px"></i> ${c.route}</div>
+        <div class="conn-meta">${c.travel_date ? 'Travel: ' + c.travel_date : ''} &nbsp;·&nbsp; Sent ${new Date(c.created_at).toLocaleDateString()}</div>
+      </div>
+      <div class="conn-actions">${actions}</div>`;
+    panel.appendChild(card);
+  });
+}
+
+async function respond(connectionId, action) {
+  try {
+    const res = await apiFetch(`/api/connect/${connectionId}/respond`, {
+      method: 'POST',
+      body: JSON.stringify({ action, anonymous: false })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(action === 'accept' ? 'Connection accepted!' : 'Request declined.', action === 'accept' ? 'success' : 'info');
+      loadConnections();
+    } else {
+      showToast(data.error || 'Something went wrong.', 'danger');
+    }
+  } catch { showToast('Network error.', 'danger'); }
+}
+
+async function loadConnections() {
+  try {
+    const res = await apiFetch('/api/my-connections');
+    const data = await res.json();
+    _connections = data;
+
+    const rCount = data.received.length;
+    const sCount = data.sent.length;
+    const pendingCount = data.received.filter(c => c.status === 'pending').length;
+
+    document.getElementById('receivedBadge').textContent = rCount ? `(${rCount})` : '';
+    document.getElementById('sentBadge').textContent = sCount ? `(${sCount})` : '';
+
+    renderReceived(data.received);
+    renderSent(data.sent);
+  } catch (e) {
+    document.getElementById('receivedPanel').innerHTML = '<div class="conn-empty">Failed to load connections.</div>';
+  }
+}
+
+loadConnections();
+</script>
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% block title %}Admin Dashboard – Connecting Desis{% endblock %}
+{% block content %}
+<div class="admin-page">
+  <aside class="admin-sidebar">
+    <h3>Admin Panel</h3>
+    <nav>
+      <a href="{{ url_for('admin.dashboard') }}" class="active"><i class="fa-solid fa-gauge"></i> Dashboard</a>
+      <a href="{{ url_for('admin.users') }}"><i class="fa-solid fa-users"></i> Users</a>
+      <a href="{{ url_for('admin.listings') }}"><i class="fa-solid fa-list"></i> Listings</a>
+      <a href="{{ url_for('admin.feedback') }}"><i class="fa-solid fa-star"></i> Feedback</a>
+      <a href="{{ url_for('admin.new_blog') }}"><i class="fa-solid fa-pen"></i> New Blog Post</a>
+    </nav>
+  </aside>
+
+  <main class="admin-main">
+    <h1>Dashboard</h1>
+    <div class="admin-stats">
+      <div class="stat-card blue">
+        <i class="fa-solid fa-users"></i>
+        <div><strong>{{ stats.total_users }}</strong><span>Total Users</span></div>
+      </div>
+      <div class="stat-card coral">
+        <i class="fa-solid fa-list-check"></i>
+        <div><strong>{{ stats.active_listings }}</strong><span>Active Listings</span></div>
+      </div>
+      <div class="stat-card green">
+        <i class="fa-solid fa-bell"></i>
+        <div><strong>{{ stats.total_messages }}</strong><span>Notifications Sent</span></div>
+      </div>
+      <div class="stat-card yellow">
+        <i class="fa-solid fa-clock"></i>
+        <div><strong>{{ stats.pending_feedback }}</strong><span>Pending Reviews</span></div>
+      </div>
+    </div>
+
+    <!-- Broadcast -->
+    <div class="admin-card">
+      <h2>Broadcast Notification</h2>
+      <input type="text" id="broadcastTitle" placeholder="Title" class="admin-input"/>
+      <textarea id="broadcastBody" placeholder="Message body..." class="admin-input" rows="3"></textarea>
+      <button class="btn btn-primary" onclick="sendBroadcast()">
+        <i class="fa-solid fa-bullhorn"></i> Send to All Users
+      </button>
+    </div>
+
+    <div class="admin-card">
+      <h2>Recent Users</h2>
+      <table class="admin-table">
+        <thead><tr><th>Username</th><th>Email</th><th>Joined</th><th>Active</th><th>Actions</th></tr></thead>
+        <tbody>
+          {% for user in recent_users %}
+          <tr>
+            <td>{{ user.username }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+            <td><span class="badge-pill {{ 'green' if user.is_active else 'red' }}">{{ 'Active' if user.is_active else 'Inactive' }}</span></td>
+            <td>
+              <button class="btn-sm" onclick="toggleUser({{ user.id }}, this)">
+                {{ 'Disable' if user.is_active else 'Enable' }}
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="admin-card">
+      <h2>Recent Listings</h2>
+      <table class="admin-table">
+        <thead><tr><th>User</th><th>Route</th><th>Type</th><th>Date</th><th>Active</th><th>Actions</th></tr></thead>
+        <tbody>
+          {% for trip in recent_trips %}
+          <tr>
+            <td>{{ trip.author.username }}</td>
+            <td>{{ (trip.flying_from or trip.road_from or '?') }} → {{ (trip.destination or trip.road_to or '?') }}</td>
+            <td>{{ trip.travel_type }}</td>
+            <td>{{ trip.from_date or trip.road_from_date or '—' }}</td>
+            <td><span class="badge-pill {{ 'green' if trip.is_active else 'red' }}">{{ 'Active' if trip.is_active else 'Off' }}</span></td>
+            <td>
+              {% if trip.is_active %}
+              <button class="btn-sm danger" onclick="disableListing({{ trip.id }}, this)">Disable</button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleUser(userId, btn) {
+  fetch(`/admin/users/${userId}/toggle`, { method: 'POST', headers: {'X-CSRFToken': CSRF_TOKEN} })
+    .then(r => r.json()).then(d => {
+      btn.textContent = d.is_active ? 'Disable' : 'Enable';
+      showToast(d.is_active ? 'User enabled' : 'User disabled', 'success');
+    });
+}
+function disableListing(tripId, btn) {
+  if (!confirm('Disable this listing?')) return;
+  fetch(`/admin/listings/${tripId}/disable`, { method: 'POST', headers: {'X-CSRFToken': CSRF_TOKEN} })
+    .then(r => r.json()).then(() => { btn.closest('tr').style.opacity = '0.4'; showToast('Listing disabled', 'success'); });
+}
+function sendBroadcast() {
+  const title = document.getElementById('broadcastTitle').value.trim();
+  const body = document.getElementById('broadcastBody').value.trim();
+  if (!title || !body) return showToast('Title and body required', 'danger');
+  fetch('/admin/broadcast', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRFToken': CSRF_TOKEN},
+    body: JSON.stringify({title, body})
+  }).then(r => r.json()).then(d => showToast(`Sent to ${d.sent_to} users!`, 'success'));
+}
+</script>
+{% endblock %}

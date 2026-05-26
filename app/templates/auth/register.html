@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% block title %}Sign Up – Connecting Desis{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <h1>Join Connecting Desis</h1>
+      <p>Find trusted travel companions from your community</p>
+    </div>
+
+    <!-- OAuth buttons -->
+    <div class="oauth-row">
+      <a href="{{ url_for('auth.login') }}" class="oauth-btn google">
+        <i class="fa-brands fa-google"></i> Continue with Google
+      </a>
+      <a href="{{ url_for('auth.login') }}" class="oauth-btn facebook">
+        <i class="fa-brands fa-facebook"></i> Continue with Facebook
+      </a>
+    </div>
+    <div class="or-divider"><span>or sign up with email</span></div>
+
+    <form method="POST" enctype="multipart/form-data" class="auth-form" id="registerForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+      <div class="form-row-2">
+        <div class="field-group">
+          <label>First Name *</label>
+          <input type="text" name="first_name" required placeholder="First name"/>
+        </div>
+        <div class="field-group">
+          <label>Last Name *</label>
+          <input type="text" name="last_name" required placeholder="Last name"/>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Email Address *</label>
+        <input type="email" name="email" required placeholder="your@email.com"/>
+      </div>
+
+      <div class="field-group">
+        <label>Username * <small>(unique, visible to others)</small></label>
+        <input type="text" name="username" required placeholder="yourusername" minlength="3"/>
+      </div>
+
+      <div class="field-group">
+        <label>Password * <small>(min 8 characters)</small></label>
+        <div class="input-with-icon">
+          <input type="password" name="password" id="passwordField" required minlength="8" placeholder="••••••••"/>
+          <button type="button" class="eye-btn" onclick="togglePassword('passwordField', this)">
+            <i class="fa-solid fa-eye"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="form-row-2">
+        <div class="field-group">
+          <label>Phone <small>(optional)</small></label>
+          <input type="tel" name="phone" placeholder="+1 234 567 8900"/>
+        </div>
+        <div class="field-group">
+          <label>Date of Birth *</label>
+          <input type="date" name="dob" required/>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Profile Photo <small>(optional)</small></label>
+        <input type="file" name="photo" accept="image/*" id="photoInput"/>
+        <div class="photo-preview" id="photoPreview"></div>
+        <label class="flex-check mt-2">
+          <input type="checkbox" name="show_photo"/> Display photo publicly on listings
+        </label>
+      </div>
+
+      <label class="flex-check">
+        <input type="checkbox" name="marketing_consent"/> I agree to receive updates and travel tips via email
+      </label>
+
+      <label class="flex-check required-check">
+        <input type="checkbox" required/>
+        I agree to the <a href="{{ url_for('main.terms') }}" target="_blank">Terms of Use</a>
+        and <a href="{{ url_for('main.privacy') }}" target="_blank">Privacy Policy</a> *
+      </label>
+
+      <button type="submit" class="btn btn-primary w-full mt-2">
+        <i class="fa-solid fa-user-plus"></i> Create Account
+      </button>
+
+      <p class="auth-switch">Already have an account? <a href="{{ url_for('auth.login') }}">Login here</a></p>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function togglePassword(id, btn) {
+  const el = document.getElementById(id);
+  el.type = el.type === 'password' ? 'text' : 'password';
+  btn.innerHTML = el.type === 'password' ? '<i class="fa-solid fa-eye"></i>' : '<i class="fa-solid fa-eye-slash"></i>';
+}
+document.getElementById('photoInput')?.addEventListener('change', function() {
+  const preview = document.getElementById('photoPreview');
+  if (this.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => { preview.innerHTML = `<img src="${e.target.result}" style="max-width:100px;border-radius:50%;margin-top:8px;"/>`; };
+    reader.readAsDataURL(this.files[0]);
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Help – Connecting Desis{% endblock %}
+{% block content %}
+<div class="static-page">
+  <div class="static-hero coral"><h1>Help &amp; FAQ</h1><p>Find answers to common questions</p></div>
+  <div class="static-content">
+    <div class="faq-list">
+      {% for q, a in [
+        ('How do I post a trip?', 'Sign up or log in, then use the search bar on the home page. Fill in your travel details and click "Connect Desis" to post your request.'),
+        ('Is my email shared with other users?', 'Never. All messages are sent through our masked relay system. Other users will never see your real email address.'),
+        ('How do I connect with another traveller?', 'Browse the listings and click "Connect" on any listing. If you are not logged in, you will be prompted to create a free account.'),
+        ('Can I modify my trip after posting?', 'Yes. Go to "My Trips" in the navigation menu. Click "Modify" on your listing. All users you were chatting with will be notified of the change.'),
+        ('What happens to my listing after my travel date?', 'Listings are automatically removed from search results after your travel date has passed.'),
+        ('Is Connecting Desis free?', 'Yes, the core features are completely free. We may introduce premium features in the future.'),
+        ('How do I delete my account?', 'Contact us at support@connectingdesis.com and we will delete your account and all data within 48 hours.'),
+      ] %}
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          <span>{{ q }}</span> <i class="fa-solid fa-chevron-down"></i>
+        </button>
+        <div class="faq-a">{{ a }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+function toggleFaq(btn) {
+  const answer = btn.nextElementSibling;
+  const isOpen = answer.style.display === 'block';
+  document.querySelectorAll('.faq-a').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.faq-q i').forEach(el => el.className = 'fa-solid fa-chevron-down');
+  if (!isOpen) {
+    answer.style.display = 'block';
+    btn.querySelector('i').className = 'fa-solid fa-chevron-up';
+  }
+}
+</script>
+{% endblock %}

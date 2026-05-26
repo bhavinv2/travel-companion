@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}{{ post.title }} – Connecting Desis{% endblock %}
+{% block content %}
+<div class="static-page">
+  <div class="blog-post-header">
+    {% if post.cover_image_url %}<img src="{{ post.cover_image_url }}" alt="{{ post.title }}" class="blog-cover"/>{% endif %}
+    <h1>{{ post.title }}</h1>
+    <div class="blog-meta">
+      <span><i class="fa-solid fa-user"></i> {{ post.author.username }}</span>
+      <span><i class="fa-solid fa-calendar"></i> {{ post.published_at.strftime('%B %d, %Y') if post.published_at else '' }}</span>
+    </div>
+  </div>
+  <div class="static-content blog-post-content">
+    {{ post.content | safe }}
+  </div>
+  <div class="blog-back">
+    <a href="{{ url_for('blog.blog_list') }}" class="btn btn-outline-coral">← Back to Blog</a>
+  </div>
+</div>
+{% endblock %}

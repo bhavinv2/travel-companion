@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}Listings – Admin{% endblock %}
+{% block content %}
+<div class="admin-page">
+  <aside class="admin-sidebar">
+    <h3>Admin Panel</h3>
+    <nav>
+      <a href="{{ url_for('admin.dashboard') }}"><i class="fa-solid fa-gauge"></i> Dashboard</a>
+      <a href="{{ url_for('admin.users') }}"><i class="fa-solid fa-users"></i> Users</a>
+      <a href="{{ url_for('admin.listings') }}" class="active"><i class="fa-solid fa-list"></i> Listings</a>
+      <a href="{{ url_for('admin.feedback') }}"><i class="fa-solid fa-star"></i> Feedback</a>
+      <a href="{{ url_for('admin.new_blog') }}"><i class="fa-solid fa-pen"></i> New Blog Post</a>
+    </nav>
+  </aside>
+  <main class="admin-main">
+    <h1>All Listings</h1>
+    <table class="admin-table">
+      <thead><tr><th>ID</th><th>User</th><th>Type</th><th>Route</th><th>Date</th><th>Active</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for trip in trips %}
+        <tr id="trip-{{ trip.id }}">
+          <td>{{ trip.id }}</td>
+          <td>{{ trip.author.username }}</td>
+          <td>{{ trip.travel_type }}</td>
+          <td>{{ trip.flying_from or trip.road_from or '?' }} → {{ trip.destination or trip.road_to or '?' }}</td>
+          <td>{{ trip.from_date or trip.road_from_date or '—' }}</td>
+          <td><span class="badge-pill {{ 'green' if trip.is_active else 'red' }}">{{ 'Active' if trip.is_active else 'Disabled' }}</span></td>
+          <td>
+            {% if trip.is_active %}
+            <button class="btn-sm danger" onclick="disableListing({{ trip.id }})">Disable</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </main>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+function disableListing(id) {
+  if (!confirm('Disable this listing?')) return;
+  fetch(`/admin/listings/${id}/disable`, { method: 'POST', headers: {'X-CSRFToken': CSRF_TOKEN} })
+    .then(r => r.json()).then(() => document.getElementById(`trip-${id}`).style.opacity = '0.4');
+}
+</script>
+{% endblock %}

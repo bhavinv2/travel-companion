@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Desi Travellers Blog – Connecting Desis{% endblock %}
+{% block content %}
+<div class="static-page">
+  <div class="static-hero coral"><h1>Desi Travellers Blog</h1><p>Stories, tips &amp; inspiration for the global Desi community</p></div>
+  <div class="blog-grid">
+    {% for post in posts %}
+    <a href="{{ url_for('blog.blog_post', slug=post.slug) }}" class="blog-card">
+      {% if post.cover_image_url %}
+        <img src="{{ post.cover_image_url }}" alt="{{ post.title }}"/>
+      {% else %}
+        <div class="blog-card-placeholder"></div>
+      {% endif %}
+      <div class="blog-card-body">
+        <h3>{{ post.title }}</h3>
+        <p>{{ post.excerpt() }}</p>
+        <div class="blog-meta">
+          <span><i class="fa-solid fa-user"></i> {{ post.author.username }}</span>
+          <span><i class="fa-solid fa-calendar"></i> {{ post.published_at.strftime('%b %d, %Y') if post.published_at else '' }}</span>
+        </div>
+      </div>
+    </a>
+    {% else %}
+    <div class="blog-empty">
+      <i class="fa-solid fa-pen-to-square"></i>
+      <p>No blog posts yet. Check back soon!</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

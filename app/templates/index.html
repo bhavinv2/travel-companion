@@ -1,0 +1,513 @@
+{% extends 'base.html' %}
+{% block title %}Connecting Desis – Find Your Travel Companion{% endblock %}
+
+{% block content %}
+
+<!-- ===== HERO SLIDER ===== -->
+<section class="hero-slider" id="home">
+  <div class="slides-wrapper" id="slidesWrapper">
+    <div class="slide active" style="background: linear-gradient(135deg, #0d7377 0%, #14213d 100%);">
+      <div class="slide-content">
+        <div class="slide-photo polaroid">
+          <img src="/static/img/hero1.jpg" alt="Desi travellers" onerror="this.parentElement.style.background='rgba(255,255,255,0.15)'"/>
+        </div>
+        <div class="slide-text">
+          <h1>Experience<br/><em>Friendly</em><br/>Group Trips</h1>
+          <p>Connect with fellow Desi travellers on your next journey</p>
+        </div>
+      </div>
+    </div>
+    <div class="slide" style="background: linear-gradient(135deg, #0a5c60 0%, #14213d 100%);">
+      <div class="slide-content">
+        <div class="slide-photo polaroid">
+          <img src="/static/img/hero2.jpg" alt="Travel companions" onerror="this.parentElement.style.background='rgba(255,255,255,0.15)'"/>
+        </div>
+        <div class="slide-text">
+          <h1>Never<br/>Travel<br/><em>Alone Again</em></h1>
+          <p>Find trusted companions for your flights</p>
+        </div>
+      </div>
+    </div>
+    <div class="slide" style="background: linear-gradient(135deg, #1a2b4a 0%, #0d7377 100%);">
+      <div class="slide-content">
+        <div class="slide-photo polaroid">
+          <img src="/static/img/hero3.jpg" alt="Happy travellers" onerror="this.parentElement.style.background='rgba(255,255,255,0.15)'"/>
+        </div>
+        <div class="slide-text">
+          <h1>Your <em>Community</em><br/>Your Journey</h1>
+          <p>Trusted by thousands of NRI families worldwide</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="slide-dots" id="slideDots">
+    <span class="dot active" data-idx="0"></span>
+    <span class="dot" data-idx="1"></span>
+    <span class="dot" data-idx="2"></span>
+  </div>
+</section>
+
+<!-- ===== SEARCH SECTION ===== -->
+<section class="search-section" id="search">
+
+  <!-- Travel Type Tab -->
+  <div class="travel-tabs">
+    <button class="travel-tab active">
+      <i class="fa-solid fa-plane-departure"></i> Flights
+    </button>
+  </div>
+
+  <!-- Trip Type -->
+  <div class="trip-type-row" id="tripTypeRow">
+    <label class="radio-pill">
+      <input type="radio" name="trip_type" value="one_way" checked/> One Way
+    </label>
+    <label class="radio-pill">
+      <input type="radio" name="trip_type" value="round_trip"/> Round Trip
+    </label>
+    <label class="radio-pill">
+      <input type="radio" name="trip_type" value="multi_destination"/> Multi-Destination
+    </label>
+  </div>
+
+  <!-- FLIGHTS FORM -->
+  <form class="search-bar" id="searchForm" autocomplete="off">
+    <input type="hidden" id="tripTypeHidden" name="trip_type" value="one_way"/>
+
+    <!-- Row 1 -->
+    <div class="form-row" id="flightFields">
+
+      <div class="field-group">
+        <label>On Behalf Of</label>
+        <select name="on_behalf_of" id="onBehalfOf">
+          <option value="">Select</option>
+          <option value="myself">Myself</option>
+          <option value="loved_one">Loved Ones</option>
+          <option value="mother">Mother</option>
+          <option value="father">Father</option>
+          <option value="parents">Parents</option>
+          <option value="sister">Sister</option>
+          <option value="brother">Brother</option>
+          <option value="son">Son</option>
+          <option value="daughter">Daughter</option>
+          <option value="friend">Friend</option>
+        </select>
+      </div>
+
+      <div class="field-group wide">
+        <label>Connect Me To <span class="optional">(multi-select)</span></label>
+        <div class="multi-select-wrapper">
+          <button type="button" class="multi-select-btn" data-target="connectTo">
+            <span id="connectToLabel">Select companions...</span> <i class="fa-solid fa-chevron-down"></i>
+          </button>
+          <div class="multi-dropdown" id="connectTo">
+            {% for val, label in [
+              ('senior_citizens','Senior Citizens'),('travelling_families','Travelling Families'),
+              ('solo_male','Solo (Male)'),('solo_female','Solo (Female)'),
+              ('student','Student Travellers'),('tourist','Tourists'),
+              ('business','Business Travel'),('religious','Religious Travel')
+            ] %}
+            <label><input type="checkbox" name="connect_me_to" value="{{ val }}"/> {{ label }}</label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="field-group wide">
+        <label>Traveller Needs <span class="optional">(multi-select)</span></label>
+        <div class="multi-select-wrapper">
+          <button type="button" class="multi-select-btn" data-target="travellerNeeds">
+            <span id="travellerNeedsLabel">Select needs...</span> <i class="fa-solid fa-chevron-down"></i>
+          </button>
+          <div class="multi-dropdown" id="travellerNeeds">
+            {% for val, label in [
+              ('wheelchair','Wheelchair Assistance'),('toddler','Travelling with Toddler'),
+              ('physically_challenged','Physically Challenged'),('mentally_challenged','Mentally Challenged'),
+              ('language_barrier','Language Barrier'),('medicines','Need Medicines'),('documents','Need Documents')
+            ] %}
+            <label><input type="checkbox" name="traveller_needs" value="{{ val }}"/> {{ label }}</label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2: Flight route — single leg (one-way / round-trip) -->
+    <div class="form-row" id="flightRoute">
+
+      <div class="field-group" id="fieldFlyingFrom">
+        <label>Flying From</label>
+        <div class="input-with-icon">
+          <i class="fa-solid fa-plane-departure field-icon"></i>
+          <input type="text" name="flying_from" id="flyingFrom" placeholder="City or Airport" class="autocomplete-airport"/>
+        </div>
+        <label class="flex-check"><input type="checkbox" name="flying_from_flexible" id="fromFlexible"/> Flexible Airport</label>
+      </div>
+
+      <div class="field-group" id="fieldFromDate">
+        <label>Departure Date</label>
+        <div class="input-with-icon">
+          <i class="fa-solid fa-calendar field-icon"></i>
+          <input type="date" name="from_date" id="fromDate" min="{{ now().strftime('%Y-%m-%d') if now else '' }}"/>
+        </div>
+        <label class="flex-check"><input type="checkbox" name="from_date_flexible" id="fromDateFlex"/> Flexible Dates</label>
+      </div>
+
+      <div class="field-group" id="fieldDestination">
+        <label>Destination</label>
+        <div class="input-with-icon">
+          <i class="fa-solid fa-location-dot field-icon"></i>
+          <input type="text" name="destination" id="destination" placeholder="City or Airport" class="autocomplete-airport"/>
+        </div>
+        <label class="flex-check"><input type="checkbox" name="destination_flexible"/> Flexible Airport</label>
+      </div>
+
+      <!-- Return date — only shown for round trip -->
+      <div class="field-group" id="fieldReturnDate" style="display:none">
+        <label>Return Date</label>
+        <div class="input-with-icon">
+          <i class="fa-solid fa-calendar-check field-icon"></i>
+          <input type="date" name="to_date" id="toDate" min="{{ now().strftime('%Y-%m-%d') if now else '' }}"/>
+        </div>
+        <label class="flex-check"><input type="checkbox" name="to_date_flexible"/> Flexible Dates</label>
+      </div>
+
+      <div class="field-group" id="fieldAirline">
+        <label>Airline</label>
+        <div class="input-with-icon">
+          <i class="fa-solid fa-plane field-icon"></i>
+          <input type="text" name="airline" id="airlineSelect" placeholder="Search airline..." class="autocomplete-airline"/>
+        </div>
+      </div>
+
+      <div class="field-group" id="fieldFlightNo">
+        <label>Flight No</label>
+        <input type="text" name="flight_number" placeholder="e.g. AI 101"/>
+      </div>
+
+      <div class="field-group">
+        <label>Preferred Languages</label>
+        <div class="multi-select-wrapper">
+          <button type="button" class="multi-select-btn" data-target="langSelect">
+            <span id="langSelectLabel">Select languages...</span> <i class="fa-solid fa-chevron-down"></i>
+          </button>
+          <div class="multi-dropdown" id="langSelect">
+            {% for lang in ['English','Hindi','Gujarati','Tamil','Telugu','Kannada','Malayalam','Marathi','Punjabi','Bengali','Urdu','Sindhi','Nepali','Sinhala'] %}
+            <label><input type="checkbox" name="preferred_languages" value="{{ lang }}"/> {{ lang }}</label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Ticket Booked?</label>
+        <label class="tick-check">
+          <input type="checkbox" name="ticket_booked"/>
+          <span class="tick-box"></span>
+          <span class="tick-label">Yes, ticket booked</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Row 2b: Multi-destination legs (hidden unless multi-destination selected) -->
+    <div id="multiDestSection" style="display:none">
+      <div class="multi-dest-header">
+        <span><i class="fa-solid fa-route"></i> Your Stops</span>
+        <button type="button" class="btn-sm-outline" id="addLegBtn" onclick="addLeg()">
+          <i class="fa-solid fa-plus"></i> Add Stop
+        </button>
+      </div>
+      <div id="legsContainer"></div>
+      <div class="form-row" style="margin-top:12px">
+        <div class="field-group">
+          <label>Preferred Languages</label>
+          <div class="multi-select-wrapper">
+            <button type="button" class="multi-select-btn" data-target="langSelectMulti">
+              <span id="langSelectMultiLabel">Select languages...</span> <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div class="multi-dropdown" id="langSelectMulti">
+              {% for lang in ['English','Hindi','Gujarati','Tamil','Telugu','Kannada','Malayalam','Marathi','Punjabi','Bengali','Urdu','Sindhi','Nepali','Sinhala'] %}
+              <label><input type="checkbox" name="preferred_languages_multi" value="{{ lang }}"/> {{ lang }}</label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        <div class="field-group">
+          <label>Ticket Booked?</label>
+          <label class="tick-check">
+            <input type="checkbox" name="ticket_booked_multi"/>
+            <span class="tick-box"></span>
+            <span class="tick-label">Yes, ticket booked</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Additional Comments -->
+    <div class="form-row">
+      <div class="field-group" style="flex: 1; min-width: 100%;">
+        <label>Additional Comments</label>
+        <textarea name="additional_comments" placeholder="Anything else travellers should know — e.g. layovers, special needs, preferences..." rows="3" style="width:100%; border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:14px; outline:none; resize:vertical; font-family:inherit; transition:border-color 0.2s;"></textarea>
+      </div>
+    </div>
+
+    <!-- Action Bar -->
+    <div class="action-bar">
+      <div class="anon-toggle-row">
+        <label class="tick-check">
+          <input type="checkbox" id="postAnonymous" name="is_anonymous"/>
+          <span class="tick-box"></span>
+          <span class="tick-label">Post anonymously — only your route &amp; dates will be visible</span>
+        </label>
+      </div>
+      <p class="action-note">
+        <i class="fa-solid fa-lightbulb"></i>
+        Still undecided but want to connect with fellow Desi travelers? Simply submit a post with your expected destinations or travel dates — you never know, you might be just one step away from making a memorable connection!
+      </p>
+      <div class="action-btns">
+        <button type="button" class="btn btn-primary" id="postTripBtn">
+          <i class="fa-solid fa-plus"></i> Connect Desis
+        </button>
+        <button type="button" class="btn btn-outline-coral" id="findDesisBtn">
+          <i class="fa-solid fa-magnifying-glass"></i> Find Desis
+        </button>
+      </div>
+    </div>
+  </form>
+</section>
+
+<!-- ===== MY TRIPS (logged in) ===== -->
+{% if current_user.is_authenticated %}
+<section class="my-trips-section" id="my-trips">
+  <div class="results-header">
+    <h2><i class="fa-solid fa-suitcase"></i> My Trips</h2>
+    <button class="btn btn-primary" onclick="document.getElementById('search').scrollIntoView({behavior:'smooth'})">
+      <i class="fa-solid fa-plus"></i> Post New Trip
+    </button>
+  </div>
+  <div class="results-grid" id="myTripsGrid">
+    <div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Loading your trips...</div>
+  </div>
+</section>
+{% endif %}
+
+<!-- ===== DESIS ON MOVE CAROUSEL ===== -->
+<section class="results-section" id="results">
+  <div class="results-header">
+    <h2><i class="fa-solid fa-users"></i> Desis on Move</h2>
+    <div class="results-controls">
+      <span id="resultsCount" class="results-count"></span>
+      <a href="/trips" class="btn btn-outline-coral">View All <i class="fa-solid fa-arrow-right"></i></a>
+    </div>
+  </div>
+  <div class="carousel-wrapper">
+    <button class="carousel-arrow carousel-prev" id="carouselPrev" onclick="carouselNav(-1)" aria-label="Previous">
+      <i class="fa-solid fa-chevron-left"></i>
+    </button>
+    <div class="carousel-track-outer">
+      <div class="results-grid carousel-track" id="resultsGrid">
+        <div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Loading trips...</div>
+      </div>
+    </div>
+    <button class="carousel-arrow carousel-next" id="carouselNext" onclick="carouselNav(1)" aria-label="Next">
+      <i class="fa-solid fa-chevron-right"></i>
+    </button>
+  </div>
+  <div class="carousel-dots" id="carouselDots"></div>
+</section>
+
+<!-- ===== HOW IT WORKS ===== -->
+<section class="how-works" id="how-it-works">
+  <div class="section-header">
+    <p class="section-tag">Simple &amp; Safe</p>
+    <h2>How Connecting Desis Works</h2>
+  </div>
+  <div class="steps-row">
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <div class="step-icon"><i class="fa-solid fa-user-plus"></i></div>
+      <h3>Post</h3>
+      <p>Create your travel companion request in minutes</p>
+    </div>
+    <div class="step-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <div class="step-icon"><i class="fa-solid fa-magnifying-glass"></i></div>
+      <h3>Find</h3>
+      <p>Browse listings that match your travel plans</p>
+    </div>
+    <div class="step-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <div class="step-icon"><i class="fa-solid fa-comments"></i></div>
+      <h3>Connect</h3>
+      <p>Send a secure message to your potential companion</p>
+    </div>
+    <div class="step-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+    <div class="step-card">
+      <div class="step-num">4</div>
+      <div class="step-icon"><i class="fa-solid fa-plane"></i></div>
+      <h3>Travel</h3>
+      <p>Enjoy a safe, friendly journey together!</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FEEDBACK / TESTIMONIALS ===== -->
+<section class="feedback-section" id="feedback">
+  <div class="feedback-inner">
+    <!-- Left: Testimonials -->
+    <div class="testimonials-col">
+      <div class="section-header left">
+        <p class="section-tag">Community Love</p>
+        <h2>What Families Say</h2>
+      </div>
+      <div class="testimonial-carousel" id="testimonialCarousel">
+        {% if feedbacks %}
+          {% for fb in feedbacks %}
+          <div class="testimonial-card {% if loop.first %}active{% endif %}">
+            <div class="stars">{% for i in range(fb.rating) %}&#9733;{% endfor %}{% for i in range(5 - fb.rating) %}&#9734;{% endfor %}</div>
+            <p>"{{ fb.comment }}"</p>
+            <div class="t-author">
+              <i class="fa-solid fa-circle-user t-avatar"></i>
+              <strong>{{ fb.user.username }}</strong>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="testimonial-card active">
+            <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+            <p>"I found an amazing travel companion for my mom's flight to India. The service is incredible!"</p>
+            <div class="t-author"><i class="fa-solid fa-circle-user t-avatar"></i> <strong>Priya S., California</strong></div>
+          </div>
+          <div class="testimonial-card">
+            <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+            <p>"Finally a platform made for us! Connected with a family going the same route. Highly recommend."</p>
+            <div class="t-author"><i class="fa-solid fa-circle-user t-avatar"></i> <strong>Raj M., London</strong></div>
+          </div>
+          <div class="testimonial-card">
+            <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+            <p>"My elderly father had a wonderful companion on his long flight. Thank you Connecting Desis!"</p>
+            <div class="t-author"><i class="fa-solid fa-circle-user t-avatar"></i> <strong>Meera K., Toronto</strong></div>
+          </div>
+        {% endif %}
+      </div>
+      <div class="t-dots" id="tDots"></div>
+      <div class="social-row">
+        <a href="#" title="Facebook"><i class="fa-brands fa-facebook"></i></a>
+        <a href="#" title="Instagram"><i class="fa-brands fa-instagram"></i></a>
+        <a href="#" title="Twitter/X"><i class="fa-brands fa-x-twitter"></i></a>
+        <a href="#" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>
+      </div>
+    </div>
+
+    <!-- Right: Leave a Review -->
+    <div class="review-col">
+      <div class="section-header left">
+        <p class="section-tag">Your Voice Matters</p>
+        <h2>Leave a Review</h2>
+      </div>
+      {% if current_user.is_authenticated %}
+      <form id="reviewForm" class="review-form">
+        <div class="star-rating" id="starRating">
+          {% for i in range(1, 6) %}
+          <i class="fa-solid fa-star" data-val="{{ i }}" title="{{ i }} star"></i>
+          {% endfor %}
+        </div>
+        <input type="hidden" id="ratingValue" value="0"/>
+        <textarea id="reviewComment" placeholder="Share your experience..." rows="4"></textarea>
+        <button type="submit" class="btn btn-primary w-full">Submit Review</button>
+      </form>
+      {% else %}
+      <div class="review-login-prompt">
+        <p>Sign in to leave a review</p>
+        <a href="{{ url_for('auth.register') }}" class="btn btn-primary">Join Now</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<!-- ===== APP DOWNLOAD BAR ===== -->
+<section class="app-bar">
+  <div class="app-bar-inner">
+    <div class="app-bar-text">
+      <h2>Take Connecting Desis Everywhere</h2>
+      <p>Download our app and find travel companions on the go</p>
+      <div class="app-badges">
+        <a href="#" class="app-badge">
+          <i class="fa-brands fa-google-play"></i>
+          <div><small>Get it on</small><strong>Google Play</strong></div>
+        </a>
+        <a href="#" class="app-badge">
+          <i class="fa-brands fa-apple"></i>
+          <div><small>Download on the</small><strong>App Store</strong></div>
+        </a>
+      </div>
+    </div>
+    <div class="app-bar-img">
+      <img src="/static/img/app-mockup.png" alt="App preview" onerror="this.style.display='none'"/>
+    </div>
+  </div>
+</section>
+
+<!-- SEND MESSAGE MODAL -->
+<!-- CONNECTION REQUEST MODAL -->
+<div class="modal-overlay" id="connectModal" style="display:none">
+  <div class="modal-box sm">
+    <button class="modal-close" id="closeConnectModal">&times;</button>
+    <h2><i class="fa-solid fa-handshake"></i> Send Connection Request</h2>
+    <p id="connectModalSubtitle" style="color:var(--muted);font-size:14px;margin:8px 0 16px;"></p>
+    <input type="hidden" id="connectTripId"/>
+    <label class="tick-check" style="margin-bottom:16px;">
+      <input type="checkbox" id="connectAnonymous"/>
+      <span class="tick-box"></span>
+      <span class="tick-label">Send anonymously — they won't see your name</span>
+    </label>
+    <div class="modal-actions">
+      <button class="btn btn-outline-coral" id="cancelConnectBtn">Cancel</button>
+      <button class="btn btn-primary" id="confirmConnectBtn"><i class="fa-solid fa-handshake"></i> Send Request</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESPOND TO CONNECTION MODAL -->
+<div class="modal-overlay" id="respondModal" style="display:none">
+  <div class="modal-box sm">
+    <button class="modal-close" id="closeRespondModal">&times;</button>
+    <h2><i class="fa-solid fa-bell"></i> Connection Request</h2>
+    <p id="respondModalBody" style="color:var(--muted);font-size:14px;margin:8px 0 16px;"></p>
+    <input type="hidden" id="respondConnectionId"/>
+    <label class="tick-check" style="margin-bottom:16px;">
+      <input type="checkbox" id="respondAnonymous"/>
+      <span class="tick-box"></span>
+      <span class="tick-label">Accept anonymously — they won't see your name</span>
+    </label>
+    <div class="modal-actions">
+      <button class="btn btn-outline-coral" id="denyConnectionBtn"><i class="fa-solid fa-xmark"></i> Decline</button>
+      <button class="btn btn-primary" id="acceptConnectionBtn"><i class="fa-solid fa-check"></i> Accept</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="modal-overlay" id="confirmModal" style="display:none">
+  <div class="modal-box sm">
+    <h2 id="confirmTitle">Are you sure?</h2>
+    <p id="confirmMsg"></p>
+    <div class="modal-actions">
+      <button class="btn btn-outline-coral" id="confirmNo">Cancel</button>
+      <button class="btn btn-primary" id="confirmYes">Confirm</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Set today's date as min for date pickers
+  const today = new Date().toISOString().split('T')[0];
+  document.querySelectorAll('input[type=date]').forEach(el => el.min = today);
+</script>
+{% endblock %}
