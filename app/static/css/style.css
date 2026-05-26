@@ -123,7 +123,7 @@ textarea { width: 100%; border: 1px solid var(--border); border-radius: 8px; pad
 .dot.active { background: white; }
 
 /* ===== SEARCH SECTION ===== */
-.search-section { background: white; padding: 0 5% 48px; margin-top: -32px; position: relative; z-index: 10; }
+.search-section { background: white; padding: 20px 5% 48px; margin-top: 0; position: relative; z-index: 10; }
 .travel-tabs { display: flex; gap: 0; border: 2px solid var(--coral); border-radius: 10px; overflow: hidden; width: fit-content; margin: 0 auto 24px; }
 .travel-tab { background: white; border: none; padding: 12px 32px; font-size: 15px; font-weight: 700; cursor: pointer; color: var(--coral); display: flex; align-items: center; gap: 8px; transition: all 0.2s; }
 .travel-tab.active { background: var(--coral); color: white; }
