@@ -1,6 +1,6 @@
 from functools import wraps
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
-from flask_login import login_required, current_user
+from flask_login import login_required, current_user, login_user
 from app import db, mail
 from app.models import User, CompanionRequest, Feedback, Blog, Notification
 from flask_mail import Message as MailMessage
@@ -17,6 +17,23 @@ def admin_required(f):
             return redirect(url_for('main.index'))
         return f(*args, **kwargs)
     return decorated
+
+
+@admin_bp.route('/login', methods=['GET', 'POST'])
+def admin_login():
+    if current_user.is_authenticated and current_user.is_admin:
+        return redirect(url_for('admin.dashboard'))
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        user = User.query.filter_by(email=email).first()
+        if user and user.check_password(password) and user.is_admin:
+            login_user(user)
+            user.last_login = datetime.utcnow()
+            db.session.commit()
+            return redirect(url_for('admin.dashboard'))
+        flash('Invalid credentials or not an admin account.', 'danger')
+    return render_template('admin/login.html')
 
 
 @admin_bp.route('/')
