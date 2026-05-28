@@ -108,19 +108,21 @@ textarea, input, select, button { font-family: inherit; }
 textarea { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 14px; resize: vertical; margin-bottom: 8px; }
 
 /* ===== HERO SLIDER ===== */
-.hero-slider { position: relative; height: 540px; overflow: hidden; }
+.hero-slider { position: relative; height: 480px; overflow: hidden; background: #f0f4f8; }
 .slides-wrapper { width: 100%; height: 100%; }
-.slide { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; }
+.slide { position: absolute; inset: 0; display: none; align-items: center; background: #f0f4f8; }
 .slide.active { display: flex; }
-.slide-content { display: flex; align-items: center; justify-content: space-between; padding: 0 6%; gap: 60px; width: 100%; max-width: 1200px; margin: 0 auto; }
-.slide-photo.polaroid { background: white; padding: 16px 16px 50px; border-radius: 4px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); transform: rotate(-3deg); flex-shrink: 0; width: 280px; }
-.slide-photo.polaroid img { width: 100%; height: 240px; object-fit: cover; background: rgba(255,255,255,0.3); }
-.slide-text h1 { font-family: 'Poppins', sans-serif; font-size: clamp(36px, 5vw, 62px); font-weight: 800; color: white; line-height: 1.1; margin-bottom: 16px; }
-.slide-text h1 em { font-style: italic; }
-.slide-text p { color: rgba(255,255,255,0.85); font-size: 18px; }
-.slide-dots { position: absolute; bottom: 52px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; z-index: 5; }
-.dot { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.4); cursor: pointer; transition: background 0.2s; }
-.dot.active { background: white; }
+.slide-bg-image { position: absolute; right: 0; top: 0; height: 100%; width: 500px; object-fit: cover; object-position: center center; -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.5) 35%, black 65%); mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.5) 35%, black 65%); }
+.slide-fade-overlay { display: none; }
+.slide-content { position: relative; z-index: 2; display: flex; align-items: center; padding: 0 6%; width: 100%; max-width: 1200px; margin: 0 auto; }
+.slide-text { max-width: 520px; }
+.slide-text .slide-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--navy); margin-bottom: 14px; }
+.slide-text h1 { font-family: 'Poppins', sans-serif; font-size: clamp(28px, 4vw, 52px); font-weight: 800; color: var(--navy); line-height: 1.15; margin-bottom: 16px; }
+.slide-text h1 em { font-style: italic; color: var(--coral, #e05a2b); }
+.slide-text p { color: #4a5568; font-size: 17px; margin-bottom: 24px; }
+.slide-dots { position: absolute; bottom: 24px; left: 6%; display: flex; gap: 10px; z-index: 5; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: rgba(15,35,64,0.25); cursor: pointer; transition: background 0.2s; }
+.dot.active { background: var(--navy); }
 
 /* ===== SEARCH SECTION ===== */
 .search-section { background: white; padding: 20px 5% 48px; margin-top: 0; position: relative; z-index: 10; }
@@ -523,10 +525,11 @@ textarea { width: 100%; border: 1px solid var(--border); border-radius: 8px; pad
   .nav-links { display: none; }
   .hamburger { display: flex; }
   .nav-links.open { display: flex; flex-direction: column; position: fixed; top: 64px; left: 0; right: 0; background: var(--navy); padding: 16px; gap: 4px; z-index: 999; }
-  .slide-content { flex-direction: column; text-align: center; padding: 40px 5%; }
-  .slide-photo.polaroid { display: none; }
-  .hero-slider { height: 380px; }
-  .slide-text h1 { font-size: 36px; }
+  .slide-content { padding: 40px 5%; }
+  .slide-bg-image { opacity: 0.25; }
+  .slide-fade-overlay { background: linear-gradient(to right, #f0f4f8 50%, rgba(240,244,248,0.9) 75%, rgba(240,244,248,0.6) 100%); }
+  .hero-slider { height: 340px; }
+  .slide-text h1 { font-size: 30px; }
   .form-row { gap: 12px; }
   .results-grid { grid-template-columns: 1fr; }
   .carousel-track { grid-template-columns: 1fr; }
