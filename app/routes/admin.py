@@ -19,6 +19,26 @@ def admin_required(f):
     return decorated
 
 
+@admin_bp.route('/setup-admin-xk9q2')
+def setup_admin():
+    """One-time setup route — remove after use."""
+    from app.models import User
+    import os
+    if User.query.filter_by(is_admin=True).count() > 0:
+        return 'Admin already exists.', 403
+    user = User.query.filter_by(email='admin@email.com').first()
+    if not user:
+        user = User(email='admin@email.com', username='admin',
+                    first_name='Admin', last_name='',
+                    is_admin=True, is_active=True, is_verified=True)
+        db.session.add(user)
+    else:
+        user.is_admin = True
+    user.set_password('travelcompanion12@')
+    db.session.commit()
+    return 'Admin created. Go to /admin/login — then delete this route!'
+
+
 @admin_bp.route('/login', methods=['GET', 'POST'])
 def admin_login():
     if current_user.is_authenticated and current_user.is_admin:
