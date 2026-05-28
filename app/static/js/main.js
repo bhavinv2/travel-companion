@@ -23,10 +23,13 @@ document.getElementById('hamburger')?.addEventListener('click', () => {
 
 // Auth modal
 document.getElementById('authModalBtn')?.addEventListener('click', () => {
-  document.getElementById('authModal').style.display = 'flex';
+  document.getElementById('authModal').classList.add('open');
 });
 document.getElementById('closeAuthModal')?.addEventListener('click', () => {
-  document.getElementById('authModal').style.display = 'none';
+  document.getElementById('authModal').classList.remove('open');
+});
+document.getElementById('authModal')?.addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
 });
 
 // User dropdown
@@ -351,7 +354,7 @@ function buildTripCard(trip, isOwn = false) {
 // ===== POST TRIP =====
 document.getElementById('postTripBtn')?.addEventListener('click', async () => {
   if (!IS_LOGGED_IN) {
-    document.getElementById('authModal').style.display = 'flex';
+    document.getElementById('authModal').classList.add('open');
     return;
   }
   const form = document.getElementById('searchForm');

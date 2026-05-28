@@ -96,7 +96,8 @@ textarea, input, select, button { font-family: inherit; }
 @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* ===== MODAL ===== */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9998; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9998; display: none; align-items: center; justify-content: center; padding: 20px; }
+.modal-overlay.open { display: flex; }
 .modal-box { background: white; border-radius: 16px; padding: 32px; max-width: 440px; width: 100%; position: relative; box-shadow: var(--shadow-lg); }
 .modal-box.sm { max-width: 340px; }
 .modal-box h2 { font-family: 'Poppins', sans-serif; font-size: 22px; margin-bottom: 8px; }
