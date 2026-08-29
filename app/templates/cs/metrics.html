@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}Metrics – CS Console{% endblock %}
+{% macro pct(v) -%}{%- if v is none -%}—{%- else -%}{{ (v * 100)|round(0)|int }}%{%- endif -%}{%- endmacro %}
+{% block content %}
+<div class="admin-page">
+  {% with active='metrics' %}{% include 'cs/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <div class="card-head">
+      <h1>Metrics</h1>
+      <form method="GET" class="inline-form">
+        <select name="days" onchange="this.form.submit()">
+          {% for d in [7, 30, 90, 365] %}<option value="{{ d }}" {% if days == d %}selected{% endif %}>Last {{ d }} days</option>{% endfor %}
+        </select>
+      </form>
+    </div>
+
+    <div class="metrics-grid">
+      <div class="metric"><strong>{{ posts_n }}</strong><span>Posts created</span>
+        <small>{% for s, n in by_source.most_common() %}{{ s }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}</small></div>
+      <div class="metric"><strong>{{ pct(claim_rate) }}</strong><span>Claim rate (CS-sourced posts confirmed)</span><small>{{ claimed_n }} of {{ cs_posts_n }}</small></div>
+      <div class="metric"><strong>{{ matches_n }}</strong><span>Matches suggested</span>
+        <small>75%+: {{ bands.get('75+', 0) }} · 55–74: {{ bands.get('55-74', 0) }} · 40–54: {{ bands.get('40-54', 0) }}</small></div>
+      <div class="metric"><strong>{{ ttm.median|round(1) if ttm.median is not none else '—' }} h</strong><span>Median time to first match</span><small>avg {{ ttm.avg|round(1) if ttm.avg is not none else '—' }} h over {{ ttm.n }} posts</small></div>
+      <div class="metric"><strong>{{ pct(pct_manual) }}</strong><span>Notifications needing manual work</span><small>{{ manual }} manual · {{ auto }} automatic — drive this down with claim links</small></div>
+      <div class="metric"><strong>{{ pct(open_rate) }}</strong><span>Notified sides that opened their link</span><small>{{ sent_n }} sides notified</small></div>
+      <div class="metric"><strong>{{ pct(connected_rate) }}</strong><span>Connected rate (of notified matches)</span><small>{{ m_by_status.get('connected', 0) }} of {{ notified_n }}</small></div>
+      <div class="metric"><strong>{{ pct(escalation_rate) }}</strong><span>Escalated (silent after notification)</span><small>{{ escalated }} sides</small></div>
+    </div>
+
+    <div class="detail-grid">
+      <div class="admin-card">
+        <h2>Match outcomes</h2>
+        <table class="admin-table"><tbody>
+          {% for s in ['suggested', 'notified', 'viewed', 'connected', 'dismissed'] %}
+          <tr><td>{{ s }}</td><td style="width:60%"><div class="bar"><div style="width:{{ (100 * m_by_status.get(s, 0) / matches_n) if matches_n else 0 }}%"></div></div></td><td>{{ m_by_status.get(s, 0) }}</td></tr>
+          {% endfor %}
+        </tbody></table>
+        <h3 class="sub">Dismiss reasons</h3>
+        <table class="admin-table"><tbody>
+          {% for r, n in dismiss_reasons.most_common() %}<tr><td>{{ r|replace('_',' ') }}</td><td>{{ n }}</td></tr>{% else %}<tr><td class="muted">none</td></tr>{% endfor %}
+        </tbody></table>
+      </div>
+      <div class="admin-card">
+        <h2>Channels used</h2>
+        <table class="admin-table"><tbody>
+          {% for c, n in channels.most_common() %}<tr><td>{{ CHANNEL_LABELS[c] if CHANNEL_LABELS is defined and c in CHANNEL_LABELS else c }}</td><td>{{ n }}</td></tr>{% else %}<tr><td class="muted">no notifications yet</td></tr>{% endfor %}
+        </tbody></table>
+        <h3 class="sub">Post status</h3>
+        <table class="admin-table"><tbody>
+          {% for s, n in by_status.most_common() %}<tr><td>{{ s }}</td><td>{{ n }}</td></tr>{% endfor %}
+        </tbody></table>
+      </div>
+    </div>
+
+    <div class="admin-card">
+      <h2>Weight tuning hints</h2>
+      <p class="muted">How often each criterion was satisfied in matches that <strong>connected</strong> ({{ good_n }}) versus ones people <strong>rejected</strong> ({{ bad_n }}). Criteria that are satisfied far more often in connected matches deserve more weight; ones satisfied just as often in rejected matches are not predictive. Override weights with the <code>MATCH_WEIGHTS</code> env var, e.g. <code>{"route": 40, "flight": 10}</code>.</p>
+      <div class="table-wrap"><table class="admin-table">
+        <thead><tr><th>Criterion</th><th>Weight</th><th>OK in connected</th><th>OK in rejected</th><th>Hint</th></tr></thead>
+        <tbody>
+        {% for t in tuning %}
+          <tr><td>{{ t.label }}</td><td>{{ t.weight|round(1) }}</td><td>{{ pct(t.ok_connected) }}</td><td>{{ pct(t.ok_dismissed) }}</td><td>{{ t.hint }}</td></tr>
+        {% endfor %}
+        </tbody></table></div>
+    </div>
+  </main>
+</div>
+{% endblock %}

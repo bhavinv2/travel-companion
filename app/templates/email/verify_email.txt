@@ -1,0 +1,13 @@
+Hi {{ user.first_name or user.username }},
+
+Welcome to Connecting Desis! Please confirm your e-mail address by opening this link (valid for 3 days):
+
+  {{ link }}
+
+Confirming lets us notify you reliably when we find a travel companion on your route.
+
+Safe travels,
+The Connecting Desis team
+{{ site_url }} · {{ support_email }}
+
+If you did not create an account, you can ignore this message.

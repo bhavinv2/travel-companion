@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Choose a new password – Connecting Desis{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <h1>Choose a new password</h1>
+    </div>
+    <form method="POST" class="auth-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <div class="field-group">
+        <label>New password <small>(min 8 characters)</small></label>
+        <input type="password" name="password" required minlength="8" autofocus/>
+      </div>
+      <div class="field-group">
+        <label>Confirm password</label>
+        <input type="password" name="confirm" required minlength="8"/>
+      </div>
+      <button type="submit" class="btn btn-primary w-full mt-2"><i class="fa-solid fa-key"></i> Change password</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

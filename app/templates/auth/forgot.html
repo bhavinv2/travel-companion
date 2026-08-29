@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Forgot password – Connecting Desis{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <h1>Forgot your password?</h1>
+      <p>Enter your e-mail and we will send you a link to choose a new one.</p>
+    </div>
+    <form method="POST" class="auth-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <div class="field-group">
+        <label>Email Address</label>
+        <input type="email" name="email" required placeholder="your@email.com" autofocus/>
+      </div>
+      <button type="submit" class="btn btn-primary w-full mt-2"><i class="fa-solid fa-envelope"></i> Send reset link</button>
+      <p class="auth-switch"><a href="{{ url_for('auth.login') }}">Back to login</a></p>
+    </form>
+  </div>
+</div>
+{% endblock %}
