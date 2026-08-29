@@ -3,7 +3,7 @@
 ## 1. Run Locally (No GCP needed)
 
 ```bash
-cd connecting-desis
+cd travel-companion
 python -m venv venv
 source venv/bin/activate          # Mac/Linux
 # venv\Scripts\activate           # Windows
@@ -14,14 +14,12 @@ pip install -r requirements.txt
 cp .env.example .env
 # Edit .env — for local dev, use SQLite by leaving DATABASE_URL as sqlite:///dev.db
 
-# Initialize database
-flask db init
-flask db migrate -m "Initial migration"
+# Apply database migrations (the migrations/ folder is already in the repo - do not run `flask db init`)
 flask db upgrade
 
 # Run the app
 python run.py
-# Visit http://localhost:5000
+# Visit http://localhost:5001
 ```
 
 ## 2. Create Your First Admin User
