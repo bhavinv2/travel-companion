@@ -1,0 +1,205 @@
+{% extends 'base.html' %}
+{% from 'cs/_macros.html' import contact_icons, status_chip, role_chip, source_chip with context %}
+{% block title %}Matches for #{{ trip.id }} – CS Console{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='posts' %}{% include 'cs/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <div class="card-head">
+      <h1>Matches for post #{{ trip.id }}</h1>
+      <div>
+        <a class="btn-sm" href="{{ url_for('cs.post_detail', trip_id=trip.id) }}"><i class="fa-solid fa-arrow-left"></i> Post</a>
+        <a class="btn-sm" href="{{ url_for('matches.cs_matches', trip_id=trip.id, recompute=1) }}"><i class="fa-solid fa-rotate"></i> Recompute</a>
+      </div>
+    </div>
+
+    <div class="match-layout">
+      <!-- LEFT: the selected post -->
+      <aside class="match-left">
+        <div class="admin-card">
+          <h2>{{ trip.route_display }}</h2>
+          <p>{{ status_chip(trip) }} {{ role_chip(trip) }} {{ source_chip(trip) }}</p>
+          <dl class="dl">
+            <dt>Person</dt><dd>{{ trip.poster_name or (trip.author.username if trip.author else '—') }}{% if trip.traveler_name %} <small class="muted">for {{ trip.traveler_name }}</small>{% endif %}</dd>
+            <dt>Departs</dt><dd>{{ trip.from_date or '—' }}{% if trip.from_date_flexible %} (flexible){% endif %}{% if trip.days_to_departure is not none %} <span class="chip {{ 'chip-urgent' if trip.days_to_departure <= 3 else 'chip-src' }}">{{ trip.days_to_departure }}d</span>{% endif %}</dd>
+            <dt>Flight</dt><dd>{{ trip.airline or '—' }} {{ trip.flight_number or '' }}</dd>
+            <dt>Languages</dt><dd>{{ (trip.preferred_languages or [])|join(', ') or '—' }}</dd>
+            <dt>Traveller</dt><dd>{{ AGE_GROUP_LABELS.get(trip.traveler_age_group, '?') }} / {{ trip.traveler_gender or '?' }}</dd>
+            <dt>Wants</dt><dd>{{ trip.pref_gender or 'any' }}{% if trip.pref_age_min or trip.pref_age_max %}, {{ trip.pref_age_min or '?' }}–{{ trip.pref_age_max or '?' }}{% endif %}</dd>
+            <dt>Contact</dt><dd class="ci-cell">{{ contact_icons(trip) }}<br/><small class="muted">{{ CHANNEL_LABELS[channel_me] }}</small></dd>
+          </dl>
+          {% if channel_me == 'none' %}
+            <p class="urgent mt-2"><i class="fa-solid fa-triangle-exclamation"></i> Not reachable — send the claim link first.</p>
+          {% endif %}
+        </div>
+      </aside>
+
+      <!-- RIGHT: ranked matches -->
+      <section class="match-right">
+        {% if not rows %}
+          <div class="admin-card"><p class="muted">No matches yet. Matches appear when another post shares the route (same cities) within ±7 days.</p></div>
+        {% endif %}
+        {% for r in rows %}
+        {% set m = r.match %}{% set o = r.other %}
+        <div class="admin-card match-card" id="match-{{ m.id }}">
+          <div class="match-head">
+            <div class="score-badge score-{{ 'high' if m.score >= 75 else 'mid' if m.score >= 55 else 'low' }}">{{ m.score }}%</div>
+            <div class="match-title">
+              <a href="{{ url_for('cs.post_detail', trip_id=o.id) }}"><strong>#{{ o.id }}</strong> {{ o.poster_name or (o.author.username if o.author else 'Traveller') }}</a>
+              {{ role_chip(o) }} {{ status_chip(o) }} {{ source_chip(o) }}
+              <div class="muted">{{ o.route_display }} · {{ o.from_date or '?' }}{% if o.airline %} · {{ o.airline }} {{ o.flight_number or '' }}{% endif %}{% if o.days_to_departure is not none %} · {{ o.days_to_departure }}d{% endif %}</div>
+            </div>
+            <div class="ci-cell">{{ contact_icons(o) }}</div>
+            <span class="chip chip-{{ 'open' if m.status == 'connected' else 'matched' if m.status in ('notified','viewed') else 'src' }}">{{ m.status }}</span>
+          </div>
+
+          <div class="criteria">
+            {% for c in m.criteria or [] %}
+              <span class="crit {{ 'crit-ok' if c.ok else 'crit-no' }}" title="{{ c.points }} / {{ c.weight }} pts"><i class="fa-solid {{ 'fa-check' if c.ok else 'fa-xmark' }}"></i> {{ c.label }}: {{ c.detail }}</span>
+            {% endfor %}
+          </div>
+
+          <table class="sides">
+            <thead><tr><th></th><th>Channel</th><th>Status</th><th>Link</th><th>Manual</th></tr></thead>
+            <tbody>
+              {% for side, t, p, ch in [('This post', trip, r.party_me, r.channel_me), ('Other', o, r.party_other, r.channel_other)] %}
+              <tr>
+                <td><strong>{{ side }}</strong> <small class="muted">#{{ t.id }}</small></td>
+                <td><span class="chip {{ 'chip-unconfirmed' if ch == 'none' else 'chip-src' }}">{{ CHANNEL_LABELS[ch] }}</span></td>
+                <td>{% if p %}<span class="chip chip-{{ 'open' if p.status in ('connected','contact_viewed') else 'matched' if p.status in ('sent','opened') else 'closed' if p.status in ('not_suitable','no_response') else 'unconfirmed' }}">{{ p.status|replace('_',' ') }}</span>
+                    {% if p.sent_at %}<br/><small class="muted">sent {{ p.sent_at.strftime('%m-%d %H:%M') }}{% if p.sent_by %} by {{ p.sent_by.username }}{% endif %}</small>{% endif %}
+                    {% if p.viewed_at %}<br/><small class="muted">viewed {{ p.viewed_at.strftime('%m-%d %H:%M') }}</small>{% endif %}
+                    {% else %}<span class="muted">—</span>{% endif %}</td>
+                <td>{% if p %}<a href="{{ url_for('matches.contact_page', token=p.token) }}" target="_blank" title="What this person sees"><i class="fa-solid fa-up-right-from-square"></i> preview</a>{% endif %}</td>
+                <td>
+                  {% if t.status != 'closed' and m.status != 'dismissed' %}
+                  <button type="button" class="btn-sm" onclick="openIntro({{ m.id }}, {{ t.id }}, '{{ 'this' if side == 'This post' else 'other' }}')"><i class="fa-solid fa-message"></i> Intro text</button>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          <div class="match-actions">
+            {% if m.status != 'dismissed' and m.status != 'connected' %}
+              <form method="POST" action="{{ url_for('matches.cs_notify', match_id=m.id) }}" style="display:inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ request.path }}#match-{{ m.id }}"/>
+                <button class="btn btn-primary" {% if not r.can_notify %}disabled title="Both sides must be reachable and public"{% endif %}><i class="fa-solid fa-paper-plane"></i> Notify both</button>
+              </form>
+              <form method="POST" action="{{ url_for('matches.cs_connected', match_id=m.id) }}" style="display:inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ request.path }}#match-{{ m.id }}"/>
+                <button class="btn-sm green"><i class="fa-solid fa-handshake"></i> Mark connected</button>
+              </form>
+              <form method="POST" action="{{ url_for('matches.cs_dismiss', match_id=m.id) }}" class="inline-form" style="display:inline-flex">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ request.path }}"/>
+                <select name="reason">{% for d in DISMISS_REASONS if d not in ('post_changed','post_closed','not_suitable_by_party') %}<option value="{{ d }}">{{ d|replace('_',' ') }}</option>{% endfor %}</select>
+                <button class="btn-sm danger"><i class="fa-solid fa-xmark"></i> Dismiss</button>
+              </form>
+            {% endif %}
+            {% if not r.can_notify and m.status not in ('dismissed','connected') %}
+              <small class="muted">
+                {% if r.channel_me == 'none' %}This post is not reachable yet.{% endif %}
+                {% if r.channel_other == 'none' %} Other post is not reachable yet (send claim link).{% endif %}
+                {% if not o.is_public %} Other post is {{ o.status }}.{% endif %}
+              </small>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+
+        {% if dismissed %}
+        <div class="admin-card">
+          <h3 class="sub">Recently dismissed</h3>
+          <ul class="plain">
+            {% for m in dismissed %}{% set o = m.other_trip(trip.id) %}
+            <li><small>#{{ o.id }} {{ o.route_display }} ({{ o.from_date or '?' }}) — {{ m.score }}% — {{ (m.dismissed_reason or '')|replace('_',' ') }}</small></li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- Intro text modal (action B) -->
+<div class="modal-overlay" id="introModal" style="display:none">
+  <div class="modal-box" style="max-width:620px">
+    <button class="modal-close" onclick="document.getElementById('introModal').style.display='none'">&times;</button>
+    <h2><i class="fa-solid fa-message"></i> Intro text</h2>
+    <p id="introSubtitle"></p>
+    <div id="introContacts" class="check-grid mb"></div>
+    <button type="button" class="btn-sm" onclick="generateIntro()"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate</button>
+    <textarea id="introText" rows="12" readonly style="margin-top:10px"></textarea>
+    <div class="inline-form">
+      <button type="button" class="btn btn-primary" onclick="copyIntro()"><i class="fa-solid fa-copy"></i> Copy</button>
+      <select id="introChannel">
+        {% for c in PARTY_CHANNELS if c.startswith('manual_') %}<option value="{{ c }}">{{ CHANNEL_LABELS[c] }}</option>{% endfor %}
+      </select>
+      <button type="button" class="btn-sm green" onclick="markIntroSent()"><i class="fa-solid fa-check"></i> Mark sent</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const ROWS = {
+  {% for r in rows %}
+  {{ r.match.id }}: {
+    this: { tripId: {{ trip.id }}, name: {{ (trip.poster_name or (trip.author.username if trip.author else 'this person'))|tojson }},
+            otherContacts: {{ r.other_consented|map(attribute='to_dict', )|list|tojson if false else '[' ~ (r.other_consented|map('attr', 'id')|list|join(',')) ~ ']' }},
+            otherContactLabels: {{ dict(r.other_consented|map(attribute='id')|zip(r.other_consented|map(attribute='value')))|tojson if false else '{}' }} },
+    other: { tripId: {{ r.other.id }}, name: {{ (r.other.poster_name or (r.other.author.username if r.other.author else 'the other person'))|tojson }} }
+  },
+  {% endfor %}
+};
+// consented contact points per trip id (values shown only to CS)
+const CONTACTS = {
+  {{ trip.id }}: [{% for cp in trip.contact_points if cp.consent_to_share and cp.type != 'inapp_chat' %}{ id: {{ cp.id }}, label: {{ (CONTACT_TYPE_LABELS[cp.type] ~ ': ' ~ cp.value ~ (' (' ~ cp.label ~ ')' if cp.label else ''))|tojson }} },{% endfor %}],
+  {% for r in rows %}
+  {{ r.other.id }}: [{% for cp in r.other_consented %}{ id: {{ cp.id }}, label: {{ (CONTACT_TYPE_LABELS[cp.type] ~ ': ' ~ cp.value ~ (' (' ~ cp.label ~ ')' if cp.label else ''))|tojson }} },{% endfor %}],
+  {% endfor %}
+};
+let _intro = { matchId: null, forTripId: null, partyId: null };
+
+function openIntro(matchId, forTripId, side) {
+  const row = ROWS[matchId];
+  const otherTripId = side === 'this' ? row.other.tripId : row.this.tripId;
+  const toName = side === 'this' ? row.this.name : row.other.name;
+  _intro = { matchId, forTripId, partyId: null };
+  document.getElementById('introSubtitle').textContent = `Message for ${toName} (post #${forTripId}). Tick which of the other person's consented contact details to include.`;
+  const box = document.getElementById('introContacts');
+  box.innerHTML = '';
+  const cps = CONTACTS[otherTripId] || [];
+  if (!cps.length) box.innerHTML = '<small class="muted">The other person has not consented to share any contact details — the text will point them to the contact page / in-app chat instead.</small>';
+  cps.forEach(cp => {
+    const l = document.createElement('label'); l.className = 'flex-check';
+    const i = document.createElement('input'); i.type = 'checkbox'; i.value = cp.id; i.checked = true;
+    l.append(i, document.createTextNode(' ' + cp.label));
+    box.appendChild(l);
+  });
+  document.getElementById('introText').value = '';
+  document.getElementById('introModal').style.display = 'flex';
+  generateIntro();
+}
+async function generateIntro() {
+  const ids = [...document.querySelectorAll('#introContacts input:checked')].map(i => +i.value);
+  const res = await apiFetch(`/cs/matches/${_intro.matchId}/intro-text`, { method: 'POST', body: JSON.stringify({ for_trip_id: _intro.forTripId, contact_point_ids: ids }) });
+  const d = await res.json();
+  if (d.error) return showToast(d.error, 'danger');
+  document.getElementById('introText').value = d.text;
+  _intro.partyId = d.party_id;
+}
+function copyIntro() {
+  navigator.clipboard.writeText(document.getElementById('introText').value).then(() => showToast('Copied', 'success'));
+}
+async function markIntroSent() {
+  if (!_intro.partyId) return showToast('Generate the text first', 'danger');
+  const res = await apiFetch(`/cs/match-parties/${_intro.partyId}/mark-sent`, { method: 'POST', body: JSON.stringify({ channel: document.getElementById('introChannel').value }) });
+  const d = await res.json();
+  if (d.success) { showToast('Marked as sent', 'success'); location.reload(); } else showToast(d.error || 'Failed', 'danger');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% from 'cs/_macros.html' import contact_icons with context %}
+{% block title %}Match queue – CS Console{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='matches' %}{% include 'cs/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <h1>Matches needing attention</h1>
+    <p class="muted">Matches where a side must be bridged manually, could not be e-mailed, was reported, or is blocked until the person confirms.</p>
+    <div class="table-wrap"><table class="admin-table stack-mobile">
+      <thead><tr><th>Match</th><th>Score</th><th>Side A</th><th>Side B</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for m in matches %}
+        <tr>
+          <td data-label="Match"><strong>#{{ m.id }}</strong><br/><small class="muted">{{ m.trip_a.route_display }} · {{ m.trip_a.from_date or '?' }}</small></td>
+          <td data-label="Score">{{ m.score }}%</td>
+          {% for t in (m.trip_a, m.trip_b) %}{% set p = m.party_for(t.id) %}
+          <td data-label="Side {{ 'A' if loop.first else 'B' }}"><a href="{{ url_for('cs.post_detail', trip_id=t.id) }}">#{{ t.id }} {{ t.poster_name or (t.author.username if t.author else '?') }}</a>
+              <span class="ci-cell">{{ contact_icons(t) }}</span><br/>
+              <small class="muted">{{ CHANNEL_LABELS[p.channel] if p else '—' }} · {{ (p.status if p else 'no party')|replace('_',' ') }}</small></td>
+          {% endfor %}
+          <td data-label="Status"><span class="chip chip-src">{{ m.status }}</span></td>
+          <td class="row-actions"><a class="btn-sm" href="{{ url_for('matches.cs_matches', trip_id=m.trip_a_id) }}#match-{{ m.id }}">Open</a></td>
+        </tr>
+      {% else %}<tr><td colspan="6" class="muted">Nothing needs attention.</td></tr>{% endfor %}
+      </tbody></table></div>
+  </main>
+</div>
+{% endblock %}

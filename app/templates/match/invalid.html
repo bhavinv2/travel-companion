@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Match not available – Connecting Desis{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <i class="fa-solid fa-link-slash" style="font-size:44px;color:var(--muted)"></i>
+      <h1>This match is no longer available</h1>
+      <p>
+        {% if reason == 'dismissed' %}One of the travellers marked this match as not suitable, or it was withdrawn.
+        {% elif reason == 'closed' %}One of the trips has been closed.
+        {% else %}We could not find this match link.{% endif %}
+        We keep looking for companions on your route — <a href="mailto:{{ SUPPORT_EMAIL }}">{{ SUPPORT_EMAIL }}</a> can help if you have questions.
+      </p>
+    </div>
+    <a href="{{ url_for('main.all_trips') }}" class="btn btn-primary w-full">Browse other travellers</a>
+  </div>
+</div>
+{% endblock %}

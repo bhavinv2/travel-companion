@@ -1,0 +1,18 @@
+Hi {{ (trip.poster_name or trip.display_name or '').split(' ')[0] or 'there' }},
+
+Good news from Connecting Desis: we found a traveller on the same route as your {{ trip.route_display }} trip.
+
+  {{ other.display_name }} — {{ other.route_display }} on {{ other.from_date or 'a similar date' }}{% if other.airline %}, {{ other.airline }} {{ other.flight_number or '' }}{% endif %}
+  Match: {{ match.score }}%{% for c in match.criteria or [] if c.ok %} · {{ c.label }}: {{ c.detail }}{% endfor %}
+
+See their request and how to get in touch (they have agreed to share these details with a matched companion):
+
+  {{ link }}
+
+If this person isn't a good fit, use "Not suitable" on that page and we will keep looking.
+
+Safe travels,
+The Connecting Desis team
+{{ site_url }} · {{ support_email }}
+
+We share contact details only with the other person's consent. Please use them respectfully.

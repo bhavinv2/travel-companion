@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% block title %}Your travel companion match – Connecting Desis{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card wide">
+    <div class="auth-header">
+      <i class="fa-solid fa-handshake" style="font-size:40px;color:var(--coral)"></i>
+      <h1>We found a possible travel companion</h1>
+      <p>For your trip <strong>{{ me.route_display }}</strong>{% if me.from_date %} on {{ me.from_date }}{% endif %}.</p>
+    </div>
+
+    <div class="match-summary">
+      <div class="score-badge score-{{ 'high' if match.score >= 75 else 'mid' if match.score >= 55 else 'low' }}">{{ match.score }}%</div>
+      <div>
+        <div class="match-name">{{ other.display_name }}{% if other.on_behalf_of and other.on_behalf_of != 'myself' %} <small class="muted">(travelling with / on behalf of {{ other.on_behalf_of|replace('_',' ') }})</small>{% endif %}</div>
+        <div class="muted">{{ other.route_display }} · {{ other.from_date or 'similar date' }}{% if other.airline %} · {{ other.airline }} {{ other.flight_number or '' }}{% endif %}</div>
+        <div class="muted"><span class="chip chip-role-{{ other.role }}">{{ TRIP_ROLE_LABELS.get(other.role, other.role) }}</span>
+          {% if other.preferred_languages %} · speaks {{ other.preferred_languages|join(', ') }}{% endif %}</div>
+      </div>
+    </div>
+    <div class="criteria">
+      {% for c in match.criteria or [] %}
+        <span class="crit {{ 'crit-ok' if c.ok else 'crit-no' }}"><i class="fa-solid {{ 'fa-check' if c.ok else 'fa-xmark' }}"></i> {{ c.label }}: {{ c.detail }}</span>
+      {% endfor %}
+    </div>
+    {% if other.additional_comments and not other.is_anonymous %}
+      <p class="muted" style="margin:12px 0"><i class="fa-solid fa-comment"></i> “{{ other.additional_comments }}”</p>
+    {% endif %}
+
+    <h2 class="contact-h">How to get in touch</h2>
+    {% if consented %}
+      <p class="muted">{{ other.display_name }} agreed to share these with a matched companion. Please use them respectfully.</p>
+      <ul class="contact-list">
+        {% for cp in consented %}
+        <li><i class="{{ CONTACT_TYPE_ICONS.get(cp.type) }}"></i> <strong>{{ CONTACT_TYPE_LABELS.get(cp.type, cp.type) }}</strong>
+          {% if cp.type in ('facebook','instagram') or cp.value.startswith('http') %}<a href="{{ cp.value }}" target="_blank" rel="noopener noreferrer">{{ cp.value }}</a>
+          {% elif cp.type == 'email' %}<a href="mailto:{{ cp.value }}">{{ cp.value }}</a>
+          {% elif cp.type == 'whatsapp' %}<a href="https://wa.me/{{ cp.value|replace('+','') }}" target="_blank" rel="noopener">{{ cp.value }}</a>
+          {% else %}<a href="tel:{{ cp.value }}">{{ cp.value }}</a>{% endif %}
+          {% if cp.label %}<small class="muted">({{ cp.label }})</small>{% endif %}
+          <button type="button" class="btn-sm" data-copy="{{ cp.value }}" onclick="copyValue(this)" title="Copy"><i class="fa-solid fa-copy"></i></button>
+        </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+    {% if can_chat %}
+      <div class="claim-account" style="margin-top:10px">
+        <i class="fa-solid fa-comments"></i> {{ other.display_name }} can be reached through Connecting Desis chat.
+        {% if current_user.is_authenticated %}
+          <button type="button" class="btn-sm" onclick="requestChat({{ other.id }})">Send a connection request</button>
+        {% else %}
+          <a class="btn-sm" href="{{ url_for('auth.login', next=request.path) }}">Log in to chat</a>
+        {% endif %}
+      </div>
+    {% endif %}
+    {% if not consented and not can_chat %}
+      <p class="muted"><i class="fa-solid fa-hourglass-half"></i> {{ other.display_name }} hasn't shared contact details yet. Our team will bridge the introduction and get back to you.</p>
+    {% endif %}
+
+    {% if not my_consented or my_consented == ['inapp_chat'] %}
+      <p class="urgent" style="margin-top:14px"><i class="fa-solid fa-triangle-exclamation"></i> You haven't shared any contact details for your own trip, so {{ other.display_name }} can only reach you through in-app chat{% if not me.user_id %} — reply to our message to add some{% endif %}.</p>
+    {% endif %}
+
+    <div class="modal-actions" style="flex-wrap:wrap">
+      <form method="POST" action="{{ url_for('matches.contact_page_action', token=party.token, action='contacted') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <button class="btn btn-primary" {% if party.status == 'connected' %}disabled{% endif %}><i class="fa-solid fa-check"></i> {{ 'Marked as contacted' if party.status == 'connected' else "I've contacted them" }}</button></form>
+      <form method="POST" action="{{ url_for('matches.contact_page_action', token=party.token, action='not-suitable') }}" onsubmit="return confirm('Mark this match as not suitable? We will keep looking.')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <button class="btn btn-outline-coral"><i class="fa-solid fa-xmark"></i> Not suitable</button></form>
+    </div>
+
+    <details class="report-box">
+      <summary>Report a problem with this match</summary>
+      <form method="POST" action="{{ url_for('matches.contact_page_action', token=party.token, action='report') }}" class="inline-form" style="margin-top:8px">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="text" name="reason" placeholder="What happened?" required/>
+        <button class="btn-sm danger">Report</button>
+      </form>
+    </details>
+
+    {% if other_matches_count %}
+      <p class="auth-switch" style="margin-top:16px">We have {{ other_matches_count }} other possible match{{ 'es' if other_matches_count != 1 else '' }} for your trip.
+        {% if me.user_id %}<a href="{{ url_for('main.index') }}#my-trips">See them under My Trips</a>{% else %}Our team will share them if this one doesn't work out.{% endif %}</p>
+    {% endif %}
+    <p class="auth-switch">Questions? <a href="mailto:{{ SUPPORT_EMAIL }}">{{ SUPPORT_EMAIL }}</a></p>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+function copyValue(btn) {
+  navigator.clipboard.writeText(btn.dataset.copy || '').then(() => showToast('Copied', 'success'), () => showToast('Copy failed', 'danger'));
+}
+async function requestChat(tripId) {
+  const res = await apiFetch(`/api/connect/${tripId}`, { method: 'POST', body: JSON.stringify({ anonymous: false }) });
+  const d = await res.json();
+  if (res.status === 409) return showToast('You already sent a request — check My Connections.', 'info');
+  if (d.success) showToast('Connection request sent! You can chat once they accept.', 'success');
+  else showToast(d.error || 'Could not send request', 'danger');
+}
+</script>
+{% endblock %}
