@@ -1,8 +1,8 @@
 from functools import wraps
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user, login_user
 from app import db, mail
-from app.models import User, CompanionRequest, Feedback, Blog, Notification
+from app.models import User, CompanionRequest, Feedback, Blog, Notification, USER_ROLES
 from flask_mail import Message as MailMessage
 from datetime import datetime
 from slugify import slugify
@@ -14,10 +14,10 @@ def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not current_user.is_authenticated or not current_user.is_admin:
+            flash('Admin access required.', 'danger')
             return redirect(url_for('main.index'))
         return f(*args, **kwargs)
     return decorated
-
 
 
 @admin_bp.route('/login', methods=['GET', 'POST'])
@@ -28,7 +28,7 @@ def admin_login():
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
         user = User.query.filter_by(email=email).first()
-        if user and user.check_password(password) and user.is_admin:
+        if user and user.check_password(password) and user.is_admin and user.is_active:
             login_user(user)
             user.last_login = datetime.utcnow()
             db.session.commit()
@@ -43,7 +43,7 @@ def admin_login():
 def dashboard():
     stats = {
         'total_users': User.query.count(),
-        'active_listings': CompanionRequest.query.filter_by(is_active=True).count(),
+        'active_listings': CompanionRequest.query.filter(CompanionRequest.status.in_(['open', 'matched'])).count(),
         'total_messages': Notification.query.count(),
         'pending_feedback': Feedback.query.filter_by(is_approved=False).count(),
     }
@@ -63,7 +63,7 @@ def users():
             (User.username.ilike(f'%{search}%')) | (User.email.ilike(f'%{search}%'))
         )
     users_list = query.order_by(User.created_at.desc()).all()
-    return render_template('admin/users.html', users=users_list, search=search)
+    return render_template('admin/users.html', users=users_list, search=search, roles=USER_ROLES)
 
 
 @admin_bp.route('/users/<int:user_id>/toggle', methods=['POST'])
@@ -71,9 +71,28 @@ def users():
 @admin_required
 def toggle_user(user_id):
     user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        return jsonify({'error': 'You cannot deactivate yourself.'}), 400
     user.is_active = not user.is_active
     db.session.commit()
     return jsonify({'success': True, 'is_active': user.is_active})
+
+
+@admin_bp.route('/users/<int:user_id>/role', methods=['POST'])
+@login_required
+@admin_required
+def set_user_role(user_id):
+    user = User.query.get_or_404(user_id)
+    data = request.get_json(silent=True) or request.form
+    role = data.get('role')
+    if role not in USER_ROLES:
+        return jsonify({'error': 'Invalid role'}), 400
+    if user.id == current_user.id and role != 'admin':
+        return jsonify({'error': 'You cannot remove your own admin role.'}), 400
+    user.role = role
+    user.is_admin = (role == 'admin')
+    db.session.commit()
+    return jsonify({'success': True, 'role': role})
 
 
 @admin_bp.route('/listings')
@@ -89,7 +108,7 @@ def listings():
 @admin_required
 def disable_listing(trip_id):
     trip = CompanionRequest.query.get_or_404(trip_id)
-    trip.is_active = False
+    trip.set_status('closed', reason='spam', by=current_user)
     db.session.commit()
     return jsonify({'success': True})
 
@@ -122,6 +141,15 @@ def reject_feedback(fid):
     return jsonify({'success': True})
 
 
+def _unique_slug(title):
+    base = slugify(title)[:300] or 'post'
+    slug, n = base, 1
+    while Blog.query.filter_by(slug=slug).first():
+        n += 1
+        slug = f'{base}-{n}'
+    return slug
+
+
 @admin_bp.route('/blog/new', methods=['GET', 'POST'])
 @login_required
 @admin_required
@@ -139,7 +167,7 @@ def new_blog():
         post = Blog(
             author_id=current_user.id,
             title=title,
-            slug=slugify(title),
+            slug=_unique_slug(title),
             content=content,
             is_published=is_published,
             published_at=datetime.utcnow() if is_published else None,
@@ -158,25 +186,30 @@ def new_blog():
 
 
 def _notify_all_blog(post):
+    """In-app notification for everyone; e-mail only to users who opted in (marketing_consent)."""
     users = User.query.filter_by(is_active=True).all()
+    mail_ok = bool(current_app.config.get('MAIL_PASSWORD'))
     for user in users:
-        notif = Notification(
+        db.session.add(Notification(
             user_id=user.id,
             type='blog',
             title=f'New Blog Post: {post.title}',
             body=post.excerpt(100),
             link=f'/blog/{post.slug}',
-        )
-        db.session.add(notif)
-        try:
-            msg = MailMessage(
-                subject=f"[Connecting Desis] New Story: {post.title}",
-                recipients=[user.email],
-                body=f"Check out our latest blog post!\n\n{post.title}\n\n{post.excerpt(200)}\n\nRead more: https://connectingdesis.com/blog/{post.slug}"
-            )
-            mail.send(msg)
-        except Exception:
-            pass
+        ))
+        if mail_ok and user.marketing_consent:
+            try:
+                msg = MailMessage(
+                    subject=f"[Connecting Desis] New Story: {post.title}",
+                    recipients=[user.email],
+                    body=(f"Check out our latest blog post!\n\n{post.title}\n\n{post.excerpt(200)}\n\n"
+                          f"Read more: {current_app.config['SITE_URL']}/blog/{post.slug}\n\n"
+                          f"You receive this because you opted in to updates. To stop, contact "
+                          f"{current_app.config['SUPPORT_EMAIL']}.")
+                )
+                mail.send(msg)
+            except Exception:
+                pass
     db.session.commit()
 
 
@@ -185,14 +218,13 @@ def _notify_all_blog(post):
 @admin_required
 def broadcast():
     data = request.get_json() or {}
-    title = data.get('title', '')
-    body = data.get('body', '')
+    title = (data.get('title') or '').strip()[:255]
+    body = (data.get('body') or '').strip()
     if not title or not body:
         return jsonify({'error': 'title and body required'}), 400
 
     users = User.query.filter_by(is_active=True).all()
     for user in users:
-        notif = Notification(user_id=user.id, type='message', title=title, body=body, link='/')
-        db.session.add(notif)
+        db.session.add(Notification(user_id=user.id, type='broadcast', title=title, body=body, link='/'))
     db.session.commit()
     return jsonify({'success': True, 'sent_to': len(users)})

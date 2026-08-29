@@ -18,7 +18,7 @@
 .conn-name { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
 .conn-route { font-size: 13px; color: var(--muted); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .conn-meta { font-size: 12px; color: var(--muted); }
-.conn-actions { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
+.conn-actions { display: flex; gap: 8px; flex-shrink: 0; align-items: center; flex-wrap: wrap; }
 .status-badge { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; }
 .status-pending { background: #fff3cd; color: #856404; }
 .status-accepted { background: #d1e7dd; color: #0a5c36; }
@@ -49,12 +49,29 @@
     <div class="conn-empty"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</div>
   </div>
 </div>
+
+<!-- RESPOND (with anonymity option) -->
+<div class="modal-overlay" id="respondModal" style="display:none">
+  <div class="modal-box sm">
+    <button class="modal-close" id="closeRespondModal">&times;</button>
+    <h2><i class="fa-solid fa-bell"></i> Connection Request</h2>
+    <p id="respondModalBody" style="color:var(--muted);font-size:14px;margin:8px 0 16px;"></p>
+    <input type="hidden" id="respondConnectionId"/>
+    <label class="tick-check" style="margin-bottom:16px;">
+      <input type="checkbox" id="respondAnonymous"/>
+      <span class="tick-box"></span>
+      <span class="tick-label">Respond anonymously — they won't see your name</span>
+    </label>
+    <div class="modal-actions">
+      <button class="btn btn-outline-coral" id="denyConnectionBtn"><i class="fa-solid fa-xmark"></i> Decline</button>
+      <button class="btn btn-primary" id="acceptConnectionBtn"><i class="fa-solid fa-check"></i> Accept</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-let _connections = null;
-
 function switchTab(tab) {
   document.getElementById('tabReceived').classList.toggle('active', tab === 'received');
   document.getElementById('tabSent').classList.toggle('active', tab === 'sent');
@@ -63,18 +80,20 @@ function switchTab(tab) {
 }
 
 function statusBadge(status) {
-  return `<span class="status-badge status-${status}">${status}</span>`;
+  return `<span class="status-badge status-${esc(status)}">${esc(status)}</span>`;
 }
 
 function avatarHtml(user) {
-  if (user.photo_url) return `<img src="${user.photo_url}" class="conn-avatar" alt="${user.username}"/>`;
+  if (user.photo_url) return `<img src="${esc(user.photo_url)}" class="conn-avatar" alt="${esc(user.username)}"/>`;
   return `<div class="conn-avatar-icon"><i class="fa-solid fa-circle-user"></i></div>`;
 }
 
-function renderReceived(connections) {
-  const panel = document.getElementById('receivedPanel');
+function renderList(panelId, connections, received) {
+  const panel = document.getElementById(panelId);
   if (!connections.length) {
-    panel.innerHTML = '<div class="conn-empty"><i class="fa-solid fa-inbox"></i> No connection requests received yet.</div>';
+    panel.innerHTML = received
+      ? '<div class="conn-empty"><i class="fa-solid fa-inbox"></i> No connection requests received yet.</div>'
+      : '<div class="conn-empty"><i class="fa-solid fa-paper-plane"></i> You haven\'t sent any connection requests yet.</div>';
     return;
   }
   panel.innerHTML = '';
@@ -82,91 +101,57 @@ function renderReceived(connections) {
     const card = document.createElement('div');
     card.className = 'conn-card';
     card.id = `conn-${c.id}`;
-
     let actions = '';
-    if (c.status === 'pending') {
-      actions = `
-        <button class="btn-sm-outline" onclick="respond(${c.id}, 'accept')"><i class="fa-solid fa-check"></i> Accept</button>
-        <button class="btn-sm-outline danger" onclick="respond(${c.id}, 'deny')"><i class="fa-solid fa-xmark"></i> Decline</button>`;
+    if (received && c.status === 'pending') {
+      actions = `<button class="btn-sm-outline" data-act="accept"><i class="fa-solid fa-check"></i> Accept</button>
+                 <button class="btn-sm-outline danger" data-act="deny"><i class="fa-solid fa-xmark"></i> Decline</button>`;
     } else if (c.status === 'accepted') {
       actions = `${statusBadge('accepted')} <a href="/inbox" class="btn-sm-outline"><i class="fa-solid fa-comments"></i> Chat</a>`;
     } else {
       actions = statusBadge(c.status);
     }
-
     card.innerHTML = `
       ${avatarHtml(c.other_user)}
       <div class="conn-info">
-        <div class="conn-name">${c.other_user.username}</div>
-        <div class="conn-route"><i class="fa-solid fa-${c.travel_type === 'air' ? 'plane' : 'car'}" style="color:var(--coral);font-size:11px"></i> ${c.route}</div>
-        <div class="conn-meta">${c.travel_date ? 'Travel: ' + c.travel_date : ''} &nbsp;·&nbsp; ${new Date(c.created_at).toLocaleDateString()}</div>
+        <div class="conn-name">${esc(c.other_user.username)}</div>
+        <div class="conn-route"><i class="fa-solid fa-${c.travel_type === 'air' ? 'plane' : 'car'}" style="color:var(--coral);font-size:11px"></i> ${esc(c.route)}</div>
+        <div class="conn-meta">${c.travel_date ? 'Travel: ' + esc(c.travel_date) : ''} &nbsp;·&nbsp; ${received ? '' : 'Sent '}${new Date(c.created_at).toLocaleDateString()}</div>
       </div>
       <div class="conn-actions">${actions}</div>`;
-    panel.appendChild(card);
-  });
-}
-
-function renderSent(connections) {
-  const panel = document.getElementById('sentPanel');
-  if (!connections.length) {
-    panel.innerHTML = '<div class="conn-empty"><i class="fa-solid fa-paper-plane"></i> You haven\'t sent any connection requests yet.</div>';
-    return;
-  }
-  panel.innerHTML = '';
-  connections.forEach(c => {
-    const card = document.createElement('div');
-    card.className = 'conn-card';
-
-    let actions = '';
-    if (c.status === 'accepted') {
-      actions = `${statusBadge('accepted')} <a href="/inbox" class="btn-sm-outline"><i class="fa-solid fa-comments"></i> Chat</a>`;
-    } else {
-      actions = statusBadge(c.status);
-    }
-
-    card.innerHTML = `
-      ${avatarHtml(c.other_user)}
-      <div class="conn-info">
-        <div class="conn-name">${c.other_user.username}</div>
-        <div class="conn-route"><i class="fa-solid fa-${c.travel_type === 'air' ? 'plane' : 'car'}" style="color:var(--coral);font-size:11px"></i> ${c.route}</div>
-        <div class="conn-meta">${c.travel_date ? 'Travel: ' + c.travel_date : ''} &nbsp;·&nbsp; Sent ${new Date(c.created_at).toLocaleDateString()}</div>
-      </div>
-      <div class="conn-actions">${actions}</div>`;
-    panel.appendChild(card);
-  });
-}
-
-async function respond(connectionId, action) {
-  try {
-    const res = await apiFetch(`/api/connect/${connectionId}/respond`, {
-      method: 'POST',
-      body: JSON.stringify({ action, anonymous: false })
+    card.querySelectorAll('button[data-act]').forEach(b => {
+      b.addEventListener('click', () => {
+        if (b.dataset.act === 'accept') {
+          openRespondModal(c.id, `${c.other_user.username} wants to connect on your trip ${c.route}.`);
+        } else {
+          respondDirect(c.id, 'deny');
+        }
+      });
     });
+    panel.appendChild(card);
+  });
+}
+
+async function respondDirect(connectionId, action) {
+  try {
+    const res = await apiFetch(`/api/connect/${connectionId}/respond`, { method: 'POST', body: JSON.stringify({ action, anonymous: false }) });
     const data = await res.json();
-    if (data.success) {
-      showToast(action === 'accept' ? 'Connection accepted!' : 'Request declined.', action === 'accept' ? 'success' : 'info');
-      loadConnections();
-    } else {
-      showToast(data.error || 'Something went wrong.', 'danger');
-    }
+    if (data.success) { showToast('Request declined.', 'info'); loadConnections(); }
+    else showToast(data.error || 'Something went wrong.', 'danger');
   } catch { showToast('Network error.', 'danger'); }
 }
+
+// main.js' respondConnection() closes the modal and calls pollUnread(); refresh the lists too.
+document.getElementById('acceptConnectionBtn')?.addEventListener('click', () => setTimeout(loadConnections, 400));
+document.getElementById('denyConnectionBtn')?.addEventListener('click', () => setTimeout(loadConnections, 400));
 
 async function loadConnections() {
   try {
     const res = await apiFetch('/api/my-connections');
     const data = await res.json();
-    _connections = data;
-
-    const rCount = data.received.length;
-    const sCount = data.sent.length;
-    const pendingCount = data.received.filter(c => c.status === 'pending').length;
-
-    document.getElementById('receivedBadge').textContent = rCount ? `(${rCount})` : '';
-    document.getElementById('sentBadge').textContent = sCount ? `(${sCount})` : '';
-
-    renderReceived(data.received);
-    renderSent(data.sent);
+    document.getElementById('receivedBadge').textContent = data.received.length ? `(${data.received.length})` : '';
+    document.getElementById('sentBadge').textContent = data.sent.length ? `(${data.sent.length})` : '';
+    renderList('receivedPanel', data.received, true);
+    renderList('sentPanel', data.sent, false);
   } catch (e) {
     document.getElementById('receivedPanel').innerHTML = '<div class="conn-empty">Failed to load connections.</div>';
   }

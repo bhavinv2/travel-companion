@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Link not valid – Connecting Desis{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <i class="fa-solid fa-link-slash" style="font-size:44px;color:var(--muted)"></i>
+      <h1>This link is no longer valid</h1>
+      <p>
+        {% if reason == 'expired' %}The link has expired.
+        {% elif reason == 'closed' %}This request has been closed.
+        {% else %}We could not find this request.{% endif %}
+        Reply to the message you received from our team or e-mail <a href="mailto:{{ SUPPORT_EMAIL }}">{{ SUPPORT_EMAIL }}</a> and we will send you a fresh link.
+      </p>
+    </div>
+    <a href="{{ url_for('main.index') }}" class="btn btn-primary w-full">Go to the home page</a>
+  </div>
+</div>
+{% endblock %}

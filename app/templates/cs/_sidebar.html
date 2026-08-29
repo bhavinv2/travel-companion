@@ -1,0 +1,15 @@
+<aside class="admin-sidebar">
+  <h3>CS Console</h3>
+  <nav>
+    <a href="{{ url_for('cs.home') }}" class="{{ 'active' if active == 'home' }}"><i class="fa-solid fa-inbox"></i> Queues</a>
+    <a href="{{ url_for('cs.posts') }}" class="{{ 'active' if active == 'posts' }}"><i class="fa-solid fa-list"></i> All Posts</a>
+    <a href="{{ url_for('matches.cs_match_queue') }}" class="{{ 'active' if active == 'matches' }}"><i class="fa-solid fa-handshake"></i> Match Queue</a>
+    <a href="{{ url_for('cs.new_post') }}" class="{{ 'active' if active == 'new' }}"><i class="fa-solid fa-plus"></i> New Post</a>
+    <a href="{{ url_for('imports.import_page') }}" class="{{ 'active' if active == 'import' }}"><i class="fa-solid fa-file-import"></i> Import</a>
+    <a href="{{ url_for('cs.metrics') }}" class="{{ 'active' if active == 'metrics' }}"><i class="fa-solid fa-chart-simple"></i> Metrics</a>
+    <a href="{{ url_for('main.all_trips') }}"><i class="fa-solid fa-eye"></i> Public view</a>
+    {% if current_user.is_admin %}
+    <a href="{{ url_for('admin.dashboard') }}"><i class="fa-solid fa-gauge"></i> Admin</a>
+    {% endif %}
+  </nav>
+</aside>

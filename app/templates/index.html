@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'cs/_macros.html' import contact_rows_widget with context %}
 {% block title %}Connecting Desis – Find Your Travel Companion{% endblock %}
 
 {% block content %}
@@ -47,50 +48,39 @@
   </div>
 </section>
 
-<!-- ===== SEARCH SECTION ===== -->
+<!-- ===== SEARCH / POST SECTION ===== -->
 <section class="search-section" id="search">
 
-  <!-- Travel Type Tab -->
   <div class="travel-tabs">
-    <button class="travel-tab active">
+    <button class="travel-tab active" type="button">
       <i class="fa-solid fa-plane-departure"></i> Flights
     </button>
   </div>
 
-  <!-- Trip Type -->
-  <div class="trip-type-row" id="tripTypeRow">
-    <label class="radio-pill">
-      <input type="radio" name="trip_type" value="one_way" checked/> One Way
-    </label>
-    <label class="radio-pill">
-      <input type="radio" name="trip_type" value="round_trip"/> Round Trip
-    </label>
-    <label class="radio-pill">
-      <input type="radio" name="trip_type" value="multi_destination"/> Multi-Destination
-    </label>
+  <!-- Role -->
+  <div class="trip-type-row" id="roleRow">
+    <label class="radio-pill"><input type="radio" name="role" value="seeking_help" form="searchForm" checked/> <i class="fa-solid fa-hand-holding-heart"></i> I need a companion</label>
+    <label class="radio-pill"><input type="radio" name="role" value="offering_help" form="searchForm"/> <i class="fa-solid fa-hands-helping"></i> I can help someone</label>
+    <label class="radio-pill"><input type="radio" name="role" value="open" form="searchForm"/> Either</label>
   </div>
 
-  <!-- FLIGHTS FORM -->
-  <form class="search-bar" id="searchForm" autocomplete="off">
+  <!-- Trip Type -->
+  <div class="trip-type-row" id="tripTypeRow">
+    <label class="radio-pill"><input type="radio" name="trip_type" value="one_way" checked/> One Way</label>
+    <label class="radio-pill"><input type="radio" name="trip_type" value="round_trip"/> Round Trip</label>
+    <label class="radio-pill"><input type="radio" name="trip_type" value="multi_destination"/> Multi-Destination</label>
+  </div>
+
+  <form class="search-bar" id="searchForm" autocomplete="off" onsubmit="return false;">
     <input type="hidden" id="tripTypeHidden" name="trip_type" value="one_way"/>
 
-    <!-- Row 1 -->
+    <!-- Row 1: who -->
     <div class="form-row" id="flightFields">
-
       <div class="field-group">
         <label>On Behalf Of</label>
         <select name="on_behalf_of" id="onBehalfOf">
           <option value="">Select</option>
-          <option value="myself">Myself</option>
-          <option value="loved_one">Loved Ones</option>
-          <option value="mother">Mother</option>
-          <option value="father">Father</option>
-          <option value="parents">Parents</option>
-          <option value="sister">Sister</option>
-          <option value="brother">Brother</option>
-          <option value="son">Son</option>
-          <option value="daughter">Daughter</option>
-          <option value="friend">Friend</option>
+          {% for val, label in OPT.ON_BEHALF_OF %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
         </select>
       </div>
 
@@ -101,12 +91,7 @@
             <span id="connectToLabel">Select companions...</span> <i class="fa-solid fa-chevron-down"></i>
           </button>
           <div class="multi-dropdown" id="connectTo">
-            {% for val, label in [
-              ('senior_citizens','Senior Citizens'),('travelling_families','Travelling Families'),
-              ('solo_male','Solo (Male)'),('solo_female','Solo (Female)'),
-              ('student','Student Travellers'),('tourist','Tourists'),
-              ('business','Business Travel'),('religious','Religious Travel')
-            ] %}
+            {% for val, label in OPT.CONNECT_ME_TO %}
             <label><input type="checkbox" name="connect_me_to" value="{{ val }}"/> {{ label }}</label>
             {% endfor %}
           </div>
@@ -120,11 +105,7 @@
             <span id="travellerNeedsLabel">Select needs...</span> <i class="fa-solid fa-chevron-down"></i>
           </button>
           <div class="multi-dropdown" id="travellerNeeds">
-            {% for val, label in [
-              ('wheelchair','Wheelchair Assistance'),('toddler','Travelling with Toddler'),
-              ('physically_challenged','Physically Challenged'),('mentally_challenged','Mentally Challenged'),
-              ('language_barrier','Language Barrier'),('medicines','Need Medicines'),('documents','Need Documents')
-            ] %}
+            {% for val, label in OPT.TRAVELLER_NEEDS %}
             <label><input type="checkbox" name="traveller_needs" value="{{ val }}"/> {{ label }}</label>
             {% endfor %}
           </div>
@@ -132,9 +113,37 @@
       </div>
     </div>
 
-    <!-- Row 2: Flight route — single leg (one-way / round-trip) -->
-    <div class="form-row" id="flightRoute">
+    <!-- Row 1b: traveller & companion preferences -->
+    <div class="form-row">
+      <div class="field-group">
+        <label>Traveller's Age Group</label>
+        <select name="traveler_age_group"><option value="">Prefer not to say</option>
+          {% for a in AGE_GROUPS %}<option value="{{ a }}">{{ AGE_GROUP_LABELS[a] }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Traveller's Gender</label>
+        <select name="traveler_gender"><option value="">Prefer not to say</option>
+          {% for g in GENDERS %}<option value="{{ g }}">{{ g|capitalize }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Companion Gender</label>
+        <select name="pref_gender">
+          {% for g in PREF_GENDERS %}<option value="{{ g }}">{{ g|capitalize }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Companion Age <span class="optional">(min – max)</span></label>
+        <div class="form-row-2">
+          <input type="number" name="pref_age_min" min="0" max="120" placeholder="min" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;"/>
+          <input type="number" name="pref_age_max" min="0" max="120" placeholder="max" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;"/>
+        </div>
+      </div>
+    </div>
 
+    <!-- Row 2: single-leg route -->
+    <div class="form-row" id="flightRoute">
       <div class="field-group" id="fieldFlyingFrom">
         <label>Flying From</label>
         <div class="input-with-icon">
@@ -148,7 +157,7 @@
         <label>Departure Date</label>
         <div class="input-with-icon">
           <i class="fa-solid fa-calendar field-icon"></i>
-          <input type="date" name="from_date" id="fromDate" min="{{ now().strftime('%Y-%m-%d') if now else '' }}"/>
+          <input type="date" name="from_date" id="fromDate"/>
         </div>
         <label class="flex-check"><input type="checkbox" name="from_date_flexible" id="fromDateFlex"/> Flexible Dates</label>
       </div>
@@ -162,12 +171,11 @@
         <label class="flex-check"><input type="checkbox" name="destination_flexible"/> Flexible Airport</label>
       </div>
 
-      <!-- Return date — only shown for round trip -->
       <div class="field-group" id="fieldReturnDate" style="display:none">
         <label>Return Date</label>
         <div class="input-with-icon">
           <i class="fa-solid fa-calendar-check field-icon"></i>
-          <input type="date" name="to_date" id="toDate" min="{{ now().strftime('%Y-%m-%d') if now else '' }}"/>
+          <input type="date" name="to_date" id="toDate"/>
         </div>
         <label class="flex-check"><input type="checkbox" name="to_date_flexible"/> Flexible Dates</label>
       </div>
@@ -192,7 +200,7 @@
             <span id="langSelectLabel">Select languages...</span> <i class="fa-solid fa-chevron-down"></i>
           </button>
           <div class="multi-dropdown" id="langSelect">
-            {% for lang in ['English','Hindi','Gujarati','Tamil','Telugu','Kannada','Malayalam','Marathi','Punjabi','Bengali','Urdu','Sindhi','Nepali','Sinhala'] %}
+            {% for lang in OPT.LANGUAGES %}
             <label><input type="checkbox" name="preferred_languages" value="{{ lang }}"/> {{ lang }}</label>
             {% endfor %}
           </div>
@@ -209,7 +217,7 @@
       </div>
     </div>
 
-    <!-- Row 2b: Multi-destination legs (hidden unless multi-destination selected) -->
+    <!-- Row 2b: multi-destination legs -->
     <div id="multiDestSection" style="display:none">
       <div class="multi-dest-header">
         <span><i class="fa-solid fa-route"></i> Your Stops</span>
@@ -226,7 +234,7 @@
               <span id="langSelectMultiLabel">Select languages...</span> <i class="fa-solid fa-chevron-down"></i>
             </button>
             <div class="multi-dropdown" id="langSelectMulti">
-              {% for lang in ['English','Hindi','Gujarati','Tamil','Telugu','Kannada','Malayalam','Marathi','Punjabi','Bengali','Urdu','Sindhi','Nepali','Sinhala'] %}
+              {% for lang in OPT.LANGUAGES %}
               <label><input type="checkbox" name="preferred_languages_multi" value="{{ lang }}"/> {{ lang }}</label>
               {% endfor %}
             </div>
@@ -251,6 +259,24 @@
       </div>
     </div>
 
+    <!-- Point of contact (Phase 2) -->
+    <div class="form-row">
+      <div class="field-group" style="flex: 1; min-width: 100%;">
+        <label>How can a matched companion reach you? <span class="optional">(shared only with companions we match you with, and only if you agree below)</span></label>
+        {% if current_user.is_authenticated %}
+          {{ contact_rows_widget([{'id': '', 'type': 'email', 'value': current_user.email, 'label': '', 'consent': False}], per_row_consent=False) }}
+          <label class="tick-check" style="margin-top:8px;">
+            <input type="checkbox" id="contactConsent" name="contact_consent"/>
+            <span class="tick-box"></span>
+            <span class="tick-label">I agree that Connecting Desis may share these contact details with travel companions matched to this trip. <a href="{{ url_for('main.privacy') }}" target="_blank">Privacy Policy</a></span>
+          </label>
+          <small class="muted">You can always be reached through in-app chat, even without ticking this.</small>
+        {% else %}
+          <p class="muted"><i class="fa-solid fa-lock"></i> Sign in to add contact details. We only share them with matched companions you approve.</p>
+        {% endif %}
+      </div>
+    </div>
+
     <!-- Action Bar -->
     <div class="action-bar">
       <div class="anon-toggle-row">
@@ -262,7 +288,7 @@
       </div>
       <p class="action-note">
         <i class="fa-solid fa-lightbulb"></i>
-        Still undecided but want to connect with fellow Desi travelers? Simply submit a post with your expected destinations or travel dates — you never know, you might be just one step away from making a memorable connection!
+        Still undecided but want to connect with fellow Desi travellers? Submit a post with your expected destinations or dates — you might be one step away from a memorable connection!
       </p>
       <div class="action-btns">
         <button type="button" class="btn btn-primary" id="postTripBtn">
@@ -327,21 +353,21 @@
       <div class="step-num">1</div>
       <div class="step-icon"><i class="fa-solid fa-user-plus"></i></div>
       <h3>Post</h3>
-      <p>Create your travel companion request in minutes</p>
+      <p>Tell us your route, dates and whether you need or can offer help</p>
     </div>
     <div class="step-arrow"><i class="fa-solid fa-arrow-right"></i></div>
     <div class="step-card">
       <div class="step-num">2</div>
       <div class="step-icon"><i class="fa-solid fa-magnifying-glass"></i></div>
-      <h3>Find</h3>
-      <p>Browse listings that match your travel plans</p>
+      <h3>Match</h3>
+      <p>Browse listings, or let our team find travellers on the same route</p>
     </div>
     <div class="step-arrow"><i class="fa-solid fa-arrow-right"></i></div>
     <div class="step-card">
       <div class="step-num">3</div>
       <div class="step-icon"><i class="fa-solid fa-comments"></i></div>
       <h3>Connect</h3>
-      <p>Send a secure message to your potential companion</p>
+      <p>Chat in-app, or share the contact details you chose — with your consent</p>
     </div>
     <div class="step-arrow"><i class="fa-solid fa-arrow-right"></i></div>
     <div class="step-card">
@@ -356,7 +382,6 @@
 <!-- ===== FEEDBACK / TESTIMONIALS ===== -->
 <section class="feedback-section" id="feedback">
   <div class="feedback-inner">
-    <!-- Left: Testimonials -->
     <div class="testimonials-col">
       <div class="section-header left">
         <p class="section-tag">Community Love</p>
@@ -401,7 +426,6 @@
       </div>
     </div>
 
-    <!-- Right: Leave a Review -->
     <div class="review-col">
       <div class="section-header left">
         <p class="section-tag">Your Voice Matters</p>
@@ -428,85 +452,26 @@
   </div>
 </section>
 
-<!-- ===== APP DOWNLOAD BAR ===== -->
+<!-- ===== MOBILE CTA ===== -->
 <section class="app-bar">
   <div class="app-bar-inner">
     <div class="app-bar-text">
-      <h2>Take Connecting Desis Everywhere</h2>
-      <p>Download our app and find travel companions on the go</p>
+      <h2>Works on your phone</h2>
+      <p>Connecting Desis is a mobile-friendly website — no app to install. Open it in your phone's browser and add it to your home screen for one-tap access.</p>
       <div class="app-badges">
-        <a href="#" class="app-badge">
-          <i class="fa-brands fa-google-play"></i>
-          <div><small>Get it on</small><strong>Google Play</strong></div>
-        </a>
-        <a href="#" class="app-badge">
-          <i class="fa-brands fa-apple"></i>
-          <div><small>Download on the</small><strong>App Store</strong></div>
-        </a>
+        <a href="{{ url_for('main.all_trips') }}" class="app-badge"><i class="fa-solid fa-mobile-screen"></i><div><small>Browse</small><strong>Desis on Move</strong></div></a>
+        <a href="{{ url_for('auth.register') if not current_user.is_authenticated else url_for('main.dashboard') }}" class="app-badge"><i class="fa-solid fa-user-plus"></i><div><small>{{ 'Create your' if not current_user.is_authenticated else 'Open your' }}</small><strong>{{ 'free account' if not current_user.is_authenticated else 'dashboard' }}</strong></div></a>
       </div>
-    </div>
-    <div class="app-bar-img">
-      <img src="/static/img/app-mockup.png" alt="App preview" onerror="this.style.display='none'"/>
     </div>
   </div>
 </section>
 
-<!-- SEND MESSAGE MODAL -->
-<!-- CONNECTION REQUEST MODAL -->
-<div class="modal-overlay" id="connectModal" style="display:none">
-  <div class="modal-box sm">
-    <button class="modal-close" id="closeConnectModal">&times;</button>
-    <h2><i class="fa-solid fa-handshake"></i> Send Connection Request</h2>
-    <p id="connectModalSubtitle" style="color:var(--muted);font-size:14px;margin:8px 0 16px;"></p>
-    <input type="hidden" id="connectTripId"/>
-    <label class="tick-check" style="margin-bottom:16px;">
-      <input type="checkbox" id="connectAnonymous"/>
-      <span class="tick-box"></span>
-      <span class="tick-label">Send anonymously — they won't see your name</span>
-    </label>
-    <div class="modal-actions">
-      <button class="btn btn-outline-coral" id="cancelConnectBtn">Cancel</button>
-      <button class="btn btn-primary" id="confirmConnectBtn"><i class="fa-solid fa-handshake"></i> Send Request</button>
-    </div>
-  </div>
-</div>
-
-<!-- RESPOND TO CONNECTION MODAL -->
-<div class="modal-overlay" id="respondModal" style="display:none">
-  <div class="modal-box sm">
-    <button class="modal-close" id="closeRespondModal">&times;</button>
-    <h2><i class="fa-solid fa-bell"></i> Connection Request</h2>
-    <p id="respondModalBody" style="color:var(--muted);font-size:14px;margin:8px 0 16px;"></p>
-    <input type="hidden" id="respondConnectionId"/>
-    <label class="tick-check" style="margin-bottom:16px;">
-      <input type="checkbox" id="respondAnonymous"/>
-      <span class="tick-box"></span>
-      <span class="tick-label">Accept anonymously — they won't see your name</span>
-    </label>
-    <div class="modal-actions">
-      <button class="btn btn-outline-coral" id="denyConnectionBtn"><i class="fa-solid fa-xmark"></i> Decline</button>
-      <button class="btn btn-primary" id="acceptConnectionBtn"><i class="fa-solid fa-check"></i> Accept</button>
-    </div>
-  </div>
-</div>
-
-<!-- CONFIRM MODAL -->
-<div class="modal-overlay" id="confirmModal" style="display:none">
-  <div class="modal-box sm">
-    <h2 id="confirmTitle">Are you sure?</h2>
-    <p id="confirmMsg"></p>
-    <div class="modal-actions">
-      <button class="btn btn-outline-coral" id="confirmNo">Cancel</button>
-      <button class="btn btn-primary" id="confirmYes">Confirm</button>
-    </div>
-  </div>
-</div>
+{% include '_trip_modals.html' %}
 
 {% endblock %}
 
 {% block extra_js %}
 <script>
-  // Set today's date as min for date pickers
   const today = new Date().toISOString().split('T')[0];
   document.querySelectorAll('input[type=date]').forEach(el => el.min = today);
 </script>

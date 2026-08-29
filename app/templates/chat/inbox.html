@@ -1,7 +1,17 @@
 {% extends 'base.html' %}
 {% block title %}Inbox – Connecting Desis{% endblock %}
+{% block extra_css %}
+<style>
+@media (max-width: 900px) {
+  .inbox-page.chat-open .inbox-sidebar { display: none; }
+  .inbox-page.chat-open .inbox-chat-area { display: flex; }
+  .inbox-back { display: inline-flex; }
+}
+.inbox-back { display: none; align-items: center; gap: 6px; background: none; border: none; color: var(--coral); font-size: 14px; cursor: pointer; margin-right: 12px; }
+</style>
+{% endblock %}
 {% block content %}
-<div class="inbox-page">
+<div class="inbox-page" id="inboxPage">
   <div class="inbox-sidebar">
     <div class="inbox-header">
       <h2>Messages</h2>
@@ -11,7 +21,7 @@
       {% for room in rooms %}
         {% set other = room.user2 if room.user1_id == current_user.id else room.user1 %}
         {% set last_msg = last_messages.get(room.id) %}
-        <div class="inbox-room-item" onclick="openRoom({{ room.id }}, '{{ other.username }}')" data-room="{{ room.id }}">
+        <div class="inbox-room-item" data-room="{{ room.id }}" data-username="{{ other.username }}">
           <div class="inbox-avatar">
             {% if other.photo_url and other.show_photo %}
               <img src="{{ other.photo_url }}" alt="{{ other.username }}"/>
@@ -21,7 +31,7 @@
           </div>
           <div class="inbox-room-info">
             <strong>{{ other.username }}</strong>
-            <span>{{ last_msg.message[:40] if last_msg else 'No messages yet' }}...</span>
+            <span>{{ (last_msg.message[:40] if last_msg and last_msg.message else ('Sent a file' if last_msg else 'No messages yet')) }}</span>
           </div>
           <div class="inbox-meta">
             <small>{{ last_msg.created_at.strftime('%b %d') if last_msg else '' }}</small>
@@ -52,23 +62,44 @@ let activeRoomId = null;
 let pollInterval = null;
 let lastMsgId = 0;
 
+document.querySelectorAll('.inbox-room-item').forEach(el => {
+  el.addEventListener('click', () => openRoom(+el.dataset.room, el.dataset.username));
+});
+
+document.getElementById('inboxSearch')?.addEventListener('input', (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  document.querySelectorAll('.inbox-room-item').forEach(el => {
+    el.style.display = !q || (el.dataset.username || '').toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+
+function closeRoom() {
+  document.getElementById('inboxPage').classList.remove('chat-open');
+  if (pollInterval) clearInterval(pollInterval);
+  activeRoomId = null;
+}
+
 function openRoom(roomId, username) {
   activeRoomId = roomId;
   lastMsgId = 0;
   document.querySelectorAll('.inbox-room-item').forEach(el => el.classList.remove('active'));
   document.querySelector(`[data-room="${roomId}"]`)?.classList.add('active');
+  document.getElementById('inboxPage').classList.add('chat-open');
 
   const area = document.getElementById('inboxChatArea');
-  area.innerHTML = `
-    <div class="inbox-chat-header">
-      <strong>${username}</strong>
-    </div>
-    <div class="inbox-messages" id="inboxMessages"></div>
-    <div class="inbox-input-row">
-      <input type="text" id="inboxMsgInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendInboxMsg()"/>
-      <button onclick="sendInboxMsg()" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i></button>
-    </div>
-  `;
+  area.innerHTML = '';
+  const header = document.createElement('div');
+  header.className = 'inbox-chat-header';
+  const back = document.createElement('button'); back.className = 'inbox-back'; back.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Back'; back.onclick = closeRoom;
+  const name = document.createElement('strong'); name.textContent = username;
+  header.append(back, name);
+  const msgs = document.createElement('div'); msgs.className = 'inbox-messages'; msgs.id = 'inboxMessages';
+  const row = document.createElement('div'); row.className = 'inbox-input-row';
+  const input = document.createElement('input'); input.type = 'text'; input.id = 'inboxMsgInput'; input.placeholder = 'Type a message...';
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendInboxMsg(); });
+  const send = document.createElement('button'); send.className = 'btn btn-primary'; send.innerHTML = '<i class="fa-solid fa-paper-plane"></i>'; send.onclick = sendInboxMsg;
+  row.append(input, send);
+  area.append(header, msgs, row);
 
   fetchMessages();
   if (pollInterval) clearInterval(pollInterval);
@@ -83,12 +114,7 @@ function fetchMessages() {
       if (!data.messages?.length) return;
       const container = document.getElementById('inboxMessages');
       data.messages.forEach(m => {
-        const div = document.createElement('div');
-        div.className = `msg-bubble ${m.sender_id === CURRENT_USER_ID ? 'sent' : 'received'}`;
-        div.innerHTML = m.message_type === 'image'
-          ? `<img src="${m.file_url}" style="max-width:200px"/>`
-          : `<span>${m.message}</span>`;
-        container.appendChild(div);
+        container.appendChild(renderMessageBubble(m));   // from main.js — builds DOM, never innerHTML
         lastMsgId = Math.max(lastMsgId, m.id);
       });
       container.scrollTop = container.scrollHeight;
@@ -100,11 +126,8 @@ function sendInboxMsg() {
   const msg = input.value.trim();
   if (!msg || !activeRoomId) return;
   input.value = '';
-  fetch(`/api/messages/${activeRoomId}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
-    body: JSON.stringify({ message: msg })
-  }).then(r => r.json()).then(() => fetchMessages());
+  apiFetch(`/api/messages/${activeRoomId}`, { method: 'POST', body: JSON.stringify({ message: msg }) })
+    .then(r => r.json()).then(() => fetchMessages());
 }
 </script>
 {% endblock %}

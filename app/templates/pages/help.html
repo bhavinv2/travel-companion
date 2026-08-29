@@ -6,13 +6,14 @@
   <div class="static-content">
     <div class="faq-list">
       {% for q, a in [
-        ('How do I post a trip?', 'Sign up or log in, then use the search bar on the home page. Fill in your travel details and click "Connect Desis" to post your request.'),
-        ('Is my email shared with other users?', 'Never. All messages are sent through our masked relay system. Other users will never see your real email address.'),
-        ('How do I connect with another traveller?', 'Browse the listings and click "Connect" on any listing. If you are not logged in, you will be prompted to create a free account.'),
-        ('Can I modify my trip after posting?', 'Yes. Go to "My Trips" in the navigation menu. Click "Modify" on your listing. All users you were chatting with will be notified of the change.'),
-        ('What happens to my listing after my travel date?', 'Listings are automatically removed from search results after your travel date has passed.'),
+        ('How do I post a trip?', 'Sign up or log in, then use the form on the home page. Say whether you need a companion or can help someone, fill in your route and dates, choose how a matched companion may reach you, and click "Connect Desis".'),
+        ('Who can see my contact details?', 'Only a travel companion we match you with — and only if you ticked the consent box for that trip. Everyone else sees just the type of contact you offer (for example an e-mail icon), never the value. You can skip contact details entirely and use in-app chat instead.'),
+        ('I got a message from your team with a link. What is it?', 'If you asked for a travel companion on Facebook or another website, our team may offer to list your request here. The link lets you confirm the request and add the contact details you want to share. Nothing is published until you confirm.'),
+        ('How do I connect with another traveller?', 'Browse the listings and click "Connect" on any listing. The other person can accept or decline; once accepted you can chat in-app.'),
+        ('Can I modify my trip after posting?', 'In-place editing is coming soon. For now, close the trip from "My Trips" and post an updated one, or contact us and we will update it for you.'),
+        ('What happens to my listing after my travel date?', 'Listings are automatically removed from search results after the departure date has passed.'),
         ('Is Connecting Desis free?', 'Yes, the core features are completely free. We may introduce premium features in the future.'),
-        ('How do I delete my account?', 'Contact us at support@connectingdesis.com and we will delete your account and all data within 48 hours.'),
+        ('How do I delete my account or a request?', 'Contact us at ' ~ SUPPORT_EMAIL ~ ' and we will delete your account, your requests and all associated data within 48 hours.'),
       ] %}
       <div class="faq-item">
         <button class="faq-q" onclick="toggleFaq(this)">

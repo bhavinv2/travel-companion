@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Request confirmed – Connecting Desis{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <i class="fa-solid fa-circle-check" style="font-size:44px;color:var(--green)"></i>
+      <h1>{{ 'Already confirmed' if already else 'Thank you!' }}</h1>
+      {% if already %}
+        <p>This request has already been confirmed. If you need to change your contact details, e-mail <a href="mailto:{{ SUPPORT_EMAIL }}">{{ SUPPORT_EMAIL }}</a>{% if not current_user.is_authenticated %} or <a href="{{ url_for('auth.login') }}">log in</a> to manage it{% endif %}.</p>
+      {% else %}
+        <p>Your request <strong>{{ trip.route_display }}</strong> is now live. We will look for matching travellers and get back to you using the contact details you gave us.</p>
+      {% endif %}
+    </div>
+    <div class="claim-next">
+      <a href="{{ url_for('main.all_trips') }}" class="btn btn-primary w-full"><i class="fa-solid fa-users"></i> Browse other travellers on your route</a>
+      {% if current_user.is_authenticated %}
+        <a href="{{ url_for('main.index') }}#my-trips" class="btn btn-outline w-full mt-2">Go to my trips</a>
+      {% else %}
+        <a href="{{ url_for('auth.register') }}" class="btn btn-outline w-full mt-2">Create an account</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

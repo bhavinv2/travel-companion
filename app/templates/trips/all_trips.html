@@ -13,9 +13,6 @@
 .trips-search-input { width: 100%; padding: 10px 12px 10px 36px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; background: white; outline: none; transition: border-color 0.2s; }
 .trips-search-input:focus { border-color: var(--coral); }
 .trips-sort-select { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 14px; background: white; cursor: pointer; }
-.trips-type-tabs { display: flex; gap: 6px; }
-.trips-type-tab { padding: 8px 18px; border-radius: 20px; border: 1px solid var(--border); background: white; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-.trips-type-tab.active { background: var(--coral); color: white; border-color: var(--coral); }
 .trips-count { font-size: 13px; color: var(--muted); margin-left: auto; white-space: nowrap; }
 .all-trips-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
 .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; margin-bottom: 20px; text-decoration: none; transition: color 0.2s; }
@@ -27,25 +24,6 @@
 }
 </style>
 {% endblock %}
-
-<!-- Connect modal (reused from main page) -->
-<div class="modal-overlay" id="connectModal" style="display:none">
-  <div class="modal-box sm">
-    <button class="modal-close" id="closeConnectModal">&times;</button>
-    <h2><i class="fa-solid fa-handshake"></i> Send Connection Request</h2>
-    <p id="connectModalSubtitle" style="color:var(--muted);font-size:14px;margin:8px 0 16px;"></p>
-    <input type="hidden" id="connectTripId"/>
-    <label class="tick-check" style="margin-bottom:16px;">
-      <input type="checkbox" id="connectAnonymous"/>
-      <span class="tick-box"></span>
-      <span class="tick-label">Send anonymously — they won't see your name</span>
-    </label>
-    <div class="modal-actions">
-      <button class="btn btn-outline-coral" id="cancelConnectBtn">Cancel</button>
-      <button class="btn btn-primary" id="confirmConnectBtn"><i class="fa-solid fa-handshake"></i> Send Request</button>
-    </div>
-  </div>
-</div>
 
 {% block content %}
 <div class="all-trips-page">
@@ -59,8 +37,12 @@
   <div class="all-trips-toolbar">
     <div class="search-input-wrap">
       <i class="fa-solid fa-magnifying-glass"></i>
-      <input type="text" id="tripsSearchInput" class="trips-search-input" placeholder="Search city, destination, airline…" autocomplete="off"/>
+      <input type="text" id="tripsSearchInput" class="trips-search-input" placeholder="Search city, airport code, airline…" autocomplete="off"/>
     </div>
+    <select id="tripsRoleSelect" class="trips-sort-select" onchange="fetchAllTrips()">
+      <option value="">Seeking &amp; offering</option>
+      {% for r in TRIP_ROLES %}<option value="{{ r }}">{{ TRIP_ROLE_LABELS[r] }}</option>{% endfor %}
+    </select>
     <select id="tripsSortSelect" class="trips-sort-select" onchange="fetchAllTrips()">
       <option value="newest">Most Recent</option>
       <option value="date">By Travel Date</option>
@@ -73,6 +55,8 @@
     <div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Loading trips…</div>
   </div>
 </div>
+
+{% include '_trip_modals.html' %}
 {% endblock %}
 
 {% block extra_js %}
@@ -84,15 +68,12 @@ async function fetchAllTrips() {
   const countEl = document.getElementById('tripsCount');
   const q = document.getElementById('tripsSearchInput').value.trim();
   const sort = document.getElementById('tripsSortSelect').value;
+  const role = document.getElementById('tripsRoleSelect').value;
 
   grid.innerHTML = '<div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Loading trips…</div>';
 
   try {
-    const res = await fetch('/api/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || '' },
-      body: JSON.stringify({ travel_type: 'air', sort, q, limit: 200 })
-    });
+    const res = await apiFetch('/api/search', { method: 'POST', body: JSON.stringify({ travel_type: 'air', sort, q, role, limit: 200 }) });
     const data = await res.json();
     const trips = data.results || [];
     if (countEl) countEl.textContent = `${trips.length} trip${trips.length !== 1 ? 's' : ''} found`;
@@ -106,25 +87,6 @@ async function fetchAllTrips() {
     grid.innerHTML = '<div class="loading-spinner">Failed to load trips. Please try again.</div>';
   }
 }
-
-document.getElementById('closeConnectModal')?.addEventListener('click', () => {
-  document.getElementById('connectModal').style.display = 'none';
-});
-document.getElementById('cancelConnectBtn')?.addEventListener('click', () => {
-  document.getElementById('connectModal').style.display = 'none';
-});
-document.getElementById('confirmConnectBtn')?.addEventListener('click', async () => {
-  const tripId = document.getElementById('connectTripId').value;
-  const anonymous = document.getElementById('connectAnonymous').checked;
-  try {
-    const res = await apiFetch(`/api/connect/${tripId}`, { method: 'POST', body: JSON.stringify({ anonymous }) });
-    const data = await res.json();
-    document.getElementById('connectModal').style.display = 'none';
-    if (res.status === 409) return showToast('You already sent a request for this trip.', 'info');
-    if (data.success) showToast('Connection request sent!', 'success');
-    else showToast(data.error || 'Something went wrong.', 'danger');
-  } catch { showToast('Something went wrong.', 'danger'); }
-});
 
 document.getElementById('tripsSearchInput').addEventListener('input', () => {
   clearTimeout(_searchTimer);

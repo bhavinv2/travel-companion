@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% from 'cs/_macros.html' import posts_table with context %}
+{% block title %}Posts – CS Console{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='posts' %}{% include 'cs/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <div class="card-head"><h1>All Posts</h1><a class="btn btn-primary" href="{{ url_for('cs.new_post') }}"><i class="fa-solid fa-plus"></i> New Post</a></div>
+
+    <form method="GET" class="cs-filters">
+      <input type="text" name="q" value="{{ filters.q }}" placeholder="Search route, name, contact, airline…"/>
+      <select name="status">
+        <option value="">Open + unconfirmed</option>
+        {% for s in TRIP_STATUSES %}<option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s|replace('_',' ')|capitalize }}</option>{% endfor %}
+      </select>
+      <select name="source">
+        <option value="">Any source</option>
+        {% for s in TRIP_SOURCES %}<option value="{{ s }}" {% if filters.source == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}
+      </select>
+      <select name="role">
+        <option value="">Any role</option>
+        {% for r in TRIP_ROLES %}<option value="{{ r }}" {% if filters.role == r %}selected{% endif %}>{{ TRIP_ROLE_LABELS[r] }}</option>{% endfor %}
+      </select>
+      <select name="contact_type">
+        <option value="">Any contact type</option>
+        {% for c in CONTACT_TYPES %}<option value="{{ c }}" {% if filters.contact_type == c %}selected{% endif %}>{{ CONTACT_TYPE_LABELS[c] }}</option>{% endfor %}
+      </select>
+      <select name="days">
+        <option value="">Any departure</option>
+        {% for d in [3, 7, 14, 30] %}<option value="{{ d }}" {% if filters.days == d %}selected{% endif %}>Departing within {{ d }} days</option>{% endfor %}
+      </select>
+      <select name="sort">
+        <option value="departure" {% if filters.sort == 'departure' %}selected{% endif %}>Soonest departure</option>
+        <option value="newest" {% if filters.sort == 'newest' %}selected{% endif %}>Newest</option>
+        <option value="updated" {% if filters.sort == 'updated' %}selected{% endif %}>Recently updated</option>
+      </select>
+      <button type="submit" class="btn btn-primary">Filter</button>
+      <a href="{{ url_for('cs.posts') }}" class="btn-sm">Reset</a>
+    </form>
+
+    <p class="muted">{{ total }} post{{ '' if total == 1 else 's' }}</p>
+    {{ posts_table(posts, empty='No posts match these filters.') }}
+
+    {% if pages > 1 %}
+    <div class="pagination">
+      {% for p in range(1, pages + 1) %}
+        {% if p == page %}<span class="page current">{{ p }}</span>
+        {% else %}<a class="page" href="{{ url_for('cs.posts', page=p, **filters) }}">{{ p }}</a>{% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

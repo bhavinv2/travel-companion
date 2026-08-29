@@ -1,0 +1,112 @@
+{# Shared modals used by the home page, the dashboard and /trips (handlers live in main.js) #}
+
+<!-- CONNECTION REQUEST MODAL -->
+<div class="modal-overlay" id="connectModal" style="display:none">
+  <div class="modal-box sm">
+    <button class="modal-close" id="closeConnectModal">&times;</button>
+    <h2><i class="fa-solid fa-handshake"></i> Send Connection Request</h2>
+    <p id="connectModalSubtitle" style="color:var(--muted);font-size:14px;margin:8px 0 16px;"></p>
+    <input type="hidden" id="connectTripId"/>
+    <label class="tick-check" style="margin-bottom:16px;">
+      <input type="checkbox" id="connectAnonymous"/>
+      <span class="tick-box"></span>
+      <span class="tick-label">Send anonymously — they won't see your name</span>
+    </label>
+    <div class="modal-actions">
+      <button class="btn btn-outline-coral" id="cancelConnectBtn">Cancel</button>
+      <button class="btn btn-primary" id="confirmConnectBtn"><i class="fa-solid fa-handshake"></i> Send Request</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESPOND TO CONNECTION MODAL -->
+<div class="modal-overlay" id="respondModal" style="display:none">
+  <div class="modal-box sm">
+    <button class="modal-close" id="closeRespondModal">&times;</button>
+    <h2><i class="fa-solid fa-bell"></i> Connection Request</h2>
+    <p id="respondModalBody" style="color:var(--muted);font-size:14px;margin:8px 0 16px;"></p>
+    <input type="hidden" id="respondConnectionId"/>
+    <label class="tick-check" style="margin-bottom:16px;">
+      <input type="checkbox" id="respondAnonymous"/>
+      <span class="tick-box"></span>
+      <span class="tick-label">Accept anonymously — they won't see your name</span>
+    </label>
+    <div class="modal-actions">
+      <button class="btn btn-outline-coral" id="denyConnectionBtn"><i class="fa-solid fa-xmark"></i> Decline</button>
+      <button class="btn btn-primary" id="acceptConnectionBtn"><i class="fa-solid fa-check"></i> Accept</button>
+    </div>
+  </div>
+</div>
+
+<!-- MATCHES MODAL (my trips) -->
+<div class="modal-overlay" id="matchesModal" style="display:none">
+  <div class="modal-box" style="max-width:640px">
+    <button class="modal-close" id="closeMatchesModal">&times;</button>
+    <h2><i class="fa-solid fa-handshake"></i> Possible companions</h2>
+    <p id="matchesSubtitle"></p>
+    <div id="matchesList" class="matches-list"></div>
+  </div>
+</div>
+
+<!-- EDIT TRIP MODAL -->
+<div class="modal-overlay" id="editTripModal" style="display:none">
+  <div class="modal-box" style="max-width:720px">
+    <button class="modal-close" id="closeEditTripModal">&times;</button>
+    <h2><i class="fa-solid fa-pen"></i> Modify trip</h2>
+    <p>Connected travellers will be notified of the change.</p>
+    <form id="editTripForm" autocomplete="off">
+      <input type="hidden" name="trip_id"/>
+      <div class="form-row">
+        <div class="field-group">
+          <label>Role</label>
+          <select name="role">{% for r in TRIP_ROLES %}<option value="{{ r }}">{{ TRIP_ROLE_LABELS[r] }}</option>{% endfor %}</select>
+        </div>
+        <div class="field-group">
+          <label>Flying from</label>
+          <div class="input-with-icon"><i class="fa-solid fa-plane-departure field-icon"></i><input type="text" name="flying_from" class="autocomplete-airport" placeholder="City or airport"/></div>
+        </div>
+        <div class="field-group">
+          <label>Destination</label>
+          <div class="input-with-icon"><i class="fa-solid fa-location-dot field-icon"></i><input type="text" name="destination" class="autocomplete-airport" placeholder="City or airport"/></div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group"><label>Departure date</label><input type="date" name="from_date"/></div>
+        <div class="field-group" id="editReturnRow"><label>Return date</label><input type="date" name="to_date"/></div>
+        <div class="field-group"><label>Airline</label><div class="input-with-icon"><i class="fa-solid fa-plane field-icon"></i><input type="text" name="airline" class="autocomplete-airline" placeholder="Search airline…"/></div></div>
+        <div class="field-group"><label>Flight no</label><input type="text" name="flight_number" placeholder="e.g. AI 101"/></div>
+      </div>
+      <div class="form-row">
+        <div class="field-group wide">
+          <label>Preferred languages</label>
+          <div class="check-grid">{% for l in OPT.LANGUAGES %}<label class="flex-check"><input type="checkbox" name="preferred_languages" value="{{ l }}"/> {{ l }}</label>{% endfor %}</div>
+        </div>
+        <div class="field-group wide">
+          <label>Traveller needs</label>
+          <div class="check-grid">{% for v, l in OPT.TRAVELLER_NEEDS %}<label class="flex-check"><input type="checkbox" name="traveller_needs" value="{{ v }}"/> {{ l }}</label>{% endfor %}</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group" style="min-width:100%"><label>Additional comments</label><textarea name="additional_comments" rows="2"></textarea></div>
+      </div>
+      <label class="flex-check"><input type="checkbox" name="ticket_booked"/> Ticket booked</label>
+      <label class="flex-check"><input type="checkbox" name="is_anonymous"/> Post anonymously</label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline-coral" id="cancelEditTrip">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="modal-overlay" id="confirmModal" style="display:none">
+  <div class="modal-box sm">
+    <h2 id="confirmTitle">Are you sure?</h2>
+    <p id="confirmMsg"></p>
+    <div class="modal-actions">
+      <button class="btn btn-outline-coral" id="confirmNo">Cancel</button>
+      <button class="btn btn-primary" id="confirmYes">Confirm</button>
+    </div>
+  </div>
+</div>

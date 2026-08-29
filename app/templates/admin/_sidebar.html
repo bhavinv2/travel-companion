@@ -1,0 +1,11 @@
+<aside class="admin-sidebar">
+  <h3>Admin Panel</h3>
+  <nav>
+    <a href="{{ url_for('admin.dashboard') }}" class="{{ 'active' if active == 'dashboard' }}"><i class="fa-solid fa-gauge"></i> Dashboard</a>
+    <a href="{{ url_for('admin.users') }}" class="{{ 'active' if active == 'users' }}"><i class="fa-solid fa-users"></i> Users</a>
+    <a href="{{ url_for('admin.listings') }}" class="{{ 'active' if active == 'listings' }}"><i class="fa-solid fa-list"></i> Listings</a>
+    <a href="{{ url_for('admin.feedback') }}" class="{{ 'active' if active == 'feedback' }}"><i class="fa-solid fa-star"></i> Feedback</a>
+    <a href="{{ url_for('admin.new_blog') }}" class="{{ 'active' if active == 'blog' }}"><i class="fa-solid fa-pen"></i> New Blog Post</a>
+    <a href="{{ url_for('cs.home') }}"><i class="fa-solid fa-headset"></i> CS Console</a>
+  </nav>
+</aside>

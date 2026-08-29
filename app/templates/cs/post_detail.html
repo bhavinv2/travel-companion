@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+{% from 'cs/_macros.html' import status_chip, role_chip, source_chip with context %}
+{% block title %}Post #{{ trip.id }} – CS Console{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='posts' %}{% include 'cs/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <div class="card-head">
+      <h1>Post #{{ trip.id }} <small class="muted">{{ trip.route_display }}</small></h1>
+      <div>
+        {{ status_chip(trip) }} {{ role_chip(trip) }} {{ source_chip(trip) }}
+        <a class="btn-sm" href="{{ url_for('cs.edit_post', trip_id=trip.id) }}"><i class="fa-solid fa-pen"></i> Edit</a>
+        <a class="btn btn-primary" href="{{ url_for('matches.cs_matches', trip_id=trip.id) }}"><i class="fa-solid fa-handshake"></i> Matches</a>
+      </div>
+    </div>
+
+    <div class="detail-grid">
+      <div class="admin-card">
+        <h2>Trip</h2>
+        <dl class="dl">
+          <dt>Route</dt><dd>{{ trip.route_display }} {% if trip.origin_iata %}<small class="muted">({{ trip.origin_iata }} &rarr; {{ trip.dest_iata }}, {{ trip.origin_metro }} &rarr; {{ trip.dest_metro }})</small>{% endif %}</dd>
+          <dt>Dates</dt><dd>{{ trip.from_date or '—' }}{% if trip.from_date_flexible %} (flexible){% endif %}{% if trip.to_date %} &rarr; {{ trip.to_date }}{% if trip.to_date_flexible %} (flexible){% endif %}{% endif %}
+            {% if trip.days_to_departure is not none %}<span class="chip {{ 'chip-urgent' if trip.days_to_departure <= 3 else 'chip-src' }}">{{ trip.days_to_departure }} days</span>{% endif %}</dd>
+          <dt>Flight</dt><dd>{{ trip.airline or '—' }} {{ trip.flight_number or '' }} {% if trip.ticket_booked %}<span class="chip chip-open">ticket booked</span>{% endif %}
+            {% if trip.ticket_attachment %}<a href="{{ url_for('files.private_file', key=trip.ticket_attachment) }}" target="_blank"><i class="fa-solid fa-paperclip"></i> attachment</a>{% endif %}</dd>
+          <dt>Trip type</dt><dd>{{ trip.trip_type|replace('_',' ') }}</dd>
+          <dt>Flexible airports</dt><dd>{{ 'origin' if trip.flying_from_flexible }} {{ 'destination' if trip.destination_flexible }}{% if not trip.flying_from_flexible and not trip.destination_flexible %}—{% endif %}</dd>
+        </dl>
+      </div>
+
+      <div class="admin-card">
+        <h2>People</h2>
+        <dl class="dl">
+          <dt>Poster</dt><dd>{{ trip.poster_name or '—' }}{% if trip.author %} <small class="muted">(account: {{ trip.author.username }}, {{ trip.author.email }})</small>{% endif %}</dd>
+          <dt>Traveller</dt><dd>{{ trip.traveler_name or '—' }} {% if trip.on_behalf_of %}<small class="muted">({{ trip.on_behalf_of|replace('_',' ') }})</small>{% endif %}</dd>
+          <dt>Age / gender</dt><dd>{{ AGE_GROUP_LABELS.get(trip.traveler_age_group, '—') }} / {{ trip.traveler_gender or '—' }}</dd>
+          <dt>Wants companion</dt><dd>{{ trip.pref_gender or 'any' }}{% if trip.pref_age_min or trip.pref_age_max %}, age {{ trip.pref_age_min or '?' }}–{{ trip.pref_age_max or '?' }}{% endif %}</dd>
+          <dt>Languages</dt><dd>{{ (trip.preferred_languages or [])|join(', ') or '—' }}</dd>
+          <dt>Needs</dt><dd>{{ (trip.traveller_needs or [])|join(', ')|replace('_',' ') or '—' }}{% if trip.special_needs_notes %}<br/><small>{{ trip.special_needs_notes }}</small>{% endif %}</dd>
+          <dt>Connect to</dt><dd>{{ (trip.connect_me_to or [])|join(', ')|replace('_',' ') or '—' }}</dd>
+          <dt>Comments</dt><dd>{{ trip.additional_comments or '—' }}</dd>
+          <dt>Source</dt><dd>{{ trip.source }}{% if trip.source_url %} · <a href="{{ trip.source_url }}" target="_blank" rel="noopener noreferrer">link</a>{% endif %}</dd>
+          <dt>Created</dt><dd>{{ trip.created_at.strftime('%Y-%m-%d %H:%M') }}{% if trip.created_by %} by {{ trip.created_by.username }}{% endif %}</dd>
+          {% if trip.cs_notes %}<dt>CS notes</dt><dd class="cs-notes">{{ trip.cs_notes }}</dd>{% endif %}
+        </dl>
+      </div>
+    </div>
+
+    <div class="admin-card">
+      <h2>Point of contact</h2>
+      {% if trip.contact_points %}
+      <div class="table-wrap"><table class="admin-table stack-mobile">
+        <thead><tr><th>Type</th><th>Value</th><th>Label</th><th>May share?</th><th>Added by</th></tr></thead>
+        <tbody>
+        {% for cp in trip.contact_points %}
+          <tr>
+            <td data-label="Type"><i class="{{ CONTACT_TYPE_ICONS.get(cp.type) }}"></i> {{ CONTACT_TYPE_LABELS.get(cp.type, cp.type) }}</td>
+            <td data-label="Value"><code class="copyable" onclick="copyText(this.textContent)" title="Click to copy">{{ cp.value if cp.type != 'inapp_chat' else 'in-app chat' }}</code></td>
+            <td data-label="Label">{{ cp.label or '—' }}</td>
+            <td data-label="May share?">{% if cp.consent_to_share %}<span class="chip chip-open">yes</span>{% else %}<span class="chip chip-unconfirmed">no</span>{% endif %}</td>
+            <td data-label="Added by"><small class="muted">{{ cp.added_by }} · {{ cp.created_at.strftime('%Y-%m-%d') }}</small></td>
+          </tr>
+        {% endfor %}
+        </tbody></table></div>
+      {% else %}<p class="muted">No contact information yet — send the claim link.</p>{% endif %}
+    </div>
+
+    <div class="detail-grid">
+      <div class="admin-card">
+        <h2>Claim link <small class="muted">(action A — collect contact info)</small></h2>
+        <p class="muted">Share this link with the person on the platform where you found them. It does not reveal what we already have or where we found it.</p>
+        <div id="claimBox">
+          {% if latest_url %}
+            <div class="copy-row"><input type="text" id="claimUrl" value="{{ latest_url }}" readonly/><button class="btn-sm" onclick="copyText(document.getElementById('claimUrl').value)">Copy link</button></div>
+            <textarea id="claimDm" rows="6" readonly>{{ dm_text }}</textarea>
+            <button class="btn-sm" onclick="copyText(document.getElementById('claimDm').value)"><i class="fa-solid fa-copy"></i> Copy DM text</button>
+            <small class="muted">expires {{ latest_token.expires_at.strftime('%Y-%m-%d') }}</small>
+          {% else %}
+            <p class="muted">No active link.</p>
+          {% endif %}
+        </div>
+        {% if trip.status != 'closed' and not trip.claimed_at %}
+        <button class="btn btn-primary mt-2" onclick="issueClaimLink({{ trip.id }})"><i class="fa-solid fa-link"></i> {{ 'Issue new link' if latest_url else 'Issue claim link' }}</button>
+        {% endif %}
+        <form method="POST" action="{{ url_for('cs.log_manual_event', trip_id=trip.id) }}" class="inline-form mt-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <select name="event">
+            <option value="claim_link_sent_manual">Claim link sent</option>
+            <option value="dm_sent">DM sent</option>
+            <option value="called">Called</option>
+            <option value="note">Note</option>
+          </select>
+          <select name="channel">
+            <option value="">channel…</option>
+            {% for c in CONTACT_TYPES %}<option value="{{ c }}">{{ CONTACT_TYPE_LABELS[c] }}</option>{% endfor %}
+          </select>
+          <input type="text" name="note" placeholder="note (optional)"/>
+          <button class="btn-sm">Log</button>
+        </form>
+      </div>
+
+      <div class="admin-card">
+        <h2>Status</h2>
+        {% if trip.status == 'closed' %}
+          <p>Closed: <strong>{{ CLOSED_REASON_LABELS.get(trip.closed_reason, trip.closed_reason) }}</strong> on {{ trip.closed_at.strftime('%Y-%m-%d') if trip.closed_at }}{% if trip.closed_by %} by {{ trip.closed_by.username }}{% endif %}</p>
+          <form method="POST" action="{{ url_for('cs.reopen_post', trip_id=trip.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><button class="btn btn-primary">Reopen</button></form>
+        {% else %}
+          {% if trip.status == 'unconfirmed' %}
+            <form method="POST" action="{{ url_for('cs.publish_post', trip_id=trip.id) }}" class="mb"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <button class="btn-sm green" onclick="return confirm('Publish without a claim? Only do this if the person confirmed with you directly.')"><i class="fa-solid fa-check"></i> Person confirmed — publish now</button></form>
+          {% endif %}
+          <form method="POST" action="{{ url_for('cs.close_post', trip_id=trip.id) }}" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <select name="reason" required><option value="">Close reason…</option>
+              {% for r in CLOSED_REASONS %}<option value="{{ r }}">{{ CLOSED_REASON_LABELS[r] }}</option>{% endfor %}
+            </select>
+            <button class="btn-sm danger" onclick="return confirm('Close this post?')"><i class="fa-solid fa-xmark"></i> Close post</button>
+          </form>
+        {% endif %}
+        {% if tokens %}
+        <h3 class="sub">Claim links issued</h3>
+        <ul class="plain">
+          {% for t in tokens %}<li><small>{{ t.created_at.strftime('%Y-%m-%d %H:%M') }}{% if t.created_by %} by {{ t.created_by.username }}{% endif %} — {% if t.used_at %}used {{ t.used_at.strftime('%Y-%m-%d') }}{% elif t.is_valid %}active{% else %}expired{% endif %}</small></li>{% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="admin-card">
+      <h2>Activity</h2>
+      <ul class="timeline">
+        {% for e in events %}
+          <li><span class="when">{{ e.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+              <span class="who">{{ e.actor.username if e.actor else e.actor_type }}</span>
+              <span class="what">{{ e.event|replace('_',' ') }}</span>
+              {% if e.meta %}<small class="muted">{% for k, v in e.meta.items() %}{% if v %}{{ k }}={{ v }} {% endif %}{% endfor %}</small>{% endif %}</li>
+        {% else %}<li class="muted">No activity yet.</li>{% endfor %}
+      </ul>
+    </div>
+  </main>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+function copyText(t) {
+  navigator.clipboard.writeText(t).then(() => showToast('Copied to clipboard', 'success'), () => showToast('Copy failed', 'danger'));
+}
+async function issueClaimLink(tripId) {
+  const res = await apiFetch(`/cs/posts/${tripId}/claim-link`, { method: 'POST', body: '{}' });
+  const d = await res.json();
+  if (!d.success) return showToast(d.error || 'Failed', 'danger');
+  const box = document.getElementById('claimBox');
+  box.innerHTML = '';
+  const row = document.createElement('div'); row.className = 'copy-row';
+  const inp = document.createElement('input'); inp.type = 'text'; inp.readOnly = true; inp.value = d.url; inp.id = 'claimUrl';
+  const b1 = document.createElement('button'); b1.className = 'btn-sm'; b1.textContent = 'Copy link'; b1.onclick = () => copyText(d.url);
+  row.append(inp, b1); box.appendChild(row);
+  const ta = document.createElement('textarea'); ta.rows = 6; ta.readOnly = true; ta.value = d.dm_text; ta.id = 'claimDm';
+  box.appendChild(ta);
+  const b2 = document.createElement('button'); b2.className = 'btn-sm'; b2.textContent = 'Copy DM text'; b2.onclick = () => copyText(d.dm_text);
+  box.appendChild(b2);
+  showToast('Claim link issued', 'success');
+}
+</script>
+{% endblock %}

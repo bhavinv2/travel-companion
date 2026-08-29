@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% from 'cs/_macros.html' import contact_rows_widget with context %}
+{% block title %}Complete your travel companion request – Connecting Desis{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card wide">
+    <div class="auth-header">
+      <h1>Complete your request</h1>
+      <p>Tell us how a matched travel companion can reach you. We only share these details with a companion we match you with — and only because you agree below.</p>
+    </div>
+
+    {% if show_route %}
+    <div class="claim-summary">
+      <div><i class="fa-solid fa-plane"></i> <strong>{{ trip.route_display }}</strong></div>
+      <div><i class="fa-solid fa-calendar"></i> {{ trip.from_date or 'date to be confirmed' }}{% if trip.to_date %} &rarr; {{ trip.to_date }}{% endif %}</div>
+      <small class="muted">Not your trip? Just close this page.</small>
+    </div>
+    {% endif %}
+
+    <form method="POST" class="auth-form" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+      <div class="field-group">
+        <label>Your name *</label>
+        <input type="text" name="name" required value="{{ form.get('name') if form else (trip.poster_name or '') }}" placeholder="How should companions address you?"/>
+      </div>
+
+      <div class="field-group">
+        <label>How can a matched companion reach you? *</label>
+        {{ contact_rows_widget(contact_rows, per_row_consent=False) }}
+        <small class="muted">E-mail is recommended — it lets us notify you automatically when we find a match.</small>
+      </div>
+
+      <label class="flex-check required-check consent-check">
+        <input type="checkbox" name="consent" required {% if form and form.get('consent') == 'on' %}checked{% endif %}/>
+        <span>I agree that Connecting Desis may share the contact details above with travel companions matched to this trip, and may contact me about it. See our <a href="{{ url_for('main.privacy') }}" target="_blank">Privacy Policy</a>. *</span>
+      </label>
+
+      {% if not current_user.is_authenticated %}
+      <div class="claim-account">
+        <label class="flex-check consent-check"><input type="checkbox" name="create_account" id="createAccount" onchange="document.getElementById('pwField').style.display = this.checked ? '' : 'none'" {% if form and form.get('create_account') == 'on' %}checked{% endif %}/> <span>Also create a free account so I can manage this request and see matches (uses my e-mail above)</span></label>
+        <div class="field-group" id="pwField" style="{{ '' if form and form.get('create_account') == 'on' else 'display:none' }}">
+          <label>Choose a password <small>(min 8 characters)</small></label>
+          <input type="password" name="password" minlength="8" placeholder="••••••••"/>
+        </div>
+      </div>
+      {% else %}
+      <p class="muted"><i class="fa-solid fa-user"></i> This request will be linked to your account <strong>{{ current_user.username }}</strong>.</p>
+      {% endif %}
+
+      <button type="submit" class="btn btn-primary w-full mt-2"><i class="fa-solid fa-check"></i> Confirm my request</button>
+      <p class="auth-switch">Questions? <a href="mailto:{{ SUPPORT_EMAIL }}">{{ SUPPORT_EMAIL }}</a></p>
+    </form>
+  </div>
+</div>
+{% endblock %}

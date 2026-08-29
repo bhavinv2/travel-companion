@@ -1,0 +1,199 @@
+{% extends 'base.html' %}
+{% from 'cs/_macros.html' import contact_rows_widget with context %}
+{% block title %}{{ 'New Post' if is_new else 'Edit Post #' ~ trip.id }} – CS Console{% endblock %}
+
+{# value helpers: prefer re-submitted form data, then the trip, then a default #}
+{% macro val(name, default='') -%}
+  {%- if form -%}{{ form.get(name, '') }}{%- elif trip and trip[name] is not none -%}{{ trip[name] }}{%- else -%}{{ default }}{%- endif -%}
+{%- endmacro %}
+{% macro chk(name) -%}
+  {%- if form -%}{{ 'checked' if form.get(name) == 'on' }}{%- elif trip and trip[name] -%}checked{%- endif -%}
+{%- endmacro %}
+{% macro inlist(name, value) -%}
+  {%- if form -%}{{ 'checked' if value in form.getlist(name) }}{%- elif trip and value in (trip[name] or []) -%}checked{%- endif -%}
+{%- endmacro %}
+{% macro sel(name, value, default='') -%}
+  {%- set cur = form.get(name) if form else (trip[name] if trip and trip[name] is not none else default) -%}
+  {{ 'selected' if cur == value }}
+{%- endmacro %}
+
+{% block content %}
+<div class="admin-page">
+  {% with active=('new' if is_new else 'posts') %}{% include 'cs/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <h1>{{ 'New Post' if is_new else 'Edit Post #' ~ trip.id }}</h1>
+    <p class="muted">Enter the details you gathered. Posts from Facebook or other websites stay <strong>unconfirmed</strong> (CS-only) until the person confirms via the claim link, unless you tick "publish now".</p>
+
+    <form method="POST" enctype="multipart/form-data" class="cs-form" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+      <section class="form-section">
+        <h2>Source</h2>
+        <div class="form-row">
+          <div class="field-group">
+            <label>Source *</label>
+            <select name="source">
+              {% for s in TRIP_SOURCES %}<option value="{{ s }}" {{ sel('source', s, 'website') }}>{{ s|capitalize }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field-group wide">
+            <label>Source link <span class="optional">(Facebook post / website URL)</span></label>
+            <input type="text" name="source_url" value="{{ val('source_url') }}" placeholder="https://…"/>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h2>People</h2>
+        <div class="form-row">
+          <div class="field-group"><label>Poster's name</label><input type="text" name="poster_name" value="{{ val('poster_name') }}" placeholder="Who posted / who we talk to"/></div>
+          <div class="field-group"><label>Traveller's name <span class="optional">(if different)</span></label><input type="text" name="traveler_name" value="{{ val('traveler_name') }}" placeholder="e.g. their mother"/></div>
+          <div class="field-group">
+            <label>Relationship with the traveller</label>
+            <select name="on_behalf_of"><option value="">Select</option>
+              {% for v, l in ON_BEHALF_OF %}<option value="{{ v }}" {{ sel('on_behalf_of', v) }}>{{ l }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Role *</label>
+            <select name="role">
+              {% for r in TRIP_ROLES %}<option value="{{ r }}" {{ sel('role', r, 'seeking_help') }}>{{ TRIP_ROLE_LABELS[r] }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field-group">
+            <label>Traveller's age group</label>
+            <select name="traveler_age_group"><option value="">Unknown</option>
+              {% for a in AGE_GROUPS %}<option value="{{ a }}" {{ sel('traveler_age_group', a) }}>{{ AGE_GROUP_LABELS[a] }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Traveller's gender</label>
+            <select name="traveler_gender"><option value="">Unknown</option>
+              {% for g in GENDERS %}<option value="{{ g }}" {{ sel('traveler_gender', g) }}>{{ g|capitalize }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h2>Trip</h2>
+        <div class="form-row">
+          <div class="field-group">
+            <label>Trip type</label>
+            <select name="trip_type" id="csTripType" onchange="document.getElementById('csReturn').style.display = this.value === 'round_trip' ? '' : 'none'">
+              <option value="one_way" {{ sel('trip_type', 'one_way', 'one_way') }}>One way</option>
+              <option value="round_trip" {{ sel('trip_type', 'round_trip') }}>Round trip</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Flying from *</label>
+            <div class="input-with-icon"><i class="fa-solid fa-plane-departure field-icon"></i>
+              <input type="text" name="flying_from" class="autocomplete-airport" value="{{ val('flying_from') }}" placeholder="City or airport"/></div>
+            <label class="flex-check"><input type="checkbox" name="flying_from_flexible" {{ chk('flying_from_flexible') }}/> Flexible airport</label>
+          </div>
+          <div class="field-group">
+            <label>Destination *</label>
+            <div class="input-with-icon"><i class="fa-solid fa-location-dot field-icon"></i>
+              <input type="text" name="destination" class="autocomplete-airport" value="{{ val('destination') }}" placeholder="City or airport"/></div>
+            <label class="flex-check"><input type="checkbox" name="destination_flexible" {{ chk('destination_flexible') }}/> Flexible airport</label>
+          </div>
+          <div class="field-group">
+            <label>Departure date *</label>
+            <input type="date" name="from_date" value="{{ val('from_date') }}"/>
+            <label class="flex-check"><input type="checkbox" name="from_date_flexible" {{ chk('from_date_flexible') }}/> Flexible dates</label>
+          </div>
+          <div class="field-group" id="csReturn" style="{{ '' if (form and form.get('trip_type') == 'round_trip') or (trip and trip.trip_type == 'round_trip') else 'display:none' }}">
+            <label>Return date</label>
+            <input type="date" name="to_date" value="{{ val('to_date') }}"/>
+            <label class="flex-check"><input type="checkbox" name="to_date_flexible" {{ chk('to_date_flexible') }}/> Flexible dates</label>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field-group">
+            <label>Airline</label>
+            <div class="input-with-icon"><i class="fa-solid fa-plane field-icon"></i>
+              <input type="text" name="airline" class="autocomplete-airline" value="{{ val('airline') }}" placeholder="Search airline…"/></div>
+          </div>
+          <div class="field-group"><label>Flight no</label><input type="text" name="flight_number" value="{{ val('flight_number') }}" placeholder="e.g. AI 101"/></div>
+          <div class="field-group">
+            <label>Ticket</label>
+            <label class="flex-check"><input type="checkbox" name="ticket_booked" {{ chk('ticket_booked') }}/> Ticket booked</label>
+            <input type="file" name="ticket_file" accept=".pdf,image/*"/>
+            {% if trip and trip.ticket_attachment %}
+              <small><a href="{{ url_for('files.private_file', key=trip.ticket_attachment) }}" target="_blank">View current attachment</a></small>
+              <label class="flex-check"><input type="checkbox" name="remove_ticket"/> Remove attachment</label>
+            {% endif %}
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h2>Needs &amp; preferences</h2>
+        <div class="form-row">
+          <div class="field-group wide">
+            <label>Traveller needs help with</label>
+            <div class="check-grid">
+              {% for v, l in TRAVELLER_NEEDS %}<label class="flex-check"><input type="checkbox" name="traveller_needs" value="{{ v }}" {{ inlist('traveller_needs', v) }}/> {{ l }}</label>{% endfor %}
+            </div>
+          </div>
+          <div class="field-group wide">
+            <label>Connect me to</label>
+            <div class="check-grid">
+              {% for v, l in CONNECT_ME_TO %}<label class="flex-check"><input type="checkbox" name="connect_me_to" value="{{ v }}" {{ inlist('connect_me_to', v) }}/> {{ l }}</label>{% endfor %}
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field-group wide">
+            <label>Preferred languages</label>
+            <div class="check-grid">
+              {% for l in LANGUAGES %}<label class="flex-check"><input type="checkbox" name="preferred_languages" value="{{ l }}" {{ inlist('preferred_languages', l) }}/> {{ l }}</label>{% endfor %}
+            </div>
+          </div>
+          <div class="field-group">
+            <label>Companion gender preference</label>
+            <select name="pref_gender">
+              {% for g in PREF_GENDERS %}<option value="{{ g }}" {{ sel('pref_gender', g, 'any') }}>{{ g|capitalize }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Companion age range</label>
+            <div class="form-row-2">
+              <input type="number" name="pref_age_min" min="0" max="120" value="{{ val('pref_age_min') }}" placeholder="min"/>
+              <input type="number" name="pref_age_max" min="0" max="120" value="{{ val('pref_age_max') }}" placeholder="max"/>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field-group wide"><label>Special needs notes</label><textarea name="special_needs_notes" rows="2">{{ val('special_needs_notes') }}</textarea></div>
+          <div class="field-group wide"><label>Additional request / concerns <span class="optional">(shown publicly)</span></label><textarea name="additional_comments" rows="3">{{ val('additional_comments') }}</textarea></div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h2>Point of contact</h2>
+        <p class="muted">Tick <em>May share?</em> only if the person explicitly agreed that we may pass this to a matched companion. Otherwise leave it unticked and send the claim link.</p>
+        {{ contact_rows_widget(contact_rows, per_row_consent=True) }}
+      </section>
+
+      <section class="form-section">
+        <h2>Internal</h2>
+        <div class="form-row">
+          <div class="field-group wide"><label>CS notes <span class="optional">(never shown publicly)</span></label><textarea name="cs_notes" rows="2">{{ val('cs_notes') }}</textarea></div>
+        </div>
+        <label class="flex-check"><input type="checkbox" name="is_anonymous" {{ chk('is_anonymous') }}/> Show publicly as anonymous (route &amp; dates only)</label>
+        {% if is_new %}
+        <label class="flex-check"><input type="checkbox" name="publish_now"/> <strong>Publish now</strong> — the person has already confirmed with us (skip the claim link)</label>
+        {% endif %}
+      </section>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ 'Create post' if is_new else 'Save changes' }}</button>
+        <a href="{{ url_for('cs.post_detail', trip_id=trip.id) if trip and trip.id else url_for('cs.posts') }}" class="btn btn-outline-coral">Cancel</a>
+      </div>
+    </form>
+  </main>
+</div>
+{% endblock %}

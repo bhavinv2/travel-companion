@@ -24,7 +24,10 @@
       <li><a href="{{ url_for('main.index') }}#how-it-works">How It Works</a></li>
       <li><a href="{{ url_for('blog.blog_list') }}">Desi Travellers Blog</a></li>
       {% if current_user.is_authenticated %}
-        <li><a href="{{ url_for('main.index') }}#my-trips">My Trips</a></li>
+        <li><a href="{{ url_for('main.dashboard') }}">My Dashboard</a></li>
+        {% if current_user.is_cs %}
+          <li><a href="{{ url_for('cs.home') }}"><i class="fa-solid fa-headset"></i> CS Console</a></li>
+        {% endif %}
         {% if current_user.is_admin %}
           <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
         {% endif %}
@@ -46,11 +49,23 @@
       </div>
 
       {% if current_user.is_authenticated %}
-        <!-- Unread badge -->
-        <a href="{{ url_for('chat.inbox') }}" class="notif-btn" id="notifBtn" title="Messages">
-          <i class="fa-solid fa-bell"></i>
-          <span class="badge" id="unreadBadge" style="display:none">0</span>
-        </a>
+        <!-- Notifications -->
+        <div class="notif-wrapper">
+          <a href="{{ url_for('chat.inbox') }}" class="notif-btn" id="notifBtn" title="Notifications">
+            <i class="fa-solid fa-bell"></i>
+            <span class="badge" id="unreadBadge" style="display:none">0</span>
+          </a>
+          <div class="notif-dropdown" id="notifDropdown">
+            <div class="notif-head">
+              <span>Notifications</span>
+              <div>
+                <button type="button" id="notifReadAll">Mark all read</button>
+                <a href="{{ url_for('chat.inbox') }}" style="font-size:12px;color:var(--coral);margin-left:8px">Inbox</a>
+              </div>
+            </div>
+            <div id="notifList"><div class="notif-empty"><i class="fa-solid fa-spinner fa-spin"></i></div></div>
+          </div>
+        </div>
         <!-- User menu -->
         <div class="user-menu-wrapper">
           <button class="user-btn" id="userMenuBtn">
@@ -63,9 +78,12 @@
             <i class="fa-solid fa-chevron-down"></i>
           </button>
           <div class="user-dropdown" id="userDropdown">
-            <a href="{{ url_for('main.index') }}#my-trips"><i class="fa-solid fa-suitcase"></i> My Trips</a>
+            <a href="{{ url_for('main.dashboard') }}"><i class="fa-solid fa-suitcase"></i> My Dashboard</a>
             <a href="{{ url_for('chat.inbox') }}"><i class="fa-solid fa-inbox"></i> Inbox</a>
             <a href="{{ url_for('main.connections_page') }}"><i class="fa-solid fa-handshake"></i> My Connections</a>
+            {% if current_user.is_cs %}
+              <a href="{{ url_for('cs.home') }}"><i class="fa-solid fa-headset"></i> CS Console</a>
+            {% endif %}
             {% if current_user.is_admin %}
               <a href="{{ url_for('admin.dashboard') }}"><i class="fa-solid fa-gauge"></i> Admin</a>
             {% endif %}
@@ -91,15 +109,19 @@
       <p>Sign in to connect with Desi travellers</p>
       <a href="{{ url_for('auth.login') }}" class="btn btn-primary w-full">Login</a>
       <a href="{{ url_for('auth.register') }}" class="btn btn-outline w-full mt-2">Create Account</a>
-      <div class="lang-modal-row">
-        <i class="fa-solid fa-globe"></i>
-        <select>
-          <option>English</option>
-          <option>हिंदी</option>
-          <option>ગુજરાતી</option>
-        </select>
-      </div>
     </div>
+  </div>
+  {% endif %}
+
+  {% if current_user.is_authenticated and not current_user.is_verified and not current_user.oauth_provider %}
+  <div class="verify-banner">
+    <i class="fa-solid fa-envelope-circle-check"></i>
+    <span>Please confirm your e-mail address <strong>{{ current_user.email }}</strong> so we can notify you about matches.</span>
+    <form method="POST" action="{{ url_for('auth.resend_verification') }}" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <input type="hidden" name="next" value="{{ request.path }}"/>
+      <button class="btn-sm">Resend link</button>
+    </form>
   </div>
   {% endif %}
 
@@ -141,18 +163,17 @@
     <div class="chat-window-header">
       <span id="chatWindowTitle">Chat</span>
       <div>
-        <button title="Voice Call (coming soon)" onclick="alert('Voice call feature coming soon!')"><i class="fa-solid fa-phone"></i></button>
         <button id="closeChatWindow">&times;</button>
       </div>
     </div>
     <div class="chat-security-msg">
-      <i class="fa-solid fa-shield-halved"></i> Messages are relayed securely. Real emails are never shared.
+      <i class="fa-solid fa-shield-halved"></i> Messages stay on Connecting Desis. Your e-mail and phone are only shared with a matched companion if you agree.
     </div>
     <div class="chat-messages" id="chatMessages"></div>
     <div class="chat-input-row">
-      <label class="chat-attach" title="Attach file">
+      <label class="chat-attach" title="Attach an image, PDF or video">
         <i class="fa-solid fa-paperclip"></i>
-        <input type="file" id="chatFileInput" style="display:none" />
+        <input type="file" id="chatFileInput" style="display:none" accept="image/*,.pdf,.mp4,.mov"/>
       </label>
       <input type="text" id="chatInput" placeholder="Type a message..." />
       <button id="chatSendBtn"><i class="fa-solid fa-paper-plane"></i></button>
@@ -176,7 +197,6 @@
         <a href="{{ url_for('main.privacy') }}">Privacy Policy</a>
         <a href="{{ url_for('main.help_page') }}">Help</a>
         <a href="{{ url_for('blog.blog_list') }}">Desi Travellers Blog</a>
-        <a href="{{ url_for('main.app_page') }}">Download App</a>
         <a href="{{ url_for('admin.admin_login') }}" style="opacity:0.35;">Admin Login</a>
       </div>
       <div class="footer-social">
@@ -187,7 +207,7 @@
       </div>
     </div>
     <div class="footer-bottom">
-      <p>&copy; 2024 Connecting Desis. All Rights Reserved.</p>
+      <p>&copy; {{ now().year }} Connecting Desis. All Rights Reserved.</p>
     </div>
   </footer>
 
@@ -195,6 +215,7 @@
     const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const IS_LOGGED_IN = {{ 'true' if current_user.is_authenticated else 'false' }};
     const CURRENT_USER_ID = {{ current_user.id if current_user.is_authenticated else 'null' }};
+    const IS_CS = {{ 'true' if current_user.is_authenticated and current_user.is_cs else 'false' }};
   </script>
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   {% block extra_js %}{% endblock %}

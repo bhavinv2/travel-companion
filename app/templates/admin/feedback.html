@@ -2,16 +2,7 @@
 {% block title %}Feedback – Admin{% endblock %}
 {% block content %}
 <div class="admin-page">
-  <aside class="admin-sidebar">
-    <h3>Admin Panel</h3>
-    <nav>
-      <a href="{{ url_for('admin.dashboard') }}"><i class="fa-solid fa-gauge"></i> Dashboard</a>
-      <a href="{{ url_for('admin.users') }}"><i class="fa-solid fa-users"></i> Users</a>
-      <a href="{{ url_for('admin.listings') }}"><i class="fa-solid fa-list"></i> Listings</a>
-      <a href="{{ url_for('admin.feedback') }}" class="active"><i class="fa-solid fa-star"></i> Feedback</a>
-      <a href="{{ url_for('admin.new_blog') }}"><i class="fa-solid fa-pen"></i> New Blog Post</a>
-    </nav>
-  </aside>
+  {% with active='feedback' %}{% include 'admin/_sidebar.html' %}{% endwith %}
   <main class="admin-main">
     <h1>Feedback Moderation</h1>
     <div class="feedback-list">
@@ -20,10 +11,10 @@
         <div class="stars">{% for i in range(fb.rating) %}★{% endfor %}{% for i in range(5-fb.rating) %}☆{% endfor %}</div>
         <p>{{ fb.comment }}</p>
         <small>By {{ fb.user.username }} — {{ fb.created_at.strftime('%Y-%m-%d') }}</small>
-        <span class="badge-pill {{ 'green' if fb.is_approved else 'yellow' }}">{{ 'Approved' if fb.is_approved else 'Pending' }}</span>
+        <span class="badge-pill {{ 'green' if fb.is_approved else 'yellow' }}" id="fb-badge-{{ fb.id }}">{{ 'Approved' if fb.is_approved else 'Pending' }}</span>
         <div class="fb-actions">
           {% if not fb.is_approved %}
-          <button class="btn-sm green" onclick="approveFb({{ fb.id }})">Approve</button>
+          <button class="btn-sm green" onclick="approveFb({{ fb.id }}, this)">Approve</button>
           {% endif %}
           <button class="btn-sm danger" onclick="rejectFb({{ fb.id }})">Reject</button>
         </div>
@@ -37,9 +28,13 @@
 {% endblock %}
 {% block extra_js %}
 <script>
-function approveFb(id) {
+function approveFb(id, btn) {
   fetch(`/admin/feedback/${id}/approve`, { method: 'POST', headers: {'X-CSRFToken': CSRF_TOKEN} })
-    .then(() => document.getElementById(`fb-${id}`).classList.add('approved'));
+    .then(() => {
+      const badge = document.getElementById(`fb-badge-${id}`);
+      badge.textContent = 'Approved'; badge.className = 'badge-pill green';
+      btn.remove();
+    });
 }
 function rejectFb(id) {
   if (!confirm('Delete this review?')) return;

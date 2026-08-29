@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+{% from 'cs/_macros.html' import posts_table, contact_icons, status_chip with context %}
+{% block title %}CS Queues – Connecting Desis{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='home' %}{% include 'cs/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <h1>Customer Service Queues</h1>
+
+    <div class="admin-stats">
+      <div class="stat-card coral"><i class="fa-solid fa-triangle-exclamation"></i><div><strong>{{ counts.needs_action }}</strong><span>Needs action</span></div></div>
+      <div class="stat-card blue"><i class="fa-solid fa-plane-departure"></i><div><strong>{{ counts.open }}</strong><span>Open posts</span></div></div>
+      <div class="stat-card yellow"><i class="fa-solid fa-hourglass-half"></i><div><strong>{{ counts.unconfirmed }}</strong><span>Awaiting claim</span></div></div>
+      <div class="stat-card green"><i class="fa-solid fa-circle-check"></i><div><strong>{{ counts.closed }}</strong><span>Closed</span></div></div>
+    </div>
+
+    <div class="admin-card" id="needs-action">
+      <div class="card-head"><h2><i class="fa-solid fa-triangle-exclamation"></i> 0 · Needs action</h2>
+        <a class="btn-sm" href="{{ url_for('matches.cs_match_queue') }}">Match queue</a></div>
+      {% if match_tasks %}
+      <h3 class="sub">Matches to bridge</h3>
+      <div class="table-wrap"><table class="admin-table stack-mobile">
+        <thead><tr><th>Match</th><th>Score</th><th>Sides</th><th>Why</th><th></th></tr></thead>
+        <tbody>
+        {% for m in match_tasks %}
+          <tr>
+            <td data-label="Match"><strong>#{{ m.id }}</strong><br/><small class="muted">{{ m.trip_a.route_display }} · {{ m.trip_a.from_date or '?' }}</small></td>
+            <td data-label="Score">{{ m.score }}%</td>
+            <td data-label="Sides">{% for t in (m.trip_a, m.trip_b) %}<a href="{{ url_for('cs.post_detail', trip_id=t.id) }}">#{{ t.id }} {{ t.poster_name or (t.author.username if t.author else '?') }}</a>{% if not loop.last %} &amp; {% endif %}{% endfor %}</td>
+            <td class="urgent" data-label="Why">{% for p in m.parties if p.status == 'pending' %}#{{ p.trip_id }}: {{ CHANNEL_LABELS.get(p.channel, p.channel) if CHANNEL_LABELS is defined else p.channel }}{% if not loop.last %}; {% endif %}{% else %}reported / e-mail failed{% endfor %}</td>
+            <td class="row-actions"><a class="btn-sm" href="{{ url_for('matches.cs_matches', trip_id=m.trip_a_id) }}#match-{{ m.id }}">Open</a></td>
+          </tr>
+        {% endfor %}
+        </tbody></table></div>
+      {% endif %}
+      {% if needs_action %}
+      <h3 class="sub">Posts</h3>
+      <div class="table-wrap"><table class="admin-table stack-mobile">
+        <thead><tr><th>Why</th><th>ID</th><th>Person</th><th>Route</th><th>Departs</th><th>Contact</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        {% for why, t in needs_action %}
+          <tr>
+            <td class="urgent" data-label="Why">{{ why }}</td>
+            <td data-label="Post"><a href="{{ url_for('cs.post_detail', trip_id=t.id) }}"><strong>#{{ t.id }}</strong></a></td>
+            <td data-label="Person">{{ t.poster_name or (t.author.username if t.author else '—') }}</td>
+            <td data-label="Route">{{ t.route_display }}</td>
+            <td data-label="Departs">{{ t.from_date or '—' }}</td>
+            <td class="ci-cell" data-label="Contact">{{ contact_icons(t) }}</td>
+            <td data-label="Status">{{ status_chip(t) }}</td>
+            <td class="row-actions"><a class="btn-sm" href="{{ url_for('cs.post_detail', trip_id=t.id) }}">Open</a></td>
+          </tr>
+        {% endfor %}
+        </tbody></table></div>
+      {% elif not match_tasks %}<p class="muted">Nothing needs attention right now.</p>{% endif %}
+    </div>
+
+    <div class="admin-card" id="departing">
+      <div class="card-head"><h2><i class="fa-solid fa-plane-departure"></i> 1 · Departing in the next 7 days</h2>
+        <a class="btn-sm" href="{{ url_for('cs.posts', days=7) }}">See all</a></div>
+      {{ posts_table(departing_soon, empty='No departures in the next 7 days.') }}
+    </div>
+
+    <div class="admin-card" id="new">
+      <div class="card-head"><h2><i class="fa-solid fa-sparkles"></i> 2 · New in the last 48 hours</h2>
+        <a class="btn-sm" href="{{ url_for('cs.posts', sort='newest') }}">See all</a></div>
+      {{ posts_table(new_posts, empty='No new posts.') }}
+    </div>
+
+    <div class="admin-card" id="repeats">
+      <h2><i class="fa-solid fa-clone"></i> 3 · Repeats &amp; possible duplicates</h2>
+      {% if dup_contact_groups %}
+        <h3 class="sub">Same contact on several posts</h3>
+        {% for g in dup_contact_groups %}
+          <div class="dup-group">
+            <span class="ci ci-ok"><i class="{{ CONTACT_TYPE_ICONS.get(g.type) }}"></i></span> <code>{{ g.value }}</code> &rarr;
+            {% for t in g.trips %}<a href="{{ url_for('cs.post_detail', trip_id=t.id) }}">#{{ t.id }} {{ t.route_display }} ({{ t.from_date or '—' }})</a>{% if not loop.last %}, {% endif %}{% endfor %}
+          </div>
+        {% endfor %}
+      {% endif %}
+      {% if dup_route_groups %}
+        <h3 class="sub">Same route and date</h3>
+        {% for g in dup_route_groups %}
+          <div class="dup-group">
+            <strong>{{ g.origin }} &rarr; {{ g.dest }}</strong> on {{ g.date }} &rarr;
+            {% for t in g.trips %}<a href="{{ url_for('cs.post_detail', trip_id=t.id) }}">#{{ t.id }} {{ t.poster_name or (t.author.username if t.author else '?') }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+          </div>
+        {% endfor %}
+      {% endif %}
+      {% if not dup_contact_groups and not dup_route_groups %}<p class="muted">No repeats detected.</p>{% endif %}
+    </div>
+
+    <div class="admin-card" id="awaiting">
+      <div class="card-head"><h2><i class="fa-solid fa-hourglass-half"></i> 5 · Awaiting claim (unconfirmed)</h2>
+        <a class="btn-sm" href="{{ url_for('cs.posts', status='unconfirmed') }}">See all</a></div>
+      {{ posts_table(awaiting_claim[:20], show_status=False, empty='No unconfirmed posts.') }}
+    </div>
+
+    <div class="admin-card" id="closed">
+      <div class="card-head"><h2><i class="fa-solid fa-circle-check"></i> 4 · Recently closed</h2>
+        <a class="btn-sm" href="{{ url_for('cs.posts', status='closed') }}">See all</a></div>
+      <div class="table-wrap"><table class="admin-table stack-mobile">
+        <thead><tr><th>ID</th><th>Person</th><th>Route</th><th>Departed</th><th>Reason</th><th>Closed</th><th></th></tr></thead>
+        <tbody>
+        {% for t in closed %}
+          <tr>
+            <td data-label="Post"><a href="{{ url_for('cs.post_detail', trip_id=t.id) }}">#{{ t.id }}</a></td>
+            <td data-label="Person">{{ t.poster_name or (t.author.username if t.author else '—') }}</td>
+            <td data-label="Route">{{ t.route_display }}</td>
+            <td data-label="Departed">{{ t.from_date or '—' }}</td>
+            <td data-label="Reason">{{ CLOSED_REASON_LABELS.get(t.closed_reason, t.closed_reason or '—') }}</td>
+            <td data-label="Closed"><small class="muted">{{ t.closed_at.strftime('%Y-%m-%d') if t.closed_at else '' }}{% if t.closed_by %} by {{ t.closed_by.username }}{% endif %}</small></td>
+            <td class="row-actions"><form method="POST" action="{{ url_for('cs.reopen_post', trip_id=t.id) }}" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ url_for('cs.home') }}#closed"/><button class="btn-sm">Reopen</button></form></td>
+          </tr>
+        {% else %}<tr><td colspan="7" class="muted">Nothing closed yet.</td></tr>{% endfor %}
+        </tbody></table></div>
+    </div>
+  </main>
+</div>
+{% endblock %}

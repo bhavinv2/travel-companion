@@ -1,19 +1,10 @@
-import os
-from flask import Blueprint, render_template, request, jsonify, current_app
+from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
-from app import db, mail
-from app.models import ChatRoom, ChatMessage, User, Notification, Message, ConnectionRequest, CompanionRequest
-from flask_mail import Message as MailMessage
-from datetime import datetime
-from werkzeug.utils import secure_filename
+from app import db
+from app.models import ChatRoom, ChatMessage, Notification, ConnectionRequest, CompanionRequest
+from app.services.storage import save_chat_file
 
 chat_bp = Blueprint('chat', __name__)
-
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf', 'mp4', 'mov'}
-
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 @chat_bp.route('/inbox')
@@ -28,85 +19,6 @@ def inbox():
         for room in rooms
     }
     return render_template('chat/inbox.html', rooms=rooms, last_messages=last_messages, hide_chat_bubble=True)
-
-
-@chat_bp.route('/api/send-message', methods=['POST'])
-@login_required
-def send_message():
-    data = request.get_json() or {}
-    recipient_id = data.get('recipient_id')
-    body = data.get('body', '').strip()
-    trip_id = data.get('trip_id')
-    subject = data.get('subject', 'New message from Connecting Desis')
-
-    if not recipient_id or not body:
-        return jsonify({'error': 'recipient_id and body are required'}), 400
-
-    recipient = User.query.get(recipient_id)
-    if not recipient:
-        return jsonify({'error': 'Recipient not found'}), 404
-
-    # Save in-app message
-    msg = Message(
-        sender_id=current_user.id,
-        recipient_id=recipient_id,
-        trip_id=trip_id,
-        subject=subject,
-        body=body,
-        masked_relay=True,
-    )
-    db.session.add(msg)
-
-    # Get or create chat room
-    room = ChatRoom.get_or_create(current_user.id, recipient_id, trip_id)
-
-    # Save chat message
-    chat_msg = ChatMessage(
-        room_id=room.id,
-        sender_id=current_user.id,
-        message=body,
-        message_type='text',
-    )
-    db.session.add(chat_msg)
-
-    # In-app notification
-    notif = Notification(
-        user_id=recipient_id,
-        type='message',
-        title=f'New message from {current_user.username}',
-        body=body[:100],
-        link='/inbox',
-    )
-    db.session.add(notif)
-
-    try:
-        db.session.commit()
-
-        # Masked email relay — never expose sender's email
-        try:
-            if not current_app.config.get('MAIL_PASSWORD'):
-                raise Exception('Mail not configured')
-            relay_msg = MailMessage(
-                subject=f"[Connecting Desis] {subject}",
-                recipients=[recipient.email],
-                body=(
-                    f"You have a new message on Connecting Desis!\n\n"
-                    f"From: {current_user.username}\n\n"
-                    f"Message:\n{body}\n\n"
-                    f"Reply via: https://connectingdesis.com/inbox\n\n"
-                    f"– Connecting Desis Team\n"
-                    f"(Do not reply to this email — use the app to respond)"
-                ),
-                reply_to=current_app.config.get('MAIL_DEFAULT_SENDER'),
-            )
-            mail.send(relay_msg)
-        except Exception:
-            pass
-
-        return jsonify({'success': True, 'room_id': room.id, 'message': chat_msg.to_dict()})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
 
 
 @chat_bp.route('/api/messages/<int:room_id>', methods=['GET'])
@@ -126,7 +38,7 @@ def get_messages(room_id):
     ChatMessage.query.filter(
         ChatMessage.room_id == room_id,
         ChatMessage.sender_id != current_user.id,
-        ChatMessage.is_read == False
+        ChatMessage.is_read == False  # noqa: E712
     ).update({'is_read': True})
     db.session.commit()
 
@@ -146,21 +58,15 @@ def post_message(room_id):
 
     if request.is_json:
         data = request.get_json()
-        message_text = data.get('message', '').strip()
+        message_text = (data.get('message') or '').strip()
     else:
-        message_text = request.form.get('message', '').strip()
-        file = request.files.get('file')
-        if file and file.filename and allowed_file(file.filename):
-            filename = secure_filename(f"{current_user.id}_{int(datetime.utcnow().timestamp())}_{file.filename}")
-            file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
-            file_url = f"/static/uploads/{filename}"
-            ext = filename.rsplit('.', 1)[1].lower()
-            if ext in ('mp4', 'mov'):
-                message_type = 'video'
-            elif ext == 'pdf':
-                message_type = 'file'
-            else:
-                message_type = 'image'
+        message_text = (request.form.get('message') or '').strip()
+        f = request.files.get('file')
+        if f and f.filename:
+            file_url, mtype = save_chat_file(f, prefix=f"chat_{current_user.id}")
+            if not file_url:
+                return jsonify({'error': 'Unsupported or invalid file. Allowed: images, PDF, MP4/MOV.'}), 400
+            message_type = mtype
 
     if not message_text and not file_url:
         return jsonify({'error': 'Message or file required'}), 400
@@ -168,7 +74,7 @@ def post_message(room_id):
     chat_msg = ChatMessage(
         room_id=room_id,
         sender_id=current_user.id,
-        message=message_text,
+        message=message_text[:4000] if message_text else None,
         message_type=message_type,
         file_url=file_url,
     )
@@ -199,7 +105,7 @@ def unread_count():
     count = ChatMessage.query.join(ChatRoom).filter(
         ((ChatRoom.user1_id == current_user.id) | (ChatRoom.user2_id == current_user.id)),
         ChatMessage.sender_id != current_user.id,
-        ChatMessage.is_read == False
+        ChatMessage.is_read == False  # noqa: E712
     ).count()
     notif_count = Notification.query.filter_by(user_id=current_user.id, is_read=False).count()
     pending = ConnectionRequest.query.join(ConnectionRequest.trip).filter(
@@ -212,7 +118,8 @@ def unread_count():
         'trip_from': c.trip.flying_from or c.trip.road_from or '?',
         'trip_to': c.trip.destination or c.trip.road_to or '?',
     } for c in pending]
-    return jsonify({'unread_messages': count, 'unread_notifications': notif_count, 'pending_connections': pending_connections})
+    return jsonify({'unread_messages': count, 'unread_notifications': notif_count,
+                    'pending_connections': pending_connections})
 
 
 @chat_bp.route('/api/rooms', methods=['GET'])
@@ -231,7 +138,8 @@ def get_rooms():
         ).count()
         result.append({
             'room_id': room.id,
-            'other_user': {'id': other.id, 'username': other.username, 'photo_url': other.photo_url if other.show_photo else None},
+            'other_user': {'id': other.id, 'username': other.username,
+                           'photo_url': other.photo_url if other.show_photo else None},
             'last_message': last_msg.to_dict() if last_msg else None,
             'unread_count': unread,
         })

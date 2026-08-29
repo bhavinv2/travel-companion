@@ -1,0 +1,128 @@
+{# Shared CS console macros. Import with:  {% from 'cs/_macros.html' import ... with context %} #}
+
+{% macro contact_icons(trip) -%}
+  {%- set cps = trip.contact_points -%}
+  {%- if cps -%}
+    {%- for cp in cps -%}
+      <span class="ci {{ 'ci-ok' if cp.consent_to_share else 'ci-pending' }}"
+            title="{{ CONTACT_TYPE_LABELS.get(cp.type, cp.type) }}{{ ' - consented' if cp.consent_to_share else ' - no consent yet' }}">
+        <i class="{{ CONTACT_TYPE_ICONS.get(cp.type, 'fa-solid fa-globe') }}"></i>
+      </span>
+    {%- endfor -%}
+  {%- else -%}
+    <span class="ci ci-none" title="No contact information">&mdash;</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro status_chip(trip) -%}
+  <span class="chip chip-{{ trip.status }}">{{ trip.status|replace('_', ' ') }}</span>
+{%- endmacro %}
+
+{% macro role_chip(trip) -%}
+  <span class="chip chip-role-{{ trip.role }}">{{ TRIP_ROLE_LABELS.get(trip.role, trip.role) }}</span>
+{%- endmacro %}
+
+{% macro source_chip(trip) -%}
+  <span class="chip chip-src">{{ trip.source }}</span>
+{%- endmacro %}
+
+{% macro post_row(trip, show_status=True) -%}
+<tr id="trip-{{ trip.id }}">
+  <td data-label="Post"><a href="{{ url_for('cs.post_detail', trip_id=trip.id) }}"><strong>#{{ trip.id }}</strong></a></td>
+  <td data-label="Person">
+    {{ trip.poster_name or (trip.author.username if trip.author else '—') }}
+    {% if trip.traveler_name %}<br/><small class="muted">for {{ trip.traveler_name }}</small>{% endif %}
+  </td>
+  <td data-label="Route">{{ trip.route_display }}{% if trip.airline %}<br/><small class="muted">{{ trip.airline }} {{ trip.flight_number or '' }}</small>{% endif %}</td>
+  <td data-label="Departs">
+    {{ trip.from_date or '—' }}
+    {% if trip.days_to_departure is not none %}
+      <small class="{{ 'urgent' if trip.days_to_departure <= 3 else 'muted' }}">({{ trip.days_to_departure }}d)</small>
+    {% endif %}
+  </td>
+  <td data-label="Role">{{ role_chip(trip) }}</td>
+  <td data-label="Source">{{ source_chip(trip) }}</td>
+  <td class="ci-cell" data-label="Contact">{{ contact_icons(trip) }}</td>
+  {% if show_status %}<td data-label="Status">{{ status_chip(trip) }}</td>{% endif %}
+  <td class="nowrap row-actions">
+    <a class="btn-sm" href="{{ url_for('cs.post_detail', trip_id=trip.id) }}">Open</a>
+    <a class="btn-sm" href="{{ url_for('cs.edit_post', trip_id=trip.id) }}">Edit</a>
+  </td>
+</tr>
+{%- endmacro %}
+
+{% macro posts_table(trips, show_status=True, empty='Nothing here.') -%}
+<div class="table-wrap">
+<table class="admin-table stack-mobile">
+  <thead><tr><th>ID</th><th>Person</th><th>Route</th><th>Departs</th><th>Role</th><th>Source</th><th>Contact</th>{% if show_status %}<th>Status</th>{% endif %}<th></th></tr></thead>
+  <tbody>
+    {% for t in trips %}{{ post_row(t, show_status) }}{% else %}
+    <tr><td colspan="9" class="muted">{{ empty }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{%- endmacro %}
+
+{# Repeatable contact-point rows. Field names: contact_id[], contact_type[], contact_value[], contact_label[], contact_consent[] (value = row index) #}
+{% macro contact_rows_widget(rows, per_row_consent=True) -%}
+<div class="contact-rows" id="contactRows" data-per-row-consent="{{ '1' if per_row_consent else '0' }}">
+  <table class="contact-table">
+    <thead><tr><th style="width:150px">Type</th><th>Value</th><th style="width:160px">Label <small>(optional)</small></th>{% if per_row_consent %}<th style="width:110px">May share?</th>{% endif %}<th style="width:36px"></th></tr></thead>
+    <tbody id="contactRowsBody">
+      {% for r in rows %}
+      <tr class="contact-row">
+        <td data-label="Type">
+          <input type="hidden" name="contact_id" value="{{ r.id or '' }}"/>
+          <select name="contact_type">
+            <option value="auto" {% if not r.type %}selected{% endif %}>Detect</option>
+            {% for ct in CONTACT_TYPES %}<option value="{{ ct }}" {% if r.type == ct %}selected{% endif %}>{{ CONTACT_TYPE_LABELS[ct] }}</option>{% endfor %}
+          </select>
+        </td>
+        <td data-label="Value"><input type="text" name="contact_value" value="{{ r.value if r.type != 'inapp_chat' else '' }}" placeholder="email, +1 555…, facebook.com/…"/></td>
+        <td data-label="Label (optional)"><input type="text" name="contact_label" value="{{ r.label or '' }}" placeholder="e.g. son's WhatsApp"/></td>
+        {% if per_row_consent %}<td class="center" data-label="May share?"><input type="checkbox" name="contact_consent" value="{{ loop.index0 }}" {% if r.consent %}checked{% endif %}/></td>{% endif %}
+        <td><button type="button" class="row-remove" onclick="removeContactRow(this)" title="Remove">&times;</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <button type="button" class="btn-sm" onclick="addContactRow()"><i class="fa-solid fa-plus"></i> Add contact</button>
+</div>
+<template id="contactRowTpl">
+  <tr class="contact-row">
+    <td data-label="Type">
+      <input type="hidden" name="contact_id" value=""/>
+      <select name="contact_type">
+        <option value="auto" selected>Detect</option>
+        {% for ct in CONTACT_TYPES %}<option value="{{ ct }}">{{ CONTACT_TYPE_LABELS[ct] }}</option>{% endfor %}
+      </select>
+    </td>
+    <td data-label="Value"><input type="text" name="contact_value" placeholder="email, +1 555…, facebook.com/…"/></td>
+    <td data-label="Label (optional)"><input type="text" name="contact_label" placeholder="e.g. son's WhatsApp"/></td>
+    {% if per_row_consent %}<td class="center" data-label="May share?"><input type="checkbox" name="contact_consent" value="__IDX__"/></td>{% endif %}
+    <td><button type="button" class="row-remove" onclick="removeContactRow(this)" title="Remove">&times;</button></td>
+  </tr>
+</template>
+<script>
+function _reindexContactRows() {
+  document.querySelectorAll('#contactRowsBody .contact-row').forEach((tr, i) => {
+    const cb = tr.querySelector('input[name="contact_consent"]');
+    if (cb) cb.value = String(i);
+  });
+}
+function addContactRow() {
+  const body = document.getElementById('contactRowsBody');
+  const tpl = document.getElementById('contactRowTpl');
+  body.appendChild(tpl.content.cloneNode(true));
+  _reindexContactRows();
+  const last = body.querySelector('.contact-row:last-child input[name="contact_value"]');
+  if (last) last.focus();
+}
+function removeContactRow(btn) {
+  btn.closest('tr').remove();
+  _reindexContactRows();
+}
+if (!document.querySelector('#contactRowsBody .contact-row')) addContactRow();
+</script>
+{%- endmacro %}
