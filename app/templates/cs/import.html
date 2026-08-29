@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}Import posts – CS Console{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='import' %}{% include 'cs/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <h1>Import posts from Excel / CSV</h1>
+
+    {% if rows is none %}
+    <div class="admin-card">
+      <p class="muted">Upload the <code>fetchall</code> scraper output unchanged, or any sheet with these columns
+        (case-insensitive): <code>origin, destination, start, end, flight, airline, role, languages, contact, email, phone, facebook,
+        title, message, poster_name, traveler_name, relationship, need_help_with, pref_gender, pref_age_min, pref_age_max, source, _url, _key</code>.
+        Rows are previewed first; nothing is saved until you confirm. Imported posts are <strong>unconfirmed</strong> and contact details are
+        <strong>not consented</strong> until the person confirms via a claim link.</p>
+      <form method="POST" enctype="multipart/form-data" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="file" name="file" accept=".xlsx,.csv" required/>
+        <select name="default_source">
+          <option value="website">Source: website</option>
+          <option value="facebook">Source: facebook</option>
+          <option value="excel">Source: excel</option>
+        </select>
+        <button class="btn btn-primary"><i class="fa-solid fa-upload"></i> Preview</button>
+      </form>
+    </div>
+    {% else %}
+    <div class="admin-card">
+      <div class="card-head">
+        <h2>Preview — {{ filename }}</h2>
+        <div><span class="chip chip-open">{{ counts.ok }} ready</span> <span class="chip chip-unconfirmed">{{ counts.duplicate }} duplicate</span> <span class="chip chip-closed">{{ counts.error }} error</span></div>
+      </div>
+      <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="hidden" name="step" value="commit"/>
+        <input type="hidden" name="payload" value="{{ payload }}"/>
+        <div class="table-wrap">
+        <table class="admin-table import-table">
+          <thead><tr><th><input type="checkbox" checked onchange="document.querySelectorAll('.inc').forEach(c => { if (!c.disabled) c.checked = this.checked })"/></th><th>#</th><th>Status</th><th>Person</th><th>Route</th><th>Departs</th><th>Flight</th><th>Role</th><th>Languages</th><th>Contact</th><th>Notes</th></tr></thead>
+          <tbody>
+          {% for r in rows %}
+            <tr class="row-{{ r.status }}">
+              <td><input type="checkbox" class="inc" name="include" value="{{ r.idx }}" {% if r.status == 'ok' %}checked{% else %}disabled{% endif %}/></td>
+              <td>{{ r.idx + 1 }}</td>
+              <td><span class="chip chip-{{ 'open' if r.status == 'ok' else 'unconfirmed' if r.status == 'duplicate' else 'closed' }}">{{ r.status }}</span>{% if r.duplicate_of %}<br/><small><a href="{{ url_for('cs.post_detail', trip_id=r.duplicate_of) }}">post #{{ r.duplicate_of }}</a></small>{% endif %}</td>
+              <td>{{ r.poster_name or '—' }}{% if r.traveler_name %}<br/><small class="muted">for {{ r.traveler_name }}</small>{% endif %}{% if r.title %}<br/><small class="muted">{{ r.title[:60] }}</small>{% endif %}</td>
+              <td>{{ r.flying_from }} &rarr; {{ r.destination }}</td>
+              <td>{{ r.from_date or '—' }}{% if r.to_date %} &rarr; {{ r.to_date }}{% endif %}</td>
+              <td>{{ r.airline or '' }} {{ r.flight_number or '' }}</td>
+              <td>{{ TRIP_ROLE_LABELS.get(r.role, r.role) }}</td>
+              <td>{{ r.languages|join(', ') }}</td>
+              <td>{% for c in r.contacts %}<span class="ci ci-pending" title="{{ c.value }}"><i class="{{ CONTACT_TYPE_ICONS.get(c.type) }}"></i></span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+              <td><small>{% for e in r.errors %}<span class="urgent">{{ e }}</span><br/>{% endfor %}{% for w in r.warnings %}<span class="muted">{{ w }}</span><br/>{% endfor %}</small></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" {% if not counts.ok %}disabled{% endif %}><i class="fa-solid fa-file-import"></i> Import selected as unconfirmed posts</button>
+          <a href="{{ url_for('imports.import_page') }}" class="btn btn-outline-coral">Start over</a>
+        </div>
+      </form>
+    </div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

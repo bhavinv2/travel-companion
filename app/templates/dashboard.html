@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% block title %}My Dashboard – Connecting Desis{% endblock %}
+{% block extra_css %}
+<style>
+.dash { padding: 32px 5% 60px; }
+.dash h1 { font-family: 'Poppins', sans-serif; font-size: 26px; font-weight: 800; margin-bottom: 4px; }
+.dash .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+.dash-section { margin-bottom: 40px; }
+.dash-section h2 { font-family: 'Poppins', sans-serif; font-size: 20px; font-weight: 800; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+.dash-matches { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 16px; }
+.dash-matches > * { min-width: 0; }
+.dash-match { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); }
+.dash-match .for { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.dash-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+.dash-filters input[type=text] { flex: 1; min-width: 200px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+.dash-filters select { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 14px; background: white; }
+.dash-empty { background: var(--bg); border-radius: var(--radius); padding: 28px; text-align: center; color: var(--muted); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="dash">
+  <h1><i class="fa-solid fa-gauge" style="color:var(--coral)"></i> Hello, {{ current_user.first_name or current_user.username }}</h1>
+  <p class="subtitle">Your matches, your posts, and other travellers on the move.</p>
+
+  <!-- Section 0: matches -->
+  <section class="dash-section" id="dashMatches">
+    <h2><i class="fa-solid fa-handshake"></i> Your matches {% if match_rows %}<span class="chip chip-open">{{ match_rows|length }}</span>{% endif %}</h2>
+    {% if match_rows %}
+    <div class="dash-matches">
+      {% for r in match_rows %}{% set m = r.match %}{% set o = r.other %}
+      <div class="dash-match" id="dm-{{ m.id }}">
+        <div class="for">For your trip {{ r.trip.route_display }} · {{ r.trip.from_date or '' }}</div>
+        <div class="match-head">
+          <div class="score-badge score-{{ 'high' if m.score >= 75 else 'mid' if m.score >= 55 else 'low' }}">{{ m.score }}%</div>
+          <div class="match-title">
+            <strong>{{ o.display_name }}</strong> <span class="trip-role-badge chip-role-{{ o.role }}">{{ TRIP_ROLE_LABELS.get(o.role, o.role) }}</span>
+            <div class="muted">{{ o.route_display }} · {{ o.from_date or 'similar date' }}{% if o.airline %} · {{ o.airline }} {{ o.flight_number or '' }}{% endif %}</div>
+            {% if o.preferred_languages %}<div class="muted" style="font-size:12px">speaks {{ o.preferred_languages|join(', ') }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="criteria">
+          {% for c in m.criteria or [] %}<span class="crit {{ 'crit-ok' if c.ok else 'crit-no' }}"><i class="fa-solid {{ 'fa-check' if c.ok else 'fa-xmark' }}"></i> {{ c.label }}: {{ c.detail }}</span>{% endfor %}
+        </div>
+        <div class="muted" style="font-size:12px;margin-bottom:8px">
+          {% if m.status == 'connected' %}<span class="chip chip-open">connected</span>
+          {% elif r.mine or r.theirs %}You: {{ (r.mine.status if r.mine else 'not notified')|replace('_',' ') }} · Them: {{ (r.theirs.status if r.theirs else 'not notified')|replace('_',' ') }}
+          {% else %}Nobody's contact details have been shared yet.{% endif %}
+        </div>
+        <div class="match-actions">
+          {% if m.status not in ('connected', 'dismissed') %}
+            <button class="btn btn-primary" style="padding:7px 12px;font-size:12px" onclick="dashNotify({{ m.id }}, this)"><i class="fa-solid fa-paper-plane"></i> Share my contact &amp; notify</button>
+          {% endif %}
+          {% if r.mine %}<a class="btn-sm-outline" href="{{ url_for('matches.contact_page', token=r.mine.token) }}"><i class="fa-solid fa-address-card"></i> Contact details</a>{% endif %}
+          {% if m.status != 'dismissed' %}<button class="btn-sm-outline danger" onclick="dashDismiss({{ m.id }})">Not suitable</button>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="dash-empty"><i class="fa-solid fa-magnifying-glass"></i> No matches yet. We'll notify you (in-app and by e-mail if you shared one) as soon as a traveller on your route appears.</div>
+    {% endif %}
+  </section>
+
+  <!-- My posts -->
+  <section class="dash-section">
+    <div class="results-header">
+      <h2><i class="fa-solid fa-suitcase"></i> My posts</h2>
+      <a class="btn btn-primary" href="{{ url_for('main.index') }}#search"><i class="fa-solid fa-plus"></i> Post new trip</a>
+    </div>
+    <div class="results-grid" id="myTripsGrid">
+      <div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Loading your trips...</div>
+    </div>
+  </section>
+
+  <!-- Section 1: open requests -->
+  <section class="dash-section">
+    <h2><i class="fa-solid fa-users"></i> Desis on Move <small class="muted" style="font-size:13px;font-weight:400">soonest departures first</small></h2>
+    <div class="dash-filters">
+      <input type="text" id="dashQ" placeholder="Search city, airport code, airline…"/>
+      <select id="dashRole"><option value="">Seeking &amp; offering</option>{% for r in TRIP_ROLES %}<option value="{{ r }}">{{ TRIP_ROLE_LABELS[r] }}</option>{% endfor %}</select>
+      <select id="dashLang"><option value="">Any language</option>{% for l in OPT.LANGUAGES %}<option value="{{ l }}">{{ l }}</option>{% endfor %}</select>
+      <select id="dashDays"><option value="">Any departure</option><option value="7">Next 7 days</option><option value="30">Next 30 days</option><option value="90">Next 90 days</option></select>
+      <span id="dashCount" class="muted" style="font-size:13px"></span>
+    </div>
+    <div class="results-grid" id="dashOpenGrid"><div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i></div></div>
+  </section>
+</div>
+
+{% include '_trip_modals.html' %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let _dashTimer = null;
+async function loadOpenRequests() {
+  const grid = document.getElementById('dashOpenGrid');
+  const body = { travel_type: 'air', sort: 'date', limit: 60,
+    q: document.getElementById('dashQ').value.trim(), role: document.getElementById('dashRole').value,
+    language: document.getElementById('dashLang').value, days: document.getElementById('dashDays').value };
+  const res = await apiFetch('/api/search', { method: 'POST', body: JSON.stringify(body) });
+  const data = await res.json();
+  const trips = (data.results || []).filter(t => !t.is_own);
+  document.getElementById('dashCount').textContent = `${trips.length} open request${trips.length === 1 ? '' : 's'}`;
+  grid.innerHTML = '';
+  if (!trips.length) { grid.innerHTML = '<div class="loading-spinner">No open requests match these filters.</div>'; return; }
+  trips.forEach(t => grid.appendChild(buildTripCard(t, false)));
+}
+['dashRole', 'dashLang', 'dashDays'].forEach(id => document.getElementById(id).addEventListener('change', loadOpenRequests));
+document.getElementById('dashQ').addEventListener('input', () => { clearTimeout(_dashTimer); _dashTimer = setTimeout(loadOpenRequests, 300); });
+loadOpenRequests();
+
+async function dashNotify(matchId, btn) {
+  btn.disabled = true;
+  const res = await apiFetch(`/api/matches/${matchId}/notify`, { method: 'POST', body: '{}' });
+  const d = await res.json();
+  if (d.success) { showToast('Introduction sent.', 'success'); (d.problems || []).forEach(p => showToast(p, 'info')); setTimeout(() => location.reload(), 800); }
+  else { showToast(d.error || 'Failed', 'danger'); btn.disabled = false; }
+}
+async function dashDismiss(matchId) {
+  showConfirm('Not suitable?', 'We will hide this match and keep looking.', async () => {
+    const res = await apiFetch(`/api/matches/${matchId}/dismiss`, { method: 'POST', body: JSON.stringify({ reason: 'not_suitable' }) });
+    if ((await res.json()).success) { document.getElementById(`dm-${matchId}`)?.remove(); showToast('Match dismissed', 'info'); }
+  });
+}
+</script>
+{% endblock %}
