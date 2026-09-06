@@ -81,9 +81,11 @@ def derive(trip):
         trip.airline, trip.flight_number, o_norm=origin, d_norm=dest)
 
     if trip.trip_type == 'round_trip' and trip.to_date:
-        # the way home is the same two airports the other way round
+        # the way home is the same two airports the other way round — but it can be a
+        # different airline/flight, so prefer the return values, falling back to the outbound
         add('return', None, None, trip.to_date, trip.to_date_flexible,
-            trip.airline, trip.flight_number, o_norm=dest, d_norm=origin)
+            trip.return_airline or trip.airline, trip.return_flight_number or trip.flight_number,
+            o_norm=dest, d_norm=origin)
     return out
 
 

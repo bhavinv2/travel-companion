@@ -458,7 +458,34 @@ def _apply_form(trip, form, files, is_new):
     trip.to_date_flexible = form.get('to_date_flexible') == 'on'
     trip.airline = (form.get('airline') or '').strip()[:200] or None
     trip.flight_number = (form.get('flight_number') or '').strip()[:30] or None
+    trip.return_airline = ((form.get('return_airline') or '').strip()[:200] or None) if trip.trip_type == 'round_trip' else None
+    trip.return_flight_number = ((form.get('return_flight_number') or '').strip()[:30] or None) if trip.trip_type == 'round_trip' else None
     trip.ticket_booked = form.get('ticket_booked') == 'on'
+
+    # Multi-city / layover: the legs come as a JSON blob; the post's own columns describe the
+    # whole journey (first origin -> last destination) just like the traveller-facing form.
+    if trip.trip_type == 'multi_destination':
+        import json as _json
+        try:
+            raw = _json.loads(form.get('legs') or '[]')
+        except (TypeError, ValueError):
+            raw = []
+        legs = [{'from': (l.get('from') or '').strip()[:200], 'to': (l.get('to') or '').strip()[:200],
+                 'date': (l.get('date') or '')[:10], 'airline': (l.get('airline') or '').strip()[:200] or None,
+                 'flight_number': (l.get('flight_number') or '').strip()[:30] or None}
+                for l in raw if (l.get('from') or l.get('to'))]
+        if len(legs) < 2:
+            errors.append('A multi-city trip needs at least two stops.')
+        else:
+            trip.legs = legs
+            trip.flying_from = legs[0]['from']
+            trip.destination = legs[-1]['to']
+            trip.from_date = _parse_date(legs[0]['date'])
+            trip.to_date = _parse_date(legs[-1]['date'])
+            trip.airline = None
+            trip.flight_number = None
+    else:
+        trip.legs = None
 
     trip.traveller_needs = form.getlist('traveller_needs')
     trip.special_needs_notes = (form.get('special_needs_notes') or '').strip() or None

@@ -178,6 +178,10 @@ class CompanionRequest(db.Model):
     on_behalf_of = db.Column(db.String(50))
     connect_me_to = db.Column(db.JSON)
     traveller_needs = db.Column(db.JSON)
+    # Per-person travellers when a trip is for more than one person ("one companion for all"):
+    # [{who, age_group, gender, needs:[...]}, ...]. The trip-level traveler_* columns keep a
+    # summary (union of needs, first traveller's age/gender) so matching is unchanged.
+    travellers = db.Column(db.JSON)
     special_needs_notes = db.Column(db.Text)
 
     # Air fields (display strings, e.g. "Hyderabad (HYD)")
@@ -191,6 +195,9 @@ class CompanionRequest(db.Model):
     to_date_flexible = db.Column(db.Boolean, default=False)
     airline = db.Column(db.String(200))
     flight_number = db.Column(db.String(30))
+    # Round trip only: the way home may be a different airline/flight from the outbound.
+    return_airline = db.Column(db.String(200))
+    return_flight_number = db.Column(db.String(30))
     preferred_languages = db.Column(db.JSON)
 
     # Normalised route (Phase 2) — used by matching
@@ -329,6 +336,7 @@ class CompanionRequest(db.Model):
             'role': self.role,
             'status': self.status,
             'on_behalf_of': self.on_behalf_of,
+            'travellers': self.travellers or [],
             'connect_me_to': self.connect_me_to or [],
             'traveller_needs': self.traveller_needs or [],
             'special_needs_notes': self.special_needs_notes,
@@ -344,6 +352,8 @@ class CompanionRequest(db.Model):
             'destination_flexible': bool(self.destination_flexible),
             'airline': self.airline,
             'flight_number': self.flight_number,
+            'return_airline': self.return_airline,
+            'return_flight_number': self.return_flight_number,
             'preferred_languages': self.preferred_languages or [],
             'road_from': self.road_from,
             'road_to': self.road_to,

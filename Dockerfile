@@ -3,7 +3,8 @@ FROM python:3.11-slim
 # Headless Chromium for the admin scraper (vendored fetchall). Remove the playwright line to build a
 # smaller image without scraping support; the app then shows "scraping not available" in the console.
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    FLASK_APP=run.py
 
 WORKDIR /app
 COPY requirements.txt .
@@ -18,4 +19,6 @@ RUN useradd -m app \
 USER app
 
 EXPOSE 8080
-CMD gunicorn run:app --bind 0.0.0.0:${PORT:-8080} --workers 2 --timeout 120 --log-level info
+# Migrations run on every start (a no-op when the DB is already at head). If one fails,
+# the container exits instead of serving a schema the code does not match.
+CMD flask db upgrade && gunicorn run:app --bind 0.0.0.0:${PORT:-8080} --workers 2 --timeout 120 --log-level info

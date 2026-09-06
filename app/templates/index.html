@@ -114,9 +114,9 @@
     <div class="fw-role">
       <p class="fw-role-q">What brings you here today?</p>
       <div class="trip-type-row" id="roleRow">
-        <label class="radio-pill"><input type="radio" name="role" value="seeking_help" checked/> <i class="fa-solid fa-hand-holding-heart"></i> I need a companion</label>
+        <label class="radio-pill"><input type="radio" name="role" value="open" checked/> <i class="fa-solid fa-arrows-left-right"></i> Open to either</label>
+        <label class="radio-pill"><input type="radio" name="role" value="seeking_help"/> <i class="fa-solid fa-hand-holding-heart"></i> I need a companion</label>
         <label class="radio-pill"><input type="radio" name="role" value="offering_help"/> <i class="fa-solid fa-hands-helping"></i> I can help someone</label>
-        <label class="radio-pill"><input type="radio" name="role" value="open"/> <i class="fa-solid fa-arrows-left-right"></i> Open to either</label>
       </div>
     </div>
 
@@ -134,11 +134,11 @@
   <div class="trip-type-row" id="tripTypeRow">
     <label class="radio-pill"><input type="radio" name="trip_type" value="one_way" checked/> One Way</label>
     <label class="radio-pill"><input type="radio" name="trip_type" value="round_trip"/> Round Trip</label>
-    <label class="radio-pill"><input type="radio" name="trip_type" value="multi_destination"/> Multi-Destination</label>
+    <label class="radio-pill"><input type="radio" name="trip_type" value="multi_destination"/> Multi-city / Layover</label>
   </div>
       <div class="form-row" id="flightRoute">
       <div class="field-group" id="fieldFlyingFrom">
-        <label>Flying From</label>
+        <label>Flying From <span class="req">*</span></label>
         <div class="input-with-icon">
           <i class="fa-solid fa-plane-departure field-icon"></i>
           <input type="text" name="flying_from" id="flyingFrom" placeholder="City or Airport" class="autocomplete-airport"/>
@@ -147,7 +147,7 @@
       </div>
 
       <div class="field-group" id="fieldDestination">
-        <label>Destination</label>
+        <label>Destination <span class="req">*</span></label>
         <div class="input-with-icon">
           <i class="fa-solid fa-location-dot field-icon"></i>
           <input type="text" name="destination" id="destination" placeholder="City or Airport" class="autocomplete-airport"/>
@@ -172,6 +172,23 @@
       </div>
 
     </div>
+    <!-- Round trip: the way home may be a different airline / flight -->
+    <div class="form-row" id="returnFlightRow" style="display:none">
+      <div class="field-group">
+        <label><i class="fa-solid fa-plane-arrival" style="color:var(--l-blue,#2f80ed)"></i> Return airline <span class="optional">(if different)</span></label>
+        <div class="input-with-icon">
+          <i class="fa-solid fa-plane field-icon"></i>
+          <input type="text" name="return_airline" id="returnAirline" placeholder="Search airline…" class="autocomplete-airline"/>
+        </div>
+      </div>
+      <div class="field-group">
+        <label>Return flight no <span class="optional">(if different)</span></label>
+        <div class="input-with-icon">
+          <i class="fa-solid fa-ticket field-icon"></i>
+          <input type="text" name="return_flight_number" id="returnFlightNumber" placeholder="e.g. AI 102"/>
+        </div>
+      </div>
+    </div>
     <div id="multiDestSection" style="display:none">
       <div class="multi-dest-header">
         <span><i class="fa-solid fa-route"></i> Your Stops</span>
@@ -185,7 +202,7 @@
           <label>Preferred Languages</label>
           <div class="multi-select-wrapper">
             <button type="button" class="multi-select-btn" data-target="langSelectMulti">
-              <span id="langSelectMultiLabel">Select languages...</span> <i class="fa-solid fa-chevron-down"></i>
+              <span id="langSelectMultiLabel" class="ms-label" data-placeholder="Any — no specific language">Any — no specific language</span> <i class="fa-solid fa-chevron-down"></i>
             </button>
             <div class="multi-dropdown" id="langSelectMulti">
               {% for lang in OPT.LANGUAGES %}
@@ -214,7 +231,7 @@
       <div id="whenSingle">
         <div class="cal-inputs">
       <div class="field-group" id="fieldFromDate">
-        <label>Departure Date</label>
+        <label>Departure Date <span class="req">*</span></label>
         <div class="input-with-icon">
           <i class="fa-solid fa-calendar field-icon"></i>
           <input type="date" name="from_date" id="fromDate"/>
@@ -239,11 +256,12 @@
         <div class="cal-ticket">
       <div class="field-group">
         <label>Ticket Booked?</label>
-        <label class="tick-check">
-          <input type="checkbox" name="ticket_booked"/>
+        <label class="tick-check" id="ticketBookedRow">
+          <input type="checkbox" name="ticket_booked" id="ticketBooked"/>
           <span class="tick-box"></span>
           <span class="tick-label">Yes, ticket booked</span>
         </label>
+        <small class="muted" id="ticketFlexNote" hidden>With flexible dates you can't have a booked ticket yet.</small>
       </div>
         </div>
       </div>
@@ -254,94 +272,107 @@
     <div class="fstep" data-step="3">
       <div class="fq"><span class="fq-num">3</span><span class="fq-label">Who</span></div>
       <h3 class="fq-title"><span class="hl">Who</span> is travelling?</h3>
-      <p class="fq-sub">A little about the traveller helps us find the right company — everything here is optional.</p>
-      <div class="form-row" id="flightFields">
-        <div class="field-group">
-          <label>Who's this trip for?</label>
-          <select name="on_behalf_of" id="onBehalfOf">
-            <option value="">Select</option>
-            {% for val, label in OPT.ON_BEHALF_OF %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="field-group wide">
-          <label>Any help they'll appreciate? <span class="optional">(pick any)</span></label>
-          <div class="multi-select-wrapper">
-            <button type="button" class="multi-select-btn" data-target="travellerNeeds">
-              <span id="travellerNeedsLabel">Select needs...</span> <i class="fa-solid fa-chevron-down"></i>
-            </button>
-            <div class="multi-dropdown" id="travellerNeeds">
-              {% for val, label in OPT.TRAVELLER_NEEDS %}
-              <label><input type="checkbox" name="traveller_needs" value="{{ val }}"/> {{ label }}</label>
-              {% endfor %}
+      <p class="fq-sub">Add everyone on this trip — we find <strong>one companion for the whole group</strong>. Each person can have their own age, gender and the help they'd appreciate.</p>
+
+      <div id="travellersEditor">
+        <div id="travellersRows"></div>
+        <button type="button" class="btn-sm-outline" id="addTravellerBtn"><i class="fa-solid fa-user-plus"></i> Add another traveller</button>
+      </div>
+      <input type="hidden" name="travellers" id="travellersJson"/>
+
+      <template id="travellerTpl">
+        <div class="tv-card">
+          <div class="tv-head"><span class="tv-badge"><i class="fa-solid fa-user"></i> Traveller <span class="tv-n"></span></span>
+            <button type="button" class="tv-x" title="Remove"><i class="fa-solid fa-xmark"></i></button></div>
+          <div class="form-row">
+            <div class="field-group">
+              <label>Who is it? <span class="req">*</span></label>
+              <select class="tv-who"><option value="">Select</option>{% for v, l in OPT.ON_BEHALF_OF %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+            </div>
+            <div class="field-group">
+              <label>Age group</label>
+              <select class="tv-age"><option value="">Prefer not to say</option>{% for a in AGE_GROUPS %}<option value="{{ a }}">{{ AGE_GROUP_LABELS[a] }}</option>{% endfor %}</select>
+            </div>
+            <div class="field-group">
+              <label>Gender</label>
+              <select class="tv-gender"><option value="">Prefer not to say</option>{% for g in GENDERS %}<option value="{{ g }}">{{ g|capitalize }}</option>{% endfor %}</select>
+            </div>
+          </div>
+          <div class="field-group">
+            <label>Help they'll appreciate <span class="optional">(pick any)</span></label>
+            <div class="multi-select-wrapper tv-needs">
+              <button type="button" class="multi-select-btn">
+                <span class="ms-label" data-placeholder="Pick any help they'll appreciate">Pick any help they'll appreciate</span> <i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <div class="multi-dropdown">{% for v, l in OPT.TRAVELLER_NEEDS %}<label><input type="checkbox" class="tv-need" value="{{ v }}"/> {{ l }}</label>{% endfor %}</div>
             </div>
           </div>
         </div>
-      </div>
-      <div class="form-row">
-        <div class="field-group">
-          <label>Their age group</label>
-          <select name="traveler_age_group"><option value="">Prefer not to say</option>
-            {% for a in AGE_GROUPS %}<option value="{{ a }}">{{ AGE_GROUP_LABELS[a] }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="field-group">
-          <label>Their gender</label>
-          <select name="traveler_gender"><option value="">Prefer not to say</option>
-            {% for g in GENDERS %}<option value="{{ g }}">{{ g|capitalize }}</option>{% endfor %}
-          </select>
-        </div>
-      </div>
+      </template>
     </div>
 
     <!-- STEP 3: the companion -->
     <div class="fstep" data-step="4">
       <div class="fq"><span class="fq-num">4</span><span class="fq-label">Companion</span></div>
       <h3 class="fq-title">Your ideal <span class="hl">companion</span></h3>
-      <p class="fq-sub">Who would you feel most comfortable with? Skip anything — it only sharpens the match.</p>
-      <div class="form-row">
-        <div class="field-group wide">
-          <label>I'd love to meet… <span class="optional">(pick any)</span></label>
-          <div class="multi-select-wrapper">
-            <button type="button" class="multi-select-btn" data-target="connectTo">
-              <span id="connectToLabel">Select companions...</span> <i class="fa-solid fa-chevron-down"></i>
-            </button>
-            <div class="multi-dropdown" id="connectTo">
-              {% for val, label in OPT.CONNECT_ME_TO %}
-              <label><input type="checkbox" name="connect_me_to" value="{{ val }}"/> {{ label }}</label>
-              {% endfor %}
+      <p class="fq-sub">Who would you feel most comfortable with? Leave it open, or narrow it — it only sharpens the match.</p>
+
+      <!-- Default: open to anyone. Ticking this greys out the specific preferences below so the
+           match is not narrowed; unticking it lets the traveller set gender, age and type. -->
+      <label class="tick-check cmp-any-toggle">
+        <input type="checkbox" id="companionAny" checked/>
+        <span class="tick-box"></span>
+        <span class="tick-label">I'm open to <strong>any companion</strong> — no specific preferences</span>
+      </label>
+
+      <div id="companionPrefs" class="cmp-prefs">
+        <div class="form-row">
+          <div class="field-group wide">
+            <label>Companion type <span class="optional">(optional)</span></label>
+            <div class="multi-select-wrapper">
+              <button type="button" class="multi-select-btn" data-target="connectTo">
+                <span id="connectToLabel" class="ms-label" data-placeholder="Any — no preference">Any — no preference</span> <i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <div class="multi-dropdown" id="connectTo">
+                {% for val, label in OPT.CONNECT_ME_TO %}
+                <label><input type="checkbox" name="connect_me_to" value="{{ val }}"/> {{ label }}</label>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field-group">
+            <label>Companion gender</label>
+            <select name="pref_gender">
+              {% for g in PREF_GENDERS %}<option value="{{ g }}">{{ g|capitalize }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Companion age <span class="optional">(optional · min – max)</span></label>
+            <div class="form-row-2">
+              <input type="number" name="pref_age_min" min="0" max="120" placeholder="min"/>
+              <input type="number" name="pref_age_max" min="0" max="120" placeholder="max"/>
             </div>
           </div>
         </div>
       </div>
+
       <div class="form-row">
       <div class="field-group">
-        <label>Preferred Languages</label>
-        <div class="multi-select-wrapper">
+        <label>Preferred languages <span class="optional">(the companion speaks)</span></label>
+        <div class="multi-select-wrapper lang-wrapper">
           <button type="button" class="multi-select-btn" data-target="langSelect">
-            <span id="langSelectLabel">Select languages...</span> <i class="fa-solid fa-chevron-down"></i>
+            <span id="langSelectLabel" class="ms-label" data-placeholder="Any — no specific language">Any — no specific language</span> <i class="fa-solid fa-chevron-down"></i>
           </button>
           <div class="multi-dropdown" id="langSelect">
+            <label class="lang-any-opt"><input type="checkbox" class="lang-any" checked/> <strong>Any — no specific language</strong></label>
             {% for lang in OPT.LANGUAGES %}
             <label><input type="checkbox" name="preferred_languages" value="{{ lang }}"/> {{ lang }}</label>
             {% endfor %}
           </div>
         </div>
       </div>
-      </div>
-      <div class="form-row">
-        <div class="field-group">
-          <label>Companion gender</label>
-          <select name="pref_gender">
-            {% for g in PREF_GENDERS %}<option value="{{ g }}">{{ g|capitalize }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="field-group">
-          <label>Companion age <span class="optional">(min – max)</span></label>
-          <div class="form-row-2">
-            <input type="number" name="pref_age_min" min="0" max="120" placeholder="min"/>
-            <input type="number" name="pref_age_max" min="0" max="120" placeholder="max"/>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -403,7 +434,7 @@
       </p>
       <div class="action-btns">
         <button type="button" class="btn btn-primary" id="postTripBtn">
-          <i class="fa-solid fa-plus"></i> Connect Desis
+          <i class="fa-solid fa-plus"></i> Post my trip
         </button>
         <button type="button" class="btn btn-outline-coral" id="findDesisBtn">
           <i class="fa-solid fa-magnifying-glass"></i> Find Desis
@@ -713,9 +744,29 @@
   const today = `${_n.getFullYear()}-${_p(_n.getMonth() + 1)}-${_p(_n.getDate())}`;
   document.querySelectorAll('input[type=date]').forEach(el => el.min = today);
 
-  // hero "When" starts on today's date
-  const qWhenEl = document.getElementById('qWhen');
-  if (qWhenEl && !qWhenEl.value) qWhenEl.value = today;
+  // The hero "When" stays empty on purpose: pre-filling today's date made every search filter
+  // to trips departing around today, which hid all the upcoming ones (they are days/weeks out).
+  // Leaving it blank means "any date" — the traveller picks a day only to narrow the results.
+
+  // Flexible dates and a booked ticket are mutually exclusive: if the traveller ticks any
+  // "flexible dates", the "ticket booked" checkbox is cleared and locked (with a note).
+  (function () {
+    const booked = document.getElementById('ticketBooked');
+    const note = document.getElementById('ticketFlexNote');
+    const flexes = ['fromDateFlex', 'toDateFlex'].map(id => document.getElementById(id))
+      .concat(Array.from(document.querySelectorAll('input[name="from_date_flexible"], input[name="to_date_flexible"]')));
+    const uniq = [...new Set(flexes.filter(Boolean))];
+    if (!booked || !uniq.length) return;
+    const sync = () => {
+      const anyFlex = uniq.some(f => f.checked);
+      booked.disabled = anyFlex;
+      if (anyFlex) booked.checked = false;
+      booked.closest('.tick-check')?.classList.toggle('is-disabled', anyFlex);
+      if (note) note.hidden = !anyFlex;
+    };
+    uniq.forEach(f => f.addEventListener('change', sync));
+    sync();
+  })();
 
   // hero quick search feeds the main form and runs Find
   const qGo = document.getElementById('qGo');
@@ -923,12 +974,45 @@
         }));
       }
     };
-    document.getElementById('fwNext').addEventListener('click', () => go(fstep + 1, true));
-    document.getElementById('fwBack').addEventListener('click', () => go(fstep - 1, true));
+    // A multi-city trip sets a date on every stop back in step 1, so the "When" step (2) has
+    // nothing to do — the flow skips straight from 1 to 3 in both directions.
+    const isMultiTrip = () => (document.querySelector('#tripTypeRow input[name=trip_type]:checked') || {}).value === 'multi_destination';
+    const nextOf = n => (isMultiTrip() && n === 1) ? 3 : n + 1;
+    const prevOf = n => (isMultiTrip() && n === 3) ? 1 : n - 1;
+    function validateStep(n) {
+      const err = (msg, el) => { if (window.showToast) showToast(msg, 'danger'); el && el.focus && el.focus(); return false; };
+      if (n === 1) {
+        if (isMultiTrip()) {
+          const rows = document.querySelectorAll('#legsContainer .leg-row');
+          if (rows.length < 2) return err('Add at least two stops.');
+          for (const r of rows) {
+            if (!r.querySelector('.leg-from')?.value.trim() || !r.querySelector('.leg-to')?.value.trim() || !r.querySelector('.leg-date')?.value)
+              return err('Each stop needs a from, a to and a date.');
+          }
+        } else {
+          const ff = document.getElementById('flyingFrom'), dd = document.getElementById('destination');
+          if (!ff.value.trim()) return err('Where are you flying from?', ff);
+          if (!dd.value.trim()) return err('Where are you flying to?', dd);
+        }
+      }
+      if (n === 2 && !isMultiTrip()) {
+        if (!document.getElementById('fromDate').value) return err('Pick your departure date.');
+        if ((document.querySelector('input[name=trip_type]:checked') || {}).value === 'round_trip' && !document.getElementById('toDate').value)
+          return err('Pick your return date.');
+      }
+      if (n === 3) {
+        const whos = [...document.querySelectorAll('#travellersRows .tv-who')];
+        if (!whos.some(s => s.value)) return err('Add at least one traveller — who is this trip for?', whos[0]);
+      }
+      return true;
+    }
+    document.getElementById('fwNext').addEventListener('click', () => { if (validateStep(fstep)) go(nextOf(fstep), true); });
+    document.getElementById('fwBack').addEventListener('click', () => go(prevOf(fstep), true));
     document.getElementById('fwSkip')?.addEventListener('click', () => {
       document.getElementById('findDesisBtn')?.click();
       document.getElementById('results')?.scrollIntoView({ behavior: 'smooth' });
     });
+    window.__resetFormWizard = () => go(1);
     go(1);
 
     // --- inline calendar (When step) ---

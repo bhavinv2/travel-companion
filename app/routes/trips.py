@@ -40,6 +40,41 @@ def _parse_date(s):
         return None
 
 
+def _parse_travellers(raw):
+    """Normalise the per-person travellers list from the post form.
+
+    Accepts a JSON string or an already-decoded list. Returns a clean list of
+    {who, age_group, gender, needs:[...]} dicts, dropping empty rows.
+    """
+    if isinstance(raw, str):
+        import json as _json
+        try:
+            raw = _json.loads(raw)
+        except Exception:
+            raw = []
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for t in raw:
+        if not isinstance(t, dict):
+            continue
+        who = (t.get('who') or '').strip()[:50]
+        if not who:
+            continue
+        age = t.get('age_group')
+        gender = t.get('gender')
+        needs = t.get('needs') or []
+        if not isinstance(needs, list):
+            needs = []
+        out.append({
+            'who': who,
+            'age_group': age if age in AGE_GROUPS else None,
+            'gender': gender if gender in GENDERS else None,
+            'needs': [str(n)[:60] for n in needs if n][:12],
+        })
+    return out[:20]
+
+
 @trips_bp.route('/post-trip', methods=['POST'])
 @login_required
 @rate_limit(10, 3600)
@@ -111,6 +146,21 @@ def post_trip():
     errors += contact_errors
     consent = _truthy(get('contact_consent'))
 
+    travellers = _parse_travellers(data.get('travellers'))
+    # One companion is matched for the whole group, so the trip-level fields the matcher and
+    # cards read collapse the group: who = every tag, needs = the union, age/gender = the
+    # first traveller's. Derived here so it holds no matter what the client sent.
+    if travellers:
+        summary_on_behalf = ','.join(t['who'] for t in travellers if t['who'])[:50] or None
+        summary_needs = list(dict.fromkeys(n for t in travellers for n in t['needs']))
+        summary_age = travellers[0]['age_group']
+        summary_gender = travellers[0]['gender']
+    else:
+        summary_on_behalf = ','.join(x for x in get_list('on_behalf_of') if x)[:50] or None
+        summary_needs = get_list('traveller_needs')
+        summary_age = get('traveler_age_group') if get('traveler_age_group') in AGE_GROUPS else None
+        summary_gender = get('traveler_gender') if get('traveler_gender') in GENDERS else None
+
     if errors:
         return jsonify({'success': False, 'error': ' '.join(errors)}), 400
 
@@ -121,9 +171,10 @@ def post_trip():
         travel_type=get('travel_type', 'air') or 'air',
         trip_type=trip_type,
         role=role,
-        on_behalf_of=get('on_behalf_of') or None,
+        on_behalf_of=summary_on_behalf,
         connect_me_to=get_list('connect_me_to'),
-        traveller_needs=get_list('traveller_needs'),
+        traveller_needs=summary_needs,
+        travellers=travellers or None,
         special_needs_notes=(get('special_needs_notes') or '').strip() or None,
         flying_from=flying_from,
         flying_from_flexible=_truthy(get('flying_from_flexible')),
@@ -135,10 +186,12 @@ def post_trip():
         to_date_flexible=_truthy(get('to_date_flexible')),
         airline=((get('airline') or '').strip()[:200] or None) if trip_type != 'multi_destination' else None,
         flight_number=((get('flight_number') or '').strip()[:30] or None) if trip_type != 'multi_destination' else None,
+        return_airline=((get('return_airline') or '').strip()[:200] or None) if trip_type == 'round_trip' else None,
+        return_flight_number=((get('return_flight_number') or '').strip()[:30] or None) if trip_type == 'round_trip' else None,
         legs=legs,
         preferred_languages=get_list('preferred_languages'),
-        traveler_age_group=get('traveler_age_group') if get('traveler_age_group') in AGE_GROUPS else None,
-        traveler_gender=get('traveler_gender') if get('traveler_gender') in GENDERS else None,
+        traveler_age_group=summary_age,
+        traveler_gender=summary_gender,
         pref_gender=pref_gender,
         pref_age_min=_int(get('pref_age_min')),
         pref_age_max=_int(get('pref_age_max')),
@@ -209,6 +262,7 @@ def modify_trip(trip_id):
 
     data = request.get_json() or {}
     fields = ['flying_from', 'destination', 'airline', 'flight_number', 'category',
+              'return_airline', 'return_flight_number',
               'on_behalf_of', 'ticket_booked', 'is_anonymous', 'special_needs_notes',
               'road_from', 'road_to', 'travelling_by', 'additional_comments', 'role',
               'traveler_age_group', 'traveler_gender', 'pref_gender', 'pref_age_min', 'pref_age_max',
@@ -257,6 +311,9 @@ def modify_trip(trip_id):
         trip.legs = None
         if trip.trip_type == 'one_way':
             trip.to_date = None
+    if trip.trip_type != 'round_trip':
+        trip.return_airline = None
+        trip.return_flight_number = None
 
     if not trip.flying_from or not trip.destination or not trip.from_date:
         db.session.rollback()
@@ -267,6 +324,17 @@ def modify_trip(trip_id):
     for lfield in ('connect_me_to', 'traveller_needs', 'preferred_languages'):
         if lfield in data and isinstance(data[lfield], list):
             setattr(trip, lfield, data[lfield])
+    if 'travellers' in data:
+        travellers = _parse_travellers(data.get('travellers'))
+        trip.travellers = travellers or None
+        # Keep the trip-level summary fields in step with the group: one companion is
+        # matched for everyone, so age/gender collapse to the first traveller and needs
+        # are the union across the group.
+        if travellers:
+            trip.on_behalf_of = (','.join(t['who'] for t in travellers if t['who'])[:50] or None)
+            trip.traveller_needs = list(dict.fromkeys(n for t in travellers for n in t['needs']))
+            trip.traveler_age_group = travellers[0]['age_group']
+            trip.traveler_gender = travellers[0]['gender']
     if trip.role not in TRIP_ROLES:
         trip.role = 'seeking_help'
     apply_route(trip)

@@ -203,6 +203,8 @@ function applyTripTypeUI(type) {
   document.getElementById('flightRoute').style.display = isMulti ? 'none' : '';
   document.getElementById('fieldReturnDate').style.display = isRound ? '' : 'none';
   document.getElementById('multiDestSection').style.display = isMulti ? '' : 'none';
+  const retRow = document.getElementById('returnFlightRow');
+  if (retRow) retRow.style.display = isRound ? '' : 'none';
   if (isMulti && document.getElementById('legsContainer').children.length === 0) {
     addLeg(); addLeg();
   }
@@ -280,33 +282,128 @@ function collectLegs() {
 }
 
 // ===== MULTI-SELECT DROPDOWNS =====
-document.querySelectorAll('.multi-select-btn').forEach(btn => {
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const targetId = btn.dataset.target;
-    const dropdown = document.getElementById(targetId);
-    document.querySelectorAll('.multi-dropdown').forEach(d => { if (d.id !== targetId) d.classList.remove('open'); });
-    dropdown?.classList.toggle('open');
-  });
-});
-
-document.addEventListener('click', () => {
-  document.querySelectorAll('.multi-dropdown').forEach(d => d.classList.remove('open'));
-});
-
-function updateMultiLabel(dropdownId, labelId) {
-  const dropdown = document.getElementById(dropdownId);
-  const label = document.getElementById(labelId);
-  if (!dropdown || !label) return;
-  const checked = dropdown.querySelectorAll('input:checked');
-  label.textContent = checked.length === 0 ? label.dataset.placeholder || 'Select...' : Array.from(checked).map(c => c.parentElement.textContent.trim()).join(', ');
+// Delegated on the document so a dropdown added after load — a new traveller row, say — works
+// with no rewiring. A button finds its dropdown by data-target (the static ones) or as the
+// sibling inside its .multi-select-wrapper (the cloned ones, which carry no unique id).
+function multiDropdownFor(btn) {
+  if (btn.dataset.target) return document.getElementById(btn.dataset.target);
+  const wrap = btn.closest('.multi-select-wrapper');
+  return wrap ? wrap.querySelector('.multi-dropdown') : null;
 }
-
-[['connectTo', 'connectToLabel'], ['travellerNeeds', 'travellerNeedsLabel'], ['langSelect', 'langSelectLabel'], ['langSelectMulti', 'langSelectMultiLabel']].forEach(([dd, lbl]) => {
-  document.getElementById(dd)?.querySelectorAll('input').forEach(cb => {
-    cb.addEventListener('change', () => updateMultiLabel(dd, lbl));
-  });
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.multi-select-btn');
+  if (btn) {
+    e.stopPropagation();
+    const dd = multiDropdownFor(btn);
+    document.querySelectorAll('.multi-dropdown.open').forEach(d => { if (d !== dd) d.classList.remove('open'); });
+    dd?.classList.toggle('open');
+    return;
+  }
+  // A click inside an open dropdown must NOT close it — you're picking several. Anything else does.
+  if (e.target.closest('.multi-dropdown')) return;
+  document.querySelectorAll('.multi-dropdown.open').forEach(d => d.classList.remove('open'));
 });
+
+// Keep a dropdown's button label in step with its ticks — works for any number of dropdowns.
+function updateMultiLabelEl(dd) {
+  if (!dd) return;
+  const wrap = dd.closest('.multi-select-wrapper');
+  const label = wrap ? wrap.querySelector('.multi-select-btn .ms-label') : null;
+  if (!label) return;
+  const checked = [...dd.querySelectorAll('input[type=checkbox]:checked')];
+  const ph = label.dataset.placeholder || 'Select...';
+  label.textContent = checked.length === 0 ? ph
+    : checked.map(c => (c.dataset.label || c.parentElement.textContent).trim()).join(', ');
+}
+// Back-compat shim: a couple of call sites still pass ids.
+function updateMultiLabel(dropdownId) { updateMultiLabelEl(document.getElementById(dropdownId)); }
+document.addEventListener('change', (e) => {
+  const dd = e.target.closest('.multi-dropdown');
+  if (dd) updateMultiLabelEl(dd);
+});
+
+// "Open to any companion" is the default: it greys out (and clears) the specific companion
+// preferences so the match is never silently narrowed. Unticking it hands those fields back.
+(function companionAnyToggle() {
+  const master = document.getElementById('companionAny');
+  const prefs = document.getElementById('companionPrefs');
+  if (!master || !prefs) return;
+  function apply() {
+    const off = master.checked;                 // "any" on -> specific prefs disabled
+    prefs.classList.toggle('is-disabled', off);
+    prefs.querySelectorAll('input, select, .multi-select-btn').forEach(el => { el.disabled = off; });
+    if (off) {
+      prefs.querySelectorAll('input[type=checkbox]:checked').forEach(cb => { cb.checked = false; });
+      prefs.querySelectorAll('select').forEach(s => { s.selectedIndex = 0; if (window.syncSearchSelect) syncSearchSelect(s); });
+      prefs.querySelectorAll('input[type=number]').forEach(n => { n.value = ''; });
+      const dd = document.getElementById('connectTo');
+      if (dd) { dd.classList.remove('open'); updateMultiLabelEl(dd); }
+    }
+  }
+  master.addEventListener('change', apply);
+  apply();                                        // default checked -> disabled on load
+})();
+
+// "Any — no specific language" is a master option inside the languages dropdown, mutually
+// exclusive with the specific ones: ticking it clears the specifics, ticking a specific clears
+// it, and it re-asserts itself when nothing specific is left so there is never an empty state.
+(function langAnyOption() {
+  const dd = document.getElementById('langSelect');
+  const any = dd && dd.querySelector('.lang-any');
+  if (!dd || !any) return;
+  const specifics = () => [...dd.querySelectorAll('input[name="preferred_languages"]')];
+  any.addEventListener('change', () => {
+    if (any.checked) specifics().forEach(cb => { cb.checked = false; });
+    else if (!specifics().some(cb => cb.checked)) any.checked = true;   // can't select nothing at all
+    updateMultiLabelEl(dd);
+  });
+  dd.addEventListener('change', (e) => {
+    if (e.target.name !== 'preferred_languages') return;
+    any.checked = !specifics().some(cb => cb.checked);
+    updateMultiLabelEl(dd);
+  });
+  updateMultiLabelEl(dd);
+})();
+
+// ===== TRAVELLERS EDITOR (step 3 of the post form) — one companion for the whole group =====
+function collectTravellers() {
+  return [...document.querySelectorAll('#travellersRows .tv-card')].map(c => ({
+    who: c.querySelector('.tv-who').value,
+    age_group: c.querySelector('.tv-age').value,
+    gender: c.querySelector('.tv-gender').value,
+    needs: [...c.querySelectorAll('.tv-need:checked')].map(n => n.value),
+  })).filter(t => t.who);
+}
+(function travellersEditor() {
+  const rows = document.getElementById('travellersRows');
+  const tpl = document.getElementById('travellerTpl');
+  const addBtn = document.getElementById('addTravellerBtn');
+  if (!rows || !tpl || !addBtn) return;
+  const renumber = () => [...rows.children].forEach((c, i) => { c.querySelector('.tv-n').textContent = i + 1; });
+  function addTraveller(data) {
+    const node = tpl.content.firstElementChild.cloneNode(true);
+    if (data) {
+      node.querySelector('.tv-who').value = data.who || '';
+      node.querySelector('.tv-age').value = data.age_group || '';
+      node.querySelector('.tv-gender').value = data.gender || '';
+      const needs = data.needs || [];
+      node.querySelectorAll('.tv-need').forEach(cb => { cb.checked = needs.includes(cb.value); });
+      const nd = node.querySelector('.tv-needs .multi-dropdown');
+      if (nd) updateMultiLabelEl(nd);
+    }
+    node.querySelector('.tv-x').addEventListener('click', () => {
+      if (rows.children.length <= 1) return;               // always keep at least one
+      node.remove(); renumber();
+    });
+    rows.appendChild(node);
+    node.querySelectorAll('select').forEach(s => { if (window.syncSearchSelect) syncSearchSelect(s); });
+    renumber();
+  }
+  addBtn.addEventListener('click', () => addTraveller());
+  addTraveller();                                           // start with one traveller
+  window.resetTravellersEditor = () => { rows.innerHTML = ''; addTraveller(); };
+  window.setTravellers = (list) => { rows.innerHTML = ''; (list && list.length ? list : [null]).forEach(addTraveller); };
+})();
 
 // ===== RESULTS CAROUSEL =====
 // Two rows of whatever the CSS grid is currently showing, so the page size always
@@ -540,12 +637,17 @@ function tcFmtDate(d) {
 const TC_AGE = { under_18: 'Under 18', '18_30': '18–30', '31_45': '31–45', '46_60': '46–60', '60_plus': '60+' };
 
 /* A one-line "who is actually travelling" descriptor — the thing a would-be companion
-   scans for (an elderly parent, a woman travelling alone). Empty when nothing is known. */
+   scans for (an elderly parent, a woman travelling alone). For a group it collapses to a
+   count ("3 travellers"); the per-person breakdown lives in the details popup. Empty when
+   nothing is known. */
 function tcTraveller(trip) {
-  const g = trip.traveler_gender;
+  const group = (trip.travellers || []).filter(t => t && t.who);
+  if (group.length > 1) return group.length + ' travellers';
+  const one = group[0] || {};
+  const g = one.gender || trip.traveler_gender;
   const gender = g && !['other', 'unspecified', 'prefer_not'].includes(g)
     ? g.charAt(0).toUpperCase() + g.slice(1) : '';
-  const age = TC_AGE[trip.traveler_age_group] || '';
+  const age = TC_AGE[one.age_group || trip.traveler_age_group] || '';
   return [gender, age].filter(Boolean).join(' · ');
 }
 
@@ -631,7 +733,8 @@ function tcRouteTips(trip, fp, tp) {
   if (trip.trip_type === 'round_trip') {
     return [
       card('fa-plane-departure', 'Outbound', fp.code, tp.code, trip.airline, trip.flight_number, trip.from_date),
-      card('fa-plane-arrival', 'Return', tp.code, fp.code, trip.airline, trip.flight_number, trip.to_date),
+      card('fa-plane-arrival', 'Return', tp.code, fp.code,
+           trip.return_airline || trip.airline, trip.return_flight_number || trip.flight_number, trip.to_date),
     ];
   }
   return [card('fa-plane', 'Direct flight', fp.code, tp.code, trip.airline, trip.flight_number, trip.from_date)];
@@ -910,18 +1013,15 @@ function collectContactRows(container) {
 }
 
 // ===== POST TRIP =====
-document.getElementById('postTripBtn')?.addEventListener('click', async () => {
-  if (!IS_LOGGED_IN) {
-    window.location = '/auth/login';   // sign in means login - no chooser popup
-    return;
-  }
-  const form = document.getElementById('searchForm');
-  const tripType = document.getElementById('tripTypeHidden').value;
-  const isMulti = tripType === 'multi_destination';
+const TRIP_DRAFT_KEY = 'cd_trip_draft';
 
+// Gather the whole post form into the object the API expects (also used verbatim as the
+// draft we stash when a signed-out visitor has to register first).
+function buildTripFormData() {
+  const form = document.getElementById('searchForm');
+  const isMulti = document.getElementById('tripTypeHidden').value === 'multi_destination';
   const formData = {};
   new FormData(form).forEach((v, k) => { if (!k.startsWith('contact_')) formData[k] = v; });
-
   if (isMulti) {
     formData.legs = collectLegs();
     formData.preferred_languages = [...document.querySelectorAll('#langSelectMulti input:checked')].map(el => el.value);
@@ -929,13 +1029,100 @@ document.getElementById('postTripBtn')?.addEventListener('click', async () => {
   } else {
     formData.preferred_languages = [...form.querySelectorAll('input[name="preferred_languages"]:checked')].map(el => el.value);
   }
-
-  ['connect_me_to', 'traveller_needs'].forEach(name => {
-    formData[name] = [...form.querySelectorAll(`input[name="${name}"]:checked`)].map(el => el.value);
-  });
-
+  formData.connect_me_to = [...form.querySelectorAll('input[name="connect_me_to"]:checked')].map(el => el.value);
+  // Per-person travellers → the trip-level summary the matcher and cards already understand:
+  // who = joined tags, needs = union of everyone's, age/gender = the first traveller's.
+  const travellers = collectTravellers();
+  formData.travellers = travellers;
+  formData.on_behalf_of = travellers.map(t => t.who).join(',');
+  formData.traveller_needs = [...new Set(travellers.flatMap(t => t.needs))];
+  formData.traveler_age_group = (travellers[0] || {}).age_group || '';
+  formData.traveler_gender = (travellers[0] || {}).gender || '';
   formData.contact_points = collectContactRows(document.getElementById('contactRowsBody'));
   formData.contact_consent = !!document.getElementById('contactConsent')?.checked;
+  return formData;
+}
+
+// Wipe the post form back to a pristine state after a successful post — native fields via
+// reset(), then every custom widget (trip-type sections, travellers, multi-selects, the
+// "any" toggles and the step wizard) put back to its default by hand, since reset() is silent.
+function resetPostForm() {
+  const form = document.getElementById('searchForm');
+  if (!form) return;
+  form.reset();
+  const legs = document.getElementById('legsContainer'); if (legs) legs.innerHTML = '';
+  applyTripTypeUI('one_way');
+  if (window.setTravellers) setTravellers([]);
+  form.querySelectorAll('select').forEach(s => { if (window.syncSearchSelect) syncSearchSelect(s); });
+  document.getElementById('companionAny')?.dispatchEvent(new Event('change'));
+  document.querySelector('#langSelect .lang-any')?.dispatchEvent(new Event('change'));
+  form.querySelectorAll('.multi-dropdown').forEach(dd => updateMultiLabelEl(dd));
+  if (window.__resetFormWizard) __resetFormWizard();
+}
+
+// Put a saved draft back into the form (after the visitor registers and lands on home again).
+function restoreTripDraft(d) {
+  const form = document.getElementById('searchForm');
+  if (!form || !d) return;
+  const attr = v => String(v).replace(/["\\]/g, '\\$&');
+  const setVal = (n, v) => { const el = form.querySelector(`[name="${n}"]`);
+    if (el && v != null && v !== '') { el.value = v; if (window.syncSearchSelect && el.tagName === 'SELECT') syncSearchSelect(el); } };
+  const tt = d.trip_type || 'one_way';
+  const r = form.querySelector(`input[name=trip_type][value="${attr(tt)}"]`);
+  if (r) r.checked = true;
+  applyTripTypeUI(tt);
+  ['flying_from', 'destination', 'from_date', 'to_date', 'airline', 'flight_number',
+   'return_airline', 'return_flight_number', 'category', 'additional_comments',
+   'pref_gender', 'pref_age_min', 'pref_age_max', 'role'].forEach(n => setVal(n, d[n]));
+  const setChk = (n, v) => { const el = form.querySelector(`input[name="${n}"]`); if (el) el.checked = _truthyVal(v); };
+  setChk('is_anonymous', d.is_anonymous); setChk('ticket_booked', d.ticket_booked);
+  (d.connect_me_to || []).forEach(v => { const cb = form.querySelector(`input[name=connect_me_to][value="${attr(v)}"]`); if (cb) cb.checked = true; });
+  (d.preferred_languages || []).forEach(v => { const cb = form.querySelector(`input[name=preferred_languages][value="${attr(v)}"]`); if (cb) cb.checked = true; });
+  // "any" toggles: keep them on only when the visitor set nothing specific
+  const hasCompPrefs = (d.connect_me_to || []).length || (d.pref_gender && d.pref_gender !== 'any') || d.pref_age_min || d.pref_age_max;
+  const compAny = document.getElementById('companionAny'); if (compAny) compAny.checked = !hasCompPrefs;
+  const langAny = document.querySelector('#langSelect .lang-any'); if (langAny) langAny.checked = !(d.preferred_languages || []).length;
+  if (window.setTravellers) setTravellers(d.travellers || []);
+  if (tt === 'multi_destination' && (d.legs || []).length) {
+    const cont = document.getElementById('legsContainer');
+    while (cont && cont.children.length < d.legs.length) addLeg();
+    document.querySelectorAll('#legsContainer .leg-row').forEach((row, i) => {
+      const l = d.legs[i]; if (!l) return;
+      row.querySelector('.leg-from').value = l.from || ''; row.querySelector('.leg-to').value = l.to || '';
+      row.querySelector('.leg-date').value = l.date || ''; row.querySelector('.leg-airline').value = l.airline || '';
+      row.querySelector('.leg-flightno').value = l.flight_number || '';
+    });
+  }
+  compAny?.dispatchEvent(new Event('change'));
+  langAny?.dispatchEvent(new Event('change'));
+  form.querySelectorAll('.multi-dropdown').forEach(dd => updateMultiLabelEl(dd));
+}
+function _truthyVal(v) { return v === true || v === 'on' || v === 'true' || v === 1 || v === '1'; }
+
+// After registering, the visitor lands back on home — repaint their saved trip into the form.
+(function restoreDraftOnLoad() {
+  if (!document.getElementById('searchForm')) return;
+  let raw; try { raw = localStorage.getItem(TRIP_DRAFT_KEY); } catch (e) { return; }
+  if (!raw) return;
+  try { localStorage.removeItem(TRIP_DRAFT_KEY); } catch (e) {}
+  let d; try { d = JSON.parse(raw); } catch (e) { return; }
+  if (!d || !(d.flying_from || d.destination || (d.travellers || []).length)) return;
+  restoreTripDraft(d);
+  if (window.showToast) showToast("Welcome back — we kept your trip details. Review and post whenever you're ready.", 'success');
+  document.getElementById('search')?.scrollIntoView({ behavior: 'smooth' });
+})();
+
+document.getElementById('postTripBtn')?.addEventListener('click', async () => {
+  const formData = buildTripFormData();
+
+  // A signed-out visitor can fill the whole form; rather than lose it at the sign-up wall, we
+  // stash it and restore it after they come back logged in.
+  if (!IS_LOGGED_IN) {
+    try { localStorage.setItem(TRIP_DRAFT_KEY, JSON.stringify(formData)); } catch (e) {}
+    if (window.showToast) showToast("Create your free account to post — we've saved your trip details.", 'info');
+    setTimeout(() => { window.location = '/auth/register?next=%2F%23search'; }, 400);
+    return;
+  }
 
   const btn = document.getElementById('postTripBtn');
   btn.disabled = true;
@@ -947,6 +1134,7 @@ document.getElementById('postTripBtn')?.addEventListener('click', async () => {
       showToast(data.matches_count
         ? `Trip posted! We found ${data.matches_count} possible companion${data.matches_count === 1 ? '' : 's'} — see My Trips.`
         : 'Trip posted successfully! We will notify you when a companion on your route appears.', 'success');
+      resetPostForm();
       loadResults();
       loadMyTrips();
       document.getElementById('my-trips')?.scrollIntoView({ behavior: 'smooth' });
@@ -1192,6 +1380,8 @@ async function modifyTrip(tripId) {
   f.elements.to_date.value = t.to_date || '';
   f.elements.airline.value = t.airline || '';
   f.elements.flight_number.value = t.flight_number || '';
+  if (f.elements.return_airline) f.elements.return_airline.value = t.return_airline || '';
+  if (f.elements.return_flight_number) f.elements.return_flight_number.value = t.return_flight_number || '';
   f.elements.additional_comments.value = t.additional_comments || '';
   f.elements.ticket_booked.checked = !!t.ticket_booked;
   f.elements.is_anonymous.checked = !!t.is_anonymous;
@@ -1203,14 +1393,13 @@ async function modifyTrip(tripId) {
     if (window.syncSearchSelect) window.syncSearchSelect(el);
   };
   setMulti('preferred_languages', t.preferred_languages);
-  setMulti('traveller_needs', t.traveller_needs);
   setMulti('connect_me_to', t.connect_me_to);
   if (window.syncSearchSelect) window.syncSearchSelect(f.elements.role);
+  // Per-person travellers — fall back to the legacy single-traveller columns for posts
+  // created before the travellers list existed.
+  etRenderTravellers(travellersFromTrip(t));
   // the rest of the fields the modify form now mirrors from the post form
   const setV = (n, v) => { const el = f.elements[n]; if (!el) return; el.value = (v == null ? '' : v); if (window.syncSearchSelect) window.syncSearchSelect(el); };
-  setV('on_behalf_of', t.on_behalf_of);
-  setV('traveler_age_group', t.traveler_age_group);
-  setV('traveler_gender', t.traveler_gender);
   setV('pref_gender', t.pref_gender || 'any');
   setV('category', t.category);
   if (f.elements.pref_age_min) f.elements.pref_age_min.value = (t.pref_age_min == null ? '' : t.pref_age_min);
@@ -1239,9 +1428,13 @@ function etApplyType(type) {
   const ret = document.getElementById('editReturnRow');
   if (!simple || !legs) return;
   const multi = type === 'multi_destination';
+  const isRound = type === 'round_trip';
   simple.hidden = multi;
   legs.hidden = !multi;
-  if (ret) ret.style.display = type === 'round_trip' ? '' : 'none';
+  if (ret) ret.style.display = isRound ? '' : 'none';
+  ['etReturnAirlineField', 'etReturnFlightField'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.hidden = !isRound;
+  });
   if (multi && !document.querySelectorAll('#etLegRows .et-leg').length) {
     // converting into a multi-stop: seed it from the route already on screen
     const f = document.getElementById('editTripForm');
@@ -1302,6 +1495,62 @@ function etCollectLegs() {
   })).filter(l => l.from || l.to);
 }
 
+/* ---- per-person travellers in the modify form ("one companion for the whole group") --- */
+function travellersFromTrip(t) {
+  if (Array.isArray(t.travellers) && t.travellers.length) return t.travellers;
+  // legacy posts: rebuild one row per who-tag, sharing the old single age/gender/needs
+  const whos = (t.on_behalf_of || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (!whos.length) return [{ who: '', age_group: t.traveler_age_group || '', gender: t.traveler_gender || '', needs: t.traveller_needs || [] }];
+  return whos.map((who, i) => ({
+    who,
+    age_group: i === 0 ? (t.traveler_age_group || '') : '',
+    gender: i === 0 ? (t.traveler_gender || '') : '',
+    needs: i === 0 ? (t.traveller_needs || []) : [],
+  }));
+}
+
+function etNumberTravellers() {
+  document.querySelectorAll('#etTravellersRows .tv-card').forEach((c, i) => { c.querySelector('.tv-n').textContent = i + 1; });
+}
+
+function etAddTraveller(data = {}) {
+  const rows = document.getElementById('etTravellersRows');
+  const tpl = document.getElementById('etTravellerTpl');
+  if (!rows || !tpl) return;
+  const node = tpl.content.firstElementChild.cloneNode(true);
+  node.querySelector('.tv-who').value = data.who || '';
+  node.querySelector('.tv-age').value = data.age_group || '';
+  node.querySelector('.tv-gender').value = data.gender || '';
+  const needs = data.needs || [];
+  node.querySelectorAll('.tv-need').forEach(cb => { cb.checked = needs.includes(cb.value); });
+  const nd = node.querySelector('.tv-needs .multi-dropdown');
+  if (nd) updateMultiLabelEl(nd);
+  node.querySelector('.tv-x').addEventListener('click', () => {
+    if (rows.children.length <= 1) return;
+    node.remove(); etNumberTravellers();
+  });
+  rows.appendChild(node);
+  etNumberTravellers();
+}
+
+function etRenderTravellers(list) {
+  const rows = document.getElementById('etTravellersRows');
+  if (!rows) return;
+  rows.innerHTML = '';
+  (list && list.length ? list : [{}]).forEach(etAddTraveller);
+}
+
+function etCollectTravellers() {
+  return [...document.querySelectorAll('#etTravellersRows .tv-card')].map(c => ({
+    who: c.querySelector('.tv-who').value,
+    age_group: c.querySelector('.tv-age').value,
+    gender: c.querySelector('.tv-gender').value,
+    needs: [...c.querySelectorAll('.tv-need:checked')].map(n => n.value),
+  })).filter(t => t.who);
+}
+
+document.getElementById('etAddTravellerBtn')?.addEventListener('click', () => etAddTraveller());
+
 document.getElementById('etAddLeg')?.addEventListener('click', () => etAddLeg());
 document.getElementById('etTypes')?.addEventListener('change', e => {
   if (e.target.name === 'trip_type') etApplyType(e.target.value);
@@ -1326,15 +1575,14 @@ document.getElementById('editTripForm')?.addEventListener('submit', async (e) =>
     to_date: type === 'round_trip' ? f.elements.to_date.value : '',
     airline: f.elements.airline.value.trim(),
     flight_number: f.elements.flight_number.value.trim(),
+    return_airline: type === 'round_trip' ? (f.elements.return_airline?.value.trim() || '') : '',
+    return_flight_number: type === 'round_trip' ? (f.elements.return_flight_number?.value.trim() || '') : '',
     additional_comments: f.elements.additional_comments.value.trim(),
     ticket_booked: f.elements.ticket_booked.checked,
     is_anonymous: f.elements.is_anonymous.checked,
     preferred_languages: [...(f.elements.preferred_languages?.selectedOptions || [])].map(o => o.value),
-    traveller_needs: [...(f.elements.traveller_needs?.selectedOptions || [])].map(o => o.value),
     connect_me_to: [...(f.elements.connect_me_to?.selectedOptions || [])].map(o => o.value),
-    on_behalf_of: f.elements.on_behalf_of?.value || '',
-    traveler_age_group: f.elements.traveler_age_group?.value || '',
-    traveler_gender: f.elements.traveler_gender?.value || '',
+    travellers: etCollectTravellers(),
     pref_gender: f.elements.pref_gender?.value || 'any',
     pref_age_min: f.elements.pref_age_min?.value ? parseInt(f.elements.pref_age_min.value, 10) : null,
     pref_age_max: f.elements.pref_age_max?.value ? parseInt(f.elements.pref_age_max.value, 10) : null,
@@ -1352,6 +1600,7 @@ document.getElementById('editTripForm')?.addEventListener('submit', async (e) =>
   } else if (!body.flying_from || !body.destination || !body.from_date) {
     return showToast('Route and departure date are required.', 'danger');
   }
+  if (!body.travellers.length) return showToast('Add at least one traveller — who is this trip for?', 'danger');
   const res = await apiFetch(`/api/trip/${id}`, { method: 'PUT', body: JSON.stringify(body) });
   const d = await res.json();
   if (d.success) {
@@ -2257,6 +2506,32 @@ function tdContent(trip, ownTrip) {
       + items.map(x => '<span>' + esc(tdSentence(x)) + '</span>').join('') + '</div></div>'
     : '';
 
+  // Per-person travellers — one companion is matched for the whole group, so each person's
+  // own age, gender and the help they'd appreciate is shown here rather than collapsed.
+  const travellers = anon ? [] : (trip.travellers || []).filter(t => t && t.who);
+  const travellersHtml = travellers.length
+    ? '<div class="td-block"><h4>' + (travellers.length > 1 ? "Who's travelling · " + travellers.length : "Who's travelling") + '</h4>'
+      + '<div class="td-travellers">'
+      + travellers.map(t => {
+          const meta = [
+            TC_AGE[t.age_group] || '',
+            (t.gender && !['other', 'unspecified', 'prefer_not'].includes(t.gender))
+              ? t.gender.charAt(0).toUpperCase() + t.gender.slice(1) : '',
+          ].filter(Boolean).join(' · ');
+          const tneeds = (t.needs || []).filter(Boolean).map(tcNeedLabel);
+          return '<div class="td-trav">'
+            + '<div class="td-trav-h"><i class="fa-solid fa-user"></i> <strong>' + esc(tdSentence(t.who)) + '</strong>'
+            + (meta ? '<span class="td-trav-meta">' + esc(meta) + '</span>' : '') + '</div>'
+            + (tneeds.length ? '<div class="td-trav-needs">'
+                + tneeds.map(n => '<span>' + esc(n) + '</span>').join('') + '</div>' : '')
+            + '</div>';
+        }).join('')
+      + '</div></div>'
+    : '';
+  // The trip-level needs chips only add value when there is no per-person breakdown, or when
+  // the poster is the one offering help (then "needs" means what they can help with).
+  const showTripNeeds = !travellers.length || trip.role === 'offering_help';
+
   const note = anon ? '' : [trip.special_needs_notes, trip.additional_comments].filter(Boolean).join('\n\n');
 
   return '' +
@@ -2268,12 +2543,13 @@ function tdContent(trip, ownTrip) {
     '<div class="td-facts">' +
       tdFact('Trip', esc(tdTypeLabel(trip)) + (trip.category ? ' · ' + esc(trip.category) : '')) +
       tdFact('Ticket', trip.ticket_booked ? 'Booked ✓' : 'Not booked yet') +
-      tdFact('Travelling for', anon ? '' : esc(tdSentence(trip.on_behalf_of))) +
+      (travellers.length ? '' : tdFact('Travelling for', anon ? '' : esc(tdSentence(trip.on_behalf_of)))) +
       tdFact('Reachable via', reachable) +
     '</div>' +
+    travellersHtml +
     legsHtml +
     chips('Languages', langs, 'lang') +
-    chips(needsTitle, needs, 'need') +
+    (showTripNeeds ? chips(needsTitle, needs, 'need') : '') +
     chips('Happy to connect about', tags, 'lang') +
     (note ? '<div class="td-block"><h4>Their note</h4><blockquote class="td-note">'
             + esc(note) + '</blockquote></div>' : '') +
