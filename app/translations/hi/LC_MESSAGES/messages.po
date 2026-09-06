@@ -1,0 +1,100 @@
+# Hindi translations for Connecting Desis.
+# MACHINE-DRAFTED — needs review by a native speaker before launch,
+# especially the consent / privacy strings.
+msgid ""
+msgstr ""
+"Project-Id-Version: connecting-desis\n"
+"Language: hi\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "All Trips"
+msgstr "सभी यात्राएँ"
+
+msgid "How It Works"
+msgstr "यह कैसे काम करता है"
+
+msgid "Desi Travellers Blog"
+msgstr "देसी यात्री ब्लॉग"
+
+msgid "My Dashboard"
+msgstr "मेरा डैशबोर्ड"
+
+msgid "Join Desi Travellers"
+msgstr "देसी यात्रियों से जुड़ें"
+
+msgid "Sign In"
+msgstr "साइन इन"
+
+msgid "Sign Up"
+msgstr "साइन अप"
+
+msgid "Inbox"
+msgstr "इनबॉक्स"
+
+msgid "My Connections"
+msgstr "मेरे कनेक्शन"
+
+msgid "Notification settings"
+msgstr "सूचना सेटिंग्स"
+
+msgid "Logout"
+msgstr "लॉग आउट"
+
+msgid "Home"
+msgstr "होम"
+
+msgid "About Us"
+msgstr "हमारे बारे में"
+
+msgid "Terms of Use"
+msgstr "उपयोग की शर्तें"
+
+msgid "Privacy Policy"
+msgstr "गोपनीयता नीति"
+
+msgid "Help"
+msgstr "सहायता"
+
+msgid "Helping the South Asian diaspora find trusted travel companions worldwide."
+msgstr "दुनिया भर में दक्षिण एशियाई समुदाय को भरोसेमंद यात्रा साथी खोजने में मदद करते हैं।"
+
+msgid "All Rights Reserved."
+msgstr "सर्वाधिकार सुरक्षित।"
+
+msgid "Please confirm your e-mail address"
+msgstr "कृपया अपना ई-मेल पता सत्यापित करें"
+
+msgid "so we can notify you about matches."
+msgstr "ताकि हम आपको मैच की सूचना दे सकें।"
+
+msgid "Resend link"
+msgstr "लिंक दोबारा भेजें"
+
+msgid "How can a matched companion reach you?"
+msgstr "मिलान हुआ साथी आपसे कैसे संपर्क कर सकता है?"
+
+msgid "(shared only with companions we match you with, and only if you agree below)"
+msgstr "(केवल उन्हीं साथियों के साथ साझा होगा जिनसे हम आपका मिलान करेंगे, और वह भी आपकी नीचे दी गई सहमति से)"
+
+msgid "I agree that Connecting Desis may share these contact details with travel companions matched to this trip."
+msgstr "मैं सहमत हूँ कि कनेक्टिंग देसीज़ इस यात्रा से मिलान हुए यात्रा साथियों के साथ ये संपर्क विवरण साझा कर सकता है।"
+
+msgid "You can always be reached through in-app chat, even without ticking this."
+msgstr "इसे टिक किए बिना भी आपसे इन-ऐप चैट के ज़रिए हमेशा संपर्क किया जा सकता है।"
+
+msgid "Post anonymously — only your route & dates will be visible"
+msgstr "गुमनाम रूप से पोस्ट करें — केवल आपका मार्ग और तिथियाँ दिखाई देंगी"
+
+msgid "Sign in to add contact details. We only share them with matched companions you approve."
+msgstr "संपर्क विवरण जोड़ने के लिए साइन इन करें। हम इन्हें केवल आपके स्वीकृत साथियों के साथ साझा करते हैं।"
+
+msgid "We found a possible travel companion"
+msgstr "हमें एक संभावित यात्रा साथी मिला है"
+
+msgid "How to get in touch"
+msgstr "संपर्क कैसे करें"
+
+msgid "agreed to share these with a matched companion. Please use them respectfully."
+msgstr "ने ये विवरण मिलान हुए साथी के साथ साझा करने की सहमति दी है। कृपया इनका सम्मानपूर्वक उपयोग करें।"

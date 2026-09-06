@@ -26,6 +26,7 @@
 
     <form method="POST" enctype="multipart/form-data" class="cs-form" autocomplete="off">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      {% if form and form.get('scrape_row_id') %}<input type="hidden" name="scrape_row_id" value="{{ form.get('scrape_row_id') }}"/>{% endif %}
 
       <section class="form-section">
         <h2>Source</h2>
@@ -167,6 +168,8 @@
           </div>
         </div>
         <div class="form-row">
+          <div class="field-group"><label>Category <span class="optional">(optional)</span></label>
+            <select name="category"><option value="">-</option>{% for c in OPT.CATEGORIES %}<option value="{{ c }}" {% if val('category') == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
           <div class="field-group wide"><label>Special needs notes</label><textarea name="special_needs_notes" rows="2">{{ val('special_needs_notes') }}</textarea></div>
           <div class="field-group wide"><label>Additional request / concerns <span class="optional">(shown publicly)</span></label><textarea name="additional_comments" rows="3">{{ val('additional_comments') }}</textarea></div>
         </div>

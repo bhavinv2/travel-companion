@@ -38,63 +38,228 @@
   </div>
 </div>
 
-<!-- MATCHES MODAL (my trips) -->
+<!-- MATCH BROWSER: full-screen split view (your post | matched profiles) -->
 <div class="modal-overlay" id="matchesModal" style="display:none">
-  <div class="modal-box" style="max-width:640px">
+  <div class="mb-shell">
     <button class="modal-close" id="closeMatchesModal">&times;</button>
-    <h2><i class="fa-solid fa-handshake"></i> Possible companions</h2>
-    <p id="matchesSubtitle"></p>
-    <div id="matchesList" class="matches-list"></div>
+    <div class="mb-cols">
+      <div class="mb-left">
+        <div class="mb-col-head">
+          <span class="mb-label"><i class="fa-solid fa-suitcase"></i> Your post</span>
+          <div class="mb-switch" id="mbPostSwitch" style="display:none">
+            <button type="button" id="mbPrevPost" title="Previous post"><i class="fa-solid fa-chevron-up"></i></button>
+            <span id="mbPostIdx">1 / 1</span>
+            <button type="button" id="mbNextPost" title="Next post"><i class="fa-solid fa-chevron-down"></i></button>
+          </div>
+        </div>
+        {# Which leg's matches are showing. Sits above the post -- .mb-post takes the
+           remaining height, so anything after it is pinned to the bottom of the column
+           and reads as stranded. Hidden for a post with a single leg. #}
+        <div class="mb-legs" id="mbLegs" hidden></div>
+        <div class="mb-post" id="mbPost"></div>
+      </div>
+      <div class="mb-right">
+        <div class="mb-col-head">
+          <span class="mb-label"><i class="fa-solid fa-handshake"></i> Matched profile</span>
+          <div class="mb-switch" id="mbMatchSwitch" style="display:none">
+            <button type="button" id="mbPrevMatch" title="Previous match"><i class="fa-solid fa-chevron-up"></i></button>
+            <span id="mbMatchIdx">1 / 1</span>
+            <button type="button" id="mbNextMatch" title="Next match"><i class="fa-solid fa-chevron-down"></i></button>
+          </div>
+        </div>
+        <div class="mb-match" id="mbMatch"></div>
+      </div>
+    </div>
   </div>
 </div>
 
 <!-- EDIT TRIP MODAL -->
 <div class="modal-overlay" id="editTripModal" style="display:none">
-  <div class="modal-box" style="max-width:720px">
-    <button class="modal-close" id="closeEditTripModal">&times;</button>
-    <h2><i class="fa-solid fa-pen"></i> Modify trip</h2>
-    <p>Connected travellers will be notified of the change.</p>
+  <div class="modal-box et-box">
+    <header class="et-head">
+      <div class="et-head-txt">
+        <span class="et-eyebrow"><i class="fa-solid fa-pen-to-square"></i> Edit trip</span>
+        <h2 id="etRoute">Update your trip</h2>
+        <p>Anyone who has connected with you will be told about the change.</p>
+      </div>
+      <button class="et-close" id="closeEditTripModal" aria-label="Close">&times;</button>
+    </header>
+
+    <template id="etLegTpl">
+      <div class="et-leg">
+        <span class="et-leg-n"></span>
+        <div class="et-leg-fields">
+          <input type="text" class="autocomplete-airport et-leg-from" placeholder="From"/>
+          <input type="text" class="autocomplete-airport et-leg-to" placeholder="To"/>
+          <input type="date" class="et-leg-date"/>
+          <input type="text" class="autocomplete-airline et-leg-air" placeholder="Airline"/>
+          <input type="text" class="et-leg-fno" placeholder="Flight no"/>
+        </div>
+        <button type="button" class="et-leg-x" title="Remove this stop"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </template>
+
     <form id="editTripForm" autocomplete="off">
       <input type="hidden" name="trip_id"/>
-      <div class="form-row">
-        <div class="field-group">
-          <label>Role</label>
-          <select name="role">{% for r in TRIP_ROLES %}<option value="{{ r }}">{{ TRIP_ROLE_LABELS[r] }}</option>{% endfor %}</select>
-        </div>
-        <div class="field-group">
-          <label>Flying from</label>
-          <div class="input-with-icon"><i class="fa-solid fa-plane-departure field-icon"></i><input type="text" name="flying_from" class="autocomplete-airport" placeholder="City or airport"/></div>
-        </div>
-        <div class="field-group">
-          <label>Destination</label>
-          <div class="input-with-icon"><i class="fa-solid fa-location-dot field-icon"></i><input type="text" name="destination" class="autocomplete-airport" placeholder="City or airport"/></div>
-        </div>
+      <div class="et-body">
+
+        <section class="et-card">
+          <h3 class="et-card-h"><i class="fa-solid fa-route"></i> Route</h3>
+
+          {# Changing this converts the post: adding a return date makes it a round trip,
+             switching to multi-stop turns the single route into editable legs. The legs
+             are rebuilt on save, so matching follows the new shape immediately. #}
+          <div class="et-types" id="etTypes" role="radiogroup" aria-label="Trip type">
+            <label class="et-type"><input type="radio" name="trip_type" value="one_way"/> <span>One way</span></label>
+            <label class="et-type"><input type="radio" name="trip_type" value="round_trip"/> <span>Round trip</span></label>
+            <label class="et-type"><input type="radio" name="trip_type" value="multi_destination"/> <span>Multi-stop</span></label>
+          </div>
+
+          <div class="et-grid" id="etSimpleRoute">
+            <div class="et-field">
+              <label for="etFrom">Flying from</label>
+              <div class="input-with-icon"><i class="fa-solid fa-plane-departure field-icon"></i>
+                <input type="text" id="etFrom" name="flying_from" class="autocomplete-airport" placeholder="City or airport"/></div>
+              <label class="et-flex"><input type="checkbox" name="flying_from_flexible"/> Nearby airports OK</label>
+            </div>
+            <div class="et-field">
+              <label for="etTo">Destination</label>
+              <div class="input-with-icon"><i class="fa-solid fa-location-dot field-icon"></i>
+                <input type="text" id="etTo" name="destination" class="autocomplete-airport" placeholder="City or airport"/></div>
+              <label class="et-flex"><input type="checkbox" name="destination_flexible"/> Nearby airports OK</label>
+            </div>
+            <div class="et-field">
+              <label for="etDep">Departure</label>
+              <input type="date" id="etDep" name="from_date"/>
+              <label class="et-flex"><input type="checkbox" name="from_date_flexible"/> Flexible dates</label>
+            </div>
+            <div class="et-field" id="editReturnRow">
+              <label for="etRet">Return</label>
+              <input type="date" id="etRet" name="to_date"/>
+              <label class="et-flex"><input type="checkbox" name="to_date_flexible"/> Flexible dates</label>
+            </div>
+          </div>
+
+          <!-- multi-stop: one row per hop -->
+          <div class="et-legs" id="etLegs" hidden>
+            <div class="et-legs-rows" id="etLegRows"></div>
+            <button type="button" class="btn-sm-outline" id="etAddLeg">
+              <i class="fa-solid fa-plus"></i> Add a stop
+            </button>
+            <p class="et-legs-hint muted">Each hop is matched on its own, so a companion can
+              join you for part of the journey.</p>
+          </div>
+        </section>
+
+        <section class="et-card">
+          <h3 class="et-card-h"><i class="fa-solid fa-plane"></i> Flight</h3>
+          <div class="et-grid">
+            <div class="et-field">
+              <label for="etAirline">Airline</label>
+              <div class="input-with-icon"><i class="fa-solid fa-plane field-icon"></i>
+                <input type="text" id="etAirline" name="airline" class="autocomplete-airline" placeholder="Search airline…"/></div>
+            </div>
+            <div class="et-field">
+              <label for="etFlight">Flight number</label>
+              <input type="text" id="etFlight" name="flight_number" placeholder="e.g. AI 101"/>
+            </div>
+          </div>
+        </section>
+
+        <section class="et-card">
+          <h3 class="et-card-h"><i class="fa-solid fa-user"></i> The traveller</h3>
+          <div class="et-grid">
+            <div class="et-field">
+              <label for="etOnBehalf">Who's this trip for?</label>
+              <select id="etOnBehalf" name="on_behalf_of"><option value="">Select</option>
+                {% for val, label in OPT.ON_BEHALF_OF %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="et-field">
+              <label for="etAge">Their age group</label>
+              <select id="etAge" name="traveler_age_group"><option value="">Prefer not to say</option>
+                {% for a in AGE_GROUPS %}<option value="{{ a }}">{{ AGE_GROUP_LABELS[a] }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="et-field">
+              <label for="etGender">Their gender</label>
+              <select id="etGender" name="traveler_gender"><option value="">Prefer not to say</option>
+                {% for g in GENDERS %}<option value="{{ g }}">{{ g|capitalize }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="et-field et-wide">
+              <label for="etNeeds">Any help they'll appreciate?</label>
+              <select id="etNeeds" name="traveller_needs" multiple data-placeholder="No particular needs">
+                {% for v, l in OPT.TRAVELLER_NEEDS %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section class="et-card">
+          <h3 class="et-card-h"><i class="fa-solid fa-user-group"></i> Your ideal companion</h3>
+          <div class="et-grid">
+            <div class="et-field">
+              <label for="etRole">I am…</label>
+              <select id="etRole" name="role">
+                {% for r in TRIP_ROLES %}<option value="{{ r }}">{{ TRIP_ROLE_LABELS[r] }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="et-field">
+              <label for="etPrefGender">Companion gender</label>
+              <select id="etPrefGender" name="pref_gender">
+                {% for g in PREF_GENDERS %}<option value="{{ g }}">{{ g|capitalize }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="et-field">
+              <label>Companion age <span class="muted">(min – max)</span></label>
+              <div class="et-agerow">
+                <input type="number" id="etPrefAgeMin" name="pref_age_min" min="0" max="120" placeholder="min"/>
+                <input type="number" id="etPrefAgeMax" name="pref_age_max" min="0" max="120" placeholder="max"/>
+              </div>
+            </div>
+            <div class="et-field et-wide">
+              <label for="etConnect">I'd love to meet…</label>
+              <select id="etConnect" name="connect_me_to" multiple data-placeholder="Anyone">
+                {% for val, label in OPT.CONNECT_ME_TO %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="et-field et-wide">
+              <label for="etLangs">Preferred languages</label>
+              <select id="etLangs" name="preferred_languages" multiple data-placeholder="Any language">
+                {% for l in OPT.LANGUAGES %}<option value="{{ l }}">{{ l }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section class="et-card">
+          <h3 class="et-card-h"><i class="fa-solid fa-comment-dots"></i> Anything else</h3>
+          <div class="et-grid">
+            <div class="et-field">
+              <label for="etCategory">Trip category</label>
+              <select id="etCategory" name="category"><option value="">Select a category</option>
+                {% for c in OPT.CATEGORIES %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="et-field">
+            <label for="etNotes">Additional comments</label>
+            <textarea id="etNotes" name="additional_comments" rows="3" placeholder="Anything a companion should know…"></textarea>
+          </div>
+          <div class="et-toggles">
+            <label class="et-toggle"><input type="checkbox" name="ticket_booked"/>
+              <span class="et-sw"></span><span>Ticket already booked</span></label>
+            <label class="et-toggle"><input type="checkbox" name="is_anonymous"/>
+              <span class="et-sw"></span><span>Post anonymously</span></label>
+          </div>
+        </section>
       </div>
-      <div class="form-row">
-        <div class="field-group"><label>Departure date</label><input type="date" name="from_date"/></div>
-        <div class="field-group" id="editReturnRow"><label>Return date</label><input type="date" name="to_date"/></div>
-        <div class="field-group"><label>Airline</label><div class="input-with-icon"><i class="fa-solid fa-plane field-icon"></i><input type="text" name="airline" class="autocomplete-airline" placeholder="Search airline…"/></div></div>
-        <div class="field-group"><label>Flight no</label><input type="text" name="flight_number" placeholder="e.g. AI 101"/></div>
-      </div>
-      <div class="form-row">
-        <div class="field-group wide">
-          <label>Preferred languages</label>
-          <div class="check-grid">{% for l in OPT.LANGUAGES %}<label class="flex-check"><input type="checkbox" name="preferred_languages" value="{{ l }}"/> {{ l }}</label>{% endfor %}</div>
-        </div>
-        <div class="field-group wide">
-          <label>Traveller needs</label>
-          <div class="check-grid">{% for v, l in OPT.TRAVELLER_NEEDS %}<label class="flex-check"><input type="checkbox" name="traveller_needs" value="{{ v }}"/> {{ l }}</label>{% endfor %}</div>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="field-group" style="min-width:100%"><label>Additional comments</label><textarea name="additional_comments" rows="2"></textarea></div>
-      </div>
-      <label class="flex-check"><input type="checkbox" name="ticket_booked"/> Ticket booked</label>
-      <label class="flex-check"><input type="checkbox" name="is_anonymous"/> Post anonymously</label>
-      <div class="modal-actions">
+
+      <footer class="et-foot">
         <button type="button" class="btn btn-outline-coral" id="cancelEditTrip">Cancel</button>
         <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save changes</button>
-      </div>
+      </footer>
     </form>
   </div>
 </div>

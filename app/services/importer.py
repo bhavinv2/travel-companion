@@ -17,7 +17,6 @@ from datetime import datetime, date
 
 from app import db
 from app.models import CompanionRequest, ContactPoint, ActivityEvent, TRIP_ROLES, PREF_GENDERS
-from app.options import LANGUAGES, TRAVELLER_NEEDS
 from app.services.locations import normalize_location
 from app.services.contacts import detect_type, normalize_value, validate
 
@@ -53,24 +52,41 @@ _ALIAS_TO_CANON = {alias: canon for canon, aliases in COLUMN_ALIASES.items() for
 DATE_FORMATS = ('%m/%d/%Y, %I:%M:%S %p', '%m/%d/%Y %I:%M:%S %p', '%m/%d/%Y, %H:%M:%S', '%m/%d/%Y',
                 '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d', '%d-%m-%Y', '%d %b %Y', '%d %B %Y',
                 '%b %d, %Y', '%B %d, %Y')
-_LANG_LOOKUP = {l.lower(): l for l in LANGUAGES}
-_NEED_LOOKUP = {label.lower(): key for key, label in TRAVELLER_NEEDS}
-_NEED_LOOKUP.update({key: key for key, _ in TRAVELLER_NEEDS})
+class _LiveLookup:
+    """Dict-like view rebuilt from the (admin-configurable) option lists on every access."""
 
-_airlines = None
+    def __init__(self, build):
+        self._build = build
 
+    def get(self, k, d=None):
+        return self._build().get(k, d)
+
+    def __getitem__(self, k):
+        return self._build()[k]
+
+    def __contains__(self, k):
+        return k in self._build()
+
+
+def _build_lang_lookup():
+    from app.options import get_list
+    return {l.lower(): l for l in get_list('languages')}
+
+
+def _build_need_lookup():
+    from app.options import get_list
+    needs = get_list('traveller_needs')
+    d = {label.lower(): key for key, label in needs}
+    d.update({key: key for key, _ in needs})
+    return d
+
+
+_LANG_LOOKUP = _LiveLookup(_build_lang_lookup)
+_NEED_LOOKUP = _LiveLookup(_build_need_lookup)
 
 def _airline_name(code):
-    global _airlines
-    if _airlines is None:
-        import os
-        path = os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'airlines.json')
-        try:
-            with open(path, encoding='utf-8') as f:
-                _airlines = {a['iata'].upper(): a['name'] for a in json.load(f) if a.get('iata')}
-        except Exception:  # pragma: no cover
-            _airlines = {}
-    return _airlines.get((code or '').upper())
+    from app.services import airlines
+    return airlines.name_for(code)
 
 
 def _norm_header(h):
@@ -148,13 +164,28 @@ def parse_role(s):
     return 'open'
 
 
+_EMPTY_VALUES = {'n/a', 'na', 'none', 'null', '-', '--', 'nil', 'not available'}
+
+
+def is_empty_value(s):
+    return not s or str(s).strip().lower() in _EMPTY_VALUES
+
+
 def parse_languages(s):
+    if is_empty_value(s):
+        return []
     out = []
     for part in re.split(r'[,/&;|]|\band\b', s or ''):
-        p = part.strip()
-        if not p:
+        p = part.strip().strip('.')
+        if len(p) < 2 or p.lower() in _EMPTY_VALUES:
             continue
-        out.append(_LANG_LOOKUP.get(p.lower(), p.title()))
+        known = _LANG_LOOKUP.get(p.lower())
+        if known:
+            out.append(known)
+            continue
+        # free text like "My mother speaks Telugu" -> keep any known language words inside it
+        found = [_LANG_LOOKUP[w] for w in re.findall(r'[A-Za-z]+', p.lower()) if w in _LANG_LOOKUP]
+        out.extend(found or ([p.title()] if len(p.split()) <= 2 else []))
     return list(dict.fromkeys(out))
 
 
@@ -168,9 +199,14 @@ def parse_needs(s):
 
 
 def parse_flight(flight, airline):
-    """'QR573' -> ('Qatar Airways', 'QR573'); explicit airline column wins."""
-    flight = (flight or '').strip().upper().replace(' ', '')
-    airline = (airline or '').strip()
+    """'QR573' -> ('Qatar Airways', 'QR573'); explicit airline column wins; a value with no digits
+    (e.g. 'KLM', 'Air India') is an airline name, not a flight number."""
+    flight = '' if is_empty_value(flight) else (flight or '').strip()
+    airline = '' if is_empty_value(airline) else (airline or '').strip()
+    if flight and not re.search(r'\d', flight):
+        airline = airline or (_airline_name(flight) if len(flight) <= 3 else None) or flight
+        flight = ''
+    flight = flight.upper().replace(' ', '')
     if not airline and flight:
         m = re.match(r'^([A-Z0-9]{2})\s*\d{1,4}[A-Z]?$', flight)
         if m:
@@ -180,6 +216,7 @@ def parse_flight(flight, airline):
 
 def build_row(canon, idx, default_source='website'):
     """Turn one parsed record into a normalised, validated import row."""
+    canon = {k: ('' if isinstance(v, str) and is_empty_value(v) else v) for k, v in (canon or {}).items()}
     row = {'idx': idx, 'errors': [], 'warnings': [], 'contacts': []}
     origin = normalize_location(canon.get('origin', ''))
     dest = normalize_location(canon.get('destination', ''))

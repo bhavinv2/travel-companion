@@ -1,13 +1,22 @@
 """Matching engine: candidate selection, explainable scoring, persistence of Match rows.
 
-Weights and sub-scores follow doc/PHASE2_PLAN_ANALYSIS.md §6. Every criterion returns a 0-100 sub-score and a
-human-readable detail so the UI can show "why" next to the percentage.
+Matching runs **leg against leg**, not post against post. Every post is flattened into
+TripLeg rows by services.legs, so a round trip offers its outbound and its return
+separately and a multi-destination post offers each hop. Any leg can pair with any other
+leg whatever trip type it came from, which is what lets a one-way traveller be the
+companion for the second hop of somebody's multi-stop itinerary.
+
+Route, date and flight are scored from the two legs; role, language and preferences come
+from the posts behind them. Weights and sub-scores follow doc/PHASE2_PLAN_ANALYSIS.md §6.
+Every criterion returns a 0-100 sub-score and a human-readable detail so the UI can show
+"why" next to the percentage.
 """
 import re
 from datetime import date, timedelta
 
 from app import db
-from app.models import CompanionRequest, Match, ActivityEvent
+from app.models import CompanionRequest, Match, TripLeg, ActivityEvent
+from app.services import legs
 
 WEIGHTS = {
     'route': 35,
@@ -77,7 +86,18 @@ def score_flight(a, b):
     return 0, 'Different airlines'
 
 
+def _post(x):
+    """The post behind a leg -- or x itself, so the scorers work on either.
+
+    Route, date and flight read attribute names a TripLeg also provides, so score_pair()
+    can be handed two legs (what the matcher does) or two whole posts (handy in tests and
+    for CS tools that just want to compare two listings).
+    """
+    return getattr(x, 'trip', None) or x
+
+
 def score_role(a, b):
+    a, b = _post(a), _post(b)
     ra, rb = a.role or 'seeking_help', b.role or 'seeking_help'
     pair = {ra, rb}
     if pair == {'seeking_help', 'offering_help'}:
@@ -90,6 +110,7 @@ def score_role(a, b):
 
 
 def score_language(a, b):
+    a, b = _post(a), _post(b)
     la = {x.strip().lower() for x in (a.preferred_languages or []) if x}
     lb = {x.strip().lower() for x in (b.preferred_languages or []) if x}
     if not la or not lb:
@@ -128,6 +149,7 @@ def _pref_side(pref_trip, other):
 
 
 def score_prefs(a, b):
+    a, b = _post(a), _post(b)
     sa, na = _pref_side(a, b)
     sb, nb = _pref_side(b, a)
     s = (sa + sb) / 2
@@ -159,7 +181,7 @@ def get_weights():
 
 
 def score_pair(a, b):
-    """Return (total 0-100, criteria list)."""
+    """Score one leg against another. Returns (total 0-100, criteria list)."""
     total = 0.0
     criteria = []
     weights = get_weights()
@@ -180,29 +202,50 @@ def score_pair(a, b):
 # Candidates & persistence
 # ---------------------------------------------------------------------------
 
-def candidates_for(trip, include_unconfirmed=False):
-    if not trip.from_date:
+def leg_candidates(leg, include_unconfirmed=False):
+    """Legs on other people's posts that could pair with this one.
+
+    A cheap pre-filter only — same metro pair (or same airports when a metro is unknown)
+    and departing within DATE_WINDOW_DAYS. score_pair() decides what actually counts.
+    """
+    if not leg.depart_date:
         return []
     statuses = ['open', 'matched'] + (['unconfirmed'] if include_unconfirmed else [])
-    q = CompanionRequest.query.filter(
-        CompanionRequest.id != trip.id,
+    q = TripLeg.query.join(CompanionRequest, TripLeg.trip_id == CompanionRequest.id).filter(
+        TripLeg.trip_id != leg.trip_id,
         CompanionRequest.travel_type == 'air',
         CompanionRequest.status.in_(statuses),
-        CompanionRequest.from_date >= trip.from_date - timedelta(days=DATE_WINDOW_DAYS),
-        CompanionRequest.from_date <= trip.from_date + timedelta(days=DATE_WINDOW_DAYS),
-        CompanionRequest.from_date >= date.today() - timedelta(days=1),
+        TripLeg.depart_date >= leg.depart_date - timedelta(days=DATE_WINDOW_DAYS),
+        TripLeg.depart_date <= leg.depart_date + timedelta(days=DATE_WINDOW_DAYS),
+        TripLeg.depart_date >= date.today() - timedelta(days=1),
     )
-    if trip.origin_metro and trip.dest_metro:
-        q = q.filter(CompanionRequest.origin_metro == trip.origin_metro,
-                     CompanionRequest.dest_metro == trip.dest_metro)
-    elif trip.origin_iata and trip.dest_iata:
-        q = q.filter(CompanionRequest.origin_iata == trip.origin_iata,
-                     CompanionRequest.dest_iata == trip.dest_iata)
+    if leg.origin_metro and leg.dest_metro:
+        q = q.filter(TripLeg.origin_metro == leg.origin_metro,
+                     TripLeg.dest_metro == leg.dest_metro)
+    elif leg.origin_iata and leg.dest_iata:
+        q = q.filter(TripLeg.origin_iata == leg.origin_iata,
+                     TripLeg.dest_iata == leg.dest_iata)
     else:
         return []
-    if trip.user_id:
-        q = q.filter((CompanionRequest.user_id != trip.user_id) | (CompanionRequest.user_id.is_(None)))
+    owner = leg.trip.user_id
+    if owner:
+        q = q.filter((CompanionRequest.user_id != owner) | (CompanionRequest.user_id.is_(None)))
     return q.all()
+
+
+def candidates_for(trip, include_unconfirmed=False):
+    """Posts with at least one leg that could pair with one of this post's legs.
+
+    Kept for callers that only want "who might suit this post"; the matcher itself works
+    in leg pairs and uses leg_candidates() directly.
+    """
+    seen, out = set(), []
+    for leg in legs.legs_of(trip):
+        for cand in leg_candidates(leg, include_unconfirmed=include_unconfirmed):
+            if cand.trip_id not in seen:
+                seen.add(cand.trip_id)
+                out.append(cand.trip)
+    return out
 
 
 def _same_person(a, b):
@@ -214,44 +257,62 @@ def _same_person(a, b):
     return bool(va & vb)
 
 
-def compute_matches_for(trip, include_unconfirmed=False, actor=None, commit=True):
-    """(Re)compute and persist matches for one post. Returns the list of live Match rows for it."""
+def compute_matches_for(trip, include_unconfirmed=False, actor=None, commit=True, notify=True):
+    """(Re)compute and persist matches for one post, leg by leg.
+
+    Returns the live Match rows for it. A post pairs with another once per pair of legs
+    that fit, so two multi-stop itineraries sharing two hops produce two matches.
+    """
+    legs.sync_legs(trip)
+    db.session.flush()                      # new legs need ids before a Match can point at them
+
     seen_pairs = set()
     results = []
     new_matches = []
-    for cand in candidates_for(trip, include_unconfirmed=include_unconfirmed):
-        if _same_person(trip, cand):
-            continue
-        score, criteria = score_pair(trip, cand)
-        a_id, b_id = Match.ordered_ids(trip.id, cand.id)
-        existing = Match.query.filter_by(trip_a_id=a_id, trip_b_id=b_id).first()
-        if score < MIN_SCORE:
-            if existing and existing.status == 'suggested':
-                existing.status = 'dismissed'
-                existing.dismissed_reason = 'post_changed'
-            continue
-        seen_pairs.add((a_id, b_id))
-        if existing:
-            if existing.status == 'dismissed' and existing.dismissed_reason == 'post_changed':
-                existing.status = 'suggested'
-                existing.dismissed_reason = None
-            existing.score, existing.criteria = score, criteria
-            results.append(existing)
-        else:
-            m = Match(trip_a_id=a_id, trip_b_id=b_id, score=score, criteria=criteria)
-            db.session.add(m)
-            results.append(m)
-            new_matches.append(m)
-            ActivityEvent.log('match_suggested', trip, actor=actor, other_trip_id=cand.id, score=score)
-    # Pairs that used to match but no longer pass the candidate filter
+    blocked = {}                            # trip_id -> same person? (asked once per post)
+
+    for leg in legs.legs_of(trip):
+        for cand_leg in leg_candidates(leg, include_unconfirmed=include_unconfirmed):
+            cand = cand_leg.trip
+            if cand.id not in blocked:
+                blocked[cand.id] = _same_person(trip, cand)
+            if blocked[cand.id]:
+                continue
+            score, criteria = score_pair(leg, cand_leg)
+            a_id, b_id = Match.ordered_ids(trip.id, cand.id)
+            leg_a, leg_b = (leg, cand_leg) if a_id == trip.id else (cand_leg, leg)
+            existing = Match.query.filter_by(trip_a_id=a_id, trip_b_id=b_id,
+                                             leg_a_id=leg_a.id, leg_b_id=leg_b.id).first()
+            if score < MIN_SCORE:
+                if existing and existing.status == 'suggested':
+                    existing.status = 'dismissed'
+                    existing.dismissed_reason = 'post_changed'
+                continue
+            seen_pairs.add((a_id, b_id, leg_a.id, leg_b.id))
+            if existing:
+                if existing.status == 'dismissed' and existing.dismissed_reason == 'post_changed':
+                    existing.status = 'suggested'
+                    existing.dismissed_reason = None
+                existing.score, existing.criteria = score, criteria
+                results.append(existing)
+            else:
+                m = Match(trip_a_id=a_id, trip_b_id=b_id,
+                          leg_a_id=leg_a.id, leg_b_id=leg_b.id, score=score, criteria=criteria)
+                db.session.add(m)
+                results.append(m)
+                new_matches.append(m)
+                ActivityEvent.log('match_suggested', trip, actor=actor, other_trip_id=cand.id,
+                                  score=score, leg=leg.label, their_leg=cand_leg.label)
+
+    # Leg pairs that used to match but no longer pass the candidate filter
     for m in live_matches_for(trip):
-        pair = Match.ordered_ids(m.trip_a_id, m.trip_b_id)
-        if pair not in seen_pairs and m.status == 'suggested':
+        key = (m.trip_a_id, m.trip_b_id, m.leg_a_id, m.leg_b_id)
+        if key not in seen_pairs and m.status == 'suggested':
             m.status = 'dismissed'
             m.dismissed_reason = 'post_changed'
     if commit:
         db.session.commit()
-        if new_matches:
+        if new_matches and notify:
             from app.services.bridge import alert_new_matches  # local import: bridge imports matching
             alert_new_matches(trip, new_matches, actor=actor)
     return results
@@ -284,6 +345,36 @@ def ranked_matches_for(trip, include_unconfirmed=False):
         ms = [m for m in ms if m.other_trip(trip.id).is_public]
     ms.sort(key=lambda m: (m.score * urgency_factor(m.other_trip(trip.id)), m.score), reverse=True)
     return ms
+
+
+def _short_route(trip):
+    o = trip.origin_iata or (trip.flying_from or '?')[:3].upper()
+    d = trip.dest_iata or (trip.destination or '?')[:3].upper()
+    return f"{o} → {d}"
+
+
+def matches_for_user(user):
+    """{other_trip_id: {'score', 'my_trip_id', 'my_route'}} for every live match between one of
+    `user`'s posts and someone else's — best score per other post. Used to flag, while a user
+    browses everyone's trips, the ones that already match something they posted."""
+    my_posts = CompanionRequest.query.filter_by(user_id=user.id).all()
+    my_ids = {t.id for t in my_posts}
+    if not my_ids:
+        return {}
+    my_route = {t.id: _short_route(t) for t in my_posts}
+    rows = Match.query.filter(
+        Match.status != 'dismissed',
+        (Match.trip_a_id.in_(my_ids)) | (Match.trip_b_id.in_(my_ids)),
+    ).all()
+    out = {}
+    for m in rows:
+        mine, other = (m.trip_a_id, m.trip_b_id) if m.trip_a_id in my_ids else (m.trip_b_id, m.trip_a_id)
+        if other in my_ids:                 # a pair of the user's own posts: never a "match to me"
+            continue
+        cur = out.get(other)
+        if cur is None or m.score > cur['score']:
+            out[other] = {'score': m.score, 'my_trip_id': mine, 'my_route': my_route[mine]}
+    return out
 
 
 def dismiss_matches_for_closed_trip(trip):

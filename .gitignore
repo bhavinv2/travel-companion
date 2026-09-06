@@ -1,13 +1,41 @@
+# --- secrets & local config -------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# --- local runtime state (never deployable) ---------------------------------
+instance/
+dev.db
+*.db
+*.db-journal
+*.bak*
+logs/
+*.log
+sessions/
+
+# --- user uploads (keep the empty folder) -----------------------------------
+app/static/uploads/*
+!app/static/uploads/.gitkeep
+
+# --- python -----------------------------------------------------------------
 venv/
+.venv/
 __pycache__/
 *.pyc
 *.pyo
-.env
-dev.db
-*.db
-.DS_Store
-instance/
-.pytest_cache/
 *.egg-info/
 dist/
 build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- scraper output ---------------------------------------------------------
+*.xlsx
+
+# --- editors & OS -----------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+.claude/

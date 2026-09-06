@@ -1,0 +1,54 @@
+{# Just the results, so live search can replace them without reloading the page. #}
+{% from 'cs/_macros.html' import contact_icons, trip_type_chip, role_chip with context %}
+<p class="muted cs-count">{{ total }} post{{ '' if total == 1 else 's' }} waiting
+  &middot; {{ total_matches }} match{{ '' if total_matches == 1 else 'es' }}</p>
+
+{% for g in groups %}
+{% set t = g.trip %}
+<section class="mq-group">
+  <header class="mq-head">
+    <div class="mq-who">
+      <a class="person-link" href="{{ url_for('cs.post_detail', trip_id=t.id) }}"><strong>#{{ t.id }}</strong>
+        <span class="person-name">{{ t.poster_name or (t.author.username if t.author else 'Traveller') }}</span></a>
+      {{ role_chip(t) }} {{ trip_type_chip(t) }}
+      <span class="ci-cell">{{ contact_icons(t) }}</span>
+    </div>
+    <div class="mq-meta">
+      <span class="mq-route">{{ t.route_display }}</span>
+      <span class="muted">{{ t.from_date or 'no date' }}</span>
+      <span class="mq-n">{{ g.rows|length }} waiting</span>
+      <a class="btn-sm" href="{{ url_for('matches.cs_matches', trip_id=t.id) }}">Open all</a>
+    </div>
+  </header>
+
+  <div class="table-wrap"><table class="admin-table stack-mobile mq-table">
+    <thead><tr><th>Match</th><th>Score</th><th>Waiting on</th><th>Other side</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for r in g.rows %}{% set m = r.match %}{% set o = r.other %}
+      <tr>
+        <td data-label="Match"><strong>#{{ m.id }}</strong><br/>
+          <small class="muted">{{ m.updated_at|ist('%d %b, %H:%M') if m.updated_at }}</small></td>
+        <td data-label="Score">{{ m.score }}%</td>
+        <td data-label="Waiting on">
+          <small class="muted">{{ CHANNEL_LABELS[r.party.channel] if r.party else '—' }}</small><br/>
+          <span class="chip chip-unconfirmed">{{ (r.party.status if r.party else 'no party')|replace('_',' ') }}</span>
+        </td>
+        <td data-label="Other side">
+          <a class="person-link" href="{{ url_for('cs.post_detail', trip_id=o.id) }}">#{{ o.id }}
+            <span class="person-name">{{ o.poster_name or (o.author.username if o.author else '?') }}</span></a>
+          {{ trip_type_chip(o) }}
+          <span class="ci-cell">{{ contact_icons(o) }}</span><br/>
+          <small class="muted">{{ o.route_display }} · {{ CHANNEL_LABELS[r.other_party.channel] if r.other_party else '—' }}</small>
+        </td>
+        <td data-label="Status"><span class="chip chip-src">{{ m.status }}</span></td>
+        <td class="row-actions"><a class="btn-sm" href="{{ url_for('matches.cs_matches', trip_id=t.id) }}#match-{{ m.id }}">Open</a></td>
+      </tr>
+    {% endfor %}
+    </tbody></table></div>
+</section>
+{% else %}
+<div class="dash-empty"><i class="fa-solid fa-circle-check"></i>
+  Nothing needs attention{{ ' matching those filters' if filters.q or filters.status or filters.trip_type or filters.channel }}.</div>
+{% endfor %}
+
+{% include 'admin/_pager.html' %}

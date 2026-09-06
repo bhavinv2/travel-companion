@@ -74,8 +74,13 @@ class User(UserMixin, db.Model):
     is_verified = db.Column(db.Boolean, default=False)   # e-mail verified
     is_admin = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
-    role = db.Column(db.String(20), default='user')      # user / cs / admin
+    role = db.Column(db.String(20), default='user')      # legacy: highest access level (user / cs / admin)
+    # All roles the account holds, e.g. ["user", "cs"]. Role keys and their access levels are configurable at
+    # /admin/options; `role` and `is_admin` are kept in sync by set_roles() so existing checks keep working.
+    roles = db.Column(db.JSON)
     phone_verified = db.Column(db.Boolean, default=False)
+    # Per-user notification preferences: {"muted": bool, "email": bool, "<category>": bool}
+    notify_prefs = db.Column(db.JSON)
     oauth_provider = db.Column(db.String(50))
     oauth_id = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -101,10 +106,48 @@ class User(UserMixin, db.Model):
     def full_name(self):
         return f"{self.first_name or ''} {self.last_name or ''}".strip() or self.username
 
+    # ---- roles -------------------------------------------------------------------------------------
+    @property
+    def role_keys(self):
+        """Role keys held by this account (falls back to the legacy single role for old rows)."""
+        if self.roles:
+            return list(self.roles)
+        keys = [self.role or 'user']
+        if self.is_admin and 'admin' not in keys:
+            keys.append('admin')
+        return keys
+
+    def has_role(self, key):
+        return key in self.role_keys
+
+    @property
+    def role_levels(self):
+        from app.options import role_level
+        return {role_level(k) for k in self.role_keys}
+
+    def set_roles(self, keys):
+        """Assign roles; keeps `role` (highest access level) and `is_admin` in sync."""
+        from app.options import role_level, ROLE_LEVELS
+        keys = [k for k in dict.fromkeys(keys or []) if k]
+        if not keys:
+            keys = ['user']
+        self.roles = keys
+        top = max((role_level(k) for k in keys), key=ROLE_LEVELS.index)
+        self.role = top
+        self.is_admin = (top == 'admin')
+        return keys
+
     @property
     def is_cs(self):
         """Customer-service staff (or admins) may use the CS console."""
+        if self.roles:
+            return bool(self.role_levels & {'cs', 'admin'})
         return bool(self.is_admin) or self.role in ('cs', 'admin')
+
+    @property
+    def is_traveller(self):
+        """Holds a traveller-level role, i.e. may use the public/traveller screens."""
+        return 'user' in self.role_levels
 
     @property
     def effective_role(self):
@@ -114,6 +157,12 @@ class User(UserMixin, db.Model):
 
     def __repr__(self):
         return f'<User {self.username}>'
+
+
+@db.event.listens_for(User, 'before_insert')
+def _user_default_roles(mapper, connection, target):
+    if target.roles is None:
+        target.roles = target.role_keys
 
 
 class CompanionRequest(db.Model):
@@ -290,6 +339,7 @@ class CompanionRequest(db.Model):
             'from_date': self.from_date.isoformat() if self.from_date else None,
             'to_date': self.to_date.isoformat() if self.to_date else None,
             'from_date_flexible': bool(self.from_date_flexible),
+            'to_date_flexible': bool(self.to_date_flexible),
             'flying_from_flexible': bool(self.flying_from_flexible),
             'destination_flexible': bool(self.destination_flexible),
             'airline': self.airline,
@@ -322,6 +372,94 @@ class CompanionRequest(db.Model):
                 'username': self.display_name,
                 'photo_url': author_photo,
             },
+        }
+
+
+class TripLeg(db.Model):
+    """One flown segment of a post.
+
+    A one-way post has a single leg; a round trip has an outbound and a return; a
+    multi-destination post has one leg per hop. Matching runs leg against leg, so a return
+    or a middle hop can find a companion of its own instead of being invisible — a post's
+    origin/destination columns only ever described its first and last airport.
+
+    These rows are derived from the post and rebuilt by services.legs.sync_legs() whenever
+    the route changes; they are never edited directly.
+    """
+    __tablename__ = 'trip_legs'
+    __table_args__ = (
+        db.UniqueConstraint('trip_id', 'seq', name='uq_trip_legs_seq'),
+        db.Index('ix_trip_legs_route', 'origin_metro', 'dest_metro', 'depart_date'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    trip_id = db.Column(db.Integer, db.ForeignKey('companion_requests.id', ondelete='CASCADE'),
+                        nullable=False, index=True)
+    seq = db.Column(db.Integer, nullable=False, default=0)
+    kind = db.Column(db.String(12), default='leg')        # outbound / return / leg
+
+    origin_text = db.Column(db.String(200))
+    origin_iata = db.Column(db.String(5), index=True)
+    origin_city = db.Column(db.String(120))
+    origin_metro = db.Column(db.String(60), index=True)
+    dest_text = db.Column(db.String(200))
+    dest_iata = db.Column(db.String(5), index=True)
+    dest_city = db.Column(db.String(120))
+    dest_metro = db.Column(db.String(60), index=True)
+
+    depart_date = db.Column(db.Date, index=True)
+    date_flexible = db.Column(db.Boolean, default=False)
+    airline = db.Column(db.String(200))
+    flight_number = db.Column(db.String(30))
+
+    trip = db.relationship('CompanionRequest',
+                           backref=db.backref('leg_rows', order_by='TripLeg.seq',
+                                              cascade='all, delete-orphan', lazy='select'))
+
+    # matching reads legs through the same names it used to read on the post, so the
+    # scorers do not need to know which of the two they were handed
+    @property
+    def from_date(self):
+        return self.depart_date
+
+    @property
+    def from_date_flexible(self):
+        return self.date_flexible
+
+    @property
+    def label(self):
+        """Short human name for the segment: 'Outbound', 'Return', 'Trip 2 of 3'.
+
+        The model calls these legs, but a traveller reading a multi-stop itinerary thinks
+        of each hop as one of their trips, so that is the word the screens use.
+        """
+        if self.kind == 'outbound':
+            return 'Outbound'
+        if self.kind == 'return':
+            return 'Return'
+        total = len(self.trip.leg_rows) if self.trip is not None else 0
+        return f'Trip {self.seq + 1} of {total}' if total > 1 else 'Trip'
+
+    @property
+    def route_display(self):
+        return f"{self.origin_text or self.origin_iata or '?'} → {self.dest_text or self.dest_iata or '?'}"
+
+    @property
+    def short_route(self):
+        o = self.origin_iata or (self.origin_text or '?')[:3].upper()
+        d = self.dest_iata or (self.dest_text or '?')[:3].upper()
+        return f'{o} → {d}'
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'seq': self.seq, 'kind': self.kind, 'label': self.label,
+            'origin_text': self.origin_text, 'origin_iata': self.origin_iata,
+            'origin_city': self.origin_city,
+            'dest_text': self.dest_text, 'dest_iata': self.dest_iata, 'dest_city': self.dest_city,
+            'depart_date': self.depart_date.isoformat() if self.depart_date else None,
+            'date_flexible': bool(self.date_flexible),
+            'airline': self.airline, 'flight_number': self.flight_number,
+            'route': self.route_display, 'short_route': self.short_route,
         }
 
 
@@ -507,7 +645,52 @@ class Feedback(db.Model):
     rating = db.Column(db.Integer, nullable=False)  # 1-5
     comment = db.Column(db.Text)
     is_approved = db.Column(db.Boolean, default=False)
+    is_featured = db.Column(db.Boolean, default=False)   # hand-picked for the public home page
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+CONTACT_STATUSES = ('new', 'in_progress', 'closed')
+CONTACT_STATUS_LABELS = {'new': 'New', 'in_progress': 'In progress', 'closed': 'Closed'}
+
+
+class ContactMessage(db.Model):
+    """A "Contact us" enquiry from the public form. Visible to CS and admins.
+
+    user_id is nullable because the form deliberately works signed-out — someone who cannot
+    log in is exactly the person most likely to need it.
+    """
+    __tablename__ = 'contact_messages'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    name = db.Column(db.String(120), nullable=False)
+    email = db.Column(db.String(255), nullable=False, index=True)
+    phone = db.Column(db.String(30))
+    message = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(15), default='new', index=True)
+    handled_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    handled_at = db.Column(db.DateTime)
+    cs_notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    user = db.relationship('User', foreign_keys=[user_id])
+    handled_by = db.relationship('User', foreign_keys=[handled_by_id])
+
+    def set_status(self, status, by=None):
+        assert status in CONTACT_STATUSES, status
+        self.status = status
+        if status == 'new':
+            self.handled_by_id, self.handled_at = None, None
+        else:
+            self.handled_by_id = by.id if by else None
+            self.handled_at = datetime.utcnow()
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'name': self.name, 'email': self.email, 'phone': self.phone,
+            'message': self.message, 'status': self.status,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
 
 
 class Notification(db.Model):
@@ -570,13 +753,22 @@ CHANNEL_LABELS = {
 
 
 class Match(db.Model):
-    """A scored pairing of two posts. trip_a_id < trip_b_id so each pair exists once."""
+    """A scored pairing of two posts on one specific leg each.
+
+    trip_a_id < trip_b_id so a pair is stored once, and leg_a/leg_b say which segment of
+    each post actually lines up. Two posts can therefore match more than once — a pair of
+    round trips that share both the outbound and the return is two matches, not one, and
+    each is introduced on its own.
+    """
     __tablename__ = 'matches'
-    __table_args__ = (db.UniqueConstraint('trip_a_id', 'trip_b_id', name='uq_matches_pair'),)
+    __table_args__ = (db.UniqueConstraint('trip_a_id', 'trip_b_id', 'leg_a_id', 'leg_b_id',
+                                          name='uq_matches_pair'),)
 
     id = db.Column(db.Integer, primary_key=True)
     trip_a_id = db.Column(db.Integer, db.ForeignKey('companion_requests.id'), nullable=False, index=True)
     trip_b_id = db.Column(db.Integer, db.ForeignKey('companion_requests.id'), nullable=False, index=True)
+    leg_a_id = db.Column(db.Integer, db.ForeignKey('trip_legs.id', ondelete='CASCADE'), index=True)
+    leg_b_id = db.Column(db.Integer, db.ForeignKey('trip_legs.id', ondelete='CASCADE'), index=True)
     score = db.Column(db.Integer, nullable=False, default=0)
     criteria = db.Column(db.JSON)          # [{key, label, ok, detail, points, weight}, ...]
     status = db.Column(db.String(15), default='suggested', index=True)
@@ -591,6 +783,8 @@ class Match(db.Model):
     trip_b = db.relationship('CompanionRequest', foreign_keys=[trip_b_id],
                              backref=db.backref('matches_as_b', lazy='dynamic'))
     cs_owner = db.relationship('User', foreign_keys=[cs_owner_id])
+    leg_a = db.relationship('TripLeg', foreign_keys=[leg_a_id])
+    leg_b = db.relationship('TripLeg', foreign_keys=[leg_b_id])
     parties = db.relationship('MatchParty', backref='match', lazy='select', cascade='all, delete-orphan')
 
     @staticmethod
@@ -599,6 +793,13 @@ class Match(db.Model):
 
     def other_trip(self, trip_id):
         return self.trip_b if trip_id == self.trip_a_id else self.trip_a
+
+    def leg_for(self, trip_id):
+        """The leg of `trip_id` that this match is about (None on pre-leg rows)."""
+        return self.leg_a if trip_id == self.trip_a_id else self.leg_b
+
+    def other_leg(self, trip_id):
+        return self.leg_b if trip_id == self.trip_a_id else self.leg_a
 
     def party_for(self, trip_id):
         return next((p for p in self.parties if p.trip_id == trip_id), None)
@@ -620,6 +821,10 @@ class Match(db.Model):
             'needs_cs_attention': self.needs_cs_attention,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
+        if for_trip_id:
+            mine_leg, their_leg = self.leg_for(for_trip_id), self.other_leg(for_trip_id)
+            d['my_leg'] = mine_leg.to_dict() if mine_leg else None
+            d['their_leg'] = their_leg.to_dict() if their_leg else None
         if other is not None:
             d['other'] = other.to_dict(viewer_id=viewer_id)
             mine = self.party_for(for_trip_id)
@@ -671,4 +876,230 @@ class MatchParty(db.Model):
             'sent_at': self.sent_at.isoformat() if self.sent_at else None,
             'opened_at': self.opened_at.isoformat() if self.opened_at else None,
             'viewed_at': self.viewed_at.isoformat() if self.viewed_at else None,
+        }
+
+
+# ---------------------------------------------------------------------------
+# Site-wide settings (key/value JSON) — used for the notification switches
+# ---------------------------------------------------------------------------
+
+class Airport(db.Model):
+    """Airport reference data: seeded from the bundled list by migration; admins add rows at /admin/options."""
+    __tablename__ = 'airports'
+
+    id = db.Column(db.Integer, primary_key=True)
+    iata = db.Column(db.String(5), unique=True, nullable=False, index=True)
+    name = db.Column(db.String(150), nullable=False)
+    city = db.Column(db.String(100), index=True)
+    country = db.Column(db.String(80))
+    is_custom = db.Column(db.Boolean, default=False, nullable=False)   # added by an admin (deletable)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def as_dict(self):
+        return {'iata': self.iata, 'name': self.name, 'city': self.city, 'country': self.country,
+                'custom': self.is_custom, 'id': self.id}
+
+
+class Airline(db.Model):
+    """Airline reference data: seeded from the bundled list by migration; admins add rows at /admin/options."""
+    __tablename__ = 'airlines'
+
+    id = db.Column(db.Integer, primary_key=True)
+    iata = db.Column(db.String(5), unique=True, nullable=False, index=True)
+    name = db.Column(db.String(150), nullable=False)
+    country = db.Column(db.String(80))
+    is_custom = db.Column(db.Boolean, default=False, nullable=False)   # added by an admin (deletable)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def as_dict(self):
+        return {'iata': self.iata, 'name': self.name, 'country': self.country,
+                'custom': self.is_custom, 'id': self.id}
+
+
+NOTIFY_CATEGORIES = ('match_alerts', 'match_intro', 'connection', 'chat', 'announcements', 'cs', 'account')
+NOTIFY_CATEGORY_LABELS = {
+    'match_alerts': 'New possible companion alerts (heads-up when a matching trip appears)',
+    'match_intro': 'Match introductions (contact-page links after "notify both" / "share my contact")',
+    'connection': 'Connection requests, accept / decline, trip changed or cancelled',
+    'chat': 'New chat messages',
+    'announcements': 'Blog posts and admin broadcasts',
+    'cs': 'Customer-service alerts (escalations, claimed posts, reports)',
+    'account': 'Account e-mails (e-mail verification, password reset)',
+}
+USER_PREF_CATEGORIES = ('match_alerts', 'match_intro', 'connection', 'chat', 'announcements')
+
+
+class AppSetting(db.Model):
+    __tablename__ = 'app_settings'
+
+    key = db.Column(db.String(80), primary_key=True)
+    value = db.Column(db.JSON)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+    updated_by = db.relationship('User', foreign_keys=[updated_by_id])
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: admin web scraping (recipes, runs, rows) — see app/services/scraper*.py
+# ---------------------------------------------------------------------------
+
+SCRAPE_MODES = ('recipe', 'source')
+SCRAPE_RUN_KINDS = ('detect', 'preview', 'teach', 'run')
+SCRAPE_RUN_STATUSES = ('queued', 'running', 'done', 'failed', 'cancelled')
+SCRAPE_ROW_STATUSES = ('new', 'duplicate', 'imported', 'skipped')
+SCRAPE_META_COLUMNS = ('_page', '_url', '_fetched_at', '_key')
+
+
+class ScrapeRecipe(db.Model):
+    """A taught fetchall recipe (mode='recipe') or a detected data source (mode='source') for one site."""
+    __tablename__ = 'scrape_recipes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), unique=True, nullable=False)
+    site = db.Column(db.String(200))
+    start_url = db.Column(db.String(500), nullable=False)
+    mode = db.Column(db.String(10), default='recipe')      # recipe | source
+    recipe_json = db.Column(db.JSON)                        # fetchall recipe dict (mode='recipe')
+    source_json = db.Column(db.JSON)                        # {source, kind, page_url, columns} (mode='source')
+    field_mapping = db.Column(db.JSON)                      # {scraped_column: importer canonical column | 'ignore'}
+    default_source = db.Column(db.String(20), default='website')   # website | facebook
+    session_key = db.Column(db.String(300))                 # storage-state file name in SCRAPER_SESSION_DIR
+    schedule_enabled = db.Column(db.Boolean, default=False)
+    schedule_every_hours = db.Column(db.Integer, default=24)
+    is_active = db.Column(db.Boolean, default=True)
+    last_run_at = db.Column(db.DateTime)
+    last_status = db.Column(db.String(15))
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+    runs = db.relationship('ScrapeRun', backref='recipe', lazy='dynamic', cascade='all, delete-orphan',
+                           order_by='ScrapeRun.created_at.desc()')
+    rows = db.relationship('ScrapeRow', backref='recipe', lazy='dynamic', cascade='all, delete-orphan')
+
+    @property
+    def columns(self):
+        """Column names a run of this recipe produces (scraped fields + fetchall meta columns)."""
+        if self.mode == 'source':
+            cols = list((self.source_json or {}).get('columns') or [])
+        else:
+            r = self.recipe_json or {}
+            cols = list((r.get('fields') or {}).keys())
+            cols += [c for c in ((r.get('detail') or {}).get('fields') or {}) if c not in cols]
+        return cols + [m for m in SCRAPE_META_COLUMNS if m not in cols]
+
+    @property
+    def active_run(self):
+        return self.runs.filter(ScrapeRun.status.in_(['queued', 'running'])).first()
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'name': self.name, 'site': self.site, 'start_url': self.start_url, 'mode': self.mode,
+            'default_source': self.default_source, 'is_active': self.is_active,
+            'schedule_enabled': self.schedule_enabled, 'schedule_every_hours': self.schedule_every_hours,
+            'last_run_at': self.last_run_at.isoformat() if self.last_run_at else None,
+            'last_status': self.last_status, 'columns': self.columns, 'field_mapping': self.field_mapping or {},
+        }
+
+
+class ScrapeRun(db.Model):
+    """One background job: detect data sources, preview a recipe, teach, or a full run."""
+    __tablename__ = 'scrape_runs'
+    __table_args__ = (
+        # at most one queued/running run per recipe, enforced by the database (works across processes)
+        db.Index('uq_scrape_runs_active', 'recipe_id', unique=True,
+                 sqlite_where=db.text("status IN ('queued','running')"),
+                 postgresql_where=db.text("status IN ('queued','running')")),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    recipe_id = db.Column(db.Integer, db.ForeignKey('scrape_recipes.id'), nullable=True, index=True)
+    kind = db.Column(db.String(10), nullable=False)          # detect | preview | teach | run
+    status = db.Column(db.String(15), default='queued', index=True)
+    trigger = db.Column(db.String(10), default='manual')     # manual | cli | scheduled
+    options = db.Column(db.JSON)       # {url, wait, recipe, incremental, max_pages, max_rows, session_key}
+    result = db.Column(db.JSON)        # detect: candidates · preview: {columns, rows, stats, report} · teach: {recipe}
+    stats = db.Column(db.JSON)         # run: RunStats fields + blank_ratios + report + columns
+    log = db.Column(db.Text)           # last ~300 progress lines
+    progress_pages = db.Column(db.Integer, default=0)
+    progress_items = db.Column(db.Integer, default=0)
+    rows_total = db.Column(db.Integer, default=0)
+    rows_new = db.Column(db.Integer, default=0)
+    rows_duplicate = db.Column(db.Integer, default=0)
+    cancel_requested = db.Column(db.Boolean, default=False)
+    error = db.Column(db.Text)
+    worker_id = db.Column(db.String(64))
+    heartbeat_at = db.Column(db.DateTime)
+    started_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    started_at = db.Column(db.DateTime)
+    finished_at = db.Column(db.DateTime)
+
+    started_by = db.relationship('User', foreign_keys=[started_by_id])
+    rows = db.relationship('ScrapeRow', backref='run', lazy='dynamic')
+
+    @property
+    def done(self):
+        return self.status in ('done', 'failed', 'cancelled')
+
+    @property
+    def duration_seconds(self):
+        if not self.started_at:
+            return None
+        end = self.finished_at or datetime.utcnow()
+        return int((end - self.started_at).total_seconds())
+
+    @property
+    def report(self):
+        return ((self.stats or {}).get('report') or (self.result or {}).get('report') or {})
+
+    def log_tail(self, n=40):
+        return (self.log or '').splitlines()[-n:]
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'recipe_id': self.recipe_id, 'kind': self.kind, 'status': self.status, 'done': self.done,
+            'trigger': self.trigger, 'options': self.options or {},
+            'progress': {'pages': self.progress_pages or 0, 'items': self.progress_items or 0,
+                         'rows_new': self.rows_new or 0, 'rows_total': self.rows_total or 0,
+                         'rows_duplicate': self.rows_duplicate or 0},
+            'log_tail': self.log_tail(), 'stats': self.stats, 'result': self.result, 'error': self.error,
+            'cancel_requested': self.cancel_requested, 'duration_seconds': self.duration_seconds,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'started_at': self.started_at.isoformat() if self.started_at else None,
+            'finished_at': self.finished_at.isoformat() if self.finished_at else None,
+        }
+
+
+class ScrapeRow(db.Model):
+    """One scraped item. Unique per recipe by fetchall's `_key`, so re-runs never duplicate rows."""
+    __tablename__ = 'scrape_rows'
+    __table_args__ = (db.UniqueConstraint('recipe_id', 'key', name='uq_scrape_rows_recipe_key'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    run_id = db.Column(db.Integer, db.ForeignKey('scrape_runs.id'), nullable=False, index=True)
+    recipe_id = db.Column(db.Integer, db.ForeignKey('scrape_recipes.id'), nullable=False, index=True)
+    row_index = db.Column(db.Integer)
+    key = db.Column(db.String(64), nullable=False, index=True)
+    data = db.Column(db.JSON)                     # raw scraped row incl. _page/_url/_fetched_at/_key
+    page_url = db.Column(db.String(500))
+    status = db.Column(db.String(15), default='new', index=True)   # new | duplicate | imported | skipped
+    duplicate_of_id = db.Column(db.Integer, db.ForeignKey('companion_requests.id'), nullable=True)
+    imported_post_id = db.Column(db.Integer, db.ForeignKey('companion_requests.id'), nullable=True)
+    imported_at = db.Column(db.DateTime)
+    imported_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    imported_post = db.relationship('CompanionRequest', foreign_keys=[imported_post_id])
+    duplicate_of = db.relationship('CompanionRequest', foreign_keys=[duplicate_of_id])
+    imported_by = db.relationship('User', foreign_keys=[imported_by_id])
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'run_id': self.run_id, 'recipe_id': self.recipe_id, 'row_index': self.row_index,
+            'key': self.key, 'data': self.data or {}, 'page_url': self.page_url, 'status': self.status,
+            'duplicate_of_id': self.duplicate_of_id, 'imported_post_id': self.imported_post_id,
+            'imported_at': self.imported_at.isoformat() if self.imported_at else None,
         }

@@ -16,13 +16,14 @@
     <form method="POST" action="{{ url_for('auth.login') }}" class="auth-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div class="field-group">
-        <label>Email Address</label>
+        <label>Email Address <span class="req">*</span></label>
         <input type="email" name="email" required placeholder="your@email.com"/>
       </div>
       <div class="field-group">
-        <label>Password</label>
+        <label>Password <span class="req">*</span></label>
         <div class="input-with-icon">
-          <input type="password" name="password" id="passwordField" required placeholder="••••••••"/>
+          <i class="fa-solid fa-lock field-icon"></i>
+          <input type="password" name="password" id="passwordField" required placeholder="Your password"/>
           <button type="button" class="eye-btn" onclick="togglePassword()">
             <i class="fa-solid fa-eye"></i>
           </button>

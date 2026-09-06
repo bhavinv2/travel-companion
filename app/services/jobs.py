@@ -41,14 +41,15 @@ def run_escalation(now=None):
         ActivityEvent.log('escalated', p.trip, match_id=m.id, hours=hours, channel=p.channel)
         # Tell the CS agent who created either post (if any); the match queue catches the rest.
         other = m.other_trip(p.trip_id)
+        from app.services import notify
         for cs_id in {p.trip.created_by_id, other.created_by_id, m.cs_owner_id} - {None}:
-            db.session.add(Notification(
-                user_id=cs_id, type='cs_escalation',
+            notify.push(
+                cs_id, 'cs_escalation',
                 title=f'No response on match #{m.id}',
                 body=f'{p.trip.display_name} ({p.trip.route_display}) has not opened the link sent '
                      f'{hours}h ago via {p.channel}. Please follow up.',
                 link=f'/cs/posts/{p.trip_id}/matches',
-            ))
+            )
         escalated += 1
     db.session.commit()
     return escalated
@@ -115,14 +116,27 @@ def run_retention(today=None):
     cutoff = datetime.utcnow() - timedelta(days=60)
     result['tokens_purged'] = ClaimToken.query.filter(ClaimToken.used_at.is_(None),
                                                       ClaimToken.expires_at < cutoff).delete(synchronize_session=False)
+
+    # Scraped rows are third-party personal data: keep only those that became posts.
+    from app.models import ScrapeRow, ScrapeRun
+    scrape_days = int(current_app.config.get('SCRAPER_ROWS_RETENTION_DAYS', 30))
+    scrape_cutoff = datetime.utcnow() - timedelta(days=scrape_days)
+    result['scrape_rows_purged'] = (ScrapeRow.query
+                                    .filter(ScrapeRow.status != 'imported', ScrapeRow.created_at < scrape_cutoff)
+                                    .delete(synchronize_session=False))
+    for run in ScrapeRun.query.filter(ScrapeRun.created_at < scrape_cutoff, ScrapeRun.result.isnot(None)).all():
+        run.result = None   # detect/preview payloads carry sample rows
     db.session.commit()
     return result
 
 
 def run_all():
+    from app.services import scraper_worker
     out = {
         'escalated': run_escalation(),
         'closed_departed': close_departed_posts(),
     }
     out.update(run_retention())
+    out['scrape_stale_recovered'] = scraper_worker.recover_stale_runs()
+    out['scrape_runs_started'] = scraper_worker.enqueue_scheduled()
     return out

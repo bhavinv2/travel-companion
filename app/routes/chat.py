@@ -18,7 +18,38 @@ def inbox():
             .order_by(ChatMessage.created_at.desc()).first()
         for room in rooms
     }
-    return render_template('chat/inbox.html', rooms=rooms, last_messages=last_messages, hide_chat_bubble=True)
+    from app.models import Notification, ConnectionRequest, CompanionRequest, User
+    my_trip_ids = [t.id for t in CompanionRequest.query.filter_by(user_id=current_user.id).all()]
+    pending_requests = []
+    if my_trip_ids:
+        for c in (ConnectionRequest.query.filter(ConnectionRequest.trip_id.in_(my_trip_ids),
+                                                 ConnectionRequest.status == 'pending')
+                  .order_by(ConnectionRequest.created_at.desc()).all()):
+            req_user = db.session.get(User, c.requester_id)
+            trip = db.session.get(CompanionRequest, c.trip_id)
+            anon = bool(c.requester_anonymous)
+            their_trip = None
+            if req_user and not anon:
+                their_trip = (CompanionRequest.query.filter_by(user_id=req_user.id)
+                              .order_by(CompanionRequest.created_at.desc()).first())
+            pending_requests.append({
+                'id': c.id,
+                'name': 'Anonymous' if anon else (req_user.username if req_user else 'Traveller'),
+                'anonymous': anon,
+                'photo': (req_user.photo_url if req_user and req_user.show_photo and not anon else None),
+                'member_since': (req_user.created_at.strftime('%b %Y') if req_user and req_user.created_at and not anon else None),
+                'languages': (their_trip.preferred_languages or []) if their_trip else [],
+                'their_route': their_trip.route_display if their_trip else None,
+                'their_date': their_trip.from_date.isoformat() if their_trip and their_trip.from_date else None,
+                'their_role': their_trip.role if their_trip else None,
+                'route': trip.route_display if trip else '',
+                'trip_date': trip.from_date.isoformat() if trip and trip.from_date else None,
+                'when': c.created_at.strftime('%b %d, %H:%M') if c.created_at else '',
+            })
+    notif_list = [n.to_dict() for n in (Notification.query.filter_by(user_id=current_user.id)
+                                        .order_by(Notification.created_at.desc()).limit(30).all())]
+    return render_template('chat/inbox.html', rooms=rooms, last_messages=last_messages,
+                           pending_requests=pending_requests, notif_list=notif_list, hide_chat_bubble=True)
 
 
 @chat_bp.route('/api/messages/<int:room_id>', methods=['GET'])
@@ -80,16 +111,11 @@ def post_message(room_id):
     )
     db.session.add(chat_msg)
 
-    # Notify other user
+    # Notify other user (respects the notification switches / their preferences)
+    from app.services import notify
     other_id = room.user2_id if room.user1_id == current_user.id else room.user1_id
-    notif = Notification(
-        user_id=other_id,
-        type='message',
-        title=f'New message from {current_user.username}',
-        body=(message_text or 'Sent a file')[:100],
-        link='/inbox',
-    )
-    db.session.add(notif)
+    notify.push(other_id, 'message', title=f'New message from {current_user.username}',
+                body=(message_text or 'Sent a file')[:100], link='/inbox')
 
     try:
         db.session.commit()

@@ -21,29 +21,30 @@
 
       <div class="form-row-2">
         <div class="field-group">
-          <label>First Name *</label>
-          <input type="text" name="first_name" required placeholder="First name" value="{{ v('first_name') }}"/>
+          <label>First Name <span class="req">*</span></label>
+          <input type="text" name="first_name" required placeholder="Your first name" value="{{ v('first_name') }}"/>
         </div>
         <div class="field-group">
           <label>Last Name</label>
-          <input type="text" name="last_name" placeholder="Last name" value="{{ v('last_name') }}"/>
+          <input type="text" name="last_name" placeholder="Your last name (optional)" value="{{ v('last_name') }}"/>
         </div>
       </div>
 
       <div class="field-group">
-        <label>Email Address *</label>
+        <label>Email Address <span class="req">*</span></label>
         <input type="email" name="email" required placeholder="your@email.com" value="{{ v('email') }}"/>
       </div>
 
       <div class="field-group">
-        <label>Username * <small>(unique, visible to others — letters, numbers, . _ -)</small></label>
-        <input type="text" name="username" required placeholder="yourusername" minlength="3" maxlength="30" pattern="[A-Za-z0-9_.\-]{3,30}" value="{{ v('username') }}"/>
+        <label>Username <span class="req">*</span></label>
+        <input type="text" name="username" required placeholder="Unique — letters, numbers, . _ - (visible to others)" minlength="3" maxlength="30" pattern="[A-Za-z0-9_.\-]{3,30}" value="{{ v('username') }}"/>
       </div>
 
       <div class="field-group">
-        <label>Password * <small>(min 8 characters)</small></label>
+        <label>Password <span class="req">*</span></label>
         <div class="input-with-icon">
-          <input type="password" name="password" id="passwordField" required minlength="8" placeholder="••••••••"/>
+          <i class="fa-solid fa-lock field-icon"></i>
+          <input type="password" name="password" id="passwordField" required minlength="8" placeholder="At least 8 characters"/>
           <button type="button" class="eye-btn" onclick="togglePassword('passwordField', this)">
             <i class="fa-solid fa-eye"></i>
           </button>
@@ -52,17 +53,17 @@
 
       <div class="form-row-2">
         <div class="field-group">
-          <label>Phone <small>(optional)</small></label>
-          <input type="tel" name="phone" placeholder="+1 234 567 8900" value="{{ v('phone') }}"/>
+          <label>Phone</label>
+          <input type="tel" name="phone" placeholder="+1 234 567 8900 (optional)" value="{{ v('phone') }}"/>
         </div>
         <div class="field-group">
-          <label>Date of Birth <small>(optional)</small></label>
+          <label>Date of Birth <small class="opt">optional</small></label>
           <input type="date" name="dob" value="{{ v('dob') }}"/>
         </div>
       </div>
 
       <div class="field-group">
-        <label>Profile Photo <small>(optional)</small></label>
+        <label>Profile Photo <small class="opt">optional</small></label>
         <input type="file" name="photo" accept="image/*" id="photoInput"/>
         <div class="photo-preview" id="photoPreview"></div>
         <label class="flex-check mt-2">
@@ -77,7 +78,7 @@
       <label class="flex-check required-check consent-check">
         <input type="checkbox" name="agree_terms" required {% if form and form.get('agree_terms') == 'on' %}checked{% endif %}/>
         <span>I agree to the <a href="{{ url_for('main.terms') }}" target="_blank">Terms of Use</a>
-        and <a href="{{ url_for('main.privacy') }}" target="_blank">Privacy Policy</a> *</span>
+        and <a href="{{ url_for('main.privacy') }}" target="_blank">Privacy Policy</a> <span class="req">*</span></span>
       </label>
 
       <button type="submit" class="btn btn-primary w-full mt-2">

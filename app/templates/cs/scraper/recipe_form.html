@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit recipe' if recipe else 'Recipe editor' }} – CS Console{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='scraper' %}{% include 'cs/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <div class="card-head"><h1>{{ 'Edit recipe “' ~ recipe.name ~ '”' if recipe else 'Recipe editor' }}</h1><a class="btn-sm" href="{{ url_for('scraper.recipes') }}"><i class="fa-solid fa-arrow-left"></i> Recipes</a></div>
+    {% include 'cs/scraper/_unavailable.html' %}
+
+    {% if teach_run %}
+    {% with run=teach_run, panel_id='teachProgress', title='Teaching window on this machine' %}{% include 'cs/scraper/_run_progress.html' %}{% endwith %}
+    {% endif %}
+
+    {% set f = form %}
+    {% set json_text = f.get('recipe_json') if f else ((recipe.recipe_json|tojson(indent=2)) if recipe and recipe.recipe_json else '') %}
+    <div class="admin-card recipe-editor">
+      <form method="POST" enctype="multipart/form-data" class="cs-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="form-row">
+          <div class="field-group"><label>Name *</label><input type="text" name="name" id="recipeName" required value="{{ f.get('name') if f else (recipe.name if recipe else ((teach_run.options or {}).get('name', '') if teach_run else '')) }}"/></div>
+          <div class="field-group"><label>Create posts as</label>
+            {% set src = f.get('default_source') if f else (recipe.default_source if recipe else ((teach_run.options or {}).get('default_source', 'website') if teach_run else 'website')) %}
+            <select name="default_source"><option value="website" {{ 'selected' if src == 'website' }}>website</option><option value="facebook" {{ 'selected' if src == 'facebook' }}>facebook</option></select></div>
+          <div class="field-group"><label>Load from file <span class="optional">(.json)</span></label><input type="file" id="recipeFile" name="recipe_file" accept=".json,application/json"/></div>
+          <div class="field-group"><label>Login session <span class="optional">(Playwright storage state, optional)</span></label><input type="file" name="session_file" accept=".json"/>{% if recipe and recipe.session_key %}<small class="muted">current: {{ recipe.session_key }}</small>{% endif %}</div>
+        </div>
+        <div class="field-group">
+          <label>Recipe JSON *</label>
+          <textarea name="recipe_json" id="recipeJson" rows="18" placeholder='{"start_url": "https://…", "list": {"row": "li.item"}, "fields": {"title": {"sel": "a.title", "attr": "text"}}, "detail": null, "paginate": null}'>{{ json_text }}</textarea>
+          <small class="muted">Made with <code>python -m fetchall teach &lt;url&gt;</code> (saved in <code>recipes/&lt;site&gt;.json</code>). Keys: <code>start_url, list.row, fields, detail (popup/page/inline), paginate (click/load_more/scroll)</code>.</small>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-sm" id="formatJson"><i class="fa-solid fa-align-left"></i> Format</button>
+          <button type="button" class="btn btn-outline-coral" id="previewBtn" {% if not availability.ok %}disabled{% endif %}><i class="fa-solid fa-flask"></i> Validate &amp; preview (first page, 5 items)</button>
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save recipe</button>
+        </div>
+      </form>
+    </div>
+    <div class="admin-card" id="previewResult" style="display:{{ 'block' }}"><p class="muted">Preview results appear here.</p></div>
+  </main>
+</div>
+{% endblock %}
+{% block extra_js %}<script src="{{ url_for('static', filename='js/scraper.js') }}"></script>{% endblock %}

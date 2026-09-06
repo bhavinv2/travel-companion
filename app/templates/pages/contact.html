@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}Contact us – Connecting Desis{% endblock %}
+{% block content %}
+<div class="static-page">
+  <div class="static-hero coral">
+    <h1>Get in touch</h1>
+    <p>Ask us anything &mdash; a real person will reply</p>
+  </div>
+  <div class="static-content">
+
+
+    <section class="ct-body">
+      <p class="ct-lead">Send us a message and a real person will reply by e-mail, usually within a working day.
+        You do not need an account.</p>
+
+      <form method="post" class="ct-form" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="ct-row">
+          <div class="ct-field">
+            <label for="ctName">Your name <span class="req">*</span></label>
+            <input type="text" id="ctName" name="name" required maxlength="120"
+                   value="{{ form.name or (current_user.full_name if current_user.is_authenticated else '') }}"
+                   placeholder="Priya Sharma"/>
+          </div>
+          <div class="ct-field">
+            <label for="ctEmail">E-mail <span class="req">*</span></label>
+            <input type="email" id="ctEmail" name="email" required maxlength="255"
+                   value="{{ form.email or (current_user.email if current_user.is_authenticated else '') }}"
+                   placeholder="you@example.com"/>
+          </div>
+        </div>
+        <div class="ct-field">
+          <label for="ctPhone">Phone number <small class="muted">(optional)</small></label>
+          <input type="tel" id="ctPhone" name="phone" maxlength="30"
+                 value="{{ form.phone or (current_user.phone if current_user.is_authenticated else '') }}"
+                 placeholder="+91 98480 00000"/>
+        </div>
+        <div class="ct-field">
+          <label for="ctMessage">Message <span class="req">*</span></label>
+          <textarea id="ctMessage" name="message" rows="6" required maxlength="4000"
+                    placeholder="How can we help?">{{ form.message or '' }}</textarea>
+          <small class="muted">We reply to the e-mail above. Please don't include passwords or payment details.</small>
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Send message</button>
+      </form>
+    </section>
+
+
+    <div class="ct-foot">
+      Prefer e-mail? Write to <a href="mailto:{{ SUPPORT_EMAIL }}">{{ SUPPORT_EMAIL }}</a>.
+      For answers to common questions, try the <a href="{{ url_for('main.help_page') }}">Help centre</a>.
+    </div>
+  </div>
+</div>
+{% endblock %}
+

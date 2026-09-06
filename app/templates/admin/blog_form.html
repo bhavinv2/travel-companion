@@ -1,24 +1,208 @@
 {% extends 'base.html' %}
 {% block title %}New Blog Post – Admin{% endblock %}
 {% block content %}
+{% set f = form|default({}) %}
 <div class="admin-page">
   {% with active='blog' %}{% include 'admin/_sidebar.html' %}{% endwith %}
   <main class="admin-main">
-    <h1>New Blog Post</h1>
-    <form method="POST" class="admin-form">
+    <div class="card-head">
+      <h1>New Blog Post</h1>
+      <a class="btn-sm" href="{{ url_for('blog.blog_list') }}" target="_blank"><i class="fa-solid fa-up-right-from-square"></i> View blog</a>
+    </div>
+
+    <div class="bf-restore" id="bfRestore" hidden>
+      <i class="fa-solid fa-clock-rotate-left"></i> You have an unsaved draft from earlier.
+      <button type="button" class="btn-sm" id="bfRestoreBtn">Restore it</button>
+      <button type="button" class="btn-sm-outline" id="bfDiscardBtn">Discard</button>
+    </div>
+
+    <form method="POST" id="bfForm">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-      <div class="field-group">
-        <label>Title *</label>
-        <input type="text" name="title" required placeholder="Blog post title"/>
+      <textarea name="content" id="bfContent" hidden>{{ f.get('content', '') }}</textarea>
+
+      <div class="bf-layout">
+        <!-- ===== editor column ===== -->
+        <div class="bf-main">
+          <div class="admin-card bf-card">
+            <input type="text" name="title" id="bfTitle" class="bf-title" required maxlength="300"
+                   placeholder="Post title…" value="{{ f.get('title', '') }}"/>
+            <div class="bf-slug muted" id="bfSlug">{{ SITE_URL }}/blog/<span>…</span></div>
+
+            <div class="bf-mode" role="tablist">
+              <button type="button" class="is-on" data-mode="write" role="tab"><i class="fa-solid fa-pen"></i> Write</button>
+              <button type="button" data-mode="preview" role="tab"><i class="fa-solid fa-eye"></i> Preview</button>
+            </div>
+
+            <div id="bfWrite">
+              <div class="bf-toolbar" id="bfToolbar">
+                <button type="button" data-cmd="formatBlock" data-val="h2" title="Heading">H2</button>
+                <button type="button" data-cmd="formatBlock" data-val="h3" title="Sub-heading">H3</button>
+                <span class="bf-sep"></span>
+                <button type="button" data-cmd="bold" title="Bold"><i class="fa-solid fa-bold"></i></button>
+                <button type="button" data-cmd="italic" title="Italic"><i class="fa-solid fa-italic"></i></button>
+                <button type="button" data-cmd="underline" title="Underline"><i class="fa-solid fa-underline"></i></button>
+                <span class="bf-sep"></span>
+                <button type="button" data-cmd="formatBlock" data-val="blockquote" title="Quote"><i class="fa-solid fa-quote-left"></i></button>
+                <button type="button" data-cmd="insertUnorderedList" title="Bulleted list"><i class="fa-solid fa-list-ul"></i></button>
+                <button type="button" data-cmd="insertOrderedList" title="Numbered list"><i class="fa-solid fa-list-ol"></i></button>
+                <span class="bf-sep"></span>
+                <button type="button" data-cmd="createLink" title="Link"><i class="fa-solid fa-link"></i></button>
+                <button type="button" data-cmd="insertImage" title="Image from URL"><i class="fa-solid fa-image"></i></button>
+                <button type="button" data-cmd="insertHorizontalRule" title="Divider"><i class="fa-solid fa-minus"></i></button>
+                <span class="bf-sep"></span>
+                <button type="button" data-cmd="removeFormat" title="Clear formatting"><i class="fa-solid fa-eraser"></i></button>
+              </div>
+              <div class="bf-editor" id="bfEditor" contenteditable="true"
+                   data-placeholder="Tell the story — travel tips, community news, a traveller's journey…"></div>
+            </div>
+
+            <div class="static-content blog-post-content bf-preview" id="bfPreview" hidden></div>
+
+            <div class="bf-foot muted">
+              <span id="bfCount">0 words · 0 min read</span>
+              <span id="bfSaved"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== publish column ===== -->
+        <div class="bf-side">
+          <div class="admin-card bf-card">
+            <h3 class="bf-h"><i class="fa-solid fa-paper-plane"></i> Publish</h3>
+            <label class="bf-toggle">
+              <input type="checkbox" name="is_published" {{ 'checked' if f.get('is_published') }}/>
+              <span><strong>Publish immediately</strong><small>Unticked = saved as a draft, visible to admins only.</small></span>
+            </label>
+            <label class="bf-toggle">
+              <input type="checkbox" name="send_notification" {{ 'checked' if f.get('send_notification', 'on') }}/>
+              <span><strong>Notify all users</strong><small>In-app for everyone; e-mail only to users who opted in.</small></span>
+            </label>
+            <button type="submit" class="btn btn-primary w-full mt-2"><i class="fa-solid fa-floppy-disk"></i> Save post</button>
+          </div>
+
+          <div class="admin-card bf-card">
+            <h3 class="bf-h"><i class="fa-solid fa-image"></i> Cover image</h3>
+            <input type="url" name="cover_image_url" id="bfCover" placeholder="https://…" value="{{ f.get('cover_image_url', '') }}"/>
+            <small class="muted">Shown on the blog list and at the top of the post.</small>
+            <div class="bf-cover-prev" id="bfCoverPrev" hidden><img alt="Cover preview"/></div>
+          </div>
+
+          <div class="admin-card bf-card bf-tips">
+            <h3 class="bf-h"><i class="fa-solid fa-lightbulb"></i> Writing tips</h3>
+            <ul>
+              <li>Lead with the story, not the announcement.</li>
+              <li>One H2 every few paragraphs keeps it scannable.</li>
+              <li>A cover image roughly 1200×630 looks best.</li>
+            </ul>
+          </div>
+        </div>
       </div>
-      <div class="field-group">
-        <label>Content * <small>(HTML allowed)</small></label>
-        <textarea name="content" rows="12" required placeholder="Write your blog post..."></textarea>
-      </div>
-      <label class="flex-check"><input type="checkbox" name="is_published"/> Publish immediately</label>
-      <label class="flex-check"><input type="checkbox" name="send_notification" checked/> Notify all users in-app (e-mail only to those who opted in)</label>
-      <button type="submit" class="btn btn-primary mt-2">Save Post</button>
     </form>
   </main>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const editor = document.getElementById('bfEditor');
+  const hidden = document.getElementById('bfContent');
+  const title = document.getElementById('bfTitle');
+  const cover = document.getElementById('bfCover');
+  const KEY = 'cd.blogDraft';
+
+  // seed the editor from the hidden textarea (values kept after a validation error)
+  if (hidden.value.trim()) editor.innerHTML = hidden.value;
+
+  // ---- toolbar ----
+  document.getElementById('bfToolbar').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    e.preventDefault();
+    editor.focus();
+    let val = b.dataset.val || null;
+    if (b.dataset.cmd === 'createLink') {
+      val = prompt('Link URL (https://…)');
+      if (!val) return;
+    }
+    if (b.dataset.cmd === 'insertImage') {
+      val = prompt('Image URL (https://…)');
+      if (!val) return;
+    }
+    document.execCommand(b.dataset.cmd, false, val);
+    if (b.dataset.cmd === 'removeFormat') document.execCommand('formatBlock', false, 'p');
+    sync();
+  });
+
+  // ---- write / preview ----
+  document.querySelectorAll('.bf-mode button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.bf-mode button').forEach(x => x.classList.toggle('is-on', x === b));
+    const preview = b.dataset.mode === 'preview';
+    document.getElementById('bfWrite').hidden = preview;
+    const pv = document.getElementById('bfPreview');
+    pv.hidden = !preview;
+    if (preview) pv.innerHTML = editor.innerHTML;
+  }));
+
+  // ---- slug + word count + autosave ----
+  const slugBox = document.querySelector('#bfSlug span');
+  function slugify(t) { return (t || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || '…'; }
+  let saveT = null;
+  function sync() {
+    hidden.value = editor.innerHTML.trim();
+    slugBox.textContent = slugify(title.value);
+    const words = (editor.innerText.trim().match(/\S+/g) || []).length;
+    document.getElementById('bfCount').textContent = `${words} word${words === 1 ? '' : 's'} · ${Math.max(1, Math.round(words / 200))} min read`;
+    clearTimeout(saveT);
+    saveT = setTimeout(() => {
+      try {
+        localStorage.setItem(KEY, JSON.stringify({ t: title.value, h: editor.innerHTML, c: cover.value, at: Date.now() }));
+        document.getElementById('bfSaved').textContent = 'draft kept on this computer';
+      } catch (e) { /* private mode */ }
+    }, 800);
+  }
+  editor.addEventListener('input', sync);
+  title.addEventListener('input', sync);
+  cover.addEventListener('input', () => { coverPrev(); sync(); });
+  sync();
+
+  // ---- cover preview ----
+  function coverPrev() {
+    const box = document.getElementById('bfCoverPrev');
+    const url = cover.value.trim();
+    box.hidden = !url;
+    if (url) box.querySelector('img').src = url;
+  }
+  coverPrev();
+
+  // ---- draft restore ----
+  let draft = null;
+  try { draft = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { /* ignore */ }
+  if (draft && (draft.t || draft.h) && !title.value && !hidden.value.trim()) {
+    document.getElementById('bfRestore').hidden = false;
+    document.getElementById('bfRestoreBtn').onclick = () => {
+      title.value = draft.t || '';
+      editor.innerHTML = draft.h || '';
+      cover.value = draft.c || '';
+      coverPrev(); sync();
+      document.getElementById('bfRestore').hidden = true;
+    };
+    document.getElementById('bfDiscardBtn').onclick = () => {
+      try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
+      document.getElementById('bfRestore').hidden = true;
+    };
+  }
+
+  // ---- submit ----
+  document.getElementById('bfForm').addEventListener('submit', e => {
+    hidden.value = editor.innerHTML.trim();
+    if (!editor.innerText.trim()) {
+      e.preventDefault();
+      showToast('Write something first — the post is empty.', 'danger');
+      return;
+    }
+    try { localStorage.removeItem(KEY); } catch (err) { /* ignore */ }
+  });
+})();
+</script>
 {% endblock %}

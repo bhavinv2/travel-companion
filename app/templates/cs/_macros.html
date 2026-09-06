@@ -22,15 +22,26 @@
   <span class="chip chip-role-{{ trip.role }}">{{ TRIP_ROLE_LABELS.get(trip.role, trip.role) }}</span>
 {%- endmacro %}
 
+{# Which shape of journey this is. Every screen that shows a trip shows this, because
+   a round trip and a multi-stop post behave differently in matching and an agent should
+   never have to open a post to find out which one they are looking at. #}
+{% macro trip_type_chip(trip) -%}
+  <span class="tt-chip tt-{{ trip.trip_type or 'one_way' }}">{{ TRIP_TYPE_LABELS.get(trip.trip_type, 'One-way') }}</span>
+{%- endmacro %}
+
 {% macro source_chip(trip) -%}
   <span class="chip chip-src">{{ trip.source }}</span>
 {%- endmacro %}
 
-{% macro post_row(trip, show_status=True) -%}
-<tr id="trip-{{ trip.id }}">
-  <td data-label="Post"><a href="{{ url_for('cs.post_detail', trip_id=trip.id) }}"><strong>#{{ trip.id }}</strong></a></td>
+{% macro post_row(trip, show_status=True, tree=False) -%}
+{% set mi = (match_info|default({})).get(trip.id) %}
+<tr id="trip-{{ trip.id }}"{% if mi %} class="has-match"{% endif %}>
+  <td data-label="Post">{% if tree %}<button type="button" class="tree-toggle" data-trip="{{ trip.id }}" title="Matches & duplicates" aria-expanded="false"><i class="fa-solid fa-chevron-right"></i></button> {% endif %}<a href="{{ url_for('cs.post_detail', trip_id=trip.id) }}"><strong>#{{ trip.id }}</strong></a>
+    <div class="tt-wrap">{{ trip_type_chip(trip) }}</div></td>
   <td data-label="Person">
-    {{ trip.poster_name or (trip.author.username if trip.author else '—') }}
+    {# The name is the thing an agent looks at, so it is the thing they click -- it goes
+       where Open goes rather than being the one piece of the row that does nothing. #}
+    <a class="person-link" href="{{ url_for('cs.post_detail', trip_id=trip.id) }}">{{ trip.poster_name or (trip.author.username if trip.author else '—') }}</a>
     {% if trip.traveler_name %}<br/><small class="muted">for {{ trip.traveler_name }}</small>{% endif %}
   </td>
   <td data-label="Route">{{ trip.route_display }}{% if trip.airline %}<br/><small class="muted">{{ trip.airline }} {{ trip.flight_number or '' }}</small>{% endif %}</td>
@@ -43,6 +54,12 @@
   <td data-label="Role">{{ role_chip(trip) }}</td>
   <td data-label="Source">{{ source_chip(trip) }}</td>
   <td class="ci-cell" data-label="Contact">{{ contact_icons(trip) }}</td>
+  <td class="nowrap" data-label="Matches">
+    {% if mi %}
+      <span class="m-count {{ 'hi' if mi.best >= 70 else 'mid' if mi.best >= 40 else 'lo' }}">{{ mi.n }}</span>
+      <small class="muted">best {{ mi.best }}%</small>
+    {% else %}<span class="muted">—</span>{% endif %}
+  </td>
   {% if show_status %}<td data-label="Status">{{ status_chip(trip) }}</td>{% endif %}
   <td class="nowrap row-actions">
     <a class="btn-sm" href="{{ url_for('cs.post_detail', trip_id=trip.id) }}">Open</a>
@@ -51,13 +68,13 @@
 </tr>
 {%- endmacro %}
 
-{% macro posts_table(trips, show_status=True, empty='Nothing here.') -%}
+{% macro posts_table(trips, show_status=True, empty='Nothing here.', tree=False) -%}
 <div class="table-wrap">
 <table class="admin-table stack-mobile">
-  <thead><tr><th>ID</th><th>Person</th><th>Route</th><th>Departs</th><th>Role</th><th>Source</th><th>Contact</th>{% if show_status %}<th>Status</th>{% endif %}<th></th></tr></thead>
+  <thead><tr><th>ID</th><th>Person</th><th>Route</th><th>Departs</th><th>Role</th><th>Source</th><th>Contact</th><th>Matches</th>{% if show_status %}<th>Status</th>{% endif %}<th></th></tr></thead>
   <tbody>
-    {% for t in trips %}{{ post_row(t, show_status) }}{% else %}
-    <tr><td colspan="9" class="muted">{{ empty }}</td></tr>
+    {% for t in trips %}{{ post_row(t, show_status, tree) }}{% else %}
+    <tr><td colspan="10" class="muted">{{ empty }}</td></tr>
     {% endfor %}
   </tbody>
 </table>

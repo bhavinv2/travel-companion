@@ -4,28 +4,38 @@
 <div class="admin-page">
   {% with active='users' %}{% include 'admin/_sidebar.html' %}{% endwith %}
   <main class="admin-main">
-    <h1>All Users</h1>
+    <div class="results-header">
+      <h1>All Users</h1>
+      <a class="btn btn-primary" href="{{ url_for('admin.new_user') }}"><i class="fa-solid fa-user-plus"></i> Add account</a>
+    </div>
     <form method="GET" class="admin-search-form">
       <input type="text" name="q" value="{{ search }}" placeholder="Search username or email..."/>
       <button type="submit" class="btn btn-primary">Search</button>
     </form>
+    <p class="muted" style="font-size:13px">An account can hold several roles (e.g. traveller + CS). Roles and their access levels are defined under <a href="{{ url_for('admin.options_page') }}">Options &amp; dropdowns</a>.</p>
     <div class="table-wrap">
-    <table class="admin-table">
-      <thead><tr><th>ID</th><th>Username</th><th>Email</th><th>Joined</th><th>Role</th><th>Active</th><th>Actions</th></tr></thead>
+    <table class="admin-table stack-mobile">
+      <thead><tr><th>ID</th><th>Username</th><th>Email</th><th>Joined</th><th>Roles</th><th>Active</th><th>Actions</th></tr></thead>
       <tbody>
         {% for user in users %}
         <tr>
-          <td>{{ user.id }}</td>
-          <td>{{ user.username }}</td>
-          <td>{{ user.email }}</td>
-          <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
-          <td>
-            <select onchange="setRole({{ user.id }}, this)" class="btn-sm" {% if user.id == current_user.id %}disabled title="You cannot change your own role"{% endif %}>
-              {% for r in roles %}<option value="{{ r }}" {% if user.effective_role == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
-            </select>
+          <td data-label="ID">{{ user.id }}</td>
+          <td data-label="Username">{{ user.username }}</td>
+          <td data-label="Email">{{ user.email }}</td>
+          <td data-label="Joined">{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+          <td data-label="Roles">
+            {% if user.id == current_user.id %}
+              {% for k in user.role_keys %}<span class="badge-pill green">{{ role_labels.get(k, k) }}</span> {% endfor %}
+              <br/><small class="muted">you — ask another admin to change your roles</small>
+            {% else %}
+              <div class="role-checks" id="roles-{{ user.id }}">
+                {% for r in roles %}<label class="flex-check" style="font-size:12px;margin-right:8px"><input type="checkbox" value="{{ r.key }}" {% if r.key in user.role_keys %}checked{% endif %} onchange="setRoles({{ user.id }})"/> {{ r.label }}</label>{% endfor %}
+              </div>
+              <small class="muted" id="level-{{ user.id }}">access: {{ user.effective_role }}</small>
+            {% endif %}
           </td>
-          <td><span class="badge-pill {{ 'green' if user.is_active else 'red' }}">{{ 'Active' if user.is_active else 'Inactive' }}</span></td>
-          <td>
+          <td data-label="Active"><span class="badge-pill {{ 'green' if user.is_active else 'red' }}">{{ 'Active' if user.is_active else 'Inactive' }}</span></td>
+          <td data-label="Actions">
             {% if user.id != current_user.id %}
             <button class="btn-sm" onclick="toggleUser({{ user.id }}, this)">
               {{ 'Disable' if user.is_active else 'Enable' }}
@@ -37,6 +47,7 @@
       </tbody>
     </table>
     </div>
+    {% include 'admin/_pager.html' %}
   </main>
 </div>
 {% endblock %}
@@ -49,11 +60,13 @@ function toggleUser(userId, btn) {
       btn.textContent = d.is_active ? 'Disable' : 'Enable';
     });
 }
-function setRole(userId, sel) {
-  fetch(`/admin/users/${userId}/role`, { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN}, body: JSON.stringify({ role: sel.value }) })
+function setRoles(userId) {
+  const roles = [...document.querySelectorAll(`#roles-${userId} input:checked`)].map(i => i.value);
+  fetch(`/admin/users/${userId}/roles`, { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN}, body: JSON.stringify({ roles }) })
     .then(r => r.json()).then(d => {
       if (d.error) return showToast(d.error, 'danger');
-      showToast(`Role set to ${d.role}`, 'success');
+      document.getElementById(`level-${userId}`).textContent = `access: ${d.level}`;
+      showToast(`Roles saved: ${d.roles.join(', ')}`, 'success');
     });
 }
 </script>

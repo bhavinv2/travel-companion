@@ -2,6 +2,63 @@
 {% block title %}Inbox – Connecting Desis{% endblock %}
 {% block extra_css %}
 <style>
+.inbox-page.ib3 { grid-template-columns: 300px 1fr 330px; }
+.ib-notif-panel { border-left: 1px solid var(--border); background: #fbfdff; display: flex; flex-direction: column; min-height: 0; }
+.ib-np-head { padding: 18px 18px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+.ib-np-head h2 { font-family: 'Poppins', sans-serif; font-size: 17px; font-weight: 800; display: flex; align-items: center; gap: 9px; }
+.ib-np-head h2 i { color: var(--coral); }
+.ib-np-list { flex: 1; overflow-y: auto; padding: 8px; }
+.ib-np-empty { text-align: center; color: var(--muted); padding: 40px 20px; font-size: 13.5px; }
+.ib-np-item { display: flex; gap: 10px; padding: 11px 10px; border-radius: 12px; cursor: pointer; align-items: flex-start; transition: background .12s; border: 1px solid transparent; }
+.ib-np-item:hover { background: #eaf4fd; }
+.ib-np-item.sel { background: #fff; border-color: #cfe3f8; box-shadow: var(--shadow); }
+.ib-np-item .ic { width: 34px; height: 34px; border-radius: 50%; background: var(--coral-light); color: var(--coral); display: flex; align-items: center; justify-content: center; font-size: 14px; flex: 0 0 34px; }
+.ib-np-item.unread .ic { background: var(--coral); color: #fff; }
+.ib-np-item .tx { flex: 1; min-width: 0; }
+.ib-np-item .tx strong { display: block; font-size: 12.5px; line-height: 1.35; }
+.ib-np-item .tx small { display: block; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ib-np-item .when { font-size: 10.5px; color: var(--muted); flex: 0 0 auto; margin-top: 2px; }
+/* central notification detail */
+.nd-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 30px; background: var(--bg); }
+.nd-card { background: #fff; border: 1px solid #e8f1fb; border-radius: 20px; box-shadow: var(--shadow-lg); max-width: 520px; width: 100%; padding: 34px 34px 28px; text-align: center; }
+.nd-card .nd-ic { width: 64px; height: 64px; border-radius: 50%; background: var(--coral-light); color: var(--coral); display: inline-flex; align-items: center; justify-content: center; font-size: 26px; margin-bottom: 14px; }
+.nd-card h2 { font-family: 'Poppins', sans-serif; font-size: 20px; color: var(--navy); margin-bottom: 8px; }
+.nd-card p.body { color: #33517a; font-size: 14.5px; line-height: 1.65; margin-bottom: 8px; }
+.nd-card .nd-when { color: var(--muted); font-size: 12px; margin-bottom: 20px; }
+.nd-card .nd-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+/* chat upgrades */
+.msg-wrap { display: flex; flex-direction: column; max-width: 75%; }
+.msg-wrap.mine { align-self: flex-end; align-items: flex-end; }
+.msg-wrap.theirs { align-self: flex-start; align-items: flex-start; }
+.msg-wrap .msg-bubble { max-width: 100%; }
+.msg-meta { font-size: 10.5px; color: var(--muted); margin: 3px 6px 0; display: flex; gap: 5px; align-items: center; }
+.msg-meta .ticks { color: #9db6d4; } .msg-meta .ticks.read { color: var(--coral); }
+.day-sep { align-self: center; background: #e3edf8; color: #33517a; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 4px 14px; margin: 8px 0; }
+.emoji-pop { position: absolute; bottom: 58px; left: 12px; background: #fff; border: 1.5px solid #d7e6f6; border-radius: 14px; box-shadow: var(--shadow-lg); padding: 10px; display: none; grid-template-columns: repeat(8, 34px); gap: 4px; z-index: 50; }
+.emoji-pop.open { display: grid; }
+.emoji-pop button { border: none; background: none; font-size: 20px; cursor: pointer; border-radius: 8px; height: 34px; }
+.emoji-pop button:hover { background: var(--coral-light); }
+.ib-tool { width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--coral-light); color: var(--coral); cursor: pointer; font-size: 15px; flex: 0 0 38px; display: inline-flex; align-items: center; justify-content: center; }
+.ib-tool:hover { background: var(--coral); color: #fff; }
+.inbox-input-row { position: relative; align-items: center; }
+.inbox-chat-header { display: flex; align-items: center; gap: 12px; }
+.inbox-chat-header .hd-av { width: 38px; height: 38px; border-radius: 50%; background: var(--coral-light); color: var(--coral); display: inline-flex; align-items: center; justify-content: center; font-size: 17px; }
+.inbox-chat-header small { display: block; color: var(--muted); font-size: 11.5px; font-weight: 400; }
+/* request preview modal */
+.rq-head { display: flex; gap: 14px; align-items: center; margin-bottom: 14px; }
+.rq-av { width: 56px; height: 56px; border-radius: 50%; background: var(--coral-light); color: var(--coral); display: flex; align-items: center; justify-content: center; font-size: 24px; overflow: hidden; flex: 0 0 56px; }
+.rq-av img { width: 100%; height: 100%; object-fit: cover; }
+.rq-line { display: flex; gap: 9px; align-items: flex-start; background: var(--bg); border-radius: 12px; padding: 10px 13px; margin-bottom: 8px; font-size: 13.5px; }
+.rq-line i { color: var(--coral); margin-top: 2px; width: 16px; text-align: center; }
+.inbox-back-lg { display: none; }
+@media (max-width: 1150px) {
+  .inbox-page.ib3 { grid-template-columns: 300px 1fr; }
+  .ib-notif-panel { position: fixed; right: 0; top: 68px; bottom: 0; width: 330px; z-index: 900; transform: translateX(100%); transition: transform .25s; box-shadow: -12px 0 34px rgba(12,35,64,.15); }
+  .ib-notif-panel.open { transform: none; }
+  .ib-np-toggle { display: inline-flex !important; }
+}
+.ib-np-toggle { display: none; position: relative; }
+.ib-np-toggle .mini-badge { position: absolute; top: -3px; right: -3px; background: #f0940a; color: #fff; font-size: 9px; font-weight: 800; min-width: 15px; height: 15px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
 @media (max-width: 900px) {
   .inbox-page.chat-open .inbox-sidebar { display: none; }
   .inbox-page.chat-open .inbox-chat-area { display: flex; }
@@ -11,12 +68,30 @@
 </style>
 {% endblock %}
 {% block content %}
-<div class="inbox-page" id="inboxPage">
+<div class="inbox-page ib3" id="inboxPage">
   <div class="inbox-sidebar">
     <div class="inbox-header">
-      <h2>Messages</h2>
+      <h2 style="display:flex;align-items:center;justify-content:space-between">Messages
+        <button type="button" class="ib-tool ib-np-toggle" id="ibNpToggle" title="Notifications"><i class="fa-solid fa-bell"></i>{% if notif_list|selectattr('is_read', 'equalto', false)|list|length %}<span class="mini-badge">{{ notif_list|selectattr('is_read', 'equalto', false)|list|length }}</span>{% endif %}</button>
+      </h2>
       <input type="text" id="inboxSearch" placeholder="Search..." class="inbox-search"/>
     </div>
+    {% if pending_requests %}
+    <div class="ib-extra">
+      <div class="ib-block">
+        <h3><i class="fa-solid fa-user-plus"></i> Connection requests <span class="chip chip-open">{{ pending_requests|length }}</span></h3>
+        {% for r in pending_requests %}
+        <div class="ib-req" id="ibreq-{{ r.id }}" style="cursor:pointer" onclick="openReqPreview({{ r.id }})" title="View details">
+          <div class="ib-req-txt"><strong>{{ r.name }}</strong> wants to connect on <em>{{ r.route }}</em><br/><small class="muted">{{ r.when }} · tap for details</small></div>
+          <div class="ib-req-actions" onclick="event.stopPropagation()">
+            <button type="button" class="btn-sm green" onclick="ibRespond({{ r.id }}, 'accept')"><i class="fa-solid fa-check"></i> Accept</button>
+            <button type="button" class="btn-sm danger" onclick="ibRespond({{ r.id }}, 'deny')"><i class="fa-solid fa-xmark"></i> Decline</button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
     <div class="inbox-rooms" id="inboxRooms">
       {% for room in rooms %}
         {% set other = room.user2 if room.user1_id == current_user.id else room.user1 %}
@@ -50,7 +125,39 @@
   <div class="inbox-chat-area" id="inboxChatArea">
     <div class="inbox-chat-placeholder">
       <i class="fa-solid fa-comments"></i>
-      <p>Select a conversation to start chatting</p>
+      <p>Select a conversation to start chatting — or open a notification on the right</p>
+    </div>
+  </div>
+
+  <aside class="ib-notif-panel" id="ibNotifPanel">
+    <div class="ib-np-head">
+      <h2><i class="fa-solid fa-bell"></i> Notifications</h2>
+      <button type="button" class="btn-sm" id="ibMarkAll">Mark all read</button>
+    </div>
+    <div class="ib-np-list" id="ibNpList"></div>
+  </aside>
+</div>
+
+<!-- CONNECTION REQUEST PREVIEW -->
+<div class="modal-overlay" id="reqModal" style="display:none">
+  <div class="modal-box" style="max-width:460px">
+    <button class="modal-close" onclick="document.getElementById('reqModal').style.display='none'">&times;</button>
+    <div class="rq-head">
+      <div class="rq-av" id="rqAv"><i class="fa-solid fa-user"></i></div>
+      <div>
+        <h2 style="margin-bottom:2px" id="rqName">Traveller</h2>
+        <small class="muted" id="rqSince"></small>
+      </div>
+    </div>
+    <div id="rqLines"></div>
+    <label class="tick-check" style="margin:10px 0 16px;">
+      <input type="checkbox" id="rqAnonymous"/>
+      <span class="tick-box"></span>
+      <span class="tick-label">Accept anonymously — they won't see your name</span>
+    </label>
+    <div class="modal-actions">
+      <button class="btn btn-outline-coral" id="rqDeny"><i class="fa-solid fa-xmark"></i> Decline</button>
+      <button class="btn btn-primary" id="rqAccept"><i class="fa-solid fa-check"></i> Accept &amp; chat</button>
     </div>
   </div>
 </div>
@@ -58,9 +165,119 @@
 
 {% block extra_js %}
 <script>
+const IB_NOTIFS = {{ notif_list|tojson }};
+const IB_PENDING = {{ pending_requests|tojson }};
+
+async function ibRespond(id, action, anonymous) {
+  const res = await apiFetch(`/api/connect/${id}/respond`, { method: 'POST', body: JSON.stringify({ action, anonymous: !!anonymous }) });
+  const d = await res.json();
+  if (d.success) {
+    showToast(action === 'accept' ? 'Connection accepted - say hello!' : 'Request declined.', action === 'accept' ? 'success' : 'info');
+    setTimeout(() => location.reload(), 700);
+  } else showToast(d.error || 'Failed', 'danger');
+}
+
+// ---- request preview popup ----
+function openReqPreview(id) {
+  const r = IB_PENDING.find(x => x.id === id);
+  if (!r) return;
+  document.getElementById('rqName').textContent = r.name;
+  document.getElementById('rqSince').textContent = r.member_since ? `Member since ${r.member_since}` : (r.anonymous ? 'Chose to stay anonymous until you accept' : '');
+  const av = document.getElementById('rqAv');
+  av.innerHTML = r.photo ? '' : `<i class="fa-solid ${r.anonymous ? 'fa-user-secret' : 'fa-user'}"></i>`;
+  if (r.photo) { const img = document.createElement('img'); img.src = r.photo; av.appendChild(img); }
+  const lines = document.getElementById('rqLines');
+  lines.innerHTML = '';
+  const add = (icon, html) => { const d = document.createElement('div'); d.className = 'rq-line'; d.innerHTML = `<i class="fa-solid fa-${icon}"></i><span>${html}</span>`; lines.appendChild(d); };
+  add('suitcase', `Wants to connect on your post <strong>${esc(r.route)}</strong>${r.trip_date ? ' · departs <strong>' + esc(r.trip_date) + '</strong>' : ''}`);
+  if (r.their_route) add('plane', `Their trip: <strong>${esc(r.their_route)}</strong>${r.their_date ? ' · ' + esc(r.their_date) : ''}${r.their_role ? ' · ' + esc(String(r.their_role).replace(/_/g, ' ')) : ''}`);
+  if (r.languages && r.languages.length) add('language', `Speaks ${esc(r.languages.join(', '))}`);
+  add('clock', `Requested ${esc(r.when)}`);
+  add('shield-halved', 'Accepting opens an in-app chat. Your contact details are never shared automatically.');
+  document.getElementById('rqAccept').onclick = () => { document.getElementById('reqModal').style.display = 'none'; ibRespond(id, 'accept', document.getElementById('rqAnonymous').checked); };
+  document.getElementById('rqDeny').onclick = () => { document.getElementById('reqModal').style.display = 'none'; ibRespond(id, 'deny'); };
+  document.getElementById('reqModal').style.display = 'flex';
+}
+
+// ---- notifications panel + central detail ----
+const NOTIF_ICONS = { connection_request: 'user-plus', connection_accepted: 'handshake', connection_denied: 'user-xmark',
+  message: 'comment', match_found: 'wand-magic-sparkles', contact_request: 'address-card', contact_shared: 'address-card',
+  broadcast: 'bullhorn', blog: 'newspaper', cs_escalation: 'headset', trip_modified: 'pen', trip_cancelled: 'ban', post_claimed: 'circle-check' };
+
+function renderNotifPanel() {
+  const list = document.getElementById('ibNpList');
+  list.innerHTML = '';
+  if (!IB_NOTIFS.length) {
+    list.innerHTML = '<div class="ib-np-empty"><i class="fa-solid fa-bell-slash"></i><br/>Nothing here yet — match alerts, messages and requests will appear in this panel.</div>';
+    return;
+  }
+  IB_NOTIFS.forEach(n => {
+    const item = document.createElement('div');
+    item.className = 'ib-np-item' + (n.is_read ? '' : ' unread');
+    item.id = `npi-${n.id}`;
+    const d = n.created_at ? new Date(n.created_at) : null;
+    item.innerHTML = `<span class="ic"><i class="fa-solid fa-${NOTIF_ICONS[n.type] || 'bell'}"></i></span>
+      <span class="tx"><strong></strong><small></small></span>
+      <span class="when">${d ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}</span>`;
+    item.querySelector('strong').textContent = n.title || 'Notification';
+    item.querySelector('small').textContent = n.body || '';
+    item.onclick = () => openNotifDetail(n, item);
+    list.appendChild(item);
+  });
+}
+
+function openNotifDetail(n, item) {
+  document.querySelectorAll('.ib-np-item').forEach(x => x.classList.remove('sel'));
+  if (item) item.classList.add('sel');
+  if (!n.is_read) {
+    n.is_read = true;
+    apiFetch(`/api/notifications/${n.id}/read`, { method: 'POST', body: '{}' });
+    item?.classList.remove('unread');
+  }
+  if (pollInterval) clearInterval(pollInterval);
+  activeRoomId = null;
+  document.getElementById('inboxPage').classList.add('chat-open');
+  const area = document.getElementById('inboxChatArea');
+  area.innerHTML = '';
+  const wrap = document.createElement('div'); wrap.className = 'nd-wrap';
+  const card = document.createElement('div'); card.className = 'nd-card';
+  const d = n.created_at ? new Date(n.created_at) : null;
+  card.innerHTML = `<span class="nd-ic"><i class="fa-solid fa-${NOTIF_ICONS[n.type] || 'bell'}"></i></span>
+    <h2></h2><p class="body"></p>
+    <div class="nd-when">${d ? d.toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</div>
+    <div class="nd-actions"></div>`;
+  card.querySelector('h2').textContent = n.title || 'Notification';
+  card.querySelector('p.body').textContent = n.body || 'No further details for this notification.';
+  const actions = card.querySelector('.nd-actions');
+  if (n.link && n.link !== '/inbox' && n.link !== '#') {
+    const go = document.createElement('a'); go.className = 'btn btn-primary'; go.href = n.link;
+    go.innerHTML = '<i class="fa-solid fa-arrow-up-right-from-square"></i> Open';
+    actions.appendChild(go);
+  }
+  const back = document.createElement('button'); back.className = 'btn btn-outline-coral';
+  back.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Back';
+  back.onclick = () => { document.getElementById('inboxPage').classList.remove('chat-open'); area.innerHTML = '<div class="inbox-chat-placeholder"><i class="fa-solid fa-comments"></i><p>Select a conversation to start chatting — or open a notification on the right</p></div>'; };
+  actions.appendChild(back);
+  wrap.appendChild(card);
+  area.appendChild(wrap);
+  document.getElementById('ibNotifPanel').classList.remove('open');
+}
+
+document.getElementById('ibMarkAll')?.addEventListener('click', async () => {
+  await apiFetch('/api/notifications/read-all', { method: 'POST', body: '{}' });
+  IB_NOTIFS.forEach(n => n.is_read = true);
+  renderNotifPanel();
+  showToast('All notifications marked as read.', 'info');
+});
+document.getElementById('ibNpToggle')?.addEventListener('click', () => document.getElementById('ibNotifPanel').classList.toggle('open'));
+renderNotifPanel();
+</script>
+<script>
 let activeRoomId = null;
 let pollInterval = null;
 let lastMsgId = 0;
+let lastMsgDay = '';
+const IB_EMOJIS = ['\u{1F600}','\u{1F604}','\u{1F60A}','\u{1F64F}','\u{1F44D}','❤️','\u{1F389}','✈️','\u{1F9F3}','\u{1F91D}','\u{1F602}','\u{1F64C}','\u{1F44B}','\u{1F31F}','\u{1F60D}','\u{1F549}️'];
 
 document.querySelectorAll('.inbox-room-item').forEach(el => {
   el.addEventListener('click', () => openRoom(+el.dataset.room, el.dataset.username));
@@ -82,6 +299,7 @@ function closeRoom() {
 function openRoom(roomId, username) {
   activeRoomId = roomId;
   lastMsgId = 0;
+  lastMsgDay = '';
   document.querySelectorAll('.inbox-room-item').forEach(el => el.classList.remove('active'));
   document.querySelector(`[data-room="${roomId}"]`)?.classList.add('active');
   document.getElementById('inboxPage').classList.add('chat-open');
@@ -91,19 +309,60 @@ function openRoom(roomId, username) {
   const header = document.createElement('div');
   header.className = 'inbox-chat-header';
   const back = document.createElement('button'); back.className = 'inbox-back'; back.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Back'; back.onclick = closeRoom;
+  const av = document.createElement('span'); av.className = 'hd-av'; av.innerHTML = '<i class="fa-solid fa-user"></i>';
   const name = document.createElement('strong'); name.textContent = username;
-  header.append(back, name);
+  const sub = document.createElement('small'); sub.textContent = 'Messages stay on Connecting Desis';
+  const nameWrap = document.createElement('div'); nameWrap.append(name, sub);
+  header.append(back, av, nameWrap);
   const msgs = document.createElement('div'); msgs.className = 'inbox-messages'; msgs.id = 'inboxMessages';
   const row = document.createElement('div'); row.className = 'inbox-input-row';
+
+  const emojiBtn = document.createElement('button'); emojiBtn.type = 'button'; emojiBtn.className = 'ib-tool'; emojiBtn.innerHTML = '<i class="fa-regular fa-face-smile"></i>';
+  const pop = document.createElement('div'); pop.className = 'emoji-pop'; pop.id = 'emojiPop';
+  IB_EMOJIS.forEach(em => { const b = document.createElement('button'); b.type = 'button'; b.textContent = em; b.onclick = () => { const i = document.getElementById('inboxMsgInput'); i.value += em; i.focus(); }; pop.appendChild(b); });
+  emojiBtn.onclick = (e) => { e.stopPropagation(); pop.classList.toggle('open'); };
+  document.addEventListener('click', () => pop.classList.remove('open'));
+
+  const attach = document.createElement('label'); attach.className = 'ib-tool'; attach.title = 'Attach an image, PDF or video';
+  attach.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
+  const fileIn = document.createElement('input'); fileIn.type = 'file'; fileIn.style.display = 'none'; fileIn.accept = 'image/*,.pdf,.mp4,.mov';
+  fileIn.addEventListener('change', sendInboxFile);
+  attach.appendChild(fileIn);
+
   const input = document.createElement('input'); input.type = 'text'; input.id = 'inboxMsgInput'; input.placeholder = 'Type a message...';
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendInboxMsg(); });
   const send = document.createElement('button'); send.className = 'btn btn-primary'; send.innerHTML = '<i class="fa-solid fa-paper-plane"></i>'; send.onclick = sendInboxMsg;
-  row.append(input, send);
+  row.append(pop, emojiBtn, attach, input, send);
   area.append(header, msgs, row);
 
   fetchMessages();
   if (pollInterval) clearInterval(pollInterval);
   pollInterval = setInterval(fetchMessages, 3000);
+}
+
+function appendIbMessage(container, m) {
+  const day = new Date(m.created_at).toDateString();
+  if (day !== lastMsgDay) {
+    lastMsgDay = day;
+    const sep = document.createElement('div'); sep.className = 'day-sep';
+    const dd = new Date(m.created_at);
+    const today = new Date().toDateString();
+    sep.textContent = day === today ? 'Today' : dd.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    container.appendChild(sep);
+  }
+  const mine = m.sender_id === CURRENT_USER_ID;
+  const wrap = document.createElement('div'); wrap.className = 'msg-wrap ' + (mine ? 'mine' : 'theirs');
+  wrap.appendChild(renderMessageBubble(m));   // from main.js — builds DOM, never innerHTML
+  const meta = document.createElement('div'); meta.className = 'msg-meta';
+  const t = new Date(m.created_at);
+  meta.textContent = t.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  if (mine) {
+    const ticks = document.createElement('span'); ticks.className = 'ticks' + (m.is_read ? ' read' : '');
+    ticks.innerHTML = m.is_read ? '<i class="fa-solid fa-check-double"></i>' : '<i class="fa-solid fa-check"></i>';
+    meta.appendChild(ticks);
+  }
+  wrap.appendChild(meta);
+  container.appendChild(wrap);
 }
 
 function fetchMessages() {
@@ -113,8 +372,9 @@ function fetchMessages() {
     .then(data => {
       if (!data.messages?.length) return;
       const container = document.getElementById('inboxMessages');
+      if (!container) return;
       data.messages.forEach(m => {
-        container.appendChild(renderMessageBubble(m));   // from main.js — builds DOM, never innerHTML
+        appendIbMessage(container, m);
         lastMsgId = Math.max(lastMsgId, m.id);
       });
       container.scrollTop = container.scrollHeight;
@@ -128,6 +388,19 @@ function sendInboxMsg() {
   input.value = '';
   apiFetch(`/api/messages/${activeRoomId}`, { method: 'POST', body: JSON.stringify({ message: msg }) })
     .then(r => r.json()).then(() => fetchMessages());
+}
+
+async function sendInboxFile(e) {
+  const file = e.target.files[0];
+  if (!file || !activeRoomId) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('message', document.getElementById('inboxMsgInput').value.trim());
+  const res = await fetch(`/api/messages/${activeRoomId}`, { method: 'POST', headers: { 'X-CSRFToken': CSRF_TOKEN }, body: fd });
+  const data = await res.json();
+  e.target.value = '';
+  if (data.success) { document.getElementById('inboxMsgInput').value = ''; fetchMessages(); }
+  else showToast(data.error || 'Upload failed', 'danger');
 }
 </script>
 {% endblock %}

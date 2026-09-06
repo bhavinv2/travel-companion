@@ -1,0 +1,100 @@
+# Telugu translations for Connecting Desis.
+# MACHINE-DRAFTED — needs review by a native speaker before launch,
+# especially the consent / privacy strings.
+msgid ""
+msgstr ""
+"Project-Id-Version: connecting-desis\n"
+"Language: te\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "All Trips"
+msgstr "అన్ని ప్రయాణాలు"
+
+msgid "How It Works"
+msgstr "ఇది ఎలా పనిచేస్తుంది"
+
+msgid "Desi Travellers Blog"
+msgstr "దేశీ ట్రావెలర్స్ బ్లాగ్"
+
+msgid "My Dashboard"
+msgstr "నా డాష్‌బోర్డ్"
+
+msgid "Join Desi Travellers"
+msgstr "దేశీ ప్రయాణికులతో చేరండి"
+
+msgid "Sign In"
+msgstr "సైన్ ఇన్"
+
+msgid "Sign Up"
+msgstr "సైన్ అప్"
+
+msgid "Inbox"
+msgstr "ఇన్‌బాక్స్"
+
+msgid "My Connections"
+msgstr "నా కనెక్షన్లు"
+
+msgid "Notification settings"
+msgstr "నోటిఫికేషన్ సెట్టింగ్స్"
+
+msgid "Logout"
+msgstr "లాగ్ అవుట్"
+
+msgid "Home"
+msgstr "హోమ్"
+
+msgid "About Us"
+msgstr "మా గురించి"
+
+msgid "Terms of Use"
+msgstr "వినియోగ నిబంధనలు"
+
+msgid "Privacy Policy"
+msgstr "గోప్యతా విధానం"
+
+msgid "Help"
+msgstr "సహాయం"
+
+msgid "Helping the South Asian diaspora find trusted travel companions worldwide."
+msgstr "ప్రపంచవ్యాప్తంగా దక్షిణాసియా సమాజానికి నమ్మకమైన ప్రయాణ సహచరులను కనుగొనడంలో సహాయపడుతున్నాం."
+
+msgid "All Rights Reserved."
+msgstr "సర్వ హక్కులూ రక్షితం."
+
+msgid "Please confirm your e-mail address"
+msgstr "దయచేసి మీ ఇ-మెయిల్ చిరునామాను ధృవీకరించండి"
+
+msgid "so we can notify you about matches."
+msgstr "తద్వారా మ్యాచ్‌ల గురించి మీకు తెలియజేయగలం."
+
+msgid "Resend link"
+msgstr "లింక్ మళ్లీ పంపండి"
+
+msgid "How can a matched companion reach you?"
+msgstr "మ్యాచ్ అయిన సహచరుడు మిమ్మల్ని ఎలా సంప్రదించగలరు?"
+
+msgid "(shared only with companions we match you with, and only if you agree below)"
+msgstr "(మేము మిమ్మల్ని మ్యాచ్ చేసిన సహచరులతో మాత్రమే, మీరు క్రింద అంగీకరిస్తేనే పంచుకోబడుతుంది)"
+
+msgid "I agree that Connecting Desis may share these contact details with travel companions matched to this trip."
+msgstr "ఈ ప్రయాణానికి మ్యాచ్ అయిన ప్రయాణ సహచరులతో ఈ సంప్రదింపు వివరాలను కనెక్టింగ్ దేశీస్ పంచుకోవచ్చని నేను అంగీకరిస్తున్నాను."
+
+msgid "You can always be reached through in-app chat, even without ticking this."
+msgstr "ఇది టిక్ చేయకపోయినా ఇన్-యాప్ చాట్ ద్వారా మిమ్మల్ని ఎప్పుడైనా సంప్రదించవచ్చు."
+
+msgid "Post anonymously — only your route & dates will be visible"
+msgstr "అనామకంగా పోస్ట్ చేయండి — మీ మార్గం మరియు తేదీలు మాత్రమే కనిపిస్తాయి"
+
+msgid "Sign in to add contact details. We only share them with matched companions you approve."
+msgstr "సంప్రదింపు వివరాలు జోడించడానికి సైన్ ఇన్ చేయండి. మీరు ఆమోదించిన సహచరులతో మాత్రమే వాటిని పంచుకుంటాం."
+
+msgid "We found a possible travel companion"
+msgstr "మీకు ఒక సంభావ్య ప్రయాణ సహచరుడు దొరికారు"
+
+msgid "How to get in touch"
+msgstr "ఎలా సంప్రదించాలి"
+
+msgid "agreed to share these with a matched companion. Please use them respectfully."
+msgstr "మ్యాచ్ అయిన సహచరుడితో వీటిని పంచుకోవడానికి అంగీకరించారు. దయచేసి వాటిని గౌరవంగా వాడండి."

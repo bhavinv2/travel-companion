@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Add account – Admin{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='users' %}{% include 'admin/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <h1>Add account</h1>
+    <p class="muted">Create a traveller, CS agent or admin account directly. The account is marked e-mail-verified. Leave the password blank to generate a temporary one (shown once after saving), or tick "send set-password link" to e-mail the person a link instead.</p>
+    <form method="POST" class="admin-card">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <div class="form-row">
+        <div class="field-group"><label>E-mail *</label><input type="email" name="email" value="{{ form.get('email', '') }}" required/></div>
+        <div class="field-group"><label>Username *</label><input type="text" name="username" value="{{ form.get('username', '') }}" required pattern="[A-Za-z0-9._]{3,30}" title="3-30 letters, digits, dots or underscores"/></div>
+      </div>
+      <div class="form-row">
+        <div class="field-group"><label>First name</label><input type="text" name="first_name" value="{{ form.get('first_name', '') }}"/></div>
+        <div class="field-group"><label>Last name</label><input type="text" name="last_name" value="{{ form.get('last_name', '') }}"/></div>
+        <div class="field-group"><label>Phone</label><input type="text" name="phone" value="{{ form.get('phone', '') }}"/></div>
+      </div>
+      <div class="form-row">
+        <div class="field-group"><label>Password <span class="optional">(blank = generate)</span></label><input type="text" name="password" value="" autocomplete="off" placeholder="min. 8 characters"/></div>
+      </div>
+      <h3 class="sub">Roles</h3>
+      <div class="check-grid">
+        {% for r in roles %}
+        <label class="flex-check"><input type="checkbox" name="roles" value="{{ r.key }}" {% if r.key in selected_roles %}checked{% endif %}/> <strong>{{ r.label }}</strong> <small class="muted">({{ r.level }})</small></label>
+        {% endfor %}
+      </div>
+      <label class="flex-check consent-check" style="margin-top:12px"><input type="checkbox" name="send_link" {% if form.get('send_link') == 'on' %}checked{% endif %}/> <span>Send a set-password link by e-mail (needs e-mail configured)</span></label>
+      <div class="form-actions">
+        <button class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Create account</button>
+        <a class="btn btn-outline" href="{{ url_for('admin.users') }}">Cancel</a>
+      </div>
+    </form>
+  </main>
+</div>
+{% endblock %}

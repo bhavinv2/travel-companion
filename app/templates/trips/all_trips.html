@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from '_trip_filters.html' import trip_filters with context %}
 {% block title %}All Trips – Desis on Move | Connecting Desis{% endblock %}
 
 {% block extra_css %}
@@ -14,7 +15,7 @@
 .trips-search-input:focus { border-color: var(--coral); }
 .trips-sort-select { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 14px; background: white; cursor: pointer; }
 .trips-count { font-size: 13px; color: var(--muted); margin-left: auto; white-space: nowrap; }
-.all-trips-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+.all-trips-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; align-items: start; }
 .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; margin-bottom: 20px; text-decoration: none; transition: color 0.2s; }
 .back-link:hover { color: var(--coral); }
 @media (max-width: 600px) {
@@ -34,15 +35,17 @@
     <p>Browse all active trips and find your travel companion</p>
   </div>
 
+  <div class="all-trips-layout">
+    <aside class="trips-side">
+      {{ trip_filters('atf') }}
+    </aside>
+    <div class="trips-main">
+
   <div class="all-trips-toolbar">
     <div class="search-input-wrap">
       <i class="fa-solid fa-magnifying-glass"></i>
       <input type="text" id="tripsSearchInput" class="trips-search-input" placeholder="Search city, airport code, airline…" autocomplete="off"/>
     </div>
-    <select id="tripsRoleSelect" class="trips-sort-select" onchange="fetchAllTrips()">
-      <option value="">Seeking &amp; offering</option>
-      {% for r in TRIP_ROLES %}<option value="{{ r }}">{{ TRIP_ROLE_LABELS[r] }}</option>{% endfor %}
-    </select>
     <select id="tripsSortSelect" class="trips-sort-select" onchange="fetchAllTrips()">
       <option value="newest">Most Recent</option>
       <option value="date">By Travel Date</option>
@@ -54,6 +57,11 @@
   <div class="all-trips-grid" id="allTripsGrid">
     <div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Loading trips…</div>
   </div>
+
+  <div class="pagination" id="tripsPager" style="display:none"></div>
+
+    </div><!-- /.trips-main -->
+  </div><!-- /.all-trips-layout -->
 </div>
 
 {% include '_trip_modals.html' %}
@@ -62,21 +70,33 @@
 {% block extra_js %}
 <script>
 let _searchTimer = null;
+let _tripsPage = 1;
+const TRIPS_PER_PAGE = 24;
 
 async function fetchAllTrips() {
   const grid = document.getElementById('allTripsGrid');
   const countEl = document.getElementById('tripsCount');
   const q = document.getElementById('tripsSearchInput').value.trim();
   const sort = document.getElementById('tripsSortSelect').value;
-  const role = document.getElementById('tripsRoleSelect').value;
 
-  grid.innerHTML = '<div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Loading trips…</div>';
+  skeletonTripCards(grid, 8);
 
   try {
-    const res = await apiFetch('/api/search', { method: 'POST', body: JSON.stringify({ travel_type: 'air', sort, q, role, limit: 200 }) });
+    const res = await apiFetch('/api/search', { method: 'POST', body: JSON.stringify(Object.assign(
+      { travel_type: 'air', sort, q, limit: TRIPS_PER_PAGE, offset: (_tripsPage - 1) * TRIPS_PER_PAGE },
+      tripFilterValues('atf'))) });
     const data = await res.json();
     const trips = data.results || [];
-    if (countEl) countEl.textContent = `${trips.length} trip${trips.length !== 1 ? 's' : ''} found`;
+    const total = (data.total !== undefined ? data.total : trips.length);
+    const pages = Math.max(Math.ceil(total / TRIPS_PER_PAGE), 1);
+    if (_tripsPage > pages) { _tripsPage = pages; return fetchAllTrips(); }
+    if (countEl) {
+      const from = total ? (_tripsPage - 1) * TRIPS_PER_PAGE + 1 : 0;
+      countEl.textContent = total ? `Showing ${from}–${from + trips.length - 1} of ${total} trip${total !== 1 ? 's' : ''}` : '0 trips found';
+    }
+    const pager = document.getElementById('tripsPager');
+    pager.style.display = pages > 1 ? 'flex' : 'none';
+    renderTripsPager(pages);
     grid.innerHTML = '';
     if (!trips.length) {
       grid.innerHTML = '<div class="loading-spinner"><i class="fa-solid fa-map-location-dot"></i> No trips found matching your search.</div>';
@@ -88,11 +108,34 @@ async function fetchAllTrips() {
   }
 }
 
+function renderTripsPager(pages) {
+  const pager = document.getElementById('tripsPager');
+  pager.innerHTML = '';
+  const go = n => { _tripsPage = Math.min(Math.max(1, n), pages); fetchAllTrips(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const mk = (label, n, cls, inert) => {
+    const el = document.createElement(inert ? 'span' : 'a');
+    el.className = ('page ' + cls).trim(); el.innerHTML = label;
+    if (!inert) { el.href = 'javascript:void(0)'; el.onclick = () => go(n); }
+    pager.appendChild(el);
+  };
+  mk('&lsaquo;', _tripsPage - 1, _tripsPage <= 1 ? 'pg-arrow disabled' : 'pg-arrow', _tripsPage <= 1);
+  let prev = 0;
+  for (let p = 1; p <= pages; p++) {
+    if (p <= 2 || p > pages - 2 || Math.abs(p - _tripsPage) <= 1) {
+      if (p - prev > 1) mk('&hellip;', 0, 'pg-ellipsis', true);
+      mk(String(p), p, p === _tripsPage ? 'current' : '', p === _tripsPage);
+      prev = p;
+    }
+  }
+  mk('&rsaquo;', _tripsPage + 1, _tripsPage >= pages ? 'pg-arrow disabled' : 'pg-arrow', _tripsPage >= pages);
+}
+document.getElementById('tripsSortSelect').addEventListener('change', () => { _tripsPage = 1; });
 document.getElementById('tripsSearchInput').addEventListener('input', () => {
   clearTimeout(_searchTimer);
-  _searchTimer = setTimeout(fetchAllTrips, 300);
+  _searchTimer = setTimeout(() => { _tripsPage = 1; fetchAllTrips(); }, 300);
 });
 
+initTripFilters('atf', () => { _tripsPage = 1; fetchAllTrips(); });
 fetchAllTrips();
 </script>
 {% endblock %}

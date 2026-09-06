@@ -3,51 +3,79 @@
 
 {% block extra_css %}
 <style>
-.connections-page { padding: 40px 5% 60px; max-width: 900px; margin: 0 auto; }
-.connections-page h1 { font-family: 'Poppins', sans-serif; font-size: 26px; font-weight: 800; margin-bottom: 6px; }
-.connections-page .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
-.conn-tabs { display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 2px solid var(--border); padding-bottom: 0; }
-.conn-tab { padding: 10px 22px; border: none; background: none; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.2s; }
-.conn-tab.active { color: var(--coral); border-bottom-color: var(--coral); }
-.conn-list { display: flex; flex-direction: column; gap: 14px; }
-.conn-card { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); display: flex; align-items: center; gap: 16px; transition: box-shadow 0.2s; }
-.conn-card:hover { box-shadow: 0 6px 24px rgba(0,0,0,0.08); }
-.conn-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
-.conn-avatar-icon { width: 44px; height: 44px; border-radius: 50%; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 22px; color: var(--muted); flex-shrink: 0; }
-.conn-info { flex: 1; min-width: 0; }
-.conn-name { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
-.conn-route { font-size: 13px; color: var(--muted); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.conn-meta { font-size: 12px; color: var(--muted); }
-.conn-actions { display: flex; gap: 8px; flex-shrink: 0; align-items: center; flex-wrap: wrap; }
-.status-badge { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; }
-.status-pending { background: #fff3cd; color: #856404; }
-.status-accepted { background: #d1e7dd; color: #0a5c36; }
-.status-denied { background: #f8d7da; color: #842029; }
-.conn-empty { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 15px; }
-.conn-empty i { font-size: 40px; margin-bottom: 12px; display: block; }
+.cx-page { padding: 30px 4% 70px; max-width: 1360px; margin: 0 auto; width: 100%; }
+.cx-headbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; flex-wrap: wrap; margin-bottom: 20px; }
+.cx-head h1 { font-family: 'Poppins', sans-serif; font-size: clamp(24px, 3vw, 32px); font-weight: 800; color: var(--navy); margin-bottom: 4px; }
+.cx-head p { color: var(--muted); font-size: 14.5px; }
+.cx-stats { display: flex; gap: 10px; flex-wrap: wrap; }
+.cx-stat { background: #fff; border: 1px solid #e8f1fb; border-radius: 14px; padding: 9px 18px; box-shadow: var(--shadow); display: flex; align-items: center; gap: 10px; }
+.cx-stat strong { font-family: 'Poppins', sans-serif; font-size: 20px; color: var(--navy); line-height: 1; }
+.cx-stat span { font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.cx-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.cx-tab { border: 1.5px solid #d7e6f6; background: #fff; color: #4a6080; border-radius: 999px; padding: 10px 24px; font-size: 13.5px; font-weight: 700; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 8px; transition: all .15s; }
+.cx-tab .n { background: #eaf4fd; color: var(--coral); border-radius: 999px; min-width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 11.5px; }
+.cx-tab.active { background: var(--coral); border-color: var(--coral); color: #fff; }
+.cx-tab.active .n { background: rgba(255,255,255,.25); color: #fff; }
+.cx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 16px; width: 100%; }
+@media (max-width: 640px) {
+  .cx-headbar { flex-direction: column; align-items: stretch; text-align: center; }
+  .cx-stats { justify-content: center; }
+  .cx-tabs { justify-content: center; }
+  .cx-tab { flex: 1; justify-content: center; }
+  .cx-foot { flex-direction: column; align-items: flex-start; }
+  .cx-actions { width: 100%; }
+  .cx-actions .btn-sm, .cx-actions a { flex: 1; justify-content: center; text-align: center; }
+}
+.cx-card { background: #fff; border: 1px solid #e8f1fb; border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; position: relative; display: flex; flex-direction: column; }
+.cx-band { height: 4px; background: #d7e6f6; }
+.cx-card.st-pending .cx-band { background: linear-gradient(90deg, #f2ab3f, #e0731d); }
+.cx-card.st-accepted .cx-band { background: linear-gradient(90deg, #2fbf9a, #199f7e); }
+.cx-card.st-denied .cx-band { background: linear-gradient(90deg, #c9d6e6, #9db6d4); }
+.cx-top { display: flex; align-items: center; gap: 12px; padding: 16px 18px 10px; }
+.cx-av { width: 48px; height: 48px; border-radius: 50%; background: var(--coral-light); color: var(--coral); display: flex; align-items: center; justify-content: center; font-size: 21px; overflow: hidden; flex: 0 0 48px; }
+.cx-av img { width: 100%; height: 100%; object-fit: cover; }
+.cx-who { flex: 1; min-width: 0; }
+.cx-who strong { font-family: 'Poppins', sans-serif; font-size: 15.5px; color: var(--navy); display: block; }
+.cx-who small { color: var(--muted); font-size: 12px; }
+.cx-status { font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; border-radius: 999px; padding: 5px 12px; }
+.cx-status.pending { background: #fff3dd; color: #b45309; }
+.cx-status.accepted { background: #e7f7f4; color: #199f7e; }
+.cx-status.denied { background: #eef2f7; color: #64748b; }
+.cx-route { display: flex; align-items: center; gap: 10px; padding: 4px 18px 10px; flex-wrap: wrap; }
+.cx-route .prt { font-family: 'Poppins', sans-serif; font-weight: 800; font-size: 17px; color: var(--navy); }
+.cx-route .ln { flex: 0 0 40px; border-top: 2px dashed #b9d2ec; position: relative; height: 0; }
+.cx-route .ln i { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--coral); background: #fff; padding: 0 3px; }
+.cx-route .dt { font-size: 11.5px; font-weight: 700; background: var(--coral-light); color: var(--coral-dark-text); border-radius: 999px; padding: 3px 10px; display: inline-flex; gap: 5px; align-items: center; }
+.cx-foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 18px 14px; background: #fbfdff; border-top: 1px dashed #e3edf8; flex-wrap: wrap; }
+.cx-foot small { color: var(--muted); font-size: 11.5px; }
+.cx-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.cx-empty { text-align: center; padding: 70px 20px; color: var(--muted); grid-column: 1 / -1; }
+.cx-empty i { font-size: 44px; color: #c9dcf1; display: block; margin-bottom: 14px; }
+.cx-empty h3 { font-family: 'Poppins', sans-serif; color: var(--navy); margin-bottom: 6px; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="connections-page">
-  <h1><i class="fa-solid fa-handshake" style="color:var(--coral)"></i> My Connections</h1>
-  <p class="subtitle">Track who has reached out to you and trips you've connected on</p>
-
-  <div class="conn-tabs">
-    <button class="conn-tab active" id="tabReceived" onclick="switchTab('received')">
-      Received <span id="receivedBadge"></span>
-    </button>
-    <button class="conn-tab" id="tabSent" onclick="switchTab('sent')">
-      Sent <span id="sentBadge"></span>
-    </button>
+<div class="cx-page">
+  <div class="cx-headbar">
+    <div class="cx-head">
+      <h1><i class="fa-solid fa-handshake" style="color:var(--coral)"></i> My Connections</h1>
+      <p>Requests you have received and sent — accept, chat and travel together.</p>
+    </div>
+    <div class="cx-stats">
+      <div class="cx-stat"><strong id="stPending">–</strong><span>Awaiting<br/>you</span></div>
+      <div class="cx-stat"><strong id="stAccepted">–</strong><span>Connected</span></div>
+      <div class="cx-stat"><strong id="stSent">–</strong><span>Sent</span></div>
+    </div>
   </div>
 
-  <div id="receivedPanel" class="conn-list">
-    <div class="conn-empty"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</div>
+  <div class="cx-tabs">
+    <button class="cx-tab active" id="tabReceived" onclick="switchTab('received')"><i class="fa-solid fa-inbox"></i> Received <span class="n" id="receivedBadge">0</span></button>
+    <button class="cx-tab" id="tabSent" onclick="switchTab('sent')"><i class="fa-solid fa-paper-plane"></i> Sent <span class="n" id="sentBadge">0</span></button>
   </div>
-  <div id="sentPanel" class="conn-list" style="display:none">
-    <div class="conn-empty"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</div>
-  </div>
+
+  <div id="receivedPanel" class="cx-grid"></div>
+  <div id="sentPanel" class="cx-grid" style="display:none"></div>
 </div>
 
 <!-- RESPOND (with anonymity option) -->
@@ -75,49 +103,60 @@
 function switchTab(tab) {
   document.getElementById('tabReceived').classList.toggle('active', tab === 'received');
   document.getElementById('tabSent').classList.toggle('active', tab === 'sent');
-  document.getElementById('receivedPanel').style.display = tab === 'received' ? 'flex' : 'none';
-  document.getElementById('sentPanel').style.display = tab === 'sent' ? 'flex' : 'none';
+  document.getElementById('receivedPanel').style.display = tab === 'received' ? 'grid' : 'none';
+  document.getElementById('sentPanel').style.display = tab === 'sent' ? 'grid' : 'none';
 }
 
-function statusBadge(status) {
-  return `<span class="status-badge status-${esc(status)}">${esc(status)}</span>`;
-}
-
-function avatarHtml(user) {
-  if (user.photo_url) return `<img src="${esc(user.photo_url)}" class="conn-avatar" alt="${esc(user.username)}"/>`;
-  return `<div class="conn-avatar-icon"><i class="fa-solid fa-circle-user"></i></div>`;
+function cxPort(route, idx) {
+  const parts = String(route || '').split('\u2192');
+  const side = (parts[idx] || parts[0] || '?').trim();
+  const m = side.match(/\(([A-Za-z0-9]{3})\)/);
+  return m ? m[1] : side.slice(0, 3).toUpperCase();
 }
 
 function renderList(panelId, connections, received) {
   const panel = document.getElementById(panelId);
+  panel.innerHTML = '';
   if (!connections.length) {
     panel.innerHTML = received
-      ? '<div class="conn-empty"><i class="fa-solid fa-inbox"></i> No connection requests received yet.</div>'
-      : '<div class="conn-empty"><i class="fa-solid fa-paper-plane"></i> You haven\'t sent any connection requests yet.</div>';
+      ? '<div class="cx-empty"><i class="fa-solid fa-inbox"></i><h3>No requests received yet</h3><p>When a traveller taps Connect on one of your posts, it will appear here.</p></div>'
+      : '<div class="cx-empty"><i class="fa-solid fa-paper-plane"></i><h3>No requests sent yet</h3><p>Browse <a href="/trips">Desis on Move</a> and tap Connect on a trip that fits yours.</p></div>';
     return;
   }
-  panel.innerHTML = '';
   connections.forEach(c => {
     const card = document.createElement('div');
-    card.className = 'conn-card';
+    card.className = `cx-card st-${c.status}`;
     card.id = `conn-${c.id}`;
+    const av = c.other_user.photo_url
+      ? `<span class="cx-av"><img src="${esc(c.other_user.photo_url)}" alt=""/></span>`
+      : `<span class="cx-av"><i class="fa-solid ${c.other_user.username === 'Anonymous' ? 'fa-user-secret' : 'fa-user'}"></i></span>`;
     let actions = '';
     if (received && c.status === 'pending') {
-      actions = `<button class="btn-sm-outline" data-act="accept"><i class="fa-solid fa-check"></i> Accept</button>
-                 <button class="btn-sm-outline danger" data-act="deny"><i class="fa-solid fa-xmark"></i> Decline</button>`;
+      actions = `<button class="btn-sm green" data-act="accept"><i class="fa-solid fa-check"></i> Accept</button>
+                 <button class="btn-sm danger" data-act="deny"><i class="fa-solid fa-xmark"></i> Decline</button>`;
     } else if (c.status === 'accepted') {
-      actions = `${statusBadge('accepted')} <a href="/inbox" class="btn-sm-outline"><i class="fa-solid fa-comments"></i> Chat</a>`;
-    } else {
-      actions = statusBadge(c.status);
+      actions = `<a href="/inbox" class="btn-sm"><i class="fa-solid fa-comments"></i> Open chat</a>`;
     }
     card.innerHTML = `
-      ${avatarHtml(c.other_user)}
-      <div class="conn-info">
-        <div class="conn-name">${esc(c.other_user.username)}</div>
-        <div class="conn-route"><i class="fa-solid fa-${c.travel_type === 'air' ? 'plane' : 'car'}" style="color:var(--coral);font-size:11px"></i> ${esc(c.route)}</div>
-        <div class="conn-meta">${c.travel_date ? 'Travel: ' + esc(c.travel_date) : ''} &nbsp;·&nbsp; ${received ? '' : 'Sent '}${new Date(c.created_at).toLocaleDateString()}</div>
+      <div class="cx-band"></div>
+      <div class="cx-top">
+        ${av}
+        <div class="cx-who">
+          <strong>${esc(c.other_user.username)}</strong>
+          <small>${received ? 'wants to join your trip' : 'you asked to join their trip'}</small>
+        </div>
+        <span class="cx-status ${esc(c.status)}">${esc(c.status)}</span>
       </div>
-      <div class="conn-actions">${actions}</div>`;
+      <div class="cx-route">
+        <span class="prt">${esc(cxPort(c.route, 0))}</span>
+        <span class="ln"><i class="fa-solid fa-plane"></i></span>
+        <span class="prt">${esc(cxPort(c.route, 1))}</span>
+        ${c.travel_date ? `<span class="dt"><i class="fa-solid fa-calendar-days"></i> ${esc(c.travel_date)}</span>` : ''}
+      </div>
+      <div class="cx-foot">
+        <small><i class="fa-solid fa-clock"></i> ${received ? 'Received' : 'Sent'} ${new Date(c.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</small>
+        <div class="cx-actions">${actions}</div>
+      </div>`;
     card.querySelectorAll('button[data-act]').forEach(b => {
       b.addEventListener('click', () => {
         if (b.dataset.act === 'accept') {
@@ -140,7 +179,6 @@ async function respondDirect(connectionId, action) {
   } catch { showToast('Network error.', 'danger'); }
 }
 
-// main.js' respondConnection() closes the modal and calls pollUnread(); refresh the lists too.
 document.getElementById('acceptConnectionBtn')?.addEventListener('click', () => setTimeout(loadConnections, 400));
 document.getElementById('denyConnectionBtn')?.addEventListener('click', () => setTimeout(loadConnections, 400));
 
@@ -148,12 +186,15 @@ async function loadConnections() {
   try {
     const res = await apiFetch('/api/my-connections');
     const data = await res.json();
-    document.getElementById('receivedBadge').textContent = data.received.length ? `(${data.received.length})` : '';
-    document.getElementById('sentBadge').textContent = data.sent.length ? `(${data.sent.length})` : '';
+    document.getElementById('receivedBadge').textContent = data.received.length;
+    document.getElementById('sentBadge').textContent = data.sent.length;
+    document.getElementById('stPending').textContent = data.received.filter(c => c.status === 'pending').length;
+    document.getElementById('stAccepted').textContent = [...data.received, ...data.sent].filter(c => c.status === 'accepted').length;
+    document.getElementById('stSent').textContent = data.sent.length;
     renderList('receivedPanel', data.received, true);
     renderList('sentPanel', data.sent, false);
   } catch (e) {
-    document.getElementById('receivedPanel').innerHTML = '<div class="conn-empty">Failed to load connections.</div>';
+    document.getElementById('receivedPanel').innerHTML = '<div class="cx-empty">Failed to load connections.</div>';
   }
 }
 

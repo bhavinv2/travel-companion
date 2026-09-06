@@ -16,12 +16,13 @@ def notify_connected_users(trip, notification_type, title, body):
     """Notify everyone who requested a connection on THIS trip (pending or accepted)."""
     conns = ConnectionRequest.query.filter(ConnectionRequest.trip_id == trip.id,
                                            ConnectionRequest.status.in_(['pending', 'accepted'])).all()
+    from app.services import notify
     notified = set()
     for c in conns:
         if c.requester_id in notified or c.requester_id == trip.user_id:
             continue
-        db.session.add(Notification(user_id=c.requester_id, type=notification_type, title=title,
-                                    body=body, link='/connections', connection_id=c.id))
+        notify.push(c.requester_id, notification_type, title=title, body=body, link='/connections',
+                    connection_id=c.id)
         notified.add(c.requester_id)
     db.session.commit()
 
@@ -173,6 +174,21 @@ def post_trip():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@trips_bp.route('/parse-ticket', methods=['POST'])
+@login_required
+@rate_limit(20, 3600)
+def parse_ticket():
+    """Read an uploaded e-ticket and return suggested form values. Nothing is stored here —
+    the file is attached to the post later, through the normal private-upload path."""
+    from app.services import ticket_parser
+    f = request.files.get('ticket')
+    if not f or not f.filename:
+        return jsonify({'ok': False, 'fields': {}, 'found': [],
+                        'message': 'Choose your e-ticket file first.'}), 400
+    result = ticket_parser.parse_upload(f.stream, f.filename)
+    return jsonify(result)
+
+
 @trips_bp.route('/trip/<int:trip_id>', methods=['GET'])
 @login_required
 def get_trip(trip_id):
@@ -195,7 +211,8 @@ def modify_trip(trip_id):
     fields = ['flying_from', 'destination', 'airline', 'flight_number', 'category',
               'on_behalf_of', 'ticket_booked', 'is_anonymous', 'special_needs_notes',
               'road_from', 'road_to', 'travelling_by', 'additional_comments', 'role',
-              'traveler_age_group', 'traveler_gender', 'pref_gender', 'pref_age_min', 'pref_age_max']
+              'traveler_age_group', 'traveler_gender', 'pref_gender', 'pref_age_min', 'pref_age_max',
+              'flying_from_flexible', 'destination_flexible', 'from_date_flexible', 'to_date_flexible']
     for field in fields:
         if field in data:
             v = data[field]
@@ -205,13 +222,48 @@ def modify_trip(trip_id):
     for dfield in ('from_date', 'to_date'):
         if dfield in data:
             setattr(trip, dfield, _parse_date(data[dfield]))
+    # A post can change shape here, not only its values: one-way <-> round trip <-> a
+    # multi-stop itinerary. The legs are rebuilt from whatever shape arrives, so matching
+    # follows immediately -- that is the whole reason editing these was blocked before.
+    new_type = data.get('trip_type')
+    if new_type in ('one_way', 'round_trip', 'multi_destination'):
+        trip.trip_type = new_type
+
+    if trip.trip_type == 'multi_destination':
+        legs = []
+        for leg in (data.get('legs') or []):
+            frm = (leg.get('from') or '').strip()[:200]
+            to = (leg.get('to') or '').strip()[:200]
+            if not (frm or to):
+                continue
+            legs.append({'from': frm, 'to': to, 'date': (leg.get('date') or '')[:10],
+                         'airline': (leg.get('airline') or '').strip()[:200] or None,
+                         'flight_number': (leg.get('flight_number') or '').strip()[:30] or None})
+        if len(legs) < 2:
+            db.session.rollback()
+            return jsonify({'error': 'A multi-stop trip needs at least two stops.'}), 400
+        if any(not (l['from'] and l['to'] and l['date']) for l in legs):
+            db.session.rollback()
+            return jsonify({'error': 'Every stop needs a from, a to and a date.'}), 400
+        trip.legs = legs
+        # the post's own columns describe the whole journey: first origin, last destination
+        trip.flying_from = legs[0]['from']
+        trip.destination = legs[-1]['to']
+        trip.from_date = _parse_date(legs[0]['date'])
+        trip.to_date = _parse_date(legs[-1]['date'])
+        trip.airline = None
+        trip.flight_number = None
+    else:
+        trip.legs = None
+        if trip.trip_type == 'one_way':
+            trip.to_date = None
+
     if not trip.flying_from or not trip.destination or not trip.from_date:
         db.session.rollback()
         return jsonify({'error': 'Route and departure date are required.'}), 400
-    if trip.trip_type == 'round_trip' and trip.to_date is None and 'to_date' in data and not data['to_date']:
-        trip.trip_type = 'one_way'
-    elif trip.to_date and trip.trip_type == 'one_way':
-        trip.trip_type = 'round_trip'
+    if trip.trip_type == 'round_trip' and not trip.to_date:
+        db.session.rollback()
+        return jsonify({'error': 'A round trip needs a return date.'}), 400
     for lfield in ('connect_me_to', 'traveller_needs', 'preferred_languages'):
         if lfield in data and isinstance(data[lfield], list):
             setattr(trip, lfield, data[lfield])
@@ -272,7 +324,18 @@ def my_trips():
     out = []
     for t in trips:
         d = t.to_dict(viewer_id=current_user.id)
-        d['matches_count'] = len(matching.ranked_matches_for(t)) if t.is_public else 0
+        ms = matching.ranked_matches_for(t) if t.is_public else []
+        d['matches_count'] = len(ms)
+        # Per-leg tallies, so a multi-leg post can offer "which leg?" before opening the
+        # matches panel. Always sent (a one-way post simply has one entry) and always in
+        # travel order, including legs with nothing on them yet.
+        per_leg = {}
+        for m in ms:
+            leg = m.leg_for(t.id)
+            if leg is not None:
+                per_leg[leg.id] = per_leg.get(leg.id, 0) + 1
+        d['legs_summary'] = [{**leg.to_dict(), 'matches': per_leg.get(leg.id, 0)}
+                             for leg in sorted(t.leg_rows, key=lambda r: r.seq)]
         out.append(d)
     return jsonify({'trips': out})
 
@@ -306,14 +369,10 @@ def send_connection(trip_id):
     # Owner-less (CS-created) posts route the request to the CS agent who created them.
     recipient_id = trip.user_id or trip.created_by_id
     if recipient_id:
-        db.session.add(Notification(
-            user_id=recipient_id,
-            type='connection_request',
-            title='New Connection Request',
-            body=f'{requester_name} wants to connect on the trip {trip.route_display}.',
-            link='/connections' if trip.user_id else f'/cs/posts/{trip.id}',
-            connection_id=conn.id,
-        ))
+        from app.services import notify
+        notify.push(recipient_id, 'connection_request', title='New Connection Request',
+                    body=f'{requester_name} wants to connect on the trip {trip.route_display}.',
+                    link='/connections' if trip.user_id else f'/cs/posts/{trip.id}', connection_id=conn.id)
     ActivityEvent.log('connection_requested', trip, actor=current_user, connection_id=conn.id)
     db.session.commit()
     return jsonify({'success': True, 'connection_id': conn.id})
@@ -351,8 +410,9 @@ def respond_connection(connection_id):
         notif_body = 'Your connection request was not accepted this time.'
         notif_type = 'connection_denied'
 
-    db.session.add(Notification(user_id=conn.requester_id, type=notif_type, title=notif_title,
-                                body=notif_body, link='/connections', connection_id=conn.id))
+    from app.services import notify
+    notify.push(conn.requester_id, notif_type, title=notif_title, body=notif_body, link='/connections',
+                connection_id=conn.id)
     ActivityEvent.log(f'connection_{conn.status}', trip, actor=current_user, connection_id=conn.id)
     db.session.commit()
     return jsonify({'success': True})

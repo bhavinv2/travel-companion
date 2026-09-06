@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'cs/_macros.html' import role_chip, contact_icons with context %}
 {% block title %}Listings – Admin{% endblock %}
 {% block content %}
 <div class="admin-page">
@@ -6,29 +7,63 @@
   <main class="admin-main">
     <h1>All Listings</h1>
     <p class="muted">For intake, claim links and lifecycle actions use the <a href="{{ url_for('cs.posts') }}">CS console</a>.</p>
+
+    <form method="GET" class="cs-filters">
+      <input type="text" name="q" value="{{ q }}" placeholder="Search route, name, e-mail, flight…"/>
+      <select name="status">
+        <option value="">Any status</option>
+        {% for s in TRIP_STATUSES %}<option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s|replace('_',' ')|capitalize }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="btn btn-primary">Filter</button>
+      <a href="{{ url_for('admin.listings') }}" class="btn-sm">Reset</a>
+    </form>
+    <p class="muted">{{ total }} listing{{ '' if total == 1 else 's' }}</p>
+
     <div class="table-wrap">
-    <table class="admin-table">
-      <thead><tr><th>ID</th><th>User</th><th>Source</th><th>Route</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+    <table class="admin-table stack-mobile">
+      <thead><tr><th>ID</th><th>Person</th><th>Route</th><th>Departs</th><th>Role</th><th>Source</th><th>Contact</th><th>Matches</th><th>Status</th><th></th></tr></thead>
       <tbody>
         {% for trip in trips %}
+        {% set mi = match_info.get(trip.id) %}
         <tr id="trip-{{ trip.id }}">
-          <td>{{ trip.id }}</td>
-          <td>{{ trip.author.username if trip.author else (trip.poster_name or 'CS post') }}</td>
-          <td>{{ trip.source }}</td>
-          <td>{{ trip.route_display }}</td>
-          <td>{{ trip.from_date or trip.road_from_date or '—' }}</td>
-          <td><span class="chip chip-{{ trip.status }}">{{ trip.status }}</span></td>
-          <td>
+          <td data-label="ID"><strong>#{{ trip.id }}</strong>{% if trip.is_anonymous %}<br/><small class="muted"><i class="fa-solid fa-user-secret"></i> anon</small>{% endif %}</td>
+          <td data-label="Person">
+            {% if trip.author %}
+              {{ trip.author.username }}{% if not trip.author.is_verified %} <i class="fa-solid fa-circle-exclamation" style="color:#b45309" title="e-mail not verified"></i>{% endif %}
+              <br/><small class="muted">{{ trip.author.email }}</small>
+            {% else %}
+              {{ trip.poster_name or 'CS post' }}<br/><small class="muted">no account{% if trip.traveler_name %} · for {{ trip.traveler_name }}{% endif %}</small>
+            {% endif %}
+          </td>
+          <td data-label="Route">{{ trip.route_display }}
+            <br/><small class="muted">{{ 'Round trip' if trip.trip_type == 'round_trip' else 'Multi-stop' if trip.trip_type == 'multi_destination' else 'One way' }}{% if trip.airline %} · {{ trip.airline }} {{ trip.flight_number or '' }}{% endif %}</small>
+          </td>
+          <td data-label="Departs">{{ trip.from_date or trip.road_from_date or '—' }}
+            {% if trip.days_to_departure is not none %}<small class="{{ 'urgent' if trip.days_to_departure <= 3 else 'muted' }}">({{ trip.days_to_departure }}d)</small>{% endif %}
+            <br/><small class="muted">posted {{ trip.created_at.strftime('%Y-%m-%d') }}</small>
+          </td>
+          <td data-label="Role">{{ role_chip(trip) }}</td>
+          <td data-label="Source">{{ trip.source }}</td>
+          <td class="ci-cell" data-label="Contact">{{ contact_icons(trip) }}</td>
+          <td data-label="Matches">
+            {% if mi %}<span class="mt-flag {{ 'hi' if mi.best >= 70 else 'mid' if mi.best >= 40 else 'lo' }}" title="{{ mi.n }} live match(es), best {{ mi.best }}%"><i class="fa-solid fa-people-arrows"></i> {{ mi.n }} · {{ mi.best }}%</span>
+            {% else %}<span class="muted">—</span>{% endif %}
+          </td>
+          <td data-label="Status"><span class="chip chip-{{ trip.status }}">{{ trip.status }}</span></td>
+          <td class="nowrap row-actions">
             <a class="btn-sm" href="{{ url_for('cs.post_detail', trip_id=trip.id) }}">Open</a>
             {% if trip.status != 'closed' %}
             <button class="btn-sm danger" onclick="disableListing({{ trip.id }})">Disable</button>
             {% endif %}
           </td>
         </tr>
+        {% else %}
+        <tr><td colspan="10" class="muted">No listings match these filters.</td></tr>
         {% endfor %}
       </tbody>
     </table>
     </div>
+    {% include 'admin/_pager.html' %}
   </main>
 </div>
 {% endblock %}

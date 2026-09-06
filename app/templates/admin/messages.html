@@ -1,0 +1,155 @@
+{% extends 'base.html' %}
+{% block title %}Messages &amp; e-mails – Admin{% endblock %}
+{% block extra_css %}
+<style>
+.msg-intro { color: var(--muted); font-size: 14px; margin: 4px 0 18px; max-width: 760px; }
+.msg-card { margin-bottom: 18px; }
+.msg-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 8px; }
+.msg-head h3 { font-size: 15.5px; display: flex; align-items: center; gap: 8px; }
+.msg-head p { color: var(--muted); font-size: 12.5px; max-width: 560px; }
+.msg-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.msg-vars { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.msg-vars code { background: #eef5fd; border: 1px solid #d7e6f6; border-radius: 6px; padding: 2px 7px; font-size: 11px; color: #33517a; }
+.msg-sub { width: 100%; border: 1px solid var(--border); border-radius: 9px; padding: 9px 12px; font-size: 13px; margin-bottom: 8px; background: #fbfdff; }
+.msg-body { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13px; font-family: 'Consolas', monospace; background: #fbfdff; resize: vertical; }
+.msg-preview { background: #f4f9ff; border: 1px dashed var(--border); border-radius: 10px; padding: 12px 14px; margin-top: 10px; font-size: 12.5px; white-space: pre-wrap; display: none; }
+.msg-preview strong { display: block; margin-bottom: 6px; }
+.snip-row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px; flex-wrap: wrap; }
+.snip-row input { flex: 0 0 220px; border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; font-size: 13px; }
+.snip-row textarea { flex: 1; min-width: 260px; border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; font-size: 13px; font-family: 'Consolas', monospace; }
+.snip-row .rm { background: none; border: none; color: #b91c1c; cursor: pointer; font-size: 15px; margin-top: 10px; }
+h2.msg-group { font-size: 13px; text-transform: uppercase; letter-spacing: 0.09em; color: #33517a; margin: 26px 0 12px; display: flex; align-items: center; gap: 8px; }
+h2.msg-group i { color: var(--coral); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='messages' %}{% include 'admin/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <h1>Messages &amp; e-mails</h1>
+    <p class="msg-intro">Every message the platform hands to CS agents or sends by e-mail, editable in one place.
+      Changes are stored in the database, apply on the very next use, and survive deploys.
+      Bodies are Jinja templates — the chips under each editor show the variables you can use, e.g. <code>{{ '{{ url }}' }}</code>.
+      <strong>Reset</strong> returns to the built-in text.</p>
+
+    <h2 class="msg-group"><i class="fa-solid fa-comment-dots"></i> Copy for CS agents</h2>
+    {% for t in groups.cs_copy %}
+    <div class="admin-card msg-card" id="msg-{{ t.key }}">
+      <div class="msg-head">
+        <div>
+          <h3>{{ t.title }} <span class="chip {{ 'chip-open' if t.edited else 'chip-unconfirmed' }}" id="chip-{{ t.key }}">{{ 'edited' if t.edited else 'default' }}</span></h3>
+          <p>{{ t.help }}</p>
+        </div>
+        <div class="msg-actions">
+          <button type="button" class="btn-sm" onclick="msgPreview('{{ t.key }}')"><i class="fa-solid fa-eye"></i> Preview</button>
+          <button type="button" class="btn-sm-outline" onclick="msgReset('{{ t.key }}')">Reset</button>
+          <button type="button" class="btn btn-primary" style="padding:8px 16px;font-size:13px" onclick="msgSave('{{ t.key }}')"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+        </div>
+      </div>
+      <div class="msg-vars">{% for v in t.vars %}<code>{{ '{{ ' + v + ' }}' }}</code>{% endfor %}</div>
+      <textarea class="msg-body" id="body-{{ t.key }}" rows="6">{{ t.body }}</textarea>
+      <div class="msg-preview" id="prev-{{ t.key }}"></div>
+    </div>
+    {% endfor %}
+
+    <div class="admin-card msg-card" id="msg-custom">
+      <div class="msg-head">
+        <div>
+          <h3>Custom snippets <span class="chip chip-open">{{ custom|length }}</span></h3>
+          <p>Your own copy-paste messages for CS agents — WhatsApp intros, follow-ups, reminders.
+             They appear on every CS post page with a Copy button, already filled with that post's details.</p>
+        </div>
+        <div class="msg-actions">
+          <button type="button" class="btn-sm-outline" onclick="snipAdd()"><i class="fa-solid fa-plus"></i> Add snippet</button>
+          <button type="button" class="btn btn-primary" style="padding:8px 16px;font-size:13px" onclick="snipSave()"><i class="fa-solid fa-floppy-disk"></i> Save snippets</button>
+        </div>
+      </div>
+      <div class="msg-vars"><code>{{ '{{ greeting }}' }}</code><code>{{ '{{ name }}' }}</code><code>{{ '{{ route }}' }}</code><code>{{ '{{ url }}' }}</code><code>{{ '{{ site_url }}' }}</code><code>{{ '{{ support_email }}' }}</code></div>
+      <div id="snipRows"></div>
+    </div>
+
+    <h2 class="msg-group"><i class="fa-solid fa-envelope-open-text"></i> E-mail templates</h2>
+    {% for t in groups.email %}
+    <div class="admin-card msg-card" id="msg-{{ t.key }}">
+      <div class="msg-head">
+        <div>
+          <h3>{{ t.title }} <span class="chip {{ 'chip-open' if t.edited else 'chip-unconfirmed' }}" id="chip-{{ t.key }}">{{ 'edited' if t.edited else 'default' }}</span></h3>
+          <p>{{ t.help }}</p>
+        </div>
+        <div class="msg-actions">
+          <button type="button" class="btn-sm" onclick="msgPreview('{{ t.key }}')"><i class="fa-solid fa-eye"></i> Preview</button>
+          <button type="button" class="btn-sm-outline" onclick="msgReset('{{ t.key }}')">Reset</button>
+          <button type="button" class="btn btn-primary" style="padding:8px 16px;font-size:13px" onclick="msgSave('{{ t.key }}')"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+        </div>
+      </div>
+      <div class="msg-vars">{% for v in t.vars %}<code>{{ '{{ ' + v + ' }}' }}</code>{% endfor %}</div>
+      <input class="msg-sub" id="subject-{{ t.key }}" value="{{ t.subject }}" placeholder="Subject"/>
+      <textarea class="msg-body" id="body-{{ t.key }}" rows="10">{{ t.body }}</textarea>
+      <div class="msg-preview" id="prev-{{ t.key }}"></div>
+    </div>
+    {% endfor %}
+  </main>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+async function msgSave(key) {
+  const body = document.getElementById(`body-${key}`).value;
+  const subEl = document.getElementById(`subject-${key}`);
+  const d = await (await apiFetch(`/admin/messages/${key}`, { method: 'POST', body: JSON.stringify({ body: body, subject: subEl ? subEl.value : '' }) })).json();
+  if (d.error) return showToast(d.error, 'danger');
+  const chip = document.getElementById(`chip-${key}`);
+  chip.textContent = d.edited ? 'edited' : 'default';
+  chip.className = `chip ${d.edited ? 'chip-open' : 'chip-unconfirmed'}`;
+  showToast(d.edited ? 'Saved — in use from the next message on.' : 'Saved — matches the built-in text (no override stored).', 'success');
+}
+async function msgReset(key) {
+  if (!confirm('Discard your edit and go back to the built-in text?')) return;
+  const d = await (await apiFetch(`/admin/messages/${key}/reset`, { method: 'POST', body: '{}' })).json();
+  if (d.error) return showToast(d.error, 'danger');
+  document.getElementById(`body-${key}`).value = d.body;
+  const subEl = document.getElementById(`subject-${key}`);
+  if (subEl) subEl.value = d.subject;
+  const chip = document.getElementById(`chip-${key}`);
+  chip.textContent = 'default'; chip.className = 'chip chip-unconfirmed';
+  document.getElementById(`prev-${key}`).style.display = 'none';
+  showToast('Reset to the built-in text.', 'info');
+}
+async function msgPreview(key) {
+  const body = document.getElementById(`body-${key}`).value;
+  const subEl = document.getElementById(`subject-${key}`);
+  const d = await (await apiFetch('/admin/messages/preview', { method: 'POST', body: JSON.stringify({ body: body, subject: subEl ? subEl.value : '' }) })).json();
+  const box = document.getElementById(`prev-${key}`);
+  if (d.error) { box.style.display = 'block'; box.innerHTML = `<strong style="color:#b91c1c">Template error</strong>${esc(d.error)}`; return; }
+  box.style.display = 'block';
+  box.innerHTML = (d.subject ? `<strong>Subject: ${esc(d.subject)}</strong>` : '<strong>Preview (sample data)</strong>') + esc(d.body);
+}
+
+// ---- custom snippets (full CRUD) ----
+const SNIPS = {{ custom|tojson }};
+function snipRender() {
+  const box = document.getElementById('snipRows'); box.innerHTML = '';
+  if (!SNIPS.length) box.innerHTML = '<p class="muted" style="font-size:13px">No custom snippets yet — add one.</p>';
+  SNIPS.forEach((s, i) => {
+    const row = document.createElement('div'); row.className = 'snip-row';
+    const t = document.createElement('input'); t.value = s.title || ''; t.placeholder = 'Title (e.g. WhatsApp intro)';
+    t.oninput = () => s.title = t.value;
+    const b = document.createElement('textarea'); b.rows = 3; b.value = s.body || ''; b.placeholder = 'Hello {{ '{{ name }}' }}, …';
+    b.oninput = () => s.body = b.value;
+    const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'rm'; rm.title = 'Delete';
+    rm.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+    rm.onclick = () => { SNIPS.splice(i, 1); snipRender(); };
+    row.append(t, b, rm);
+    box.appendChild(row);
+  });
+}
+function snipAdd() { SNIPS.push({ title: '', body: '' }); snipRender(); const rows = document.querySelectorAll('.snip-row input'); rows[rows.length - 1]?.focus(); }
+async function snipSave() {
+  const d = await (await apiFetch('/admin/messages/custom', { method: 'POST', body: JSON.stringify({ items: SNIPS }) })).json();
+  if (d.error) return showToast(d.error, 'danger');
+  SNIPS.length = 0; d.items.forEach(x => SNIPS.push(x)); snipRender();
+  showToast(`Saved — ${d.items.length} snippet(s) live on every CS post page.`, 'success');
+}
+snipRender();
+</script>
+{% endblock %}

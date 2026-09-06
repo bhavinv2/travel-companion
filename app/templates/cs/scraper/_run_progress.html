@@ -1,0 +1,22 @@
+{# expects: run, panel_id, title #}
+<div class="admin-card" id="{{ panel_id }}" data-run-id="{{ run.id }}" data-active="{{ '0' if run.done else '1' }}">
+  <div class="card-head">
+    <h2>{{ title }}</h2>
+    <span class="chip {{ {'done': 'chip-open', 'running': 'chip-matched', 'queued': 'chip-src', 'failed': 'chip-closed', 'cancelled': 'chip-unconfirmed'}.get(run.status, 'chip-src') }}" data-run-status>{{ run.status }}</span>
+  </div>
+  <div class="progress-bar {{ 'static' if run.done }}"><div></div></div>
+  <div class="stat-inline">
+    <span>pages <strong data-run-pages>{{ run.progress_pages or 0 }}</strong></span>
+    <span>items seen <strong data-run-items>{{ run.progress_items or 0 }}</strong></span>
+    <span>new rows <strong data-run-rows>{{ run.rows_new or 0 }}</strong></span>
+    {% if run.duration_seconds is not none %}<span>{{ run.duration_seconds }} s</span>{% endif %}
+    {% if run.trigger != 'manual' %}<span class="chip chip-src">{{ run.trigger }}</span>{% endif %}
+  </div>
+  <pre class="log-tail" data-run-log>{{ run.log_tail()|join('\n') }}</pre>
+  <p class="urgent" data-run-error style="{{ '' if run.error else 'display:none' }}">{{ run.error or '' }}</p>
+  <form method="POST" action="{{ url_for('scraper.cancel_run', run_id=run.id) }}" data-run-cancel style="{{ 'display:none' if run.done }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <input type="hidden" name="next" value="{{ request.path }}"/>
+    <button class="btn-sm danger"><i class="fa-solid fa-stop"></i> Cancel</button>
+  </form>
+</div>

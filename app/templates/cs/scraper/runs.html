@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block title %}{{ recipe.name }} – runs – CS Console{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='scraper' %}{% include 'cs/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <div class="card-head">
+      <h1>{{ recipe.name }} <small class="muted">{{ 'data source' if recipe.mode == 'source' else 'taught recipe' }}</small></h1>
+      <div>
+        <a class="btn-sm" href="{{ url_for('scraper.mapping', recipe_id=recipe.id) }}"><i class="fa-solid fa-arrows-left-right"></i> Mapping</a>
+        {% if recipe.mode == 'recipe' %}<a class="btn-sm" href="{{ url_for('scraper.recipe_form', recipe_id=recipe.id) }}"><i class="fa-solid fa-pen"></i> Edit</a>{% endif %}
+        <a class="btn-sm" href="{{ url_for('scraper.export_recipe', recipe_id=recipe.id) }}"><i class="fa-solid fa-file-excel"></i> Export all (raw)</a>
+        <a class="btn-sm" href="{{ url_for('scraper.export_recipe', recipe_id=recipe.id, mapped=1) }}"><i class="fa-solid fa-file-excel"></i> Export all (mapped)</a>
+        <a class="btn-sm" href="{{ url_for('scraper.recipes') }}">Recipes</a>
+      </div>
+    </div>
+    {% include 'cs/scraper/_unavailable.html' %}
+    <p class="muted" style="word-break:break-all"><i class="fa-solid fa-link"></i> {{ recipe.start_url }}{% if recipe.mode == 'source' %} · source: {{ (recipe.source_json or {}).get('source') }}{% endif %}</p>
+    <div class="stat-inline mb"><span><strong>{{ stats.rows }}</strong> rows scraped</span><span><strong>{{ stats.new }}</strong> new</span><span><strong>{{ stats.imported }}</strong> turned into posts</span></div>
+
+    {% if active %}
+      {% with run=active, panel_id='runProgress', title='Run #' ~ active.id ~ ' in progress' %}{% include 'cs/scraper/_run_progress.html' %}{% endwith %}
+    {% else %}
+    <div class="admin-card">
+      <h2>Run now</h2>
+      <form method="POST" action="{{ url_for('scraper.start_run', recipe_id=recipe.id) }}" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <label class="flex-check" style="margin:0"><input type="checkbox" name="incremental" checked/> Only new items (incremental)</label>
+        <input type="number" name="max_pages" min="1" placeholder="max pages" style="width:120px"/>
+        <input type="number" name="max_rows" min="1" placeholder="max rows" style="width:120px"/>
+        <button class="btn btn-primary" {% if not availability.ok or not recipe.is_active %}disabled{% endif %}><i class="fa-solid fa-play"></i> Run</button>
+      </form>
+      <form method="POST" action="{{ url_for('scraper.toggle_recipe', recipe_id=recipe.id) }}" class="inline-form" style="margin-top:10px">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="hidden" name="next" value="{{ request.path }}"/>
+        <input type="hidden" name="what" value="schedule"/>
+        <span class="muted">Scheduled runs (via the jobs endpoint):</span>
+        <input type="number" name="every_hours" min="1" value="{{ recipe.schedule_every_hours or 24 }}" style="width:90px"/> <span class="muted">hours</span>
+        <button class="btn-sm">{{ 'Disable schedule' if recipe.schedule_enabled else 'Enable schedule' }}</button>
+        {% if recipe.schedule_enabled %}<span class="chip chip-open">on</span>{% endif %}
+      </form>
+      <form method="POST" action="{{ url_for('scraper.toggle_recipe', recipe_id=recipe.id) }}" class="inline-form" style="margin-top:10px">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ request.path }}"/><input type="hidden" name="what" value="active"/>
+        <button class="btn-sm">{{ 'Deactivate recipe' if recipe.is_active else 'Activate recipe' }}</button>
+      </form>
+    </div>
+    {% endif %}
+
+    <div class="admin-card">
+      <h2>Run history</h2>
+      <div class="table-wrap"><table class="admin-table stack-mobile">
+        <thead><tr><th>Run</th><th>Status</th><th>Started</th><th>Pages</th><th>Items</th><th>New</th><th>Health</th><th></th></tr></thead>
+        <tbody>
+        {% for run in runs %}
+          <tr>
+            <td data-label="Run"><a href="{{ url_for('scraper.run_detail', run_id=run.id) }}"><strong>#{{ run.id }}</strong></a> <small class="muted">{{ run.trigger }}</small></td>
+            <td data-label="Status"><span class="chip {{ {'done': 'chip-open', 'running': 'chip-matched', 'queued': 'chip-src', 'failed': 'chip-closed', 'cancelled': 'chip-unconfirmed'}.get(run.status, 'chip-src') }}">{{ run.status }}</span></td>
+            <td data-label="Started">{{ run.started_at.strftime('%Y-%m-%d %H:%M') if run.started_at else '—' }}{% if run.duration_seconds is not none %}<br/><small class="muted">{{ run.duration_seconds }} s</small>{% endif %}</td>
+            <td data-label="Pages">{{ run.progress_pages or 0 }}</td>
+            <td data-label="Items">{{ run.rows_total or 0 }}</td>
+            <td data-label="New">{{ run.rows_new or 0 }}{% if run.rows_duplicate %} <small class="muted">({{ run.rows_duplicate }} dup)</small>{% endif %}</td>
+            <td data-label="Health">{% set rep = run.report %}{% if rep %}<span class="chip {{ {'ok': 'chip-open', 'warning': 'chip-unconfirmed', 'critical': 'chip-closed'}.get(rep.status, 'chip-src') }}">{{ rep.headline }}</span>{% elif run.error %}<small class="urgent">{{ run.error[:80] }}</small>{% else %}—{% endif %}</td>
+            <td class="row-actions"><a class="btn-sm" href="{{ url_for('scraper.run_detail', run_id=run.id) }}">Rows</a></td>
+          </tr>
+        {% else %}<tr><td colspan="8" class="muted">No runs yet.</td></tr>{% endfor %}
+        </tbody></table></div>
+    </div>
+    <div class="admin-card">
+      <form method="POST" action="{{ url_for('scraper.delete_recipe', recipe_id=recipe.id) }}" onsubmit="return confirm('Delete this recipe and all its scraped rows? Posts already created are kept.')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <button class="btn-sm danger"><i class="fa-solid fa-trash"></i> Delete recipe</button>
+      </form>
+    </div>
+  </main>
+</div>
+{% endblock %}
+{% block extra_js %}<script src="{{ url_for('static', filename='js/scraper.js') }}"></script>{% endblock %}

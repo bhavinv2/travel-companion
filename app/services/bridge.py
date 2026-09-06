@@ -9,8 +9,8 @@ from datetime import datetime, timedelta
 from flask import current_app, url_for
 
 from app import db
-from app.models import Match, MatchParty, Notification, ActivityEvent, CONTACT_TYPE_LABELS
-from app.services import mailer
+from app.models import Match, MatchParty, ActivityEvent, CONTACT_TYPE_LABELS
+from app.services import mailer, notify
 
 MANUAL_PRIORITY = ('whatsapp', 'mobile', 'facebook', 'instagram', 'other')
 
@@ -48,8 +48,14 @@ def notify_party(match, trip, actor=None):
     now = datetime.utcnow()
 
     if channel == 'email':
-        ok = mailer.send_template(
-            _email_subject(trip), [cp.value], 'email/match_found.txt',
+        if not notify.allowed('match_intro', 'email', trip.author):
+            # Switched off globally or by the recipient: not an error, just not sent.
+            party.status = 'pending'
+            ActivityEvent.log('notification_suppressed', trip, actor=actor, match_id=match.id, channel='email')
+            return party
+        from app.services import messages
+        ok = messages.send_email(
+            'email_match_found', [cp.value], 'match_intro',
             trip=trip, other=other, match=match, link=contact_page_url(party),
             site_url=current_app.config['SITE_URL'], support_email=current_app.config['SUPPORT_EMAIL'],
         )
@@ -61,13 +67,17 @@ def notify_party(match, trip, actor=None):
             match.needs_cs_attention = True
             ActivityEvent.log('email_not_sent', trip, actor=actor, match_id=match.id, to=cp.value)
     elif channel == 'inapp':
-        db.session.add(Notification(
-            user_id=trip.user_id, type='match_found',
+        n = notify.push(
+            trip.user_id, 'match_found',
             title=f'Possible travel companion: {other.route_display}',
             body=f'{other.display_name} is travelling {other.route_display} on {other.from_date or "a similar date"} '
                  f'({match.score}% match). Open to see how to get in touch.',
-            link=f'/match/{party.token}',
-        ))
+            link=f'/match/{party.token}', category='match_intro',
+        )
+        if n is None:
+            party.status = 'pending'
+            ActivityEvent.log('notification_suppressed', trip, actor=actor, match_id=match.id, channel='inapp')
+            return party
         party.status, party.sent_at, party.sent_by_id = 'sent', now, (actor.id if actor else None)
         party.touch()
         ActivityEvent.log('inapp_notified', trip, actor=actor, match_id=match.id)
@@ -155,18 +165,20 @@ def alert_new_matches(trip, new_matches, actor=None):
         best = max(ms, key=lambda x: x.score)
         sent_via = []
         if other.user_id:
-            db.session.add(Notification(
-                user_id=other.user_id, type='match_found',
+            n = notify.push(
+                other.user_id, 'match_found',
                 title=f'New possible companion for {other.route_display}',
                 body=f'{trip.display_name} is travelling {trip.route_display} on {trip.from_date or "a similar date"} '
                      f'({best.score}% match). Review it and choose whether to share your contact.',
-                link='/dashboard',
-            ))
-            sent_via.append('inapp')
+                link='/dashboard', category='match_alerts',
+            )
+            if n is not None:
+                sent_via.append('inapp')
         ch, cp = channel_for(other)
-        if ch == 'email' and mailer.send_template(
-                f"[Connecting Desis] New possible companion for your {other.route_display} trip", [cp.value],
-                'email/new_match_alert.txt', trip=other, other=trip, best=best, count=len(ms),
+        from app.services import messages
+        if ch == 'email' and notify.allowed('match_alerts', 'email', other.author) and messages.send_email(
+                'email_new_match_alert', [cp.value], 'match_alerts',
+                trip=other, other=trip, best=best, count=len(ms),
                 site_url=current_app.config['SITE_URL'], support_email=current_app.config['SUPPORT_EMAIL']):
             sent_via.append('email')
         if sent_via:
@@ -213,7 +225,14 @@ def record_contact_viewed(party):
     now = datetime.utcnow()
     if not party.viewed_at:
         party.viewed_at = now
+        # Two posts are involved and both need the record: the viewer's ("you looked at
+        # their details") and the owner's ("your details were shown to someone"). Logging
+        # only the viewer's side left the person whose contact was disclosed with no
+        # trace of it on their own post, which is the side an audit actually asks about.
         ActivityEvent.log('contact_viewed', party.trip, match_id=party.match_id)
+        owner = party.match.other_trip(party.trip_id)
+        ActivityEvent.log('contact_shown_to_match', owner, match_id=party.match_id,
+                          other_trip_id=party.trip_id)
     if party.status in ('pending', 'sent', 'opened'):
         party.status = 'contact_viewed'
     party.touch()
@@ -244,6 +263,5 @@ def record_report(party, reason, actor=None):
     # tell whoever created the other post (a CS agent) or fall back to any CS via the queue flag
     other = m.other_trip(party.trip_id)
     if other.created_by_id:
-        db.session.add(Notification(user_id=other.created_by_id, type='cs_escalation',
-                                    title='Match reported', body=f'Match #{m.id} was reported: {reason[:120]}',
-                                    link=f'/cs/posts/{other.id}/matches'))
+        notify.push(other.created_by_id, 'cs_escalation', title='Match reported',
+                    body=f'Match #{m.id} was reported: {reason[:120]}', link=f'/cs/posts/{other.id}/matches')

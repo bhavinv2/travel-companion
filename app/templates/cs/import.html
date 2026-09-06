@@ -4,7 +4,10 @@
 <div class="admin-page">
   {% with active='import' %}{% include 'cs/_sidebar.html' %}{% endwith %}
   <main class="admin-main">
-    <h1>Import posts from Excel / CSV</h1>
+    <div class="card-head">
+      <h1>Import posts from Excel / CSV</h1>
+      <a class="btn btn-primary btn-compact" href="{{ url_for('imports.import_template') }}"><i class="fa-solid fa-file-arrow-down"></i> Download sample Excel</a>
+    </div>
 
     {% if rows is none %}
     <div class="admin-card">
@@ -12,7 +15,9 @@
         (case-insensitive): <code>origin, destination, start, end, flight, airline, role, languages, contact, email, phone, facebook,
         title, message, poster_name, traveler_name, relationship, need_help_with, pref_gender, pref_age_min, pref_age_max, source, _url, _key</code>.
         Rows are previewed first; nothing is saved until you confirm. Imported posts are <strong>unconfirmed</strong> and contact details are
-        <strong>not consented</strong> until the person confirms via a claim link.</p>
+        <strong>not consented</strong> until the person confirms via a claim link.
+        Not sure about the format? <a href="{{ url_for('imports.import_template') }}">Download the sample Excel</a> —
+        it has three example rows ready to overwrite and a &ldquo;How to fill&rdquo; sheet explaining every column.</p>
       <form method="POST" enctype="multipart/form-data" class="inline-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <input type="file" name="file" accept=".xlsx,.csv" required/>

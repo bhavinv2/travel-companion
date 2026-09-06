@@ -7,8 +7,16 @@
   <main class="admin-main">
     <div class="card-head"><h1>All Posts</h1><a class="btn btn-primary" href="{{ url_for('cs.new_post') }}"><i class="fa-solid fa-plus"></i> New Post</a></div>
 
-    <form method="GET" class="cs-filters">
-      <input type="text" name="q" value="{{ filters.q }}" placeholder="Search route, name, contact, airline…"/>
+    {# Selects apply as soon as they change; the search box waits for Enter, so typing a
+       route never fires a query on every keystroke or on a stray blur. #}
+    <form method="GET" class="cs-filters" id="csFilters">
+      <span class="cs-search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" name="q" value="{{ filters.q }}" id="csSearch" autocomplete="off"
+               placeholder="Search route, name, contact, airline…"/>
+        <button type="button" class="cs-search-x" id="csClear" aria-label="Clear search" hidden>&times;</button>
+        <span class="cs-spin" id="csSpin" hidden><i class="fa-solid fa-circle-notch fa-spin"></i></span>
+      </span>
       <select name="status">
         <option value="">Open + unconfirmed</option>
         {% for s in TRIP_STATUSES %}<option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s|replace('_',' ')|capitalize }}</option>{% endfor %}
@@ -20,6 +28,10 @@
       <select name="role">
         <option value="">Any role</option>
         {% for r in TRIP_ROLES %}<option value="{{ r }}" {% if filters.role == r %}selected{% endif %}>{{ TRIP_ROLE_LABELS[r] }}</option>{% endfor %}
+      </select>
+      <select name="trip_type">
+        <option value="">Any journey</option>
+        {% for tt in TRIP_TYPES %}<option value="{{ tt }}" {% if filters.trip_type == tt %}selected{% endif %}>{{ TRIP_TYPE_LABELS[tt] }}</option>{% endfor %}
       </select>
       <select name="contact_type">
         <option value="">Any contact type</option>
@@ -34,21 +46,79 @@
         <option value="newest" {% if filters.sort == 'newest' %}selected{% endif %}>Newest</option>
         <option value="updated" {% if filters.sort == 'updated' %}selected{% endif %}>Recently updated</option>
       </select>
-      <button type="submit" class="btn btn-primary">Filter</button>
       <a href="{{ url_for('cs.posts') }}" class="btn-sm">Reset</a>
     </form>
 
-    <p class="muted">{{ total }} post{{ '' if total == 1 else 's' }}</p>
-    {{ posts_table(posts, empty='No posts match these filters.') }}
-
-    {% if pages > 1 %}
-    <div class="pagination">
-      {% for p in range(1, pages + 1) %}
-        {% if p == page %}<span class="page current">{{ p }}</span>
-        {% else %}<a class="page" href="{{ url_for('cs.posts', page=p, **filters) }}">{{ p }}</a>{% endif %}
-      {% endfor %}
+    <div id="csResults">
+      {% include 'cs/_posts_results.html' %}
     </div>
-    {% endif %}
   </main>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+liveSearch({
+  form: 'csFilters', input: 'csSearch', clear: 'csClear',
+  spinner: 'csSpin', results: 'csResults',
+});
+
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.tree-toggle');
+  if (!btn) return;
+  const tr = btn.closest('tr');
+  const icon = btn.querySelector('i');
+  const next = tr.nextElementSibling;
+  if (next && next.classList.contains('tree-row')) {          // collapse
+    next.remove();
+    icon.className = 'fa-solid fa-chevron-right';
+    btn.setAttribute('aria-expanded', 'false');
+    return;
+  }
+  document.querySelectorAll('.tree-row').forEach(x => x.remove());   // one open at a time
+  document.querySelectorAll('.tree-toggle i').forEach(i2 => i2.className = 'fa-solid fa-chevron-right');
+  document.querySelectorAll('.tree-toggle').forEach(b2 => b2.setAttribute('aria-expanded', 'false'));
+  icon.className = 'fa-solid fa-chevron-down';
+  btn.setAttribute('aria-expanded', 'true');
+  const row = document.createElement('tr');
+  row.className = 'tree-row';
+  row.innerHTML = `<td colspan="${tr.children.length}"><div class="pt-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Computing matches&hellip;</div></td>`;
+  tr.after(row);
+  try {
+    const d = await (await apiFetch(`/cs/posts/${btn.dataset.trip}/tree`)).json();
+    row.querySelector('td').innerHTML = buildTree(d);
+  } catch (err) {
+    row.querySelector('td').innerHTML = '<span class="muted">Could not load — try again.</span>';
+  }
+});
+
+function buildTree(d) {
+  const matches = d.matches.map(x => `
+    <div class="pt-item">
+      <span class="pt-score ${x.score >= 70 ? 'hi' : x.score >= 40 ? 'mid' : 'lo'}">${x.score}%</span>
+      <div class="pt-main">
+        <a href="${x.other.link}"><strong>#${x.other.id}</strong> ${esc(x.other.person)}</a>
+        <span class="tt-chip tt-${esc(x.other.trip_type_key)}">${esc(x.other.trip_type)}</span>
+        &middot; ${esc(x.other.route)} &middot; departs ${esc(x.other.departs)}
+        ${x.my_leg && x.my_leg.multi ? `<span class="leg-chip">${esc(x.my_leg.label)}: ${esc(x.my_leg.route)}</span>` : ''}
+        ${x.other.multi && x.other.leg_label ? `<span class="leg-chip leg-chip-them">their ${esc(x.other.leg_label)}</span>` : ''}
+        <div class="pt-crit">${x.criteria.map(c => `<span class="${c.ok ? 'ok' : 'no'}">${c.ok ? '&#10003;' : '&#10007;'} ${esc(c.label)}</span>`).join('')}</div>
+      </div>
+      <a class="btn-sm" href="${x.other.link}">Open</a>
+    </div>`).join('') || '<p class="muted">No live matches yet.</p>';
+  const dups = d.duplicates.map(x => `
+    <div class="pt-item">
+      <span class="pt-dupic"><i class="fa-solid fa-clone"></i></span>
+      <div class="pt-main">
+        <a href="${x.link}"><strong>#${x.id}</strong> ${esc(x.person)}</a> &middot; ${esc(x.route)} &middot; departs ${esc(x.departs)}
+        <div class="pt-crit">${x.reasons.map(r => `<span class="why">${esc(r)}</span>`).join('')} <span class="st">${esc(x.status)}</span></div>
+      </div>
+      <a class="btn-sm" href="${x.link}">Open</a>
+    </div>`).join('') || '<p class="muted">No possible duplicates found.</p>';
+  return `<div class="pt-grid">
+    <section><h4><i class="fa-solid fa-people-arrows"></i> Matches (${d.matches.length}) <a class="pt-all" href="${d.all_matches_url}">full match view &rarr;</a></h4>${matches}</section>
+    <section><h4><i class="fa-solid fa-clone"></i> Possible duplicates (${d.duplicates.length})</h4>${dups}</section>
+  </div>`;
+}
+</script>
 {% endblock %}

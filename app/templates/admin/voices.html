@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% import '_voices_tables.html' as vt %}
+{% block title %}User Voices – Admin{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='voices' %}{% include 'admin/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <h1><i class="fa-solid fa-comment-dots"></i> User Voices</h1>
+    <p class="opt-intro">Everything people send you, in the same two halves they see on the
+      <a href="{{ url_for('main.index') }}#talk-to-us" target="_blank">Talk to us</a> panel:
+      enquiries from the contact form, and the reviews they leave.</p>
+
+    <div class="hx-tabs vc-tabs" role="tablist">
+      <a class="hx-tab {{ 'active' if tab == 'contact' }}" role="tab"
+         href="{{ url_for('admin.voices', tab='contact') }}">
+        <i class="fa-solid fa-envelope"></i> Contact us
+        {% if counts['new'] %}<span class="vt-n">{{ counts['new'] }}</span>{% endif %}
+      </a>
+      <a class="hx-tab {{ 'active' if tab == 'feedback' }}" role="tab"
+         href="{{ url_for('admin.voices', tab='feedback') }}">
+        <i class="fa-solid fa-star"></i> Feedback
+        {% if pending %}<span class="vt-n">{{ pending }}</span>{% endif %}
+      </a>
+    </div>
+
+    {% if tab == 'contact' %}
+    <div class="cm-filters">
+      <a class="btn-sm-outline {{ 'active' if not status }}" href="{{ url_for('admin.voices', tab='contact') }}">All ({{ counts.values()|sum }})</a>
+      {% for s in CONTACT_STATUSES %}
+      <a class="btn-sm-outline {{ 'active' if status == s }}" href="{{ url_for('admin.voices', tab='contact', status=s) }}">{{ CONTACT_STATUS_LABELS[s] }} ({{ counts[s] }})</a>
+      {% endfor %}
+      <span class="muted" style="font-size:13px;margin-left:auto">CS agents work these in the
+        <a href="{{ url_for('cs.voices') }}">CS console</a></span>
+    </div>
+
+    {{ vt.contact_table(messages, 'admin.voice_status',
+                        CONTACT_STATUSES, CONTACT_STATUS_LABELS, request.full_path) }}
+
+    {% if c_pages > 1 %}
+    <div class="pagination">
+      {% for p in range(1, c_pages + 1) %}
+      <a class="page {{ 'current' if p == c_page }}"
+         href="{{ url_for('admin.voices', tab='contact', status=status, page=p) }}">{{ p }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <p class="muted small vc-note">Approved reviews appear on the public home page. Rejecting deletes the review.</p>
+
+    {{ vt.feedback_table(feedbacks) }}
+
+    {% if f_pages > 1 %}
+    <div class="pagination">
+      {% for p in range(1, f_pages + 1) %}
+      <a class="page {{ 'current' if p == f_page }}"
+         href="{{ url_for('admin.voices', tab='feedback', page=p) }}">{{ p }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% endif %}
+  </main>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ vt.feedback_js('/admin/feedback/__ID__/__ACTION__') }}
+{% endblock %}

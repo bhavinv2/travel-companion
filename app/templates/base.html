@@ -1,30 +1,41 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ CURRENT_LANG or 'en' }}">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>{% block title %}Connecting Desis – Find Your Travel Companion{% endblock %}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
   {% block extra_css %}{% endblock %}
+  {# active colour theme, managed at /admin/themes. Last in the head so it wins over
+     both style.css (:root) and landing.css (.landing). #}
+  <style id="theme-vars">{{ THEME_CSS }}</style>
   <meta name="csrf-token" content="{{ csrf_token() }}"/>
 </head>
 <body>
 
   <!-- NAVBAR -->
   <nav class="navbar" id="navbar">
-    <a href="{{ url_for('main.index') }}" class="nav-logo">
+    <a href="{{ staff_home(current_user) if is_staff else url_for('main.index') }}" class="nav-logo">
       <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt="Connecting Desis" class="logo-img"/>
-      <span class="logo-text">Connecting<strong>Desis</strong></span>
+      <span class="logo-text">Connecting<strong>Desis</strong>{% if is_staff %} <small class="staff-tag">{{ 'Admin' if current_user.is_admin else 'CS' }}</small>{% endif %}</span>
     </a>
 
     <ul class="nav-links" id="navLinks">
-      <li><a href="{{ url_for('main.all_trips') }}">All Trips</a></li>
-      <li><a href="{{ url_for('main.index') }}#how-it-works">How It Works</a></li>
-      <li><a href="{{ url_for('blog.blog_list') }}">Desi Travellers Blog</a></li>
+      {% if is_staff %}
+        <li><a href="{{ url_for('cs.posts') }}"><i class="fa-solid fa-list"></i> Posts</a></li>
+        <li><a href="{{ url_for('matches.cs_match_queue') }}"><i class="fa-solid fa-handshake"></i> Match Queue</a></li>
+        <li><a href="{{ url_for('cs.new_post') }}"><i class="fa-solid fa-plus"></i> New Post</a></li>
+        <li><a href="{{ url_for('imports.import_page') }}"><i class="fa-solid fa-file-import"></i> Import</a></li>
+      {% else %}
+      <li><a href="{{ url_for('main.index') }}">{{ _('Home') }}</a></li>
       {% if current_user.is_authenticated %}
-        <li><a href="{{ url_for('main.dashboard') }}">My Dashboard</a></li>
+        <li><a href="{{ url_for('main.dashboard') }}">{{ _('My Dashboard') }}</a></li>
+      {% endif %}
+      <li><a href="{{ url_for('blog.blog_list') }}">{{ _('Desi Travellers Blog') }}</a></li>
+      <li><a href="{{ url_for('main.index') }}#how-it-works">{{ _('How It Works') }}</a></li>
+      {% if current_user.is_authenticated %}
         {% if current_user.is_cs %}
           <li><a href="{{ url_for('cs.home') }}"><i class="fa-solid fa-headset"></i> CS Console</a></li>
         {% endif %}
@@ -32,26 +43,40 @@
           <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
         {% endif %}
       {% else %}
-        <li><a href="{{ url_for('auth.register') }}" class="highlight-link">Join Desi Travellers</a></li>
+        <li><a href="{{ url_for('auth.register') }}" class="highlight-link">{{ _('Join Desi Travellers') }}</a></li>
+      {% endif %}
       {% endif %}
     </ul>
 
     <div class="nav-right">
+      {% if not is_staff %}
       <!-- Language selector -->
-      <div class="lang-selector" title="Language">
-        <i class="fa-solid fa-globe"></i>
-        <select onchange="alert('Language switching coming soon!')">
-          <option value="en">EN</option>
-          <option value="hi">हिं</option>
-          <option value="gu">ગુ</option>
-          <option value="ta">தமி</option>
-        </select>
+      {% set _cur = (OPT.SITE_LANGUAGES | selectattr('code', 'equalto', CURRENT_LANG) | list | first) %}
+      <div class="lang-dd" id="langDD">
+        <button type="button" class="lang-btn" id="langBtn" onclick="langMenuToggle(event)" aria-haspopup="listbox" aria-expanded="false" title="Language">
+          <i class="fa-solid fa-globe"></i>
+          <span class="lang-cur" id="langCur">{{ _cur.label if _cur else 'EN' }}</span>
+          <i class="fa-solid fa-chevron-down lang-caret"></i>
+        </button>
+        <div class="lang-menu" id="langMenu" role="listbox" aria-label="Site language">
+          <div class="lang-menu-head"><i class="fa-solid fa-globe"></i> Choose language</div>
+          <div class="lang-menu-list">
+          {% for l in OPT.SITE_LANGUAGES %}
+            <button type="button" role="option" value="{{ l.code }}" data-mode="{{ l.mode }}" class="lang-item{{ ' active' if l.code == CURRENT_LANG }}" aria-selected="{{ 'true' if l.code == CURRENT_LANG else 'false' }}" onclick="setSiteLang('{{ l.code }}')">
+              <span class="lang-native">{{ l.label }}</span>
+              <span class="lang-code">{{ l.code }}</span>
+              <i class="fa-solid fa-check lang-check"></i>
+            </button>
+          {% endfor %}
+          </div>
+        </div>
       </div>
+      {% endif %}
 
       {% if current_user.is_authenticated %}
         <!-- Notifications -->
         <div class="notif-wrapper">
-          <a href="{{ url_for('chat.inbox') }}" class="notif-btn" id="notifBtn" title="Notifications">
+          <a href="{{ url_for('cs.home') if is_staff else url_for('chat.inbox') }}" class="notif-btn" id="notifBtn" title="Notifications">
             <i class="fa-solid fa-bell"></i>
             <span class="badge" id="unreadBadge" style="display:none">0</span>
           </a>
@@ -60,7 +85,7 @@
               <span>Notifications</span>
               <div>
                 <button type="button" id="notifReadAll">Mark all read</button>
-                <a href="{{ url_for('chat.inbox') }}" style="font-size:12px;color:var(--coral);margin-left:8px">Inbox</a>
+                {% if not is_staff %}<a href="{{ url_for('chat.inbox') }}" style="font-size:12px;color:var(--coral);margin-left:8px">Inbox</a>{% endif %}
               </div>
             </div>
             <div id="notifList"><div class="notif-empty"><i class="fa-solid fa-spinner fa-spin"></i></div></div>
@@ -78,49 +103,67 @@
             <i class="fa-solid fa-chevron-down"></i>
           </button>
           <div class="user-dropdown" id="userDropdown">
-            <a href="{{ url_for('main.dashboard') }}"><i class="fa-solid fa-suitcase"></i> My Dashboard</a>
-            <a href="{{ url_for('chat.inbox') }}"><i class="fa-solid fa-inbox"></i> Inbox</a>
-            <a href="{{ url_for('main.connections_page') }}"><i class="fa-solid fa-handshake"></i> My Connections</a>
-            {% if current_user.is_cs %}
-              <a href="{{ url_for('cs.home') }}"><i class="fa-solid fa-headset"></i> CS Console</a>
+            <div class="dd-head">
+              {% if current_user.photo_url and current_user.show_photo %}
+                <img src="{{ current_user.photo_url }}" alt="" class="dd-avatar"/>
+              {% else %}
+                <span class="dd-avatar dd-avatar-icon"><i class="fa-solid fa-user"></i></span>
+              {% endif %}
+              <div class="dd-id">
+                <strong>{{ current_user.full_name or current_user.username }}</strong>
+                <small>{{ current_user.email }}</small>
+              </div>
+              <span class="dd-role dd-role-{{ current_user.effective_role }}">{{ current_user.effective_role }}</span>
+            </div>
+            {% if current_user.is_cs and (current_user.is_traveller or current_user.is_admin) %}
+            {% set _on_admin = is_staff and request.path.startswith('/admin') %}
+            {% set _on_cs = is_staff and not _on_admin %}
+            {% set _three = current_user.is_traveller and current_user.is_admin %}
+            <div class="dd-section">
+              <span class="dd-label">Portal</span>
+              <div class="portal-switch{{ ' three' if _three }}" role="radiogroup" aria-label="Portal">
+                {% if current_user.is_traveller %}
+                <a href="{{ url_for('main.switch_view', view='traveller') }}" role="radio" aria-checked="{{ 'false' if is_staff else 'true' }}" class="{{ '' if is_staff else 'active' }}"><i class="fa-solid fa-person-walking-luggage"></i> <span>Traveller</span></a>
+                {% endif %}
+                <a href="{{ url_for('main.switch_view', view='cs') }}" role="radio" aria-checked="{{ 'true' if _on_cs else 'false' }}" class="{{ 'active' if _on_cs }}"><i class="fa-solid fa-headset"></i> <span>CS Console</span></a>
+                {% if current_user.is_admin %}
+                <a href="{{ url_for('main.switch_view', view='admin') }}" role="radio" aria-checked="{{ 'true' if _on_admin else 'false' }}" class="{{ 'active' if _on_admin }}"><i class="fa-solid fa-gauge"></i> <span>Admin</span></a>
+                {% endif %}
+              </div>
+            </div>
             {% endif %}
-            {% if current_user.is_admin %}
-              <a href="{{ url_for('admin.dashboard') }}"><i class="fa-solid fa-gauge"></i> Admin</a>
+            <div class="dd-menu">
+            {% if is_staff %}
+              <a href="{{ url_for('main.notification_settings') }}"><i class="fa-solid fa-bell"></i> {{ _('Notification settings') }}</a>
+            {% else %}
+              <a href="{{ url_for('main.index') }}"><i class="fa-solid fa-house"></i> {{ _('Home') }}</a>
+              <a href="{{ url_for('main.all_trips') }}"><i class="fa-solid fa-plane-departure"></i> {{ _('All Trips') }}</a>
+              <a href="{{ url_for('main.dashboard') }}"><i class="fa-solid fa-suitcase"></i> {{ _('My Dashboard') }}</a>
+              <a href="{{ url_for('chat.inbox') }}"><i class="fa-solid fa-inbox"></i> {{ _('Inbox') }}</a>
+              <a href="{{ url_for('main.connections_page') }}"><i class="fa-solid fa-handshake"></i> {{ _('My Connections') }}</a>
+              <a href="{{ url_for('main.notification_settings') }}"><i class="fa-solid fa-bell"></i> {{ _('Notification settings') }}</a>
             {% endif %}
-            <hr/>
-            <a href="{{ url_for('auth.logout') }}" class="danger"><i class="fa-solid fa-right-from-bracket"></i> Logout</a>
+              <a href="{{ url_for('auth.logout') }}" class="danger"><i class="fa-solid fa-right-from-bracket"></i> {{ _('Logout') }}</a>
+            </div>
           </div>
         </div>
       {% else %}
-        <button class="btn-outline-nav" id="authModalBtn">Sign In</button>
-        <a href="{{ url_for('auth.register') }}" class="btn-primary-nav">Sign Up</a>
+        <a href="{{ url_for('auth.login') }}" class="btn-outline-nav">{{ _('Sign In') }}</a>
+        <a href="{{ url_for('auth.register') }}" class="btn-primary-nav">{{ _('Sign Up') }}</a>
       {% endif %}
 
       <button class="hamburger" id="hamburger"><i class="fa-solid fa-bars"></i></button>
     </div>
   </nav>
 
-  <!-- AUTH MODAL (not logged in) -->
-  {% if not current_user.is_authenticated %}
-  <div class="modal-overlay" id="authModal">
-    <div class="modal-box">
-      <button class="modal-close" id="closeAuthModal">&times;</button>
-      <h2>Welcome Back</h2>
-      <p>Sign in to connect with Desi travellers</p>
-      <a href="{{ url_for('auth.login') }}" class="btn btn-primary w-full">Login</a>
-      <a href="{{ url_for('auth.register') }}" class="btn btn-outline w-full mt-2">Create Account</a>
-    </div>
-  </div>
-  {% endif %}
-
   {% if current_user.is_authenticated and not current_user.is_verified and not current_user.oauth_provider %}
   <div class="verify-banner">
     <i class="fa-solid fa-envelope-circle-check"></i>
-    <span>Please confirm your e-mail address <strong>{{ current_user.email }}</strong> so we can notify you about matches.</span>
+    <span>{{ _('Please confirm your e-mail address') }} <strong>{{ current_user.email }}</strong> {{ _('so we can notify you about matches.') }}</span>
     <form method="POST" action="{{ url_for('auth.resend_verification') }}" style="display:inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <input type="hidden" name="next" value="{{ request.path }}"/>
-      <button class="btn-sm">Resend link</button>
+      <button class="btn-sm">{{ _('Resend link') }}</button>
     </form>
   </div>
   {% endif %}
@@ -140,7 +183,7 @@
   {% block content %}{% endblock %}
 
   <!-- CHAT SIDEBAR (logged in only, hidden on inbox page) -->
-  {% if current_user.is_authenticated and not hide_chat_bubble %}
+  {% if current_user.is_authenticated and not hide_chat_bubble and not is_staff %}
   <div class="chat-sidebar" id="chatSidebar">
     <button class="chat-toggle" id="chatToggle">
       <i class="fa-solid fa-comment-dots"></i>
@@ -148,7 +191,7 @@
     </button>
     <div class="chat-panel" id="chatPanel" style="display:none">
       <div class="chat-panel-header">
-        <span>Messages</span>
+        <span><i class="fa-solid fa-comment-dots"></i> Messages</span>
         <button id="closeChatPanel">&times;</button>
       </div>
       <input type="text" class="chat-search" id="chatSearch" placeholder="Search conversations..." />
@@ -161,9 +204,11 @@
   <!-- CHAT WINDOW POPUP -->
   <div class="chat-window" id="chatWindow" style="display:none">
     <div class="chat-window-header">
+      <button id="chatBackBtn" title="All conversations"><i class="fa-solid fa-arrow-left"></i></button>
+      <span class="cw-avatar"><i class="fa-solid fa-user"></i></span>
       <span id="chatWindowTitle">Chat</span>
-      <div>
-        <button id="closeChatWindow">&times;</button>
+      <div class="cw-actions">
+        <button id="closeChatWindow" title="Close">&times;</button>
       </div>
     </div>
     <div class="chat-security-msg">
@@ -181,6 +226,11 @@
   </div>
   {% endif %}
 
+  {% if is_staff %}
+  <footer class="footer footer-staff">
+    <div class="footer-bottom"><p>&copy; {{ now().year }} Connecting Desis &middot; staff console</p></div>
+  </footer>
+  {% else %}
   <footer class="footer">
     <div class="footer-inner">
       <div class="footer-brand">
@@ -188,16 +238,16 @@
           <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt="Connecting Desis" class="logo-img sm"/>
           <span class="logo-text">Connecting<strong>Desis</strong></span>
         </a>
-        <p>Helping the South Asian diaspora find trusted travel companions worldwide.</p>
+        <p>{{ _('Helping the South Asian diaspora find trusted travel companions worldwide.') }}</p>
       </div>
       <div class="footer-links">
-        <a href="{{ url_for('main.index') }}">Home</a>
-        <a href="{{ url_for('main.about') }}">About Us</a>
-        <a href="{{ url_for('main.terms') }}">Terms of Use</a>
-        <a href="{{ url_for('main.privacy') }}">Privacy Policy</a>
-        <a href="{{ url_for('main.help_page') }}">Help</a>
-        <a href="{{ url_for('blog.blog_list') }}">Desi Travellers Blog</a>
-        <a href="{{ url_for('admin.admin_login') }}" style="opacity:0.35;">Admin Login</a>
+        <a href="{{ url_for('main.index') }}">{{ _('Home') }}</a>
+        <a href="{{ url_for('blog.blog_list') }}">{{ _('Desi Travellers Blog') }}</a>
+        <a href="{{ url_for('main.about') }}">{{ _('About Us') }}</a>
+        <a href="{{ url_for('main.terms') }}">{{ _('Terms of Use') }}</a>
+        <a href="{{ url_for('main.privacy') }}">{{ _('Privacy Policy') }}</a>
+        <a href="{{ url_for('main.help_page') }}">{{ _('Help') }}</a>
+        <a href="{{ url_for('main.contact') }}">{{ _('Contact Us') }}</a>
       </div>
       <div class="footer-social">
         <a href="#" title="Facebook"><i class="fa-brands fa-facebook"></i></a>
@@ -207,9 +257,10 @@
       </div>
     </div>
     <div class="footer-bottom">
-      <p>&copy; {{ now().year }} Connecting Desis. All Rights Reserved.</p>
+      <p>&copy; {{ now().year }} Connecting Desis. {{ _('All Rights Reserved.') }}</p>
     </div>
   </footer>
+  {% endif %}
 
   <script>
     const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
@@ -217,6 +268,62 @@
     const CURRENT_USER_ID = {{ current_user.id if current_user.is_authenticated else 'null' }};
     const IS_CS = {{ 'true' if current_user.is_authenticated and current_user.is_cs else 'false' }};
   </script>
+  <!-- Instant whole-site translation via the Google Translate element (client-side, free).
+       The hidden widget does the work; our selector drives it through the googtrans cookie. -->
+  <div id="google_translate_element" style="display:none" aria-hidden="true"></div>
+  <script>
+    function googleTranslateElementInit() {
+      new google.translate.TranslateElement({
+        pageLanguage: 'en',
+        includedLanguages: '{{ OPT.SITE_LANGUAGES|map(attribute="code")|join(",") }}',
+        autoDisplay: false
+      }, 'google_translate_element');
+    }
+    async function setSiteLang(lang) {
+      try {
+        await fetch('/api/language', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+          body: JSON.stringify({ lang: lang })
+        });
+      } catch (e) { /* offline - the googtrans cookie below still switches the widget */ }
+      var kill = 'googtrans=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      document.cookie = kill;
+      document.cookie = kill + '; domain=' + location.hostname;
+      document.cookie = kill + '; domain=.' + location.hostname;
+      // Curated languages are rendered server-side by Flask-Babel; the Google widget stays on
+      // as a fallback so the strings we have not translated yet are still readable.
+      if (lang && lang !== 'en') document.cookie = 'googtrans=/en/' + lang + '; path=/';
+      location.reload();
+    }
+    function langMenuToggle(e) {
+      e.stopPropagation();
+      var dd = document.getElementById('langDD');
+      var open = dd.classList.toggle('open');
+      document.getElementById('langBtn').setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    document.addEventListener('click', function (e) {
+      var dd = document.getElementById('langDD');
+      if (dd && dd.classList.contains('open') && !dd.contains(e.target)) {
+        dd.classList.remove('open');
+        document.getElementById('langBtn').setAttribute('aria-expanded', 'false');
+      }
+    });
+    (function () {
+      // legacy googtrans-only cookie (chosen before the preference API existed): reflect it in the trigger
+      var dd = document.getElementById('langDD');
+      if (!dd || dd.querySelector('.lang-item.active:not([value="en"])')) return;
+      var m = document.cookie.match(/googtrans=\/en\/([a-z-]+)/);
+      var it = m && dd.querySelector('.lang-item[value="' + m[1] + '"]');
+      if (it) {
+        dd.querySelectorAll('.lang-item').forEach(function (x) { x.classList.remove('active'); });
+        it.classList.add('active');
+        document.getElementById('langCur').textContent = it.querySelector('.lang-native').textContent;
+      }
+    })();
+  </script>
+  <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" defer></script>
+  <script src="{{ url_for('static', filename='js/searchselect.js') }}"></script>
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   {% block extra_js %}{% endblock %}
 </body>

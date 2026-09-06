@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Web scraper – CS Console{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='scraper' %}{% include 'cs/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <div class="card-head">
+      <h1>Web scraper</h1>
+      <a class="btn btn-primary" href="{{ url_for('scraper.new_recipe') }}"><i class="fa-solid fa-plus"></i> New recipe</a>
+    </div>
+    {% include 'cs/scraper/_unavailable.html' %}
+    <p class="muted">Pull travel-companion requests from other websites, review them, map their fields to the post form and create posts in bulk. Posts created here are <strong>unconfirmed</strong> (CS-only) and their contact details unconsented until the person confirms via a claim link — same rules as the Excel import.</p>
+
+    <div class="admin-card">
+      <div class="table-wrap"><table class="admin-table stack-mobile">
+        <thead><tr><th>Recipe</th><th>Type</th><th>Rows</th><th>Last run</th><th>Schedule</th><th></th></tr></thead>
+        <tbody>
+        {% for r in recipes %}{% set c = counts[r.id] %}
+          <tr>
+            <td data-label="Recipe">
+              <a href="{{ url_for('scraper.recipe_runs', recipe_id=r.id) }}"><strong>{{ r.name }}</strong></a>
+              {% if not r.is_active %} <span class="chip chip-closed">inactive</span>{% endif %}<br/>
+              <small class="muted">{{ r.start_url }}</small>
+            </td>
+            <td data-label="Type"><span class="chip chip-src">{{ 'data source' if r.mode == 'source' else 'taught recipe' }}</span><br/><small class="muted">posts as: {{ r.default_source }}</small></td>
+            <td data-label="Rows">{{ c.rows }}<br/><small class="muted">{{ c.new }} new · {{ c.imported }} imported</small></td>
+            <td data-label="Last run">
+              {% if c.active %}<span class="chip chip-matched">{{ c.active.status }}</span> <a href="{{ url_for('scraper.run_detail', run_id=c.active.id) }}">#{{ c.active.id }}</a>
+              {% elif r.last_run_at %}<span class="chip {{ 'chip-open' if r.last_status == 'done' else 'chip-closed' if r.last_status == 'failed' else 'chip-unconfirmed' }}">{{ r.last_status }}</span><br/><small class="muted">{{ r.last_run_at.strftime('%Y-%m-%d %H:%M') }}</small>
+              {% else %}<span class="muted">never</span>{% endif %}
+            </td>
+            <td data-label="Schedule">{% if r.schedule_enabled %}every {{ r.schedule_every_hours }} h{% else %}<span class="muted">off</span>{% endif %}</td>
+            <td class="row-actions">
+              <form method="POST" action="{{ url_for('scraper.start_run', recipe_id=r.id) }}" style="display:inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button class="btn-sm" {% if not availability.ok or c.active or not r.is_active %}disabled{% endif %}><i class="fa-solid fa-play"></i> Run</button>
+              </form>
+              <a class="btn-sm" href="{{ url_for('scraper.recipe_runs', recipe_id=r.id) }}">Runs &amp; rows</a>
+              <a class="btn-sm" href="{{ url_for('scraper.mapping', recipe_id=r.id) }}">Mapping</a>
+              {% if r.mode == 'recipe' %}<a class="btn-sm" href="{{ url_for('scraper.recipe_form', recipe_id=r.id) }}">Edit</a>{% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" class="muted">No recipes yet. Click <strong>New recipe</strong> and enter the page URL — the app first looks for a data feed behind the page (no teaching needed), otherwise you can teach it.</td></tr>
+        {% endfor %}
+        </tbody></table></div>
+      {% include 'admin/_pager.html' %}
+    </div>
+  </main>
+</div>
+{% endblock %}
+{% block extra_js %}<script src="{{ url_for('static', filename='js/scraper.js') }}"></script>{% endblock %}

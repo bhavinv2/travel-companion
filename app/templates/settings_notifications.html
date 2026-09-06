@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Notification settings – Connecting Desis{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card wide">
+    <div class="auth-header">
+      <i class="fa-solid fa-bell" style="font-size:36px;color:var(--coral)"></i>
+      <h1>Notification settings</h1>
+      <p>Choose what we tell you about, and whether we may e-mail you. Account e-mails (verification, password reset) are always sent.</p>
+    </div>
+    {% if not global_sw.enabled %}
+      <div class="claim-account" style="margin-bottom:14px"><i class="fa-solid fa-bell-slash"></i> Notifications are currently paused site-wide by the team.</div>
+    {% endif %}
+    <form method="POST" class="auth-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <label class="flex-check consent-check" style="font-size:15px"><input type="checkbox" name="muted" {% if prefs.muted %}checked{% endif %}/> <span><strong>Mute everything</strong> — no notifications at all (except account e-mails)</span></label>
+      <label class="flex-check consent-check"><input type="checkbox" name="email" {% if prefs.email %}checked{% endif %}/> <span><i class="fa-solid fa-envelope"></i> <strong>E-mail me</strong> — untick to keep in-app notifications only</span></label>
+      <h3 class="sub" style="margin-top:14px">Tell me about</h3>
+      {% for c in categories %}
+      <label class="flex-check consent-check"><input type="checkbox" name="cat_{{ c }}" {% if prefs[c] %}checked{% endif %}/> <span><strong>{{ c|replace('_',' ')|capitalize }}</strong> — <span class="muted">{{ labels[c] }}</span></span></label>
+      {% endfor %}
+      <button type="submit" class="btn btn-primary w-full mt-2"><i class="fa-solid fa-floppy-disk"></i> Save settings</button>
+      <p class="auth-switch"><a href="{{ url_for('main.dashboard') }}">← Back to my dashboard</a></p>
+    </form>
+  </div>
+</div>
+{% endblock %}

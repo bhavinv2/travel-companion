@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block title %}New scrape recipe – CS Console{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='scraper' %}{% include 'cs/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <div class="card-head"><h1>New recipe</h1><a class="btn-sm" href="{{ url_for('scraper.recipes') }}"><i class="fa-solid fa-arrow-left"></i> Recipes</a></div>
+    {% include 'cs/scraper/_unavailable.html' %}
+
+    {% if run is none %}
+    {% set f = form or {} %}
+    <div class="admin-card">
+      <h2>Step 1 · Where are the posts?</h2>
+      <p class="muted">Enter the page that lists the travel-companion requests. The app opens it in a hidden browser, watches what it loads and lists any data feeds (CSV/JSON/tables) it finds — those need no teaching at all.</p>
+      <form method="POST" action="{{ url_for('scraper.new_recipe') }}" class="cs-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="form-row">
+          <div class="field-group wide"><label>Page URL *</label><input type="text" name="url" required placeholder="https://example.com/travel-companions" value="{{ f.get('url', '') }}"/></div>
+          <div class="field-group"><label>Recipe name</label><input type="text" name="name" placeholder="e.g. immihelp" value="{{ f.get('name', '') }}"/></div>
+          <div class="field-group"><label>Create posts as</label>
+            <select name="default_source"><option value="website" {{ 'selected' if f.get('default_source', 'website') == 'website' }}>website</option><option value="facebook" {{ 'selected' if f.get('default_source') == 'facebook' }}>facebook</option></select></div>
+          <div class="field-group"><label>Wait for slow pages (s)</label><input type="number" name="wait" min="1" max="30" value="{{ f.get('wait', 4) }}"/></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" {% if not availability.ok %}disabled{% endif %}><i class="fa-solid fa-magnifying-glass"></i> Detect data sources</button>
+          {% if headed_teach %}
+          <button class="btn btn-outline-coral" formaction="{{ url_for('scraper.start_teach') }}" {% if not availability.ok %}disabled{% endif %}><i class="fa-solid fa-chalkboard-user"></i> Teach in a browser window</button>
+          {% endif %}
+          <a class="btn btn-outline-coral" href="{{ url_for('scraper.recipe_form') }}"><i class="fa-solid fa-paste"></i> Paste / upload a recipe</a>
+        </div>
+      </form>
+      {% if not headed_teach %}
+      <p class="muted" style="margin-top:12px"><i class="fa-solid fa-circle-info"></i> Teaching by clicking runs on your own PC: <code>python -m fetchall teach &lt;url&gt;</code> saves <code>recipes/&lt;site&gt;.json</code>, which you paste or upload here. Running the app locally with <code>SCRAPER_HEADED_TEACH=True</code> adds a "Teach in a browser window" button.</p>
+      {% endif %}
+    </div>
+
+    {% else %}
+    {% with run=run, panel_id='detectProgress', title='Detecting data sources on ' ~ (run.options or {}).get('url', '') %}{% include 'cs/scraper/_run_progress.html' %}{% endwith %}
+
+    {% if run.done %}
+    {% set cands = (run.result or {}).get('candidates') or [] %}
+    <div class="admin-card">
+      <h2>Step 2 · {{ cands|length }} data source(s) found{% if run.result and run.result.title %} on “{{ run.result.title }}”{% endif %}</h2>
+      {% for c in cands %}
+      <div class="candidate-card {{ 'best' if loop.first }}">
+        <div class="card-head">
+          <div><strong>{{ c.kind|upper }}</strong> <span class="chip chip-src">score {{ c.score }}</span> <span class="chip chip-open">{{ c.rows }} rows × {{ c.columns|length }} columns</span>{% if loop.first %} <span class="chip chip-matched">best match</span>{% endif %}</div>
+          <form method="POST" action="{{ url_for('scraper.use_source', run_id=run.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <input type="hidden" name="candidate" value="{{ c.index }}"/>
+            <input type="hidden" name="name" value="{{ (run.options or {}).get('name', '') }}"/>
+            <button class="btn btn-primary"><i class="fa-solid fa-check"></i> Use this source</button>
+          </form>
+        </div>
+        <small class="muted" style="word-break:break-all">{{ c.source }}</small>
+        <div class="candidate-cols">{% for col in c.columns %}<span>{{ col }}</span>{% endfor %}</div>
+        {% if c.notes %}<small class="muted">{{ c.notes|join(' · ') }}</small>{% endif %}
+        {% if c.sample %}
+        <div class="table-wrap"><table class="admin-table" style="font-size:12px">
+          <thead><tr>{% for col in c.columns[:8] %}<th>{{ col }}</th>{% endfor %}</tr></thead>
+          <tbody>{% for s in c.sample[:3] %}<tr>{% for col in c.columns[:8] %}<td>{{ (s.get(col, '')|string)[:60] }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+        </table></div>
+        {% endif %}
+      </div>
+      {% else %}
+      <p class="muted">No structured data feed was found behind this page — it renders its listings as plain HTML. Teach the scraper instead:</p>
+      {% endfor %}
+    </div>
+
+    <div class="admin-card">
+      <h2>{{ 'No feed you like?' if cands else 'Teach the scraper' }}</h2>
+      <p class="muted">Teaching means showing the scraper one item: the list, the fields, the details popup and the "next page" control. The recipe it saves replays across every item and page.</p>
+      <form method="POST" action="{{ url_for('scraper.start_teach') }}" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="hidden" name="url" value="{{ (run.options or {}).get('url', '') }}"/>
+        <input type="hidden" name="name" value="{{ (run.options or {}).get('name', '') }}"/>
+        <input type="hidden" name="default_source" value="{{ (run.options or {}).get('default_source', 'website') }}"/>
+        {% if headed_teach %}<button class="btn btn-primary" {% if not availability.ok %}disabled{% endif %}><i class="fa-solid fa-chalkboard-user"></i> Teach in a browser window (this PC)</button>{% endif %}
+        <a class="btn btn-outline-coral" href="{{ url_for('scraper.recipe_form') }}"><i class="fa-solid fa-paste"></i> Paste / upload a recipe JSON</a>
+      </form>
+      {% if not headed_teach %}<p class="muted" style="margin-top:10px">On your PC: <code>python -m fetchall teach {{ (run.options or {}).get('url', '') }}</code> → then paste <code>recipes/&lt;site&gt;.json</code> here.</p>{% endif %}
+    </div>
+    {% endif %}
+    {% endif %}
+  </main>
+</div>
+{% endblock %}
+{% block extra_js %}<script src="{{ url_for('static', filename='js/scraper.js') }}"></script>{% endblock %}

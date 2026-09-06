@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block title %}{{ cat.title }} – Help – Connecting Desis{% endblock %}
+{% block content %}
+<div class="static-page">
+  <div class="static-hero coral">
+    <h1><i class="fa-solid {{ cat.icon }}"></i> {{ cat.title }}</h1>
+    <p>{{ cat.blurb or ('%d question%s in this topic'|format(items|length, '' if items|length == 1 else 's')) }}</p>
+  </div>
+  <div class="static-content">
+
+    <nav class="hc-crumbs" aria-label="Breadcrumb">
+      <a href="{{ url_for('main.help_page') }}"><i class="fa-solid fa-arrow-left"></i> All topics</a>
+      <span class="hc-crumb-sep">/</span>
+      <span class="hc-crumb-here">{{ cat.title }}</span>
+    </nav>
+
+    <div class="faq-list">
+      {% for f in items %}
+      <div class="faq-item" id="{{ f.id }}">
+        <button class="faq-q" onclick="toggleFaq(this)" aria-expanded="false">
+          <span>{{ f.question }}</span> <i class="fa-solid fa-chevron-down"></i>
+        </button>
+        <div class="faq-a">{{ f.answer }}</div>
+      </div>
+      {% endfor %}
+      {% if not items %}
+      <div class="hc-empty">
+        <i class="fa-solid fa-circle-question"></i>
+        <p>No questions in this topic yet.</p>
+      </div>
+      {% endif %}
+    </div>
+
+    {# previous / next topic, so someone reading through does not have to bounce via the index #}
+    <div class="hc-pager">
+      {% if prev_cat %}
+      <a class="hc-pager-link" href="{{ url_for('main.help_category', category=prev_cat.key) }}">
+        <i class="fa-solid fa-chevron-left"></i>
+        <span><small>Previous topic</small><strong>{{ prev_cat.title }}</strong></span>
+      </a>
+      {% else %}<span></span>{% endif %}
+      {% if next_cat %}
+      <a class="hc-pager-link next" href="{{ url_for('main.help_category', category=next_cat.key) }}">
+        <span><small>Next topic</small><strong>{{ next_cat.title }}</strong></span>
+        <i class="fa-solid fa-chevron-right"></i>
+      </a>
+      {% else %}<span></span>{% endif %}
+    </div>
+
+    <div class="hc-backrow">
+      <a class="btn btn-outline-coral" href="{{ url_for('main.help_page') }}">
+        <i class="fa-solid fa-arrow-left"></i> Back to all topics
+      </a>
+    </div>
+
+    <div class="hc-foot">
+      Can't find your answer? E-mail <a href="mailto:{{ SUPPORT_EMAIL }}">{{ SUPPORT_EMAIL }}</a> &mdash; a real person reads it.
+
+      <a class="btn btn-outline-coral hc-contact-btn" href="{{ url_for('main.index') }}#talk-to-us">
+        <i class="fa-solid fa-envelope"></i> Contact us
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleFaq(btn) {
+  const answer = btn.nextElementSibling;
+  const open = answer.style.display === 'block';
+  document.querySelectorAll('.faq-a').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.faq-q').forEach(el => {
+    el.setAttribute('aria-expanded', 'false');
+    el.querySelector('i').className = 'fa-solid fa-chevron-down';
+  });
+  if (!open) {
+    answer.style.display = 'block';
+    btn.setAttribute('aria-expanded', 'true');
+    btn.querySelector('i').className = 'fa-solid fa-chevron-up';
+  }
+}
+
+// arriving from a search result: /help/privacy#faq_xxx opens that answer
+(function () {
+  const id = decodeURIComponent(location.hash.slice(1));
+  if (!id) return;
+  const item = document.getElementById(id);
+  if (!item) return;
+  item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  item.classList.add('is-target');
+  item.querySelector('.faq-q')?.click();
+})();
+</script>
+{% endblock %}

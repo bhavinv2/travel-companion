@@ -18,6 +18,9 @@ USERNAME_RE = re.compile(r'^[A-Za-z0-9_.-]{3,30}$')
 EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
 
+from app.routes.main import staff_home  # noqa: E402
+
+
 def _safe_next(target):
     """Only allow relative redirects on this site (prevents open redirects)."""
     if not target:
@@ -34,18 +37,18 @@ def _safe_next(target):
 
 def send_verification_email(user):
     link = url_for('auth.verify_email', token=tokens.make_verify_token(user), _external=True)
-    return mailer.send_template('Welcome to Connecting Desis — please confirm your e-mail', [user.email],
-                                'email/verify_email.txt', user=user, link=link,
-                                site_url=current_app.config['SITE_URL'],
-                                support_email=current_app.config['SUPPORT_EMAIL'])
+    from app.services import messages
+    return messages.send_email('email_verify', [user.email], 'account', user=user, link=link,
+                               site_url=current_app.config['SITE_URL'],
+                               support_email=current_app.config['SUPPORT_EMAIL'])
 
 
 def send_password_reset_email(user):
     link = url_for('auth.reset_password', token=tokens.make_reset_token(user), _external=True)
-    return mailer.send_template('[Connecting Desis] Reset your password', [user.email],
-                                'email/password_reset.txt', user=user, link=link,
-                                site_url=current_app.config['SITE_URL'],
-                                support_email=current_app.config['SUPPORT_EMAIL'])
+    from app.services import messages
+    return messages.send_email('email_password_reset', [user.email], 'account', user=user, link=link,
+                               site_url=current_app.config['SITE_URL'],
+                               support_email=current_app.config['SUPPORT_EMAIL'])
 
 
 def mark_email_verified(user):
@@ -68,7 +71,7 @@ def verify_email(token):
     flash('Your e-mail address is confirmed. Thank you!', 'success')
     if not current_user.is_authenticated:
         login_user(user)
-    return redirect(url_for('main.dashboard'))
+    return redirect(url_for('main.dashboard') if not user.is_cs else staff_home(user))
 
 
 @auth_bp.route('/resend-verification', methods=['POST'])
@@ -201,7 +204,7 @@ def google_callback():
         flash(f'Welcome to Connecting Desis, {first_name or user.username}!', 'success')
     else:
         flash(f'Welcome back, {user.first_name or user.username}!', 'success')
-    return redirect(_safe_next(session.pop('next', None)) or url_for('main.index'))
+    return redirect(_safe_next(session.pop('next', None)) or staff_home(user))
 
 
 # ---------------------------------------------------------------------------
@@ -294,7 +297,7 @@ def register():
 @rate_limit(10, 300)
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('main.index'))
+        return redirect(staff_home(current_user))
 
     next_page = _safe_next(request.args.get('next'))
     if next_page:
@@ -312,17 +315,42 @@ def login():
             login_user(user, remember=remember)
             flash(f'Welcome back, {user.first_name or user.username}!', 'success')
             target = _safe_next(session.pop('next', None)) or next_page
-            return redirect(target or url_for('main.index'))
+            if target:
+                return redirect(target)
+            if len(user.role_levels) >= 2:      # user/cs/admin mix: ask where to land
+                return redirect(url_for('auth.choose_portal'))
+            return redirect(staff_home(user))
         else:
             flash('Invalid email or password.', 'danger')
 
     return render_template('auth/login.html')
 
 
+@auth_bp.route('/choose-portal')
+@login_required
+def choose_portal():
+    """Accounts holding several roles pick which portal to land in after login."""
+    levels = current_user.role_levels
+    to = request.args.get('to')
+    if to == 'traveller' and 'user' in levels:
+        session['view'] = 'traveller'
+        return redirect(url_for('main.dashboard'))
+    if to == 'cs' and current_user.is_cs:
+        session.pop('view', None)
+        return redirect(url_for('cs.home'))
+    if to == 'admin' and current_user.is_admin:
+        session.pop('view', None)
+        return redirect(url_for('admin.dashboard'))
+    if len(levels) < 2:                          # single-portal accounts never see the popup
+        return redirect(staff_home(current_user))
+    return render_template('auth/choose_portal.html', levels=levels)
+
+
 @auth_bp.route('/logout')
 @login_required
 def logout():
     logout_user()
+    session.pop('view', None)
     flash('You have been logged out.', 'info')
     return redirect(url_for('main.index'))
 

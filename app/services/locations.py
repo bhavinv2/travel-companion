@@ -6,6 +6,9 @@ import re
 _AIRPORTS_PATH = os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'airports.json')
 _BY_IATA = None
 _BY_CITY = None
+_ALL = None
+_LOADED_AT = 0.0
+_CACHE_TTL = 60       # seconds; admin edits call reset_cache() in-process, other workers refresh on expiry
 
 # Airports that should match each other when a traveller is flexible about the airport.
 # Falls back to the city name for anything not listed, so same-city airports still group.
@@ -42,23 +45,56 @@ ALIASES = {
 }
 
 
-def _load():
-    global _BY_IATA, _BY_CITY
-    if _BY_IATA is not None:
-        return
-    _BY_IATA, _BY_CITY = {}, {}
+def _fetch():
+    """All airport rows: the `airports` DB table when seeded (base + custom), else the bundled JSON file."""
+    base, custom = [], []
     try:
-        with open(_AIRPORTS_PATH, encoding='utf-8') as f:
-            for a in json.load(f):
-                iata = (a.get('iata') or '').upper()
-                if not iata:
-                    continue
-                _BY_IATA[iata] = a
-                city = (a.get('city') or '').strip().lower()
-                if city:
-                    _BY_CITY.setdefault(city, []).append(a)
-    except Exception:  # pragma: no cover - file missing in some test setups
+        from app.models import Airport
+        for a in Airport.query.all():
+            (custom if a.is_custom else base).append(a.as_dict())
+    except Exception:      # no app context / table not created yet (plain scripts, early migrations)
         pass
+    if not base:           # unseeded table (e.g. tests): fall back to the bundled list
+        try:
+            with open(_AIRPORTS_PATH, encoding='utf-8') as f:
+                base = json.load(f)
+        except Exception:  # pragma: no cover - file missing in some setups
+            base = []
+    return base + custom
+
+
+def _index(a):
+    iata = (a.get('iata') or '').upper()
+    if not iata:
+        return
+    _BY_IATA[iata] = a
+    city = (a.get('city') or '').strip().lower()
+    if city:
+        _BY_CITY.setdefault(city, []).append(a)
+
+
+def _load():
+    global _BY_IATA, _BY_CITY, _ALL, _LOADED_AT
+    import time
+    if _BY_IATA is not None and time.time() - _LOADED_AT < _CACHE_TTL:
+        return
+    _BY_IATA, _BY_CITY, _ALL = {}, {}, []
+    for a in _fetch():
+        _index(a)
+        _ALL.append(a)
+    _LOADED_AT = time.time()
+
+
+def all_airports():
+    """The full merged airport list (cached), for autocomplete and the admin screen."""
+    _load()
+    return _ALL
+
+
+def reset_cache():
+    global _BY_IATA, _BY_CITY, _ALL, _LOADED_AT
+    _BY_IATA = _BY_CITY = _ALL = None
+    _LOADED_AT = 0.0
 
 
 def airport(iata):
@@ -108,4 +144,9 @@ def apply_route(trip, origin_text=None, dest_text=None):
     trip.dest_iata = d['iata'] if d else None
     trip.dest_city = d['city'] if d else None
     trip.dest_metro = d['metro'] if d else None
+    # The legs are derived from exactly these columns, so rebuild them here rather than at
+    # the ten call sites -- one of which would eventually be missed, and a post with stale
+    # legs silently stops matching.
+    from app.services.legs import sync_legs      # local: legs imports this module
+    sync_legs(trip)
     return o, d

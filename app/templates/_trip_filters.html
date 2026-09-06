@@ -1,0 +1,104 @@
+{# The filter panel used by the All Trips page and both dashboard trip tabs. Mirrors the
+   post form's searchable dimensions: route, trip type, role, dates + flexibility, language,
+   companion gender, booking status and account verification.
+
+   Render with a unique id prefix per page/tab (ids must not collide when the dashboard shows
+   two of these). `mine=True` drops the sections that make no sense for one's own posts
+   (role, language, companion gender, verified users). Inputs are read by tripFilterValues()
+   and wired by initTripFilters() in main.js; airport autocomplete + calendar attach via class. #}
+{% macro trip_filters(prefix, mine=False) %}
+<div class="tf-panel" id="{{ prefix }}Panel">
+  <div class="tf-head">
+    <strong><i class="fa-solid fa-filter"></i> Filters</strong>
+    <button type="button" class="tf-reset" id="{{ prefix }}Reset">Reset</button>
+  </div>
+
+  <div class="tf-field">
+    <label class="tf-label" for="{{ prefix }}From">From</label>
+    <div class="tf-clearwrap">
+      <i class="fa-solid fa-plane-departure tf-ic"></i>
+      <input type="text" id="{{ prefix }}From" class="tf-input autocomplete-airport" placeholder="City or airport" autocomplete="off"/>
+      <button type="button" class="tf-clear" data-clears="{{ prefix }}From" aria-label="Clear from">&times;</button>
+    </div>
+  </div>
+
+  <div class="tf-field">
+    <label class="tf-label" for="{{ prefix }}To">To</label>
+    <div class="tf-clearwrap">
+      <i class="fa-solid fa-plane-arrival tf-ic"></i>
+      <input type="text" id="{{ prefix }}To" class="tf-input autocomplete-airport" placeholder="City or airport" autocomplete="off"/>
+      <button type="button" class="tf-clear" data-clears="{{ prefix }}To" aria-label="Clear to">&times;</button>
+    </div>
+  </div>
+
+  <div class="tf-field">
+    <span class="tf-label">Trip type</span>
+    <label class="tf-opt"><input type="checkbox" class="{{ prefix }}TripType" value="one_way"/> One-way</label>
+    <label class="tf-opt"><input type="checkbox" class="{{ prefix }}TripType" value="round_trip"/> Round trip</label>
+    <label class="tf-opt"><input type="checkbox" class="{{ prefix }}TripType" value="multi_destination"/> Multi-stop</label>
+  </div>
+
+  {% if not mine %}
+  <div class="tf-field" role="radiogroup" aria-label="Looking for">
+    <span class="tf-label">Looking for</span>
+    <label class="tf-opt"><input type="radio" name="{{ prefix }}Role" value="" checked/> Anyone</label>
+    <label class="tf-opt"><input type="radio" name="{{ prefix }}Role" value="seeking_help"/> Needs a companion</label>
+    <label class="tf-opt"><input type="radio" name="{{ prefix }}Role" value="offering_help"/> Offering help</label>
+    <label class="tf-opt"><input type="radio" name="{{ prefix }}Role" value="open"/> Open to either</label>
+  </div>
+  {% endif %}
+
+  <div class="tf-field">
+    <label class="tf-label" for="{{ prefix }}Date">Departure date</label>
+    <div class="tf-clearwrap">
+      <input type="date" id="{{ prefix }}Date" class="tf-input"/>
+      <button type="button" class="tf-clear" data-clears="{{ prefix }}Date" aria-label="Clear date">&times;</button>
+    </div>
+  </div>
+
+  <div class="tf-field">
+    <span class="tf-label">Date flexibility: <b id="{{ prefix }}FlexLabel">exact</b></span>
+    <input type="range" id="{{ prefix }}Flex" min="0" max="30" step="1" value="0" aria-label="Date flexibility in days"/>
+    <div class="tf-scale"><span>Exact</span><span>&plusmn;30 days</span></div>
+    <small class="tf-hint" id="{{ prefix }}FlexHint">Pick a departure date to use flexibility.</small>
+  </div>
+
+  {% if not mine %}
+  <div class="tf-field">
+    <label class="tf-label" for="{{ prefix }}Lang">Language</label>
+    <select id="{{ prefix }}Lang" class="tf-input tf-select">
+      <option value="">Any language</option>
+      {% for l in OPT.LANGUAGES %}<option value="{{ l }}">{{ l }}</option>{% endfor %}
+    </select>
+  </div>
+  {% endif %}
+
+  <div class="tf-field" role="radiogroup" aria-label="Booking status">
+    <span class="tf-label">Booking status</span>
+    <label class="tf-opt"><input type="radio" name="{{ prefix }}Booking" value="" checked/> All journeys</label>
+    <label class="tf-opt"><input type="radio" name="{{ prefix }}Booking" value="booked"/> Booked only</label>
+    <label class="tf-opt"><input type="radio" name="{{ prefix }}Booking" value="planned"/> Planned only</label>
+  </div>
+
+  {% if not mine %}
+  <div class="tf-field" aria-label="Gender of companion">
+    <span class="tf-label">Gender of companion</span>
+    <label class="tf-opt"><input type="checkbox" class="{{ prefix }}Gender" value="male"/> <i class="fa-solid fa-mars" style="color:#4a90d9"></i> Male</label>
+    <label class="tf-opt"><input type="checkbox" class="{{ prefix }}Gender" value="female"/> <i class="fa-solid fa-venus" style="color:#d94a8c"></i> Female</label>
+    <label class="tf-opt"><input type="checkbox" class="{{ prefix }}Gender" value="other"/> <i class="fa-solid fa-user-group" style="color:#8c4ad9"></i> Other</label>
+  </div>
+
+  <div class="tf-field" role="radiogroup" aria-label="Users">
+    <span class="tf-label">Users</span>
+    <label class="tf-opt"><input type="radio" name="{{ prefix }}Users" value="" checked/> <span class="chip">All users</span></label>
+    <label class="tf-opt"><input type="radio" name="{{ prefix }}Users" value="verified"/> <span class="chip chip-open"><i class="fa-solid fa-circle-check"></i> Verified users</span></label>
+  </div>
+  {% endif %}
+
+  <div class="tf-field tf-field--action">
+    <button type="button" class="btn btn-primary tf-search" id="{{ prefix }}Search">
+      <i class="fa-solid fa-magnifying-glass"></i> Search
+    </button>
+  </div>
+</div>
+{% endmacro %}

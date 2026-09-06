@@ -1,0 +1,383 @@
+{% extends 'base.html' %}
+{% block title %}Options &amp; dropdowns – Admin{% endblock %}
+{% block extra_css %}
+<style>
+.opt-intro { color:var(--muted); font-size:14px; margin:4px 0 16px; }
+.opt-tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; }
+.opt-tabs button { border:1px solid var(--border); background:white; border-radius:999px; padding:8px 16px; font-size:13px; font-weight:600; color:var(--muted); cursor:pointer; }
+.opt-tabs button.active { background:var(--coral); border-color:var(--coral); color:white; }
+.opt-section.hidden { display:none; }
+.opt-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+.opt-head h2 { font-size:18px; display:flex; align-items:center; gap:10px; margin-bottom:4px; }
+.opt-head p { color:var(--muted); font-size:13px; max-width:640px; }
+.opt-actions { display:flex; gap:8px; }
+.chip-box { display:flex; flex-wrap:wrap; gap:8px; padding:14px; border:1px dashed var(--border); border-radius:12px; background:var(--bg); }
+.chip-item { display:inline-flex; align-items:center; gap:8px; background:white; border:1px solid var(--border); border-radius:999px; padding:7px 8px 7px 14px; font-size:13px; font-weight:600; }
+.chip-item button { border:none; background:none; color:#b91c1c; cursor:pointer; font-size:14px; line-height:1; }
+.chip-box input { border:none; outline:none; background:none; flex:1; min-width:180px; font-size:13px; padding:7px; }
+.opt-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
+.opt-row input, .opt-row select { border:1px solid var(--border); border-radius:8px; padding:9px 11px; font-size:13px; flex:1; min-width:150px; background:white; }
+.opt-row input:disabled, .opt-row select:disabled { background:var(--bg); color:var(--muted); }
+.opt-row select { flex:0 0 130px; min-width:130px; }
+.opt-row .key { font-size:11px; color:var(--muted); flex:0 0 130px; overflow:hidden; text-overflow:ellipsis; }
+.opt-row .rm, .ref-table .rm { background:none; border:none; color:#b91c1c; cursor:pointer; font-size:15px; flex:0 0 20px; }
+.opt-addrow { margin-top:4px; }
+.ref-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.ref-bar input { border:1px solid var(--border); border-radius:10px; padding:10px 12px; font-size:14px; flex:1; min-width:220px; }
+.ref-add { display:flex; gap:8px; flex-wrap:wrap; padding:12px; border:1px dashed var(--border); border-radius:12px; background:var(--bg); margin-bottom:14px; align-items:center; }
+.ref-add input { border:1px solid var(--border); border-radius:8px; padding:9px 11px; font-size:13px; flex:1; min-width:130px; background:white; }
+.ref-add input.sm { flex:0 0 80px; min-width:80px; text-transform:uppercase; }
+.ref-hint { color:var(--muted); font-size:13px; padding:10px 2px; }
+.ref-pager { display:flex; align-items:center; gap:6px; margin-top:10px; flex-wrap:wrap; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='options' %}{% include 'admin/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <h1>Options &amp; dropdowns</h1>
+    <p class="opt-intro">Change a value, hit <strong>Save</strong>, and it is live everywhere within seconds — post form, CS form, filters, importer, scraper. Nothing to deploy.</p>
+
+    <nav class="opt-tabs" id="optTabs">
+      {% for name, spec, rows, customised in lists %}{% if name != 'site_languages' %}<button type="button" data-tab="{{ name }}" class="{{ 'active' if loop.first }}">{{ 'Languages' if name == 'languages' else spec.title }}</button>{% endif %}{% endfor %}
+      <button type="button" data-tab="airports">Airports</button>
+      <button type="button" data-tab="airlines">Airlines</button>
+    </nav>
+
+    {% for name, spec, rows, customised in lists %}
+    <section class="admin-card opt-section {{ '' if loop.first else 'hidden' }}" id="sec-{{ name }}" data-name="{{ name }}" data-kind="{{ spec.kind }}">
+      <div class="opt-head">
+        <div>
+          <h2>{{ spec.title }} <span class="chip {{ 'chip-open' if customised else 'chip-unconfirmed' }}" id="chip-{{ name }}">{{ 'customised' if customised else 'defaults' }}</span></h2>
+          <p>{{ spec.help }}</p>
+        </div>
+        <div class="opt-actions">
+          <button type="button" class="btn-sm-outline" onclick="optReset('{{ name }}')">Reset to defaults</button>
+          <button type="button" class="btn btn-primary" style="padding:8px 16px;font-size:13px" onclick="optSave('{{ name }}')"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+        </div>
+      </div>
+      <div class="opt-editor" id="ed-{{ name }}"></div>
+      <script type="application/json" id="opt-data-{{ name }}">{{ rows|tojson }}</script>
+    </section>
+    {% endfor %}
+
+    <!-- Airports & airlines live in the database (seeded from the built-in lists) -->
+    <section class="admin-card opt-section hidden" id="sec-airports">
+      <div class="opt-head">
+        <div>
+          <h2>Airports <span class="chip chip-open" id="airports-counts">{{ '{:,}'.format(airports_total) }} airports · {{ airports_custom }} added</span></h2>
+          <p>The full airport database used by the autocomplete and route matching. Add a missing airport below — it works immediately. Airports you added can be removed; built-in ones cannot.</p>
+        </div>
+      </div>
+      <div class="ref-add">
+        <input class="sm" id="airports-add-iata" placeholder="IATA" maxlength="3"/>
+        <input id="airports-add-name" placeholder="Airport name"/>
+        <input id="airports-add-city" placeholder="City"/>
+        <input id="airports-add-country" placeholder="Country"/>
+        <button type="button" class="btn btn-primary" style="padding:8px 16px;font-size:13px" onclick="refAdd('airports')"><i class="fa-solid fa-plus"></i> Add airport</button>
+      </div>
+      <div class="ref-bar"><input id="airports-search" placeholder="Search by code, city or airport name (e.g. HYD, Dallas)…"/></div>
+      <div class="table-wrap"><table class="admin-table ref-table"><thead><tr><th>IATA</th><th>Airport</th><th>City</th><th>Country</th><th></th></tr></thead><tbody id="airports-rows"></tbody></table></div>
+      <div class="ref-pager" id="airports-pager"></div>
+      <div class="ref-hint" id="airports-hint"></div>
+    </section>
+
+    <section class="admin-card opt-section hidden" id="sec-airlines">
+      <div class="opt-head">
+        <div>
+          <h2>Airlines <span class="chip chip-open" id="airlines-counts">{{ '{:,}'.format(airlines_total) }} airlines · {{ airlines_custom }} added</span></h2>
+          <p>The airline database used by the flight autocomplete and the importer. Add a missing airline below; ones you added can be removed, built-in ones cannot.</p>
+        </div>
+      </div>
+      <div class="ref-add">
+        <input class="sm" id="airlines-add-iata" placeholder="Code" maxlength="3"/>
+        <input id="airlines-add-name" placeholder="Airline name"/>
+        <input id="airlines-add-country" placeholder="Country"/>
+        <button type="button" class="btn btn-primary" style="padding:8px 16px;font-size:13px" onclick="refAdd('airlines')"><i class="fa-solid fa-plus"></i> Add airline</button>
+      </div>
+      <div class="ref-bar"><input id="airlines-search" placeholder="Search by code or airline name (e.g. QR, Emirates)…"/></div>
+      <div class="table-wrap"><table class="admin-table ref-table"><thead><tr><th>Code</th><th>Airline</th><th>Country</th><th></th></tr></thead><tbody id="airlines-rows"></tbody></table></div>
+      <div class="ref-pager" id="airlines-pager"></div>
+      <div class="ref-hint" id="airlines-hint"></div>
+    </section>
+    <section class="admin-card opt-section hidden" id="sec-translations">
+      <div class="opt-head">
+        <div>
+          <h2>Translations <span class="chip chip-unconfirmed" id="tr-count">&ndash;</span></h2>
+          <p>The reviewed strings shipped with the app, editable per curated language. Edits are stored in the
+             database, win over the shipped file on the very next page load, and survive deploys. Clear a box
+             (or retype the shipped text) to go back to the shipped translation. Languages set to
+             &ldquo;Google Translate only&rdquo; have nothing to edit here.</p>
+        </div>
+        <div class="opt-actions">
+          <select id="tr-lang" onchange="trLoad()"></select>
+          <button type="button" class="btn btn-primary" style="padding:8px 16px;font-size:13px" onclick="trSave()"><i class="fa-solid fa-floppy-disk"></i> Save changes</button>
+        </div>
+      </div>
+      <div class="ref-bar"><input id="tr-search" placeholder="Search the English source text&hellip;" oninput="trRender()"/></div>
+      <div class="table-wrap"><table class="admin-table tr-table"><thead><tr><th style="width:42%">English (source)</th><th>Translation</th><th style="width:86px"></th></tr></thead><tbody id="tr-rows"></tbody></table></div>
+      <div class="ref-hint" id="tr-hint"></div>
+    </section>
+  </main>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+// ------- tabs -------
+const LANG_GROUP = ['sec-languages', 'sec-site_languages', 'sec-translations'];   // one tab, three stacked cards
+document.querySelectorAll('#optTabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#optTabs button').forEach(x => x.classList.toggle('active', x === b));
+  document.querySelectorAll('.opt-section').forEach(s => {
+    const show = b.dataset.tab === 'languages' ? LANG_GROUP.includes(s.id) : s.id === `sec-${b.dataset.tab}`;
+    s.classList.toggle('hidden', !show);
+  });
+});
+document.querySelector('#optTabs button.active')?.onclick();
+
+// ------- list editors (state-driven) -------
+const STATE = {};
+document.querySelectorAll('.opt-section[data-kind]').forEach(sec => {
+  STATE[sec.dataset.name] = JSON.parse(document.getElementById(`opt-data-${sec.dataset.name}`).textContent);
+  render(sec.dataset.name);
+});
+
+function kindOf(name) { return document.getElementById(`sec-${name}`).dataset.kind; }
+
+function render(name) {
+  const ed = document.getElementById(`ed-${name}`);
+  ed.innerHTML = '';
+  if (kindOf(name) === 'values') renderChips(name, ed); else renderRows(name, ed);
+}
+
+function renderChips(name, ed) {
+  const box = document.createElement('div'); box.className = 'chip-box';
+  STATE[name].forEach((row, i) => {
+    const c = document.createElement('span'); c.className = 'chip-item'; c.append(row.value);
+    const b = document.createElement('button'); b.innerHTML = '&times;'; b.title = 'Remove';
+    b.onclick = () => { STATE[name].splice(i, 1); render(name); };
+    c.appendChild(b); box.appendChild(c);
+  });
+  const inp = document.createElement('input');
+  inp.placeholder = 'Type a value and press Enter…';
+  inp.onkeydown = e => {
+    if (e.key !== 'Enter' && e.key !== ',') return;
+    e.preventDefault();
+    const v = inp.value.replace(/,/g, '').trim();
+    if (!v) return;
+    if (STATE[name].some(r => r.value.toLowerCase() === v.toLowerCase())) return showToast(`"${v}" is already in the list`, 'danger');
+    STATE[name].push({ value: v }); render(name);
+    document.getElementById(`ed-${name}`).querySelector('input').focus();
+  };
+  box.appendChild(inp); ed.appendChild(box);
+}
+
+function bindInput(parent, row, field, placeholder, cls) {
+  const el = document.createElement('input');
+  el.value = row[field] || ''; el.placeholder = placeholder; if (cls) el.className = cls;
+  el.oninput = () => row[field] = el.value;
+  parent.appendChild(el); return el;
+}
+
+function renderRows(name, ed) {
+  const kind = kindOf(name);
+  STATE[name].forEach((row, i) => {
+    const div = document.createElement('div'); div.className = 'opt-row';
+    if (kind === 'langs') {
+      const code = bindInput(div, row, 'code', 'code (e.g. hi)');
+      code.style.flex = '0 0 90px'; code.style.minWidth = '90px';
+      if (row.builtin) code.disabled = true;
+      bindInput(div, row, 'label', 'Label in native script (e.g. हिंदी)');
+      const sel = document.createElement('select'); sel.style.flex = '0 0 240px';
+      [['babel', 'Curated + Google fills gaps'], ['google', 'Google Translate only']].forEach(([v, t]) => {
+        const o = document.createElement('option'); o.value = v; o.textContent = t; if (row.mode === v) o.selected = true; sel.appendChild(o);
+      });
+      sel.onchange = () => row.mode = sel.value;
+      if (row.builtin) { sel.disabled = true; sel.title = 'English is the source language'; }
+      div.appendChild(sel);
+      if (!row.builtin) {
+        const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'rm'; rm.title = 'Remove';
+        rm.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+        rm.onclick = () => { STATE[name].splice(i, 1); render(name); };
+        div.appendChild(rm);
+      }
+      ed.appendChild(div);
+      return;
+    }
+    bindInput(div, row, 'label', 'Label shown to users');
+    if (kind === 'roles') {
+      const sel = document.createElement('select');
+      ['user', 'cs', 'admin'].forEach(l => { const o = document.createElement('option'); o.value = l; o.textContent = `access: ${l}`; if (row.level === l) o.selected = true; sel.appendChild(o); });
+      sel.onchange = () => row.level = sel.value;
+      if (row.builtin) { sel.disabled = true; sel.title = 'Built-in role — level is fixed'; }
+      div.appendChild(sel);
+    }
+    const key = document.createElement('span'); key.className = 'key';
+    key.textContent = row.key ? `key: ${row.key}` : 'key: (auto)'; key.title = 'Stored on posts/accounts; created automatically from the label';
+    div.appendChild(key);
+    if (!row.builtin) {
+      const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'rm'; rm.title = 'Remove';
+      rm.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+      rm.onclick = () => { STATE[name].splice(i, 1); render(name); };
+      div.appendChild(rm);
+    }
+    ed.appendChild(div);
+  });
+  const add = document.createElement('button'); add.type = 'button'; add.className = 'btn-sm-outline opt-addrow';
+  add.innerHTML = `<i class="fa-solid fa-plus"></i> Add ${kind === 'roles' ? 'role' : kind === 'langs' ? 'language' : 'value'}`;
+  add.onclick = () => { STATE[name].push(kind === 'roles' ? { level: 'user' } : kind === 'langs' ? { mode: 'google' } : {}); render(name); const rows = ed.querySelectorAll('.opt-row'); rows[rows.length - 1]?.querySelector('input:not(:disabled)')?.focus(); };
+  ed.appendChild(add);
+}
+
+function optChip(name, customised) {
+  const chip = document.getElementById(`chip-${name}`);
+  chip.textContent = customised ? 'customised' : 'defaults';
+  chip.className = `chip ${customised ? 'chip-open' : 'chip-unconfirmed'}`;
+}
+async function optSave(name) {
+  const res = await apiFetch(`/admin/options/${name}`, { method: 'POST', body: JSON.stringify({ items: STATE[name] }) });
+  const d = await res.json();
+  if (d.error) return showToast(d.error, 'danger');
+  STATE[name] = d.rows; render(name); optChip(name, d.customised);
+  if (d.sync && STATE[d.sync.name]) { STATE[d.sync.name] = d.sync.rows; render(d.sync.name); optChip(d.sync.name, d.sync.customised); }
+  if ((name === 'languages' || name === 'site_languages') && typeof trLoad === 'function') trLoad();
+  showToast(d.sync ? 'Saved — spoken & site language lists kept in sync.' : 'Saved — live everywhere within a few seconds.', 'success');
+}
+async function optReset(name) {
+  if (!confirm('Discard your customised list and go back to the built-in values?')) return;
+  const res = await apiFetch(`/admin/options/${name}/reset`, { method: 'POST', body: '{}' });
+  const d = await res.json();
+  if (d.error) return showToast(d.error, 'danger');
+  STATE[name] = d.rows; render(name); optChip(name, d.customised);
+  if ((name === 'languages' || name === 'site_languages') && typeof trLoad === 'function') trLoad();
+  showToast('Reset to defaults.', 'info');
+}
+
+// ------- reference data in the database: airports & airlines -------
+const REF = {
+  airports: { fields: ['iata', 'name', 'city', 'country'], unit: 'airports', page: 1 },
+  airlines: { fields: ['iata', 'name', 'country'], unit: 'airlines', page: 1 },
+};
+Object.keys(REF).forEach(kind => {
+  let t = null;
+  document.getElementById(`${kind}-search`).addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { REF[kind].page = 1; refLoad(kind); }, 300); });
+  refLoad(kind);
+});
+async function refLoad(kind) {
+  const q = document.getElementById(`${kind}-search`).value.trim();
+  const d = await (await apiFetch(`/admin/options/${kind}/search?q=${encodeURIComponent(q)}&page=${REF[kind].page}`)).json();
+  REF[kind].page = d.page;
+  document.getElementById(`${kind}-counts`).textContent = `${d.total.toLocaleString()} ${REF[kind].unit} · ${d.custom} added`;
+  const tb = document.getElementById(`${kind}-rows`); tb.innerHTML = '';
+  d.results.forEach(a => {
+    const tr = document.createElement('tr');
+    REF[kind].fields.forEach((f, i) => {
+      const td = document.createElement('td');
+      i === 0 ? td.innerHTML = `<strong>${a[f] || ''}</strong>` : td.textContent = a[f] || '';
+      tr.appendChild(td);
+    });
+    const td = document.createElement('td');
+    if (a.custom) {
+      const chip = document.createElement('span'); chip.className = 'chip chip-open'; chip.textContent = 'added'; td.appendChild(chip);
+      const rm = document.createElement('button'); rm.className = 'rm'; rm.title = 'Remove'; rm.innerHTML = ' <i class="fa-solid fa-trash-can"></i>';
+      rm.onclick = () => refDel(kind, a.id, a.iata); td.appendChild(rm);
+    }
+    tr.appendChild(td); tb.appendChild(tr);
+  });
+  const pager = document.getElementById(`${kind}-pager`);
+  pager.innerHTML = '';
+  pager.classList.add('pagination');
+  if (d.pages > 1) {
+    const go = n => { REF[kind].page = Math.min(Math.max(1, n), d.pages); refLoad(kind); };
+    const mk = (label, n, cls, inert) => {
+      const b = document.createElement('button'); b.type = 'button';
+      b.className = ('page ' + cls).trim(); b.innerHTML = label; b.disabled = inert;
+      if (!inert) b.onclick = () => go(n);
+      pager.appendChild(b);
+    };
+    mk('&lsaquo;', d.page - 1, d.page <= 1 ? 'pg-arrow disabled' : 'pg-arrow', d.page <= 1);
+    let prev = 0;
+    for (let p = 1; p <= d.pages; p++) {
+      if (p <= 2 || p > d.pages - 2 || Math.abs(p - d.page) <= 1) {
+        if (p - prev > 1) mk('&hellip;', 0, 'pg-ellipsis', true);
+        mk(String(p), p, p === d.page ? 'current' : '', p === d.page);
+        prev = p;
+      }
+    }
+    mk('&rsaquo;', d.page + 1, d.page >= d.pages ? 'pg-arrow disabled' : 'pg-arrow', d.page >= d.pages);
+  }
+  document.getElementById(`${kind}-hint`).textContent =
+    q.length >= 2 ? (d.results.length ? `${d.matches.toLocaleString()} match${d.matches === 1 ? '' : 'es'}` : 'No match — add it above if it is missing.')
+                  : `${d.total.toLocaleString()} ${REF[kind].unit} in total — search to find a specific one; rows you add are marked "added".`;
+}
+async function refAdd(kind) {
+  const body = {};
+  REF[kind].fields.forEach(f => body[f] = document.getElementById(`${kind}-add-${f}`).value);
+  const d = await (await apiFetch(`/admin/options/${kind}/add`, { method: 'POST', body: JSON.stringify(body) })).json();
+  if (d.error) return showToast(d.error, 'danger');
+  const added = d.airport || d.airline;
+  showToast(`${added.iata} added — live immediately.`, 'success');
+  REF[kind].fields.forEach(f => document.getElementById(`${kind}-add-${f}`).value = '');
+  document.getElementById(`${kind}-search`).value = added.iata;
+  refLoad(kind);
+}
+async function refDel(kind, id, iata) {
+  if (!confirm(`Remove ${iata}?`)) return;
+  const d = await (await apiFetch(`/admin/options/${kind}/${id}/delete`, { method: 'POST', body: '{}' })).json();
+  if (d.error) return showToast(d.error, 'danger');
+  showToast(`${iata} removed.`, 'info'); refLoad(kind);
+}
+
+// ------- translations editor (curated languages) -------
+const TR = { lang: '', items: [], dirty: {} };
+async function trLoad() {
+  const sel = document.getElementById('tr-lang');
+  const d = await (await apiFetch(`/admin/options/translations?lang=${encodeURIComponent(sel.value || '')}`)).json();
+  if (d.languages) {
+    sel.innerHTML = '';
+    d.languages.forEach(l => { const o = document.createElement('option'); o.value = l.code; o.textContent = `${l.label} (${l.code})`; if (l.code === (d.lang || sel.value)) o.selected = true; sel.appendChild(o); });
+  }
+  if (d.error) { document.getElementById('tr-rows').innerHTML = `<tr><td colspan="3" class="muted">${d.error}</td></tr>`; document.getElementById('tr-hint').textContent = ''; return; }
+  TR.lang = d.lang; TR.items = d.items; TR.dirty = {};
+  document.getElementById('tr-count').textContent = `${d.items.length} strings · ${d.overridden} edited`;
+  document.getElementById('tr-count').className = `chip ${d.overridden ? 'chip-open' : 'chip-unconfirmed'}`;
+  trRender();
+}
+function trRender() {
+  const q = (document.getElementById('tr-search').value || '').toLowerCase();
+  const tb = document.getElementById('tr-rows'); tb.innerHTML = '';
+  TR.items.filter(it => !q || it.id.toLowerCase().includes(q)).forEach(it => {
+    const row = document.createElement('tr');
+    const td1 = document.createElement('td'); td1.textContent = it.id; td1.style.fontSize = '12.5px';
+    const td2 = document.createElement('td');
+    const inp = document.createElement('input');
+    inp.value = (it.id in TR.dirty) ? TR.dirty[it.id] : (it.override || it.shipped || '');
+    inp.placeholder = it.shipped || '(untranslated)';
+    inp.style.cssText = 'width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px';
+    const badge = document.createElement('span');
+    badge.className = `chip ${it.override ? 'chip-open' : 'chip-unconfirmed'}`;
+    badge.textContent = it.override ? 'edited' : 'shipped';
+    inp.oninput = () => { TR.dirty[it.id] = inp.value; badge.textContent = 'unsaved'; badge.className = 'chip chip-closed'; };
+    td2.appendChild(inp);
+    const td3 = document.createElement('td'); td3.appendChild(badge);
+    row.append(td1, td2, td3); tb.appendChild(row);
+  });
+  document.getElementById('tr-hint').textContent =
+    'Machine-drafted strings need native-speaker review before launch — edits here go live on the next page load.';
+}
+document.getElementById('tr-search').addEventListener('input', trRender);
+async function trSave() {
+  const items = {};
+  Object.keys(TR.dirty).forEach(k => {
+    const it = TR.items.find(x => x.id === k);
+    const v = TR.dirty[k].trim();
+    items[k] = (it && v === it.shipped) ? '' : v;      // retyping the shipped text clears the override
+  });
+  if (!Object.keys(items).length) return showToast('Nothing changed.', 'info');
+  const d = await (await apiFetch('/admin/options/translations/save', { method: 'POST', body: JSON.stringify({ lang: TR.lang, items: items }) })).json();
+  if (d.error) return showToast(d.error, 'danger');
+  showToast(`Saved — ${d.overridden} edited string(s) are live now.`, 'success');
+  trLoad();
+}
+trLoad();
+</script>
+{% endblock %}

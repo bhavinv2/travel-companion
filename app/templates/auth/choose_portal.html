@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}Choose portal – Connecting Desis{% endblock %}
+{% block extra_css %}
+<style>
+.pp-wrap { min-height: calc(100vh - 240px); display: flex; align-items: center; justify-content: center; padding: 48px 4%; background: radial-gradient(1200px 500px at 50% -10%, #eaf3ff, transparent); }
+.pp-box { background: #fff; border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 24px 60px rgba(15, 35, 64, 0.14); padding: 34px 34px 30px; max-width: 720px; width: 100%; text-align: center; }
+.pp-box > i { font-size: 30px; color: var(--coral); background: #eaf3ff; width: 62px; height: 62px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 14px; }
+.pp-box h1 { font-size: 24px; margin-bottom: 6px; }
+.pp-box > p { color: var(--muted); font-size: 14px; max-width: 460px; margin: 0 auto 24px; }
+.pp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+.pp-card { display: flex; flex-direction: column; align-items: center; gap: 8px; border: 1.5px solid var(--border); border-radius: 16px; padding: 22px 14px 18px; color: var(--text); transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s; }
+.pp-card:hover { transform: translateY(-3px); border-color: var(--coral); box-shadow: 0 12px 28px rgba(47, 128, 237, 0.16); }
+.pp-ic { width: 52px; height: 52px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; font-size: 21px; color: #fff; }
+.pp-ic.t { background: linear-gradient(135deg, #2f80ed, #56a4ff); }
+.pp-ic.c { background: linear-gradient(135deg, #f0940a, #ffb03a); }
+.pp-ic.a { background: linear-gradient(135deg, #0f2340, #33517a); }
+.pp-card strong { font-size: 15.5px; }
+.pp-card small { color: var(--muted); font-size: 12.5px; line-height: 1.4; }
+.pp-note { margin-top: 18px; color: var(--muted); font-size: 12.5px; }
+.pp-note i { color: var(--coral); margin-right: 5px; }
+@media (max-width: 560px) { .pp-box { padding: 26px 18px 22px; } .pp-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+{% block content %}
+<div class="pp-wrap">
+  <div class="pp-box">
+    <i class="fa-solid fa-door-open"></i>
+    <h1>Where would you like to go?</h1>
+    <p>Your account holds more than one role — pick the portal to continue with.</p>
+    <div class="pp-grid">
+      {% if 'user' in levels %}
+      <a class="pp-card" href="{{ url_for('auth.choose_portal', to='traveller') }}">
+        <span class="pp-ic t"><i class="fa-solid fa-suitcase-rolling"></i></span>
+        <strong>Traveller</strong>
+        <small>My trips, matches &amp; inbox</small>
+      </a>
+      {% endif %}
+      {% if 'cs' in levels or 'admin' in levels %}
+      <a class="pp-card" href="{{ url_for('auth.choose_portal', to='cs') }}">
+        <span class="pp-ic c"><i class="fa-solid fa-headset"></i></span>
+        <strong>CS Console</strong>
+        <small>Posts, match queue &amp; imports</small>
+      </a>
+      {% endif %}
+      {% if 'admin' in levels %}
+      <a class="pp-card" href="{{ url_for('auth.choose_portal', to='admin') }}">
+        <span class="pp-ic a"><i class="fa-solid fa-gauge-high"></i></span>
+        <strong>Admin Panel</strong>
+        <small>Users, options &amp; settings</small>
+      </a>
+      {% endif %}
+    </div>
+    <p class="pp-note"><i class="fa-solid fa-circle-info"></i> You can switch portals any time from your profile menu.</p>
+  </div>
+</div>
+{% endblock %}

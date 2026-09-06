@@ -1,27 +1,85 @@
 {% extends 'base.html' %}
-{% from 'cs/_macros.html' import status_chip, role_chip, source_chip with context %}
+{% from 'cs/_macros.html' import status_chip, role_chip, source_chip, trip_type_chip with context %}
 {% block title %}Post #{{ trip.id }} – CS Console{% endblock %}
 {% block content %}
 <div class="admin-page">
   {% with active='posts' %}{% include 'cs/_sidebar.html' %}{% endwith %}
   <main class="admin-main">
-    <div class="card-head">
-      <h1>Post #{{ trip.id }} <small class="muted">{{ trip.route_display }}</small></h1>
-      <div>
-        {{ status_chip(trip) }} {{ role_chip(trip) }} {{ source_chip(trip) }}
-        <a class="btn-sm" href="{{ url_for('cs.edit_post', trip_id=trip.id) }}"><i class="fa-solid fa-pen"></i> Edit</a>
-        <a class="btn btn-primary" href="{{ url_for('matches.cs_matches', trip_id=trip.id) }}"><i class="fa-solid fa-handshake"></i> Matches</a>
-      </div>
+    <h1 class="pd-title">Post #{{ trip.id }} <small class="muted">{{ trip.route_display }}</small></h1>
+
+    {# What this post is, and what you can do to it -- on one line under the title. #}
+    <div class="pd-chips">
+      {{ status_chip(trip) }} {{ role_chip(trip) }} {{ source_chip(trip) }}
+      {{ trip_type_chip(trip) }}
+      {% if trip.ticket_booked %}<span class="chip chip-open">ticket booked</span>{% endif %}
+      <span class="pd-chip-gap"></span>
+      <a class="btn-sm" href="{{ url_for('cs.edit_post', trip_id=trip.id) }}"><i class="fa-solid fa-pen"></i> Edit</a>
+
+      {# Changing the state of a post is the other thing you do from here, so it sits with
+         Edit rather than three screens down. #}
+      {% if trip.status == 'closed' %}
+      <form method="POST" action="{{ url_for('cs.reopen_post', trip_id=trip.id) }}" class="pd-statusform">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <button class="btn-sm"><i class="fa-solid fa-rotate-left"></i> Reopen</button>
+      </form>
+      {% else %}
+      {% if trip.status == 'unconfirmed' %}
+      <form method="POST" action="{{ url_for('cs.publish_post', trip_id=trip.id) }}" class="pd-statusform">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <button class="btn-sm green" onclick="return confirm('Publish without a claim? Only do this if the person confirmed with you directly.')"><i class="fa-solid fa-check"></i> Publish now</button>
+      </form>
+      {% endif %}
+      <form method="POST" action="{{ url_for('cs.close_post', trip_id=trip.id) }}" class="pd-statusform">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <select name="reason" required>
+          <option value="">Close reason…</option>
+          {% for r in CLOSED_REASONS %}<option value="{{ r }}">{{ CLOSED_REASON_LABELS[r] }}</option>{% endfor %}
+        </select>
+        <button class="btn-sm danger" onclick="return confirm('Close this post?')"><i class="fa-solid fa-xmark"></i> Close</button>
+      </form>
+      {% endif %}
     </div>
+
+    {# A round trip or a multi-stop post is several journeys; matching treats each one
+       separately, so the console shows them separately too. #}
+    {% if trip.leg_rows and trip.leg_rows|length > 1 %}
+    {% set per_leg = {} %}
+    {% for r in match_rows %}{% if per_leg.update({r.leg_id: per_leg.get(r.leg_id, 0) + 1}) %}{% endif %}{% endfor %}
+    <div class="pd-legs" id="pdLegs">
+      {% for l in trip.leg_rows %}
+      <button type="button" class="pd-leg {{ 'is-on' if loop.first }}" data-leg="{{ l.id }}">
+        <span class="pd-leg-t">{{ l.label }}</span>
+        <span class="pd-leg-r">{{ l.short_route }}</span>
+        <span class="pd-leg-d">{{ l.depart_date or 'no date' }}</span>
+        {% if l.airline %}<span class="pd-leg-f">{{ l.airline }} {{ l.flight_number or '' }}</span>{% endif %}
+        <span class="pd-leg-n">{{ per_leg.get(l.id, 0) }}</span>
+      </button>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="hx-tabs pd-tabs" role="tablist">
+      <button type="button" class="hx-tab active" role="tab" data-pd="details">
+        <i class="fa-solid fa-circle-info"></i> Details
+      </button>
+      <button type="button" class="hx-tab" role="tab" data-pd="activity">
+        <i class="fa-solid fa-clock-rotate-left"></i> Activity
+        {% if events %}<span class="vt-n">{{ events|length }}</span>{% endif %}
+      </button>
+    </div>
+
+    <div class="pd-panel active" id="pd-details">
 
     <div class="detail-grid">
       <div class="admin-card">
         <h2>Trip</h2>
         <dl class="dl">
-          <dt>Route</dt><dd>{{ trip.route_display }} {% if trip.origin_iata %}<small class="muted">({{ trip.origin_iata }} &rarr; {{ trip.dest_iata }}, {{ trip.origin_metro }} &rarr; {{ trip.dest_metro }})</small>{% endif %}</dd>
-          <dt>Dates</dt><dd>{{ trip.from_date or '—' }}{% if trip.from_date_flexible %} (flexible){% endif %}{% if trip.to_date %} &rarr; {{ trip.to_date }}{% if trip.to_date_flexible %} (flexible){% endif %}{% endif %}
+          {# Route / Dates / Flight are per-leg on a round trip or a multi-stop post, so
+             they are swapped by the chips above. Everything else describes the post. #}
+          <dt>Route</dt><dd id="pdRoute">{{ trip.route_display }} {% if trip.origin_iata %}<small class="muted">({{ trip.origin_iata }} &rarr; {{ trip.dest_iata }}, {{ trip.origin_metro }} &rarr; {{ trip.dest_metro }})</small>{% endif %}</dd>
+          <dt>Dates</dt><dd id="pdDates">{{ trip.from_date or '—' }}{% if trip.from_date_flexible %} (flexible){% endif %}{% if trip.to_date %} &rarr; {{ trip.to_date }}{% if trip.to_date_flexible %} (flexible){% endif %}{% endif %}
             {% if trip.days_to_departure is not none %}<span class="chip {{ 'chip-urgent' if trip.days_to_departure <= 3 else 'chip-src' }}">{{ trip.days_to_departure }} days</span>{% endif %}</dd>
-          <dt>Flight</dt><dd>{{ trip.airline or '—' }} {{ trip.flight_number or '' }} {% if trip.ticket_booked %}<span class="chip chip-open">ticket booked</span>{% endif %}
+          <dt>Flight</dt><dd id="pdFlight">{{ trip.airline or '—' }} {{ trip.flight_number or '' }} {% if trip.ticket_booked %}<span class="chip chip-open">ticket booked</span>{% endif %}
             {% if trip.ticket_attachment %}<a href="{{ url_for('files.private_file', key=trip.ticket_attachment) }}" target="_blank"><i class="fa-solid fa-paperclip"></i> attachment</a>{% endif %}</dd>
           <dt>Trip type</dt><dd>{{ trip.trip_type|replace('_',' ') }}</dd>
           <dt>Flexible airports</dt><dd>{{ 'origin' if trip.flying_from_flexible }} {{ 'destination' if trip.destination_flexible }}{% if not trip.flying_from_flexible and not trip.destination_flexible %}—{% endif %}</dd>
@@ -55,7 +113,22 @@
         {% for cp in trip.contact_points %}
           <tr>
             <td data-label="Type"><i class="{{ CONTACT_TYPE_ICONS.get(cp.type) }}"></i> {{ CONTACT_TYPE_LABELS.get(cp.type, cp.type) }}</td>
-            <td data-label="Value"><code class="copyable" onclick="copyText(this.textContent)" title="Click to copy">{{ cp.value if cp.type != 'inapp_chat' else 'in-app chat' }}</code></td>
+            <td data-label="Value">
+              {%- if cp.type == 'inapp_chat' %}<code>in-app chat</code>
+              {%- else %}
+              <span class="cp-val">
+                <code>{{ cp.value }}</code>
+                {# The value goes in a data attribute, not an inline onclick: a contact
+                   value can contain quotes, and tojson inside a double-quoted attribute
+                   closes it early and breaks every script on the page. #}
+                <button type="button" class="cp-copy" data-copy="{{ cp.value }}"
+                        title="Copy {{ CONTACT_TYPE_LABELS.get(cp.type, cp.type)|lower }}"
+                        aria-label="Copy {{ cp.value }}">
+                  <i class="fa-regular fa-copy"></i>
+                </button>
+              </span>
+              {%- endif %}
+            </td>
             <td data-label="Label">{{ cp.label or '—' }}</td>
             <td data-label="May share?">{% if cp.consent_to_share %}<span class="chip chip-open">yes</span>{% else %}<span class="chip chip-unconfirmed">no</span>{% endif %}</td>
             <td data-label="Added by"><small class="muted">{{ cp.added_by }} · {{ cp.created_at.strftime('%Y-%m-%d') }}</small></td>
@@ -66,6 +139,19 @@
     </div>
 
     <div class="detail-grid">
+      {% if copy_snippets %}
+      <div class="admin-card">
+        <h2>Copy for DM <small class="muted">(admin-managed snippets)</small></h2>
+        {% for s in copy_snippets %}
+        <div class="snip">
+          <div class="snip-head"><strong>{{ s.title }}</strong>
+            <button type="button" class="btn-sm" onclick="copyText(this.closest('.snip').querySelector('textarea').value)"><i class="fa-solid fa-copy"></i> Copy</button></div>
+          <textarea rows="3" readonly>{{ s.text }}</textarea>
+        </div>
+        {% endfor %}
+        {% if current_user.is_admin %}<small class="muted">Edit these at <a href="{{ url_for('admin.messages_page') }}">Messages &amp; e-mails</a>.</small>{% endif %}
+      </div>
+      {% endif %}
       <div class="admin-card">
         <h2>Claim link <small class="muted">(action A — collect contact info)</small></h2>
         <p class="muted">Share this link with the person on the platform where you found them. It does not reveal what we already have or where we found it.</p>
@@ -99,52 +185,189 @@
         </form>
       </div>
 
-      <div class="admin-card">
-        <h2>Status</h2>
-        {% if trip.status == 'closed' %}
-          <p>Closed: <strong>{{ CLOSED_REASON_LABELS.get(trip.closed_reason, trip.closed_reason) }}</strong> on {{ trip.closed_at.strftime('%Y-%m-%d') if trip.closed_at }}{% if trip.closed_by %} by {{ trip.closed_by.username }}{% endif %}</p>
-          <form method="POST" action="{{ url_for('cs.reopen_post', trip_id=trip.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><button class="btn btn-primary">Reopen</button></form>
-        {% else %}
-          {% if trip.status == 'unconfirmed' %}
-            <form method="POST" action="{{ url_for('cs.publish_post', trip_id=trip.id) }}" class="mb"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-              <button class="btn-sm green" onclick="return confirm('Publish without a claim? Only do this if the person confirmed with you directly.')"><i class="fa-solid fa-check"></i> Person confirmed — publish now</button></form>
-          {% endif %}
-          <form method="POST" action="{{ url_for('cs.close_post', trip_id=trip.id) }}" class="inline-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            <select name="reason" required><option value="">Close reason…</option>
-              {% for r in CLOSED_REASONS %}<option value="{{ r }}">{{ CLOSED_REASON_LABELS[r] }}</option>{% endfor %}
-            </select>
-            <button class="btn-sm danger" onclick="return confirm('Close this post?')"><i class="fa-solid fa-xmark"></i> Close post</button>
-          </form>
-        {% endif %}
-        {% if tokens %}
-        <h3 class="sub">Claim links issued</h3>
-        <ul class="plain">
-          {% for t in tokens %}<li><small>{{ t.created_at.strftime('%Y-%m-%d %H:%M') }}{% if t.created_by %} by {{ t.created_by.username }}{% endif %} — {% if t.used_at %}used {{ t.used_at.strftime('%Y-%m-%d') }}{% elif t.is_valid %}active{% else %}expired{% endif %}</small></li>{% endfor %}
+      <div class="admin-card" id="pdMatches">
+        <div class="ac-head">
+          <h2><i class="fa-solid fa-handshake"></i> Matches
+            <span class="muted" id="pdMatchCount">{{ match_rows|length }}</span></h2>
+          {# The summary answers "is there anything here?"; View all is where the work
+             happens -- notifying, dismissing, the full scoring breakdown. #}
+          {# btn-sm must not be combined with btn-primary: it repaints the background
+             white without resetting the colour, leaving white text on white. #}
+          <a class="btn btn-primary btn-compact" href="{{ url_for('matches.cs_matches', trip_id=trip.id) }}">
+            View all <i class="fa-solid fa-arrow-right"></i>
+          </a>
+        </div>
+        <ul class="pm-list">
+          {% for r in match_rows %}
+          <li class="pm-row" data-leg="{{ r.leg_id }}">
+            <span class="pm-score {{ 'hi' if r.match.score >= 70 else 'mid' if r.match.score >= 40 else 'lo' }}">{{ r.match.score }}%</span>
+            <span class="pm-main">
+              <a class="person-link" href="{{ url_for('cs.post_detail', trip_id=r.other.id) }}"><strong>#{{ r.other.id }}</strong>
+                <span class="person-name">{{ r.name }}</span></a>
+              <span class="pm-route">{{ r.other.route_display }}</span>
+            </span>
+            <span class="pm-when">{{ (r.their_leg.depart_date if r.their_leg else r.other.from_date) or '—' }}</span>
+            <span class="chip chip-{{ r.match.status }}">{{ r.match.status }}</span>
+          </li>
+          {% else %}
+          <li class="muted pm-empty">No live matches for this post yet.</li>
+          {% endfor %}
+          <li class="muted pm-empty" id="pdNoLegMatch" hidden>No matches on this trip yet.</li>
         </ul>
-        {% endif %}
+        <p class="muted pm-more" id="pdMoreNote" hidden>+<strong>0</strong> more with lower scores — <em>View all</em> has the full list.</p>
       </div>
+
     </div>
 
-    <div class="admin-card">
-      <h2>Activity</h2>
-      <ul class="timeline">
-        {% for e in events %}
-          <li><span class="when">{{ e.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
-              <span class="who">{{ e.actor.username if e.actor else e.actor_type }}</span>
-              <span class="what">{{ e.event|replace('_',' ') }}</span>
-              {% if e.meta %}<small class="muted">{% for k, v in e.meta.items() %}{% if v %}{{ k }}={{ v }} {% endif %}{% endfor %}</small>{% endif %}</li>
-        {% else %}<li class="muted">No activity yet.</li>{% endfor %}
-      </ul>
-    </div>
+    </div><!-- /pd-details -->
+
+    <div class="pd-panel" id="pd-activity">
+      <div class="admin-card">
+        <div class="ac-head">
+          <h2>Activity</h2>
+          <input type="text" id="actSearch" class="act-search" placeholder="Search activity — who, what, route…"/>
+        </div>
+        <ul class="timeline" id="actList">
+          {% for e in events %}
+            <li>
+              <span class="when">{{ e.when|ist }}</span>
+              <span class="who">{{ e.who }}</span>
+              <span class="what">{{ e.label }}</span>
+              {# The other side of a match, named -- an id on its own says nothing. #}
+              {% if e.other %}
+              <a class="tl-match" href="{{ url_for('cs.post_detail', trip_id=e.other.id) }}">
+                <i class="fa-solid fa-people-arrows"></i>
+                <strong>#{{ e.other.id }}</strong>
+                <span class="tl-route">{{ e.other.route_display }}</span>
+                {% if e.other.from_date %}<span class="tl-when">{{ e.other.from_date }}</span>{% endif %}
+                {% if e.score %}<span class="tl-score">{{ e.score }}%</span>{% endif %}
+              </a>
+              {% if e.legs %}<span class="tl-legs">{{ e.legs }}</span>{% endif %}
+              {% endif %}
+              {% if e.rest %}<small class="muted">{% for k, v in e.rest.items() %}{{ k }}={{ v }} {% endfor %}</small>{% endif %}
+            </li>
+          {% else %}<li class="muted">No activity yet.</li>{% endfor %}
+        </ul>
+        <div class="pagination" id="actPager"></div>
+      </div>
+    </div><!-- /pd-activity -->
   </main>
 </div>
 {% endblock %}
 {% block extra_js %}
 <script>
-function copyText(t) {
-  navigator.clipboard.writeText(t).then(() => showToast('Copied to clipboard', 'success'), () => showToast('Copy failed', 'danger'));
+function copyText(t, btn) {
+  navigator.clipboard.writeText(t).then(() => {
+    showToast('Copied to clipboard', 'success');
+    if (btn) {                                  // a tick where the click happened
+      const i = btn.querySelector('i');
+      const was = i.className;
+      i.className = 'fa-solid fa-check';
+      btn.classList.add('is-done');
+      setTimeout(() => { i.className = was; btn.classList.remove('is-done'); }, 1400);
+    }
+  }, () => showToast('Copy failed', 'danger'));
 }
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.cp-copy');
+  if (btn) copyText(btn.dataset.copy, btn);
+});
+
+/* Picking a trip changes the page to that trip: the Route, Dates and Flight rows and the
+   Matches list all follow the chip. One chip is on at a time; the first trip starts
+   selected. The list shows only the top 5 matches — "View all" has the rest. */
+const PD_LEGS = {{ leg_data|tojson }};
+(function () {
+  const rows = [...document.querySelectorAll('.pm-row')];
+  const none = document.getElementById('pdNoLegMatch');
+  const count = document.getElementById('pdMatchCount');
+  const moreNote = document.getElementById('pdMoreNote');
+  const bar = document.getElementById('pdLegs');
+  const CAP = 5;
+  function setTrip(leg) {
+    if (!leg) return;
+    const r = document.getElementById('pdRoute');
+    const d = document.getElementById('pdDates');
+    const f = document.getElementById('pdFlight');
+    r.textContent = leg.route;
+    if (leg.codes) r.insertAdjacentHTML('beforeend', ` <small class="muted">(${leg.codes})</small>`);
+    d.textContent = leg.date || '—';
+    if (leg.days !== null) {
+      d.insertAdjacentHTML('beforeend',
+        ` <span class="chip ${leg.days <= 3 ? 'chip-urgent' : 'chip-src'}">${leg.days} days</span>`);
+    }
+    f.textContent = leg.flight || '—';
+  }
+  function apply(chip) {
+    const id = chip ? chip.dataset.leg : '';
+    if (bar) bar.querySelectorAll('.pd-leg').forEach(c => c.classList.toggle('is-on', c === chip));
+    if (id) setTrip(PD_LEGS[id]);
+    let shown = 0, total = 0;
+    rows.forEach(r => {
+      const on = !id || r.dataset.leg === id;
+      if (on) total++;
+      const vis = on && shown < CAP;
+      r.hidden = !vis;
+      if (vis) shown++;
+    });
+    if (none) none.hidden = total > 0 || !rows.length;
+    if (count) count.textContent = total;
+    if (moreNote) { moreNote.hidden = total <= CAP; if (total > CAP) moreNote.querySelector('strong').textContent = total - CAP; }
+  }
+  if (bar) {
+    bar.addEventListener('click', e => { const chip = e.target.closest('.pd-leg'); if (chip) apply(chip); });
+    apply(bar.querySelector('.pd-leg.is-on') || bar.querySelector('.pd-leg'));
+  } else {
+    apply(null);
+  }
+})();
+
+/* Activity: search + numbered pagination, client-side over the loaded feed. */
+(function () {
+  const list = document.getElementById('actList');
+  if (!list) return;
+  const rows = [...list.querySelectorAll('li')].filter(li => !li.classList.contains('muted'));
+  const pagerBox = document.getElementById('actPager');
+  const search = document.getElementById('actSearch');
+  const PER = 15;
+  let page = 1;
+  function render() {
+    const q = (search && search.value || '').trim().toLowerCase();
+    const hits = rows.filter(li => !q || li.textContent.toLowerCase().includes(q));
+    rows.forEach(li => { li.hidden = true; });
+    const pages = Math.max(1, Math.ceil(hits.length / PER));
+    if (page > pages) page = pages;
+    hits.slice((page - 1) * PER, page * PER).forEach(li => { li.hidden = false; });
+    if (pagerBox) {
+      pagerBox.innerHTML = '';
+      if (pages > 1 && typeof buildNumPager === 'function') buildNumPager(pagerBox, page, pages, p => { page = p; render(); });
+    }
+    let empty = list.querySelector('.act-empty');
+    if (!hits.length && rows.length) {
+      if (!empty) { empty = document.createElement('li'); empty.className = 'muted act-empty'; empty.textContent = 'Nothing matches that search.'; list.appendChild(empty); }
+      empty.hidden = false;
+    } else if (empty) { empty.hidden = true; }
+  }
+  if (search) search.addEventListener('input', () => { page = 1; render(); });
+  render();
+})();
+
+/* Details / Activity. The tab lives in the URL hash so a link can point straight at the
+   audit trail and a refresh keeps you where you were. */
+(function () {
+  const tabs = [...document.querySelectorAll('.pd-tabs .hx-tab')];
+  if (!tabs.length) return;
+  function show(name) {
+    if (!['details', 'activity'].includes(name)) name = 'details';
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.pd === name));
+    document.querySelectorAll('.pd-panel').forEach(p => p.classList.toggle('active', p.id === 'pd-' + name));
+    if (location.hash.slice(1) !== name) history.replaceState(null, '', '#' + name);
+  }
+  tabs.forEach(t => t.addEventListener('click', () => show(t.dataset.pd)));
+  window.addEventListener('hashchange', () => show(location.hash.slice(1)));
+  show(location.hash.slice(1) || 'details');
+})();
 async function issueClaimLink(tripId) {
   const res = await apiFetch(`/cs/posts/${tripId}/claim-link`, { method: 'POST', body: '{}' });
   const d = await res.json();

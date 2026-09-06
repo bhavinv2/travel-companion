@@ -285,3 +285,265 @@ def test_user_cannot_manage_someone_elses_match(client, user, other_user, db):
     login(client, 'carol@test.com')
     assert client.post(f'/api/matches/{m.id}/notify', json={}).status_code == 403
     assert client.get(f'/api/trip/{a.id}/matches').status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Per-leg matching across trip types
+#
+# A post is matched leg by leg, so trip type never limits who you can be paired with:
+#   * a round trip offers its outbound and its return separately
+#   * a multi-destination post offers every hop
+#   * a one-way post can partner any of them
+# ---------------------------------------------------------------------------
+
+D20 = date.today() + timedelta(days=20)
+D27 = date.today() + timedelta(days=27)
+D34 = date.today() + timedelta(days=34)
+
+
+def _round_trip(db, user, out_date=D20, back_date=D27, **kw):
+    return _make(db, user, trip_type='round_trip', from_date=out_date, to_date=back_date, **kw)
+
+
+def _multi(db, user, hops, **kw):
+    """hops: [(from, to, 'YYYY-MM-DD'), ...]"""
+    legs = [{'from': f, 'to': t, 'date': d, 'airline': None, 'flight_number': None}
+            for f, t, d in hops]
+    return _make(db, user, trip_type='multi_destination', legs=legs,
+                 flying_from=hops[0][0], destination=hops[-1][1],
+                 from_date=date.fromisoformat(hops[0][2]),
+                 to_date=date.fromisoformat(hops[-1][2]), **kw)
+
+
+def _legs(trip):
+    return [(l.kind, l.origin_iata, l.dest_iata, l.depart_date) for l in trip.leg_rows]
+
+
+def test_legs_are_derived_for_each_trip_type(app, db, user):
+    one = _make(db, user)
+    assert _legs(one) == [('leg', 'HYD', 'DFW', D20)]
+
+    rt = _round_trip(db, user)
+    assert _legs(rt) == [('outbound', 'HYD', 'DFW', D20), ('return', 'DFW', 'HYD', D27)]
+
+    mt = _multi(db, user, [('Hyderabad (HYD)', 'Dubai (DXB)', D20.isoformat()),
+                           ('Dubai (DXB)', 'London (LHR)', D27.isoformat())])
+    assert _legs(mt) == [('leg', 'HYD', 'DXB', D20), ('leg', 'DXB', 'LHR', D27)]
+
+
+def test_round_trip_return_leg_finds_its_own_companion(app, db, user, other_user):
+    """Rule 1: each leg of a round trip matches one-way and multi-stop travellers."""
+    rt = _round_trip(db, user)
+    # somebody flying the *return* direction only, on the return date
+    back = _make(db, other_user, role='offering_help',
+                 flying_from='Dallas (DFW)', destination='Hyderabad (HYD)', from_date=D27)
+    ms = matching.compute_matches_for(rt)
+    assert len(ms) == 1
+    m = ms[0]
+    assert m.leg_for(rt.id).kind == 'return'
+    assert m.other_trip(rt.id).id == back.id
+    # ...and the outbound is still free to match somebody else
+    out = _make(db, None, role='offering_help', poster_name='Ravi', from_date=D20)
+    ms = matching.compute_matches_for(rt)
+    kinds = {m.leg_for(rt.id).kind for m in ms}
+    assert kinds == {'outbound', 'return'} and len(ms) == 2
+    assert {m.other_trip(rt.id).id for m in ms} == {back.id, out.id}
+
+
+def test_multi_stop_matches_each_hop_independently(app, db, user, other_user, third_user):
+    """Rule 2: every hop of a multi-destination post is matched on its own."""
+    mt = _multi(db, user, [('Hyderabad (HYD)', 'Dubai (DXB)', D20.isoformat()),
+                           ('Dubai (DXB)', 'London (LHR)', D27.isoformat())])
+    hop1 = _make(db, other_user, role='offering_help',
+                 flying_from='Hyderabad (HYD)', destination='Dubai (DXB)', from_date=D20)
+    hop2 = _make(db, third_user, role='offering_help',
+                 flying_from='Dubai (DXB)', destination='London (LHR)', from_date=D27)
+    ms = matching.compute_matches_for(mt)
+    by_other = {m.other_trip(mt.id).id: m for m in ms}
+    assert set(by_other) == {hop1.id, hop2.id}
+    # each match points at the hop it belongs to, not at the post's overall HYD -> LHR
+    assert by_other[hop1.id].leg_for(mt.id).dest_iata == 'DXB'
+    assert by_other[hop2.id].leg_for(mt.id).origin_iata == 'DXB'
+
+
+def test_one_way_matches_round_trip_and_multi_stop(app, db, user, other_user, third_user):
+    """Rule 3: a one-way post can pair with any trip type."""
+    one = _make(db, user, flying_from='Dubai (DXB)', destination='London (LHR)', from_date=D27)
+    rt = _round_trip(db, other_user, role='offering_help',
+                     flying_from='Dubai (DXB)', destination='London (LHR)',
+                     out_date=D27, back_date=D34)
+    mt = _multi(db, third_user, [('Hyderabad (HYD)', 'Dubai (DXB)', D20.isoformat()),
+                                 ('Dubai (DXB)', 'London (LHR)', D27.isoformat())],
+                role='offering_help')
+    ms = matching.compute_matches_for(one)
+    assert {m.other_trip(one.id).id for m in ms} == {rt.id, mt.id}
+    for m in ms:
+        assert m.leg_for(one.id).origin_iata == 'DXB'          # my only leg
+        assert m.other_leg(one.id).dest_iata == 'LHR'          # the hop that lines up
+    # the round trip matched on its outbound, the multi-stop on its second hop
+    kinds = {m.other_trip(one.id).id: m.other_leg(one.id).kind for m in ms}
+    assert kinds[rt.id] == 'outbound' and kinds[mt.id] == 'leg'
+
+
+def test_two_round_trips_match_on_both_legs(app, db, user, other_user):
+    """Sharing an outbound and a return is two introductions, not one."""
+    a = _round_trip(db, user)
+    b = _round_trip(db, other_user, role='offering_help')
+    ms = matching.compute_matches_for(a)
+    assert len(ms) == 2
+    assert {m.leg_for(a.id).kind for m in ms} == {'outbound', 'return'}
+    # a return is never paired with an outbound: the route runs the other way
+    for m in ms:
+        assert m.leg_for(a.id).kind == m.other_leg(a.id).kind
+
+
+def test_changing_a_route_rebuilds_legs_and_drops_stale_matches(app, db, user, other_user):
+    rt = _round_trip(db, user)
+    _make(db, other_user, role='offering_help',
+          flying_from='Dallas (DFW)', destination='Hyderabad (HYD)', from_date=D27)
+    assert len(matching.compute_matches_for(rt)) == 1
+    # becoming a one-way drops the return leg, and with it the match that relied on it
+    rt.trip_type = 'one_way'
+    rt.to_date = None
+    db.session.commit()
+    assert [l.kind for l in rt.leg_rows] == ['leg']
+    assert matching.compute_matches_for(rt) == []
+
+
+def test_search_finds_a_post_by_a_middle_leg(app, db, client, user, other_user):
+    """Somebody the matcher would pair you with must also be findable by hand."""
+    _multi(db, other_user, [('Hyderabad (HYD)', 'Dubai (DXB)', D20.isoformat()),
+                            ('Dubai (DXB)', 'London (LHR)', D27.isoformat())],
+           role='offering_help')
+    # Dubai is neither the post's origin nor its destination -- only a leg endpoint
+    res = client.post('/api/search', json={'flying_from': 'Dubai', 'destination': 'London'})
+    assert [r['trip_type'] for r in res.get_json()['results']] == ['multi_destination']
+
+
+def test_search_finds_a_round_trip_by_its_return_direction(app, db, client, user, other_user):
+    _round_trip(db, other_user, role='offering_help')      # HYD -> DFW, back DFW -> HYD
+    res = client.post('/api/search', json={'flying_from': 'Dallas', 'destination': 'Hyderabad'})
+    assert res.get_json()['count'] == 1
+
+
+def test_contact_exchange_is_audited_on_both_posts(client, user, other_user, db):
+    """Sharing your details, and someone viewing them, both have to reach the CS console.
+
+    Each half is an interaction between two posts, and the audit question is usually asked
+    from the side that was affected -- so both posts carry a record of both halves.
+    """
+    from app.models import ActivityEvent
+
+    login(client, 'bob@test.com')
+    a = _post(client)                                            # bob, in-app only
+    logout(client)
+    login(client, 'alice@test.com')
+    b = _post(client, role='offering_help', contact_points=[{'type': 'auto', 'value': 'alice@test.com'}])
+    mid = client.get(f"/api/trip/{b['trip']['id']}/matches").get_json()['matches'][0]['id']
+    a_id, b_id = a['trip']['id'], b['trip']['id']
+
+    # alice presses "Share my contact & notify"
+    assert client.post(f'/api/matches/{mid}/notify', json={}).get_json()['success']
+    shared = ActivityEvent.query.filter_by(trip_id=b_id, event='contact_shared').one()
+    assert shared.meta['other_trip_id'] == a_id          # named, not just "someone"
+    assert shared.actor.username == 'alice'
+    logout(client)
+
+    # bob opens the link he was sent and sees alice's details
+    login(client, 'bob@test.com')
+    link = next(n['link'] for n in client.get('/api/notifications').get_json()['notifications']
+                if n['link'].startswith('/match/'))
+    assert client.get(link).status_code == 200
+
+    # bob's post records that he looked...
+    assert ActivityEvent.query.filter_by(trip_id=a_id, event='contact_viewed').count() == 1
+    # ...and alice's post records that hers were the details shown
+    seen = ActivityEvent.query.filter_by(trip_id=b_id, event='contact_shown_to_match').one()
+    assert seen.meta['other_trip_id'] == a_id
+
+
+def test_activity_reads_as_sentences_in_ist_on_both_posts(client, user, other_user, db):
+    """Both travellers' timelines describe the same exchange, each from its own side."""
+    from datetime import datetime, timedelta as _td
+    from conftest import make_user
+    from app.models import ActivityEvent
+
+    login(client, 'bob@test.com')
+    a = _post(client)
+    logout(client)
+    login(client, 'alice@test.com')
+    b = _post(client, role='offering_help', contact_points=[{'type': 'auto', 'value': 'alice@test.com'}])
+    mid = client.get(f"/api/trip/{b['trip']['id']}/matches").get_json()['matches'][0]['id']
+    a_id, b_id = a['trip']['id'], b['trip']['id']
+
+    assert client.post(f'/api/matches/{mid}/notify', json={}).get_json()['success']
+    # the share is recorded on both posts, not only on the sharer's
+    assert ActivityEvent.query.filter_by(trip_id=b_id, event='contact_shared').count() == 1
+    assert ActivityEvent.query.filter_by(trip_id=a_id, event='contact_shared_by_match').count() == 1
+    logout(client)
+
+    make_user('agent2@test.com', 'agent2', role='cs')
+    login(client, 'agent2@test.com')
+    sentence = 'Alice shared their contact details with Bob'
+    for tid in (b_id, a_id):                      # the sharer's post and the recipient's
+        html = client.get(f'/cs/posts/{tid}').data.decode()
+        assert sentence in html, tid
+
+    # timestamps are India Standard Time, not the stored UTC
+    html = client.get(f'/cs/posts/{b_id}').data.decode()
+    assert (datetime.utcnow() + _td(hours=5, minutes=30)).strftime('%d %b %Y') in html
+    assert 'IST' in html
+
+
+def test_search_returns_the_complement_not_more_of_the_same(client, db, user, other_user, third_user):
+    """Someone who needs a companion must be shown people offering help.
+
+    The home page posts the whole trip form, role included -- that role says who the
+    searcher *is*. Filtering on it directly returned more people in the same position.
+    """
+    _make(db, other_user, role='offering_help')
+    _make(db, third_user, role='open')
+    _make(db, user, role='seeking_help')
+
+    roles = lambda d: {r['role'] for r in d['results']}
+
+    got = client.post('/api/search', json={'for_role': 'seeking_help'}).get_json()
+    assert roles(got) == {'offering_help', 'open'}          # never another seeker
+
+    got = client.post('/api/search', json={'for_role': 'offering_help'}).get_json()
+    assert roles(got) == {'seeking_help', 'open'}
+
+    # the dashboard's browse dropdown is a different question and still filters exactly
+    got = client.post('/api/search', json={'role': 'seeking_help'}).get_json()
+    assert roles(got) == {'seeking_help'}
+
+
+def test_a_post_can_change_shape_and_its_legs_follow(client, db, user):
+    """One-way <-> round trip <-> multi-stop, with matching rebuilt each time."""
+    t = _make(db, user)
+    login(client, 'bob@test.com')
+    shape = lambda: (db.session.get(CompanionRequest, t.id).trip_type,
+                     [l.kind for l in db.session.get(CompanionRequest, t.id).leg_rows])
+    base = {'role': 'seeking_help', 'flying_from': 'Hyderabad (HYD)',
+            'destination': 'Dallas (DFW)', 'from_date': D20.isoformat()}
+
+    r = client.put(f'/api/trip/{t.id}', json={**base, 'trip_type': 'round_trip',
+                                              'to_date': D27.isoformat()})
+    assert r.status_code == 200 and shape() == ('round_trip', ['outbound', 'return'])
+
+    r = client.put(f'/api/trip/{t.id}', json={**base, 'trip_type': 'multi_destination', 'legs': [
+        {'from': 'Hyderabad (HYD)', 'to': 'Dubai (DXB)', 'date': D20.isoformat()},
+        {'from': 'Dubai (DXB)', 'to': 'London (LHR)', 'date': D27.isoformat()},
+    ]})
+    assert r.status_code == 200 and shape() == ('multi_destination', ['leg', 'leg'])
+    legs = db.session.get(CompanionRequest, t.id).leg_rows
+    assert [l.short_route for l in legs] == ['HYD → DXB', 'DXB → LHR']
+
+    r = client.put(f'/api/trip/{t.id}', json={**base, 'trip_type': 'one_way', 'legs': []})
+    assert r.status_code == 200 and shape() == ('one_way', ['leg'])
+
+    # and a half-filled itinerary is refused without changing what is stored
+    for bad in ({'trip_type': 'multi_destination', 'legs': [{'from': 'A', 'to': 'B', 'date': D20.isoformat()}]},
+                {'trip_type': 'round_trip', 'to_date': ''}):
+        assert client.put(f'/api/trip/{t.id}', json={**base, **bad}).status_code == 400
+    assert shape() == ('one_way', ['leg'])

@@ -1,0 +1,5 @@
+{# Just the results, so live search can replace them without reloading the page. #}
+{% from 'cs/_macros.html' import posts_table with context %}
+<p class="muted cs-count">{{ total }} post{{ '' if total == 1 else 's' }}</p>
+{{ posts_table(posts, empty='No posts match these filters.', tree=True) }}
+{% include 'admin/_pager.html' %}

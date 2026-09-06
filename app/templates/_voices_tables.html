@@ -1,0 +1,129 @@
+{# One table for User Voices, used by both consoles.
+
+   The admin Contact us table is the pattern: a row per item, when/who on the left, what
+   they wrote in the middle, state and the actions you can take on the right. Reviews and
+   the CS console render from here too, so the four panes cannot drift apart again.
+
+   Only the endpoints differ between admin and CS, so they are passed in.
+#}
+
+{% macro contact_table(messages, status_endpoint, statuses, labels, next_url, with_notes=False) %}
+<table class="admin-table vc-table">
+  <thead>
+    <tr>
+      <th>When</th><th>From</th><th>Phone</th><th>Message</th>
+      <th>Status</th><th>Handled by</th><th>Move to</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for m in messages %}
+    <tr>
+      <td class="nowrap">{{ m.created_at.strftime('%d %b %Y<br/>%H:%M')|safe if m.created_at }}</td>
+      <td><strong>{{ m.name }}</strong><br/><a href="mailto:{{ m.email }}">{{ m.email }}</a></td>
+      <td class="nowrap">{{ m.phone or '—' }}</td>
+      <td class="cm-cell">
+        {{ m.message }}
+        {% if m.cs_notes %}<div class="cm-notes-sm"><i class="fa-solid fa-note-sticky"></i> {{ m.cs_notes }}</div>{% endif %}
+      </td>
+      <td><span class="cm-status cm-status-{{ m.status }}">{{ labels[m.status] }}</span></td>
+      <td class="nowrap">{{ m.handled_by.username if m.handled_by else '—' }}</td>
+      <td class="nowrap">
+        <form method="post" action="{{ url_for(status_endpoint, mid=m.id) }}" class="vc-act">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <input type="hidden" name="next" value="{{ next_url }}"/>
+          {% if with_notes %}
+          <input type="text" name="cs_notes" value="{{ m.cs_notes or '' }}"
+                 class="vc-note-in" placeholder="Internal note"/>
+          <a class="btn-sm-outline" href="mailto:{{ m.email }}?subject=Re:%20your%20message%20to%20Connecting%20Desis">
+            <i class="fa-solid fa-reply"></i> Reply
+          </a>
+          {% endif %}
+          {% for s in statuses if s != m.status %}
+          <button type="submit" name="status" value="{{ s }}" class="btn-sm-outline">{{ labels[s] }}</button>
+          {% endfor %}
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="muted" style="text-align:center;padding:30px">No contact messages yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+
+{% macro feedback_table(feedbacks) %}
+<table class="admin-table vc-table">
+  <thead>
+    <tr>
+      {# No "Decided by": a Feedback row records no approver, and a column that is
+         always a dash is noise rather than structure. #}
+      <th>When</th><th>From</th><th>Rating</th><th>Review</th>
+      <th>Status</th><th>Home page</th><th>Move to</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for fb in feedbacks %}
+    <tr id="fb-{{ fb.id }}">
+      <td class="nowrap">{{ fb.created_at.strftime('%d %b %Y<br/>%H:%M')|safe if fb.created_at }}</td>
+      <td><strong>{{ fb.user.username if fb.user else 'A traveller' }}</strong>
+        {% if fb.user %}<br/><a href="mailto:{{ fb.user.email }}">{{ fb.user.email }}</a>{% endif %}</td>
+      <td class="nowrap vc-stars" aria-label="{{ fb.rating }} out of 5">
+        {%- for i in range(fb.rating) %}★{% endfor -%}
+        {%- for i in range(5 - fb.rating) %}<span class="vc-star-off">★</span>{% endfor -%}
+      </td>
+      <td class="cm-cell">{{ fb.comment }}</td>
+      <td><span class="cm-status cm-status-{{ 'closed' if fb.is_approved else 'new' }}"
+                id="fb-badge-{{ fb.id }}">{{ 'Approved' if fb.is_approved else 'Pending' }}</span></td>
+      <td class="nowrap">
+        <button type="button" class="btn-sm-outline vc-feat{{ ' is-on' if fb.is_featured }}" id="fb-feat-{{ fb.id }}"
+                onclick="fbAct({{ fb.id }}, 'feature', this)"
+                {% if not fb.is_approved %}disabled title="Approve the review first"{% endif %}>
+          <i class="fa-solid fa-star"></i> <span>{{ 'Featured' if fb.is_featured else 'Feature' }}</span>
+        </button>
+      </td>
+      <td class="nowrap">
+        <div class="vc-act">
+          {% if not fb.is_approved %}
+          <button type="button" class="btn-sm-outline" onclick="fbAct({{ fb.id }}, 'approve', this)">Approve</button>
+          {% endif %}
+          <button type="button" class="btn-sm-outline danger" onclick="fbAct({{ fb.id }}, 'reject')">Reject</button>
+        </div>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="muted" style="text-align:center;padding:30px">No feedback yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+
+{% macro feedback_js(action_base) %}
+<script>
+/* Both consoles moderate reviews the same way; only the endpoint differs. */
+function fbAct(id, action, btn) {
+  if (action === 'reject' && !confirm('Delete this review? It cannot be recovered.')) return;
+  fetch('{{ action_base }}'.replace('__ID__', id).replace('__ACTION__', action),
+        { method: 'POST', headers: { 'X-CSRFToken': CSRF_TOKEN } })
+    .then(r => r.json())
+    .then(d => {
+      if (d && d.error) { if (d.error) showToast(d.error, 'danger'); return; }
+      if (action === 'feature') {
+        const b = document.getElementById(`fb-feat-${id}`);
+        b.classList.toggle('is-on', d.featured);
+        b.querySelector('span').textContent = d.featured ? 'Featured' : 'Feature';
+        showToast(d.featured ? 'Now showing on the home page.' : 'Removed from the home page.', 'success');
+        return;
+      }
+      const row = document.getElementById(`fb-${id}`);
+      if (action === 'reject') { row.remove(); return; }
+      const badge = document.getElementById(`fb-badge-${id}`);
+      badge.textContent = 'Approved';
+      badge.className = 'cm-status cm-status-closed';
+      document.getElementById(`fb-feat-${id}`)?.removeAttribute('disabled');
+      if (btn) btn.remove();
+    });
+}
+</script>
+{% endmacro %}

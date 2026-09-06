@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% block title %}Run #{{ run.id }} – {{ recipe.name }} – CS Console{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='scraper' %}{% include 'cs/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <div class="card-head">
+      <h1>Run #{{ run.id }} <small class="muted">{{ recipe.name }}</small></h1>
+      <div>
+        <a class="btn-sm" href="{{ url_for('scraper.recipe_runs', recipe_id=recipe.id) }}"><i class="fa-solid fa-arrow-left"></i> Runs</a>
+        <a class="btn-sm" href="{{ url_for('scraper.mapping', recipe_id=recipe.id, next=request.path) }}"><i class="fa-solid fa-arrows-left-right"></i> Mapping</a>
+      </div>
+    </div>
+
+    {% if not run.done %}
+      {% with run=run, panel_id='runProgress', title='Scraping…' %}{% include 'cs/scraper/_run_progress.html' %}{% endwith %}
+    {% else %}
+    <div class="admin-card">
+      <div class="card-head">
+        <h2>Result</h2>
+        <span class="chip {{ {'done': 'chip-open', 'failed': 'chip-closed', 'cancelled': 'chip-unconfirmed'}.get(run.status, 'chip-src') }}">{{ run.status }}</span>
+      </div>
+      <div class="stat-inline">
+        <span>pages <strong>{{ run.progress_pages or 0 }}</strong></span>
+        <span>items seen <strong>{{ run.rows_total or 0 }}</strong></span>
+        <span>new rows <strong>{{ run.rows_new or 0 }}</strong></span>
+        {% if (run.stats or {}).get('skipped_known') %}<span>already known <strong>{{ run.stats.skipped_known }}</strong></span>{% endif %}
+        {% if run.duration_seconds is not none %}<span><strong>{{ run.duration_seconds }}</strong> s</span>{% endif %}
+        {% if (run.stats or {}).get('stopped_because') %}<span class="muted">stopped: {{ run.stats.stopped_because }}</span>{% endif %}
+      </div>
+      {% set rep = run.report %}
+      {% if rep %}
+        <p style="margin-top:8px"><span class="chip {{ {'ok': 'chip-open', 'warning': 'chip-unconfirmed', 'critical': 'chip-closed'}.get(rep.status, 'chip-src') }}">{{ rep.headline }}</span>
+        {% for m in rep.messages %}<br/><small class="muted">{{ m }}</small>{% endfor %}</p>
+      {% endif %}
+      {% if run.error %}<p class="urgent">{{ run.error }}</p>{% endif %}
+      <details><summary class="muted">Log</summary><pre class="log-tail">{{ run.log_tail(80)|join('\n') }}</pre></details>
+    </div>
+    {% endif %}
+
+    <div class="cs-filters">
+      {% for s, label in [('new', 'New'), ('duplicate', 'Already a post'), ('imported', 'Posts created'), ('skipped', 'Skipped'), ('all', 'All')] %}
+        <a class="btn-sm {{ 'green' if status == s }}" href="{{ url_for('scraper.run_detail', run_id=run.id, status=s) }}">{{ label }}{% if s != 'all' %} <span class="chip chip-src">{{ counts.get(s, 0) }}</span>{% endif %}</a>
+      {% endfor %}
+      <span class="muted" style="margin-left:auto">{{ total }} row(s)</span>
+    </div>
+
+    <form method="POST" id="rowsForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <div class="bulk-bar">
+        <span><strong id="selectedCount">0</strong> selected</span>
+        {% if status == 'new' and counts.get('new', 0) > 0 %}
+        <label class="flex-check" style="margin:0"><input type="checkbox" name="select" value="all_new"/> all {{ counts.get('new', 0) }} new rows</label>
+        {% endif %}
+        <label class="flex-check" style="margin:0" title="Only when the person already confirmed with us — otherwise posts stay CS-only until the claim link is used"><input type="checkbox" name="publish_now"/> publish now</label>
+        <button type="submit" class="btn btn-primary" data-action="create" data-url="{{ url_for('scraper.create_posts', run_id=run.id) }}" data-needs-selection {% if not counts.get('new', 0) %}disabled{% endif %}><i class="fa-solid fa-plus"></i> Create posts</button>
+        <button type="submit" class="btn-sm" data-action="skip" data-url="{{ url_for('scraper.skip_rows', run_id=run.id) }}" data-needs-selection>Skip</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn-sm" data-action="export-selected" data-base="{{ url_for('scraper.export_run', run_id=run.id) }}" data-mapped="0"><i class="fa-solid fa-file-excel"></i> Export {{ 'selected' }} / run (raw)</button>
+        <button type="button" class="btn-sm" data-action="export-selected" data-base="{{ url_for('scraper.export_run', run_id=run.id) }}" data-mapped="1"><i class="fa-solid fa-file-excel"></i> mapped</button>
+        <a class="btn-sm" href="{{ url_for('scraper.export_run', run_id=run.id, scope='all') }}">All rows of recipe</a>
+      </div>
+
+      <div class="table-wrap"><table class="admin-table import-table stack-mobile">
+        <thead><tr><th><input type="checkbox" id="selectAllRows"/></th><th>Row</th><th>Status</th><th>Person</th><th>Route</th><th>Departs</th><th>Flight</th><th>Role</th><th>Languages</th><th>Contact</th><th>Notes</th><th></th></tr></thead>
+        <tbody>
+        {% for r in rows %}{% set p = previews.get(r.id, {}) %}
+          <tr id="srow-{{ r.id }}" class="row-{{ r.status }} {{ 'row-error' if p.errors }} {{ 'row-edited' if (r.data or {}).get('_edits') }}">
+            <td><input type="checkbox" class="inc" name="include" value="{{ r.id }}" {% if r.status != 'new' %}disabled{% endif %}/></td>
+            <td data-label="Row"><strong>#{{ r.id }}</strong><br/><small class="muted">{{ (r.data or {}).get('_fetched_at', '')[:10] }}</small></td>
+            <td data-label="Status">
+              <span class="chip {{ {'new': 'chip-src', 'duplicate': 'chip-unconfirmed', 'imported': 'chip-open', 'skipped': 'chip-closed'}.get(r.status, 'chip-src') }}">{{ r.status }}</span>{% if (r.data or {}).get('_edits') %} <span class="chip chip-open" title="Has manual corrections">edited</span>{% endif %}
+              {% if r.imported_post_id %}<br/><a href="{{ url_for('cs.post_detail', trip_id=r.imported_post_id) }}">post #{{ r.imported_post_id }}</a>{% elif r.duplicate_of_id %}<br/><a href="{{ url_for('cs.post_detail', trip_id=r.duplicate_of_id) }}">post #{{ r.duplicate_of_id }}</a>{% endif %}
+            </td>
+            <td data-label="Person">{{ p.poster_name or '—' }}{% if p.traveler_name %}<br/><small class="muted">for {{ p.traveler_name }}</small>{% endif %}{% if p.title %}<br/><small class="muted">{{ p.title[:60] }}</small>{% endif %}</td>
+            <td data-label="Route">{{ p.flying_from or '?' }} &rarr; {{ p.destination or '?' }}</td>
+            <td data-label="Departs">{{ p.from_date or '—' }}{% if p.to_date %} &rarr; {{ p.to_date }}{% endif %}</td>
+            <td data-label="Flight">{{ p.airline or '' }} {{ p.flight_number or '' }}</td>
+            <td data-label="Role">{{ TRIP_ROLE_LABELS.get(p.role, p.role or '') }}</td>
+            <td data-label="Languages">{{ (p.languages or [])|join(', ') }}</td>
+            <td data-label="Contact" class="ci-cell">{% for c in p.contacts or [] %}<span class="ci ci-pending" title="{{ c.value }}"><i class="{{ CONTACT_TYPE_ICONS.get(c.type) }}"></i></span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+            <td data-label="Notes"><small>{% for e in p.errors or [] %}<span class="urgent">{{ e }}</span><br/>{% endfor %}{% for w in p.warnings or [] %}<span class="muted">{{ w }}</span><br/>{% endfor %}</small></td>
+            <td class="row-actions">
+              <button type="button" class="btn-sm" onclick="viewRow({{ r.id }})">View</button>
+              {% if r.status in ('new', 'skipped') %}<button type="button" class="btn-sm" onclick="viewRow({{ r.id }}, 'edit')" title="Fix spellings or change any value before the post is created">Edit</button>{% endif %}
+              {% if r.status == 'new' %}<a class="btn-sm" href="{{ url_for('cs.new_post', scrape_row=r.id) }}" title="Open prefilled in the post form to fix or complete it">Post form</a>{% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="12" class="muted">No rows with status “{{ status }}”.</td></tr>
+        {% endfor %}
+        </tbody></table></div>
+    </form>
+
+    {% include 'admin/_pager.html' %}
+  </main>
+</div>
+
+<div class="modal-overlay" id="rowModal" style="display:none">
+  <div class="modal-box" style="max-width:780px;max-height:90vh;overflow:auto">
+    <button class="modal-close" id="closeRowModal">&times;</button>
+    <h2 style="display:flex;align-items:center;gap:10px;justify-content:flex-start">Scraped row <span id="rowModalId" class="muted"></span> <span class="chip chip-open" id="rowModalEdited" style="display:none">edited</span></h2>
+
+    <div class="row-modal-tabs">
+      <button type="button" class="btn-sm" id="rowTab-view" onclick="showRowTab('view')"><i class="fa-solid fa-eye"></i> Post preview</button>
+      <button type="button" class="btn-sm" id="rowTab-edit" onclick="showRowTab('edit')"><i class="fa-solid fa-pen"></i> Edit values</button>
+      <button type="button" class="btn-sm" id="rowTab-raw" onclick="showRowTab('raw')"><i class="fa-solid fa-code"></i> Scraped data</button>
+    </div>
+
+    <div id="rowPane-view">
+      <dl class="dl" id="rowModalMapped"></dl>
+    </div>
+
+    <div id="rowPane-edit" style="display:none">
+      <p class="muted" style="font-size:13px;margin-bottom:10px" id="rowEditIntro">Fix spellings or change any value (including the source). Corrections are saved on the row and used when the post is created, in the preview and in the mapped export. Clear a field to drop that value; re-type the original to undo a correction.</p>
+      <div class="row-edit-grid" id="rowEditGrid"></div>
+      <div class="form-actions" style="margin-top:14px">
+        <button type="button" class="btn btn-primary" id="rowEditSave"><i class="fa-solid fa-floppy-disk"></i> Save corrections</button>
+        <button type="button" class="btn-sm danger" id="rowEditReset" style="display:none">Remove all corrections</button>
+      </div>
+    </div>
+
+    <div id="rowPane-raw" style="display:none">
+      <div class="table-wrap"><table class="admin-table" id="rowRawTable"><thead><tr><th>Scraped column</th><th>Value</th><th>Mapped to</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}<script src="{{ url_for('static', filename='js/scraper.js') }}"></script>{% endblock %}

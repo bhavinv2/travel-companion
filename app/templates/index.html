@@ -1,149 +1,142 @@
 {% extends 'base.html' %}
 {% from 'cs/_macros.html' import contact_rows_widget with context %}
 {% block title %}Connecting Desis – Find Your Travel Companion{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}"/>{% endblock %}
 
 {% block content %}
+<div class="landing">
 
-<!-- ===== HERO SLIDER ===== -->
-<section class="hero-slider" id="home">
-  <div class="slides-wrapper" id="slidesWrapper">
-    <div class="slide active">
-      <img class="slide-bg-image" src="/static/img/2_elders.png" alt="Desi travellers" style="object-position: center center;"/>
-      <div class="slide-fade-overlay"></div>
-      <div class="slide-content">
-        <div class="slide-text">
-          <p class="slide-eyebrow">Connecting Desi Travellers</p>
-          <h1>Experience<br/><em>Friendly</em><br/>Group Trips</h1>
-          <p>Connect with fellow Desi travellers on your next journey</p>
-        </div>
+<!-- ===== HERO ===== -->
+<section class="l-hero" id="home">
+  <span class="l-cloud c1"></span><span class="l-cloud c2"></span><span class="l-cloud c3"></span>
+  <div class="l-hero-inner">
+    <p class="l-eyebrow">Travel companions <span class="sep">&#9679;</span> Desi community <span class="sep">&#9679;</span> Consent-first</p>
+    <h1>Wherever you fly,<br/>you'll never travel <span class="hl">alone</span>.</h1>
+    <p class="l-sub">Connecting Desis matches you with trusted fellow travellers on the same route &mdash; for parents flying solo, first-time flyers, or anyone who'd love good company on a long journey.</p>
+
+    <div class="l-quick" id="quickSearch">
+      <div class="l-q-seg">
+        <i class="fa-solid fa-plane-departure"></i>
+        <div class="l-q-text"><label for="qFrom">From</label><input type="text" id="qFrom" class="autocomplete-airport" placeholder="City or airport" autocomplete="off"/></div>
       </div>
-    </div>
-    <div class="slide">
-      <img class="slide-bg-image" src="/static/img/ap.png" alt="Travel companions"/>
-      <div class="slide-fade-overlay"></div>
-      <div class="slide-content">
-        <div class="slide-text">
-          <p class="slide-eyebrow">Connecting Desi Travellers</p>
-          <h1>Never<br/>Travel<br/><em>Alone Again</em></h1>
-          <p>Find trusted companions for your flights</p>
-        </div>
+      <div class="l-q-seg">
+        <i class="fa-solid fa-location-dot"></i>
+        <div class="l-q-text"><label for="qTo">To</label><input type="text" id="qTo" class="autocomplete-airport" placeholder="City or airport" autocomplete="off"/></div>
       </div>
-    </div>
-    <div class="slide">
-      <img class="slide-bg-image" src="/static/img/ff.png" alt="Happy travellers"/>
-      <div class="slide-fade-overlay"></div>
-      <div class="slide-content">
-        <div class="slide-text">
-          <p class="slide-eyebrow">Connecting Desi Travellers</p>
-          <h1>Your <em>Community</em><br/>Your Journey</h1>
-          <p>Trusted by thousands of NRI families worldwide</p>
-        </div>
+      <div class="l-q-seg">
+        <i class="fa-solid fa-calendar"></i>
+        <div class="l-q-text"><label for="qWhen">When</label><input type="date" id="qWhen"/></div>
       </div>
+      <button type="button" class="l-q-btn" id="qGo"><i class="fa-solid fa-magnifying-glass"></i> Find companions</button>
     </div>
-  </div>
-  <div class="slide-dots" id="slideDots">
-    <span class="dot active" data-idx="0"></span>
-    <span class="dot" data-idx="1"></span>
-    <span class="dot" data-idx="2"></span>
+    <div class="l-alt">
+      <span class="l-alt-text">Travelling yourself? Let matches come to you.</span>
+      <button type="button" class="l-alt-btn" id="heroPostTripBtn">
+        <i class="fa-solid fa-plane-departure"></i> Post your trip
+      </button>
+    </div>
+
+    <div class="l-trust">
+      <span class="l-trust-item"><i class="fa-solid fa-shield-halved"></i> Consent-first contact sharing</span>
+      <span class="l-trust-item"><i class="fa-solid fa-headset"></i> CS-assisted matching</span>
+      {# counts Admin -> Options -> Site languages, i.e. what the language switcher offers #}
+      <span class="l-trust-item" title="{{ OPT.SITE_LANGUAGES|map(attribute='label')|join(', ') }}"><i class="fa-solid fa-language"></i> <strong>{{ OPT.SITE_LANGUAGES|length }}</strong>&nbsp;languages</span>
+      <span class="l-trust-item is-warm"><i class="fa-solid fa-heart"></i> Free for the community</span>
+    </div>
   </div>
 </section>
 
 <!-- ===== SEARCH / POST SECTION ===== -->
-<section class="search-section" id="search">
+<section class="search-section l-form-section" id="search">
 
-  <div class="travel-tabs">
-    <button class="travel-tab active" type="button">
-      <i class="fa-solid fa-plane-departure"></i> Flights
+  <div class="l-head">
+    <p class="l-tag">Post or search</p>
+    <h2>Tell us your trip once &mdash; we do the matching</h2>
+    <p class="lead">Post your route and dates below, or use the same form to search travellers already on the move. Contact details stay private until you agree to share them.</p>
+  </div>
+
+
+  <!-- Start gate: read the ticket, or go straight to the form. Both land in the same wizard. -->
+  <div class="tk-gate" id="tkGate">
+    <div class="tk-gate-head">
+      <div class="travel-tabs">
+        <button class="travel-tab active" type="button">
+          <i class="fa-solid fa-plane-departure"></i> Flights
+        </button>
+      </div>
+      <div class="tk-gate-heading">
+        <h3 class="tk-gate-title">Start with your ticket, or fill it in yourself</h3>
+        <p class="tk-gate-sub">Uploading a PDF e-ticket fills the route, dates and flight for you. You can change anything afterwards.</p>
+      </div>
+    </div>
+    <div class="tk-choices">
+      <button type="button" class="tk-choice tk-choice-primary" id="tkPick">
+        <span class="tk-ico"><i class="fa-solid fa-file-arrow-up"></i></span>
+        <span class="tk-body">
+          <strong>Upload my ticket</strong>
+          <small>PDF e-ticket &mdash; we read the details</small>
+        </span>
+      </button>
+      <button type="button" class="tk-choice" id="tkManual">
+        <span class="tk-ico"><i class="fa-solid fa-pen-to-square"></i></span>
+        <span class="tk-body">
+          <strong>Fill in manually</strong>
+          <small>Type the trip yourself</small>
+        </span>
+      </button>
+    </div>
+    <input type="file" id="tkFile" accept=".pdf,.png,.jpg,.jpeg,.webp" hidden/>
+    <div class="tk-status" id="tkStatus" hidden></div>
+  </div>
+
+  <form class="search-bar fwizard" id="searchForm" autocomplete="off" onsubmit="return false;" hidden>
+    <input type="hidden" id="tripTypeHidden" name="trip_type" value="one_way"/>
+
+    <button type="button" class="fw-upload" id="fwUpload" title="Upload your e-ticket to auto-fill the trip">
+      <i class="fa-solid fa-file-arrow-up"></i><span>Upload ticket</span>
     </button>
-  </div>
 
-  <!-- Role -->
-  <div class="trip-type-row" id="roleRow">
-    <label class="radio-pill"><input type="radio" name="role" value="seeking_help" form="searchForm" checked/> <i class="fa-solid fa-hand-holding-heart"></i> I need a companion</label>
-    <label class="radio-pill"><input type="radio" name="role" value="offering_help" form="searchForm"/> <i class="fa-solid fa-hands-helping"></i> I can help someone</label>
-    <label class="radio-pill"><input type="radio" name="role" value="open" form="searchForm"/> Either</label>
-  </div>
+    <div class="fw-top">
+      <div class="travel-tabs">
+        <button class="travel-tab active" type="button">
+          <i class="fa-solid fa-plane-departure"></i> Flights
+        </button>
+      </div>
+      <div class="fw-heading">
+        <h3 class="fw-title">Tell us about your trip</h3>
+        <p class="fw-subtitle">Five short steps &mdash; you can change anything later.</p>
+      </div>
+    </div>
 
-  <!-- Trip Type -->
+    <div class="tk-recap" id="tkRecap" hidden></div>
+
+    <!-- Role: outside the .fstep blocks, so it stays visible on every step -->
+    <div class="fw-role">
+      <p class="fw-role-q">What brings you here today?</p>
+      <div class="trip-type-row" id="roleRow">
+        <label class="radio-pill"><input type="radio" name="role" value="seeking_help" checked/> <i class="fa-solid fa-hand-holding-heart"></i> I need a companion</label>
+        <label class="radio-pill"><input type="radio" name="role" value="offering_help"/> <i class="fa-solid fa-hands-helping"></i> I can help someone</label>
+        <label class="radio-pill"><input type="radio" name="role" value="open"/> <i class="fa-solid fa-arrows-left-right"></i> Open to either</label>
+      </div>
+    </div>
+
+    <div class="fw-rail">
+      <span class="fw-rail-step" id="fwStepLabel">Step 1 of 5</span>
+      <button type="button" class="fw-skip" id="fwSkip">Skip &amp; just search <i class="fa-solid fa-arrow-right"></i></button>
+    </div>
+    <div class="fw-railbar"><div class="fw-fill" id="fwFill"></div></div>
+
+    <!-- STEP 1: the journey -->
+    <div class="fstep active" data-step="1">
+      <div class="fq"><span class="fq-num">1</span><span class="fq-label">Where</span></div>
+      <h3 class="fq-title"><span class="hl">Where</span> are you flying?</h3>
+      <p class="fq-sub">City or airport is fine — tick "flexible" if nearby airports work too.</p>
   <div class="trip-type-row" id="tripTypeRow">
     <label class="radio-pill"><input type="radio" name="trip_type" value="one_way" checked/> One Way</label>
     <label class="radio-pill"><input type="radio" name="trip_type" value="round_trip"/> Round Trip</label>
     <label class="radio-pill"><input type="radio" name="trip_type" value="multi_destination"/> Multi-Destination</label>
   </div>
-
-  <form class="search-bar" id="searchForm" autocomplete="off" onsubmit="return false;">
-    <input type="hidden" id="tripTypeHidden" name="trip_type" value="one_way"/>
-
-    <!-- Row 1: who -->
-    <div class="form-row" id="flightFields">
-      <div class="field-group">
-        <label>On Behalf Of</label>
-        <select name="on_behalf_of" id="onBehalfOf">
-          <option value="">Select</option>
-          {% for val, label in OPT.ON_BEHALF_OF %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
-        </select>
-      </div>
-
-      <div class="field-group wide">
-        <label>Connect Me To <span class="optional">(multi-select)</span></label>
-        <div class="multi-select-wrapper">
-          <button type="button" class="multi-select-btn" data-target="connectTo">
-            <span id="connectToLabel">Select companions...</span> <i class="fa-solid fa-chevron-down"></i>
-          </button>
-          <div class="multi-dropdown" id="connectTo">
-            {% for val, label in OPT.CONNECT_ME_TO %}
-            <label><input type="checkbox" name="connect_me_to" value="{{ val }}"/> {{ label }}</label>
-            {% endfor %}
-          </div>
-        </div>
-      </div>
-
-      <div class="field-group wide">
-        <label>Traveller Needs <span class="optional">(multi-select)</span></label>
-        <div class="multi-select-wrapper">
-          <button type="button" class="multi-select-btn" data-target="travellerNeeds">
-            <span id="travellerNeedsLabel">Select needs...</span> <i class="fa-solid fa-chevron-down"></i>
-          </button>
-          <div class="multi-dropdown" id="travellerNeeds">
-            {% for val, label in OPT.TRAVELLER_NEEDS %}
-            <label><input type="checkbox" name="traveller_needs" value="{{ val }}"/> {{ label }}</label>
-            {% endfor %}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Row 1b: traveller & companion preferences -->
-    <div class="form-row">
-      <div class="field-group">
-        <label>Traveller's Age Group</label>
-        <select name="traveler_age_group"><option value="">Prefer not to say</option>
-          {% for a in AGE_GROUPS %}<option value="{{ a }}">{{ AGE_GROUP_LABELS[a] }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="field-group">
-        <label>Traveller's Gender</label>
-        <select name="traveler_gender"><option value="">Prefer not to say</option>
-          {% for g in GENDERS %}<option value="{{ g }}">{{ g|capitalize }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="field-group">
-        <label>Companion Gender</label>
-        <select name="pref_gender">
-          {% for g in PREF_GENDERS %}<option value="{{ g }}">{{ g|capitalize }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="field-group">
-        <label>Companion Age <span class="optional">(min – max)</span></label>
-        <div class="form-row-2">
-          <input type="number" name="pref_age_min" min="0" max="120" placeholder="min" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;"/>
-          <input type="number" name="pref_age_max" min="0" max="120" placeholder="max" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;"/>
-        </div>
-      </div>
-    </div>
-
-    <!-- Row 2: single-leg route -->
-    <div class="form-row" id="flightRoute">
+      <div class="form-row" id="flightRoute">
       <div class="field-group" id="fieldFlyingFrom">
         <label>Flying From</label>
         <div class="input-with-icon">
@@ -153,15 +146,6 @@
         <label class="flex-check"><input type="checkbox" name="flying_from_flexible" id="fromFlexible"/> Flexible Airport</label>
       </div>
 
-      <div class="field-group" id="fieldFromDate">
-        <label>Departure Date</label>
-        <div class="input-with-icon">
-          <i class="fa-solid fa-calendar field-icon"></i>
-          <input type="date" name="from_date" id="fromDate"/>
-        </div>
-        <label class="flex-check"><input type="checkbox" name="from_date_flexible" id="fromDateFlex"/> Flexible Dates</label>
-      </div>
-
       <div class="field-group" id="fieldDestination">
         <label>Destination</label>
         <div class="input-with-icon">
@@ -169,15 +153,6 @@
           <input type="text" name="destination" id="destination" placeholder="City or Airport" class="autocomplete-airport"/>
         </div>
         <label class="flex-check"><input type="checkbox" name="destination_flexible"/> Flexible Airport</label>
-      </div>
-
-      <div class="field-group" id="fieldReturnDate" style="display:none">
-        <label>Return Date</label>
-        <div class="input-with-icon">
-          <i class="fa-solid fa-calendar-check field-icon"></i>
-          <input type="date" name="to_date" id="toDate"/>
-        </div>
-        <label class="flex-check"><input type="checkbox" name="to_date_flexible"/> Flexible Dates</label>
       </div>
 
       <div class="field-group" id="fieldAirline">
@@ -190,34 +165,13 @@
 
       <div class="field-group" id="fieldFlightNo">
         <label>Flight No</label>
-        <input type="text" name="flight_number" placeholder="e.g. AI 101"/>
-      </div>
-
-      <div class="field-group">
-        <label>Preferred Languages</label>
-        <div class="multi-select-wrapper">
-          <button type="button" class="multi-select-btn" data-target="langSelect">
-            <span id="langSelectLabel">Select languages...</span> <i class="fa-solid fa-chevron-down"></i>
-          </button>
-          <div class="multi-dropdown" id="langSelect">
-            {% for lang in OPT.LANGUAGES %}
-            <label><input type="checkbox" name="preferred_languages" value="{{ lang }}"/> {{ lang }}</label>
-            {% endfor %}
-          </div>
+        <div class="input-with-icon">
+          <i class="fa-solid fa-ticket field-icon"></i>
+          <input type="text" name="flight_number" id="flightNumber" placeholder="e.g. AI 101"/>
         </div>
       </div>
 
-      <div class="field-group">
-        <label>Ticket Booked?</label>
-        <label class="tick-check">
-          <input type="checkbox" name="ticket_booked"/>
-          <span class="tick-box"></span>
-          <span class="tick-label">Yes, ticket booked</span>
-        </label>
-      </div>
     </div>
-
-    <!-- Row 2b: multi-destination legs -->
     <div id="multiDestSection" style="display:none">
       <div class="multi-dest-header">
         <span><i class="fa-solid fa-route"></i> Your Stops</span>
@@ -250,40 +204,197 @@
         </div>
       </div>
     </div>
+    </div>
 
-    <!-- Additional Comments -->
-    <div class="form-row">
-      <div class="field-group" style="flex: 1; min-width: 100%;">
-        <label>Additional Comments</label>
-        <textarea name="additional_comments" placeholder="Anything else travellers should know — e.g. layovers, special needs, preferences..." rows="3" style="width:100%; border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:14px; outline:none; resize:vertical; font-family:inherit; transition:border-color 0.2s;"></textarea>
+    <!-- STEP 2: when -->
+    <div class="fstep" data-step="2">
+      <div class="fq"><span class="fq-num">2</span><span class="fq-label">When</span></div>
+      <h3 class="fq-title"><span class="hl">When</span> are you travelling?</h3>
+      <p class="fq-sub">Tap a date on the calendar — round trips take two taps. Not sure yet? Tick "flexible dates".</p>
+      <div id="whenSingle">
+        <div class="cal-inputs">
+      <div class="field-group" id="fieldFromDate">
+        <label>Departure Date</label>
+        <div class="input-with-icon">
+          <i class="fa-solid fa-calendar field-icon"></i>
+          <input type="date" name="from_date" id="fromDate"/>
+        </div>
+        <label class="flex-check"><input type="checkbox" name="from_date_flexible" id="fromDateFlex"/> Flexible Dates</label>
+      </div>
+      <div class="field-group" id="fieldReturnDate" style="display:none">
+        <label>Return Date</label>
+        <div class="input-with-icon">
+          <i class="fa-solid fa-calendar-check field-icon"></i>
+          <input type="date" name="to_date" id="toDate"/>
+        </div>
+        <label class="flex-check"><input type="checkbox" name="to_date_flexible"/> Flexible Dates</label>
+      </div>
+          <div class="cal-hint" id="calHint"><span class="bulb">💡</span><div><strong id="calHintTitle">Pick your departure date</strong><span id="calHintSub">One tap on the calendar</span></div></div>
+        </div>
+        <div class="fw-cal">
+          <button type="button" class="cal-nav" id="calPrev" aria-label="Previous month"><i class="fa-solid fa-chevron-left"></i></button>
+          <div class="cal-months" id="calMonths"></div>
+          <button type="button" class="cal-nav" id="calNext" aria-label="Next month"><i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+        <div class="cal-ticket">
+      <div class="field-group">
+        <label>Ticket Booked?</label>
+        <label class="tick-check">
+          <input type="checkbox" name="ticket_booked"/>
+          <span class="tick-box"></span>
+          <span class="tick-label">Yes, ticket booked</span>
+        </label>
+      </div>
+        </div>
+      </div>
+      <div id="whenMulti" style="display:none" class="fq-multi-note">🗺️ Multi-stop trip: you set a date on each stop back in step 1 — nothing to do here.</div>
+    </div>
+
+    <!-- STEP 3: the traveller -->
+    <div class="fstep" data-step="3">
+      <div class="fq"><span class="fq-num">3</span><span class="fq-label">Who</span></div>
+      <h3 class="fq-title"><span class="hl">Who</span> is travelling?</h3>
+      <p class="fq-sub">A little about the traveller helps us find the right company — everything here is optional.</p>
+      <div class="form-row" id="flightFields">
+        <div class="field-group">
+          <label>Who's this trip for?</label>
+          <select name="on_behalf_of" id="onBehalfOf">
+            <option value="">Select</option>
+            {% for val, label in OPT.ON_BEHALF_OF %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field-group wide">
+          <label>Any help they'll appreciate? <span class="optional">(pick any)</span></label>
+          <div class="multi-select-wrapper">
+            <button type="button" class="multi-select-btn" data-target="travellerNeeds">
+              <span id="travellerNeedsLabel">Select needs...</span> <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div class="multi-dropdown" id="travellerNeeds">
+              {% for val, label in OPT.TRAVELLER_NEEDS %}
+              <label><input type="checkbox" name="traveller_needs" value="{{ val }}"/> {{ label }}</label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label>Their age group</label>
+          <select name="traveler_age_group"><option value="">Prefer not to say</option>
+            {% for a in AGE_GROUPS %}<option value="{{ a }}">{{ AGE_GROUP_LABELS[a] }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field-group">
+          <label>Their gender</label>
+          <select name="traveler_gender"><option value="">Prefer not to say</option>
+            {% for g in GENDERS %}<option value="{{ g }}">{{ g|capitalize }}</option>{% endfor %}
+          </select>
+        </div>
       </div>
     </div>
 
-    <!-- Point of contact (Phase 2) -->
+    <!-- STEP 3: the companion -->
+    <div class="fstep" data-step="4">
+      <div class="fq"><span class="fq-num">4</span><span class="fq-label">Companion</span></div>
+      <h3 class="fq-title">Your ideal <span class="hl">companion</span></h3>
+      <p class="fq-sub">Who would you feel most comfortable with? Skip anything — it only sharpens the match.</p>
+      <div class="form-row">
+        <div class="field-group wide">
+          <label>I'd love to meet… <span class="optional">(pick any)</span></label>
+          <div class="multi-select-wrapper">
+            <button type="button" class="multi-select-btn" data-target="connectTo">
+              <span id="connectToLabel">Select companions...</span> <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div class="multi-dropdown" id="connectTo">
+              {% for val, label in OPT.CONNECT_ME_TO %}
+              <label><input type="checkbox" name="connect_me_to" value="{{ val }}"/> {{ label }}</label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+      <div class="field-group">
+        <label>Preferred Languages</label>
+        <div class="multi-select-wrapper">
+          <button type="button" class="multi-select-btn" data-target="langSelect">
+            <span id="langSelectLabel">Select languages...</span> <i class="fa-solid fa-chevron-down"></i>
+          </button>
+          <div class="multi-dropdown" id="langSelect">
+            {% for lang in OPT.LANGUAGES %}
+            <label><input type="checkbox" name="preferred_languages" value="{{ lang }}"/> {{ lang }}</label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label>Companion gender</label>
+          <select name="pref_gender">
+            {% for g in PREF_GENDERS %}<option value="{{ g }}">{{ g|capitalize }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field-group">
+          <label>Companion age <span class="optional">(min – max)</span></label>
+          <div class="form-row-2">
+            <input type="number" name="pref_age_min" min="0" max="120" placeholder="min"/>
+            <input type="number" name="pref_age_max" min="0" max="120" placeholder="max"/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 4: finish & share -->
+    <div class="fstep" data-step="5">
+      <div class="fq"><span class="fq-num">5</span><span class="fq-label">Finish</span></div>
+      <h3 class="fq-title">Almost there — <span class="hl">finishing</span> touches</h3>
+      <p class="fq-sub">Anything extra, and how a matched companion may reach you (always with your consent).</p>
+      <div class="form-row">
+        <div class="field-group">
+          <label>Trip category <span class="optional">(optional)</span></label>
+          <select name="category">
+            <option value="">Select a category</option>
+            {% for c in OPT.CATEGORIES %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group" style="flex: 1; min-width: 100%;">
+          <label>Anything else companions should know?</label>
+          <textarea name="additional_comments" placeholder="Layovers, special needs, what you're looking forward to…" rows="3"></textarea>
+        </div>
+      </div>
+      <!-- Point of contact (Phase 2) -->
     <div class="form-row">
       <div class="field-group" style="flex: 1; min-width: 100%;">
-        <label>How can a matched companion reach you? <span class="optional">(shared only with companions we match you with, and only if you agree below)</span></label>
+        <label>{{ _('How can a matched companion reach you?') }} <span class="optional">{{ _('(shared only with companions we match you with, and only if you agree below)') }}</span></label>
         {% if current_user.is_authenticated %}
           {{ contact_rows_widget([{'id': '', 'type': 'email', 'value': current_user.email, 'label': '', 'consent': False}], per_row_consent=False) }}
           <label class="tick-check" style="margin-top:8px;">
             <input type="checkbox" id="contactConsent" name="contact_consent"/>
             <span class="tick-box"></span>
-            <span class="tick-label">I agree that Connecting Desis may share these contact details with travel companions matched to this trip. <a href="{{ url_for('main.privacy') }}" target="_blank">Privacy Policy</a></span>
+            <span class="tick-label notranslate">{{ _('I agree that Connecting Desis may share these contact details with travel companions matched to this trip.') }} <a href="{{ url_for('main.privacy') }}" target="_blank">{{ _('Privacy Policy') }}</a></span>
           </label>
-          <small class="muted">You can always be reached through in-app chat, even without ticking this.</small>
+          <small class="muted notranslate">{{ _('You can always be reached through in-app chat, even without ticking this.') }}</small>
         {% else %}
-          <p class="muted"><i class="fa-solid fa-lock"></i> Sign in to add contact details. We only share them with matched companions you approve.</p>
+          <p class="muted notranslate"><i class="fa-solid fa-lock"></i> {{ _('Sign in to add contact details. We only share them with matched companions you approve.') }}</p>
         {% endif %}
       </div>
     </div>
+    </div>
 
-    <!-- Action Bar -->
-    <div class="action-bar">
+    <div class="fw-foot">
+      <button type="button" class="btn-outline-coral fw-nav" id="fwBack" style="visibility:hidden"><i class="fa-solid fa-arrow-left"></i> Back</button>
+      <button type="button" class="btn btn-primary fw-next-big" id="fwNext">Next</button>
+    </div>
+
+    <div class="action-bar" id="fwActions" style="display:none">
       <div class="anon-toggle-row">
         <label class="tick-check">
           <input type="checkbox" id="postAnonymous" name="is_anonymous"/>
           <span class="tick-box"></span>
-          <span class="tick-label">Post anonymously — only your route &amp; dates will be visible</span>
+          <span class="tick-label notranslate">{{ _('Post anonymously — only your route & dates will be visible') }}</span>
         </label>
       </div>
       <p class="action-note">
@@ -307,13 +418,30 @@
 <section class="my-trips-section" id="my-trips">
   <div class="results-header">
     <h2><i class="fa-solid fa-suitcase"></i> My Trips</h2>
-    <button class="btn btn-primary" onclick="document.getElementById('search').scrollIntoView({behavior:'smooth'})">
-      <i class="fa-solid fa-plus"></i> Post New Trip
+    <div class="results-controls">
+      <span id="myTripsCount" class="results-count"></span>
+      <a class="btn btn-outline-coral" id="myTripsViewAll" href="{{ url_for('main.dashboard') }}#trips" hidden>
+        View All <i class="fa-solid fa-arrow-right"></i>
+      </a>
+      <button class="btn btn-primary" onclick="document.getElementById('search').scrollIntoView({behavior:'smooth'})">
+        <i class="fa-solid fa-plus"></i> Post New Trip
+      </button>
+    </div>
+  </div>
+  <div class="carousel-wrapper">
+    <button type="button" class="carousel-arrow carousel-prev" id="myTripsPrev" aria-label="Previous trips">
+      <i class="fa-solid fa-chevron-left"></i>
+    </button>
+    <div class="carousel-track-outer">
+      <div class="results-grid carousel-track" id="myTripsGrid">
+        <div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Loading your trips...</div>
+      </div>
+    </div>
+    <button type="button" class="carousel-arrow carousel-next" id="myTripsNext" aria-label="More trips">
+      <i class="fa-solid fa-chevron-right"></i>
     </button>
   </div>
-  <div class="results-grid" id="myTripsGrid">
-    <div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Loading your trips...</div>
-  </div>
+  <div class="carousel-dots" id="myTripsDots"></div>
 </section>
 {% endif %}
 
@@ -326,6 +454,7 @@
       <a href="/trips" class="btn btn-outline-coral">View All <i class="fa-solid fa-arrow-right"></i></a>
     </div>
   </div>
+  <div class="filter-bar" id="filterBar" style="display:none"></div>
   <div class="carousel-wrapper">
     <button class="carousel-arrow carousel-prev" id="carouselPrev" onclick="carouselNav(-1)" aria-label="Previous">
       <i class="fa-solid fa-chevron-left"></i>
@@ -342,40 +471,90 @@
   <div class="carousel-dots" id="carouselDots"></div>
 </section>
 
-<!-- ===== HOW IT WORKS ===== -->
-<section class="how-works" id="how-it-works">
+<!-- ===== HOW IT WORKS: the journey ===== -->
+<section class="how-works l-journey" id="how-it-works">
   <div class="section-header">
-    <p class="section-tag">Simple &amp; Safe</p>
-    <h2>How Connecting Desis Works</h2>
+    <p class="section-tag">How it works</p>
+    <h2>Your journey with Connecting Desis</h2>
+    <p class="lead">Post your trip, we find fellow travellers on your route, and you connect only when you're both happy — with a real care team watching over every match.</p>
   </div>
-  <div class="steps-row">
-    <div class="step-card">
-      <div class="step-num">1</div>
-      <div class="step-icon"><i class="fa-solid fa-user-plus"></i></div>
-      <h3>Post</h3>
-      <p>Tell us your route, dates and whether you need or can offer help</p>
+
+  <div class="j-start">
+    <div class="j-entry">
+      <div class="j-entry-card">
+        <span class="j-badge">Do it yourself</span>
+        <div class="j-icon"><i class="fa-solid fa-pen-to-square"></i></div>
+        <h3>Post your trip</h3>
+        <p>A short guided form — or upload your e-ticket and we read the route, dates and flight for you. Tell us whether you need a companion, can offer help, or are open to either.</p>
+        <ul>
+          <li>One-way, round trip or multi-stop</li>
+          <li>Flexible dates &amp; nearby airports welcome</li>
+          <li>Post anonymously if you prefer</li>
+        </ul>
+      </div>
     </div>
-    <div class="step-arrow"><i class="fa-solid fa-arrow-right"></i></div>
-    <div class="step-card">
-      <div class="step-num">2</div>
-      <div class="step-icon"><i class="fa-solid fa-magnifying-glass"></i></div>
-      <h3>Match</h3>
-      <p>Browse listings, or let our team find travellers on the same route</p>
+    <div class="j-or">or</div>
+    <div class="j-entry">
+      <div class="j-entry-card cs">
+        <span class="j-badge cs">Our care team</span>
+        <div class="j-icon"><i class="fa-solid fa-headset"></i></div>
+        <h3>We post it for you</h3>
+        <p>Already asked around a Facebook or WhatsApp group? Our care team brings your request in and sends you a private claim link.</p>
+        <ul>
+          <li>Confirm with one tap — no account needed first</li>
+          <li>Your contact details stay private until you claim it</li>
+        </ul>
+      </div>
     </div>
-    <div class="step-arrow"><i class="fa-solid fa-arrow-right"></i></div>
-    <div class="step-card">
-      <div class="step-num">3</div>
-      <div class="step-icon"><i class="fa-solid fa-comments"></i></div>
-      <h3>Connect</h3>
-      <p>Chat in-app, or share the contact details you chose — with your consent</p>
+  </div>
+
+  <div class="j-merge"><i class="fa-solid fa-plane"></i></div>
+
+  <div class="j-line">
+    <div class="j-stop">
+      <div class="j-dot">1</div>
+      <div class="j-card">
+        <h3><i class="fa-solid fa-wand-magic-sparkles"></i> Matches, scored and explained</h3>
+        <p>The moment your post is live, we compare it with everyone heading the same way and rank the best companions — leg by leg, so someone can even join you for just part of a multi-stop journey. Every match comes with a score and the reasons behind it.</p>
+        <div class="j-chips"><span>Same route</span><span>Close dates</span><span>Same flight</span><span>Needs ↔ offers help</span><span>Shared languages</span><span>Your preferences</span></div>
+      </div>
     </div>
-    <div class="step-arrow"><i class="fa-solid fa-arrow-right"></i></div>
-    <div class="step-card">
-      <div class="step-num">4</div>
-      <div class="step-icon"><i class="fa-solid fa-plane"></i></div>
-      <h3>Travel</h3>
-      <p>Enjoy a safe, friendly journey together!</p>
+    <div class="j-stop">
+      <div class="j-dot">2</div>
+      <div class="j-card">
+        <h3><i class="fa-solid fa-compass"></i> See your matches — or find them yourself</h3>
+        <p>Your matches land on your dashboard, each with a match percentage and why it fits. You can also browse everyone travelling your way in <em>Desis on Move</em> and reach out directly — posts that match one of your own trips are flagged for you.</p>
+        <div class="j-chips"><span>Match % &amp; reasons</span><span>Browse all travellers</span><span class="g">“Matches your trip” flags</span></div>
+      </div>
     </div>
+    <div class="j-stop">
+      <div class="j-dot">3</div>
+      <div class="j-card">
+        <h3><i class="fa-solid fa-shield-heart"></i> Connect, only when you both agree</h3>
+        <p>Send or accept a connection request. Contact details are shared just for that match, and only after <em>you</em> say yes — until then, the private in-app chat keeps everything between you two.</p>
+        <div class="j-chips"><span class="g">You stay in control</span><span class="g">Nothing shared without a yes</span><span class="g">Private in-app chat</span></div>
+      </div>
+    </div>
+    <div class="j-stop">
+      <div class="j-dot">4</div>
+      <div class="j-card">
+        <h3><i class="fa-solid fa-headset"></i> A real team stays close</h3>
+        <p>People, not just algorithms. If a match goes quiet as your departure nears, our care team follows up personally, suggests alternatives and keeps you posted — in your language.</p>
+        <div class="j-chips"><span>Follow-ups before take-off</span><span>Help in your language</span></div>
+      </div>
+    </div>
+    <div class="j-stop">
+      <div class="j-dot">5</div>
+      <div class="j-card">
+        <h3><i class="fa-solid fa-plane-departure"></i> Fly together</h3>
+        <p>Meet at the gate, share the long hours, help with bags, forms and transit — then land with a new friend and leave a review for the community.</p>
+        <div class="j-chips"><span class="g">Safe &amp; friendly</span><span class="g">Leave a review after</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="j-end">
+    <button class="btn btn-primary" onclick="document.getElementById('search').scrollIntoView({behavior:'smooth'})"><i class="fa-solid fa-pen-to-square"></i> Start your post</button>
   </div>
 </section>
 
@@ -387,38 +566,53 @@
         <p class="section-tag">Community Love</p>
         <h2>What Families Say</h2>
       </div>
-      <div class="testimonial-carousel" id="testimonialCarousel">
-        {% if feedbacks %}
-          {% for fb in feedbacks %}
-          <div class="testimonial-card {% if loop.first %}active{% endif %}">
-            <div class="stars">{% for i in range(fb.rating) %}&#9733;{% endfor %}{% for i in range(5 - fb.rating) %}&#9734;{% endfor %}</div>
-            <p>"{{ fb.comment }}"</p>
-            <div class="t-author">
-              <i class="fa-solid fa-circle-user t-avatar"></i>
-              <strong>{{ fb.user.username }}</strong>
-            </div>
+
+      {% set count = feedbacks|length if feedbacks else 0 %}
+      {% set avg = ((feedbacks|sum(attribute='rating') / count)|round(1)) if count else 4.9 %}
+      <div class="tm-summary">
+        <div class="tm-score">{{ avg }}<span>/5</span></div>
+        <div class="tm-summary-meta">
+          <div class="tm-stars" aria-label="{{ avg }} out of 5">
+            {% for i in range(5) %}<i class="fa-{{ 'solid' if i < avg|round(0,'floor')|int else 'regular' }} fa-star"></i>{% endfor %}
           </div>
+          <div class="tm-count"><i class="fa-solid fa-heart"></i> Trusted by {{ count if count >= 3 else '2,000' }}+ families</div>
+        </div>
+      </div>
+
+      <div class="tm-list"{% if feedbacks and feedbacks|length > 3 %} data-carousel="1"{% endif %}>
+        {% if feedbacks %}
+          {% for fb in feedbacks[:9] %}
+          <figure class="tm-card">
+            <i class="fa-solid fa-quote-right tm-quote"></i>
+            <div class="tm-stars sm">{% for i in range(fb.rating) %}<i class="fa-solid fa-star"></i>{% endfor %}{% for i in range(5 - fb.rating) %}<i class="fa-regular fa-star"></i>{% endfor %}</div>
+            <blockquote>{{ fb.comment }}</blockquote>
+            <figcaption class="tm-author">
+              <span class="tm-avatar">{{ (fb.user.username or 'T')[0]|upper }}</span>
+              <strong>{{ fb.user.username }}</strong>
+            </figcaption>
+          </figure>
           {% endfor %}
         {% else %}
-          <div class="testimonial-card active">
-            <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-            <p>"I found an amazing travel companion for my mom's flight to India. The service is incredible!"</p>
-            <div class="t-author"><i class="fa-solid fa-circle-user t-avatar"></i> <strong>Priya S., California</strong></div>
-          </div>
-          <div class="testimonial-card">
-            <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-            <p>"Finally a platform made for us! Connected with a family going the same route. Highly recommend."</p>
-            <div class="t-author"><i class="fa-solid fa-circle-user t-avatar"></i> <strong>Raj M., London</strong></div>
-          </div>
-          <div class="testimonial-card">
-            <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-            <p>"My elderly father had a wonderful companion on his long flight. Thank you Connecting Desis!"</p>
-            <div class="t-author"><i class="fa-solid fa-circle-user t-avatar"></i> <strong>Meera K., Toronto</strong></div>
-          </div>
+          {% for r in [
+            {'n': 'Priya S.', 'l': 'California', 'q': 'I found an amazing travel companion for my mom\'s flight to India. The service is incredible!'},
+            {'n': 'Raj M.', 'l': 'London', 'q': 'Finally a platform made for us! Connected with a family going the same route. Highly recommend.'},
+            {'n': 'Meera K.', 'l': 'Toronto', 'q': 'My elderly father had a wonderful companion on his long flight. Thank you Connecting Desis!'} ] %}
+          <figure class="tm-card">
+            <i class="fa-solid fa-quote-right tm-quote"></i>
+            <div class="tm-stars sm"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i></div>
+            <blockquote>{{ r.q }}</blockquote>
+            <figcaption class="tm-author">
+              <span class="tm-avatar">{{ r.n[0] }}</span>
+              <div><strong>{{ r.n }}</strong><small>{{ r.l }}</small></div>
+            </figcaption>
+          </figure>
+          {% endfor %}
         {% endif %}
       </div>
-      <div class="t-dots" id="tDots"></div>
+      <div class="tm-dots" id="tmDots" hidden></div>
+
       <div class="social-row">
+        <span class="social-label">Follow the community</span>
         <a href="#" title="Facebook"><i class="fa-brands fa-facebook"></i></a>
         <a href="#" title="Instagram"><i class="fa-brands fa-instagram"></i></a>
         <a href="#" title="Twitter/X"><i class="fa-brands fa-x-twitter"></i></a>
@@ -426,45 +620,86 @@
       </div>
     </div>
 
-    <div class="review-col">
-      <div class="section-header left">
-        <p class="section-tag">Your Voice Matters</p>
-        <h2>Leave a Review</h2>
-      </div>
-      {% if current_user.is_authenticated %}
-      <form id="reviewForm" class="review-form">
-        <div class="star-rating" id="starRating">
-          {% for i in range(1, 6) %}
-          <i class="fa-solid fa-star" data-val="{{ i }}" title="{{ i }} star"></i>
-          {% endfor %}
+    <div class="review-col" id="talk-to-us">
+      <div class="tu-head">
+        <div class="section-header left">
+          <p class="section-tag">Your Voice Matters</p>
+          <h2>Talk to us</h2>
         </div>
-        <input type="hidden" id="ratingValue" value="0"/>
-        <textarea id="reviewComment" placeholder="Share your experience..." rows="4"></textarea>
-        <button type="submit" class="btn btn-primary w-full">Submit Review</button>
-      </form>
-      {% else %}
-      <div class="review-login-prompt">
-        <p>Sign in to leave a review</p>
-        <a href="{{ url_for('auth.register') }}" class="btn btn-primary">Join Now</a>
+        <div class="tu-aside">
+          <span class="tu-badge"><span class="tu-dot"></span> A real person reads every message</span>
+          <a class="tu-line" href="mailto:{{ SUPPORT_EMAIL }}">
+            <i class="fa-solid fa-envelope"></i> <span>{{ SUPPORT_EMAIL }}</span>
+          </a>
+          <a class="tu-line" href="{{ url_for('main.help_page') }}">
+            <i class="fa-solid fa-circle-question"></i> <span>Browse the help centre</span>
+          </a>
+        </div>
       </div>
-      {% endif %}
+
+      <div class="hx-tabs" role="tablist">
+        <button type="button" class="hx-tab active" role="tab" data-tab="contact">
+          <i class="fa-solid fa-envelope"></i> Contact us
+        </button>
+        <button type="button" class="hx-tab" role="tab" data-tab="review">
+          <i class="fa-solid fa-star"></i> Leave a review
+        </button>
+      </div>
+
+      <!-- Contact (default) -->
+      <div class="hx-panel active" id="hx-contact" role="tabpanel">
+        <form id="homeContactForm" class="ct-form hx-form" novalidate>
+          <div class="ct-field">
+            <label for="hcName">Your name <span class="req">*</span></label>
+            <input type="text" id="hcName" name="name" maxlength="120" placeholder="Priya Sharma"
+                   value="{{ current_user.full_name if current_user.is_authenticated else '' }}"/>
+          </div>
+          <div class="ct-field">
+            <label for="hcEmail">E-mail <span class="req">*</span></label>
+            <input type="email" id="hcEmail" name="email" maxlength="255" placeholder="you@example.com"
+                   value="{{ current_user.email if current_user.is_authenticated else '' }}"/>
+          </div>
+          <div class="ct-field">
+            <label for="hcPhone">Phone <small class="muted">(optional)</small></label>
+            <input type="tel" id="hcPhone" name="phone" maxlength="30" placeholder="+91 98480 00000"
+                   value="{{ current_user.phone if current_user.is_authenticated else '' }}"/>
+          </div>
+          <div class="ct-field">
+            <label for="hcMessage">Message <span class="req">*</span></label>
+            <textarea id="hcMessage" name="message" rows="4" maxlength="4000" placeholder="How can we help?"></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary w-full"><i class="fa-solid fa-paper-plane"></i> Send message</button>
+        </form>
+      </div>
+
+      <!-- Review -->
+      <div class="hx-panel" id="hx-review" role="tabpanel">
+        {% if current_user.is_authenticated %}
+        <form id="reviewForm" class="review-form">
+          <div class="star-rating" id="starRating">
+            {% for i in range(1, 6) %}
+            <i class="fa-regular fa-star" data-val="{{ i }}" title="{{ i }} star{{ 's' if i > 1 }}"></i>
+            {% endfor %}
+            <span class="rate-label" id="rateLabel">Tap to rate</span>
+          </div>
+          <input type="hidden" id="ratingValue" value="0"/>
+          <textarea id="reviewComment" placeholder="Share your experience..." rows="4"></textarea>
+          <button type="submit" class="btn btn-primary w-full">Submit Review</button>
+        </form>
+        {% else %}
+        <div class="review-login-prompt">
+          <p>Sign in to leave a review</p>
+          <a href="{{ url_for('auth.register') }}" class="btn btn-primary">Join Now</a>
+        </div>
+        {% endif %}
+      </div>
     </div>
   </div>
 </section>
 
-<!-- ===== MOBILE CTA ===== -->
-<section class="app-bar">
-  <div class="app-bar-inner">
-    <div class="app-bar-text">
-      <h2>Works on your phone</h2>
-      <p>Connecting Desis is a mobile-friendly website — no app to install. Open it in your phone's browser and add it to your home screen for one-tap access.</p>
-      <div class="app-badges">
-        <a href="{{ url_for('main.all_trips') }}" class="app-badge"><i class="fa-solid fa-mobile-screen"></i><div><small>Browse</small><strong>Desis on Move</strong></div></a>
-        <a href="{{ url_for('auth.register') if not current_user.is_authenticated else url_for('main.dashboard') }}" class="app-badge"><i class="fa-solid fa-user-plus"></i><div><small>{{ 'Create your' if not current_user.is_authenticated else 'Open your' }}</small><strong>{{ 'free account' if not current_user.is_authenticated else 'dashboard' }}</strong></div></a>
-      </div>
-    </div>
-  </div>
-</section>
+
+
+</div><!-- /.landing -->
 
 {% include '_trip_modals.html' %}
 
@@ -472,7 +707,304 @@
 
 {% block extra_js %}
 <script>
-  const today = new Date().toISOString().split('T')[0];
+  // local calendar date (toISOString would roll over a day in timezones behind UTC)
+  const _p = n => String(n).padStart(2, '0');
+  const _n = new Date();
+  const today = `${_n.getFullYear()}-${_p(_n.getMonth() + 1)}-${_p(_n.getDate())}`;
   document.querySelectorAll('input[type=date]').forEach(el => el.min = today);
+
+  // hero "When" starts on today's date
+  const qWhenEl = document.getElementById('qWhen');
+  if (qWhenEl && !qWhenEl.value) qWhenEl.value = today;
+
+  // hero quick search feeds the main form and runs Find
+  const qGo = document.getElementById('qGo');
+  if (qGo) {
+    qGo.addEventListener('click', () => {
+      const move = (fromId, toId) => {
+        const src = document.getElementById(fromId), dst = document.getElementById(toId);
+        if (src && dst && src.value.trim()) dst.value = src.value.trim();
+      };
+      move('qFrom', 'flyingFrom');
+      move('qTo', 'destination');
+      const w = document.getElementById('qWhen');
+      if (w && (w.dataset.iso || w.value)) document.getElementById('fromDate').value = w.dataset.iso || w.value;
+      document.getElementById('findDesisBtn')?.click();
+      document.getElementById('results')?.scrollIntoView({ behavior: 'smooth' });
+    });
+    document.querySelectorAll('#quickSearch input').forEach(el =>
+      el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); qGo.click(); } }));
+  }
+  document.getElementById('heroPostTripBtn')?.addEventListener('click', () => {
+    document.getElementById('search')?.scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => document.getElementById('flyingFrom')?.focus({ preventScroll: true }), 500);
+  });
+
+  // Arriving on /#talk-to-us (or any anchor): the browser jumps before the trip grids
+  // have rendered, and that new content then pushes the target below the fold. Re-scroll
+  // once the async sections have filled in.
+  (function () {
+    const id = location.hash.slice(1);
+    if (!id) return;
+    const settle = () => {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    window.addEventListener('load', () => { settle(); setTimeout(settle, 700); setTimeout(settle, 1600); });
+  })();
+
+  // --- "Talk to us": Contact us (default) / Leave a review ---
+  (function () {
+    const tabs = [...document.querySelectorAll('.hx-tab')];
+    if (!tabs.length) return;
+    tabs.forEach(t => t.addEventListener('click', () => {
+      tabs.forEach(x => x.classList.toggle('active', x === t));
+      document.querySelectorAll('.hx-panel').forEach(p =>
+        p.classList.toggle('active', p.id === 'hx-' + t.dataset.tab));
+    }));
+
+    const form = document.getElementById('homeContactForm');
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = form.querySelector('button[type=submit]');
+      const body = {
+        name: document.getElementById('hcName').value.trim(),
+        email: document.getElementById('hcEmail').value.trim(),
+        phone: document.getElementById('hcPhone').value.trim(),
+        message: document.getElementById('hcMessage').value.trim(),
+      };
+      btn.disabled = true;
+      try {
+        const res = await apiFetch('/api/contact', { method: 'POST', body: JSON.stringify(body) });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message, 'success');
+          document.getElementById('hcMessage').value = '';
+          if (!IS_LOGGED_IN) { document.getElementById('hcName').value = ''; document.getElementById('hcEmail').value = ''; document.getElementById('hcPhone').value = ''; }
+        } else {
+          showToast(data.error || 'Could not send that just now.', 'danger');
+        }
+      } catch (err) {
+        showToast('Could not send that just now. Please try again.', 'danger');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  })();
+
+  // --- My Trips carousel: 2 rows x 4 columns per page ---
+  document.getElementById('myTripsPrev')?.addEventListener('click', () => myTripsNav(-1));
+  document.getElementById('myTripsNext')?.addEventListener('click', () => myTripsNav(1));
+
+  // --- ticket gate: read an e-ticket, or open the same form to fill by hand ---
+  (function () {
+    const gate = document.getElementById('tkGate');
+    const form = document.getElementById('searchForm');
+    if (!gate || !form) return;
+    const fileInput = document.getElementById('tkFile');
+    const status = document.getElementById('tkStatus');
+    const recap = document.getElementById('tkRecap');
+
+    const say = (cls, html) => { status.hidden = false; status.className = 'tk-status ' + cls; status.innerHTML = html; };
+
+    function openForm(scroll) {
+      gate.hidden = true;
+      form.hidden = false;
+      if (scroll) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // Non-destructive on purpose: going back keeps whatever is already typed or pre-filled,
+    // so a mis-click costs nothing. Uploading a different ticket overwrites those fields anyway.
+    function reopenGate() {
+      form.hidden = true;
+      gate.hidden = false;
+      status.hidden = true;
+      fileInput.value = '';
+      gate.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    document.getElementById('tkBackToGate')?.addEventListener('click', reopenGate);
+
+    // fill a field and let anything listening (validation, the calendar) know it changed
+    function setField(id, value) {
+      const el = document.getElementById(id);
+      if (!el || !value) return false;
+      el.value = value;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    }
+
+    document.getElementById('tkManual').addEventListener('click', () => openForm(true));
+    document.getElementById('tkPick').addEventListener('click', () => fileInput.click());
+    // the same uploader, available from inside the wizard on every step
+    document.getElementById('fwUpload')?.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      if (!IS_LOGGED_IN) { window.location = '/auth/login'; return; }
+
+      say('busy', '<i class="fa-solid fa-spinner fa-spin"></i> Reading ' + esc(file.name) + '…');
+      const fd = new FormData();
+      fd.append('ticket', file);
+
+      let data;
+      try {
+        const res = await fetch('/api/parse-ticket', {
+          method: 'POST', body: fd, credentials: 'same-origin',
+          headers: { 'X-CSRFToken': (document.querySelector('meta[name="csrf-token"]')?.content || '') },
+        });
+        data = await res.json();
+      } catch (e) {
+        say('warn', 'We could not read that file just now. You can still fill the form in yourself.');
+        setTimeout(() => openForm(true), 900);
+        return;
+      }
+
+      const filled = [];
+      Object.entries(data.fields || {}).forEach(([k, v]) => {
+        const id = { flying_from: 'flyingFrom', destination: 'destination', from_date: 'fromDate',
+                     to_date: 'toDate', airline: 'airlineSelect', flight_number: 'flightNumber' }[k];
+        if (id && setField(id, v)) filled.push(k);
+      });
+
+      // a return date means it is a round trip - keep the trip-type radios honest
+      if (data.fields && data.fields.to_date) {
+        const rt = document.querySelector('#tripTypeRow input[value="round_trip"]');
+        if (rt) { rt.checked = true; rt.dispatchEvent(new Event('change', { bubbles: true })); }
+      }
+      // the ticket exists, so it is booked
+      const booked = document.querySelector('input[name="ticket_booked"]');
+      if (booked && filled.length) booked.checked = true;
+
+      if (data.ok && filled.length) {
+        say('ok', '<i class="fa-solid fa-circle-check"></i> ' + esc(data.message));
+        recap.hidden = false;
+        recap.innerHTML = '<i class="fa-solid fa-file-circle-check"></i> <span>Pre-filled from <strong>' +
+          esc(file.name) + '</strong> — please check every field.</span>';
+        setTimeout(() => openForm(true), 700);
+      } else {
+        say('warn', '<i class="fa-solid fa-circle-info"></i> ' + esc(data.message || 'We could not read that ticket.'));
+        setTimeout(() => openForm(true), 1500);
+      }
+    });
+  })();
+
+  // --- post form: focused step-by-step flow ---
+  const fsteps = document.querySelectorAll('.fstep');
+  if (fsteps.length) {
+    const TOTAL = fsteps.length;
+    let fstep = 1;
+    const go = (n, scroll) => {
+      // Where the card sits on screen right now. Steps are different heights and the Next
+      // button lives below them, so swapping one moves everything underneath -- and the
+      // page lurching under a reader who has not moved is what reads as the form shaking.
+      const fform = document.getElementById('searchForm');
+      const wasAt = fform.getBoundingClientRect().top;
+      fstep = Math.min(TOTAL, Math.max(1, n));
+      fsteps.forEach(d => d.classList.toggle('active', +d.dataset.step === fstep));
+      document.getElementById('fwStepLabel').textContent = `Step ${fstep} of ${TOTAL}`;
+      document.getElementById('fwFill').style.width = ((fstep - 1) / (TOTAL - 1) * 100) + '%';
+      document.getElementById('fwBack').style.visibility = fstep === 1 ? 'hidden' : 'visible';
+      document.getElementById('fwNext').style.display = fstep === TOTAL ? 'none' : '';
+      document.getElementById('fwActions').style.display = fstep === TOTAL ? '' : 'none';
+      if (scroll) {
+        // Two frames: one for the new step to lay out, one for anything the browser does
+        // about the click. Then put the card back exactly where it was, instantly -- a
+        // smooth scroll here would animate against the reflow and be the visible jitter.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          // 'instant' matters: html has scroll-behavior:smooth, so a bare scrollBy would
+          // animate and the correction would itself be the movement we are removing.
+          const drift = fform.getBoundingClientRect().top - wasAt;
+          if (Math.abs(drift) > 1) window.scrollBy({ top: drift, behavior: 'instant' });
+          // ...and only chase it when the step really is off the top of the screen.
+          const top = fform.getBoundingClientRect().top;
+          if (top < 76) window.scrollBy({ top: top - 90, behavior: 'instant' });
+        }));
+      }
+    };
+    document.getElementById('fwNext').addEventListener('click', () => go(fstep + 1, true));
+    document.getElementById('fwBack').addEventListener('click', () => go(fstep - 1, true));
+    document.getElementById('fwSkip')?.addEventListener('click', () => {
+      document.getElementById('findDesisBtn')?.click();
+      document.getElementById('results')?.scrollIntoView({ behavior: 'smooth' });
+    });
+    go(1);
+
+    // --- inline calendar (When step) ---
+    const fromEl = document.getElementById('fromDate');
+    const toEl = document.getElementById('toDate');
+    const calWrap = document.getElementById('calMonths');
+    let calBase = new Date(); calBase.setDate(1);
+    const pad = n => String(n).padStart(2, '0');
+    const todayIso = `${new Date().getFullYear()}-${pad(new Date().getMonth() + 1)}-${pad(new Date().getDate())}`;
+    const niceD = ds => new Date(ds + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const isRound = () => document.getElementById('tripTypeHidden').value === 'round_trip';
+
+    function calMonth(y, m) {
+      const box = document.createElement('div'); box.className = 'cal-month';
+      const h = document.createElement('h4');
+      h.textContent = new Date(y, m, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+      box.appendChild(h);
+      const g = document.createElement('div'); g.className = 'cal-grid';
+      ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].forEach(d => { const sp = document.createElement('span'); sp.className = 'dow'; sp.textContent = d; g.appendChild(sp); });
+      for (let i = 0; i < new Date(y, m, 1).getDay(); i++) { const b = document.createElement('span'); b.className = 'cal-day blank'; g.appendChild(b); }
+      const days = new Date(y, m + 1, 0).getDate();
+      const start = fromEl.value, end = toEl ? toEl.value : '';
+      for (let d = 1; d <= days; d++) {
+        const ds = `${y}-${pad(m + 1)}-${pad(d)}`;
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'cal-day'; b.textContent = d;
+        if (ds < todayIso) b.disabled = true;
+        if (ds === start || (end && ds === end)) b.classList.add('sel');
+        if (start && end && ds > start && ds < end) b.classList.add('inr');
+        b.addEventListener('click', () => calPick(ds));
+        g.appendChild(b);
+      }
+      box.appendChild(g);
+      return box;
+    }
+    function calHint() {
+      const t = document.getElementById('calHintTitle'), sub = document.getElementById('calHintSub');
+      if (!t) return;
+      if (!fromEl.value) { t.textContent = 'Pick your departure date'; sub.textContent = isRound() ? 'Then tap your return date' : 'One tap on the calendar'; }
+      else if (isRound() && toEl && toEl.value) {
+        const days = Math.round((new Date(toEl.value) - new Date(fromEl.value)) / 86400000) + 1;
+        t.textContent = `Duration: ${days} day${days === 1 ? '' : 's'}`; sub.textContent = 'Start & end dates included';
+      } else if (isRound()) { t.textContent = `Departure: ${niceD(fromEl.value)}`; sub.textContent = 'Now tap your return date'; }
+      else { t.textContent = `Departure: ${niceD(fromEl.value)}`; sub.textContent = 'Tick "flexible dates" if you can shift a little'; }
+    }
+    function calRender() {
+      if (!calWrap) return;
+      calWrap.innerHTML = '';
+      const n = window.innerWidth < 820 ? 1 : 2;
+      for (let i = 0; i < n; i++) {
+        const d0 = new Date(calBase.getFullYear(), calBase.getMonth() + i, 1);
+        calWrap.appendChild(calMonth(d0.getFullYear(), d0.getMonth()));
+      }
+      calHint();
+    }
+    function calPick(ds) {
+      if (isRound() && fromEl.value && toEl && !toEl.value && ds > fromEl.value) toEl.value = ds;
+      else { fromEl.value = ds; if (toEl) toEl.value = ''; }
+      calRender();
+    }
+    document.getElementById('calPrev')?.addEventListener('click', () => {
+      const prev = new Date(calBase.getFullYear(), calBase.getMonth() - 1, 1);
+      const now = new Date();
+      if (prev.getFullYear() > now.getFullYear() || (prev.getFullYear() === now.getFullYear() && prev.getMonth() >= now.getMonth())) { calBase = prev; calRender(); }
+    });
+    document.getElementById('calNext')?.addEventListener('click', () => { calBase = new Date(calBase.getFullYear(), calBase.getMonth() + 1, 1); calRender(); });
+    [fromEl, toEl].forEach(el => el && el.addEventListener('change', calRender));
+    let _calRz; window.addEventListener('resize', () => { clearTimeout(_calRz); _calRz = setTimeout(calRender, 200); });
+    document.querySelectorAll('input[name=trip_type]').forEach(r => r.addEventListener('change', () => {
+      const isMulti = document.getElementById('tripTypeHidden').value === 'multi_destination';
+      document.getElementById('whenSingle').style.display = isMulti ? 'none' : '';
+      document.getElementById('whenMulti').style.display = isMulti ? '' : 'none';
+      calRender();
+    }));
+    calRender();
+  }
+
+
 </script>
 {% endblock %}

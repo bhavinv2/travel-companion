@@ -1,0 +1,236 @@
+{% extends 'base.html' %}
+{% block title %}Help &amp; FAQ – Admin{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='help' %}{% include 'admin/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <h1><i class="fa-solid fa-circle-question"></i> Help &amp; FAQ</h1>
+    <p class="opt-intro">Categories and questions for the public
+      <a href="{{ url_for('main.help_page') }}" target="_blank">Help page</a>. Saving publishes straight away.
+      {% if customised %}<span class="chip chip-open">customised</span>{% else %}<span class="chip">shipped defaults</span>{% endif %}
+    </p>
+
+    <form method="post" id="helpForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+      <!-- 1. categories -->
+      <section class="admin-card">
+        <div class="ac-head">
+          <h2><i class="fa-solid fa-folder-tree"></i> Categories</h2>
+          <button type="button" class="btn-sm-outline" onclick="addCat()"><i class="fa-solid fa-plus"></i> Add category</button>
+        </div>
+        <p class="muted small">Clearing a title deletes that category on save. The icon is a
+          <a href="https://fontawesome.com/search?o=r&amp;m=free" target="_blank" rel="noopener">Font Awesome</a>
+          name such as <code>fa-shield-halved</code>.</p>
+        <div class="hc-rows" id="catRows">
+          {% for c in categories %}
+          <div class="hc-row" data-key="{{ c.key }}">
+            <span class="hc-handle"><i class="fa-solid {{ c.icon }}"></i></span>
+            <input type="hidden" name="cat_key" value="{{ c.key }}"/>
+            <input type="text" name="cat_title" value="{{ c.title }}" placeholder="Category title" class="hc-title"/>
+            <select name="cat_icon" class="hc-icon" onchange="onIconChange(this)">
+              {% for k, label in icons %}<option value="{{ k }}" data-icon="{{ k }}" {{ 'selected' if k == c.icon }}>{{ label }}</option>{% endfor %}
+            </select>
+            <input type="text" name="cat_blurb" value="{{ c.blurb }}" placeholder="One line describing it" class="hc-blurb"/>
+            <button type="button" class="hc-del" onclick="delCat(this)" title="Remove"><i class="fa-solid fa-trash"></i></button>
+          </div>
+          {% endfor %}
+        </div>
+
+      </section>
+
+      <!-- 2. questions for the chosen category -->
+      <section class="admin-card">
+        <div class="ac-head">
+          <h2><i class="fa-solid fa-comments"></i> Questions in <span id="activeCatName">…</span></h2>
+          <span class="muted small" id="qCount"></span>
+        </div>
+
+        <!-- One chip per category. They pick which category's questions are below, so they
+             belong to this section rather than to the list of categories above. -->
+        <div class="hc-chipbar">
+          <span class="hc-chipbar-label">Pick a category</span>
+          <div class="hc-chips" id="catChips"></div>
+        </div>
+
+        <div class="hc-split">
+          <aside class="hc-side">
+            <button type="button" class="btn btn-outline-coral hc-side-btn" onclick="addFaq()">
+              <i class="fa-solid fa-plus"></i> Add question
+            </button>
+            <button type="submit" class="btn btn-primary hc-side-btn">
+              <i class="fa-solid fa-floppy-disk"></i> Save
+            </button>
+            <p class="muted small hc-side-note">Save publishes every category and question, not just this one.</p>
+            <button type="submit" name="action" value="reset" class="hc-reset"
+                    onclick="return confirm('Discard your version and restore the shipped questions?')">
+              Reset to defaults
+            </button>
+          </aside>
+
+          <div class="hc-faqs" id="faqRows">
+            {% for f in faqs %}
+            <div class="hc-faq" data-cat="{{ f.category }}">
+              <div class="hc-faq-top">
+                <input type="hidden" name="faq_id" value="{{ f.id }}"/>
+                <input type="text" name="faq_question" value="{{ f.question }}" placeholder="Question" class="hc-q"/>
+                <select name="faq_category" class="hc-cat" onchange="onCatChange(this)" title="Move to another category">
+                  {% for c in categories %}<option value="{{ c.key }}" {{ 'selected' if c.key == f.category }}>{{ c.title }}</option>{% endfor %}
+                </select>
+                <button type="button" class="hc-del" onclick="delFaq(this)" title="Remove"><i class="fa-solid fa-trash"></i></button>
+              </div>
+              <textarea name="faq_answer" rows="3" placeholder="Answer">{{ f.answer }}</textarea>
+            </div>
+            {% endfor %}
+            <div class="hc-empty-q" id="noQ" hidden>
+              <i class="fa-solid fa-comment-slash"></i>
+              <p>No questions in this category yet.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </form>
+  </main>
+</div>
+
+<template id="catTpl">
+  <div class="hc-row">
+    <span class="hc-handle"><i class="fa-solid fa-circle-question"></i></span>
+    <input type="hidden" name="cat_key" value=""/>
+    <input type="text" name="cat_title" value="" placeholder="Category title" class="hc-title"/>
+    <select name="cat_icon" class="hc-icon" onchange="onIconChange(this)">
+      {% for k, label in icons %}<option value="{{ k }}" data-icon="{{ k }}">{{ label }}</option>{% endfor %}
+    </select>
+    <input type="text" name="cat_blurb" value="" placeholder="One line describing it" class="hc-blurb"/>
+    <button type="button" class="hc-del" onclick="delCat(this)" title="Remove"><i class="fa-solid fa-trash"></i></button>
+  </div>
+</template>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let activeCat = null;
+
+/* A brand-new category has no key yet; the server slugs it on save. Until then we give it a
+   temporary one so its chip and its questions can find each other on this page. */
+function catRows() { return [...document.querySelectorAll('#catRows .hc-row')]; }
+
+function keyOf(row) {
+  // A temporary id only for wiring chips to questions on this page. It is deliberately NOT
+  // written into cat_key: leaving that blank lets the server slug the key from the title,
+  // so a new category gets /help/baggage rather than /help/new_xi17e7.
+  if (!row.dataset.tmpKey) row.dataset.tmpKey = 'new_' + Math.random().toString(36).slice(2, 8);
+  const hidden = row.querySelector('input[name="cat_key"]');
+  return hidden.value || row.dataset.tmpKey;
+}
+
+function catList() {
+  return catRows()
+    .map(r => ({ key: keyOf(r), title: r.querySelector('.hc-title').value.trim(),
+                 icon: (r.querySelector('.hc-icon').value || 'fa-circle-question').trim() }))
+    .filter(c => c.title);
+}
+
+function faqRows() { return [...document.querySelectorAll('#faqRows .hc-faq')]; }
+
+function renderChips() {
+  const cats = catList();
+  // Keep a just-added row selected while its title is still blank: catList() drops
+  // untitled rows, so testing against cats alone would bounce the user back to the first
+  // category the moment they clicked "Add category".
+  const present = catRows().map(r => keyOf(r));
+  if (!present.includes(activeCat)) activeCat = cats.length ? cats[0].key : null;
+  const bar = document.getElementById('catChips');
+  bar.innerHTML = '';
+  cats.forEach(c => {
+    const n = faqRows().filter(r => r.dataset.cat === c.key).length;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'hc-chip' + (c.key === activeCat ? ' is-on' : '');
+    b.innerHTML = `<i class="fa-solid ${c.icon}"></i><span>${c.title.replace(/</g, '&lt;')}</span>` +
+                  `<span class="hc-chip-n">${n}</span>`;
+    b.addEventListener('click', () => { activeCat = c.key; renderChips(); });
+    bar.appendChild(b);
+  });
+  // every question select must list the categories currently on screen
+  const opts = cats.map(c => `<option value="${c.key}">${c.title.replace(/</g, '&lt;')}</option>`).join('');
+  faqRows().forEach(r => {
+    const sel = r.querySelector('.hc-cat');
+    const keep = r.dataset.cat;
+    sel.innerHTML = opts;
+    sel.value = cats.some(c => c.key === keep) ? keep : (cats[0] ? cats[0].key : '');
+    r.dataset.cat = sel.value;
+    if (window.syncSearchSelect) window.syncSearchSelect(sel);
+  });
+  showActive(cats);
+}
+
+function showActive(cats) {
+  const cat = (cats || catList()).find(c => c.key === activeCat);
+  document.getElementById('activeCatName').textContent =
+    cat ? cat.title : (activeCat ? 'your new category' : '—');
+  let shown = 0;
+  faqRows().forEach(r => {
+    const on = r.dataset.cat === activeCat;
+    r.hidden = !on;
+    if (on) shown++;
+  });
+  document.getElementById('noQ').hidden = shown > 0;
+  document.getElementById('qCount').textContent =
+    shown + ' question' + (shown === 1 ? '' : 's') + ' here';
+}
+
+function onCatChange(sel) {
+  sel.closest('.hc-faq').dataset.cat = sel.value;
+  renderChips();
+}
+
+function addCat() {
+  document.getElementById('catRows').appendChild(
+    document.getElementById('catTpl').content.cloneNode(true));
+  const rows = catRows();
+  const row = rows[rows.length - 1];
+  row.querySelector('.hc-title').focus();
+  row.querySelectorAll('input, select').forEach(i => i.addEventListener('input', renderChips));
+  activeCat = keyOf(row);
+  renderChips();
+}
+
+function onIconChange(sel) {
+  const row = sel.closest('.hc-row');
+  row.querySelector('.hc-handle i').className = 'fa-solid ' + sel.value;
+  renderChips();
+}
+
+function delCat(btn) {
+  btn.closest('.hc-row').remove();
+  renderChips();
+}
+
+function addFaq() {
+  if (!activeCat) { alert('Add a category first.'); return; }
+  const wrap = document.createElement('div');
+  wrap.className = 'hc-faq';
+  wrap.dataset.cat = activeCat;
+  wrap.innerHTML =
+    '<div class="hc-faq-top">' +
+      '<input type="hidden" name="faq_id" value=""/>' +
+      '<input type="text" name="faq_question" placeholder="Question" class="hc-q"/>' +
+      '<select name="faq_category" class="hc-cat" onchange="onCatChange(this)"></select>' +
+      '<button type="button" class="hc-del" onclick="delFaq(this)" title="Remove"><i class="fa-solid fa-trash"></i></button>' +
+    '</div>' +
+    '<textarea name="faq_answer" rows="3" placeholder="Answer"></textarea>';
+  document.getElementById('faqRows').insertBefore(wrap, document.getElementById('noQ'));
+  renderChips();
+  wrap.querySelector('.hc-q').focus();
+}
+
+function delFaq(btn) {
+  btn.closest('.hc-faq').remove();
+  renderChips();
+}
+
+catRows().forEach(r => r.querySelectorAll('input, select').forEach(i => i.addEventListener('input', renderChips)));
+renderChips();
+</script>
+{% endblock %}

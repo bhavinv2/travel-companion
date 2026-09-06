@@ -8,8 +8,17 @@ blog_bp = Blueprint('blog', __name__)
 
 @blog_bp.route('/blog')
 def blog_list():
-    posts = Blog.query.filter_by(is_published=True).order_by(Blog.published_at.desc()).all()
-    return render_template('pages/blog.html', posts=posts)
+    try:
+        page = max(int(request.args.get('page') or 1), 1)
+    except ValueError:
+        page = 1
+    per_page = 12
+    query = Blog.query.filter_by(is_published=True).order_by(Blog.published_at.desc())
+    total = query.count()
+    pages = max((total + per_page - 1) // per_page, 1)
+    page = min(page, pages)
+    posts = query.offset((page - 1) * per_page).limit(per_page).all()
+    return render_template('pages/blog.html', posts=posts, page=page, pages=pages)
 
 
 @blog_bp.route('/blog/<slug>')

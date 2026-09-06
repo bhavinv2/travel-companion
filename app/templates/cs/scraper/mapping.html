@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}Field mapping – {{ recipe.name }} – CS Console{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='scraper' %}{% include 'cs/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <div class="card-head">
+      <h1>Field mapping · {{ recipe.name }}</h1>
+      <div><a class="btn-sm" href="{{ url_for('scraper.recipe_runs', recipe_id=recipe.id) }}">Runs &amp; rows</a> <a class="btn-sm" href="{{ url_for('scraper.recipes') }}">Recipes</a></div>
+    </div>
+    <p class="muted">Tell the app which scraped column feeds which post field. Columns mapped to <em>Title</em> or <em>Message</em> are merged into the post's comments; <em>Contact</em> auto-detects e-mail / phone / Facebook. Unmapped columns are ignored.</p>
+
+    <div class="detail-grid">
+      <div class="admin-card">
+        <form method="POST" id="mappingForm" data-recipe-id="{{ recipe.id }}" data-row-id="{{ sample_row.id if sample_row else '' }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <input type="hidden" name="next" value="{{ request.args.get('next', '') }}"/>
+          <div class="table-wrap"><table class="admin-table mapping-table stack-mobile">
+            <thead><tr><th>Scraped column</th><th>Sample</th><th>Post field</th></tr></thead>
+            <tbody>
+            {% for col in columns %}
+              <tr>
+                <td data-label="Scraped column"><code>{{ col }}</code></td>
+                <td data-label="Sample"><small class="muted">{{ (samples.get(col, '')|string)[:70] or '—' }}</small></td>
+                <td data-label="Post field" class="map-target">
+                  <select name="map__{{ col }}" data-col="{{ col }}">
+                    {% for key, label in targets %}<option value="{{ key }}" {{ 'selected' if mapping.get(col, 'ignore') == key }}>{{ label }}</option>{% endfor %}
+                  </select>
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody></table></div>
+          <div class="form-row" style="margin-top:12px">
+            <div class="field-group"><label>Create posts as</label>
+              <select name="default_source"><option value="website" {{ 'selected' if recipe.default_source == 'website' }}>website</option><option value="facebook" {{ 'selected' if recipe.default_source == 'facebook' }}>facebook</option></select></div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save mapping</button>
+          </div>
+        </form>
+      </div>
+      <div class="admin-card">
+        <h2>Mapped preview {% if sample_row %}<small class="muted">(row #{{ sample_row.id }})</small>{% endif %}</h2>
+        <div id="mappingPreview" class="dl">
+          {% if not sample_row %}<p class="muted">Run the recipe once to preview how a scraped row becomes a post.</p>{% endif %}
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/scraper.js') }}"></script>
+{% if preview %}<script>renderMappedPreview(document.getElementById('mappingPreview'), {{ preview|tojson }});</script>{% endif %}
+{% endblock %}

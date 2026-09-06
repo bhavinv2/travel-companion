@@ -96,10 +96,10 @@ def claim_page(token):
         ActivityEvent.log('post_claimed', trip, actor=user, token_id=tok.id,
                           contact_types=sorted({r['type'] for r in rows}))
         if trip.created_by_id:
-            db.session.add(Notification(user_id=trip.created_by_id, type='post_claimed',
-                                        title='Post confirmed',
-                                        body=f'{name} confirmed post #{trip.id} ({trip.route_display}).',
-                                        link=f'/cs/posts/{trip.id}'))
+            from app.services import notify
+            notify.push(trip.created_by_id, 'post_claimed', title='Post confirmed',
+                        body=f'{name} confirmed post #{trip.id} ({trip.route_display}).',
+                        link=f'/cs/posts/{trip.id}')
         db.session.commit()
         from app.services import matching
         matching.compute_matches_for(trip, actor=user)

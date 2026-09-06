@@ -1,7 +1,8 @@
 """E-mail sending that never raises and reports whether a message went out.
 
 Providers (MAIL_PROVIDER): 'smtp' (Flask-Mail, default) or 'sendgrid' (HTTPS API, SENDGRID_API_KEY).
-Every message is also appended to OUTBOX so tests and dev tooling can inspect what would have been sent.
+Every sent message is appended to OUTBOX so tests and dev tooling can inspect what went out; messages
+stopped by the notification switches (see app/services/notify.py) are recorded in notify.SUPPRESSED instead.
 """
 import logging
 from flask import current_app, render_template
@@ -45,14 +46,19 @@ def _send_sendgrid(subject, recipients, body, reply_to):
     return True
 
 
-def send(subject, recipients, body, reply_to=None):
-    """Return True if the message was handed to the mail provider, False otherwise."""
+def send(subject, recipients, body, reply_to=None, category='other'):
+    """Return True if the message was handed to the mail provider, False otherwise.
+
+    `category` is one of app.models.NOTIFY_CATEGORIES ('account', 'match_alerts', …) and is checked
+    against the global notification switches and the recipient's preferences before anything is sent.
+    """
+    from app.services import notify
     if isinstance(recipients, str):
         recipients = [recipients]
-    recipients = [r for r in recipients if r]
-    OUTBOX.append({'subject': subject, 'recipients': list(recipients), 'body': body})
+    recipients = [r for r in recipients if r and notify.email_allowed(category, r)]
     if not recipients:
         return False
+    OUTBOX.append({'subject': subject, 'recipients': list(recipients), 'body': body, 'category': category})
     if current_app.config.get('TESTING') or current_app.config.get('MAIL_SUPPRESS_SEND'):
         return True
     try:
@@ -64,6 +70,6 @@ def send(subject, recipients, body, reply_to=None):
         return False
 
 
-def send_template(subject, recipients, template, **ctx):
+def send_template(subject, recipients, template, category='other', **ctx):
     body = render_template(template, **ctx)
-    return send(subject, recipients, body)
+    return send(subject, recipients, body, category=category)

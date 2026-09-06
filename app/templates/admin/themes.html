@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+{% block title %}Colour themes – Admin{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='themes' %}{% include 'admin/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <h1><i class="fa-solid fa-palette"></i> Colour themes</h1>
+      <p class="opt-intro">Pick six brand colours; every hover state, tint and shadow is derived from them.
+          The active theme applies to the whole public site.
+          {% if customised %}<span class="chip chip-open">customised</span>{% else %}<span class="chip">shipped palettes</span>{% endif %}
+        </p>
+
+    <form method="post" id="themeForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+      <div class="th-grid" id="themeGrid">
+        {% for t in themes %}
+        <section class="th-card {{ 'is-active' if t.key == active_key }}" data-key="{{ t.key }}">
+          <div class="th-top">
+            <input type="hidden" name="t_key" value="{{ t.key }}"/>
+            <input type="text" name="t_name" value="{{ t.name }}" class="th-name" placeholder="Theme name"/>
+            {# Which theme is live is a radio on the same form as the colours, so choosing one
+               and editing colours save together — picking a theme can never discard an edit. #}
+            <div class="th-picks">
+              <label class="th-pick{{ ' is-live' if t.key == active_key }}">
+                <input type="radio" name="active" value="{{ t.key }}"
+                       {{ 'checked' if t.key == active_key }} onchange="markLive(this)"/>
+                <i class="fa-solid fa-circle-check"></i>
+                <span>{{ 'Live' if t.key == active_key else 'Use this' }}</span>
+              </label>
+              {# The palette the site ships with -- the one Reset to defaults comes back to. #}
+              {% if t.key == default_key %}<span class="th-default">default</span>{% endif %}
+            </div>
+          </div>
+
+          <div class="th-swatches">
+            {% for f, label, help in fields %}
+            <label class="th-swatch" title="{{ help }}">
+              <input type="color" name="t_{{ f }}" value="{{ t.colors[f] }}"
+                     oninput="paint(this)" data-var="{{ f }}"/>
+              <span class="th-sw-label">{{ label }}</span>
+              <code>{{ t.colors[f] }}</code>
+            </label>
+            {% endfor %}
+          </div>
+
+          {# live preview of what those colours actually build #}
+          <div class="th-preview" style="{% for k, v in preview[t.key].items() %}{{ k }}:{{ v }};{% endfor %}">
+            <div class="thp-bar"><span class="thp-dot"></span> Connecting Desis</div>
+            <div class="thp-body">
+              <p class="thp-h">Find your travel companion</p>
+              <p class="thp-p">Matched on route, dates and language.</p>
+              <span class="thp-btn">Find companions</span>
+              <span class="thp-btn2">Post a trip</span>
+              <span class="thp-chip">connected</span>
+            </div>
+          </div>
+
+          {% if warnings[t.key] %}
+          <ul class="th-warn">
+            {% for w in warnings[t.key] %}<li><i class="fa-solid fa-triangle-exclamation"></i> {{ w }}</li>{% endfor %}
+          </ul>
+          {% endif %}
+
+          <div class="th-foot">
+            <button type="submit" name="action" value="delete" class="th-del"
+                    onclick="document.getElementById('delKey').value='{{ t.key }}'">
+              <i class="fa-solid fa-trash"></i> Delete
+            </button>
+            {# Save lives with the theme it saves. Every card is on one form, so this
+               commits the colours of all of them plus whichever is marked live -- which
+               is what keeps picking a theme from ever discarding an unsaved edit. #}
+            <button type="submit" name="action" value="save" class="btn btn-primary th-save">
+              <i class="fa-solid fa-floppy-disk"></i> Save &amp; apply
+            </button>
+          </div>
+        </section>
+        {% endfor %}
+      </div>
+
+      <input type="hidden" name="key" id="delKey" value=""/>
+
+      <div class="th-actions">
+        <button type="button" class="btn-sm-outline" onclick="addTheme()"><i class="fa-solid fa-plus"></i> New theme</button>
+        <button type="submit" name="action" value="reset" class="btn-sm-outline danger"
+                onclick="return confirm('Discard your themes and restore the shipped palettes?')">Reset to defaults</button>
+      </div>
+    </form>
+  </main>
+</div>
+
+<template id="themeTpl">
+  <section class="th-card">
+    <div class="th-top">
+      <input type="hidden" name="t_key" value=""/>
+      <input type="text" name="t_name" value="" class="th-name" placeholder="Theme name"/>
+      <label class="th-pick th-pick-new" title="Save first, then you can make it live">
+        <i class="fa-solid fa-circle-check"></i><span>Unsaved</span>
+      </label>
+    </div>
+    <div class="th-swatches">
+      {% for f, label, help in fields %}
+      <label class="th-swatch" title="{{ help }}">
+        <input type="color" name="t_{{ f }}" value="{{ themes[0].colors[f] }}" oninput="paint(this)" data-var="{{ f }}"/>
+        <span class="th-sw-label">{{ label }}</span>
+        <code>{{ themes[0].colors[f] }}</code>
+      </label>
+      {% endfor %}
+    </div>
+    <p class="muted small th-newnote">Name it and save — the preview appears once it is stored.</p>
+  </section>
+</template>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// reflect the choice straight away; the server still decides on save
+/* The whole card is the target: clicking a swatch, the preview or just the card body
+   picks that theme, which is what reveals its Save button. Hunting for the small "Use
+   this" pill was the only way in before. Anything you can actually interact with -- the
+   name field, a colour input, Delete, Save -- keeps its own behaviour. */
+function wireCardPick() {
+  document.querySelectorAll('.th-grid .th-card').forEach(card => {
+    const radio = card.querySelector('input[name="active"]');
+    if (!radio) return;                       // the "new theme" card has none yet
+    card.addEventListener('click', e => {
+      if (e.target.closest('input, button, a, label, textarea, select')) return;
+      if (radio.checked) return;
+      radio.checked = true;
+      markLive(radio);
+    });
+  });
+}
+
+function markLive(radio) {
+  document.querySelectorAll('.th-card').forEach(card => {
+    const r = card.querySelector('input[name="active"]');
+    const pick = card.querySelector('.th-pick');
+    const on = !!r && r.checked;
+    card.classList.toggle('is-active', on);
+    if (pick && !pick.classList.contains('th-pick-new')) {
+      pick.classList.toggle('is-live', on);
+      pick.querySelector('span').textContent = on ? 'Live' : 'Use this';
+    }
+  });
+}
+wireCardPick();
+
+function paint(input) {
+  const code = input.closest('.th-swatch').querySelector('code');
+  if (code) code.textContent = input.value;
+}
+function addTheme() {
+  const node = document.getElementById('themeTpl').content.cloneNode(true);
+  document.getElementById('themeGrid').appendChild(node);
+  const cards = document.querySelectorAll('.th-card');
+  cards[cards.length - 1].querySelector('.th-name').focus();
+}
+</script>
+{% endblock %}

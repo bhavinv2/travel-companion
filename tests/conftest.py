@@ -22,6 +22,12 @@ def app(tmp_path):
     })
     with app.app_context():
         _db.create_all()
+        from app.services import settings as _settings
+        _settings.clear_cache()          # per-process settings cache must not leak between test databases
+        from app.services import locations as _locations
+        _locations.reset_cache()         # same for the airport index (custom airports live in each test DB)
+        from app.services import airlines as _airlines
+        _airlines.reset_cache()
         yield app
         _db.session.remove()
         _db.drop_all()
@@ -53,6 +59,11 @@ def user(app):
 @pytest.fixture()
 def other_user(app):
     return make_user('alice@test.com', 'alice')
+
+
+@pytest.fixture()
+def third_user(app):
+    return make_user('carol@test.com', 'carol')
 
 
 @pytest.fixture()

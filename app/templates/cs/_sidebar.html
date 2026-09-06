@@ -1,15 +1,19 @@
 <aside class="admin-sidebar">
   <h3>CS Console</h3>
+  <button type="button" class="rail-toggle" data-rail-toggle
+          aria-label="Collapse the menu" aria-expanded="true" title="Collapse the menu">
+    <i class="fa-solid fa-bars"></i>
+  </button>
   <nav>
-    <a href="{{ url_for('cs.home') }}" class="{{ 'active' if active == 'home' }}"><i class="fa-solid fa-inbox"></i> Queues</a>
-    <a href="{{ url_for('cs.posts') }}" class="{{ 'active' if active == 'posts' }}"><i class="fa-solid fa-list"></i> All Posts</a>
-    <a href="{{ url_for('matches.cs_match_queue') }}" class="{{ 'active' if active == 'matches' }}"><i class="fa-solid fa-handshake"></i> Match Queue</a>
-    <a href="{{ url_for('cs.new_post') }}" class="{{ 'active' if active == 'new' }}"><i class="fa-solid fa-plus"></i> New Post</a>
-    <a href="{{ url_for('imports.import_page') }}" class="{{ 'active' if active == 'import' }}"><i class="fa-solid fa-file-import"></i> Import</a>
-    <a href="{{ url_for('cs.metrics') }}" class="{{ 'active' if active == 'metrics' }}"><i class="fa-solid fa-chart-simple"></i> Metrics</a>
-    <a href="{{ url_for('main.all_trips') }}"><i class="fa-solid fa-eye"></i> Public view</a>
+    <a href="{{ url_for('cs.home') }}" class="{{ 'active' if active == 'home' }}" title="Queues"><i class="fa-solid fa-inbox"></i> <span>Queues</span></a>
+    <a href="{{ url_for('cs.posts') }}" class="{{ 'active' if active == 'posts' }}" title="All Posts"><i class="fa-solid fa-list"></i> <span>All Posts</span></a>
+    <a href="{{ url_for('matches.cs_match_queue') }}" class="{{ 'active' if active == 'matches' }}" title="Match Queue"><i class="fa-solid fa-handshake"></i> <span>Match Queue</span></a>
+    <a href="{{ url_for('cs.new_post') }}" class="{{ 'active' if active == 'new' }}" title="New Post"><i class="fa-solid fa-plus"></i> <span>New Post</span></a>
+    <a href="{{ url_for('imports.import_page') }}" class="{{ 'active' if active == 'import' }}" title="Import"><i class="fa-solid fa-file-import"></i> <span>Import</span></a>
+    <a href="{{ url_for('cs.voices') }}" class="{{ 'active' if active == 'voices' }}" title="User Voices"><i class="fa-solid fa-comment-dots"></i> <span>User Voices</span></a>
+    <a href="{{ url_for('cs.metrics') }}" class="{{ 'active' if active == 'metrics' }}" title="Metrics"><i class="fa-solid fa-chart-simple"></i> <span>Metrics</span></a>
     {% if current_user.is_admin %}
-    <a href="{{ url_for('admin.dashboard') }}"><i class="fa-solid fa-gauge"></i> Admin</a>
+    <a href="{{ url_for('scraper.recipes') }}" class="{{ 'active' if active == 'scraper' }}" title="Scraper"><i class="fa-solid fa-spider"></i> <span>Scraper</span></a>
     {% endif %}
   </nav>
 </aside>
