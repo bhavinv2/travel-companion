@@ -305,6 +305,21 @@ def _round_trip(db, user, out_date=D20, back_date=D27, **kw):
     return _make(db, user, trip_type='round_trip', from_date=out_date, to_date=back_date, **kw)
 
 
+def test_round_trip_return_leg_uses_its_own_flight(app, db, user):
+    from app.services import legs as legs_svc
+    t = _round_trip(db, user, airline='Qatar Airways', flight_number='QR573',
+                    return_airline='Emirates', return_flight_number='EK500')
+    derived = legs_svc.derive(t)
+    out = next(l for l in derived if l['kind'] == 'outbound')
+    back = next(l for l in derived if l['kind'] == 'return')
+    assert (out['airline'], out['flight_number']) == ('Qatar Airways', 'QR573')
+    assert (back['airline'], back['flight_number']) == ('Emirates', 'EK500')      # not the outbound
+    # with no return flight given, the return falls back to the outbound
+    t2 = _round_trip(db, user, airline='Air India', flight_number='AI101')
+    back2 = next(l for l in legs_svc.derive(t2) if l['kind'] == 'return')
+    assert (back2['airline'], back2['flight_number']) == ('Air India', 'AI101')
+
+
 def _multi(db, user, hops, **kw):
     """hops: [(from, to, 'YYYY-MM-DD'), ...]"""
     legs = [{'from': f, 'to': t, 'date': d, 'airline': None, 'flight_number': None}

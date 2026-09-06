@@ -46,6 +46,54 @@ def test_anonymous_trip_hides_user_id_from_others(client, user, other_user):
     assert res[0]['additional_comments'] is None and res[0]['is_own'] is False
 
 
+def test_post_trip_stores_per_person_travellers(client, user, db):
+    """A trip for a group keeps each person's own age/gender/needs, and collapses to the
+    trip-level summary the matcher uses (one companion for the whole group)."""
+    login(client, 'bob@test.com')
+    r = client.post('/api/post-trip', json={**TRIP_JSON, 'travellers': [
+        {'who': 'my_mother', 'age_group': '60_plus', 'gender': 'female', 'needs': ['wheelchair', 'language']},
+        {'who': 'my_child', 'age_group': 'under_18', 'gender': 'male', 'needs': ['language']},
+    ]})
+    assert r.status_code == 201, r.get_json()
+    t = r.get_json()['trip']
+    assert len(t['travellers']) == 2
+    assert t['travellers'][0] == {'who': 'my_mother', 'age_group': '60_plus',
+                                  'gender': 'female', 'needs': ['wheelchair', 'language']}
+    trip = db.session.get(CompanionRequest, t['id'])
+    # summary the matcher/cards read: age/gender from the first traveller, needs the union
+    assert trip.traveler_age_group == '60_plus' and trip.traveler_gender == 'female'
+    assert sorted(trip.traveller_needs) == ['language', 'wheelchair']
+
+
+def test_post_trip_drops_empty_and_invalid_travellers(client, user, db):
+    login(client, 'bob@test.com')
+    r = client.post('/api/post-trip', json={**TRIP_JSON, 'travellers': [
+        {'who': '', 'age_group': '18_30'},                       # no who -> dropped
+        {'who': 'myself', 'age_group': 'nonsense', 'gender': 'x'},  # bad enums -> nulled
+    ]})
+    t = r.get_json()['trip']
+    assert len(t['travellers']) == 1
+    assert t['travellers'][0]['who'] == 'myself'
+    assert t['travellers'][0]['age_group'] is None and t['travellers'][0]['gender'] is None
+
+
+def test_modify_trip_updates_travellers(client, user, db):
+    login(client, 'bob@test.com')
+    tid = client.post('/api/post-trip', json={**TRIP_JSON, 'travellers': [
+        {'who': 'myself', 'age_group': '18_30', 'gender': 'male', 'needs': []},
+    ]}).get_json()['trip']['id']
+    r = client.put(f'/api/trip/{tid}', json={'travellers': [
+        {'who': 'my_mother', 'age_group': '60_plus', 'gender': 'female', 'needs': ['wheelchair']},
+        {'who': 'my_father', 'age_group': '60_plus', 'gender': 'male', 'needs': []},
+    ]})
+    assert r.get_json()['success'], r.get_json()
+    trip = db.session.get(CompanionRequest, tid)
+    assert [x['who'] for x in trip.travellers] == ['my_mother', 'my_father']
+    assert trip.on_behalf_of == 'my_mother,my_father'
+    assert trip.traveler_age_group == '60_plus' and trip.traveler_gender == 'female'
+    assert trip.traveller_needs == ['wheelchair']
+
+
 def test_search_filters_role_and_bounds_limit(client, user):
     login(client, 'bob@test.com')
     client.post('/api/post-trip', json=TRIP_JSON)

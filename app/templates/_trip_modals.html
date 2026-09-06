@@ -163,37 +163,52 @@
               <label for="etFlight">Flight number</label>
               <input type="text" id="etFlight" name="flight_number" placeholder="e.g. AI 101"/>
             </div>
+            <div class="et-field" id="etReturnAirlineField" hidden>
+              <label for="etReturnAirline">Return airline <span class="muted">(if different)</span></label>
+              <div class="input-with-icon"><i class="fa-solid fa-plane-arrival field-icon"></i>
+                <input type="text" id="etReturnAirline" name="return_airline" class="autocomplete-airline" placeholder="Search airline…"/></div>
+            </div>
+            <div class="et-field" id="etReturnFlightField" hidden>
+              <label for="etReturnFlight">Return flight no <span class="muted">(if different)</span></label>
+              <input type="text" id="etReturnFlight" name="return_flight_number" placeholder="e.g. AI 102"/>
+            </div>
           </div>
         </section>
 
         <section class="et-card">
-          <h3 class="et-card-h"><i class="fa-solid fa-user"></i> The traveller</h3>
-          <div class="et-grid">
-            <div class="et-field">
-              <label for="etOnBehalf">Who's this trip for?</label>
-              <select id="etOnBehalf" name="on_behalf_of"><option value="">Select</option>
-                {% for val, label in OPT.ON_BEHALF_OF %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
-              </select>
+          <h3 class="et-card-h"><i class="fa-solid fa-user"></i> Who's travelling?</h3>
+          <p class="et-hint">Everyone on this trip — we find <strong>one companion for the whole group</strong>. Each person can have their own age, gender and the help they'd appreciate.</p>
+          <div id="etTravellersRows"></div>
+          <button type="button" class="btn-sm-outline" id="etAddTravellerBtn"><i class="fa-solid fa-user-plus"></i> Add another traveller</button>
+          <template id="etTravellerTpl">
+            <div class="tv-card">
+              <div class="tv-head"><span class="tv-badge"><i class="fa-solid fa-user"></i> Traveller <span class="tv-n"></span></span>
+                <button type="button" class="tv-x" title="Remove"><i class="fa-solid fa-xmark"></i></button></div>
+              <div class="et-grid">
+                <div class="et-field">
+                  <label>Who is it? <span class="req">*</span></label>
+                  <select class="tv-who"><option value="">Select</option>{% for v, l in OPT.ON_BEHALF_OF %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+                </div>
+                <div class="et-field">
+                  <label>Age group</label>
+                  <select class="tv-age"><option value="">Prefer not to say</option>{% for a in AGE_GROUPS %}<option value="{{ a }}">{{ AGE_GROUP_LABELS[a] }}</option>{% endfor %}</select>
+                </div>
+                <div class="et-field">
+                  <label>Gender</label>
+                  <select class="tv-gender"><option value="">Prefer not to say</option>{% for g in GENDERS %}<option value="{{ g }}">{{ g|capitalize }}</option>{% endfor %}</select>
+                </div>
+                <div class="et-field et-wide">
+                  <label>Help they'll appreciate</label>
+                  <div class="multi-select-wrapper tv-needs">
+                    <button type="button" class="multi-select-btn">
+                      <span class="ms-label" data-placeholder="Pick any help they'll appreciate">Pick any help they'll appreciate</span> <i class="fa-solid fa-chevron-down"></i>
+                    </button>
+                    <div class="multi-dropdown">{% for v, l in OPT.TRAVELLER_NEEDS %}<label><input type="checkbox" class="tv-need" value="{{ v }}"/> {{ l }}</label>{% endfor %}</div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="et-field">
-              <label for="etAge">Their age group</label>
-              <select id="etAge" name="traveler_age_group"><option value="">Prefer not to say</option>
-                {% for a in AGE_GROUPS %}<option value="{{ a }}">{{ AGE_GROUP_LABELS[a] }}</option>{% endfor %}
-              </select>
-            </div>
-            <div class="et-field">
-              <label for="etGender">Their gender</label>
-              <select id="etGender" name="traveler_gender"><option value="">Prefer not to say</option>
-                {% for g in GENDERS %}<option value="{{ g }}">{{ g|capitalize }}</option>{% endfor %}
-              </select>
-            </div>
-            <div class="et-field et-wide">
-              <label for="etNeeds">Any help they'll appreciate?</label>
-              <select id="etNeeds" name="traveller_needs" multiple data-placeholder="No particular needs">
-                {% for v, l in OPT.TRAVELLER_NEEDS %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
-              </select>
-            </div>
-          </div>
+          </template>
         </section>
 
         <section class="et-card">

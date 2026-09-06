@@ -15,6 +15,7 @@ cp .env.example .env
 # Edit .env — for local dev, use SQLite by leaving DATABASE_URL as sqlite:///dev.db
 
 # Apply database migrations (the migrations/ folder is already in the repo - do not run `flask db init`)
+# Deployed containers do this automatically on start (see Dockerfile CMD / Procfile); locally run it yourself:
 flask db upgrade
 
 # Run the app
