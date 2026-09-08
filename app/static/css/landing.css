@@ -291,6 +291,10 @@
   .j-stop { justify-content: flex-start !important; padding-left: 46px; }
   .j-card { width: 100%; }
   .j-dot { left: 17px; transform: none; }
+  /* Stack the two entry cards with the "or" chip centred between them, instead of the chip
+     floating off to one side once the row wraps. */
+  .j-start { flex-direction: column; align-items: center; gap: 14px; }
+  .j-entry { width: 100%; min-width: 0; }
   .j-or { margin: 0 auto; }
   .fw-chip { min-width: 46%; }
 }

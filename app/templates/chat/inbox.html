@@ -60,6 +60,10 @@
 .ib-np-toggle { display: none; position: relative; }
 .ib-np-toggle .mini-badge { position: absolute; top: -3px; right: -3px; background: #f0940a; color: #fff; font-size: 9px; font-weight: 800; min-width: 15px; height: 15px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
 @media (max-width: 900px) {
+  /* One column on phones/small tablets: the list fills the screen, and opening a chat or a
+     notification swaps it for the conversation view (with a Back button). Without this the
+     .ib3 selector's 300px column wins on specificity and leaves dead space to its right. */
+  .inbox-page.ib3 { grid-template-columns: 1fr; }
   .inbox-page.chat-open .inbox-sidebar { display: none; }
   .inbox-page.chat-open .inbox-chat-area { display: flex; }
   .inbox-back { display: inline-flex; }
