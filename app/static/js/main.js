@@ -71,9 +71,22 @@ const CONTACT_LABELS = {
 const ROLE_LABELS = { seeking_help: 'Seeking help', offering_help: 'Offering help', open: 'Open to either' };
 
 // ===== NAVBAR =====
-document.getElementById('hamburger')?.addEventListener('click', () => {
-  document.getElementById('navLinks')?.classList.toggle('open');
-});
+(function mobileMainMenu() {
+  const hamburger = document.getElementById('hamburger');
+  const navLinks = document.getElementById('navLinks');
+  if (!hamburger || !navLinks) return;
+  function setOpen(open) {
+    navLinks.classList.toggle('open', open);
+    document.body.classList.toggle('nav-open', open);
+    hamburger.innerHTML = open ? '<i class="fa-solid fa-xmark"></i>' : '<i class="fa-solid fa-bars"></i>';
+    hamburger.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  hamburger.addEventListener('click', (e) => { e.stopPropagation(); setOpen(!navLinks.classList.contains('open')); });
+  navLinks.addEventListener('click', (e) => { if (e.target.closest('a')) setOpen(false); });  // navigate = close
+  document.addEventListener('click', (e) => {
+    if (navLinks.classList.contains('open') && !e.target.closest('#navLinks') && !e.target.closest('#hamburger')) setOpen(false);
+  });
+})();
 
 // User dropdown
 document.getElementById('userMenuBtn')?.addEventListener('click', (e) => {
@@ -290,6 +303,13 @@ function multiDropdownFor(btn) {
   const wrap = btn.closest('.multi-select-wrapper');
   return wrap ? wrap.querySelector('.multi-dropdown') : null;
 }
+// Tap the filter panel's header to collapse/expand it (only visible on small screens, where the
+// CSS hides the fields; harmless on desktop where the panel is always open).
+document.addEventListener('click', (e) => {
+  const head = e.target.closest('.tf-head');
+  if (!head || e.target.closest('.tf-reset')) return;
+  head.closest('.tf-panel')?.classList.toggle('tf-open');
+});
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('.multi-select-btn');
   if (btn) {
@@ -2714,10 +2734,26 @@ window.addEventListener('scroll', () => { if (TD.card && !tdSheetMode()) tdPlace
   try { saved = localStorage.getItem(KEY); } catch (e) { /* private mode: just don't remember */ }
   paint(saved === '1');
 
-  btn.addEventListener('click', () => {
+  const sidebar = document.querySelector('.admin-sidebar');
+  const isMobileNav = () => window.matchMedia('(max-width: 900px)').matches;
+
+  btn.addEventListener('click', (e) => {
+    // On phones/tablets the same button opens the nav dropdown instead of collapsing the rail.
+    if (isMobileNav()) {
+      e.stopPropagation();
+      sidebar?.classList.toggle('nav-open');
+      return;
+    }
     const collapsed = !page.classList.contains('is-rail');
     paint(collapsed);
-    try { localStorage.setItem(KEY, collapsed ? '1' : '0'); } catch (e) { /* nothing to do */ }
+    try { localStorage.setItem(KEY, collapsed ? '1' : '0'); } catch (e2) { /* nothing to do */ }
+  });
+
+  // Tapping outside the open dropdown (or picking an item) closes it.
+  document.addEventListener('click', (e) => {
+    if (!sidebar?.classList.contains('nav-open')) return;
+    if (e.target.closest('.admin-sidebar nav a')) { sidebar.classList.remove('nav-open'); return; }
+    if (!e.target.closest('.admin-sidebar')) sidebar.classList.remove('nav-open');
   });
 })();
 

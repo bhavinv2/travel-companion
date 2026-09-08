@@ -29,21 +29,21 @@
         <li><a href="{{ url_for('cs.new_post') }}"><i class="fa-solid fa-plus"></i> New Post</a></li>
         <li><a href="{{ url_for('imports.import_page') }}"><i class="fa-solid fa-file-import"></i> Import</a></li>
       {% else %}
-      <li><a href="{{ url_for('main.index') }}">{{ _('Home') }}</a></li>
+      <li><a href="{{ url_for('main.index') }}"><i class="fa-solid fa-house"></i> {{ _('Home') }}</a></li>
       {% if current_user.is_authenticated %}
-        <li><a href="{{ url_for('main.dashboard') }}">{{ _('My Dashboard') }}</a></li>
+        <li><a href="{{ url_for('main.dashboard') }}"><i class="fa-solid fa-gauge"></i> {{ _('My Dashboard') }}</a></li>
       {% endif %}
-      <li><a href="{{ url_for('blog.blog_list') }}">{{ _('Desi Travellers Blog') }}</a></li>
-      <li><a href="{{ url_for('main.index') }}#how-it-works">{{ _('How It Works') }}</a></li>
+      <li><a href="{{ url_for('blog.blog_list') }}"><i class="fa-solid fa-newspaper"></i> {{ _('Desi Travellers Blog') }}</a></li>
+      <li><a href="{{ url_for('main.index') }}#how-it-works"><i class="fa-solid fa-circle-info"></i> {{ _('How It Works') }}</a></li>
       {% if current_user.is_authenticated %}
         {% if current_user.is_cs %}
           <li><a href="{{ url_for('cs.home') }}"><i class="fa-solid fa-headset"></i> CS Console</a></li>
         {% endif %}
         {% if current_user.is_admin %}
-          <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+          <li><a href="{{ url_for('admin.dashboard') }}"><i class="fa-solid fa-user-shield"></i> Admin</a></li>
         {% endif %}
       {% else %}
-        <li><a href="{{ url_for('auth.register') }}" class="highlight-link">{{ _('Join Desi Travellers') }}</a></li>
+        <li><a href="{{ url_for('auth.register') }}" class="highlight-link"><i class="fa-solid fa-user-plus"></i> {{ _('Join Desi Travellers') }}</a></li>
       {% endif %}
       {% endif %}
     </ul>
@@ -279,6 +279,27 @@
         autoDisplay: false
       }, 'google_translate_element');
     }
+    // Google Translate writes the googtrans cookie on the *registrable* domain
+    // (".example.com" even when you're on "www.example.com"), so clearing only the exact
+    // hostname leaves a stale cookie that keeps re-applying the old language after a switch.
+    // Delete it across every domain suffix and both paths so a change always takes effect.
+    function clearGoogtrans() {
+      var host = location.hostname;
+      var parts = host.split('.');
+      var domains = ['', host, '.' + host];
+      for (var i = 0; i < parts.length - 1; i++) {
+        domains.push(parts.slice(i).join('.'));
+        domains.push('.' + parts.slice(i).join('.'));
+      }
+      var paths = ['/', location.pathname];
+      domains.forEach(function (d) {
+        paths.forEach(function (p) {
+          var c = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=' + p;
+          if (d) c += '; domain=' + d;
+          document.cookie = c;
+        });
+      });
+    }
     async function setSiteLang(lang) {
       try {
         await fetch('/api/language', {
@@ -287,10 +308,11 @@
           body: JSON.stringify({ lang: lang })
         });
       } catch (e) { /* offline - the googtrans cookie below still switches the widget */ }
-      var kill = 'googtrans=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-      document.cookie = kill;
-      document.cookie = kill + '; domain=' + location.hostname;
-      document.cookie = kill + '; domain=.' + location.hostname;
+      clearGoogtrans();
+      // The widget can also stash the language in a #googtrans(...) URL hash - drop it too.
+      if (location.hash.indexOf('googtrans') !== -1) {
+        history.replaceState(null, '', location.pathname + location.search);
+      }
       // Curated languages are rendered server-side by Flask-Babel; the Google widget stays on
       // as a fallback so the strings we have not translated yet are still readable.
       if (lang && lang !== 'en') document.cookie = 'googtrans=/en/' + lang + '; path=/';

@@ -13,6 +13,9 @@
       <a href="{{ url_for('auth.google_login') }}" class="oauth-btn google">
         <i class="fa-brands fa-google"></i> Continue with Google
       </a>
+      <a href="{{ url_for('auth.facebook_login') }}" class="oauth-btn facebook">
+        <i class="fa-brands fa-facebook-f"></i> Continue with Facebook
+      </a>
     </div>
     <div class="or-divider"><span>or sign up with email</span></div>
 
@@ -64,7 +67,12 @@
 
       <div class="field-group">
         <label>Profile Photo <small class="opt">optional</small></label>
-        <input type="file" name="photo" accept="image/*" id="photoInput"/>
+        <label class="file-upload" for="photoInput">
+          <span class="file-upload-ic"><i class="fa-solid fa-camera"></i></span>
+          <span class="file-upload-text" id="photoName">Add a profile photo <small>JPG, PNG or WebP</small></span>
+          <span class="file-upload-btn">Choose</span>
+          <input type="file" name="photo" accept="image/*" id="photoInput"/>
+        </label>
         <div class="photo-preview" id="photoPreview"></div>
         <label class="flex-check mt-2">
           <input type="checkbox" name="show_photo" {% if form and form.get('show_photo') == 'on' %}checked{% endif %}/> Display photo publicly on listings
@@ -100,10 +108,15 @@ function togglePassword(id, btn) {
 }
 document.getElementById('photoInput')?.addEventListener('change', function() {
   const preview = document.getElementById('photoPreview');
-  if (this.files[0]) {
+  const name = document.getElementById('photoName');
+  const f = this.files[0];
+  if (f) {
+    if (name) name.innerHTML = `${f.name.length > 28 ? f.name.slice(0, 25) + '…' : f.name} <small>Tap to change</small>`;
     const reader = new FileReader();
     reader.onload = e => { preview.innerHTML = `<img src="${e.target.result}" style="max-width:100px;border-radius:50%;margin-top:8px;"/>`; };
-    reader.readAsDataURL(this.files[0]);
+    reader.readAsDataURL(f);
+  } else if (name) {
+    name.innerHTML = 'Add a profile photo <small>JPG, PNG or WebP</small>';
   }
 });
 </script>

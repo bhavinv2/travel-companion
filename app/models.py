@@ -642,9 +642,14 @@ class Blog(db.Model):
     author = db.relationship('User', backref='blogs')
 
     def excerpt(self, length=200):
-        if self.content:
-            return self.content[:length] + '...' if len(self.content) > length else self.content
-        return ''
+        if not self.content:
+            return ''
+        import re
+        # The content is HTML; strip tags and collapse whitespace so the card preview reads as
+        # plain text instead of leaking "<p>..." into the excerpt.
+        text = re.sub(r'<[^>]+>', ' ', self.content)
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text[:length].rstrip() + '...' if len(text) > length else text
 
 
 class Feedback(db.Model):

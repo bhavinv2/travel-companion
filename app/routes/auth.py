@@ -208,6 +208,134 @@ def google_callback():
 
 
 # ---------------------------------------------------------------------------
+# Facebook OAuth
+# ---------------------------------------------------------------------------
+
+FACEBOOK_API = 'https://graph.facebook.com/v19.0'
+
+
+def _finish_oauth_login(provider, oauth_id, email, first_name, last_name, photo_url, verified):
+    """Find or create a user for a social login, sign them in, return the redirect target.
+
+    Shared by the Facebook flow (and mirrors what the Google callback does inline). Returns a
+    Flask response; the caller just returns it.
+    """
+    email = (email or '').lower()
+    user = User.query.filter_by(oauth_provider=provider, oauth_id=oauth_id).first()
+    if not user and email:
+        user = User.query.filter_by(email=email).first()
+
+    is_new = False
+    if user:
+        if not user.oauth_id:
+            user.oauth_provider = provider
+            user.oauth_id = oauth_id
+        if not user.is_verified and verified:
+            mark_email_verified(user)
+    else:
+        if not email:
+            flash('Your Facebook account did not share an e-mail address. Please sign up with '
+                  'your e-mail, or allow e-mail access and try again.', 'danger')
+            return redirect(url_for('auth.register'))
+        is_new = True
+        base_username = re.sub(r'[^a-z0-9]', '', (first_name + last_name).lower())[:30] or 'user'
+        if len(base_username) < 3:
+            base_username = (base_username + 'user')[:30]
+        username = base_username
+        counter = 1
+        while User.query.filter_by(username=username).first():
+            username = f'{base_username}{counter}'
+            counter += 1
+        user = User(
+            email=email,
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            oauth_provider=provider,
+            oauth_id=oauth_id,
+            photo_url=photo_url,
+            show_photo=bool(photo_url),
+            is_verified=bool(verified),
+        )
+        user.set_password(os.urandom(24).hex())
+        db.session.add(user)
+
+    if not login_user(user):
+        db.session.rollback()
+        flash('This account has been deactivated. Contact support if you think this is a mistake.', 'danger')
+        return redirect(url_for('auth.login'))
+    user.last_login = datetime.utcnow()
+    db.session.commit()
+    if is_new:
+        flash(f'Welcome to Connecting Desis, {first_name or user.username}!', 'success')
+    else:
+        flash(f'Welcome back, {user.first_name or user.username}!', 'success')
+    return redirect(_safe_next(session.pop('next', None)) or staff_home(user))
+
+
+@auth_bp.route('/facebook')
+def facebook_login():
+    client_id = current_app.config.get('FACEBOOK_OAUTH_CLIENT_ID')
+    if not client_id:
+        flash('Facebook login is not configured.', 'danger')
+        return redirect(url_for('auth.login'))
+    state = secrets.token_urlsafe(24)
+    session['oauth_state'] = state
+    params = {
+        'client_id': client_id,
+        'redirect_uri': url_for('auth.facebook_callback', _external=True),
+        'response_type': 'code',
+        'scope': 'email,public_profile',
+        'state': state,
+    }
+    return redirect('https://www.facebook.com/v19.0/dialog/oauth?' + urlencode(params))
+
+
+@auth_bp.route('/facebook/authorized')
+def facebook_callback():
+    code = request.args.get('code')
+    error = request.args.get('error')
+    expected_state = session.pop('oauth_state', None)
+    if error or not code:
+        flash('Facebook login was cancelled or failed.', 'danger')
+        return redirect(url_for('auth.login'))
+    if not expected_state or request.args.get('state') != expected_state:
+        flash('Facebook login could not be verified. Please try again.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    client_id = current_app.config.get('FACEBOOK_OAUTH_CLIENT_ID')
+    client_secret = current_app.config.get('FACEBOOK_OAUTH_CLIENT_SECRET')
+    redirect_uri = url_for('auth.facebook_callback', _external=True)
+
+    token_resp = http_requests.get(f'{FACEBOOK_API}/oauth/access_token', params={
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'redirect_uri': redirect_uri,
+        'code': code,
+    }, timeout=10)
+    if not token_resp.ok:
+        flash('Failed to authenticate with Facebook.', 'danger')
+        return redirect(url_for('auth.login'))
+    access_token = token_resp.json().get('access_token')
+
+    info_resp = http_requests.get(f'{FACEBOOK_API}/me', params={
+        'fields': 'id,first_name,last_name,email,picture.type(large)',
+        'access_token': access_token,
+    }, timeout=10)
+    user_info = info_resp.json() if info_resp.ok else None
+    if not user_info or not user_info.get('id'):
+        flash('Could not retrieve your Facebook account info.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    photo_url = (((user_info.get('picture') or {}).get('data')) or {}).get('url')
+    return _finish_oauth_login(
+        'facebook', user_info['id'], user_info.get('email'),
+        user_info.get('first_name', ''), user_info.get('last_name', ''),
+        photo_url, verified=bool(user_info.get('email')),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Register / login / logout
 # ---------------------------------------------------------------------------
 

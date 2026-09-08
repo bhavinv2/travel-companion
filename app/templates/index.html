@@ -448,9 +448,11 @@
 {% if current_user.is_authenticated %}
 <section class="my-trips-section" id="my-trips">
   <div class="results-header">
-    <h2><i class="fa-solid fa-suitcase"></i> My Trips</h2>
-    <div class="results-controls">
+    <div class="rh-titlewrap">
+      <h2><i class="fa-solid fa-suitcase"></i> My Trips</h2>
       <span id="myTripsCount" class="results-count"></span>
+    </div>
+    <div class="results-controls">
       <a class="btn btn-outline-coral" id="myTripsViewAll" href="{{ url_for('main.dashboard') }}#trips" hidden>
         View All <i class="fa-solid fa-arrow-right"></i>
       </a>
@@ -479,9 +481,11 @@
 <!-- ===== DESIS ON MOVE CAROUSEL ===== -->
 <section class="results-section" id="results">
   <div class="results-header">
-    <h2><i class="fa-solid fa-users"></i> Desis on Move</h2>
-    <div class="results-controls">
+    <div class="rh-titlewrap">
+      <h2><i class="fa-solid fa-users"></i> Desis on Move</h2>
       <span id="resultsCount" class="results-count"></span>
+    </div>
+    <div class="results-controls">
       <a href="/trips" class="btn btn-outline-coral">View All <i class="fa-solid fa-arrow-right"></i></a>
     </div>
   </div>
