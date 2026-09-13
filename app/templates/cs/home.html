@@ -9,6 +9,7 @@
 
     <div class="admin-stats">
       <div class="stat-card coral"><i class="fa-solid fa-triangle-exclamation"></i><div><strong>{{ counts.needs_action }}</strong><span>Needs action</span></div></div>
+      <a class="stat-card red" href="{{ url_for('cs.voices', tab='report') }}"><i class="fa-solid fa-flag"></i><div><strong>{{ counts.reports }}</strong><span>Open reports</span></div></a>
       <div class="stat-card blue"><i class="fa-solid fa-plane-departure"></i><div><strong>{{ counts.open }}</strong><span>Open posts</span></div></div>
       <div class="stat-card yellow"><i class="fa-solid fa-hourglass-half"></i><div><strong>{{ counts.unconfirmed }}</strong><span>Awaiting claim</span></div></div>
       <div class="stat-card green"><i class="fa-solid fa-circle-check"></i><div><strong>{{ counts.closed }}</strong><span>Closed</span></div></div>
@@ -17,6 +18,22 @@
     <div class="admin-card" id="needs-action">
       <div class="card-head"><h2><i class="fa-solid fa-triangle-exclamation"></i> 0 · Needs action</h2>
         <a class="btn-sm" href="{{ url_for('matches.cs_match_queue') }}">Match queue</a></div>
+      {% if open_reports %}
+      <h3 class="sub"><i class="fa-solid fa-flag" style="color:#c0392b"></i> Reported matches <span class="chip chip-open">{{ reports_total }}</span></h3>
+      <div class="table-wrap"><table class="admin-table stack-mobile">
+        <thead><tr><th>When</th><th>Reporter</th><th>Match</th><th>Problem</th><th></th></tr></thead>
+        <tbody>
+        {% for r in open_reports %}
+          <tr>
+            <td class="nowrap" data-label="When">{{ r.created_at.strftime('%d %b %H:%M') if r.created_at }}</td>
+            <td data-label="Reporter">{{ r.reporter.username if r.reporter else 'Guest' }}</td>
+            <td data-label="Match">{% if r.match %}<strong>#{{ r.match_id }}</strong><br/><small class="muted">{{ r.match.trip_a.route_display if r.match.trip_a else '' }}</small>{% else %}—{% endif %}</td>
+            <td class="urgent" data-label="Problem">{{ (r.reason or '')[:120] }}{{ '…' if r.reason and r.reason|length > 120 }}</td>
+            <td class="row-actions"><a class="btn-sm" href="{{ url_for('cs.voices', tab='report') }}">Review</a></td>
+          </tr>
+        {% endfor %}
+        </tbody></table></div>
+      {% endif %}
       {% if match_tasks %}
       <h3 class="sub">Matches to bridge</h3>
       <div class="table-wrap"><table class="admin-table stack-mobile">

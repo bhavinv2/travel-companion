@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% from '_notifications_manager.html' import notifications_manager, notifications_manager_js with context %}
+{% block title %}Notifications – CS Console{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='notifications' %}{% include 'cs/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <h1>Notifications</h1>
+    <p class="muted">Search and filter what users have been notified about, and send a heads-up to a user or a group.</p>
+    {{ notifications_manager(rows, page, pages, total, base, can_delete, f, categories, groups, cat_for_type, cat_labels) }}
+  </main>
+</div>
+{% endblock %}
+{% block extra_js %}{{ notifications_manager_js(base, can_delete) }}{% endblock %}

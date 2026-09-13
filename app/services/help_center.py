@@ -8,8 +8,10 @@ Shape:
     {'categories': [{'key', 'title', 'icon', 'blurb'}],
      'faqs':       [{'id', 'category', 'question', 'answer'}]}
 
-The built-in defaults below are the eight questions that used to be hard-coded in
-templates/pages/help.html; nothing is lost if an admin never touches the screen.
+The built-in defaults below started as the eight questions that used to be hard-coded in
+templates/pages/help.html, plus a handful that used to live only in the landing page's own FAQ
+accordion before that was wired to this same source (2026-09-13) — one list, everywhere. Nothing
+is lost if an admin never touches the screen.
 """
 import re
 import uuid
@@ -60,6 +62,19 @@ DEFAULT_FAQS = [
     {'id': 'faq_start_free', 'category': 'getting_started',
      'question': 'Is Connecting Desis free?',
      'answer': 'Yes, the core features are completely free. We may introduce premium features in the future.'},
+    {'id': 'faq_start_parents', 'category': 'getting_started',
+     'question': 'Can I request a companion for my parents?',
+     'answer': "Yes — that's our most common request. Upload their e-ticket or fill in the form yourself; your "
+               "parents don't need to do anything technical, and our care team reviews every request."},
+    {'id': 'faq_start_ticket', 'category': 'getting_started',
+     'question': 'Can I upload my flight ticket instead of typing everything in?',
+     'answer': 'Yes. Upload the PDF e-ticket and we read the route, dates, airline and flight number for you — '
+               'you can still change anything afterwards. Typing it in yourself works just as well.'},
+    {'id': 'faq_start_countries', 'category': 'getting_started',
+     'question': 'Which countries do you serve?',
+     'answer': 'India, the United States, Canada, the United Kingdom, Australia and the UAE are our most active '
+               'routes today, and the list keeps growing. Other routes are welcome — post your trip and we will '
+               'look for a match on any route.'},
     {'id': 'faq_privacy_contacts', 'category': 'privacy',
      'question': 'Who can see my contact details?',
      'answer': 'Only a travel companion we match you with — and only if you ticked the consent box for that trip. '
@@ -70,6 +85,10 @@ DEFAULT_FAQS = [
      'answer': 'If you asked for a travel companion on Facebook or another website, our team may offer to list '
                'your request here. The link lets you confirm the request and add the contact details you want to '
                'share. Nothing is published until you confirm.'},
+    {'id': 'faq_match_how', 'category': 'matches',
+     'question': 'How does matching work?',
+     'answer': 'We compare route, dates, flight, language and needs, then rank the closest matches with a score '
+               'and the reasons behind it. A care-team member reviews before anyone is introduced.'},
     {'id': 'faq_match_connect', 'category': 'matches',
      'question': 'How do I connect with another traveller?',
      'answer': 'Browse the listings and click "Connect" on any listing. The other person can accept or decline; '

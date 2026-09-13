@@ -46,16 +46,21 @@ def _send_sendgrid(subject, recipients, body, reply_to):
     return True
 
 
-def send(subject, recipients, body, reply_to=None, category='other'):
+def send(subject, recipients, body, reply_to=None, category='other', force=False):
     """Return True if the message was handed to the mail provider, False otherwise.
 
     `category` is one of app.models.NOTIFY_CATEGORIES ('account', 'match_alerts', …) and is checked
     against the global notification switches and the recipient's preferences before anything is sent.
+    `force=True` skips that gate (for e-mails governed by their own dedicated toggle, e.g. the landing
+    contact address) — the caller is responsible for its own opt-in check.
     """
     from app.services import notify
     if isinstance(recipients, str):
         recipients = [recipients]
-    recipients = [r for r in recipients if r and notify.email_allowed(category, r)]
+    if not force:
+        recipients = [r for r in recipients if r and notify.email_allowed(category, r)]
+    else:
+        recipients = [r for r in recipients if r]
     if not recipients:
         return False
     OUTBOX.append({'subject': subject, 'recipients': list(recipients), 'body': body, 'category': category})

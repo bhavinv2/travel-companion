@@ -135,6 +135,15 @@ document.getElementById('tripsSearchInput').addEventListener('input', () => {
   _searchTimer = setTimeout(() => { _tripsPage = 1; fetchAllTrips(); }, 300);
 });
 
+// The public landing's hero search lands here with ?from=&to=&date=&role= — prefill the filter
+// so the visitor sees real results for what they typed, not an empty list.
+(function prefillFromUrl() {
+  const q = new URLSearchParams(location.search);
+  const set = (id, key) => { const el = document.getElementById(id); const v = q.get(key); if (el && v) el.value = v; };
+  set('atfFrom', 'from'); set('atfTo', 'to'); set('atfDate', 'date');
+  const role = q.get('role');
+  if (role) { const r = document.querySelector(`input[name="atfRole"][value="${role}"]`); if (r) r.checked = true; }
+})();
 initTripFilters('atf', () => { _tripsPage = 1; fetchAllTrips(); });
 fetchAllTrips();
 </script>

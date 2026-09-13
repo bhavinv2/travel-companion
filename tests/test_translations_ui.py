@@ -40,7 +40,7 @@ def test_override_wins_on_rendered_pages(client, admin_user):
                 json={'lang': 'hi', 'items': {'Privacy Policy': 'XXPRIVXX'}})
     logout(client)
     client.set_cookie('lang', 'hi')
-    html = client.get('/').data.decode('utf-8')
+    html = client.get('/contact').data.decode('utf-8')   # '/' is the standalone landing now
     assert 'XXPRIVXX' in html                       # override beats the shipped catalog
     assert 'गोपनीयता नीति' not in html
 

@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}Landing page – Admin{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='landing' %}{% include 'admin/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <h1><i class="fa-solid fa-flag"></i> Landing page</h1>
+    <p class="opt-intro">Controls for the public marketing landing (what signed-out visitors see at
+      <a href="{{ url_for('main.index', preview='landing') }}" target="_blank">the home page</a>). Colours restyle the
+      landing instantly on save.</p>
+
+    <form method="post" class="lp-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+      <section class="admin-card lp-card">
+        <h2><i class="fa-solid fa-envelope"></i> Contact e-mail</h2>
+        <p class="muted small">The landing "Request a call back" form is always saved to the CS console. Tick this to
+          <strong>also e-mail it</strong> to the address below. This is the only e-mail this screen enables — nothing else.</p>
+        <label class="tick-check" style="margin:12px 0">
+          <input type="checkbox" name="contact_email_enabled" {{ 'checked' if ls.contact_email_enabled }}/>
+          <span class="tick-box"></span>
+          <span class="tick-label">E-mail landing enquiries to a specific address</span>
+        </label>
+        <div class="field-group" style="max-width:420px">
+          <label>Send enquiries to</label>
+          <input type="email" name="contact_email" value="{{ ls.contact_email }}" placeholder="team@yourdomain.com"/>
+        </div>
+      </section>
+
+      <section class="admin-card lp-card">
+        <h2><i class="fa-solid fa-palette"></i> Brand colours</h2>
+        <p class="muted small">The landing's core palette. Leave a colour as-is to keep the default.</p>
+        <div class="lp-colors">
+          {% for key, default in color_defaults.items() %}
+          {% set cur = ls.colors.get(key, default) %}
+          <div class="lp-color">
+            <label>{{ color_labels.get(key, key) }}</label>
+            <div class="lp-color-row">
+              <input type="color" value="{{ cur }}" data-for="color_{{ key }}"
+                     oninput="this.parentElement.querySelector('input[type=text]').value=this.value.toUpperCase()"/>
+              <input type="text" name="color_{{ key }}" value="{{ cur }}" pattern="#[0-9a-fA-F]{3,6}"
+                     oninput="var c=this.parentElement.querySelector('input[type=color]'); if(/^#[0-9a-fA-F]{6}$/.test(this.value)) c.value=this.value;"/>
+              <code class="lp-var">--{{ key }}</code>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <div class="lp-actions">
+        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save landing settings</button>
+        <a class="btn btn-outline-coral" href="{{ url_for('main.index', preview='landing') }}" target="_blank"><i class="fa-solid fa-eye"></i> Preview landing</a>
+      </div>
+    </form>
+  </main>
+</div>
+<style>
+.lp-card { margin-bottom: 20px; }
+.lp-card h2 { font-family: 'Poppins', sans-serif; font-size: 16px; font-weight: 800; display: flex; align-items: center; gap: 9px; margin-bottom: 6px; }
+.lp-card h2 i { color: var(--coral); }
+.lp-colors { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px 20px; margin-top: 12px; }
+.lp-color label { display: block; font-size: 12.5px; font-weight: 700; color: var(--muted); margin-bottom: 5px; }
+.lp-color-row { display: flex; align-items: center; gap: 8px; }
+.lp-color-row input[type=color] { width: 40px; height: 38px; border: 1px solid var(--border); border-radius: 9px; padding: 2px; background: #fff; cursor: pointer; }
+.lp-color-row input[type=text] { flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; font-family: monospace; font-size: 13px; text-transform: uppercase; }
+.lp-var { font-size: 11px; color: var(--muted); flex: 0 0 auto; }
+.lp-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+@media (max-width: 560px) { .lp-colors { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}

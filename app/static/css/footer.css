@@ -1,0 +1,23 @@
+/* Shared site footer — loaded on the public landing AND every app page (via base.html) so the
+   footer design is identical everywhere; only the "Explore" menu items change by session state
+   (see app/templates/_footer.html). Self-contained: no dependency on either page's own tokens. */
+.ftr { background: #0B172F; color: #B9C6DE; padding: 52px 0 26px; font-size: 13.5px; }
+.ftr .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.ftr-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 32px; margin-bottom: 34px; }
+.ftr h4 { color: #fff; font-size: 14px; margin-bottom: 14px; font-weight: 700; }
+.ftr ul { list-style: none; display: grid; gap: 9px; padding: 0; margin: 0; }
+.ftr a { color: inherit; text-decoration: none; }
+.ftr a:hover { color: #fff; }
+.ftr .ftr-logo { display: inline-flex; align-items: center; gap: 8px; color: #fff; font-weight: 700;
+  font-size: 16px; margin-bottom: 12px; text-decoration: none; }
+.ftr .ftr-logo img { width: 28px; height: 28px; }
+.ftr .ftr-logo b { color: #F5A623; }
+.ftr-brand-desc { color: rgba(255, 255, 255, .55); font-size: 13px; line-height: 1.6; }
+.ftr-bottom { border-top: 1px solid rgba(255, 255, 255, .1); padding-top: 18px; display: flex;
+  justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 12.5px; color: rgba(255, 255, 255, .5); }
+@media (max-width: 800px) { .ftr-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 480px) {
+  .ftr-grid { grid-template-columns: 1fr; text-align: center; }
+  .ftr .ftr-logo { justify-content: center; }
+  .ftr-bottom { justify-content: center; text-align: center; }
+}

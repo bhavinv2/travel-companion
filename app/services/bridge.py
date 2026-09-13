@@ -7,6 +7,7 @@ other consented contact → manual CS task · nothing consented → blocked (sen
 from datetime import datetime, timedelta
 
 from flask import current_app, url_for
+from sqlalchemy import or_
 
 from app import db
 from app.models import Match, MatchParty, ActivityEvent, CONTACT_TYPE_LABELS
@@ -257,11 +258,28 @@ def record_not_suitable(party, actor=None):
 
 
 def record_report(party, reason, actor=None):
+    from app.models import MatchReport, User
     m = party.match
     m.needs_cs_attention = True
-    ActivityEvent.log('reported', party.trip, actor=actor, match_id=m.id, reason=(reason or '')[:500])
-    # tell whoever created the other post (a CS agent) or fall back to any CS via the queue flag
+    reason = (reason or '').strip()
+    ActivityEvent.log('reported', party.trip, actor=actor, match_id=m.id, reason=reason[:500])
+
+    # A first-class, browsable/resolvable CS item (surfaces in the console queue + User Voices).
+    report = MatchReport(match_id=m.id, party_id=party.id, trip_id=party.trip_id,
+                         reporter_id=(actor.id if actor else None), reason=reason[:2000], status='open')
+    db.session.add(report)
+
+    # Tell the whole CS/admin team, not just whoever created the other post, so a report is
+    # never missed. Falls back gracefully if the switches suppress it for someone.
     other = m.other_trip(party.trip_id)
-    if other.created_by_id:
-        notify.push(other.created_by_id, 'cs_escalation', title='Match reported',
-                    body=f'Match #{m.id} was reported: {reason[:120]}', link=f'/cs/posts/{other.id}/matches')
+    body = f'Match #{m.id} ({other.route_display}) was reported: {reason[:120]}'
+    link = f'/cs/notifications'
+    staff = User.query.filter(User.is_active.is_(True),
+                              or_(User.role.in_(['cs', 'admin']), User.is_admin.is_(True))).all()
+    notified = set()
+    for u in staff:
+        if u.id in notified:
+            continue
+        notify.push(u.id, 'cs_escalation', title='Match reported', body=body,
+                    link=(f'/cs/posts/{other.id}/matches' if other.created_by_id == u.id else '/cs/voices?tab=report'))
+        notified.add(u.id)

@@ -99,6 +99,82 @@
 {% endmacro %}
 
 
+{% macro report_table(reports, can_delete=False) %}
+<table class="admin-table vc-table rp-table">
+  <thead>
+    <tr><th>When</th><th>Reporter</th><th>Match</th><th>Problem</th><th>Status</th><th>Actions</th></tr>
+  </thead>
+  <tbody>
+  {% for r in reports %}
+    {% set m = r.match %}
+    <tr id="rp-{{ r.id }}" class="{{ 'rp-open' if r.status == 'open' }}">
+      <td class="nowrap" data-label="When">{{ r.created_at.strftime('%d %b %Y<br/>%H:%M')|safe if r.created_at }}</td>
+      <td data-label="Reporter">
+        {% if r.reporter %}<strong>{{ r.reporter.username }}</strong><br/><a href="mailto:{{ r.reporter.email }}">{{ r.reporter.email }}</a>
+        {% else %}<span class="muted">Guest / not signed in</span>{% endif %}
+      </td>
+      <td data-label="Match">
+        {% if m %}
+          <a href="{{ url_for('matches.cs_match_queue') }}#match-{{ m.id }}">Match #{{ m.id }}</a>
+          {% if m.score is not none %}<span class="rp-score">{{ m.score }}%</span>{% endif %}
+          <br/><small class="muted">{{ m.trip_a.route_display if m.trip_a else '' }}
+            {%- if m.trip_b %} ↔ #{{ m.trip_b.id }}{% endif %}</small>
+          {% if r.trip %}<br/><small class="muted">reported on post #{{ r.trip_id }}</small>{% endif %}
+        {% else %}<span class="muted">—</span>{% endif %}
+      </td>
+      <td class="cm-cell" data-label="Problem">
+        {{ r.reason or '(no reason given)' }}
+        {% if r.cs_notes %}<div class="cm-notes-sm"><i class="fa-solid fa-note-sticky"></i> {{ r.cs_notes }}</div>{% endif %}
+        {% if r.status == 'resolved' and r.resolved_by %}<div class="cm-notes-sm">Resolved by {{ r.resolved_by.username }}{% if r.resolved_at %} · {{ r.resolved_at.strftime('%d %b') }}{% endif %}</div>{% endif %}
+      </td>
+      <td data-label="Status"><span class="cm-status cm-status-{{ 'new' if r.status == 'open' else 'closed' }}" id="rp-badge-{{ r.id }}">{{ 'Open' if r.status == 'open' else 'Resolved' }}</span></td>
+      <td data-label="Actions">
+        <div class="vc-act">
+          <input type="text" class="vc-note-in rp-note" id="rp-note-{{ r.id }}" value="{{ r.cs_notes or '' }}" placeholder="Internal note"/>
+          {% if r.status == 'open' %}
+          <button type="button" class="btn-sm-outline" onclick="rpAct({{ r.id }}, 'resolve', this)"><i class="fa-solid fa-check"></i> Resolve</button>
+          {% else %}
+          <button type="button" class="btn-sm-outline" onclick="rpAct({{ r.id }}, 'reopen', this)"><i class="fa-solid fa-rotate-left"></i> Reopen</button>
+          {% endif %}
+          {% if can_delete %}
+          <button type="button" class="btn-sm-outline danger" onclick="rpAct({{ r.id }}, 'delete')"><i class="fa-solid fa-trash"></i></button>
+          {% endif %}
+        </div>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="muted" style="text-align:center;padding:30px">No reports here. When a traveller flags a problem with a match, it lands in this tab.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+
+{% macro report_js(action_base) %}
+<script>
+/* Resolve / reopen / delete a reported match; the note field is sent along. */
+function rpAct(id, action, btn) {
+  if (action === 'delete' && !confirm('Delete this report permanently?')) return;
+  const note = document.getElementById('rp-note-' + id);
+  apiFetch('{{ action_base }}'.replace('__ID__', id).replace('__ACTION__', action),
+           { method: 'POST', body: JSON.stringify({ cs_notes: note ? note.value : '' }) })
+    .then(r => r.json())
+    .then(d => {
+      if (d && d.error) { showToast(d.error, 'danger'); return; }
+      const row = document.getElementById('rp-' + id);
+      if (action === 'delete') { row.remove(); return; }
+      row.classList.toggle('rp-open', d.status === 'open');
+      const badge = document.getElementById('rp-badge-' + id);
+      badge.textContent = d.status === 'open' ? 'Open' : 'Resolved';
+      badge.className = 'cm-status cm-status-' + (d.status === 'open' ? 'new' : 'closed');
+      showToast(d.status === 'open' ? 'Report reopened.' : 'Report resolved.', 'success');
+      if (btn) { setTimeout(() => location.reload(), 600); }   // re-filter the open/resolved view
+    });
+}
+</script>
+{% endmacro %}
+
+
 {% macro feedback_js(action_base) %}
 <script>
 /* Both consoles moderate reviews the same way; only the endpoint differs. */

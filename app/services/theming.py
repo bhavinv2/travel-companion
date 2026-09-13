@@ -28,7 +28,10 @@ FIELDS = [
 ]
 
 DEFAULT_THEMES = [
-    {'key': 'desi_blue', 'name': 'Desi Blue (default)',
+    {'key': 'connecting_desis', 'name': 'Connecting Desis (default)',
+     'colors': {'primary': '#F5A623', 'cta': '#E4632A', 'ink': '#0F1F3D',
+                'surface': '#FFF6EA', 'border': '#E6E1D8', 'success': '#199f7e'}},
+    {'key': 'desi_blue', 'name': 'Desi Blue',
      'colors': {'primary': '#2f80ed', 'cta': '#f0940a', 'ink': '#0f2340',
                 'surface': '#f4f9ff', 'border': '#d7e6f6', 'success': '#199f7e'}},
     {'key': 'marigold', 'name': 'Marigold',
@@ -41,7 +44,7 @@ DEFAULT_THEMES = [
      'colors': {'primary': '#0d7c86', 'cta': '#ef8354', 'ink': '#10292c',
                 'surface': '#eff8f8', 'border': '#cfe6e6', 'success': '#2f8f4e'}},
 ]
-DEFAULT_ACTIVE = 'desi_blue'
+DEFAULT_ACTIVE = 'connecting_desis'
 
 
 # ---------------------------------------------------------------------------

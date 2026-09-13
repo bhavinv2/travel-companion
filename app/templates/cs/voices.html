@@ -6,9 +6,9 @@
   {% with active='voices' %}{% include 'cs/_sidebar.html' %}{% endwith %}
   <main class="admin-main">
     <h1><i class="fa-solid fa-comment-dots"></i> User Voices</h1>
-    <p class="opt-intro">Everything people send us, in the same two halves they see on the
-      <a href="{{ url_for('main.index') }}#talk-to-us" target="_blank">Talk to us</a> panel:
-      enquiries from the contact form, and the reviews they leave. Both arrive here the
+    <p class="opt-intro">Everything people send us: enquiries from the
+      <a href="{{ url_for('main.contact') }}" target="_blank">Contact us</a> form, and the reviews they leave on
+      <a href="{{ url_for('main.reviews') }}" target="_blank">the reviews page</a>. Both arrive here the
       moment they are submitted.</p>
 
     <div class="hx-tabs vc-tabs" role="tablist">
@@ -21,6 +21,11 @@
          href="{{ url_for('cs.voices', tab='feedback') }}">
         <i class="fa-solid fa-star"></i> Feedback
         {% if pending %}<span class="vt-n">{{ pending }}</span>{% endif %}
+      </a>
+      <a class="hx-tab {{ 'active' if tab == 'report' }}" role="tab"
+         href="{{ url_for('cs.voices', tab='report') }}">
+        <i class="fa-solid fa-flag"></i> Reports
+        {% if reports_open %}<span class="vt-n vt-n-alert">{{ reports_open }}</span>{% endif %}
       </a>
     </div>
 
@@ -51,7 +56,7 @@
     </div>
     {% endif %}
 
-    {% else %}
+    {% elif tab == 'feedback' %}
     <p class="muted small vc-note"><strong>Approve</strong> accepts a review; the <strong>&#9733; Feature</strong> toggle hand-picks which approved reviews appear on the public home page (up to 6, newest first &mdash; until you feature any, the newest approved ones show). Rejecting deletes the review.</p>
 
     {{ vt.feedback_table(feedbacks) }}
@@ -64,6 +69,29 @@
       {% endfor %}
     </div>
     {% endif %}
+
+    {% else %}
+    <p class="muted small vc-note">Problems travellers flagged on a match from the <em>“Report a problem with this match”</em> box. <strong>Resolve</strong> closes it (and clears the match from the queue when it was the last open report); add an internal note for the trail.</p>
+    <form method="get" class="cm-filters">
+      <input type="hidden" name="tab" value="report"/>
+      <select name="rstatus" onchange="this.form.submit()">
+        <option value="open" {{ 'selected' if r_status == 'open' }}>Open ({{ reports_open }})</option>
+        <option value="resolved" {{ 'selected' if r_status == 'resolved' }}>Resolved</option>
+        <option value="all" {{ 'selected' if r_status == 'all' }}>All</option>
+      </select>
+      <span class="muted" style="font-size:13px">{{ r_total }} report{{ '' if r_total == 1 else 's' }}</span>
+    </form>
+
+    {{ vt.report_table(reports, can_delete=current_user.is_admin) }}
+
+    {% if r_pages > 1 %}
+    <div class="pagination">
+      {% for p in range(1, r_pages + 1) %}
+      <a class="page {{ 'current' if p == r_page }}"
+         href="{{ url_for('cs.voices', tab='report', page=p, rstatus=r_status) }}">{{ p }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
     {% endif %}
   </main>
 </div>
@@ -71,4 +99,5 @@
 
 {% block extra_js %}
 {{ vt.feedback_js('/cs/voices/feedback/__ID__/__ACTION__') }}
+{{ vt.report_js('/cs/reports/__ID__/__ACTION__') }}
 {% endblock %}

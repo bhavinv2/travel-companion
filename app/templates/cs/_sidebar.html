@@ -11,6 +11,7 @@
     <a href="{{ url_for('cs.new_post') }}" class="{{ 'active' if active == 'new' }}" title="New Post"><i class="fa-solid fa-plus"></i> <span>New Post</span></a>
     <a href="{{ url_for('imports.import_page') }}" class="{{ 'active' if active == 'import' }}" title="Import"><i class="fa-solid fa-file-import"></i> <span>Import</span></a>
     <a href="{{ url_for('cs.voices') }}" class="{{ 'active' if active == 'voices' }}" title="User Voices"><i class="fa-solid fa-comment-dots"></i> <span>User Voices</span></a>
+    <a href="{{ url_for('cs.notifications') }}" class="{{ 'active' if active == 'notifications' }}" title="Notifications"><i class="fa-solid fa-bell"></i> <span>Notifications</span></a>
     <a href="{{ url_for('cs.metrics') }}" class="{{ 'active' if active == 'metrics' }}" title="Metrics"><i class="fa-solid fa-chart-simple"></i> <span>Metrics</span></a>
     {% if current_user.is_admin %}
     <a href="{{ url_for('scraper.recipes') }}" class="{{ 'active' if active == 'scraper' }}" title="Scraper"><i class="fa-solid fa-spider"></i> <span>Scraper</span></a>

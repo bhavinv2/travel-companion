@@ -10,9 +10,11 @@
     <a href="{{ url_for('admin.listings') }}" class="{{ 'active' if active == 'listings' }}" title="Listings"><i class="fa-solid fa-list"></i> <span>Listings</span></a>
     <a href="{{ url_for('admin.new_blog') }}" class="{{ 'active' if active == 'blog' }}" title="New Blog Post"><i class="fa-solid fa-pen"></i> <span>New Blog Post</span></a>
     <a href="{{ url_for('admin.options_page') }}" class="{{ 'active' if active == 'options' }}" title="Options & dropdowns"><i class="fa-solid fa-sliders"></i> <span>Options &amp; dropdowns</span></a>
-    <a href="{{ url_for('admin.notification_switches') }}" class="{{ 'active' if active == 'notifications' }}" title="Notifications"><i class="fa-solid fa-bell-slash"></i> <span>Notifications</span></a>
+    <a href="{{ url_for('admin.notification_log') }}" class="{{ 'active' if active == 'notiflog' }}" title="Notifications"><i class="fa-solid fa-bell"></i> <span>Notifications</span></a>
+    <a href="{{ url_for('admin.notification_switches') }}" class="{{ 'active' if active == 'notifications' }}" title="Notification switches"><i class="fa-solid fa-bell-slash"></i> <span>Notification switches</span></a>
     <a href="{{ url_for('admin.messages_page') }}" class="{{ 'active' if active == 'messages' }}" title="Messages & e-mails"><i class="fa-solid fa-envelope-open-text"></i> <span>Messages &amp; e-mails</span></a>
     <a href="{{ url_for('admin.themes_page') }}" class="{{ 'active' if active == 'themes' }}" title="Colour themes"><i class="fa-solid fa-palette"></i> <span>Colour themes</span></a>
+    <a href="{{ url_for('admin.landing_page') }}" class="{{ 'active' if active == 'landing' }}" title="Landing page"><i class="fa-solid fa-flag"></i> <span>Landing page</span></a>
     <a href="{{ url_for('admin.help_center_page') }}" class="{{ 'active' if active == 'help' }}" title="Help & FAQ"><i class="fa-solid fa-circle-question"></i> <span>Help &amp; FAQ</span></a>
     <a href="{{ url_for('admin.voices') }}" class="{{ 'active' if active == 'voices' }}" title="User Voices"><i class="fa-solid fa-comment-dots"></i> <span>User Voices</span></a>
   </nav>

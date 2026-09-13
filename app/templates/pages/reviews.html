@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}Reviews – Connecting Desis{% endblock %}
+{% block content %}
+<div class="static-page cd-consult-page">
+  <div class="static-hero navy">
+    <h1>What travellers say</h1>
+    {% if review_stats.credible %}
+    <p>★ {{ review_stats.avg }} average from {{ review_stats.count }} review{{ '' if review_stats.count == 1 else 's' }}</p>
+    {% else %}
+    <p>Real reviews from real journeys — here's what our first travellers are saying.</p>
+    {% endif %}
+  </div>
+
+  <div class="static-content" style="max-width:1080px">
+    <div class="tm-list rv-grid">
+      {% if feedbacks %}
+        {% for fb in feedbacks %}
+        <figure class="tm-card">
+          <i class="fa-solid fa-quote-right tm-quote"></i>
+          <div class="tm-stars sm">{% for i in range(fb.rating) %}<i class="fa-solid fa-star"></i>{% endfor %}{% for i in range(5 - fb.rating) %}<i class="fa-regular fa-star"></i>{% endfor %}</div>
+          <blockquote>{{ fb.comment }}</blockquote>
+          <figcaption class="tm-author">
+            <span class="tm-avatar">{{ (fb.user.username or 'T')[0]|upper if fb.user else 'T' }}</span>
+            <strong>{{ fb.user.username if fb.user else 'A traveller' }}</strong>
+          </figcaption>
+        </figure>
+        {% endfor %}
+      {% else %}
+        <p class="lead">No reviews yet — <a href="{{ url_for('auth.register') }}">be one of the first</a> to travel with a companion.</p>
+      {% endif %}
+    </div>
+
+    <div class="consult" id="leave-review" style="margin-top:44px">
+      <div class="consult-side">
+        <div class="ck">Your voice matters</div>
+        <h2>Leave a review</h2>
+        <p>Travelled with a companion, or had our team help you? Tell the next family what to expect.</p>
+        <ul>
+          <li><i class="fa-solid fa-check"></i> Shown here once approved</li>
+          <li><i class="fa-solid fa-check"></i> Helps other Desi families decide</li>
+        </ul>
+      </div>
+      <div class="consult-form">
+        {% if current_user.is_authenticated %}
+        <form id="reviewForm" class="review-form">
+          <div class="star-rating" id="starRating">
+            {% for i in range(1, 6) %}
+            <i class="fa-regular fa-star" data-val="{{ i }}" title="{{ i }} star{{ 's' if i > 1 }}"></i>
+            {% endfor %}
+            <span class="rate-label" id="rateLabel">Tap to rate</span>
+          </div>
+          <input type="hidden" id="ratingValue" value="0"/>
+          <textarea id="reviewComment" placeholder="Share your experience..." rows="4"></textarea>
+          <button type="submit" class="btn btn-primary w-full">Submit Review</button>
+        </form>
+        {% else %}
+        <div class="review-login-prompt">
+          <p>Sign in to leave a review</p>
+          <a href="{{ url_for('auth.register') }}" class="btn btn-primary">Join Now</a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
