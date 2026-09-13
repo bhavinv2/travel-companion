@@ -6,13 +6,29 @@
 {% block content %}
 <div class="landing">
 
-<!-- ===== HERO ===== -->
-<section class="l-hero" id="home">
+<!-- ===== HERO =====
+     Marketing lives on the public landing now; this signed-in home stays a service workflow, so
+     a returning traveller sees a compact status strip instead of the full marketing headline. -->
+<section class="l-hero{{ ' l-hero-compact' if current_user.is_authenticated }}" id="home">
   <span class="l-cloud c1"></span><span class="l-cloud c2"></span><span class="l-cloud c3"></span>
   <div class="l-hero-inner">
+    {% if current_user.is_authenticated %}
+    <div class="welcome-strip">
+      <div>
+        <p class="l-eyebrow">Welcome back</p>
+        <h1 class="welcome-name">{{ current_user.first_name or current_user.username }}</h1>
+      </div>
+      <div class="welcome-stats">
+        <a href="{{ url_for('main.dashboard') }}#trips"><b>{{ home_stats.trips }}</b><span>Trip{{ '' if home_stats.trips == 1 else 's' }} posted</span></a>
+        <a href="{{ url_for('main.dashboard') }}"><b>{{ home_stats.matches }}</b><span>Match{{ '' if home_stats.matches == 1 else 'es' }}</span></a>
+        <a href="{{ url_for('chat.inbox') }}"><b>{{ home_stats.unread }}</b><span>Unread</span></a>
+      </div>
+    </div>
+    {% else %}
     <p class="l-eyebrow">Travel companions <span class="sep">&#9679;</span> Desi community <span class="sep">&#9679;</span> Consent-first</p>
     <h1>Wherever you fly,<br/>you'll never travel <span class="hl">alone</span>.</h1>
     <p class="l-sub">Connecting Desis matches you with trusted fellow travellers on the same route &mdash; for parents flying solo, first-time flyers, or anyone who'd love good company on a long journey.</p>
+    {% endif %}
 
     <div class="l-quick" id="quickSearch">
       <div class="l-q-seg">
@@ -36,15 +52,44 @@
       </button>
     </div>
 
-    <div class="l-trust">
-      <span class="l-trust-item"><i class="fa-solid fa-shield-halved"></i> Consent-first contact sharing</span>
-      <span class="l-trust-item"><i class="fa-solid fa-headset"></i> CS-assisted matching</span>
-      {# counts Admin -> Options -> Site languages, i.e. what the language switcher offers #}
-      <span class="l-trust-item" title="{{ OPT.SITE_LANGUAGES|map(attribute='label')|join(', ') }}"><i class="fa-solid fa-language"></i> <strong>{{ OPT.SITE_LANGUAGES|length }}</strong>&nbsp;languages</span>
-      <span class="l-trust-item is-warm"><i class="fa-solid fa-heart"></i> Free for the community</span>
-    </div>
   </div>
 </section>
+
+<!-- ===== MY TRIPS (logged in) =====
+     Your own trips lead the workflow home — this is what a returning traveller most wants to
+     see, ahead of the post/search tool below (moved up from after it, 2026-09-13). -->
+{% if current_user.is_authenticated %}
+<section class="my-trips-section" id="my-trips">
+  <div class="results-header">
+    <div class="rh-titlewrap">
+      <h2><i class="fa-solid fa-suitcase"></i> My Trips</h2>
+      <span id="myTripsCount" class="results-count"></span>
+    </div>
+    <div class="results-controls">
+      <a class="btn btn-outline-coral" id="myTripsViewAll" href="{{ url_for('main.dashboard') }}#trips" hidden>
+        View All <i class="fa-solid fa-arrow-right"></i>
+      </a>
+      <button class="btn btn-primary" onclick="document.getElementById('search').scrollIntoView({behavior:'smooth'})">
+        <i class="fa-solid fa-plus"></i> Post New Trip
+      </button>
+    </div>
+  </div>
+  <div class="carousel-wrapper">
+    <button type="button" class="carousel-arrow carousel-prev" id="myTripsPrev" aria-label="Previous trips">
+      <i class="fa-solid fa-chevron-left"></i>
+    </button>
+    <div class="carousel-track-outer">
+      <div class="results-grid carousel-track" id="myTripsGrid">
+        <div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Loading your trips...</div>
+      </div>
+    </div>
+    <button type="button" class="carousel-arrow carousel-next" id="myTripsNext" aria-label="More trips">
+      <i class="fa-solid fa-chevron-right"></i>
+    </button>
+  </div>
+  <div class="carousel-dots" id="myTripsDots"></div>
+</section>
+{% endif %}
 
 <!-- ===== SEARCH / POST SECTION ===== -->
 <section class="search-section l-form-section" id="search">
@@ -444,40 +489,6 @@
   </form>
 </section>
 
-<!-- ===== MY TRIPS (logged in) ===== -->
-{% if current_user.is_authenticated %}
-<section class="my-trips-section" id="my-trips">
-  <div class="results-header">
-    <div class="rh-titlewrap">
-      <h2><i class="fa-solid fa-suitcase"></i> My Trips</h2>
-      <span id="myTripsCount" class="results-count"></span>
-    </div>
-    <div class="results-controls">
-      <a class="btn btn-outline-coral" id="myTripsViewAll" href="{{ url_for('main.dashboard') }}#trips" hidden>
-        View All <i class="fa-solid fa-arrow-right"></i>
-      </a>
-      <button class="btn btn-primary" onclick="document.getElementById('search').scrollIntoView({behavior:'smooth'})">
-        <i class="fa-solid fa-plus"></i> Post New Trip
-      </button>
-    </div>
-  </div>
-  <div class="carousel-wrapper">
-    <button type="button" class="carousel-arrow carousel-prev" id="myTripsPrev" aria-label="Previous trips">
-      <i class="fa-solid fa-chevron-left"></i>
-    </button>
-    <div class="carousel-track-outer">
-      <div class="results-grid carousel-track" id="myTripsGrid">
-        <div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Loading your trips...</div>
-      </div>
-    </div>
-    <button type="button" class="carousel-arrow carousel-next" id="myTripsNext" aria-label="More trips">
-      <i class="fa-solid fa-chevron-right"></i>
-    </button>
-  </div>
-  <div class="carousel-dots" id="myTripsDots"></div>
-</section>
-{% endif %}
-
 <!-- ===== DESIS ON MOVE CAROUSEL ===== -->
 <section class="results-section" id="results">
   <div class="results-header">
@@ -506,7 +517,10 @@
   <div class="carousel-dots" id="carouselDots"></div>
 </section>
 
-<!-- ===== HOW IT WORKS: the journey ===== -->
+<!-- ===== HOW IT WORKS: the journey =====
+     Marketing lives on the public landing now; the signed-in home stays functional, so this
+     is shown only to logged-out visitors (who actually see the landing instead). -->
+{% if not current_user.is_authenticated %}
 <section class="how-works l-journey" id="how-it-works">
   <div class="section-header">
     <p class="section-tag">How it works</p>
@@ -574,8 +588,8 @@
       <div class="j-dot">4</div>
       <div class="j-card">
         <h3><i class="fa-solid fa-headset"></i> A real team stays close</h3>
-        <p>People, not just algorithms. If a match goes quiet as your departure nears, our care team follows up personally, suggests alternatives and keeps you posted — in your language.</p>
-        <div class="j-chips"><span>Follow-ups before take-off</span><span>Help in your language</span></div>
+        <p>People, not just algorithms. If a match goes quiet as your departure nears, our care team follows up personally, suggests alternatives and keeps you posted.</p>
+        <div class="j-chips"><span>Follow-ups before take-off</span><span>Matches who share your language</span></div>
       </div>
     </div>
     <div class="j-stop">
@@ -592,142 +606,27 @@
     <button class="btn btn-primary" onclick="document.getElementById('search').scrollIntoView({behavior:'smooth'})"><i class="fa-solid fa-pen-to-square"></i> Start your post</button>
   </div>
 </section>
+{% endif %}
 
-<!-- ===== FEEDBACK / TESTIMONIALS ===== -->
-<section class="feedback-section" id="feedback">
-  <div class="feedback-inner">
-    <div class="testimonials-col">
-      <div class="section-header left">
-        <p class="section-tag">Community Love</p>
-        <h2>What Families Say</h2>
-      </div>
-
-      {% set count = feedbacks|length if feedbacks else 0 %}
-      {% set avg = ((feedbacks|sum(attribute='rating') / count)|round(1)) if count else 4.9 %}
-      <div class="tm-summary">
-        <div class="tm-score">{{ avg }}<span>/5</span></div>
-        <div class="tm-summary-meta">
-          <div class="tm-stars" aria-label="{{ avg }} out of 5">
-            {% for i in range(5) %}<i class="fa-{{ 'solid' if i < avg|round(0,'floor')|int else 'regular' }} fa-star"></i>{% endfor %}
-          </div>
-          <div class="tm-count"><i class="fa-solid fa-heart"></i> Trusted by {{ count if count >= 3 else '2,000' }}+ families</div>
-        </div>
-      </div>
-
-      <div class="tm-list"{% if feedbacks and feedbacks|length > 3 %} data-carousel="1"{% endif %}>
-        {% if feedbacks %}
-          {% for fb in feedbacks[:9] %}
-          <figure class="tm-card">
-            <i class="fa-solid fa-quote-right tm-quote"></i>
-            <div class="tm-stars sm">{% for i in range(fb.rating) %}<i class="fa-solid fa-star"></i>{% endfor %}{% for i in range(5 - fb.rating) %}<i class="fa-regular fa-star"></i>{% endfor %}</div>
-            <blockquote>{{ fb.comment }}</blockquote>
-            <figcaption class="tm-author">
-              <span class="tm-avatar">{{ (fb.user.username or 'T')[0]|upper }}</span>
-              <strong>{{ fb.user.username }}</strong>
-            </figcaption>
-          </figure>
-          {% endfor %}
-        {% else %}
-          {% for r in [
-            {'n': 'Priya S.', 'l': 'California', 'q': 'I found an amazing travel companion for my mom\'s flight to India. The service is incredible!'},
-            {'n': 'Raj M.', 'l': 'London', 'q': 'Finally a platform made for us! Connected with a family going the same route. Highly recommend.'},
-            {'n': 'Meera K.', 'l': 'Toronto', 'q': 'My elderly father had a wonderful companion on his long flight. Thank you Connecting Desis!'} ] %}
-          <figure class="tm-card">
-            <i class="fa-solid fa-quote-right tm-quote"></i>
-            <div class="tm-stars sm"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i></div>
-            <blockquote>{{ r.q }}</blockquote>
-            <figcaption class="tm-author">
-              <span class="tm-avatar">{{ r.n[0] }}</span>
-              <div><strong>{{ r.n }}</strong><small>{{ r.l }}</small></div>
-            </figcaption>
-          </figure>
-          {% endfor %}
-        {% endif %}
-      </div>
-      <div class="tm-dots" id="tmDots" hidden></div>
-
-      <div class="social-row">
-        <span class="social-label">Follow the community</span>
-        <a href="#" title="Facebook"><i class="fa-brands fa-facebook"></i></a>
-        <a href="#" title="Instagram"><i class="fa-brands fa-instagram"></i></a>
-        <a href="#" title="Twitter/X"><i class="fa-brands fa-x-twitter"></i></a>
-        <a href="#" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>
-      </div>
+<!-- ===== HELP / REVIEWS strip =====
+     This used to duplicate the whole "Talk to us" experience (contact form + review form +
+     testimonials carousel) right here on the workflow home. That's now one canonical place for
+     each — /contact and /reviews (both restyled to match the landing) — so this is a slim
+     pointer to them, not a third parallel implementation. -->
+<section class="help-strip">
+  <div class="help-strip-inner">
+    <div class="help-strip-item">
+      <i class="fa-solid fa-envelope"></i>
+      <div><b>Need help?</b><span>A real person replies within a working day.</span></div>
+      <a class="btn btn-outline-coral" href="{{ url_for('main.contact') }}">Contact us</a>
     </div>
-
-    <div class="review-col" id="talk-to-us">
-      <div class="tu-head">
-        <div class="section-header left">
-          <p class="section-tag">Your Voice Matters</p>
-          <h2>Talk to us</h2>
-        </div>
-        <div class="tu-aside">
-          <span class="tu-badge"><span class="tu-dot"></span> A real person reads every message</span>
-          <a class="tu-line" href="mailto:{{ SUPPORT_EMAIL }}">
-            <i class="fa-solid fa-envelope"></i> <span>{{ SUPPORT_EMAIL }}</span>
-          </a>
-          <a class="tu-line" href="{{ url_for('main.help_page') }}">
-            <i class="fa-solid fa-circle-question"></i> <span>Browse the help centre</span>
-          </a>
-        </div>
+    <div class="help-strip-item">
+      <i class="fa-solid fa-star"></i>
+      <div>
+        <b>How are we doing?</b>
+        <span>{% if review_stats.credible %}Rated {{ review_stats.avg }}/5 by {{ review_stats.count }} traveller{{ '' if review_stats.count == 1 else 's' }}.{% else %}Be one of the first to share your experience.{% endif %}</span>
       </div>
-
-      <div class="hx-tabs" role="tablist">
-        <button type="button" class="hx-tab active" role="tab" data-tab="contact">
-          <i class="fa-solid fa-envelope"></i> Contact us
-        </button>
-        <button type="button" class="hx-tab" role="tab" data-tab="review">
-          <i class="fa-solid fa-star"></i> Leave a review
-        </button>
-      </div>
-
-      <!-- Contact (default) -->
-      <div class="hx-panel active" id="hx-contact" role="tabpanel">
-        <form id="homeContactForm" class="ct-form hx-form" novalidate>
-          <div class="ct-field">
-            <label for="hcName">Your name <span class="req">*</span></label>
-            <input type="text" id="hcName" name="name" maxlength="120" placeholder="Priya Sharma"
-                   value="{{ current_user.full_name if current_user.is_authenticated else '' }}"/>
-          </div>
-          <div class="ct-field">
-            <label for="hcEmail">E-mail <span class="req">*</span></label>
-            <input type="email" id="hcEmail" name="email" maxlength="255" placeholder="you@example.com"
-                   value="{{ current_user.email if current_user.is_authenticated else '' }}"/>
-          </div>
-          <div class="ct-field">
-            <label for="hcPhone">Phone <small class="muted">(optional)</small></label>
-            <input type="tel" id="hcPhone" name="phone" maxlength="30" placeholder="+91 98480 00000"
-                   value="{{ current_user.phone if current_user.is_authenticated else '' }}"/>
-          </div>
-          <div class="ct-field">
-            <label for="hcMessage">Message <span class="req">*</span></label>
-            <textarea id="hcMessage" name="message" rows="4" maxlength="4000" placeholder="How can we help?"></textarea>
-          </div>
-          <button type="submit" class="btn btn-primary w-full"><i class="fa-solid fa-paper-plane"></i> Send message</button>
-        </form>
-      </div>
-
-      <!-- Review -->
-      <div class="hx-panel" id="hx-review" role="tabpanel">
-        {% if current_user.is_authenticated %}
-        <form id="reviewForm" class="review-form">
-          <div class="star-rating" id="starRating">
-            {% for i in range(1, 6) %}
-            <i class="fa-regular fa-star" data-val="{{ i }}" title="{{ i }} star{{ 's' if i > 1 }}"></i>
-            {% endfor %}
-            <span class="rate-label" id="rateLabel">Tap to rate</span>
-          </div>
-          <input type="hidden" id="ratingValue" value="0"/>
-          <textarea id="reviewComment" placeholder="Share your experience..." rows="4"></textarea>
-          <button type="submit" class="btn btn-primary w-full">Submit Review</button>
-        </form>
-        {% else %}
-        <div class="review-login-prompt">
-          <p>Sign in to leave a review</p>
-          <a href="{{ url_for('auth.register') }}" class="btn btn-primary">Join Now</a>
-        </div>
-        {% endif %}
-      </div>
+      <a class="btn btn-outline-coral" href="{{ url_for('main.reviews') }}">{{ 'Leave a review' if current_user.is_authenticated else 'Read reviews' }}</a>
     </div>
   </div>
 </section>
@@ -808,44 +707,8 @@
     window.addEventListener('load', () => { settle(); setTimeout(settle, 700); setTimeout(settle, 1600); });
   })();
 
-  // --- "Talk to us": Contact us (default) / Leave a review ---
-  (function () {
-    const tabs = [...document.querySelectorAll('.hx-tab')];
-    if (!tabs.length) return;
-    tabs.forEach(t => t.addEventListener('click', () => {
-      tabs.forEach(x => x.classList.toggle('active', x === t));
-      document.querySelectorAll('.hx-panel').forEach(p =>
-        p.classList.toggle('active', p.id === 'hx-' + t.dataset.tab));
-    }));
-
-    const form = document.getElementById('homeContactForm');
-    form?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const btn = form.querySelector('button[type=submit]');
-      const body = {
-        name: document.getElementById('hcName').value.trim(),
-        email: document.getElementById('hcEmail').value.trim(),
-        phone: document.getElementById('hcPhone').value.trim(),
-        message: document.getElementById('hcMessage').value.trim(),
-      };
-      btn.disabled = true;
-      try {
-        const res = await apiFetch('/api/contact', { method: 'POST', body: JSON.stringify(body) });
-        const data = await res.json();
-        if (data.success) {
-          showToast(data.message, 'success');
-          document.getElementById('hcMessage').value = '';
-          if (!IS_LOGGED_IN) { document.getElementById('hcName').value = ''; document.getElementById('hcEmail').value = ''; document.getElementById('hcPhone').value = ''; }
-        } else {
-          showToast(data.error || 'Could not send that just now.', 'danger');
-        }
-      } catch (err) {
-        showToast('Could not send that just now. Please try again.', 'danger');
-      } finally {
-        btn.disabled = false;
-      }
-    });
-  })();
+  // The inline "Talk to us" contact/review forms moved to their own canonical pages
+  // (/contact and /reviews) — see the compact help-strip above.
 
   // --- My Trips carousel: 2 rows x 4 columns per page ---
   document.getElementById('myTripsPrev')?.addEventListener('click', () => myTripsNav(-1));

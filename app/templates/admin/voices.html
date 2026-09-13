@@ -6,9 +6,9 @@
   {% with active='voices' %}{% include 'admin/_sidebar.html' %}{% endwith %}
   <main class="admin-main">
     <h1><i class="fa-solid fa-comment-dots"></i> User Voices</h1>
-    <p class="opt-intro">Everything people send you, in the same two halves they see on the
-      <a href="{{ url_for('main.index') }}#talk-to-us" target="_blank">Talk to us</a> panel:
-      enquiries from the contact form, and the reviews they leave.</p>
+    <p class="opt-intro">Everything people send you: enquiries from the
+      <a href="{{ url_for('main.contact') }}" target="_blank">Contact us</a> form, and the reviews they leave on
+      <a href="{{ url_for('main.reviews') }}" target="_blank">the reviews page</a>.</p>
 
     <div class="hx-tabs vc-tabs" role="tablist">
       <a class="hx-tab {{ 'active' if tab == 'contact' }}" role="tab"
@@ -20,6 +20,11 @@
          href="{{ url_for('admin.voices', tab='feedback') }}">
         <i class="fa-solid fa-star"></i> Feedback
         {% if pending %}<span class="vt-n">{{ pending }}</span>{% endif %}
+      </a>
+      <a class="hx-tab {{ 'active' if tab == 'report' }}" role="tab"
+         href="{{ url_for('admin.voices', tab='report') }}">
+        <i class="fa-solid fa-flag"></i> Reports
+        {% if reports_open %}<span class="vt-n vt-n-alert">{{ reports_open }}</span>{% endif %}
       </a>
     </div>
 
@@ -45,7 +50,7 @@
     </div>
     {% endif %}
 
-    {% else %}
+    {% elif tab == 'feedback' %}
     <p class="muted small vc-note">Approved reviews appear on the public home page. Rejecting deletes the review.</p>
 
     {{ vt.feedback_table(feedbacks) }}
@@ -58,6 +63,26 @@
       {% endfor %}
     </div>
     {% endif %}
+
+    {% else %}
+    <p class="muted small vc-note">Problems travellers flagged on a match from the “Report a problem with this match” box. Resolve closes the report (and clears the match from the CS queue when it was the last open one).</p>
+    <div class="cm-filters">
+      {% for v, lbl in [('open', 'Open (' ~ reports_open ~ ')'), ('resolved', 'Resolved'), ('all', 'All')] %}
+      <a class="btn-sm-outline {{ 'active' if r_status == v }}" href="{{ url_for('admin.voices', tab='report', rstatus=v) }}">{{ lbl }}</a>
+      {% endfor %}
+      <span class="muted" style="font-size:13px;margin-left:auto">{{ r_total }} report{{ '' if r_total == 1 else 's' }}</span>
+    </div>
+
+    {{ vt.report_table(reports, can_delete=True) }}
+
+    {% if r_pages > 1 %}
+    <div class="pagination">
+      {% for p in range(1, r_pages + 1) %}
+      <a class="page {{ 'current' if p == r_page }}"
+         href="{{ url_for('admin.voices', tab='report', rstatus=r_status, page=p) }}">{{ p }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
     {% endif %}
   </main>
 </div>
@@ -65,4 +90,5 @@
 
 {% block extra_js %}
 {{ vt.feedback_js('/admin/feedback/__ID__/__ACTION__') }}
+{{ vt.report_js('/cs/reports/__ID__/__ACTION__') }}
 {% endblock %}

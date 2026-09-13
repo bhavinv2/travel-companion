@@ -1,0 +1,158 @@
+{# Shared Notifications management UI for the admin and CS consoles.
+   Params:
+     rows        - the Notification rows on this page
+     page, pages, total
+     base        - action URL prefix, e.g. '/admin/notification-log' or '/cs/notifications'
+     can_delete  - show the per-row delete action (admin only)
+     f           - dict of current filter values (q, category, status, user, from, to)
+     categories  - list of (value, label) for the category dropdown
+     groups      - list of (value, label) for the send-to group dropdown
+     cat_for_type, cat_labels - map a notification type to its category chip
+   The filter form + pager use request.endpoint, so this macro works from either blueprint. #}
+{% macro notifications_manager(rows, page, pages, total, base, can_delete, f, categories, groups, cat_for_type, cat_labels) %}
+<section class="nm-send">
+  <h2><i class="fa-solid fa-paper-plane"></i> Send a notification</h2>
+  <form id="nmSendForm" class="nm-send-grid" data-base="{{ base }}">
+    <label class="nm-field nm-wide">
+      <span>Title</span>
+      <input type="text" name="title" maxlength="255" placeholder="e.g. Your trip has a new match" required/>
+    </label>
+    <label class="nm-field nm-wide">
+      <span>Message</span>
+      <textarea name="body" rows="2" placeholder="What should they know?" required></textarea>
+    </label>
+    <label class="nm-field">
+      <span>To a specific user <small class="muted">(username or e-mail — leave blank for a group)</small></span>
+      <input type="text" name="user" placeholder="username or e-mail" autocomplete="off"/>
+    </label>
+    <label class="nm-field">
+      <span>…or a group</span>
+      <select name="group">
+        {% for v, lbl in groups %}<option value="{{ v }}">{{ lbl }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="nm-field">
+      <span>Link <small class="muted">(optional)</small></span>
+      <input type="text" name="link" placeholder="/dashboard"/>
+    </label>
+    <div class="nm-field nm-send-action">
+      <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Send</button>
+      <span class="nm-send-msg" id="nmSendMsg"></span>
+    </div>
+  </form>
+</section>
+
+<form method="GET" class="cs-filters nm-filters">
+  <input type="text" name="q" value="{{ f.q }}" placeholder="Search title, message, user…"/>
+  <input type="text" name="user" value="{{ f.user }}" placeholder="Filter by user"/>
+  <select name="category">
+    <option value="">Any type</option>
+    {% for v, lbl in categories %}<option value="{{ v }}" {% if f.category == v %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+  </select>
+  <select name="status">
+    <option value="">Read &amp; unread</option>
+    <option value="unread" {% if f.status == 'unread' %}selected{% endif %}>Unread only</option>
+    <option value="read" {% if f.status == 'read' %}selected{% endif %}>Read only</option>
+  </select>
+  <label class="nm-date">From <input type="date" name="from" value="{{ f.from }}"/></label>
+  <label class="nm-date">To <input type="date" name="to" value="{{ f.to }}"/></label>
+  <button type="submit" class="btn btn-primary">Filter</button>
+  <a href="{{ base }}" class="btn-sm">Reset</a>
+</form>
+<p class="muted">{{ total }} notification{{ '' if total == 1 else 's' }}</p>
+
+<div class="table-wrap">
+<table class="admin-table stack-mobile nm-table">
+  <thead><tr><th>User</th><th>Type</th><th>Notification</th><th>Status</th><th>When</th><th></th></tr></thead>
+  <tbody>
+    {% for n in rows %}
+    {% set u = n.user %}
+    {% set cat = cat_for_type.get(n.type, 'other') %}
+    <tr id="nm-{{ n.id }}" class="{{ 'nm-unread' if not n.is_read }}">
+      <td data-label="User">
+        {% if u %}
+          <a href="{{ base }}?user_id={{ u.id }}" title="Show only this user's notifications">{{ u.username }}</a>
+          <br/><small class="muted">{{ u.email }}</small>
+        {% else %}<span class="muted">#{{ n.user_id }}</span>{% endif %}
+      </td>
+      <td data-label="Type"><span class="nm-cat nm-cat-{{ cat }}">{{ cat_labels.get(cat, cat) }}</span>
+        {% if n.type %}<br/><small class="muted">{{ n.type|replace('_',' ') }}</small>{% endif %}</td>
+      <td data-label="Notification">
+        <strong>{{ n.title or '—' }}</strong>
+        {% if n.body %}<br/><small class="muted">{{ n.body[:140] }}{{ '…' if n.body|length > 140 }}</small>{% endif %}
+        {% if n.link %}<br/><a class="nm-link" href="{{ n.link }}"><i class="fa-solid fa-arrow-up-right-from-square"></i> {{ n.link }}</a>{% endif %}
+      </td>
+      <td data-label="Status">
+        <span class="nm-status {{ 'is-unread' if not n.is_read else 'is-read' }}">{{ 'Unread' if not n.is_read else 'Read' }}</span>
+      </td>
+      <td data-label="When"><small class="muted">{{ n.created_at.strftime('%Y-%m-%d %H:%M') if n.created_at else '' }}</small></td>
+      <td data-label="Actions" class="nm-actions">
+        <button type="button" class="btn-sm-outline nm-read" data-id="{{ n.id }}" data-read="{{ 'read' if n.is_read else 'unread' }}">
+          <i class="fa-solid {{ 'fa-envelope-open' if n.is_read else 'fa-envelope' }}"></i>
+          <span>{{ 'Mark unread' if n.is_read else 'Mark read' }}</span>
+        </button>
+        {% if can_delete %}
+        <button type="button" class="btn-sm-outline danger nm-del" data-id="{{ n.id }}"><i class="fa-solid fa-trash"></i></button>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">No notifications match these filters.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% include 'admin/_pager.html' %}
+{% endmacro %}
+
+
+{% macro notifications_manager_js(base, can_delete) %}
+<script>
+(function () {
+  const BASE = '{{ base }}';
+  const sform = document.getElementById('nmSendForm');
+  sform?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('nmSendMsg');
+    const fd = Object.fromEntries(new FormData(sform).entries());
+    if (!fd.title.trim() || !fd.body.trim()) { msg.textContent = 'Title and message are required.'; msg.className = 'nm-send-msg err'; return; }
+    const btn = sform.querySelector('button[type=submit]'); btn.disabled = true;
+    try {
+      const res = await apiFetch(BASE + '/send', { method: 'POST', body: JSON.stringify(fd) });
+      const d = await res.json();
+      if (d.success) {
+        msg.textContent = `Sent to ${d.sent} user${d.sent === 1 ? '' : 's'}` + (d.skipped ? ` (${d.skipped} skipped by their settings)` : '') + '.';
+        msg.className = 'nm-send-msg ok';
+        sform.reset();
+      } else { msg.textContent = d.error || 'Could not send.'; msg.className = 'nm-send-msg err'; }
+    } catch (err) { msg.textContent = 'Network error.'; msg.className = 'nm-send-msg err'; }
+    finally { btn.disabled = false; }
+  });
+
+  document.querySelectorAll('.nm-read').forEach(b => b.addEventListener('click', async () => {
+    const id = b.dataset.id;
+    const res = await apiFetch(`${BASE}/${id}/read`, { method: 'POST', body: '{}' });
+    const d = await res.json();
+    if (!d.success) return;
+    const row = document.getElementById('nm-' + id);
+    row.classList.toggle('nm-unread', !d.is_read);
+    b.dataset.read = d.is_read ? 'read' : 'unread';
+    b.querySelector('span').textContent = d.is_read ? 'Mark unread' : 'Mark read';
+    b.querySelector('i').className = 'fa-solid ' + (d.is_read ? 'fa-envelope-open' : 'fa-envelope');
+    const st = row.querySelector('.nm-status');
+    st.textContent = d.is_read ? 'Read' : 'Unread';
+    st.className = 'nm-status ' + (d.is_read ? 'is-read' : 'is-unread');
+  }));
+
+  {% if can_delete %}
+  document.querySelectorAll('.nm-del').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Delete this notification for the user? This cannot be undone.')) return;
+    const id = b.dataset.id;
+    const res = await apiFetch(`${BASE}/${id}/delete`, { method: 'POST', body: '{}' });
+    const d = await res.json();
+    if (d.success) { const r = document.getElementById('nm-' + id); r.style.transition = 'opacity .2s'; r.style.opacity = '0'; setTimeout(() => r.remove(), 200); }
+  }));
+  {% endif %}
+})();
+</script>
+{% endmacro %}

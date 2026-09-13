@@ -147,17 +147,22 @@ def home():
     closed = (CompanionRequest.query.filter_by(status='closed')
               .order_by(CompanionRequest.closed_at.desc()).limit(20).all())
 
-    from app.models import Match
+    from app.models import Match, MatchReport
     match_tasks = (Match.query.filter(Match.needs_cs_attention.is_(True), Match.status != 'dismissed')
                    .order_by(Match.updated_at.desc()).limit(20).all())
+    open_reports = (MatchReport.query.filter_by(status='open')
+                    .order_by(MatchReport.created_at.desc()).limit(20).all())
+    reports_total = MatchReport.query.filter_by(status='open').count()
 
     counts = {
         'open': public.count(),
         'unconfirmed': len(awaiting_claim),
         'closed': CompanionRequest.query.filter_by(status='closed').count(),
         'needs_action': len(needs_action) + len(match_tasks),
+        'reports': reports_total,
     }
     return render_template('cs/home.html', counts=counts, needs_action=needs_action, match_tasks=match_tasks,
+                           open_reports=open_reports, reports_total=reports_total,
                            departing_soon=departing_soon, new_posts=new_posts,
                            awaiting_claim=awaiting_claim, dup_contact_groups=dup_contact_groups,
                            dup_route_groups=dup_route_groups, closed=closed, today=today, **_choices())
@@ -170,9 +175,9 @@ def voices():
     """Everything users send in: enquiries from the Contact form and the reviews they
     leave. The same two halves the admin sees, and the same two the public writes into
     from the home page -- a message or a review reaches CS the moment it is submitted."""
-    from app.models import ContactMessage, Feedback, CONTACT_STATUSES, CONTACT_STATUS_LABELS
+    from app.models import ContactMessage, Feedback, MatchReport, CONTACT_STATUSES, CONTACT_STATUS_LABELS
     tab = request.args.get('tab') or 'contact'
-    if tab not in ('contact', 'feedback'):
+    if tab not in ('contact', 'feedback', 'report'):
         tab = 'contact'
     status = request.args.get('status') or ''
     q = (request.args.get('q') or '').strip()
@@ -199,13 +204,58 @@ def voices():
     feedbacks = fq.offset((f_page - 1) * PAGE_SIZE).limit(PAGE_SIZE).all()
     pending = Feedback.query.filter_by(is_approved=False).count()
 
+    # Reports tab: problems users flagged about a match (from the /match/<token> page).
+    r_status = request.args.get('rstatus') or 'open'
+    if r_status not in ('open', 'resolved', 'all'):
+        r_status = 'open'
+    rq = MatchReport.query
+    if r_status != 'all':
+        rq = rq.filter(MatchReport.status == r_status)
+    rq = rq.order_by(MatchReport.created_at.desc())
+    r_total = rq.count()
+    r_pages = max((r_total + PAGE_SIZE - 1) // PAGE_SIZE, 1)
+    r_page = min(page, r_pages) if tab == 'report' else 1
+    reports = rq.offset((r_page - 1) * PAGE_SIZE).limit(PAGE_SIZE).all()
+    reports_open = MatchReport.query.filter_by(status='open').count()
+
     return render_template('cs/voices.html', tab=tab,
                            items=items, total=total, page=c_page, pages=c_pages,
                            counts=counts, filters={'status': status, 'q': q},
                            feedbacks=feedbacks, f_total=f_total, f_page=f_page, f_pages=f_pages,
                            pending=pending,
+                           reports=reports, r_total=r_total, r_page=r_page, r_pages=r_pages,
+                           r_status=r_status, reports_open=reports_open, can_delete=True,
                            CONTACT_STATUSES=CONTACT_STATUSES, CONTACT_STATUS_LABELS=CONTACT_STATUS_LABELS,
                            **_choices())
+
+
+@cs_bp.route('/reports/<int:report_id>/<action>', methods=['POST'])
+@login_required
+@cs_required
+def report_action(report_id, action):
+    """Resolve / reopen a reported match (CS + admin). Delete is admin-only."""
+    from app.models import MatchReport
+    report = MatchReport.query.get_or_404(report_id)
+    if action == 'resolve':
+        report.resolve(by=current_user)
+        # if this was the last open report on the match, clear the queue flag
+        if report.match and not MatchReport.query.filter_by(match_id=report.match_id, status='open').filter(MatchReport.id != report.id).count():
+            report.match.needs_cs_attention = False
+    elif action == 'reopen':
+        report.reopen()
+        if report.match:
+            report.match.needs_cs_attention = True
+    elif action == 'delete':
+        if not current_user.is_admin:
+            return jsonify({'error': 'Only an admin can delete a report.'}), 403
+        db.session.delete(report)
+    else:
+        return jsonify({'error': 'Unknown action'}), 400
+    note = request.get_json(silent=True) or {}
+    if action in ('resolve', 'reopen') and 'cs_notes' in note:
+        report.cs_notes = (note.get('cs_notes') or '').strip()[:1000] or None
+    db.session.commit()
+    return jsonify({'success': True, 'status': (None if action == 'delete' else report.status)})
 
 
 @cs_bp.route('/contact')
@@ -990,3 +1040,60 @@ def log_manual_event(trip_id):
         return jsonify({'success': True})
     flash('Logged.', 'success')
     return redirect(url_for('cs.post_detail', trip_id=trip.id))
+
+
+# ---------------------------------------------------------------------------
+# Notifications management (view + filters + search + send; delete is admin-only)
+# ---------------------------------------------------------------------------
+
+@cs_bp.route('/notifications')
+@login_required
+@cs_required
+def notifications():
+    from app.services import notiflog
+    try:
+        page = max(int(request.args.get('page') or 1), 1)
+    except ValueError:
+        page = 1
+    per_page = 30
+    query = notiflog.build_query(request.args)
+    total = query.count()
+    pages = max((total + per_page - 1) // per_page, 1)
+    page = min(page, pages)
+    rows = query.offset((page - 1) * per_page).limit(per_page).all()
+    f = {k: (request.args.get(k) or '') for k in ('q', 'user', 'category', 'status', 'from', 'to')}
+    return render_template(
+        'cs/notifications.html', rows=rows, page=page, pages=pages, total=total, f=f,
+        categories=[(c, notiflog.CATEGORY_LABELS[c]) for c in notiflog.CATEGORY_ORDER],
+        groups=notiflog.SEND_GROUPS, cat_for_type=notiflog.CATEGORY_FOR_TYPE,
+        cat_labels=notiflog.CATEGORY_LABELS, base='/cs/notifications', can_delete=False)
+
+
+@cs_bp.route('/notifications/send', methods=['POST'])
+@login_required
+@cs_required
+def notifications_send():
+    from app.services import notiflog
+    data = request.get_json() or {}
+    u, searched = notiflog.resolve_user(data.get('user'))
+    if searched and not u:
+        return jsonify({'error': 'No active user matches that username or e-mail.'}), 400
+    res = notiflog.send(data.get('title'), data.get('body'), data.get('link'),
+                        data.get('group') or 'all', u.id if u else None)
+    if res is None:
+        return jsonify({'error': 'Title and message are required.'}), 400
+    sent, total = res
+    ActivityEvent.log('cs_notification_sent', actor=current_user, sent=sent,
+                      to=(u.username if u else (data.get('group') or 'all')))
+    db.session.commit()
+    return jsonify({'success': True, 'sent': sent, 'skipped': total - sent})
+
+
+@cs_bp.route('/notifications/<int:nid>/read', methods=['POST'])
+@login_required
+@cs_required
+def notifications_read(nid):
+    n = Notification.query.get_or_404(nid)
+    n.is_read = not n.is_read
+    db.session.commit()
+    return jsonify({'success': True, 'is_read': n.is_read})

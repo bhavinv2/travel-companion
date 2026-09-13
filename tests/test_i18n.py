@@ -11,17 +11,21 @@ def login(client, email, password='password123'):
     return client.post('/auth/login', data={'email': email, 'password': password})
 
 
+# '/' is the standalone marketing landing now (Google-translate based); the Babel-rendered
+# selector + translated strings live on the other base.html pages, so the i18n tests target one.
+I18N_PAGE = '/contact'
+
+
 def test_default_is_english(client):
-    html = client.get('/').data.decode('utf-8')
-    assert 'How can a matched companion reach you?' in html
-    assert HI_CONSENT_Q not in html
+    html = client.get(I18N_PAGE).data.decode('utf-8')
+    assert 'Privacy Policy' in html                 # base.html footer, wrapped in _()
+    assert HI_PRIVACY not in html
 
 
 def test_lang_cookie_renders_hindi(client):
     client.set_cookie('lang', 'hi')
-    html = client.get('/').data.decode('utf-8')
-    assert HI_CONSENT_Q in html
-    assert HI_PRIVACY in html                       # footer link + consent link
+    html = client.get(I18N_PAGE).data.decode('utf-8')
+    assert HI_PRIVACY in html                       # footer link translated
     assert '<html lang="hi">' in html
 
 
@@ -45,13 +49,13 @@ def test_saved_preference_wins_without_cookie(client, user):
 def test_language_api_works_for_anonymous(client):
     r = client.post('/api/language', json={'lang': 'hi'})
     assert r.get_json()['success']
-    assert HI_CONSENT_Q in client.get('/').data.decode('utf-8')
+    assert HI_PRIVACY in client.get(I18N_PAGE).data.decode('utf-8')
 
 
 def test_unknown_language_falls_back_to_english(client):
     client.set_cookie('lang', 'zz')                 # no catalog for zz
-    html = client.get('/').data.decode('utf-8')
-    assert 'How can a matched companion reach you?' in html
+    html = client.get(I18N_PAGE).data.decode('utf-8')
+    assert 'Privacy Policy' in html and HI_PRIVACY not in html
 
 
 def test_admin_site_languages_config(client, admin_user):
@@ -81,6 +85,6 @@ def test_header_selector_uses_configured_languages(client, admin_user):
                     json={'items': [{'code': 'hi', 'label': 'हिंदी', 'mode': 'babel'}]})
     assert not r.get_json().get('error')
     client.get('/auth/logout')                      # the selector is on traveller pages
-    html = client.get('/').data.decode('utf-8')
+    html = client.get(I18N_PAGE).data.decode('utf-8')
     assert 'value="hi"' in html and 'data-mode="babel"' in html
     assert 'value="ta"' not in html                 # removed from the configured list

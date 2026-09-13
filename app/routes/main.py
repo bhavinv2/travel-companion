@@ -72,13 +72,214 @@ def switch_view(view):
     return redirect(staff_home(current_user))
 
 
+def _landing_structured_data(landing_faqs, review_stats):
+    """JSON-LD for the public landing: Organization + FAQPage (mirrors the on-page accordion
+    exactly — Google requires that match) + a Service card carrying AggregateRating only once
+    there's enough real signal (same 'credible' threshold as the visible rating text, so the
+    structured data can never claim more than the page itself does)."""
+    from flask import current_app
+    site = current_app.config['SITE_URL']
+    graph = [
+        {
+            '@type': 'Organization',
+            '@id': f'{site}/#org',
+            'name': 'Connecting Desis',
+            'url': site,
+            'logo': f'{site}/static/img/logo-icon.png',
+            'description': 'Matches parents, first-time flyers and solo travellers with trusted travel '
+                           'companions on the same route, free for the Desi community.',
+            'contactPoint': {'@type': 'ContactPoint', 'contactType': 'customer support',
+                             'email': current_app.config['SUPPORT_EMAIL'], 'availableLanguage': 'English'},
+        },
+        {
+            '@type': 'Service',
+            'name': 'Connecting Desis travel companion matching',
+            'provider': {'@id': f'{site}/#org'},
+            'areaServed': 'Worldwide',
+            'audience': {'@type': 'Audience', 'audienceType': 'South Asian diaspora travellers'},
+        },
+    ]
+    if review_stats.get('credible'):
+        graph[1]['aggregateRating'] = {
+            '@type': 'AggregateRating', 'ratingValue': review_stats['avg'],
+            'reviewCount': review_stats['count'], 'bestRating': 5, 'worstRating': 1,
+        }
+    if landing_faqs:
+        graph.append({
+            '@type': 'FAQPage',
+            'mainEntity': [{'@type': 'Question', 'name': f['question'],
+                            'acceptedAnswer': {'@type': 'Answer', 'text': f['answer']}}
+                          for f in landing_faqs],
+        })
+    return {'@context': 'https://schema.org', '@graph': graph}
+
+
+def _review_stats():
+    """Honest rating summary computed straight from SQL. Below a handful of reviews, a specific
+    average reads as invented, so callers show generic praise instead until there is enough
+    real signal."""
+    from sqlalchemy import func
+    from app import db
+    count, avg = db.session.query(func.count(Feedback.id), func.avg(Feedback.rating)) \
+        .filter(Feedback.is_approved.is_(True)).one()
+    return {'avg': round(avg, 1) if avg is not None else None, 'count': count or 0,
+            'credible': (count or 0) >= 3}
+
+
 @main_bp.route('/')
 def index():
+    # Featured reviews (hand-picked by CS/admin) show on the public face — now the landing.
     approved_feedback = (Feedback.query.filter_by(is_approved=True, is_featured=True)
                          .order_by(Feedback.created_at.desc()).limit(6).all())
     if not approved_feedback:   # nothing hand-picked yet: the newest approved keep the section alive
         approved_feedback = Feedback.query.filter_by(is_approved=True).order_by(Feedback.created_at.desc()).limit(6).all()
-    return render_template('index.html', feedbacks=approved_feedback)
+    review_stats = _review_stats()
+    # The public marketing landing is the face of the app; the functional home (post form +
+    # Desis on Move) is for signed-in travellers only. Admins can force a preview.
+    preview = request.args.get('preview') == 'landing' and current_user.is_authenticated and current_user.is_admin
+    if not current_user.is_authenticated or preview:
+        from app.services import settings as _settings, help_center
+        # Admin-managed FAQs (same content that backs /help) — flattened in category order so
+        # the landing page's "before you travel" accordion is never a copy an admin can't edit.
+        landing_faqs = [f for _cat, items in help_center.grouped() for f in items]
+        return render_template('landing.html', feedbacks=approved_feedback, review_stats=review_stats,
+                               landing_colors=_settings.landing_settings()['colors'],
+                               country_meta=COUNTRY_META, landing_faqs=landing_faqs,
+                               structured_data=_landing_structured_data(landing_faqs, review_stats),
+                               **_landing_live_data())
+    return render_template('index.html', feedbacks=approved_feedback, review_stats=review_stats,
+                           **_home_status())
+
+
+# Small display map for the countries a trip's destination airport resolves to: flag + full
+# name for the codes we actually see traffic to. Anything else falls back to its raw code.
+COUNTRY_META = {
+    'IN': ('India', '\U0001F1EE\U0001F1F3'), 'US': ('United States', '\U0001F1FA\U0001F1F8'),
+    'GB': ('United Kingdom', '\U0001F1EC\U0001F1E7'), 'CA': ('Canada', '\U0001F1E8\U0001F1E6'),
+    'AU': ('Australia', '\U0001F1E6\U0001F1FA'), 'AE': ('United Arab Emirates', '\U0001F1E6\U0001F1EA'),
+    'DE': ('Germany', '\U0001F1E9\U0001F1EA'), 'QA': ('Qatar', '\U0001F1F6\U0001F1E6'),
+    'SG': ('Singapore', '\U0001F1F8\U0001F1EC'), 'FR': ('France', '\U0001F1EB\U0001F1F7'),
+}
+
+
+def _home_status():
+    """Lightweight numbers for the signed-in home's compact "welcome back" strip — a status
+    summary, not marketing. Cheap on purpose: this runs on every home-page view."""
+    from app import db
+    from app.models import Match, ChatRoom, ChatMessage
+    trip_ids = [r[0] for r in db.session.query(CompanionRequest.id)
+                .filter_by(user_id=current_user.id).all()]
+    trips_count = len(trip_ids)
+    matches_count = 0
+    if trip_ids:
+        from sqlalchemy import or_
+        matches_count = Match.query.filter(
+            Match.status.in_(['suggested', 'connected']),
+            or_(Match.trip_a_id.in_(trip_ids), Match.trip_b_id.in_(trip_ids))).count()
+    unread_count = ChatMessage.query.join(ChatRoom).filter(
+        ((ChatRoom.user1_id == current_user.id) | (ChatRoom.user2_id == current_user.id)),
+        ChatMessage.sender_id != current_user.id,
+        ChatMessage.is_read.is_(False)).count()
+    return {'home_stats': {'trips': trips_count, 'matches': matches_count, 'unread': unread_count}}
+
+
+def _landing_live_data():
+    """Real, anonymity-safe data for the public landing so it is the same product as the
+    signed-in app: a teaser of upcoming public trips, and honest headline numbers. Uses the
+    same visibility rule as /trips and /api/search (open/matched, not yet departed)."""
+    from datetime import date as _date
+    from sqlalchemy import func
+    from app import db, options
+    from app.models import Airport
+    today = _date.today()
+    public = CompanionRequest.query.filter(
+        CompanionRequest.status.in_(['open', 'matched']),
+        (CompanionRequest.from_date == None) | (CompanionRequest.from_date >= today))  # noqa: E711
+    teaser = (public.filter(CompanionRequest.from_date.isnot(None))
+              .order_by(CompanionRequest.from_date.asc()).limit(4).all())
+    open_count = public.count()
+    travellers = (db.session.query(func.count(func.distinct(CompanionRequest.user_id)))
+                  .filter(CompanionRequest.status.in_(['open', 'matched']),
+                          CompanionRequest.user_id.isnot(None)).scalar() or 0)
+    dest_codes = [c for (c,) in public.with_entities(CompanionRequest.dest_iata).distinct() if c]
+    countries = 0
+    country_counts = {}
+    if dest_codes:
+        countries = (db.session.query(func.count(func.distinct(Airport.country)))
+                     .filter(Airport.iata.in_(dest_codes), Airport.country.isnot(None)).scalar() or 0)
+        rows = (db.session.query(Airport.country, func.count(CompanionRequest.id))
+                .join(CompanionRequest, CompanionRequest.dest_iata == Airport.iata)
+                .filter(CompanionRequest.status.in_(['open', 'matched']),
+                        (CompanionRequest.from_date == None) | (CompanionRequest.from_date >= today),  # noqa: E711
+                        Airport.country.isnot(None))
+                .group_by(Airport.country).all())
+        country_counts = {code: n for code, n in rows}
+    return {
+        'landing_trips': [t.to_dict() for t in teaser],
+        'landing_stats': {'open': open_count, 'travellers': travellers,
+                          'languages': len(options.LANGUAGES or []), 'countries': countries},
+        'landing_country_counts': country_counts,
+    }
+
+
+@main_bp.route('/reviews')
+def reviews():
+    """Public reviews page: every approved review (not just the hand-picked few featured on the
+    landing), and — for signed-in travellers — the same "leave a review" form as the home page.
+    This is what the landing's "Read all reviews" and the app footer's "Reviews" link point to."""
+    feedbacks = (Feedback.query.filter_by(is_approved=True)
+                .order_by(Feedback.created_at.desc()).limit(60).all())
+    return render_template('pages/reviews.html', feedbacks=feedbacks, review_stats=_review_stats())
+
+
+@main_bp.route('/robots.txt')
+def robots_txt():
+    from flask import Response, current_app
+    body = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /admin/\n"
+        "Disallow: /cs/\n"
+        "Disallow: /api/\n"
+        "Disallow: /dashboard\n"
+        "Disallow: /connections\n"
+        "Disallow: /settings/\n"
+        f"Sitemap: {current_app.config['SITE_URL']}/sitemap.xml\n"
+    )
+    return Response(body, mimetype='text/plain')
+
+
+@main_bp.route('/sitemap.xml')
+def sitemap_xml():
+    """Every public, indexable page. Blog posts are included dynamically so a new post is
+    discoverable without a code change."""
+    from flask import Response, current_app
+    from app.models import Blog
+    site = current_app.config['SITE_URL']
+    today = date.today().isoformat()
+    urls = [
+        (f'{site}/', 'daily', '1.0', today),
+        (f'{site}/trips', 'hourly', '0.9', today),
+        (f'{site}/blog', 'daily', '0.7', today),
+        (f'{site}/reviews', 'daily', '0.6', today),
+        (f'{site}/about', 'monthly', '0.5', today),
+        (f'{site}/contact', 'monthly', '0.5', today),
+        (f'{site}/help', 'monthly', '0.5', today),
+        (f'{site}/terms', 'yearly', '0.2', today),
+        (f'{site}/privacy', 'yearly', '0.2', today),
+    ]
+    posts = Blog.query.filter_by(is_published=True).order_by(Blog.published_at.desc()).limit(500).all()
+    for p in posts:
+        lastmod = (p.updated_at or p.published_at or p.created_at)
+        urls.append((f'{site}/blog/{p.slug}', 'monthly', '0.6',
+                    lastmod.date().isoformat() if lastmod else today))
+    xml = ['<?xml version="1.0" encoding="UTF-8"?>',
+          '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for loc, freq, prio, lastmod in urls:
+        xml.append(f'<url><loc>{loc}</loc><lastmod>{lastmod}</lastmod>'
+                   f'<changefreq>{freq}</changefreq><priority>{prio}</priority></url>')
+    xml.append('</urlset>')
+    return Response('\n'.join(xml), mimetype='application/xml')
 
 
 @main_bp.route('/about')
@@ -162,6 +363,29 @@ def api_contact():
     if errors:
         return jsonify({'success': False, 'error': ' '.join(errors)}), 400
     msg = _save_contact(form)
+    return jsonify({'success': True,
+                    'message': f'Thanks — we have your message and will reply to {msg.email}.'})
+
+
+@main_bp.route('/api/landing-contact', methods=['POST'])
+@rate_limit(6, 3600)
+def api_landing_contact():
+    """The landing 'Request a call back' form: store it as a CS message (as usual) and, when an
+    admin has enabled it, also e-mail the configured address. That e-mail is the only mail toggle
+    the admin controls here — nothing else."""
+    form = _contact_fields(request.get_json(silent=True) or request.form)
+    errors = _validate_contact(form)
+    if errors:
+        return jsonify({'success': False, 'error': ' '.join(errors)}), 400
+    msg = _save_contact(form)
+    from app.services import settings as _settings, mailer
+    ls = _settings.landing_settings()
+    if ls['contact_email_enabled'] and ls['contact_email']:
+        body = (f"New enquiry from the Connecting Desis landing page.\n\n"
+                f"Name: {msg.name}\nEmail: {msg.email}\nPhone: {msg.phone or '—'}\n\n"
+                f"Message:\n{msg.message}\n")
+        mailer.send(f'Landing enquiry from {msg.name}', ls['contact_email'], body,
+                    reply_to=msg.email, force=True)
     return jsonify({'success': True,
                     'message': f'Thanks — we have your message and will reply to {msg.email}.'})
 

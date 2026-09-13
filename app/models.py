@@ -894,6 +894,46 @@ class MatchParty(db.Model):
         }
 
 
+REPORT_STATUSES = ('open', 'resolved')
+
+
+class MatchReport(db.Model):
+    """A problem a traveller flagged about a match from the /match/<token> contact page.
+
+    Reports used to leave only an ActivityEvent + the match's needs_cs_attention flag, so the
+    reason text was not browsable. This row makes them a first-class CS item: listed in the
+    console (User Voices → Reports), counted in the queue, and resolvable.
+    """
+    __tablename__ = 'match_reports'
+
+    id = db.Column(db.Integer, primary_key=True)
+    match_id = db.Column(db.Integer, db.ForeignKey('matches.id', ondelete='CASCADE'), index=True)
+    party_id = db.Column(db.Integer, db.ForeignKey('match_parties.id', ondelete='SET NULL'), nullable=True)
+    trip_id = db.Column(db.Integer, db.ForeignKey('companion_requests.id'), nullable=True)   # the reporter's post
+    reporter_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)            # null if reported logged-out
+    reason = db.Column(db.Text)
+    status = db.Column(db.String(20), default='open', index=True)   # open / resolved
+    cs_notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    resolved_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+    match = db.relationship('Match', foreign_keys=[match_id])
+    trip = db.relationship('CompanionRequest', foreign_keys=[trip_id])
+    reporter = db.relationship('User', foreign_keys=[reporter_id])
+    resolved_by = db.relationship('User', foreign_keys=[resolved_by_id])
+
+    def resolve(self, by=None):
+        self.status = 'resolved'
+        self.resolved_at = datetime.utcnow()
+        self.resolved_by_id = by.id if by else None
+
+    def reopen(self):
+        self.status = 'open'
+        self.resolved_at = None
+        self.resolved_by_id = None
+
+
 # ---------------------------------------------------------------------------
 # Site-wide settings (key/value JSON) — used for the notification switches
 # ---------------------------------------------------------------------------

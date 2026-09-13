@@ -1,0 +1,52 @@
+{# Shared site footer — same design on the public landing and every signed-in page.
+   Menu items differ by session state; brand, legal and layout stay identical everywhere,
+   per the "one footer design, menu items can change" direction. #}
+<footer class="ftr">
+  <div class="wrap">
+    <div class="ftr-grid">
+      <div>
+        <a class="ftr-logo" href="{{ url_for('main.index') }}">
+          <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt=""/>
+          Connecting<b>Desis</b>
+        </a>
+        <p class="ftr-brand-desc">{{ _('Helping the South Asian diaspora find trusted travel companions worldwide.') }}</p>
+      </div>
+      <div>
+        <h4>{{ _('Explore') }}</h4>
+        <ul>
+          <li><a href="{{ url_for('main.index') }}">{{ _('Home') }}</a></li>
+          {% if current_user.is_authenticated and not is_staff %}
+          <li><a href="{{ url_for('main.dashboard') }}">{{ _('My Dashboard') }}</a></li>
+          <li><a href="{{ url_for('main.all_trips') }}">{{ _('Desis on Move') }}</a></li>
+          <li><a href="{{ url_for('chat.inbox') }}">{{ _('Inbox') }}</a></li>
+          {% else %}
+          <li><a href="{{ url_for('main.all_trips') }}">{{ _('Desis on Move') }}</a></li>
+          <li><a href="{{ url_for('blog.blog_list') }}">{{ _('Desi Travellers Blog') }}</a></li>
+          <li><a href="{{ url_for('main.index') }}#how">{{ _('How It Works') }}</a></li>
+          {% endif %}
+        </ul>
+      </div>
+      <div>
+        <h4>{{ _('Company') }}</h4>
+        <ul>
+          <li><a href="{{ url_for('main.about') }}">{{ _('About Us') }}</a></li>
+          <li><a href="{{ url_for('main.contact') }}">{{ _('Contact Us') }}</a></li>
+          <li><a href="{{ url_for('main.reviews') }}">{{ _('Reviews') }}</a></li>
+          <li><a href="{{ url_for('main.help_page') }}">{{ _('Help Centre') }}</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>{{ _('Legal') }}</h4>
+        <ul>
+          <li><a href="{{ url_for('main.terms') }}">{{ _('Terms of Use') }}</a></li>
+          <li><a href="{{ url_for('main.privacy') }}">{{ _('Privacy Policy') }}</a></li>
+          <li><a href="{{ url_for('main.privacy') }}#cookies">{{ _('Cookie Policy') }}</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="ftr-bottom">
+      <span>&copy; {{ now().year }} {{ _('Connecting Desis. All rights reserved.') }}</span>
+      <span>{{ SUPPORT_EMAIL }}</span>
+    </div>
+  </div>
+</footer>

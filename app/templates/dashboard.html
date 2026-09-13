@@ -192,10 +192,10 @@ document.querySelectorAll('.dash-tab').forEach(b =>
 window.addEventListener('hashchange', () => showTab(location.hash.slice(1), false));
 
 // ---- matches pagination (server-rendered cards, paged in the browser) --------
-// Every tab pages by "columns on screen x 2 rows", so a page is always whole rows and
+// Every tab pages by "columns on screen x 5 rows", so a page is always whole rows and
 // all three tabs break at the same point. gridColumns() reads the real computed grid,
 // so this follows the CSS breakpoints without repeating them here.
-const DASH_ROWS = 2;
+const DASH_ROWS = 5;
 function perPage(el) { return gridColumns(el) * DASH_ROWS; }
 let _matchPage = 1;
 function renderMatchPage() {

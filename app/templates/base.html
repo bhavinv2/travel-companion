@@ -4,9 +4,12 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>{% block title %}Connecting Desis – Find Your Travel Companion{% endblock %}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo-icon.png') }}"/>
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/logo-icon.png') }}"/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/footer.css') }}"/>
   {% block extra_css %}{% endblock %}
   {# active colour theme, managed at /admin/themes. Last in the head so it wins over
      both style.css (:root) and landing.css (.landing). #}
@@ -29,12 +32,15 @@
         <li><a href="{{ url_for('cs.new_post') }}"><i class="fa-solid fa-plus"></i> New Post</a></li>
         <li><a href="{{ url_for('imports.import_page') }}"><i class="fa-solid fa-file-import"></i> Import</a></li>
       {% else %}
-      <li><a href="{{ url_for('main.index') }}"><i class="fa-solid fa-house"></i> {{ _('Home') }}</a></li>
+      <li><a href="{{ url_for('main.index') }}" title="{{ _('Post a trip, search, and see your matches') }}"><i class="fa-solid fa-house"></i> {{ _('Home') }}</a></li>
       {% if current_user.is_authenticated %}
-        <li><a href="{{ url_for('main.dashboard') }}"><i class="fa-solid fa-gauge"></i> {{ _('My Dashboard') }}</a></li>
+        <li><a href="{{ url_for('main.dashboard') }}" title="{{ _('Manage your trips, matches and profile') }}"><i class="fa-solid fa-gauge"></i> {{ _('My Dashboard') }}</a></li>
       {% endif %}
       <li><a href="{{ url_for('blog.blog_list') }}"><i class="fa-solid fa-newspaper"></i> {{ _('Desi Travellers Blog') }}</a></li>
-      <li><a href="{{ url_for('main.index') }}#how-it-works"><i class="fa-solid fa-circle-info"></i> {{ _('How It Works') }}</a></li>
+      {# The "how it works" walkthrough only renders for logged-out visitors on "/" (it's marketing
+         content); a signed-in traveller already uses the workflow, so this points at the help
+         centre instead of a page section that would not exist for them. #}
+      <li><a href="{{ url_for('main.help_page') if current_user.is_authenticated else url_for('main.index') + '#how-it-works' }}"><i class="fa-solid fa-circle-info"></i> {{ _('How It Works') }}</a></li>
       {% if current_user.is_authenticated %}
         {% if current_user.is_cs %}
           <li><a href="{{ url_for('cs.home') }}"><i class="fa-solid fa-headset"></i> CS Console</a></li>
@@ -231,35 +237,7 @@
     <div class="footer-bottom"><p>&copy; {{ now().year }} Connecting Desis &middot; staff console</p></div>
   </footer>
   {% else %}
-  <footer class="footer">
-    <div class="footer-inner">
-      <div class="footer-brand">
-        <a href="{{ url_for('main.index') }}" class="nav-logo">
-          <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt="Connecting Desis" class="logo-img sm"/>
-          <span class="logo-text">Connecting<strong>Desis</strong></span>
-        </a>
-        <p>{{ _('Helping the South Asian diaspora find trusted travel companions worldwide.') }}</p>
-      </div>
-      <div class="footer-links">
-        <a href="{{ url_for('main.index') }}">{{ _('Home') }}</a>
-        <a href="{{ url_for('blog.blog_list') }}">{{ _('Desi Travellers Blog') }}</a>
-        <a href="{{ url_for('main.about') }}">{{ _('About Us') }}</a>
-        <a href="{{ url_for('main.terms') }}">{{ _('Terms of Use') }}</a>
-        <a href="{{ url_for('main.privacy') }}">{{ _('Privacy Policy') }}</a>
-        <a href="{{ url_for('main.help_page') }}">{{ _('Help') }}</a>
-        <a href="{{ url_for('main.contact') }}">{{ _('Contact Us') }}</a>
-      </div>
-      <div class="footer-social">
-        <a href="#" title="Facebook"><i class="fa-brands fa-facebook"></i></a>
-        <a href="#" title="Instagram"><i class="fa-brands fa-instagram"></i></a>
-        <a href="#" title="Twitter/X"><i class="fa-brands fa-x-twitter"></i></a>
-        <a href="#" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>
-      </div>
-    </div>
-    <div class="footer-bottom">
-      <p>&copy; {{ now().year }} Connecting Desis. {{ _('All Rights Reserved.') }}</p>
-    </div>
-  </footer>
+    {% include '_footer.html' %}
   {% endif %}
 
   <script>
