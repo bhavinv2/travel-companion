@@ -112,9 +112,12 @@ def home():
     needs_action = []
     for t in awaiting_claim:
         tok = t.claim_tokens.order_by(ClaimToken.created_at.desc()).first()
-        if tok and tok.used_at is None and tok.created_at < now - timedelta(days=3):
+        # created_at has a Python-side default, not a DB-enforced one, so a row written outside
+        # the normal ORM path (a data fix, a bulk import) can legitimately have it as NULL —
+        # guard the comparison rather than letting one such row 500 the whole CS home page.
+        if tok and tok.used_at is None and tok.created_at and tok.created_at < now - timedelta(days=3):
             needs_action.append(('No response to claim link for %d days' % (now - tok.created_at).days, t))
-        elif tok is None and t.created_at < now - timedelta(days=2):
+        elif tok is None and t.created_at and t.created_at < now - timedelta(days=2):
             needs_action.append(('No claim link sent yet', t))
     for t in public.filter(CompanionRequest.from_date >= today,
                            CompanionRequest.from_date <= today + timedelta(days=3)).all():
