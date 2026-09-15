@@ -684,6 +684,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .tool-steps li i{width:26px;height:26px;border-radius:50%;border:2px solid #4B5F87;display:grid;place-items:center;font-style:normal;font-size:12px}
 .tool-steps li.on{color:#fff}.tool-steps li.on i{background:var(--amber);border-color:var(--amber);color:var(--navy)}
 .tool-steps li.done{color:#fff}.tool-steps li.done i{background:#1E7F4F;border-color:#1E7F4F;color:#fff}
+.link-btn{background:none;border:none;padding:0;font:inherit;color:var(--sunset);font-weight:600;text-decoration:underline;cursor:pointer}
 .post-trip-bar{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;width:100%;background:var(--amber);color:var(--navy);border:none;border-radius:14px;padding:14px 20px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;margin-top:18px}
 .post-trip-bar b{display:inline-flex;align-items:center;gap:6px;background:var(--navy);color:#fff;border-radius:999px;padding:8px 16px;font-weight:700}
 .post-trip-bar:hover{filter:brightness(1.04)}
@@ -809,7 +810,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
       <a href="#desis">Desis on Move</a>
       <a href="{{ url_for('blog.blog_list') }}">Desi Travellers Blog</a>
       <a href="#how">How It Works</a>
-      <a href="{{ url_for('auth.register') }}" class="active">Join Desi Travellers</a>
+      <button type="button" class="active" data-open="signup">Join Desi Travellers</button>
     </nav>
     <div class="hdr-right">
       <div class="lang" id="langBtn" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false">
@@ -855,7 +856,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
       <h1>Your journey. Your language. <em>Your companion.</em></h1>
       <p>Send your parents across the world with someone beside them — a trusted fellow traveller on the same flight, who speaks their language.</p>
       <div class="hero-ctas">
-        <a class="btn btn-amber btn-lg" href="{{ url_for('auth.register') }}">Post Your Trip — Free</a>
+        <button type="button" class="btn btn-amber btn-lg" data-open="signup">Post Your Trip — Free</button>
         <a class="btn btn-outline btn-lg" href="#how">How It Works</a>
       </div>
     </div>
@@ -963,11 +964,11 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
         </div>
         <div class="trip-foot">
           <div class="u"><i>{{ (t.author.username or 'T')[0]|upper }}</i>{{ t.author.username }}</div>
-          <a class="btn btn-amber" href="{{ url_for('auth.register', next=url_for('main.all_trips')) }}">Connect</a>
+          <button type="button" class="btn btn-amber" data-open="signup">Connect</button>
         </div>
       </article>
       {% else %}
-      <p class="lead" style="grid-column:1/-1">No open trips at the moment — <a href="{{ url_for('auth.register') }}">post yours</a> and we'll find you a companion.</p>
+      <p class="lead" style="grid-column:1/-1">No open trips at the moment — <button type="button" class="link-btn" data-open="signup">post yours</button> and we'll find you a companion.</p>
       {% endfor %}
     </div>
   </div>
@@ -1183,7 +1184,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
       <article class="test"><div class="stars">{% for i in range(fb.rating) %}★{% endfor %}</div><blockquote>{{ fb.comment }}</blockquote><footer><div class="av">{{ (fb.user.username or 'T')[0]|upper if fb.user else 'T' }}</div><div><b>{{ fb.user.username if fb.user else 'A traveller' }}</b><span>Connecting Desis traveller</span></div></footer></article>
       {% endfor %}
       {% else %}
-      <p class="lead" style="grid-column:1/-1">No reviews yet — <a href="{{ url_for('auth.register') }}">be one of the first</a> to travel with a companion.</p>
+      <p class="lead" style="grid-column:1/-1">No reviews yet — <button type="button" class="link-btn" data-open="signup">be one of the first</button> to travel with a companion.</p>
       {% endif %}
     </div>
     <div class="rev-foot reveal">
@@ -1276,7 +1277,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
     <div class="band reveal" data-anim="zoom">
       <h2>{{ landing_stats.open }} trip{{ '' if landing_stats.open == 1 else 's' }} open right now.</h2>
       <p>Post yours in under two minutes — it's free, and matches come to you.</p>
-      <a class="btn btn-amber btn-lg" href="{{ url_for('auth.register') }}">Post your trip — free</a>
+      <button type="button" class="btn btn-amber btn-lg" data-open="signup">Post your trip — free</button>
     </div>
   </div>
 </section>
@@ -1286,7 +1287,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 
 <!-- Sticky mobile CTA: the page runs ~15 screens tall on a phone: the primary action stays reachable throughout. -->
 <div class="mobile-cta-bar" id="mobileCta">
-  <a class="btn btn-amber btn-lg" href="{{ url_for('auth.register') }}">✈️ Post your trip — free</a>
+  <button type="button" class="btn btn-amber btn-lg" data-open="signup">✈️ Post your trip — free</button>
 </div>
 
 
@@ -1441,7 +1442,21 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
   // Toast
   const toast=msg=>{ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3200); };
   // Forms (front-end validation only; wire to backend)
-  $('#signinForm').addEventListener('submit',e=>{ e.preventDefault(); const f=e.target; const ok=f.checkValidity(); $('#siErr').style.display=ok?'none':'block'; if(ok){ closeAll(); toast('Signed in'); } });
+  $('#signinForm').addEventListener('submit',async e=>{
+    e.preventDefault(); const f=e.target;
+    if(!f.checkValidity()){ $('#siErr').style.display='block'; return; }
+    $('#siErr').style.display='none';
+    const btn=f.querySelector('button[type=submit]'); btn.disabled=true;
+    const fd=new FormData(); fd.set('email',$('#si-email').value); fd.set('password',$('#si-pass').value);
+    if($('#signinForm input[type=checkbox]').checked) fd.set('remember','on');
+    try{
+      const r=await fetch(AUTH.signin,{method:'POST',headers:{'X-Requested-With':'XMLHttpRequest','X-CSRFToken':CSRF},body:fd});
+      const d=await r.json();
+      if(!d.success){ $('#siErr').textContent=(d.errors||['Invalid email or password.']).join(' '); $('#siErr').style.display='block'; btn.disabled=false; return; }
+      closeAll(); toast('Welcome back!');
+      location.href=d.redirect||'{{ url_for("main.dashboard") }}';
+    }catch(err){ $('#siErr').textContent='Network error — please try again.'; $('#siErr').style.display='block'; btn.disabled=false; }
+  });
   let _postSignupAction=null;   // set right before opening the modal from the wizard's Post step
   $('#signupForm').addEventListener('submit',async e=>{
     e.preventDefault(); const f=e.target;
@@ -1538,7 +1553,6 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
   }
   // ===== "Find companions" (manual) hits the REAL search API — same results as /trips, no mock data =====
   const ROLE_LABEL={seeking_help:'Seeking help',offering_help:'Offering help',open:'Open to either'};
-  const REGISTER='{{ url_for("auth.register", next=url_for("main.all_trips")) }}';
   function renderReal(res,q){
     const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}):'';
     $('#tripSum').innerHTML=`<div class="rt"><span>${code(q.from)||(q.from||'').slice(0,3).toUpperCase()}</span><i></i><span>${code(q.to)||(q.to||'').slice(0,3).toUpperCase()}</span></div><div><small>Travel date</small>${q.date?fmt(q.date):'Flexible'}${q.lang&&q.lang!=='Any'?' · '+q.lang:''}</div><span class="cnt">${res.length} companion${res.length===1?'':'s'} found</span>`;

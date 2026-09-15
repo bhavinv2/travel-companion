@@ -435,7 +435,10 @@ def register():
 @auth_bp.route('/login', methods=['GET', 'POST'])
 @rate_limit(10, 300)
 def login():
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     if current_user.is_authenticated:
+        if is_ajax:
+            return jsonify({'success': True})
         return redirect(staff_home(current_user))
 
     next_page = _safe_next(request.args.get('next'))
@@ -452,14 +455,16 @@ def login():
             user.last_login = datetime.utcnow()
             db.session.commit()
             login_user(user, remember=remember)
-            flash(f'Welcome back, {user.first_name or user.username}!', 'success')
             target = _safe_next(session.pop('next', None)) or next_page
-            if target:
-                return redirect(target)
-            if len(user.role_levels) >= 2:      # user/cs/admin mix: ask where to land
-                return redirect(url_for('auth.choose_portal'))
-            return redirect(staff_home(user))
+            if not target:
+                target = url_for('auth.choose_portal') if len(user.role_levels) >= 2 else staff_home(user)
+            if is_ajax:
+                return jsonify({'success': True, 'redirect': target})
+            flash(f'Welcome back, {user.first_name or user.username}!', 'success')
+            return redirect(target)
         else:
+            if is_ajax:
+                return jsonify({'success': False, 'errors': ['Invalid email or password.']}), 400
             flash('Invalid email or password.', 'danger')
 
     return render_template('auth/login.html')
