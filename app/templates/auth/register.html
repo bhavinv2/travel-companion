@@ -1,123 +1,108 @@
-{% extends 'base.html' %}
-{% block title %}Sign Up – Connecting Desis{% endblock %}
-{% macro v(name) -%}{{ form.get(name, '') if form else '' }}{%- endmacro %}
-{% block content %}
-<div class="auth-page">
-  <div class="auth-card">
-    <div class="auth-header">
-      <h1>Join Connecting Desis</h1>
-      <p>Find trusted travel companions from your community</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Join Desi Travellers – Connecting Desis</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo-icon.png') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+:root{--navy:#0F1F3D;--navy-2:#162B52;--ink:#1B2438;--muted:#5B6579;--amber:#F5A623;--amber-2:#E8961A;
+  --sunset:#E4632A;--sky:#7FB6FF;--sand:#FFF6EA;--line:#E6E1D8;--r-pill:999px;--r-m:16px;
+  --sans:'Plus Jakarta Sans',system-ui,sans-serif;--serif:'Fraunces',Georgia,serif}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--sans);color:var(--ink);background:var(--sand);min-height:100vh;
+  display:flex;align-items:center;justify-content:center;padding:32px 16px}
+a{color:var(--navy)}
+.wrap{width:100%;max-width:520px}
+.back{display:inline-flex;align-items:center;gap:8px;color:var(--navy);font-weight:600;font-size:14px;
+  text-decoration:none;margin-bottom:18px}
+.dlg{background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 30px 70px rgba(15,31,61,.16)}
+.dlg-head{background:var(--navy);color:#fff;padding:30px 30px 24px}
+.dlg-head .logo{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.dlg-head .logo img{width:30px;height:30px;object-fit:contain}
+.dlg-head .logo b{font-family:var(--serif);font-size:17px}
+.dlg-head .logo b span{color:var(--sky)}
+.dlg-head h1{font-family:var(--serif);font-weight:500;font-size:26px;margin:0}
+.dlg-head p{color:#B9C6DE;font-size:14px;margin:6px 0 0}
+.dlg-body{padding:26px 30px 30px}
+.social-btns{display:grid;gap:10px;margin-bottom:18px}
+.sbtn{display:flex;align-items:center;justify-content:center;gap:10px;border:1.5px solid var(--line);
+  border-radius:var(--r-pill);padding:11px;font-weight:600;font-size:14px;color:var(--ink);text-decoration:none;background:#fff}
+.sbtn:hover{background:var(--sand)}
+.or{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:13px;margin:16px 0}
+.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.f{display:grid;gap:6px;margin-bottom:14px}
+.f label{font-size:13px;font-weight:600;color:var(--ink)}
+.f input{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;font:inherit;
+  font-size:15px;background:#fff;color:var(--ink)}
+.f input:focus{outline:0;border-color:var(--amber);box-shadow:0 0 0 3px rgba(245,166,35,.25)}
+.f .hint{font-size:12px;color:var(--muted)}
+.pw{position:relative}
+.pw button{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:600;
+  color:var(--navy);padding:6px 8px;border:none;background:none;cursor:pointer}
+.consent{font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:flex-start;margin:4px 0 16px}
+.consent input{margin-top:3px;accent-color:var(--navy)}
+.consent a{text-decoration:underline}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;
+  border-radius:var(--r-pill);font-weight:600;font-size:15px;border:none;cursor:pointer;transition:background .15s}
+.btn-amber{background:var(--amber);color:var(--navy)}
+.btn-amber:hover{background:var(--amber-2)}
+.switch{text-align:center;font-size:14px;color:var(--muted);margin-top:18px}
+.switch a{color:var(--navy);font-weight:700;text-decoration:none}
+.err{background:#FDECEC;color:#8A1F1F;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:14px}
+@media(max-width:520px){.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="{{ url_for('main.index') }}"><i class="fa-solid fa-arrow-left"></i> Back to Connecting Desis</a>
+  <div class="dlg">
+    <div class="dlg-head">
+      <div class="logo"><img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt=""><b>Connecting<span>Desis</span></b></div>
+      <h1>Join Desi Travellers</h1>
+      <p>Free for the community. Post a trip, get matched, travel together.</p>
     </div>
-
-    <div class="oauth-row">
-      <a href="{{ url_for('auth.google_login') }}" class="oauth-btn google">
-        <i class="fa-brands fa-google"></i> Continue with Google
-      </a>
-      <a href="{{ url_for('auth.facebook_login') }}" class="oauth-btn facebook">
-        <i class="fa-brands fa-facebook-f"></i> Continue with Facebook
-      </a>
+    <div class="dlg-body">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          <div class="err" style="display:block">{{ message }}</div>
+        {% endfor %}
+      {% endwith %}
+      <div class="social-btns">
+        <a href="{{ url_for('auth.google_login') }}" class="sbtn"><i class="fa-brands fa-google"></i> Continue with Google</a>
+      </div>
+      <div class="or">or sign up with email</div>
+      <form method="POST" action="{{ url_for('auth.register') }}" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="row">
+          <div class="f"><label for="su-first">First name</label><input id="su-first" name="first_name" required autocomplete="given-name" value="{{ form.get('first_name','') if form else '' }}"></div>
+          <div class="f"><label for="su-last">Last name</label><input id="su-last" name="last_name" autocomplete="family-name" value="{{ form.get('last_name','') if form else '' }}"></div>
+        </div>
+        <div class="f"><label for="su-email">Email</label><input id="su-email" type="email" name="email" required autocomplete="email" placeholder="you@example.com" value="{{ form.get('email','') if form else '' }}"><span class="hint">We'll send match updates here.</span></div>
+        <div class="f"><label for="su-username">Username</label><input id="su-username" name="username" required minlength="3" maxlength="30" pattern="[A-Za-z0-9_.\-]{3,30}" autocomplete="username" placeholder="Unique — visible to others" value="{{ form.get('username','') if form else '' }}"></div>
+        <div class="f"><label for="su-pass">Create password</label>
+          <div class="pw"><input id="su-pass" type="password" name="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters">
+            <button type="button" data-toggle="su-pass">Show</button></div>
+        </div>
+        <div class="f"><label for="su-phone">WhatsApp / Phone Number</label><input id="su-phone" type="tel" name="phone" required autocomplete="tel" placeholder="+1 234 567 8900" value="{{ form.get('phone','') if form else '' }}">
+          <span class="hint">Stay connected: sharing your WhatsApp number lets us reach you instantly the moment we find your travel companion match.</span></div>
+        <label class="consent"><input type="checkbox" name="agree_terms" required {% if form and form.get('agree_terms') == 'on' %}checked{% endif %}/><span>I agree to the <a href="{{ url_for('main.terms') }}" target="_blank">Terms of Use</a> and <a href="{{ url_for('main.privacy') }}" target="_blank">Privacy Policy</a></span></label>
+        <button class="btn btn-amber" type="submit">Create My Account</button>
+      </form>
+      <div class="switch">Already a member? <a href="{{ url_for('auth.login') }}">Sign in</a></div>
     </div>
-    <div class="or-divider"><span>or sign up with email</span></div>
-
-    <form method="POST" enctype="multipart/form-data" class="auth-form" id="registerForm">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-
-      <div class="form-row-2">
-        <div class="field-group">
-          <label>First Name <span class="req">*</span></label>
-          <input type="text" name="first_name" required placeholder="Your first name" value="{{ v('first_name') }}"/>
-        </div>
-        <div class="field-group">
-          <label>Last Name</label>
-          <input type="text" name="last_name" placeholder="Your last name (optional)" value="{{ v('last_name') }}"/>
-        </div>
-      </div>
-
-      <div class="field-group">
-        <label>Email Address <span class="req">*</span></label>
-        <input type="email" name="email" required placeholder="your@email.com" value="{{ v('email') }}"/>
-      </div>
-
-      <div class="field-group">
-        <label>Username <span class="req">*</span></label>
-        <input type="text" name="username" required placeholder="Unique — letters, numbers, . _ - (visible to others)" minlength="3" maxlength="30" pattern="[A-Za-z0-9_.\-]{3,30}" value="{{ v('username') }}"/>
-      </div>
-
-      <div class="field-group">
-        <label>Password <span class="req">*</span></label>
-        <div class="input-with-icon">
-          <i class="fa-solid fa-lock field-icon"></i>
-          <input type="password" name="password" id="passwordField" required minlength="8" placeholder="At least 8 characters"/>
-          <button type="button" class="eye-btn" onclick="togglePassword('passwordField', this)">
-            <i class="fa-solid fa-eye"></i>
-          </button>
-        </div>
-      </div>
-
-      <div class="field-group">
-        <label>WhatsApp / Phone Number <span class="req">*</span></label>
-        <small class="phone-why">Stay connected: sharing your WhatsApp number lets us reach you instantly the moment we find your travel companion match.</small>
-        <input type="tel" name="phone" required placeholder="+1 234 567 8900" value="{{ v('phone') }}"/>
-      </div>
-
-      <div class="field-group">
-        <label>Date of Birth <small class="opt">optional</small></label>
-        <input type="date" name="dob" value="{{ v('dob') }}"/>
-      </div>
-
-      <div class="field-group">
-        <label>Profile Photo <small class="opt">optional</small></label>
-        <label class="file-upload" for="photoInput">
-          <span class="file-upload-ic"><i class="fa-solid fa-camera"></i></span>
-          <span class="file-upload-text" id="photoName">Add a profile photo <small>JPG, PNG or WebP</small></span>
-          <span class="file-upload-btn">Choose</span>
-          <input type="file" name="photo" accept="image/*" id="photoInput"/>
-        </label>
-        <div class="photo-preview" id="photoPreview"></div>
-        <label class="flex-check mt-2">
-          <input type="checkbox" name="show_photo" {% if form and form.get('show_photo') == 'on' %}checked{% endif %}/> Display photo publicly on listings
-        </label>
-      </div>
-
-      <label class="flex-check consent-check">
-        <input type="checkbox" name="marketing_consent" {% if form and form.get('marketing_consent') == 'on' %}checked{% endif %}/> <span>I agree to receive updates and travel tips via email</span>
-      </label>
-
-      <label class="flex-check required-check consent-check">
-        <input type="checkbox" name="agree_terms" required {% if form and form.get('agree_terms') == 'on' %}checked{% endif %}/>
-        <span>I agree to the <a href="{{ url_for('main.terms') }}" target="_blank">Terms of Use</a>
-        and <a href="{{ url_for('main.privacy') }}" target="_blank">Privacy Policy</a> <span class="req">*</span></span>
-      </label>
-
-      <button type="submit" class="btn btn-primary w-full mt-2">
-        <i class="fa-solid fa-user-plus"></i> Create Account
-      </button>
-
-      <p class="auth-switch">Already have an account? <a href="{{ url_for('auth.login') }}">Login here</a></p>
-    </form>
   </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
 <script>
-function togglePassword(id, btn) {
-  const el = document.getElementById(id);
-  el.type = el.type === 'password' ? 'text' : 'password';
-  btn.innerHTML = el.type === 'password' ? '<i class="fa-solid fa-eye"></i>' : '<i class="fa-solid fa-eye-slash"></i>';
-}
-document.getElementById('photoInput')?.addEventListener('change', function() {
-  const preview = document.getElementById('photoPreview');
-  const name = document.getElementById('photoName');
-  const f = this.files[0];
-  if (f) {
-    if (name) name.innerHTML = `${f.name.length > 28 ? f.name.slice(0, 25) + '…' : f.name} <small>Tap to change</small>`;
-    const reader = new FileReader();
-    reader.onload = e => { preview.innerHTML = `<img src="${e.target.result}" style="max-width:100px;border-radius:50%;margin-top:8px;"/>`; };
-    reader.readAsDataURL(f);
-  } else if (name) {
-    name.innerHTML = 'Add a profile photo <small>JPG, PNG or WebP</small>';
-  }
-});
+document.querySelectorAll('[data-toggle]').forEach(b=>b.addEventListener('click',()=>{
+  const inp=document.getElementById(b.dataset.toggle);
+  inp.type = inp.type==='password' ? 'text' : 'password';
+  b.textContent = inp.type==='password' ? 'Show' : 'Hide';
+}));
 </script>
-{% endblock %}
+</body>
+</html>

@@ -73,34 +73,64 @@ def switch_view(view):
 
 
 def _landing_structured_data(landing_faqs, review_stats):
-    """JSON-LD for the public landing: Organization + FAQPage (mirrors the on-page accordion
-    exactly — Google requires that match) + a Service card carrying AggregateRating only once
-    there's enough real signal (same 'credible' threshold as the visible rating text, so the
-    structured data can never claim more than the page itself does)."""
+    """JSON-LD for the public landing: WebSite + Organization + WebPage + Service (the standard
+    brand-identity graph our SEO reviewer asked for), plus FAQPage (mirrors the on-page accordion
+    exactly — Google requires that match) and AggregateRating only once there's enough real
+    signal (same 'credible' threshold as the visible rating text, so the structured data can
+    never claim more than the page itself does)."""
     from flask import current_app
     site = current_app.config['SITE_URL']
+    page_title = 'Travel Companion | Find a Trusted Travel Buddy Online'
+    page_description = ('Help your parents travel with confidence. Find a trusted travel companion '
+                        'online for safe, caring and comfortable journeys, with support every step of the way.')
     graph = [
         {
-            '@type': 'Organization',
-            '@id': f'{site}/#org',
+            '@type': 'WebSite',
+            '@id': f'{site}/#website',
+            'url': f'{site}/',
             'name': 'Connecting Desis',
-            'url': site,
+            'description': 'Find a trusted travel companion online for parents, senior citizens and solo travellers.',
+            'publisher': {'@id': f'{site}/#organization'},
+            'inLanguage': 'en',
+        },
+        {
+            '@type': 'Organization',
+            '@id': f'{site}/#organization',
+            'name': 'Connecting Desis',
+            'url': f'{site}/',
             'logo': f'{site}/static/img/logo-icon.png',
-            'description': 'Matches parents, first-time flyers and solo travellers with trusted travel '
-                           'companions on the same route, free for the Desi community.',
+            'description': 'Connecting Desis helps parents, senior citizens and travellers find trusted '
+                           'companions travelling on the same route.',
             'contactPoint': {'@type': 'ContactPoint', 'contactType': 'customer support',
                              'email': current_app.config['SUPPORT_EMAIL'], 'availableLanguage': 'English'},
         },
         {
+            '@type': 'WebPage',
+            '@id': f'{site}/#webpage',
+            'url': f'{site}/',
+            'name': page_title,
+            'description': page_description,
+            'isPartOf': {'@id': f'{site}/#website'},
+            'about': {'@id': f'{site}/#service'},
+            'inLanguage': 'en',
+        },
+        {
             '@type': 'Service',
-            'name': 'Connecting Desis travel companion matching',
-            'provider': {'@id': f'{site}/#org'},
-            'areaServed': 'Worldwide',
-            'audience': {'@type': 'Audience', 'audienceType': 'South Asian diaspora travellers'},
+            '@id': f'{site}/#service',
+            'name': 'Travel Companion Service',
+            'serviceType': 'Travel Companion Matching',
+            'description': 'A trusted travel companion matching service that helps parents, senior citizens '
+                           'and solo travellers find fellow travellers on the same route.',
+            'provider': {'@id': f'{site}/#organization'},
+            'areaServed': {'@type': 'Place', 'name': 'Worldwide'},
+            'audience': {'@type': 'Audience',
+                        'audienceType': 'Parents, Senior Citizens, Solo Travellers and Desi Travellers'},
+            'url': f'{site}/',
         },
     ]
+    service_node = graph[3]
     if review_stats.get('credible'):
-        graph[1]['aggregateRating'] = {
+        service_node['aggregateRating'] = {
             '@type': 'AggregateRating', 'ratingValue': review_stats['avg'],
             'reviewCount': review_stats['count'], 'bestRating': 5, 'worstRating': 1,
         }

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Connecting Desis – Find a Trusted Travel Companion in Your Language</title>
-<meta name="description" content="Connecting Desis matches parents, first-time flyers and solo travellers with trusted travel companions on the same route — free for the community.">
+<title>Travel Companion | Find a Trusted Travel Buddy Online</title>
+<meta name="description" content="Help your parents travel with confidence. Find a trusted travel companion online for safe, caring and comfortable journeys, with support every step of the way.">
 <link rel="canonical" href="{{ SITE_URL }}/">
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo-icon.png') }}">
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/logo-icon.png') }}">
@@ -1291,65 +1291,6 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 </div>
 
 
-<!-- ================= SIGN IN MODAL ================= -->
-<div class="modal" id="m-signin" role="dialog" aria-modal="true" aria-labelledby="siTitle">
-  <div class="dlg">
-    <button class="close" data-close aria-label="Close">×</button>
-    <div class="dlg-head"><h2 id="siTitle">Welcome back</h2><p>Sign in to see your matches and messages.</p></div>
-    <div class="dlg-body">
-      <div class="social-btns">
-        <button class="sbtn" type="button"><svg viewBox="0 0 24 24"><path fill="#4285F4" d="M21.8 12.2c0-.7-.1-1.4-.2-2H12v3.9h5.5a4.7 4.7 0 0 1-2 3.1v2.6h3.3c1.9-1.8 3-4.4 3-7.6z"/><path fill="#34A853" d="M12 22c2.7 0 5-.9 6.7-2.4l-3.3-2.6c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3v2.6A10 10 0 0 0 12 22z"/><path fill="#FBBC05" d="M6.4 13.9a6 6 0 0 1 0-3.8V7.5H3a10 10 0 0 0 0 9z"/><path fill="#EA4335" d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3 7.5l3.4 2.6C7.2 7.8 9.4 6 12 6z"/></svg>Continue with Google</button>
-        <button class="sbtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20l1.3-3.8A8 8 0 1 1 8 18.7z"/></svg>Continue with WhatsApp number</button>
-      </div>
-      <div class="or">or sign in with email</div>
-      <form id="signinForm" novalidate>
-        <div class="err" id="siErr">Enter the email and password you registered with.</div>
-        <div class="f"><label for="si-email">Email or phone</label><input id="si-email" type="text" required autocomplete="username" placeholder="you@example.com"></div>
-        <div class="f"><label for="si-pass">Password</label><div class="pw"><input id="si-pass" type="password" required autocomplete="current-password" placeholder="••••••••"><button type="button" data-toggle="si-pass">Show</button></div></div>
-        <div class="between"><label><input type="checkbox" checked> Keep me signed in</label><a href="{{ url_for('auth.forgot_password') }}">Forgot password?</a></div>
-        <button class="btn btn-amber" type="submit">Sign In</button>
-      </form>
-      <div class="switch">New to Connecting Desis? <button data-open="signup">Create an account</button></div>
-    </div>
-  </div>
-</div>
-
-<!-- ================= SIGN UP MODAL ================= -->
-<div class="modal" id="m-signup" role="dialog" aria-modal="true" aria-labelledby="suTitle">
-  <div class="dlg">
-    <button class="close" data-close aria-label="Close">×</button>
-    <div class="dlg-head"><h2 id="suTitle">Join Desi Travellers</h2><p>Free for the community. Post a trip, get matched, travel together.</p></div>
-    <div class="dlg-body">
-      <div class="tabs" role="tablist">
-        <button class="on" role="tab" data-tab="seek">I need a companion</button>
-        <button role="tab" data-tab="offer">I can offer help</button>
-      </div>
-      <div class="social-btns">
-        <button class="sbtn" type="button"><svg viewBox="0 0 24 24"><path fill="#4285F4" d="M21.8 12.2c0-.7-.1-1.4-.2-2H12v3.9h5.5a4.7 4.7 0 0 1-2 3.1v2.6h3.3c1.9-1.8 3-4.4 3-7.6z"/><path fill="#34A853" d="M12 22c2.7 0 5-.9 6.7-2.4l-3.3-2.6c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3v2.6A10 10 0 0 0 12 22z"/><path fill="#FBBC05" d="M6.4 13.9a6 6 0 0 1 0-3.8V7.5H3a10 10 0 0 0 0 9z"/><path fill="#EA4335" d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3 7.5l3.4 2.6C7.2 7.8 9.4 6 12 6z"/></svg>Continue with Google</button>
-      </div>
-      <div class="or">or sign up with email</div>
-      <form id="signupForm" novalidate>
-        <div class="err" id="suErr">Please fill in all fields and accept the terms.</div>
-        <div class="row">
-          <div class="f"><label for="su-first">First name</label><input id="su-first" required autocomplete="given-name"></div>
-          <div class="f"><label for="su-last">Last name</label><input id="su-last" required autocomplete="family-name"></div>
-        </div>
-        <div class="f"><label for="su-email">Email</label><input id="su-email" type="email" required autocomplete="email" placeholder="you@example.com"><span class="hint">We'll send match updates here.</span></div>
-        <div class="f"><label for="su-username">Username</label><input id="su-username" required minlength="3" maxlength="30" pattern="[A-Za-z0-9_.\-]{3,30}" autocomplete="username" placeholder="Unique — visible to others"></div>
-        <div class="f"><label for="su-phone">Phone / WhatsApp</label><input id="su-phone" type="tel" required autocomplete="tel" placeholder="+1 or +91 …"><span class="hint">Stay connected: this lets us reach you the instant we find your match.</span></div>
-        <div class="row">
-          <div class="f"><label for="su-lang">Preferred language</label><select id="su-lang"><option>English</option><option>Hindi</option><option>Telugu</option><option>Tamil</option><option>Gujarati</option><option>Kannada</option><option>Malayalam</option><option>Marathi</option><option>Punjabi</option><option>Bengali</option><option>Urdu</option></select></div>
-          <div class="f"><label for="su-city">City you live in</label><input id="su-city" placeholder="Dallas, TX"></div>
-        </div>
-        <div class="f"><label for="su-pass">Create password</label><div class="pw"><input id="su-pass" type="password" required autocomplete="new-password" placeholder="At least 8 characters"><button type="button" data-toggle="su-pass">Show</button></div></div>
-        <label class="consent"><input type="checkbox" id="su-terms" required><span>I agree to the <a href="{{ url_for('main.terms') }}">Terms of Use</a> and <a href="{{ url_for('main.privacy') }}">Privacy Policy</a>, and I understand my contact details are shared only after I approve a match.</span></label>
-        <button class="btn btn-amber" type="submit">Create My Account</button>
-      </form>
-      <div class="switch">Already a member? <button data-open="signin">Sign in</button></div>
-    </div>
-  </div>
-</div>
-
 
 <div class="toast" id="toast"></div>
 <script>
@@ -1423,61 +1364,18 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
     if(role) q.set('role',role);
     location.href='{{ url_for("main.all_trips") }}'+(q.toString()?'?'+q.toString():'');
   });
-  // Modals
-  const open=id=>{ $$('.modal').forEach(m=>m.classList.remove('open')); const m=$('#m-'+id); m.classList.add('open'); document.body.style.overflow='hidden'; setTimeout(()=>{const f=m.querySelector('input'); f&&f.focus();},50); };
-  const closeAll=()=>{ $$('.modal').forEach(m=>m.classList.remove('open')); document.body.style.overflow=''; };
+  // Sign in / Sign up: one real page each (auth/login.html, auth/register.html) - no in-page
+  // modal duplicate, so every trigger just goes to the same, single, real destination.
   const AUTH={ signin:'{{ url_for("auth.login") }}', signup:'{{ url_for("auth.register") }}' };
-  $$('[data-open]').forEach(b=>b.addEventListener('click',()=>{ open(b.dataset.open); }));
+  $$('[data-open]').forEach(b=>b.addEventListener('click',()=>{ location.href=AUTH[b.dataset.open]; }));
   document.getElementById('postTripBar')?.addEventListener('click', () => {
     document.getElementById('connection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setTimeout(() => { document.querySelector('.mode[data-mode="manual"]')?.click(); }, 350);
   });
-  $$('[data-close]').forEach(b=>b.addEventListener('click',closeAll));
-  $$('.modal').forEach(m=>m.addEventListener('click',e=>{ if(e.target===m) closeAll(); }));
-  document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeAll(); });
-  // Password toggle
+  // Password toggle (kept for the manual-search form's own fields, if any use data-toggle)
   $$('[data-toggle]').forEach(b=>b.addEventListener('click',()=>{ const i=$('#'+b.dataset.toggle); i.type=i.type==='password'?'text':'password'; b.textContent=i.type==='password'?'Show':'Hide'; }));
-  // Tabs
-  $$('.tabs button').forEach(b=>b.addEventListener('click',()=>{ $$('.tabs button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); }));
   // Toast
   const toast=msg=>{ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3200); };
-  // Forms (front-end validation only; wire to backend)
-  $('#signinForm').addEventListener('submit',async e=>{
-    e.preventDefault(); const f=e.target;
-    if(!f.checkValidity()){ $('#siErr').style.display='block'; return; }
-    $('#siErr').style.display='none';
-    const btn=f.querySelector('button[type=submit]'); btn.disabled=true;
-    const fd=new FormData(); fd.set('email',$('#si-email').value); fd.set('password',$('#si-pass').value);
-    if($('#signinForm input[type=checkbox]').checked) fd.set('remember','on');
-    try{
-      const r=await fetch(AUTH.signin,{method:'POST',headers:{'X-Requested-With':'XMLHttpRequest','X-CSRFToken':CSRF},body:fd});
-      const d=await r.json();
-      if(!d.success){ $('#siErr').textContent=(d.errors||['Invalid email or password.']).join(' '); $('#siErr').style.display='block'; btn.disabled=false; return; }
-      closeAll(); toast('Welcome back!');
-      location.href=d.redirect||'{{ url_for("main.dashboard") }}';
-    }catch(err){ $('#siErr').textContent='Network error — please try again.'; $('#siErr').style.display='block'; btn.disabled=false; }
-  });
-  let _postSignupAction=null;   // set right before opening the modal from the wizard's Post step
-  $('#signupForm').addEventListener('submit',async e=>{
-    e.preventDefault(); const f=e.target;
-    const ok=f.checkValidity()&&$('#su-terms').checked;
-    $('#suErr').style.display=ok?'none':'block';
-    if(!ok) return;
-    const btn=f.querySelector('button[type=submit]'); btn.disabled=true;
-    const fd=new FormData();
-    fd.set('first_name',$('#su-first').value); fd.set('last_name',$('#su-last').value);
-    fd.set('email',$('#su-email').value); fd.set('username',$('#su-username').value);
-    fd.set('phone',$('#su-phone').value); fd.set('password',$('#su-pass').value);
-    fd.set('agree_terms','on');
-    try{
-      const r=await fetch(AUTH.signup,{method:'POST',headers:{'X-Requested-With':'XMLHttpRequest','X-CSRFToken':CSRF},body:fd});
-      const d=await r.json();
-      if(!d.success){ $('#suErr').textContent=(d.errors||['Please check the form and try again.']).join(' '); $('#suErr').style.display='block'; btn.disabled=false; return; }
-      closeAll(); toast('Account created — welcome to Connecting Desis!');
-      const action=_postSignupAction; _postSignupAction=null;
-      if(action) action(); else location.href='{{ url_for("main.dashboard") }}';
-    }catch(err){ $('#suErr').textContent='Network error — please try again.'; $('#suErr').style.display='block'; btn.disabled=false; }
-  });
   
 
   // Scroll reveal
