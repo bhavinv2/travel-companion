@@ -2,7 +2,7 @@ import os
 import re
 import secrets
 from urllib.parse import urlparse, urlencode
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, session
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, session, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db
 from app.models import User, ContactPoint, ActivityEvent
@@ -342,7 +342,10 @@ def facebook_callback():
 @auth_bp.route('/register', methods=['GET', 'POST'])
 @rate_limit(10, 3600)
 def register():
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     if current_user.is_authenticated:
+        if is_ajax:
+            return jsonify({'success': True})
         return redirect(url_for('main.index'))
 
     if request.method == 'POST':
@@ -366,6 +369,8 @@ def register():
             errors.append('Password must be at least 8 characters.')
         if not first_name:
             errors.append('First name is required.')
+        if not phone:
+            errors.append('A WhatsApp / phone number is required so we can reach you about matches.')
         if not agreed:
             errors.append('Please accept the Terms of Use and Privacy Policy.')
         if User.query.filter_by(email=email).first():
@@ -374,6 +379,8 @@ def register():
             errors.append('Username already taken.')
 
         if errors:
+            if is_ajax:
+                return jsonify({'success': False, 'errors': errors}), 400
             for e in errors:
                 flash(e, 'danger')
             return render_template('auth/register.html', form=request.form)
@@ -411,11 +418,15 @@ def register():
             db.session.commit()
             sent = send_verification_email(user)
             login_user(user)
+            if is_ajax:
+                return jsonify({'success': True, 'verification_sent': sent})
             flash('Account created! Welcome to Connecting Desis.' +
                   (' Please confirm your e-mail using the link we just sent.' if sent else ''), 'success')
             return redirect(url_for('main.index'))
         except Exception:
             db.session.rollback()
+            if is_ajax:
+                return jsonify({'success': False, 'errors': ['Registration failed. Please try again.']}), 500
             flash('Registration failed. Please try again.', 'danger')
 
     return render_template('auth/register.html', form=None)

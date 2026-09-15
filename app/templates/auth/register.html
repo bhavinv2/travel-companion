@@ -54,15 +54,15 @@
         </div>
       </div>
 
-      <div class="form-row-2">
-        <div class="field-group">
-          <label>Phone</label>
-          <input type="tel" name="phone" placeholder="+1 234 567 8900 (optional)" value="{{ v('phone') }}"/>
-        </div>
-        <div class="field-group">
-          <label>Date of Birth <small class="opt">optional</small></label>
-          <input type="date" name="dob" value="{{ v('dob') }}"/>
-        </div>
+      <div class="field-group">
+        <label>WhatsApp / Phone Number <span class="req">*</span></label>
+        <small class="phone-why">Stay connected: sharing your WhatsApp number lets us reach you instantly the moment we find your travel companion match.</small>
+        <input type="tel" name="phone" required placeholder="+1 234 567 8900" value="{{ v('phone') }}"/>
+      </div>
+
+      <div class="field-group">
+        <label>Date of Birth <small class="opt">optional</small></label>
+        <input type="date" name="dob" value="{{ v('dob') }}"/>
       </div>
 
       <div class="field-group">

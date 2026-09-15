@@ -19,13 +19,19 @@
     </form>
     <p class="muted">{{ total }} listing{{ '' if total == 1 else 's' }}</p>
 
+    <div class="bulk-select-bar" id="postBulkBar" style="display:none">
+      <strong id="postBulkCount">0</strong> selected
+      <button type="button" class="btn-sm danger" id="postBulkDeleteBtn"><i class="fa-solid fa-trash-can"></i> Delete selected</button>
+    </div>
+
     <div class="table-wrap">
     <table class="admin-table stack-mobile">
-      <thead><tr><th>ID</th><th>Person</th><th>Route</th><th>Departs</th><th>Role</th><th>Source</th><th>Contact</th><th>Matches</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th style="width:32px"><input type="checkbox" id="postSelectAll"/></th><th>ID</th><th>Person</th><th>Route</th><th>Departs</th><th>Role</th><th>Source</th><th>Contact</th><th>Matches</th><th>Status</th><th></th></tr></thead>
       <tbody>
         {% for trip in trips %}
         {% set mi = match_info.get(trip.id) %}
         <tr id="trip-{{ trip.id }}">
+          <td data-label=""><input type="checkbox" class="post-select" value="{{ trip.id }}"/></td>
           <td data-label="ID"><strong>#{{ trip.id }}</strong>{% if trip.is_anonymous %}<br/><small class="muted"><i class="fa-solid fa-user-secret"></i> anon</small>{% endif %}</td>
           <td data-label="Person">
             {% if trip.author %}
@@ -55,10 +61,11 @@
             {% if trip.status != 'closed' %}
             <button class="btn-sm danger" onclick="disableListing({{ trip.id }})">Disable</button>
             {% endif %}
+            <button class="btn-sm danger" onclick="deleteOnePost({{ trip.id }}, {{ trip.route_display|tojson }})"><i class="fa-solid fa-trash-can"></i></button>
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="10" class="muted">No listings match these filters.</td></tr>
+        <tr><td colspan="11" class="muted">No listings match these filters.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -66,6 +73,7 @@
     {% include 'admin/_pager.html' %}
   </main>
 </div>
+{% include 'admin/_confirm_delete.html' %}
 {% endblock %}
 {% block extra_js %}
 <script>
@@ -74,5 +82,33 @@ function disableListing(id) {
   fetch(`/admin/listings/${id}/disable`, { method: 'POST', headers: {'X-CSRFToken': CSRF_TOKEN} })
     .then(r => r.json()).then(() => document.getElementById(`trip-${id}`).style.opacity = '0.4');
 }
+
+// ----- hard delete: single + bulk, both behind the type-DELETE-to-confirm dialog -----
+function deleteOnePost(id, route) {
+  openHardDeleteModal(`Permanently delete post #${id} (${route}) — its matches, contacts and chats will be deleted too.`, async () => {
+    const res = await apiFetch(`/admin/listings/${id}/delete`, { method: 'POST', body: '{}' });
+    const d = await res.json();
+    if (d.error) return showToast(d.error, 'danger');
+    document.getElementById(`trip-${id}`)?.remove();
+    showToast(`Post deleted permanently.`, 'success');
+  });
+}
+
+wireBulkSelect('postSelectAll', '.post-select', ids => {
+  document.getElementById('postBulkBar').style.display = ids.length ? 'flex' : 'none';
+  document.getElementById('postBulkCount').textContent = ids.length;
+});
+document.getElementById('postBulkDeleteBtn')?.addEventListener('click', () => {
+  const ids = [...document.querySelectorAll('.post-select:checked')].map(i => +i.value);
+  if (!ids.length) return;
+  openHardDeleteModal(`Permanently delete ${ids.length} post(s) — their matches, contacts and chats will be deleted too.`, async () => {
+    const res = await apiFetch('/admin/listings/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) });
+    const d = await res.json();
+    if (d.error) return showToast(d.error, 'danger');
+    ids.forEach(id => document.getElementById(`trip-${id}`)?.remove());
+    document.getElementById('postBulkBar').style.display = 'none';
+    showToast(`${d.deleted} post(s) deleted permanently.`, 'success');
+  });
+});
 </script>
 {% endblock %}

@@ -336,7 +336,7 @@
             </div>
             <div class="field-group">
               <label>Age group</label>
-              <select class="tv-age"><option value="">Prefer not to say</option>{% for a in AGE_GROUPS %}<option value="{{ a }}">{{ AGE_GROUP_LABELS[a] }}</option>{% endfor %}</select>
+              <input type="text" class="tv-age" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="Age (optional)" oninput="this.value=this.value.replace(/\D/g,'').slice(0,3)"/>
             </div>
             <div class="field-group">
               <label>Gender</label>

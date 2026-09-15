@@ -684,6 +684,16 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .tool-steps li i{width:26px;height:26px;border-radius:50%;border:2px solid #4B5F87;display:grid;place-items:center;font-style:normal;font-size:12px}
 .tool-steps li.on{color:#fff}.tool-steps li.on i{background:var(--amber);border-color:var(--amber);color:var(--navy)}
 .tool-steps li.done{color:#fff}.tool-steps li.done i{background:#1E7F4F;border-color:#1E7F4F;color:#fff}
+.post-trip-bar{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;width:100%;background:var(--amber);color:var(--navy);border:none;border-radius:14px;padding:14px 20px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;margin-top:18px}
+.post-trip-bar b{display:inline-flex;align-items:center;gap:6px;background:var(--navy);color:#fff;border-radius:999px;padding:8px 16px;font-weight:700}
+.post-trip-bar:hover{filter:brightness(1.04)}
+.mw-steps{list-style:none;display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:18px}
+.mw-steps li{text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding-bottom:8px;border-bottom:3px solid var(--line)}
+.mw-steps li span{display:block;margin-top:2px}
+.mw-steps li.on{color:var(--navy);border-color:var(--amber)}
+.mw-step{display:none}
+.mw-step.on{display:block}
+.mw-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px}
 .tp{padding:30px}
 .modes{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px}
 .mode{border:1.5px solid var(--line);border-radius:16px;padding:16px;display:grid;grid-template-columns:44px 1fr;gap:4px 14px;text-align:left;transition:border-color .15s,background .15s}
@@ -861,7 +871,10 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
     <div class="sf"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20s-7-4.5-7-10a4 4 0 017-2.5A4 4 0 0119 10c0 5.5-7 10-7 10z"/></svg></div><div><label for="s-role">I am</label><select id="s-role"><option value="">Anyone</option><option value="seeking_help">Seeking help</option><option value="offering_help">Offering help</option><option value="open">Open to either</option></select></div></div>
     <button class="btn btn-amber" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="18" height="18"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>Find Companions</button>
   </form>
-  <div class="search-sub">Travelling yourself? Let matches come to you. <a class="btn btn-ghost" href="{{ url_for('auth.register') }}">Post your trip</a></div>
+  <button type="button" class="post-trip-bar" id="postTripBar">
+    <span>Travelling yourself? Let matches come to you.</span>
+    <b>Post your trip <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="13" height="13"><path d="M6 9l6 6 6-6"/></svg></b>
+  </button>
 </div>
 
 
@@ -1035,24 +1048,59 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
         </div>
 
         <form class="mp" id="mp-manual" hidden novalidate>
-          <div class="row three">
-            <div class="f"><label for="m-from">From</label><input id="m-from" list="airports" placeholder="Chennai (MAA)" required></div>
-            <div class="f"><label for="m-to">To</label><input id="m-to" list="airports" placeholder="Chicago (ORD)" required></div>
-            <div class="f"><label for="m-date">Travel date</label><input id="m-date" type="date" required></div>
-          </div>
+          <ol class="mw-steps">
+            <li class="on" data-mw="1">1<span>Where</span></li>
+            <li data-mw="2">2<span>When</span></li>
+            <li data-mw="3">3<span>Who</span></li>
+            <li data-mw="4">4<span>Companion</span></li>
+            <li data-mw="5">5<span>Finish</span></li>
+          </ol>
           <datalist id="airports"><option value="MAA — Chennai"><option value="ORD — Chicago"><option value="DEL — New Delhi"><option value="BOM — Mumbai"><option value="VGA — Vijayawada"><option value="SEA — Seattle"><option value="HYD — Hyderabad"><option value="LHR — London"><option value="YYZ — Toronto"><option value="SFO — San Francisco"></datalist>
-          <div class="row">
-            <div class="f"><label for="m-flight">Airline / flight (optional)</label><input id="m-flight" placeholder="Air India AI 127"></div>
-            <div class="f"><label for="m-lang">Preferred companion language</label><select id="m-lang"><option>Any</option><option>Hindi</option><option>Telugu</option><option>Tamil</option><option>Gujarati</option><option>Kannada</option><option>Malayalam</option><option>Marathi</option><option>Punjabi</option><option>Bengali</option><option>Urdu</option></select></div>
-          </div>
-          <div class="f"><label>I am…</label>
-            <div class="pills">
-              <label><input type="radio" name="m-who" value="seek" checked>Seeking help</label>
-              <label><input type="radio" name="m-who" value="offer">Offering help</label>
-              <label><input type="radio" name="m-who" value="either">Open to either</label>
+
+          <div class="mw-step on" data-mws="1">
+            <div class="row three">
+              <div class="f"><label for="m-from">From</label><input id="m-from" list="airports" placeholder="Chennai (MAA)" required></div>
+              <div class="f"><label for="m-to">To</label><input id="m-to" list="airports" placeholder="Chicago (ORD)" required></div>
+              <div class="f"><label for="m-flight">Airline / flight <small>(optional)</small></label><input id="m-flight" placeholder="Air India AI 127"></div>
             </div>
           </div>
-          <button class="btn btn-amber btn-lg" type="submit">Find companions</button>
+
+          <div class="mw-step" data-mws="2">
+            <div class="row">
+              <div class="f"><label for="m-date">Travel date</label><input id="m-date" type="date" required></div>
+              <div class="f"><label for="m-date-to">Return date <small>(optional)</small></label><input id="m-date-to" type="date"></div>
+            </div>
+          </div>
+
+          <div class="mw-step" data-mws="3">
+            <div class="f"><label>I am…</label>
+              <div class="pills">
+                <label><input type="radio" name="m-who" value="seek" checked>Seeking help</label>
+                <label><input type="radio" name="m-who" value="offer">Offering help</label>
+                <label><input type="radio" name="m-who" value="either">Open to either</label>
+              </div>
+            </div>
+            <div class="row">
+              <div class="f"><label for="m-age">Your age <small>(optional)</small></label><input id="m-age" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="e.g. 34" oninput="this.value=this.value.replace(/\D/g,'').slice(0,3)"></div>
+            </div>
+          </div>
+
+          <div class="mw-step" data-mws="4">
+            <div class="row">
+              <div class="f"><label for="m-lang">Preferred companion language</label><select id="m-lang"><option>Any</option><option>Hindi</option><option>Telugu</option><option>Tamil</option><option>Gujarati</option><option>Kannada</option><option>Malayalam</option><option>Marathi</option><option>Punjabi</option><option>Bengali</option><option>Urdu</option></select></div>
+              <div class="f"><label for="m-cgender">Companion gender <small>(optional)</small></label><select id="m-cgender"><option value="">Any</option><option value="female">Female</option><option value="male">Male</option></select></div>
+            </div>
+          </div>
+
+          <div class="mw-step" data-mws="5">
+            <div class="f"><label for="m-notes">Anything else companions should know? <small>(optional)</small></label><textarea id="m-notes" rows="3" placeholder="Layovers, special needs, what you're looking forward to…"></textarea></div>
+          </div>
+
+          <div class="mw-nav">
+            <button type="button" class="btn btn-ghost" id="mwBack" style="visibility:hidden">Back</button>
+            <button type="button" class="btn btn-navy" id="mwNext">Next</button>
+            <button class="btn btn-amber btn-lg" type="submit" id="mwSubmit" hidden>Find companions</button>
+          </div>
         </form>
       </div>
 
@@ -1286,7 +1334,8 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
           <div class="f"><label for="su-last">Last name</label><input id="su-last" required autocomplete="family-name"></div>
         </div>
         <div class="f"><label for="su-email">Email</label><input id="su-email" type="email" required autocomplete="email" placeholder="you@example.com"><span class="hint">We'll send match updates here.</span></div>
-        <div class="f"><label for="su-phone">Phone / WhatsApp</label><input id="su-phone" type="tel" required autocomplete="tel" placeholder="+1 or +91 …"></div>
+        <div class="f"><label for="su-username">Username</label><input id="su-username" required minlength="3" maxlength="30" pattern="[A-Za-z0-9_.\-]{3,30}" autocomplete="username" placeholder="Unique — visible to others"></div>
+        <div class="f"><label for="su-phone">Phone / WhatsApp</label><input id="su-phone" type="tel" required autocomplete="tel" placeholder="+1 or +91 …"><span class="hint">Stay connected: this lets us reach you the instant we find your match.</span></div>
         <div class="row">
           <div class="f"><label for="su-lang">Preferred language</label><select id="su-lang"><option>English</option><option>Hindi</option><option>Telugu</option><option>Tamil</option><option>Gujarati</option><option>Kannada</option><option>Malayalam</option><option>Marathi</option><option>Punjabi</option><option>Bengali</option><option>Urdu</option></select></div>
           <div class="f"><label for="su-city">City you live in</label><input id="su-city" placeholder="Dallas, TX"></div>
@@ -1377,7 +1426,11 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
   const open=id=>{ $$('.modal').forEach(m=>m.classList.remove('open')); const m=$('#m-'+id); m.classList.add('open'); document.body.style.overflow='hidden'; setTimeout(()=>{const f=m.querySelector('input'); f&&f.focus();},50); };
   const closeAll=()=>{ $$('.modal').forEach(m=>m.classList.remove('open')); document.body.style.overflow=''; };
   const AUTH={ signin:'{{ url_for("auth.login") }}', signup:'{{ url_for("auth.register") }}' };
-  $$('[data-open]').forEach(b=>b.addEventListener('click',()=>{ const d=b.dataset.open; if(AUTH[d]){ location.href=AUTH[d]; return; } open(d); }));
+  $$('[data-open]').forEach(b=>b.addEventListener('click',()=>{ open(b.dataset.open); }));
+  document.getElementById('postTripBar')?.addEventListener('click', () => {
+    document.getElementById('connection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => { document.querySelector('.mode[data-mode="manual"]')?.click(); }, 350);
+  });
   $$('[data-close]').forEach(b=>b.addEventListener('click',closeAll));
   $$('.modal').forEach(m=>m.addEventListener('click',e=>{ if(e.target===m) closeAll(); }));
   document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeAll(); });
@@ -1389,7 +1442,27 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
   const toast=msg=>{ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3200); };
   // Forms (front-end validation only; wire to backend)
   $('#signinForm').addEventListener('submit',e=>{ e.preventDefault(); const f=e.target; const ok=f.checkValidity(); $('#siErr').style.display=ok?'none':'block'; if(ok){ closeAll(); toast('Signed in'); } });
-  $('#signupForm').addEventListener('submit',e=>{ e.preventDefault(); const f=e.target; const ok=f.checkValidity()&&$('#su-terms').checked; $('#suErr').style.display=ok?'none':'block'; if(ok){ closeAll(); toast('Account created — check your email to verify'); } });
+  let _postSignupAction=null;   // set right before opening the modal from the wizard's Post step
+  $('#signupForm').addEventListener('submit',async e=>{
+    e.preventDefault(); const f=e.target;
+    const ok=f.checkValidity()&&$('#su-terms').checked;
+    $('#suErr').style.display=ok?'none':'block';
+    if(!ok) return;
+    const btn=f.querySelector('button[type=submit]'); btn.disabled=true;
+    const fd=new FormData();
+    fd.set('first_name',$('#su-first').value); fd.set('last_name',$('#su-last').value);
+    fd.set('email',$('#su-email').value); fd.set('username',$('#su-username').value);
+    fd.set('phone',$('#su-phone').value); fd.set('password',$('#su-pass').value);
+    fd.set('agree_terms','on');
+    try{
+      const r=await fetch(AUTH.signup,{method:'POST',headers:{'X-Requested-With':'XMLHttpRequest','X-CSRFToken':CSRF},body:fd});
+      const d=await r.json();
+      if(!d.success){ $('#suErr').textContent=(d.errors||['Please check the form and try again.']).join(' '); $('#suErr').style.display='block'; btn.disabled=false; return; }
+      closeAll(); toast('Account created — welcome to Connecting Desis!');
+      const action=_postSignupAction; _postSignupAction=null;
+      if(action) action(); else location.href='{{ url_for("main.dashboard") }}';
+    }catch(err){ $('#suErr').textContent='Network error — please try again.'; $('#suErr').style.display='block'; btn.disabled=false; }
+  });
   
 
   // Scroll reveal
@@ -1433,6 +1506,22 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
   };
   // modes
   $$('.mode').forEach(b=>b.addEventListener('click',()=>{ $$('.mode').forEach(x=>x.classList.remove('on')); b.classList.add('on'); $('#mp-upload').hidden=b.dataset.mode!=='upload'; $('#mp-manual').hidden=b.dataset.mode!=='manual'; }));
+  // 5-step manual wizard: Where / When / Who / Companion / Finish, then the existing real search fires.
+  (function(){
+    const steps=$$('.mw-step'), dots=$$('.mw-steps li'); let mw=1;
+    function show(n){ mw=Math.max(1,Math.min(5,n));
+      steps.forEach(s=>s.classList.toggle('on',+s.dataset.mws===mw));
+      dots.forEach(d=>d.classList.toggle('on',+d.dataset.mw===mw));
+      $('#mwBack').style.visibility=mw===1?'hidden':'visible';
+      $('#mwNext').hidden=mw===5; $('#mwSubmit').hidden=mw!==5;
+    }
+    $('#mwNext')?.addEventListener('click',()=>{
+      if(mw===1&&(!$('#m-from').value||!$('#m-to').value)){ $('#m-from').reportValidity(); return; }
+      if(mw===2&&!$('#m-date').value){ $('#m-date').reportValidity(); return; }
+      show(mw+1);
+    });
+    $('#mwBack')?.addEventListener('click',()=>show(mw-1));
+  })();
   $$('[data-mode-switch]').forEach(el=>el.addEventListener('click',()=>{ $(`.mode[data-mode="${el.dataset.modeSwitch}"]`)?.click(); }));
   // upload (simulated parse — replace with your ticket-parsing endpoint)
   const dz=$('#dz'), fileIn=$('#ticketFile');
@@ -1458,7 +1547,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
       if(q.date&&t.from_date){ const d=Math.abs((new Date(q.date)-new Date(t.from_date))/864e5); reasons.push(d<=1?'Same day':d<=7?'Within a week':'Close dates'); }
       if(q.lang&&q.lang!=='Any'&&(t.preferred_languages||[]).includes(q.lang)) reasons.push(q.lang);
       const name=(t.author&&t.author.username)||'Traveller';
-      return `<div class="res" style="animation-delay:${i*.12}s"><div><div class="who"><i>${name[0].toUpperCase()}</i><div><b>${name}</b><span>${t.origin_iata||''} → ${t.dest_iata||''}${t.from_date?' · '+fmt(t.from_date):''} · ${ROLE_LABEL[t.role]||''}</span></div></div><div class="reasons">${reasons.map(r=>`<span>${r}</span>`).join('')}</div></div><a class="btn btn-amber" href="${REGISTER}">Connect</a></div>`;
+      return `<div class="res" style="animation-delay:${i*.12}s"><div><div class="who"><i>${name[0].toUpperCase()}</i><div><b>${name}</b><span>${t.origin_iata||''} → ${t.dest_iata||''}${t.from_date?' · '+fmt(t.from_date):''} · ${ROLE_LABEL[t.role]||''}</span></div></div><div class="reasons">${reasons.map(r=>`<span>${r}</span>`).join('')}</div></div><button type="button" class="btn btn-amber" data-open="signup">Connect</button></div>`;
     }).join('');
     $('#empty').hidden=res.length>0;
     setStep(2);

@@ -76,7 +76,7 @@
           <div class="form-row">
             <div class="field-group">
               <label>Age group</label>
-              <select name="traveler_age_group"><option value="">Unknown</option>{% for a in AGE_GROUPS %}<option value="{{ a }}" {{ sel('traveler_age_group', a) }}>{{ AGE_GROUP_LABELS[a] }}</option>{% endfor %}</select>
+              <input type="text" name="traveler_age_group" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="Age (optional)" value="{{ val('traveler_age_group') }}" oninput="this.value=this.value.replace(/\D/g,'').slice(0,3)"/>
             </div>
             <div class="field-group">
               <label>Gender</label>

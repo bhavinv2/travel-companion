@@ -138,7 +138,8 @@ def _pref_side(pref_trip, other):
     elif not other.traveler_age_group:
         parts.append(50); notes.append('age unknown')
     else:
-        mid = AGE_MIDPOINT.get(other.traveler_age_group, 40)
+        v = (other.traveler_age_group or '').strip()
+        mid = int(v) if v.isdigit() else AGE_MIDPOINT.get(v, 40)
         lo = pref_trip.pref_age_min if pref_trip.pref_age_min is not None else 0
         hi = pref_trip.pref_age_max if pref_trip.pref_age_max is not None else 200
         if lo <= mid <= hi:

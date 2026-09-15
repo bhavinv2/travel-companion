@@ -86,6 +86,45 @@ def users():
                            role_labels=options.role_labels(), page=page, pages=pages, total=total)
 
 
+@admin_bp.route('/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_user(user_id):
+    """Permanently delete one account and everything tied to it (posts, matches, chats, ...)."""
+    from app.models import ActivityEvent
+    from app.services import admin_delete
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        return jsonify({'error': 'You cannot delete your own account.'}), 400
+    label = user.username
+    ActivityEvent.log('user_hard_deleted', actor=current_user, target_user_id=user.id, username=label)
+    admin_delete.delete_user_cascade(user)
+    db.session.commit()
+    return jsonify({'success': True, 'username': label})
+
+
+@admin_bp.route('/users/bulk-delete', methods=['POST'])
+@login_required
+@admin_required
+def bulk_delete_users():
+    from app.models import ActivityEvent
+    from app.services import admin_delete
+    ids = (request.get_json(silent=True) or {}).get('ids') or []
+    ids = [i for i in ids if isinstance(i, int) or (isinstance(i, str) and i.isdigit())]
+    if not ids:
+        return jsonify({'error': 'No accounts selected.'}), 400
+    ids = {int(i) for i in ids}
+    ids.discard(current_user.id)          # never let a bulk action delete yourself
+    users_qs = User.query.filter(User.id.in_(ids)).all()
+    deleted = 0
+    for user in users_qs:
+        ActivityEvent.log('user_hard_deleted', actor=current_user, target_user_id=user.id, username=user.username)
+        admin_delete.delete_user_cascade(user)
+        deleted += 1
+    db.session.commit()
+    return jsonify({'success': True, 'deleted': deleted})
+
+
 @admin_bp.route('/users/<int:user_id>/toggle', methods=['POST'])
 @login_required
 @admin_required
@@ -805,6 +844,42 @@ def disable_listing(trip_id):
     trip.set_status('closed', reason='spam', by=current_user)
     db.session.commit()
     return jsonify({'success': True})
+
+
+@admin_bp.route('/listings/<int:trip_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_listing(trip_id):
+    """Permanently delete one post and everything tied to it (matches, contacts, chats, ...)."""
+    from app.models import ActivityEvent
+    from app.services import admin_delete
+    trip = CompanionRequest.query.get_or_404(trip_id)
+    route = trip.route_display
+    ActivityEvent.log('post_hard_deleted', actor=current_user, target_trip_id=trip.id, route=route)
+    admin_delete.delete_post_cascade(trip)
+    db.session.commit()
+    return jsonify({'success': True, 'route': route})
+
+
+@admin_bp.route('/listings/bulk-delete', methods=['POST'])
+@login_required
+@admin_required
+def bulk_delete_listings():
+    from app.models import ActivityEvent
+    from app.services import admin_delete
+    ids = (request.get_json(silent=True) or {}).get('ids') or []
+    ids = [i for i in ids if isinstance(i, int) or (isinstance(i, str) and i.isdigit())]
+    if not ids:
+        return jsonify({'error': 'No posts selected.'}), 400
+    ids = {int(i) for i in ids}
+    trips = CompanionRequest.query.filter(CompanionRequest.id.in_(ids)).all()
+    deleted = 0
+    for trip in trips:
+        ActivityEvent.log('post_hard_deleted', actor=current_user, target_trip_id=trip.id, route=trip.route_display)
+        admin_delete.delete_post_cascade(trip)
+        deleted += 1
+    db.session.commit()
+    return jsonify({'success': True, 'deleted': deleted})
 
 
 @admin_bp.route('/feedback')

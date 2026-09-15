@@ -17,7 +17,7 @@ def test_register_rejects_bad_username_and_missing_terms(client, db):
 def test_register_success_logs_in(client, db):
     r = client.post('/auth/register', data={
         'email': 'x@test.com', 'username': 'xuser', 'password': 'password123',
-        'first_name': 'X', 'last_name': 'Y', 'agree_terms': 'on',
+        'first_name': 'X', 'last_name': 'Y', 'phone': '+1 555 010 1234', 'agree_terms': 'on',
     })
     assert r.status_code == 302
     u = User.query.filter_by(email='x@test.com').first()

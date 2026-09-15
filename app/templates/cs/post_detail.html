@@ -91,7 +91,7 @@
         <dl class="dl">
           <dt>Poster</dt><dd>{{ trip.poster_name or '—' }}{% if trip.author %} <small class="muted">(account: {{ trip.author.username }}, {{ trip.author.email }})</small>{% endif %}</dd>
           <dt>Traveller</dt><dd>{{ trip.traveler_name or '—' }} {% if trip.on_behalf_of %}<small class="muted">({{ trip.on_behalf_of|replace('_',' ') }})</small>{% endif %}</dd>
-          <dt>Age / gender</dt><dd>{{ AGE_GROUP_LABELS.get(trip.traveler_age_group, '—') }} / {{ trip.traveler_gender or '—' }}</dd>
+          <dt>Age / gender</dt><dd>{{ trip.traveler_age_display or '—' }} / {{ trip.traveler_gender or '—' }}</dd>
           <dt>Wants companion</dt><dd>{{ trip.pref_gender or 'any' }}{% if trip.pref_age_min or trip.pref_age_max %}, age {{ trip.pref_age_min or '?' }}–{{ trip.pref_age_max or '?' }}{% endif %}</dd>
           <dt>Languages</dt><dd>{{ (trip.preferred_languages or [])|join(', ') or '—' }}</dd>
           <dt>Needs</dt><dd>{{ (trip.traveller_needs or [])|join(', ')|replace('_',' ') or '—' }}{% if trip.special_needs_notes %}<br/><small>{{ trip.special_needs_notes }}</small>{% endif %}</dd>

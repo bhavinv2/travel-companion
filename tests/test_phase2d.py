@@ -20,7 +20,7 @@ def _link(body, path):
 def test_register_sends_verification_and_link_verifies(client, db):
     mailer.OUTBOX.clear()
     r = client.post('/auth/register', data={'email': 'new@test.com', 'username': 'newbie', 'password': 'password123',
-                                            'first_name': 'New', 'agree_terms': 'on'})
+                                            'first_name': 'New', 'phone': '+1 555 010 9999', 'agree_terms': 'on'})
     assert r.status_code == 302
     mail = next(o for o in mailer.OUTBOX if o['recipients'] == ['new@test.com'])
     link = _link(mail['body'], '/auth/verify/')

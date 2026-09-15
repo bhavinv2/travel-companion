@@ -1,0 +1,16 @@
+{# Shared type-to-confirm dialog for permanent, cascading deletes. Include once per page;
+   call openHardDeleteModal(message, onConfirmAsyncFn) from any button's onclick. #}
+<div class="modal-overlay" id="hardDeleteModal" style="display:none">
+  <div class="modal-box" style="max-width:440px">
+    <button class="modal-close" onclick="closeHardDeleteModal()">&times;</button>
+    <h2><i class="fa-solid fa-triangle-exclamation" style="color:#b91c1c"></i> Permanently delete?</h2>
+    <p id="hdMessage" class="muted"></p>
+    <p class="muted" style="font-size:13px">This cannot be undone. Type <strong>DELETE</strong> to confirm.</p>
+    <input type="text" id="hdConfirmInput" placeholder="Type DELETE" autocomplete="off"
+           style="width:100%;margin:10px 0;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;"/>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button type="button" class="btn-sm" onclick="closeHardDeleteModal()">Cancel</button>
+      <button type="button" class="btn btn-danger" id="hdConfirmBtn" disabled><i class="fa-solid fa-trash-can"></i> Delete permanently</button>
+    </div>
+  </div>
+</div>

@@ -2853,3 +2853,63 @@ function liveSearch({ form, input, clear, spinner, results, delay = 250 }) {
 
   toggleClear();
 }
+
+
+/* ===== Shared type-to-confirm dialog for permanent admin deletes =====
+ * The confirm button stays disabled until the admin types DELETE exactly, so a
+ * cascading, irreversible action is never one accidental click away.
+ */
+let _hdCallback = null;
+function openHardDeleteModal(message, onConfirm) {
+  const modal = document.getElementById('hardDeleteModal');
+  if (!modal) return;
+  document.getElementById('hdMessage').textContent = message;
+  const input = document.getElementById('hdConfirmInput');
+  input.value = '';
+  const btn = document.getElementById('hdConfirmBtn');
+  btn.disabled = true;
+  _hdCallback = onConfirm;
+  modal.style.display = 'flex';
+  input.focus();
+}
+function closeHardDeleteModal() {
+  const modal = document.getElementById('hardDeleteModal');
+  if (modal) modal.style.display = 'none';
+  _hdCallback = null;
+}
+document.addEventListener('input', e => {
+  if (e.target && e.target.id === 'hdConfirmInput') {
+    document.getElementById('hdConfirmBtn').disabled = e.target.value.trim() !== 'DELETE';
+  }
+});
+document.addEventListener('click', e => {
+  if (e.target && e.target.id === 'hdConfirmBtn' && !e.target.disabled) {
+    const cb = _hdCallback;
+    closeHardDeleteModal();
+    if (cb) cb();
+  }
+});
+
+/* ===== Shared checkbox-select-all wiring for admin bulk-action tables =====
+ * headId = the "select all" checkbox, rowSelector = css selector for row checkboxes,
+ * onChange = called with the current array of checked values whenever selection changes.
+ */
+function wireBulkSelect(headId, rowSelector, onChange) {
+  const head = document.getElementById(headId);
+  if (!head) return;
+  function rows() { return [...document.querySelectorAll(rowSelector)]; }
+  function selected() { return rows().filter(r => r.checked).map(r => r.value); }
+  function fire() { onChange(selected()); }
+  head.addEventListener('change', () => {
+    rows().forEach(r => { r.checked = head.checked; });
+    fire();
+  });
+  document.addEventListener('change', e => {
+    if (e.target && e.target.matches(rowSelector)) {
+      const all = rows();
+      head.checked = all.length > 0 && all.every(r => r.checked);
+      head.indeterminate = all.some(r => r.checked) && !head.checked;
+      fire();
+    }
+  });
+}

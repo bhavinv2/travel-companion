@@ -13,12 +13,19 @@
       <button type="submit" class="btn btn-primary">Search</button>
     </form>
     <p class="muted" style="font-size:13px">An account can hold several roles (e.g. traveller + CS). Roles and their access levels are defined under <a href="{{ url_for('admin.options_page') }}">Options &amp; dropdowns</a>.</p>
+
+    <div class="bulk-select-bar" id="userBulkBar" style="display:none">
+      <strong id="userBulkCount">0</strong> selected
+      <button type="button" class="btn-sm danger" id="userBulkDeleteBtn"><i class="fa-solid fa-trash-can"></i> Delete selected</button>
+    </div>
+
     <div class="table-wrap">
     <table class="admin-table stack-mobile">
-      <thead><tr><th>ID</th><th>Username</th><th>Email</th><th>Joined</th><th>Roles</th><th>Active</th><th>Actions</th></tr></thead>
+      <thead><tr><th style="width:32px"><input type="checkbox" id="userSelectAll"/></th><th>ID</th><th>Username</th><th>Email</th><th>Joined</th><th>Roles</th><th>Active</th><th>Actions</th></tr></thead>
       <tbody>
         {% for user in users %}
-        <tr>
+        <tr id="user-row-{{ user.id }}">
+          <td data-label="">{% if user.id != current_user.id %}<input type="checkbox" class="user-select" value="{{ user.id }}"/>{% endif %}</td>
           <td data-label="ID">{{ user.id }}</td>
           <td data-label="Username">{{ user.username }}</td>
           <td data-label="Email">{{ user.email }}</td>
@@ -40,6 +47,7 @@
             <button class="btn-sm" onclick="toggleUser({{ user.id }}, this)">
               {{ 'Disable' if user.is_active else 'Enable' }}
             </button>
+            <button class="btn-sm danger" onclick="deleteOneUser({{ user.id }}, {{ user.username|tojson }})"><i class="fa-solid fa-trash-can"></i></button>
             {% endif %}
           </td>
         </tr>
@@ -50,6 +58,7 @@
     {% include 'admin/_pager.html' %}
   </main>
 </div>
+{% include 'admin/_confirm_delete.html' %}
 {% endblock %}
 {% block extra_js %}
 <script>
@@ -69,5 +78,33 @@ function setRoles(userId) {
       showToast(`Roles saved: ${d.roles.join(', ')}`, 'success');
     });
 }
+
+// ----- hard delete: single + bulk, both behind the type-DELETE-to-confirm dialog -----
+function deleteOneUser(userId, username) {
+  openHardDeleteModal(`Permanently delete ${username} — their posts, matches, chats and reviews will be deleted too.`, async () => {
+    const res = await apiFetch(`/admin/users/${userId}/delete`, { method: 'POST', body: '{}' });
+    const d = await res.json();
+    if (d.error) return showToast(d.error, 'danger');
+    document.getElementById(`user-row-${userId}`)?.remove();
+    showToast(`${d.username} deleted permanently.`, 'success');
+  });
+}
+
+wireBulkSelect('userSelectAll', '.user-select', ids => {
+  document.getElementById('userBulkBar').style.display = ids.length ? 'flex' : 'none';
+  document.getElementById('userBulkCount').textContent = ids.length;
+});
+document.getElementById('userBulkDeleteBtn')?.addEventListener('click', () => {
+  const ids = [...document.querySelectorAll('.user-select:checked')].map(i => +i.value);
+  if (!ids.length) return;
+  openHardDeleteModal(`Permanently delete ${ids.length} account(s) — their posts, matches, chats and reviews will be deleted too.`, async () => {
+    const res = await apiFetch('/admin/users/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) });
+    const d = await res.json();
+    if (d.error) return showToast(d.error, 'danger');
+    ids.forEach(id => document.getElementById(`user-row-${id}`)?.remove());
+    document.getElementById('userBulkBar').style.display = 'none';
+    showToast(`${d.deleted} account(s) deleted permanently.`, 'success');
+  });
+});
 </script>
 {% endblock %}

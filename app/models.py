@@ -304,6 +304,17 @@ class CompanionRequest(db.Model):
         return (d - date.today()).days if d else None
 
     @property
+    def traveler_age_display(self):
+        """Either an exact age ("34") or, for rows saved before the age field became a plain
+        number, the old bracket label ("18-30") - never a raw internal key."""
+        v = (self.traveler_age_group or '').strip()
+        if not v:
+            return None
+        if v.isdigit():
+            return v
+        return AGE_GROUP_LABELS.get(v, v)
+
+    @property
     def route_display(self):
         return f"{self.flying_from or self.road_from or '?'} → {self.destination or self.road_to or '?'}"
 

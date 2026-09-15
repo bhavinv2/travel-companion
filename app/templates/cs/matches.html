@@ -27,7 +27,7 @@
             <div class="wide"><small>Person</small><strong><a class="person-link" href="{{ url_for('cs.post_detail', trip_id=trip.id) }}"><span class="person-name">{{ trip.poster_name or (trip.author.username if trip.author else '—') }}</span></a>{% if trip.traveler_name %} <small class="muted">for {{ trip.traveler_name }}</small>{% endif %}</strong></div>
             <div><small>Departs</small><strong id="cmxDates">{{ trip.from_date or '—' }}{% if trip.from_date_flexible %} · flexible{% endif %}</strong></div>
             <div><small>Flight</small><strong id="cmxFlight">{{ trip.airline or '—' }} {{ trip.flight_number or '' }}</strong></div>
-            <div><small>Traveller</small><strong>{{ AGE_GROUP_LABELS.get(trip.traveler_age_group, '?') }} / {{ trip.traveler_gender or '?' }}</strong></div>
+            <div><small>Traveller</small><strong>{{ trip.traveler_age_display or '?' }} / {{ trip.traveler_gender or '?' }}</strong></div>
             <div><small>Wants</small><strong>{{ trip.pref_gender or 'any' }}{% if trip.pref_age_min or trip.pref_age_max %}, {{ trip.pref_age_min or '?' }}–{{ trip.pref_age_max or '?' }}{% endif %}</strong></div>
             <div class="wide"><small>Languages</small><strong>{{ (trip.preferred_languages or [])|join(', ') or '—' }}</strong></div>
             <div class="wide"><small>Reachable via</small><strong class="ci-cell">{{ contact_icons(trip) }} <small class="muted">{{ CHANNEL_LABELS[channel_me] }}</small></strong></div>
