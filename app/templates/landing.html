@@ -25,7 +25,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600;1,700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/footer.css') }}">
 {% if structured_data %}<script type="application/ld+json">{{ structured_data | tojson }}</script>{% endif %}
 <style>
@@ -35,7 +35,13 @@
   --sand:#FFF6EA; --line:#E6E1D8; --white:#FFFFFF;
   --sans:'Plus Jakarta Sans',system-ui,sans-serif; --serif:'Fraunces',Georgia,serif;
   --r-s:8px; --r-m:14px; --r-pill:999px;
-  --wrap:1180px;
+  --wrap:1360px;
+  /* Exact palette for the "Post Your Trip" widget / self-travel banner / steps -- kept as its
+     own scale (rather than repointing --navy/--amber site-wide) since these three components
+     were pixel-matched against a separate reference design. */
+  --rd-navy-ink:#1b2b4d; --rd-amber:#f4a422; --rd-amber-strong:#ef9a1a; --rd-amber-text:#e08a13;
+  --rd-cream:#fdf1dc; --rd-cream-soft:#fff7ea; --rd-cream-line:#f2e2c6;
+  --rd-text:#465166; --rd-text-soft:#6b7688; --rd-serif:'Playfair Display',Georgia,serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
@@ -48,7 +54,7 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 h1,h2,h3{font-family:var(--serif);font-weight:500;line-height:1.15;letter-spacing:-.01em}
 h2{font-size:clamp(28px,3.4vw,40px);color:var(--navy)}
 h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
-.wrap{max-width:var(--wrap);margin:0 auto;padding:0 24px}
+.wrap{max-width:var(--wrap);margin:0 auto;padding:0 32px}
 .lead{font-size:18px;color:var(--muted);max-width:62ch}
 .sec{padding:88px 0}
 .sec-sand{background:var(--sand)}
@@ -73,13 +79,15 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 
 /* ===== Header (matches supplied reference) ===== */
 .hdr{background:var(--navy);position:sticky;top:0;z-index:50;box-shadow:0 1px 0 rgba(255,255,255,.06)}
-.hdr .wrap{display:flex;align-items:center;justify-content:space-between;height:66px;max-width:1440px}
+.hdr .wrap{display:flex;align-items:center;justify-content:space-between;height:66px}
 .logo{display:flex;align-items:center;gap:0;color:#fff;font-weight:700;font-size:17px;letter-spacing:-.01em}
 .logo img{width:32px;height:32px;margin-right:10px;object-fit:contain}
 .logo b{color:var(--sky);font-weight:700}
 .nav{display:flex;gap:34px;white-space:nowrap;font-weight:600;font-size:15px;color:#DCE4F2}
+.nav a{position:relative;padding-bottom:4px}
 .nav a:hover{color:#fff}
 .nav a.active{color:var(--amber)}
+.nav a.active::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--amber);border-radius:2px}
 .hdr-right{display:flex;align-items:center;gap:12px}
 .lang{cursor:pointer;display:inline-flex;align-items:center;gap:7px;border:1.5px solid rgba(255,255,255,.55);color:#fff;border-radius:var(--r-pill);padding:8px 14px;font-weight:600;font-size:14px;position:relative}
 .lang svg{width:16px;height:16px}
@@ -115,9 +123,17 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .hero h1{font-size:clamp(36px,4.4vw,54px);color:#fff;margin-bottom:18px}
 .hero h1 em{font-style:italic;font-weight:400;color:#FFD48A}
 .hero p{font-size:18px;color:#D7E0F0;max-width:52ch;margin-bottom:10px}
+.hero-trust{display:flex;flex-wrap:wrap;gap:12px 26px;margin:20px 0 30px}
+.hero-trust span{display:flex;align-items:center;gap:9px;font-size:16px;font-weight:600;color:#EAF0FA}
+.hero-trust svg{width:20px;height:20px;color:var(--amber);flex:none}
+.hero-deco{position:absolute;top:26px;right:36px;z-index:2;display:flex;flex-direction:column;align-items:flex-end;gap:4px;color:var(--amber);text-align:right}
+.hero-deco span{font-family:'Caveat',cursive;font-weight:700;font-size:19px;line-height:1.15;color:#FFD48A;white-space:nowrap;text-shadow:0 1px 4px rgba(10,20,40,.55),0 1px 12px rgba(10,20,40,.35)}
+.hero-deco .deco-row{display:flex;align-items:center;gap:4px}
+.hero-deco .squiggle{width:34px;height:20px;flex:none;color:#FFD48A;filter:drop-shadow(0 1px 3px rgba(10,20,40,.5))}
+.hero-deco .heart{width:16px;height:16px;flex:none;color:#FFD48A;filter:drop-shadow(0 1px 3px rgba(10,20,40,.5))}
+@media(max-width:900px){.hero-deco{display:none}}
 .hero .promise{display:inline-flex;align-items:center;gap:10px;line-height:1.35;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);border-radius:var(--r-pill);padding:8px 16px 8px 10px;font-size:14px;font-weight:600;margin:16px 0 26px;backdrop-filter:blur(4px)}
 .hero .promise b{white-space:nowrap;background:var(--amber);color:var(--navy);border-radius:var(--r-pill);padding:3px 10px;font-size:13px}
-.hero-ctas{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:34px}
 .hero-points{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;max-width:520px}
 .hero-points li{list-style:none;display:flex;gap:10px;align-items:flex-start;font-size:15px;color:#E6ECF7}
 .hero-points svg{width:20px;height:20px;flex:none;color:var(--amber);margin-top:2px}
@@ -231,24 +247,33 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .stats{display:flex;gap:40px;margin-bottom:40px;flex-wrap:wrap}
 .stats div b{font-family:var(--serif);font-size:38px;color:var(--navy);display:block;line-height:1}
 .stats div span{font-size:14px;color:var(--muted)}
-.tests{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
-.test{background:#fff;border:1px solid var(--line);border-radius:var(--r-m);padding:26px}
-.test .stars{color:var(--amber);letter-spacing:2px;font-size:14px;margin-bottom:12px}
-.test blockquote{font-family:var(--serif);font-size:18px;line-height:1.45;color:var(--navy)}
-.test footer{margin-top:18px;display:flex;align-items:center;gap:12px;font-size:14px}
-.test .av{width:40px;height:40px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:700}
-.test footer b{display:block}
+.tests{display:flex;gap:20px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;flex:1;align-items:stretch}
+.tests::-webkit-scrollbar{display:none}
+.test{flex:0 0 calc(25% - 15px);scroll-snap-align:start;background:#fff;border:1px solid var(--line);border-radius:var(--r-m);padding:28px;display:flex;flex-direction:column;min-height:220px;box-shadow:0 2px 10px rgba(10,30,55,.06)}
+.test .stars{color:var(--amber);letter-spacing:3px;font-size:17px;margin-bottom:14px}
+.test blockquote{font-size:16px;line-height:1.6;font-style:italic;color:var(--ink);flex:1}
+.test footer{margin-top:20px;display:flex;align-items:center;gap:12px;font-size:14px}
+.test .av{width:44px;height:44px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:700;font-size:16px;overflow:hidden;flex:none}
+.test .av img{width:100%;height:100%;object-fit:cover}
+.test footer b{display:block;font-size:15px}
 .test footer span{color:var(--muted);font-size:13px}
-@media(max-width:900px){.tests{grid-template-columns:1fr}}
+@media(max-width:1100px){.test{flex-basis:calc(50% - 10px)}}
+@media(max-width:560px){.test{flex-basis:88%;min-height:0}}
 
 /* ===== FAQ ===== */
-.faq{max-width:820px}
-.faq details{border-bottom:1px solid var(--line);padding:6px 0}
-.faq summary{list-style:none;cursor:pointer;padding:16px 0;font-weight:600;font-size:17px;display:flex;justify-content:space-between;gap:20px;align-items:center}
+.faq details{border:1.5px solid var(--line);border-radius:12px;padding:0 18px;background:#fff;transition:border-color .15s;margin-bottom:0}
+.faq details[open]{border-color:var(--amber)}
+.faq summary{list-style:none;cursor:pointer;padding:13px 0;font-weight:600;font-size:14.5px;display:flex;gap:12px;align-items:center;color:var(--navy)}
+.faq.two-col{grid-template-columns:1fr 1fr}
+@media(max-width:560px){.faq.two-col{grid-template-columns:1fr}}
 .faq summary::-webkit-details-marker{display:none}
-.faq summary::after{content:"+";font-size:24px;color:var(--amber);font-weight:400;transition:transform .2s}
-.faq details[open] summary::after{transform:rotate(45deg)}
-.faq details p{padding:0 0 18px;color:var(--muted);max-width:68ch}
+.faq summary .faq-ic{flex:none;width:16px;height:16px;color:var(--navy);opacity:.55}
+.faq summary .faq-q{flex:1}
+.faq summary .faq-plus{flex:none;font-size:20px;color:var(--muted);font-weight:300;transition:transform .2s;line-height:1}
+.faq details[open] summary .faq-plus{transform:rotate(45deg);color:var(--amber)}
+.faq details p{padding:0 0 18px 28px;color:var(--muted);max-width:60ch;margin:0}
+.faq-all-btn{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);border-radius:999px;padding:9px 18px;font-size:13px;font-weight:700;color:var(--navy);white-space:nowrap}
+.faq-all-btn:hover{border-color:var(--amber)}
 
 /* ===== Request form ===== */
 .form-wrap{display:grid;grid-template-columns:.85fr 1.35fr;gap:48px;align-items:start}
@@ -268,7 +293,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .f input,.f select,.f textarea{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;font:inherit;font-size:15px;background:#fff;color:var(--ink)}
 .f input:focus,.f select:focus,.f textarea:focus{outline:0;border-color:var(--amber);box-shadow:0 0 0 3px rgba(245,166,35,.25)}
 .f textarea{min-height:96px;resize:vertical}
-.f .hint{font-size:12px;color:var(--muted)}
+.f .hint,p.hint{font-size:12px;color:var(--muted)}
 .pills{display:flex;flex-wrap:wrap;gap:8px}
 .pills label{white-space:nowrap;border:1.5px solid var(--line);border-radius:var(--r-pill);padding:8px 14px;font-size:14px;font-weight:500;cursor:pointer;display:flex;gap:8px;align-items:center}
 .pills input{accent-color:var(--navy)}
@@ -283,7 +308,11 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 @media(max-width:600px){.row,.row.three{grid-template-columns:1fr}.form{padding:24px}}
 
 /* Footer: shared design in footer.css (linked in <head>) so the landing and every app page
-   render the identical footer — see app/templates/_footer.html. */
+   render the identical footer — see app/templates/_footer.html. footer.css caps its own .wrap
+   at 1180px for the app's normal (narrower) pages; this override tracks the SAME --wrap width
+   as every other section on this page instead, so the footer's side gap stays consistent with
+   the rest of THIS page only, without changing the footer on other app pages. */
+.ftr .wrap{max-width:var(--wrap)}
 .social{display:flex;gap:10px}
 .social a{width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.2);display:grid;place-items:center;color:#fff}
 .social svg{width:16px;height:16px}
@@ -317,6 +346,27 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .switch button{color:var(--navy);font-weight:700}
 .consent{font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:flex-start;margin:4px 0 16px}
 .consent input{margin-top:3px;accent-color:var(--navy)}
+/* ===== Travel Insurance drawer ===== */
+.drawer-overlay{position:fixed;inset:0;background:rgba(11,23,47,.5);z-index:100;display:none}
+.drawer-overlay.open{display:block}
+.drawer{position:fixed;top:0;right:0;height:100%;width:100%;max-width:420px;background:#fff;z-index:101;box-shadow:-20px 0 60px rgba(0,0,0,.25);transform:translateX(100%);transition:transform .3s ease;overflow-y:auto;padding:30px 26px}
+.drawer.open{transform:translateX(0)}
+.drawer-close{position:absolute;top:20px;right:20px;width:34px;height:34px;border-radius:50%;background:var(--sand);color:var(--navy);display:grid;place-items:center;cursor:pointer;font-size:18px;border:none}
+.drawer-close:hover{background:var(--line)}
+.ins-drawer-head{padding-right:36px}
+.ins-drawer-ic{width:48px;height:48px;border-radius:12px;background:var(--sand);display:grid;place-items:center;font-size:22px;margin-bottom:12px}
+.ins-drawer-head h2{font-size:22px;margin-bottom:4px}
+.ins-drawer-head h3{font-family:var(--serif);font-weight:500;font-size:17px;color:var(--sunset);margin-bottom:8px}
+.ins-drawer-head p{color:var(--muted);font-size:14px}
+.ins-drawer-illo{width:100%;max-width:260px;margin:18px auto;display:block}
+.ins-drawer-sub{font-size:15px;color:var(--navy);margin:18px 0 12px;padding-top:16px;border-top:1px solid var(--line)}
+.ins-drawer-bullets{list-style:none;margin:18px 0;display:grid;gap:10px}
+.ins-drawer-bullets li{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:var(--ink)}
+.ins-drawer-bullets svg{color:#1E7F4F;flex:none}
+.ins-drawer-help{display:flex;gap:12px;align-items:flex-start;background:var(--sand);border-radius:14px;padding:16px;font-size:13px;color:var(--muted)}
+.ins-drawer-help svg{width:22px;height:22px;color:var(--navy);flex:none}
+.ins-drawer-help a{color:var(--navy);font-weight:700}
+@media(max-width:480px){.drawer{max-width:100%}}
 .consent a{text-decoration:underline}
 .err{display:none;background:#FDECEC;color:#8A1F1F;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:14px}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--navy);color:#fff;padding:14px 22px;border-radius:var(--r-pill);font-weight:600;font-size:14px;opacity:0;pointer-events:none;transition:.25s;z-index:200;box-shadow:0 12px 30px rgba(0,0,0,.3)}
@@ -328,26 +378,62 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .sec{padding:76px 0}
 .sec-head{max-width:640px;margin:0 auto 40px;text-align:center}
 .sec-head .lead{margin:12px auto 0}
-.hero{min-height:600px;align-items:center;background-position:center 30%;padding-bottom:70px}
+.hero{min-height:500px;align-items:center;background-position:center 30%;padding-bottom:70px}
 .hero::before{background:linear-gradient(90deg,rgba(15,31,61,.92) 0%,rgba(15,31,61,.82) 38%,rgba(15,31,61,.35) 62%,rgba(15,31,61,.05) 85%)}
 .hero .wrap{padding-top:70px;padding-bottom:90px}
-.hero-inner{max-width:580px}
+.hero-inner{max-width:740px}
 .hero h1{font-size:clamp(38px,4.6vw,58px);margin-bottom:16px}
 .hero p{font-size:17px;margin-bottom:26px}
-.hero-ctas{margin-bottom:0}
 /* Floating search bar */
-.search-wrap{position:relative;z-index:5;margin-top:-64px}
-.search{background:#fff;border-radius:22px;box-shadow:0 24px 60px rgba(15,31,61,.22);padding:12px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:stretch}
-.sf select{border:0;outline:0;font:inherit;font-size:16px;font-weight:600;width:100%;color:var(--ink);background:transparent;padding:0;cursor:pointer}
-.sf{position:relative;display:flex;gap:12px;align-items:center;padding:10px 16px;border-radius:14px;border:1px solid transparent}
-.sf:focus-within{border-color:var(--amber);background:var(--sand)}
-.sf .ico{width:38px;height:38px;border-radius:50%;background:var(--sand);display:grid;place-items:center;color:var(--navy);flex:none}
-.sf .ico svg{width:18px;height:18px}
-.sf label{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--sunset);text-transform:uppercase}
-.sf input{border:0;outline:0;font:inherit;font-size:16px;font-weight:600;width:100%;color:var(--ink);background:transparent;padding:0}
-.sf input::placeholder{color:#9AA3B5;font-weight:500}
-.sf + .sf{border-left:1px solid var(--line);border-radius:0 14px 14px 0}
-.sf + .sf:focus-within{border-left-color:var(--amber);border-radius:14px}
+.search-wrap{position:relative;z-index:5;margin-top:-64px;max-width:1240px;padding-left:40px;padding-right:40px}
+/* No border: the hero -> white transition is created by geometry alone (the raised sheet
+   below), so a 1px outline would cut a visible seam across the raised area. */
+.search-card{background:#fff;border:0;border-radius:0 22px 22px 22px;box-shadow:0 24px 60px -20px rgba(17,29,56,.28);padding:16px 32px 26px;position:relative}
+/* The raised white sheet: sits 58px above the card's top edge, overlapping 4px into it so the
+   union with the card reads as one continuous shape (square top-left corner on the card). */
+.search-raise{position:absolute;left:0;top:-58px;width:480px;height:62px;display:block;pointer-events:none}
+.widget-tabs{position:absolute;left:22px;top:-42px;display:inline-flex;align-items:center;gap:12px;z-index:6;margin:0;padding:0;background:transparent}
+.wtab{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 20px;border-radius:999px;font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap;border:1px solid transparent;transition:background .15s,color .15s,border-color .15s}
+.wtab.active{background:#071D3A;color:#fff;box-shadow:0 2px 6px rgba(7,29,58,.18)}
+.wtab:not(.active){background:#F1F5F9;border-color:#E3E8EF;color:#17375E;padding:0 18px 0 6px}
+.wtab:not(.active):hover{background:#E9EEF4}
+.wtab-ic{width:18px;height:18px;flex:none}
+.wtab-orb{width:32px;height:32px;border-radius:50%;background:#fff;display:grid;place-items:center;flex:none;color:var(--rd-amber-strong)}
+.wtab-orb svg{width:17px;height:17px;transform:rotate(-20deg)}
+@media(max-width:560px){
+  .search-raise{width:340px;top:-52px;height:56px}
+  .widget-tabs{left:14px;top:-40px;gap:8px}
+  .wtab{height:40px;padding:0 14px;font-size:12.5px;gap:6px}
+  .wtab:not(.active){padding:0 12px 0 4px}
+  .wtab-ic{width:15px;height:15px}
+  .wtab-orb{width:28px;height:28px}
+  .wtab-orb svg{width:14px;height:14px}
+}
+.curve-deco{display:flex;align-items:center;gap:10px;color:var(--rd-amber-text)}
+.curve-deco .flight{width:100px;height:46px;flex:none}
+.curve-deco .heart-out{width:22px;height:22px;flex:none}
+.curve-deco b{font-family:var(--script,'Caveat',cursive);font-weight:700;font-size:22px;line-height:1.08;text-align:center;white-space:nowrap}
+@media(max-width:420px){.curve-deco .flight{width:76px;height:34px}.curve-deco b{font-size:18px}.curve-deco .heart-out{width:18px;height:18px}}
+.widget-panel{display:none}
+.widget-panel.active{display:block}
+.search-panel{background:var(--rd-cream-soft);border:1px solid var(--rd-cream-line);border-radius:16px;box-shadow:0 12px 30px -14px rgba(17,29,56,.22);margin-top:6px;overflow:hidden}
+.search-panel .search{border:none;box-shadow:none;border-radius:0;margin-top:0}
+.popular-routes{display:flex;align-items:center;flex-wrap:wrap;gap:14px;margin:0;padding:16px 24px;border-top:1px solid var(--rd-cream-line);font-size:14px;color:var(--rd-text-soft);font-weight:600}
+.route-chip{border:1px solid var(--rd-cream-line);background:#fff;border-radius:999px;padding:10px 20px;font-size:14px;font-weight:600;color:var(--rd-navy-ink);cursor:pointer;display:inline-flex;align-items:center;gap:6px;flex:1 1 auto;justify-content:center;white-space:nowrap}
+.route-chip:hover{border-color:var(--rd-amber)}
+.route-more{font-weight:700;color:var(--rd-amber-text);white-space:nowrap;cursor:pointer}
+.search{background:var(--white);border:1px solid var(--rd-cream-line);border-radius:16px;box-shadow:0 12px 30px -14px rgba(17,29,56,.22);margin-top:24px;display:flex;align-items:stretch;overflow:hidden;padding:0}
+.search.postquick{flex-wrap:wrap}
+.search.postquick .sf{flex:1 1 150px}
+.hp-triptype{margin-top:16px}
+.sf select{border:0;outline:0;font:inherit;font-size:16px;font-weight:500;width:100%;color:var(--rd-navy-ink);background:transparent;padding:0;cursor:pointer}
+.sf{position:relative;flex:1;display:flex;gap:12px;align-items:center;padding:14px 18px;min-width:0}
+.sf .ico{width:42px;height:42px;border-radius:50%;background:#f6f0e4;display:grid;place-items:center;color:var(--rd-amber-text);flex:none}
+.sf .ico svg{width:20px;height:20px}
+.sf label{display:block;font-size:11.5px;font-weight:700;letter-spacing:.06em;color:var(--rd-amber-text);text-transform:uppercase;margin-bottom:3px}
+.sf input{border:0;outline:0;font:inherit;font-size:16px;font-weight:500;width:100%;color:var(--rd-navy-ink);background:transparent;padding:0}
+.sf input::placeholder{color:#98a1b0;font-weight:500}
+.sf + .sf::before{content:"";position:absolute;left:0;top:16px;bottom:16px;width:1px;background:var(--rd-cream-line)}
 /* City/airport suggestions for the hero search (self-contained — this page loads no other JS/CSS) */
 .s-drop{display:none;position:absolute;left:0;right:0;top:calc(100% + 10px);background:#fff;border-radius:14px;box-shadow:0 18px 44px rgba(15,31,61,.22);padding:6px;z-index:20;max-height:280px;overflow:auto;text-align:left}
 .s-drop.open{display:block}
@@ -355,14 +441,14 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .s-drop .opt:hover,.s-drop .opt.active{background:var(--sand)}
 .s-drop .opt b{font-size:12px;color:var(--sunset);font-weight:700}
 .s-drop .opt span{color:var(--muted);font-size:12.5px}
-.search .btn{border-radius:16px;padding:0 30px;font-size:16px;justify-content:center}
+.search .btn{flex:none;margin:8px;border-radius:12px;padding:0 28px;font-size:16px;font-weight:700;justify-content:center;box-shadow:0 12px 22px -10px rgba(244,164,34,.75)}
 .search-sub{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:18px;font-size:15px;color:var(--muted);flex-wrap:wrap}
 .search-sub .btn{padding:9px 18px;font-size:14px}
 .trust-chips{display:flex;justify-content:center;flex-wrap:wrap;gap:10px;margin-top:22px}
 .trust-chips span{background:#fff;border:1px solid var(--line);border-radius:var(--r-pill);padding:9px 16px;font-size:14px;font-weight:600;display:inline-flex;gap:8px;align-items:center}
 .trust-chips b{color:var(--sunset)}
-@media(max-width:900px){.search{grid-template-columns:1fr 1fr}.search .btn{grid-column:1/-1;padding:14px}.sf + .sf{border-left:0;border-radius:14px}}
-@media(max-width:560px){.search{grid-template-columns:1fr}.search-wrap{margin-top:-40px}}
+@media(max-width:900px){.search{flex-direction:column}.sf + .sf::before{left:16px;right:16px;top:0;bottom:auto;width:auto;height:1px}.search .btn{margin:14px;justify-content:center;padding:15px}}
+@media(max-width:560px){.search{grid-template-columns:1fr}.search-wrap{margin-top:-40px}.search-card{padding:20px}}
 /* Intro */
 .intro{text-align:center;max-width:680px;margin:0 auto}
 .intro h2{font-size:clamp(30px,3.6vw,42px)}
@@ -432,17 +518,15 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .scen .em{font-size:34px}
 @media(max-width:800px){.scen{grid-template-columns:1fr 1fr}}
 /* CTA band */
-.band{background:linear-gradient(135deg,var(--navy) 0%,#1B3A75 100%);color:#fff;border-radius:24px;padding:60px 40px;text-align:center}
+.band{background:linear-gradient(90deg,rgba(13,45,97,.65) 0%,rgba(13,45,97,.4) 55%,rgba(13,45,97,.6) 100%),url('/static/img/cta_mountain_hiker.png') left 30% center/cover no-repeat,#0d2d61;color:#fff;border-radius:24px;padding:70px 40px;text-align:center;min-height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.band-deco{position:absolute;right:28px;bottom:22px;font-family:'Caveat',cursive;font-weight:700;color:var(--amber);font-size:18px;line-height:1.15;display:none;align-items:flex-end;gap:6px}
+@media(min-width:900px){.band-deco{display:inline-flex}}
 .band h2{color:#fff;font-size:clamp(28px,3.4vw,40px);max-width:16ch;margin:0 auto 12px}
 .band p{color:#C9D5EC;max-width:52ch;margin:0 auto 26px}
 /* Form compact */
 .form-wrap{gap:40px}
 .form{padding:28px}
-/* FAQ centered */
-.faq{margin:0 auto}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px 40px}
-.two-col details{padding:2px 0}
-.two-col summary{font-size:16px;padding:14px 0}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px 24px}
 @media(max-width:800px){.two-col{grid-template-columns:1fr}}
 </style>
 
@@ -455,7 +539,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 /* 1. Why */
 .why-v3{display:grid;grid-template-columns:1fr 1.1fr;gap:56px;align-items:center}
 .why-photo{position:relative}
-.why-photo img{border-radius:24px;aspect-ratio:1/1;object-fit:cover;width:100%;height:auto;box-shadow:0 30px 60px rgba(15,31,61,.18)}
+.why-photo img{border-radius:24px;width:100%;height:100%;object-fit:cover;box-shadow:0 30px 60px rgba(15,31,61,.18)}
 .why-photo .badge{position:absolute;left:-18px;bottom:36px;background:#fff;border-radius:16px;padding:14px 18px;box-shadow:0 16px 40px rgba(15,31,61,.18);display:flex;gap:12px;align-items:center;max-width:280px}
 .why-photo .badge i{width:40px;height:40px;border-radius:50%;background:var(--amber);display:grid;place-items:center;font-style:normal;flex:none;font-size:18px}
 .why-photo .badge b{display:block;font-size:14px}
@@ -470,6 +554,43 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .why-list span{font-size:13px;color:var(--muted)}
 @media(max-width:900px){.why-v3{grid-template-columns:1fr}.why-photo img{aspect-ratio:4/3}.why-photo .badge{left:16px}}
 @media(max-width:560px){.why-list{grid-template-columns:1fr}}
+.why-v5{display:grid;grid-template-columns:1.4fr 1fr;gap:56px}
+.why-top{display:flex;gap:36px;flex-wrap:wrap;margin-bottom:22px}
+.why-top .why-copy{flex:1.4;min-width:240px}
+.why-top .why-row{flex:1;min-width:190px}
+.why-learn-more{display:inline-block;margin:0 0 32px;font-size:14px}
+.why-row{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;padding:0}
+.why-row li{list-style:none;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.why-row .ic{width:44px;height:44px;border-radius:50%;display:grid;place-items:center}
+.why-row .ic svg{width:20px;height:20px}
+.why-row .ic.blue{background:#e3edfb;color:#2f6fed}
+.why-row .ic.amber{background:var(--sand);color:var(--sunset)}
+.why-row .ic.mint{background:#e0f5f0;color:#1a9a7d}
+.why-row .ic.pink{background:#fbe6ec;color:#d6497a}
+.why-row span{font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.3}
+.why-photo{position:relative;height:100%;min-height:340px}
+.why-caption{position:absolute;left:24px;bottom:24px;color:#fff;font-family:var(--script,'Caveat',cursive);font-size:25px;line-height:1.25;text-shadow:0 2px 10px rgba(0,0,0,.45)}
+.why-caption .heart-out{width:18px;height:18px;vertical-align:-2px;margin-left:2px}
+@media(max-width:900px){.why-v5{grid-template-columns:1fr}.why-photo{height:auto;min-height:0}.why-photo img{aspect-ratio:4/3}}
+.parents-v1{display:grid;grid-template-columns:1fr 1.15fr .82fr;gap:40px;align-items:center}
+.parents-photo img{border-radius:20px;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;box-shadow:0 30px 60px rgba(0,0,0,.35)}
+.parents-copy h2{color:#fff;margin:10px 0 14px}
+.parents-checks{list-style:none;display:grid;gap:10px;margin:22px 0 26px}
+.parents-checks li{display:flex;align-items:center;gap:10px;color:#EAF0FA;font-size:15px;font-weight:500}
+.parents-checks svg{color:var(--amber);flex:none}
+.parents-quote{background:#fff;border-radius:16px;padding:20px 22px;width:100%;max-width:280px;justify-self:end;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.pq-icon{width:30px;height:30px;border-radius:50%;background:var(--sand);color:var(--sunset);display:grid;place-items:center;font-family:Georgia,serif;font-weight:800;font-size:15px;margin-bottom:10px}
+.parents-quote p{color:var(--ink);font-size:13.5px;font-style:italic;margin-bottom:12px}
+.pq-foot{display:flex;align-items:center;gap:10px}
+.pq-foot .av{width:32px;height:32px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px;overflow:hidden;flex:none}
+.pq-foot .av img{width:100%;height:100%;object-fit:cover}
+.parents-quote b{display:block;font-size:13px;color:var(--navy)}
+.parents-quote span{font-size:11.5px;color:var(--muted)}
+.pq-dots{display:flex;gap:6px;margin-top:14px;justify-content:center}
+.pq-dots span{width:6px;height:6px;border-radius:50%;background:var(--line);cursor:pointer}
+.pq-dots span.on{background:var(--amber);width:16px;border-radius:3px}
+@media(max-width:1100px){.parents-v1{grid-template-columns:1fr 1fr;row-gap:32px}.parents-quote{grid-column:1/-1;justify-self:center;order:3}}
+@media(max-width:900px){.parents-v1{grid-template-columns:1fr}.parents-quote{max-width:340px}}
 /* 2. How it works flowchart */
 .flowchart{position:relative;padding-top:20px}
 .flowchart svg.path{position:absolute;left:0;right:0;top:64px;width:100%;height:120px;pointer-events:none}
@@ -531,13 +652,35 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .human .hl{margin:24px 0 28px;font-family:var(--serif);font-size:24px;color:#FFD48A;border-left:3px solid var(--amber);padding-left:16px}
 @media(max-width:700px){.human .in{padding:40px 28px}}
 /* 8. Countries */
+.dest-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:28px}
+.dest-carousel{position:relative;display:flex;align-items:center;gap:10px}
+.dest-nav{display:grid;flex:none;width:36px;height:36px;border-radius:50%;background:#fff;border:1px solid var(--line);color:var(--navy);place-items:center;cursor:pointer;box-shadow:0 6px 16px rgba(15,31,61,.1)}
+.dest-nav:hover{border-color:var(--amber)}
+.dest-row{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;flex:1}
+.dest-card{position:relative;border-radius:14px;overflow:hidden;background:#fff;border:1px solid var(--line);box-shadow:0 10px 26px rgba(15,31,61,.08);color:inherit}
+.dest-img{aspect-ratio:4/3}
+.dest-img img{width:100%;height:100%;object-fit:cover}
+.dest-cap{padding:10px 34px 12px 12px}
+.dest-route{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.dest-bottom{display:flex;flex-direction:column;gap:2px;margin-top:3px}
+.dest-bottom b{color:var(--navy);font-size:15px}
+.dest-bottom span{color:var(--muted);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dest-go{position:absolute;bottom:12px;right:10px;width:26px;height:26px;border-radius:50%;background:var(--amber);color:var(--navy);display:grid;place-items:center}
+.dest-go svg{width:13px;height:13px}
+@media(max-width:900px){.dest-row{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:700px){
+  .dest-row{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}
+  .dest-row::-webkit-scrollbar{display:none}
+  .dest-card{flex:0 0 auto;width:70vw;scroll-snap-align:start}
+}
+@media(max-width:420px){.dest-card{width:78vw}}
 .cgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
 .cc{position:relative;border-radius:20px;overflow:hidden;aspect-ratio:4/3;display:block;color:#fff;box-shadow:0 16px 40px rgba(15,31,61,.14)}
 .cc img{width:100%;height:100%;object-fit:cover;transition:transform .4s}
 .cc:hover img{transform:scale(1.04)}
 .cc::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(15,31,61,0) 40%,rgba(15,31,61,.88))}
 .cc .t{position:absolute;left:20px;right:20px;bottom:18px;z-index:1;display:flex;justify-content:space-between;align-items:flex-end}
-.cc .f{font-size:30px;line-height:1;margin-bottom:8px}
+.cc .f{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#FFD48A;line-height:1;margin-bottom:8px}
 .cc b{display:block;font-size:20px;font-family:var(--serif);font-weight:500}
 .cc span{font-size:13px;color:#D7E0F0}
 .cc .go{width:38px;height:38px;border-radius:50%;background:var(--amber);color:var(--navy);display:grid;place-items:center;flex:none}
@@ -664,19 +807,25 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 </style>
 
 <style>
-/* ===== v5: "how it works" steps, working matcher, help form =====
-   The literal 120-second countdown (.t120-timer badge + .t120-track progress/plane animation)
-   was removed 2026-09-13 — it staked an exact, testable time on outcomes the platform doesn't
-   fully control (a multi-step form; a match that depends on someone else's trip already
-   existing). The .t120 card and 3-step layout stayed; only the countdown chrome is gone. */
-.t120{background:#fff;border-radius:24px;padding:40px 36px 34px;border:1px solid var(--line);box-shadow:0 20px 50px rgba(15,31,61,.08);position:relative}
-.t120-steps{list-style:none;display:grid;grid-template-columns:repeat(3,1fr);gap:24px;text-align:center;position:relative;z-index:1}
-.t120-steps .orb{width:88px;height:88px;border-radius:50%;margin:0 auto 12px;background:radial-gradient(circle at 30% 30%,#FFD27A,var(--amber) 60%,#D98A0F);display:grid;place-items:center;color:var(--navy);position:relative;box-shadow:0 14px 30px rgba(245,166,35,.4);border:5px solid #fff}
-.t120-steps .orb svg{width:34px;height:34px}
-.t120-steps .orb i{position:absolute;top:-6px;right:-6px;width:28px;height:28px;border-radius:50%;background:var(--navy);color:#fff;font-style:normal;font-weight:700;font-size:12px;display:grid;place-items:center;border:3px solid #fff}
-.t120-steps em{display:inline-block;font-style:normal;font-size:12px;font-weight:700;color:var(--sunset);background:var(--sand);border-radius:var(--r-pill);padding:4px 12px;margin-bottom:8px}
-.t120-steps h3{font-size:18px;margin-bottom:4px}.t120-steps p{font-size:14px;color:var(--muted);max-width:26ch;margin:0 auto}
-@media(max-width:800px){.t120-steps{grid-template-columns:1fr}.t120{padding:36px 22px}}
+/* ===== "What happens next?" -- 4 step cards chained by arrows ===== */
+.eyebrow-line{display:inline-flex;align-items:center;gap:12px;color:var(--rd-amber-text);font-weight:700;font-size:12.5px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:14px}
+#how .sec-head h2{font-family:var(--rd-serif);font-weight:700;letter-spacing:-.4px;color:var(--rd-navy-ink)}
+#how .sec-head .lead{color:var(--rd-text-soft)}
+.hiw-steps{display:flex;align-items:stretch;justify-content:center;gap:6px;margin-top:8px}
+.hiw-step{background:#fff;border:1px solid #eef1f5;border-radius:16px;padding:26px 22px;flex:1;min-width:190px;text-align:left;box-shadow:0 10px 26px -18px rgba(17,29,56,.35)}
+.hiw-top{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+.hiw-num{flex:none;width:38px;height:38px;border-radius:50%;background:#fbe9c4;color:var(--rd-navy-ink);font-weight:800;font-size:16px;display:grid;place-items:center}
+.hiw-ic{flex:none;width:46px;height:46px;border-radius:12px;display:grid;place-items:center}
+.hiw-ic svg{width:24px;height:24px}
+.hiw-ic.blue{background:#e3edfb;color:#2f6fed}
+.hiw-ic.amber{background:var(--sand);color:var(--sunset)}
+.hiw-ic.mint{background:#e0f5f0;color:#1a9a7d}
+.hiw-ic.pink{background:#fbe6ec;color:#d6497a}
+.hiw-step h3{font-size:17.5px;color:var(--rd-navy-ink);font-weight:700;margin:0 0 8px}
+.hiw-step p{font-size:15px;color:var(--rd-text-soft);line-height:1.55;margin:0}
+.hiw-arrow{align-self:center;display:flex;align-items:center;color:#cfd6e0;flex:none;padding:0 2px}
+.hiw-arrow svg{width:22px;height:22px}
+@media(max-width:900px){.hiw-steps{flex-direction:column;align-items:stretch}.hiw-step{max-width:none}.hiw-arrow{transform:rotate(90deg);align-self:center}}
 /* tool */
 .tool{background:#fff;border-radius:26px;border:1px solid var(--line);box-shadow:0 30px 70px rgba(15,31,61,.12);overflow:hidden;max-width:900px;margin:0 auto}
 .tool-steps{list-style:none;display:grid;grid-template-columns:repeat(3,1fr);background:var(--navy);color:#B9C6DE;font-weight:600;font-size:14px}
@@ -685,15 +834,65 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .tool-steps li.on{color:#fff}.tool-steps li.on i{background:var(--amber);border-color:var(--amber);color:var(--navy)}
 .tool-steps li.done{color:#fff}.tool-steps li.done i{background:#1E7F4F;border-color:#1E7F4F;color:#fff}
 .link-btn{background:none;border:none;padding:0;font:inherit;color:var(--sunset);font-weight:600;text-decoration:underline;cursor:pointer}
-.post-trip-bar{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;width:100%;background:var(--amber);color:var(--navy);border:none;border-radius:14px;padding:14px 20px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;margin-top:18px}
-.post-trip-bar b{display:inline-flex;align-items:center;gap:6px;background:var(--navy);color:#fff;border-radius:999px;padding:8px 16px;font-weight:700}
-.post-trip-bar:hover{filter:brightness(1.04)}
-.mw-steps{list-style:none;display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:18px}
-.mw-steps li{text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding-bottom:8px;border-bottom:3px solid var(--line)}
-.mw-steps li span{display:block;margin-top:2px}
-.mw-steps li.on{color:var(--navy);border-color:var(--amber)}
+.post-trip-bar{display:flex;align-items:center;gap:32px;flex-wrap:wrap;width:100%;background:linear-gradient(90deg,#fbe4b3 0%,#fdefcf 60%,#fdf3db 100%);border:none;border-radius:22px;padding:40px 48px;font:inherit;cursor:pointer;margin-top:24px;text-align:left;position:relative;overflow:visible}
+.post-trip-bar:hover{filter:brightness(1.01)}
+.ptb-illustration{width:auto;height:210px;flex:none;border-radius:0;object-fit:contain;position:relative;z-index:1;align-self:center;margin-left:-48px}
+.ptb-right{flex:1;display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;position:relative;z-index:1}
+.ptb-text{flex:1;min-width:240px}
+.ptb-eyebrow{display:block;color:var(--rd-amber-text);font-weight:700;font-size:12px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:8px}
+.ptb-text h3{font-family:var(--rd-serif);font-weight:700;letter-spacing:-.2px;font-size:clamp(24px,2.7vw,32px);color:var(--rd-navy-ink);margin:0}
+.ptb-text p{color:var(--rd-text);margin-top:8px;font-size:16px;max-width:42ch}
+.ptb-btn-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:22px}
+.ptb-btn{display:inline-flex;align-items:center;gap:8px;background:var(--rd-navy-ink);color:#fff;border-radius:999px;padding:15px 30px;font-weight:600;font-size:16px;white-space:nowrap}
+.ptb-cta-side{display:flex;flex-direction:column;align-items:center;flex:none}
+.ptb-doodle.curve-deco{flex-direction:column;gap:5px;flex:none;width:170px;align-self:center;text-align:center;color:var(--rd-amber);position:relative;z-index:1}
+.ptb-doodle .flight{width:130px;height:56px}
+.ptb-doodle b{font-size:24px;line-height:1.2;white-space:normal}
+.ptb-doodle .heart-out{width:26px;height:26px}
+@media(max-width:700px){.ptb-doodle{display:none}}
+.ptb-free{display:flex;align-items:center;gap:7px;font-family:var(--script,'Caveat',cursive);font-weight:700;color:var(--rd-amber-text);font-size:24px;white-space:nowrap}
+.ptb-free svg{width:38px;height:34px;flex:none;color:var(--rd-amber-text)}
+@media(max-width:640px){.post-trip-bar{padding:26px 24px}.ptb-illustration{width:auto;height:130px;margin-left:-24px}.ptb-right{gap:20px}.ptb-btn-row{margin-top:16px;gap:10px}.ptb-free{font-size:18px;gap:5px}.ptb-free svg{width:28px;height:25px}}
+.mw-steps,.hp-steps{list-style:none;display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:18px}
+.hp-steps{grid-template-columns:repeat(3,1fr)}
+.mw-steps li,.hp-steps li{text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding-bottom:8px;border-bottom:3px solid var(--line)}
+.mw-steps li span,.hp-steps li span{display:block;margin-top:2px}
+.mw-steps li.on,.hp-steps li.on{color:var(--navy);border-color:var(--amber)}
+.hp-step{display:none}
+.hp-step.on{display:block}
+.hp-step h3{font-family:var(--sans);font-weight:800;font-size:18px;color:var(--rd-navy-ink);margin-bottom:16px}
+.hp-nav{display:flex;justify-content:space-between;align-items:center;margin-top:18px}
+.hp-privacy{font-size:13px;color:var(--muted);margin:14px 0;display:flex;align-items:center;gap:6px}
+.hp-review{background:var(--rd-cream);border-radius:14px;padding:18px 20px;display:grid;gap:10px}
+.hp-review .row-line{display:flex;justify-content:space-between;font-size:14px;border-bottom:1px solid var(--rd-cream-line);padding-bottom:8px}
+.hp-review .row-line:last-child{border-bottom:0;padding-bottom:0}
+.hp-review .row-line b{color:var(--rd-navy-ink)}
+.hp-review .row-line span{color:var(--rd-text-soft)}
 .mw-step{display:none}
 .mw-step.on{display:block}
+.chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);font-weight:500;margin-top:4px;cursor:pointer}
+.chk input{width:16px;height:16px;flex:none;padding:0;border:1.5px solid var(--line);border-radius:4px;background:#fff;accent-color:var(--navy)}
+.mw-steps li{cursor:pointer}
+.msel{position:relative}
+.msel-btn{width:100%;text-align:left;border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;font:inherit;font-size:15px;background:#fff;color:var(--ink);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.msel-btn:focus{outline:0;border-color:var(--amber);box-shadow:0 0 0 3px rgba(245,166,35,.25)}
+.msel-btn svg{width:14px;height:14px;flex:none;transition:transform .15s;color:var(--muted)}
+.msel.open .msel-btn svg{transform:rotate(180deg)}
+.msel-drop{display:none;position:absolute;left:0;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 44px rgba(15,31,61,.18);padding:8px;z-index:15;max-height:260px;overflow:auto}
+.msel.open .msel-drop{display:block}
+.msel-drop label{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;font-size:14px;cursor:pointer}
+.msel-drop label:hover{background:var(--sand)}
+.msel-drop label.msel-any{border-bottom:1px solid var(--line);margin-bottom:4px;padding-bottom:10px;font-weight:600}
+.msel-drop input{width:16px;height:16px;flex:none;padding:0;border:1.5px solid var(--line);border-radius:4px;background:#fff;accent-color:var(--navy)}
+.trav-card{border:1.5px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;background:var(--sand)}
+.trav-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.trav-head b{font-size:14px;color:var(--navy)}
+.trav-x{width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:#fff;cursor:pointer;font-size:16px;line-height:1;color:var(--muted)}
+.trav-x:hover{background:#fff5f0;color:var(--sunset);border-color:var(--sunset)}
+/* .btn/.row/.pills etc. set display explicitly, which otherwise beats the browser's default
+   [hidden]{display:none} rule (an author rule always wins over that user-agent default) --
+   so anything toggled via el.hidden on this page needs this to actually disappear. */
+[hidden]{display:none!important}
 .mw-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px}
 .tp{padding:30px}
 .modes{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px}
@@ -749,11 +948,15 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 </style>
 
 <style>
-.stats-band{background:var(--navy);color:#fff;padding:44px 0}
-.statsb{list-style:none;display:grid;grid-template-columns:repeat(4,1fr);gap:24px;text-align:center}
-.statsb b{display:block;font-family:var(--serif);font-size:clamp(36px,4vw,52px);font-weight:500;line-height:1;color:#fff;margin-bottom:8px}
-.statsb span{font-size:14px;color:#B9C6DE;max-width:24ch;margin:0 auto;display:block}
-@media(max-width:800px){.statsb{grid-template-columns:1fr 1fr}}
+.why-stats{list-style:none;display:grid;grid-template-columns:repeat(4,1fr);gap:0;text-align:left;margin-top:28px;padding-top:28px;border-top:1px solid var(--line)}
+.why-stats li{padding:0 22px;border-right:1px solid var(--line)}
+.why-stats li:first-child{padding-left:0}
+.why-stats li:last-child{border-right:none;padding-right:0}
+.why-stats .ws-ic{width:34px;height:34px;border-radius:50%;background:var(--sand);color:var(--sunset);display:grid;place-items:center;margin:0 0 10px}
+.why-stats .ws-ic svg{width:17px;height:17px}
+.why-stats b{display:block;font-family:var(--serif);font-size:24px;font-weight:700;line-height:1;color:var(--navy);margin-bottom:6px}
+.why-stats span{font-size:12.5px;color:var(--muted);max-width:22ch;display:block}
+@media(max-width:560px){.why-stats{grid-template-columns:1fr 1fr;gap:20px 16px}.why-stats li{border-right:none;padding:0}.why-stats li:nth-child(odd){border-right:1px solid var(--line);padding-right:16px}}
 .rev-foot{display:flex;justify-content:center;align-items:center;gap:20px;margin-top:30px;font-weight:600;color:var(--navy);flex-wrap:wrap}
 .rev-foot span{color:var(--sunset)}
 .ins{display:grid;grid-template-columns:auto 1fr auto;gap:28px;align-items:center;background:linear-gradient(135deg,var(--sand),#FFE9CC);border:1px solid #F1DDBD;border-radius:24px;padding:32px 36px}
@@ -771,9 +974,8 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 /* tighter vertical rhythm */
 .sec{padding:60px 0}
 .sec-head{margin-bottom:32px}
-.stats-band{padding:36px 0}
 .search-wrap+section,.sec+.sec{padding-top:56px}
-.hero .wrap{padding-top:64px;padding-bottom:84px}
+.hero .wrap{padding-top:56px;padding-bottom:44px}
 .search-sub{margin-top:14px}.trust-chips{margin-top:16px}
 .journey{gap:40px}
 .ins{padding:26px 32px}
@@ -806,11 +1008,11 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
       Connecting<b>Desis</b>
     </a>
     <nav class="nav" aria-label="Main">
-      <a href="#top">Home</a>
-      <a href="#desis">Desis on Move</a>
-      <a href="{{ url_for('blog.blog_list') }}">Desi Travellers Blog</a>
+      <a href="#top" class="active">Home</a>
+      <a href="{{ url_for('main.all_trips') }}">Desis on Move</a>
       <a href="#how">How It Works</a>
-      <button type="button" class="active" data-open="signup">Join Desi Travellers</button>
+      <a href="#reviews">Success Stories</a>
+      <a href="{{ url_for('blog.blog_list') }}">Blog</a>
     </nav>
     <div class="hdr-right">
       <div class="lang" id="langBtn" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false">
@@ -835,9 +1037,10 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
        is what actually opens on phones/tablets, where .nav and Sign In are hidden. -->
   <nav class="mobile-drawer" id="mobileDrawer" aria-label="Mobile">
     <a href="#top">Home</a>
-    <a href="#desis">Desis on Move</a>
-    <a href="{{ url_for('blog.blog_list') }}">Desi Travellers Blog</a>
+    <a href="{{ url_for('main.all_trips') }}">Desis on Move</a>
     <a href="#how">How It Works</a>
+    <a href="#reviews">Success Stories</a>
+    <a href="{{ url_for('blog.blog_list') }}">Blog</a>
     <div class="mobile-drawer-actions">
       <button class="btn btn-outline" data-open="signin">Sign In</button>
       <button class="btn btn-amber" data-open="signup">Sign Up</button>
@@ -850,14 +1053,22 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 <!-- ================= HERO ================= -->
 <section class="hero" id="top">
   <img class="hero-bg" src="/static/img/landing/l2.jpg" alt="" width="1600" height="680" fetchpriority="high">
+  <div class="hero-deco">
+    <span>Same routes<br>Bigger connections</span>
+    <div class="deco-row">
+      <svg class="squiggle" viewBox="0 0 40 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="0.5 5"><path d="M2 6 C 10 2, 18 14, 28 8 C 32 6, 34 10, 38 6"/></svg>
+      <svg class="heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 20.4s-6.8-4.4-9.1-8.4C1.4 9.1 2.6 6 5.5 5.6c1.8-.2 3.3.8 4.1 2.1.8-1.3 2.3-2.3 4.1-2.1 2.9.4 4.1 3.5 2.6 6.4-2.3 4-9 8.4-9 8.4z"/></svg>
+    </div>
+  </div>
   <div class="wrap">
     <div class="hero-inner">
       <div class="hero-kicker"><i></i>Travel companions for the Desi community</div>
       <h1>Your journey. Your language. <em>Your companion.</em></h1>
       <p>Send your parents across the world with someone beside them — a trusted fellow traveller on the same flight, who speaks their language.</p>
-      <div class="hero-ctas">
-        <button type="button" class="btn btn-amber btn-lg" data-open="signup">Post Your Trip — Free</button>
-        <a class="btn btn-outline btn-lg" href="#how">How It Works</a>
+      <div class="hero-trust">
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3z"/><path d="m9 12 2 2 4-4"/></svg>Verified travellers</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.6"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M15.5 20c0-2.4 1.6-4.2 3.8-4.2s3.7 1.8 3.7 4.2"/></svg>Same flight, same language</span>
+        <span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.9-10-9.2C.4 8.9 1.7 5.5 4.8 5.1c1.9-.2 3.3.8 4.2 2.1.9-1.3 2.3-2.3 4.2-2.1 3.1.4 4.4 3.8 2.8 6.7C19.5 16.1 12 21 12 21z"/></svg>Safer, happier journeys</span>
       </div>
     </div>
   </div>
@@ -865,53 +1076,230 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 
 <!-- Floating search bar -->
 <div class="wrap search-wrap">
-  <form class="search" id="heroSearch">
-    <div class="sf"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 20h18M4 14l16-6-2.5-3L11 8 6 6 4 8l4 3-4 3z"/></svg></div><div><label for="s-from">From</label><input id="s-from" placeholder="City or airport" autocomplete="off"></div><div class="s-drop" id="s-from-drop"></div></div>
-    <div class="sf"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/></svg></div><div><label for="s-to">To</label><input id="s-to" placeholder="City or airport" autocomplete="off"></div><div class="s-drop" id="s-to-drop"></div></div>
-    <div class="sf"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div><div><label for="s-when">When</label><input id="s-when" type="date"></div></div>
-    <div class="sf"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20s-7-4.5-7-10a4 4 0 017-2.5A4 4 0 0119 10c0 5.5-7 10-7 10z"/></svg></div><div><label for="s-role">I am</label><select id="s-role"><option value="">Anyone</option><option value="seeking_help">Seeking help</option><option value="offering_help">Offering help</option><option value="open">Open to either</option></select></div></div>
-    <button class="btn btn-amber" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="18" height="18"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>Find Companions</button>
-  </form>
-  <button type="button" class="post-trip-bar" id="postTripBar">
-    <span>Travelling yourself? Let matches come to you.</span>
-    <b>Post your trip <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="13" height="13"><path d="M6 9l6 6 6-6"/></svg></b>
-  </button>
+  <div class="search-card">
+    {# Raised white "sheet" behind the tabs: one continuous silhouette (left rise, flat plateau,
+       large downward sweep after the last tab) drawn as a single path so there are no seams. #}
+    <svg class="search-raise" viewBox="0 0 480 62" preserveAspectRatio="none" aria-hidden="true"><path d="M0 62 L0 28 C0 12.5 12.5 0 28 0 L420 0 C437.7 0 452 14.3 452 32 L452 40 C452 50 460 58 470 58 L480 58 L480 62 Z" fill="#fff"/></svg>
+    <div class="widget-tabs">
+      <button type="button" class="wtab active" data-wtab="find"><svg class="wtab-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Find a Companion</button>
+      <button type="button" class="wtab" data-wtab="post"><span class="wtab-orb"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L11 19v-5.5L21 16z"/></svg></span>Post Your Trip</button>
+    </div>
+    <div class="widget-panel active" data-wpanel="find">
+    <div class="search-panel">
+    <form class="search" id="heroSearch">
+      <div class="sf"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L11 19v-5.5L21 16z"/></svg></div><div style="flex:1;min-width:0"><label for="s-from">From</label><input id="s-from" placeholder="City or airport" autocomplete="off"><div class="s-drop" id="s-from-drop"></div></div></div>
+      <div class="sf"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.7-7-11a7 7 0 0 1 14 0c0 5.3-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg></div><div style="flex:1;min-width:0"><label for="s-to">To</label><input id="s-to" placeholder="City or airport" autocomplete="off"><div class="s-drop" id="s-to-drop"></div></div></div>
+      <div class="sf"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg></div><div><label for="s-when">When</label><input id="s-when" type="date"></div></div>
+      <div class="sf"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg></div><div><label for="s-role">I am</label><select id="s-role"><option value="">Anyone</option><option value="seeking_help">Seeking help</option><option value="offering_help">Offering help</option><option value="open">Open to either</option></select></div></div>
+      <button class="btn btn-amber" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Find Companions</button>
+    </form>
+    <div class="popular-routes">
+      <span>Popular routes:</span>
+      <button type="button" class="route-chip" data-from="Mumbai (BOM)" data-to="New York (JFK)">India → USA</button>
+      <button type="button" class="route-chip" data-from="Delhi (DEL)" data-to="London (LHR)">India → UK</button>
+      <button type="button" class="route-chip" data-from="Delhi (DEL)" data-to="Toronto (YYZ)">India → Canada</button>
+      <button type="button" class="route-chip" data-from="Chennai (MAA)" data-to="Sydney (SYD)">India → Australia</button>
+      <button type="button" class="route-chip" data-from="Delhi (DEL)" data-to="Frankfurt (FRA)">India → Germany</button>
+      <a class="route-more" href="{{ url_for('main.all_trips') }}">More →</a>
+    </div>
+    </div>
+    </div>
+    <div class="hp-wrap" data-wpanel="post" hidden>
+      <ol class="hp-steps">
+        <li class="on" data-hps="1">1<span>Trip details</span></li>
+        <li data-hps="2">2<span>Preferences</span></li>
+        <li data-hps="3">3<span>Review &amp; post</span></li>
+      </ol>
+      <form novalidate id="heroPostForm">
+        <div class="hp-step on" data-hpstep="1">
+          <div class="pills hp-triptype">
+            <label><input type="radio" name="hp-triptype" value="one_way" checked>One way</label>
+            <label><input type="radio" name="hp-triptype" value="round_trip">Round trip</label>
+            <label><input type="radio" name="hp-triptype" value="multi_destination">Multi-city</label>
+          </div>
+          <div class="search" style="margin-top:14px">
+            <div class="sf"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L11 19v-5.5L21 16z"/></svg></div><div style="flex:1;min-width:0"><label for="hp-from">From</label><input id="hp-from" placeholder="City or airport" autocomplete="off" required><div class="s-drop" id="hp-from-drop"></div></div></div>
+            <div class="sf"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.7-7-11a7 7 0 0 1 14 0c0 5.3-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg></div><div style="flex:1;min-width:0"><label for="hp-to">To</label><input id="hp-to" placeholder="City or airport" autocomplete="off" required><div class="s-drop" id="hp-to-drop"></div></div></div>
+            <div class="sf"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg></div><div><label for="hp-date">Departure</label><input id="hp-date" type="date" required></div></div>
+            <div class="sf" id="hp-return-field" hidden><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg></div><div><label for="hp-return">Return</label><input id="hp-return" type="date"></div></div>
+          </div>
+          <div class="row" style="margin-top:14px">
+            <div class="f"><label for="hp-travellers">Travellers</label><select id="hp-travellers"><option value="1">1 traveller</option><option value="2">2 travellers</option><option value="3">3 travellers</option><option value="4">4+ travellers</option></select></div>
+            <div class="f"><label for="hp-class">Class <small>(optional)</small></label><select id="hp-class"><option value="">Any class</option><option>Economy</option><option>Premium Economy</option><option>Business</option><option>First</option></select></div>
+          </div>
+          <div class="hp-nav"><span></span><button type="button" class="btn btn-navy" id="hpNext1">Next <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+        </div>
+
+        <div class="hp-step" data-hpstep="2">
+          <h3>Tell us about your journey</h3>
+          <div class="f"><label>Who are you travelling for?</label>
+            <div class="pills">
+              <label><input type="radio" name="hp-for" value="myself" checked>Myself</label>
+              <label><input type="radio" name="hp-for" value="parents">Parent / elder</label>
+              <label><input type="radio" name="hp-for" value="loved_one">Family member</label>
+              <label><input type="radio" name="hp-for" value="other">Someone else</label>
+            </div>
+          </div>
+          <div class="row">
+            <div class="f"><label for="hp-lang">Preferred language</label><select id="hp-lang"><option value="">Any</option>{% for l in OPT.LANGUAGES %}<option>{{ l }}</option>{% endfor %}</select></div>
+            <div class="f"><label for="hp-companion">Companion preference</label><select id="hp-companion"><option value="any">Anyone</option><option value="female">Female</option><option value="male">Male</option></select></div>
+          </div>
+          <div class="f"><label>Airport assistance</label>
+            <div class="pills">
+              <label><input type="radio" name="hp-assist" value="yes">Yes</label>
+              <label><input type="radio" name="hp-assist" value="no" checked>No</label>
+            </div>
+          </div>
+          <div class="f"><label for="hp-msg">Anything else we should know? <small>(optional)</small></label><textarea id="hp-msg" rows="3" placeholder="Tell us about your travel requirements…"></textarea></div>
+          <div class="hp-nav"><button type="button" class="btn btn-ghost" id="hpBack2">← Back</button><button type="button" class="btn btn-navy" id="hpNext2">Next <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+        </div>
+
+        <div class="hp-step" data-hpstep="3">
+          <h3>Review your trip</h3>
+          <div class="hp-review" id="hpReview"></div>
+          <p class="hp-privacy">🔒 Your information stays private. Shared only with relevant matches.</p>
+          <div class="hp-nav"><button type="button" class="btn btn-ghost" id="hpBack3">← Back</button><button type="submit" class="btn btn-amber btn-lg" id="hpSubmit">Post My Trip — Free <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+        </div>
+      </form>
+    </div>
+  </div>
+  </div>
+  <div class="wrap">
+  <div class="post-trip-bar" id="postTripBar" role="button" tabindex="0">
+    <img class="ptb-illustration" src="{{ url_for('static', filename='img/travelling_yourself_illustration.png') }}" alt="">
+    <div class="ptb-right">
+      <div class="ptb-text">
+        <span class="ptb-eyebrow">Travelling yourself?</span>
+        <h3>Let matches come to you.</h3>
+        <p>Post your trip details and we'll show interested travellers who can accompany you or your loved ones.</p>
+        <div class="ptb-btn-row">
+          <b class="ptb-btn">Post your trip <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M5 12h14M13 6l6 6-6 6"/></svg></b>
+          <span class="ptb-free"><svg viewBox="0 0 36 30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M33 6 C 22 3, 10 8, 5 22"/><path d="M5 22 l 7.5 -2.5 M5 22 l 1.5 -7.5"/></svg>It's free!</span>
+        </div>
+      </div>
+      <div class="ptb-cta-side">
+        <span class="curve-deco ptb-doodle">
+          <svg class="flight" viewBox="0 0 140 64" fill="none">
+            <path d="M5 57 C 44 55, 78 43, 110 14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="0.5 8"/>
+            <g transform="translate(108,13) rotate(43)"><path transform="translate(-12,-12)" fill="currentColor" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L11 19v-5.5L21 16z"/></g>
+          </svg>
+          <b>Safer<br>Journeys<br>Together</b>
+          <svg class="heart-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 20.4s-6.8-4.4-9.1-8.4C1.4 9.1 2.6 6 5.5 5.6c1.8-.2 3.3.8 4.1 2.1.8-1.3 2.3-2.3 4.1-2.1 2.9.4 4.1 3.5 2.6 6.4-2.3 4-9 8.4-9 8.4z"/></svg>
+        </span>
+      </div>
+    </div>
+  </div>
 </div>
 
 
+<!-- HELPING PARENTS: the primary use case, so it comes first -->
+<section class="sec sec-navy" id="parents">
+  <div class="wrap parents-v1">
+    <div class="parents-photo reveal" data-anim="left">
+      <img src="/static/img/2_elders.png" alt="An elderly couple travelling together on a flight" width="640" height="480" loading="lazy">
+    </div>
+    <div class="parents-copy reveal" data-anim="right">
+      <span class="eyebrow-line" style="color:var(--amber)">For your loved ones</span>
+      <h2>Helping parents travel, safely.</h2>
+      <p class="lead" style="color:#B9C6DE">Sending Amma or Appa across the world alone is hard. Find a trusted fellow Desi on the same flight who speaks their language, helps at the airport and sits nearby — so they're never really alone.</p>
+      <ul class="parents-checks">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg>Familiar language &amp; culture</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg>Help at check-in, immigration and transit</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg>You stay the main contact, every step</li>
+      </ul>
+      <button type="button" class="btn btn-amber btn-lg" id="postForSomeoneBtn">Post a Trip for Someone →</button>
+    </div>
+    {# Real reviews, not placeholders — never invent a testimonial. Shown only once the
+       community has actually left one; rotates through up to 4 the same way the real
+       reviews grid below does. #}
+    {% set pq_items = feedbacks[:4] %}
+    {% if pq_items %}
+    <div class="parents-quote reveal" data-anim="up">
+      <div class="pq-icon">&ldquo;</div>
+      <div id="pqSlides">
+        {% for fb in pq_items %}
+        <div class="pq-slide" {% if not loop.first %}hidden{% endif %}>
+          <p>&ldquo;{{ fb.comment }}&rdquo;</p>
+          <div class="pq-foot">
+            <div class="av">{% if fb.user and fb.user.photo_url %}<img src="{{ fb.user.photo_url }}" alt="">{% else %}{{ (fb.user.username or 'T')[0]|upper if fb.user else 'T' }}{% endif %}</div>
+            <div><b>{{ fb.user.username if fb.user else 'A traveller' }}</b><span>Connecting Desis traveller</span></div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% if pq_items|length > 1 %}
+      <div class="pq-dots" id="pqDots">
+        {% for fb in pq_items %}<span class="{{ 'on' if loop.first }}" data-i="{{ loop.index0 }}"></span>{% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+
 <!-- 1. WHY -->
 <section class="sec" id="why">
-  <div class="wrap why-v3">
-    <div class="why-photo reveal" data-anim="left">
-      <img src="/static/img/landing/l3.jpg" alt="A daughter helping her parents with their boarding pass on the plane" width="820" height="820" loading="lazy">
-    </div>
-    <div>
-      <h2 class="reveal" data-anim="right">Why does this travel companion service exist?</h2>
-      <p class="lead">Because travelling far from home shouldn't mean travelling alone. Language barriers, unfamiliar airports and long layovers get easier with a trusted person beside you.</p>
-      <ul class="why-list stagger">
-        <li><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></div><div><b>Language shouldn't be a barrier</b><span>Communicate in a language you're familiar with.</span></div></li>
-        <li><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 012-2h14a2 2 0 012 2v2a2 2 0 000 4v2a2 2 0 01-2 2H5a2 2 0 01-2-2v-2a2 2 0 000-4z"/><path d="M14 6v12" stroke-dasharray="2 2"/></svg></div><div><b>Travel details matter</b><span>We understand your itinerary before we match.</span></div></li>
-        <li><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.5-7-10a4 4 0 017-2.5A4 4 0 0119 10c0 5.5-7 10-7 10z"/></svg></div><div><b>Human connection</b><span>A real person supports your journey.</span></div></li>
-        <li><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></div><div><b>Support when you need it</b><span>From planning to landing.</span></div></li>
+  <div class="wrap why-v5">
+    <div class="why-left">
+      <div class="why-top">
+        <div class="why-copy">
+          <span class="eyebrow-line">A safer, more meaningful journey</span>
+          <h2 class="reveal" data-anim="right">Why choose ConnectingDesis?</h2>
+          <p class="lead">More than a journey — it's the comfort of familiar faces, shared language, and a helping hand along the way.</p>
+        </div>
+        <ul class="why-row stagger">
+          <li><div class="ic blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></div><span>Travel with verified Desis</span></li>
+          <li><div class="ic amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L11 19v-5.5L21 16z"/></svg></div><span>Same flight, same route</span></li>
+          <li><div class="ic mint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h13a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg></div><span>Chat before you travel</span></li>
+          <li><div class="ic pink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg></div><span>Support for parents &amp; elders</span></li>
+        </ul>
+      </div>
+      <a class="route-more why-learn-more" href="#how">Learn more about how it works →</a>
+      <ul class="why-stats stagger">
+        {# Honest, live numbers from the same database the signed-in app runs on. #}
+        <li><div class="ws-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L11 19v-5.5L21 16z"/></svg></div><b>{{ landing_stats.open }}</b><span>Trips open right now, waiting for a companion</span></li>
+        <li><div class="ws-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.6"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M15.5 20c0-2.4 1.6-4.2 3.8-4.2s3.7 1.8 3.7 4.2"/></svg></div><b>{{ landing_stats.travellers }}</b><span>Travellers currently on the move with us</span></li>
+        <li><div class="ws-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h13a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg></div><b>{{ landing_stats.languages }}</b><span>Languages for matching and support</span></li>
+        <li><div class="ws-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 4 5.7 4 9s-1.5 6.5-4 9c-2.5-2.5-4-5.7-4-9s1.5-6.5 4-9Z"/></svg></div><b>{{ landing_stats.countries }}</b><span>Destination countries with an open trip</span></li>
       </ul>
     </div>
+    <div class="why-photo reveal" data-anim="left">
+      <img src="/static/img/landing/l3.jpg" alt="A family helping each other on a flight" loading="lazy">
+      <span class="why-caption">New places<br>Same people <svg class="heart-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 20.4s-6.8-4.4-9.1-8.4C1.4 9.1 2.6 6 5.5 5.6c1.8-.2 3.3.8 4.1 2.1.8-1.3 2.3-2.3 4.1-2.1 2.9.4 4.1 3.5 2.6 6.4-2.3 4-9 8.4-9 8.4z"/></svg></span>
+    </div>
   </div>
 </section>
 
-
-
-<!-- STATS BAND -->
-<section class="stats-band">
+{# Live, anonymity-safe trips from the same database the app runs on — social proof that the
+   community is real, never mock cards. #}
+{% if landing_trips %}
+<section class="sec" id="desis">
   <div class="wrap">
-    <ul class="statsb stagger">
-      {# Honest, live numbers from the same database the signed-in app runs on. #}
-      <li><b>{{ landing_stats.open }}</b><span>Trips open right now, waiting for a companion</span></li>
-      <li><b>{{ landing_stats.travellers }}</b><span>Travellers currently on the move with us</span></li>
-      <li><b>{{ landing_stats.languages }}</b><span>Languages for matching and support</span></li>
-      <li><b>{{ landing_stats.countries }}</b><span>Destination countries with an open trip</span></li>
-    </ul>
+    <div class="dom-head reveal">
+      <h2>Desis on Move <small>{{ landing_stats.open }} trip{{ '' if landing_stats.open == 1 else 's' }} open now</small></h2>
+      <a class="btn btn-ghost" href="{{ url_for('main.all_trips') }}">View all trips</a>
+    </div>
+    {% set role_label = {'seeking_help': 'Seeking help', 'offering_help': 'Offering help', 'open': 'Open to either'} %}
+    <div class="trips stagger">
+      {% for t in landing_trips %}
+      <article class="trip{{ ' open' if t.role == 'open' }}">
+        <div class="trip-body">
+          <div class="trip-tags"><span class="tag">{{ role_label.get(t.role, 'Travelling') }}</span>{% if t.days_to_departure is not none %}<span class="when">in {{ t.days_to_departure }} day{{ '' if t.days_to_departure == 1 else 's' }}</span>{% endif %}</div>
+          <div class="route"><div><b>{{ t.origin_iata or '—' }}</b><small>{{ t.flying_from }}</small></div><div class="line"></div><div class="r"><b>{{ t.dest_iata or '—' }}</b><small>{{ t.destination }}</small></div></div>
+          <div class="meta">
+            {% if t.from_date %}<span>📅 {{ t.from_date }}{% if t.from_date_flexible %} · flexible{% endif %}</span>{% endif %}
+            {% if t.traveler_gender or t.traveler_age_group %}<span>{{ [t.traveler_gender|capitalize if t.traveler_gender, t.traveler_age_group]|select|join(' · ') }}</span>{% endif %}
+            {% for l in t.preferred_languages[:2] %}<span class="l">{{ l }}</span>{% endfor %}
+          </div>
+          {% if t.additional_comments %}<div class="note">{{ t.additional_comments|truncate(110) }}</div>{% endif %}
+        </div>
+        <div class="trip-foot"><div class="u"><i>{{ (t.author.username or 'T')[0]|upper }}</i>{{ t.author.username }}</div><a class="btn btn-amber" href="{{ url_for('auth.register', next=url_for('main.all_trips')) }}">Connect</a></div>
+      </article>
+      {% endfor %}
+    </div>
   </div>
 </section>
+{% endif %}
 
 <!-- 2. HOW IT WORKS -->
 <section class="sec sec-sand" id="how">
@@ -922,271 +1310,129 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
        existing). What IS real and worth saying: matching itself is instant and algorithmic, not
        queued behind a person — see app/routes/trips.py, matches are computed synchronously the
        moment a trip is saved. Kept that claim, dropped the ones we can't back up. #}
-    <div class="sec-head reveal"><h2>Post once. We start matching instantly.</h2><p class="lead">No forms to chase, no back-and-forth, no waiting in a queue — tell us your trip and we start looking for a companion right away.</p></div>
-    <div class="t120 reveal">
-      <ol class="t120-steps">
-        <li><div class="orb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M8 13h8M8 17h5"/></svg><i>1</i></div><em>Tell us your trip</em><h3>Share your journey</h3><p>Upload the e‑ticket or type the route and dates — a few short screens, at your pace.</p></li>
-        <li><div class="orb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><circle cx="17" cy="9" r="2.5"/><path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M15 19c0-2.2 1.6-3.8 3.8-3.8"/></svg><i>2</i></div><em>Happens instantly</em><h3>We match right away</h3><p>The moment you post, we score every open trip for route, dates and language — no queue, no waiting on a person.</p></li>
-        <li><div class="orb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18M4 14l16-6-2.5-3L11 8 6 6 4 8l4 3-4 3z"/></svg><i>3</i></div><em>Whenever you're ready</em><h3>Connect when it feels right</h3><p>See your matches on your dashboard. Send a request any time — contact details shared only when you both agree.</p></li>
-      </ol>
+    <div class="sec-head reveal"><span class="eyebrow-line">Simple steps, meaningful connections</span><h2>From your trip post to a safer journey</h2><p class="lead">Finding a travel companion is easy and takes just a few minutes.</p></div>
+    <div class="hiw-steps reveal">
+      <div class="hiw-step">
+        <div class="hiw-top"><div class="hiw-num">1</div><div class="hiw-ic amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h4M9 17h6"/><circle cx="18" cy="17" r="3.4" fill="#fff"/><path d="M18 15.4v3.2M16.4 17h3.2"/></svg></div></div>
+        <h3>Post your trip</h3><p>Share your travel details like dates, route and flight (optional).</p>
+      </div>
+      <div class="hiw-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></div>
+      <div class="hiw-step">
+        <div class="hiw-top"><div class="hiw-num">2</div><div class="hiw-ic blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.6"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M15.5 20c0-2.4 1.6-4.2 3.8-4.2s3.7 1.8 3.7 4.2"/></svg></div></div>
+        <h3>Get matches</h3><p>Receive requests from verified travellers on the same route.</p>
+      </div>
+      <div class="hiw-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></div>
+      <div class="hiw-step">
+        <div class="hiw-top"><div class="hiw-num">3</div><div class="hiw-ic mint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h11a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H9l-4 3v-3H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/><path d="M20 9v6a1 1 0 0 1-1 1h-1v3l-3-3"/></svg></div></div>
+        <h3>Connect &amp; chat</h3><p>Chat safely on our platform and find the right companion.</p>
+      </div>
+      <div class="hiw-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></div>
+      <div class="hiw-step">
+        <div class="hiw-top"><div class="hiw-num">4</div><div class="hiw-ic pink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L11 19v-5.5L21 16z"/></svg></div></div>
+        <h3>Travel together</h3><p>Confirm and travel with confidence.</p>
+      </div>
     </div>
-    <div style="text-align:center;margin-top:40px"><a class="btn btn-navy btn-lg" href="#connection">Start now — it's free</a></div>
+    <div style="text-align:center;margin-top:40px"><button type="button" class="btn btn-navy btn-lg" id="howItWorksGetStarted">Get Started <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
   </div>
 </section>
-<!-- 3. DESIS ON MOVE -->
-<!-- ================= DESIS ON MOVE ================= -->
-<section class="sec" id="desis">
-  <div class="wrap">
-    {# Real upcoming public trips from the same database the signed-in app uses (anonymity-safe:
-       display_name is "Anonymous" and no note is shown for anonymous posts). #}
-    {% set role_label = {'seeking_help': 'SEEKING HELP', 'offering_help': 'OFFERING HELP', 'open': 'OPEN TO EITHER'} %}
-    <div class="dom-head reveal">
-      <h2>Desis on Move <small>{{ landing_stats.open }} trip{{ '' if landing_stats.open == 1 else 's' }} open right now</small></h2>
-      <a class="btn btn-ghost" href="{{ url_for('main.all_trips') }}">View all trips</a>
-    </div>
-    <div class="trips stagger">
-      {% for t in landing_trips %}
-      <article class="trip{{ ' open' if t.role == 'open' }}">
-        <div class="trip-body">
-          <div class="trip-tags"><span class="tag">{{ role_label.get(t.role, 'TRAVELLER') }}</span>
-            {% if t.days_to_departure is not none %}<span class="when">{{ 'today' if t.days_to_departure == 0 else ('in %d day%s' % (t.days_to_departure, '' if t.days_to_departure == 1 else 's')) }}</span>{% endif %}</div>
-          <div class="route">
-            <div><b>{{ t.origin_iata or (t.flying_from or '?')[:3]|upper }}</b><small>{{ (t.flying_from or '').split('(')[0].strip() }}</small></div>
-            <div class="line"></div>
-            <div class="r"><b>{{ t.dest_iata or (t.destination or '?')[:3]|upper }}</b><small>{{ (t.destination or '').split('(')[0].strip() }}</small></div>
-          </div>
-          <div class="meta">
-            {% if t.from_date %}<span>📅 {{ t.from_date }}{% if t.to_date and t.trip_type == 'round_trip' %} → {{ t.to_date }}{% endif %}</span>{% endif %}
-            {% if t.trip_type == 'multi_destination' %}<span>Multi-city</span>{% elif t.trip_type == 'round_trip' %}<span>Round trip</span>{% endif %}
-            {% for l in (t.preferred_languages or [])[:2] %}<span class="l">{{ l }}</span>{% endfor %}
-          </div>
-          {% if t.additional_comments %}<div class="note">{{ t.additional_comments[:110] }}{{ '…' if t.additional_comments|length > 110 }}</div>{% endif %}
-        </div>
-        <div class="trip-foot">
-          <div class="u"><i>{{ (t.author.username or 'T')[0]|upper }}</i>{{ t.author.username }}</div>
-          <button type="button" class="btn btn-amber" data-open="signup">Connect</button>
-        </div>
-      </article>
-      {% else %}
-      <p class="lead" style="grid-column:1/-1">No open trips at the moment — <button type="button" class="link-btn" data-open="signup">post yours</button> and we'll find you a companion.</p>
-      {% endfor %}
-    </div>
-  </div>
-</section>
-
-
-
-<!-- 4. MATCHING + LANGUAGE -->
+<!-- THE RIGHT MATCH: how matching actually works (matches are scored leg by leg in
+     app/routes/trips.py; the care team reviews requests in the CS console) -->
 <section class="sec sec-navy" id="matching">
   <div class="wrap match-v3">
     <div class="reveal" data-anim="left">
+      <span class="eyebrow-line" style="color:var(--amber)">More than dates and destinations</span>
       <h2>We don't just find a companion. We find the right match.</h2>
-      <p class="lead" style="margin:12px 0 24px">We look beyond destination and dates — your language, requirements and preferences all shape who we introduce you to.</p>
+      <p class="lead" style="margin:12px 0 24px">Your parent's language, their needs at the airport and who they'd feel comfortable with all shape who we introduce them to.</p>
       <ol class="pipe-v3 stagger">
-        <li><div class="n">1</div><div><b>Your details &amp; travel information</b><span>Route, dates, flight, who's travelling</span></div></li>
-        <li><div class="n">2</div><div><b>Language &amp; preferences</b><span>Companion age, gender, shared languages</span></div></li>
-        <li><div class="n">3</div><div><b>Requirement review</b><span>A care team member reads every request</span></div></li>
+        <li><div class="n">1</div><div><b>Trip &amp; traveller details</b><span>Route, dates, flight, and who is travelling</span></div></li>
+        <li><div class="n">2</div><div><b>Language &amp; preferences</b><span>Companion age, gender and shared languages</span></div></li>
+        <li><div class="n">3</div><div><b>Care team review</b><span>A real person reads every request</span></div></li>
         <li><div class="n">4</div><div><b>Companion matching</b><span>Ranked and scored, leg by leg</span></div></li>
-        <li class="end"><div class="n">✓</div><div><b>Connection with end‑to‑end human support</b><span>Follow‑ups before take‑off and until you land</span></div></li>
+        <li class="end"><div class="n">✓</div><div><b>Connect with consent</b><span>Contact details are shared only when both sides say yes</span></div></li>
       </ol>
     </div>
     <div class="lang-box reveal" data-anim="right">
-      <div class="lang-box-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg></div>
+      <div class="lang-box-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 4 5.7 4 9s-1.5 6.5-4 9c-2.5-2.5-4-5.7-4-9s1.5-6.5 4-9Z"/></svg></div>
       <h3>Multilingual by design.</h3>
+      <p>Parents don't need to be comfortable in English to travel with confidence.</p>
       <div class="lang-stats">
         <div><b>{{ OPT.SITE_LANGUAGES|length }}</b><span>Languages to browse the site in</span></div>
         <div><b>{{ landing_stats.languages }}</b><span>Languages we match companions by</span></div>
       </div>
-      <div class="chips">
-        {% for l in OPT.SITE_LANGUAGES[1:6] %}<span>{{ l.label }}</span>{% endfor %}
-        {% if OPT.SITE_LANGUAGES|length > 6 %}<span>+{{ OPT.SITE_LANGUAGES|length - 6 }} more</span>{% endif %}
-      </div>
+      <div class="chips">{% for l in OPT.SITE_LANGUAGES[1:6] %}<span>{{ l.label if l is mapping else l }}</span>{% endfor %}{% if OPT.SITE_LANGUAGES|length > 6 %}<span>+{{ OPT.SITE_LANGUAGES|length - 6 }} more</span>{% endif %}</div>
       <div class="lang-ctas lang-ctas-divided">
-        <a class="btn btn-navy" href="#request">💬&nbsp; Talk to Support</a>
+        <button type="button" class="btn btn-navy" id="matchTalkBtn">Talk to our team</button>
       </div>
+      <p class="hint" style="margin-top:12px">Our support team currently replies in English.</p>
     </div>
   </div>
 </section>
 
-
-
-<!-- 5. JOURNEY (working tool) -->
-<section class="sec" id="connection">
+<!-- 8. POPULAR DESTINATIONS -->
+<section class="sec" id="countries">
   <div class="wrap">
-    <div class="sec-head reveal"><h2>From your first request to your final journey</h2><p class="lead">Upload your ticket and we find companions on your flight automatically — or fill it in yourself.</p></div>
-    <div class="tool reveal" data-anim="zoom">
-      <ol class="tool-steps">
-        <li class="on" data-s="1"><i>1</i>Your trip</li>
-        <li data-s="2"><i>2</i>Matches</li>
-        <li data-s="3"><i>3</i>Connect</li>
-      </ol>
-
-      <!-- STEP 1 -->
-      <div class="tp" id="tp1">
-        <div class="modes">
-          <button class="mode on" data-mode="upload" type="button"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V5M7 10l5-5 5 5"/><path d="M4 19h16"/></svg></span><b>Upload my ticket</b><span>PDF e‑ticket — we read the details</span></button>
-          <button class="mode" data-mode="manual" type="button"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10-4-4L4 16zM13 7l4 4"/></svg></span><b>Fill in manually</b><span>Type the trip yourself</span></button>
-        </div>
-
-        <div class="mp" id="mp-upload">
-          <label class="dz" id="dz">
-            <input type="file" id="ticketFile" accept="application/pdf,image/*" hidden>
-            <div class="dz-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V5M7 10l5-5 5 5"/><path d="M4 19h16"/></svg></div>
-            <b>Drop your e‑ticket here or click to choose</b>
-            <span>PDF, JPG or PNG · we read route, date, airline and flight number</span>
-          </label>
-          <p style="text-align:center;font-size:12px;color:var(--muted);margin-top:10px">Illustrative preview — sign up to upload your real ticket. Prefer to just try a search? <a href="javascript:void(0)" data-mode-switch="manual" style="color:var(--sunset);font-weight:600">Fill in manually</a> uses real results.</p>
-          <div class="reading" id="reading" hidden>
-            <div class="rd-row"><span class="spin"></span><b id="rdName">Reading ticket…</b></div>
-            <div class="bar"><i id="rdBar"></i></div>
-            <ul class="rd-list">
-              <li data-t="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg> Route detected</li>
-              <li data-t="2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg> Travel date detected</li>
-              <li data-t="3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg> Airline &amp; flight number detected</li>
-              <li data-t="4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg> Searching travellers on this route…</li>
-            </ul>
-          </div>
-        </div>
-
-        <form class="mp" id="mp-manual" hidden novalidate>
-          <ol class="mw-steps">
-            <li class="on" data-mw="1">1<span>Where</span></li>
-            <li data-mw="2">2<span>When</span></li>
-            <li data-mw="3">3<span>Who</span></li>
-            <li data-mw="4">4<span>Companion</span></li>
-            <li data-mw="5">5<span>Finish</span></li>
-          </ol>
-          <datalist id="airports"><option value="MAA — Chennai"><option value="ORD — Chicago"><option value="DEL — New Delhi"><option value="BOM — Mumbai"><option value="VGA — Vijayawada"><option value="SEA — Seattle"><option value="HYD — Hyderabad"><option value="LHR — London"><option value="YYZ — Toronto"><option value="SFO — San Francisco"></datalist>
-
-          <div class="mw-step on" data-mws="1">
-            <div class="row three">
-              <div class="f"><label for="m-from">From</label><input id="m-from" list="airports" placeholder="Chennai (MAA)" required></div>
-              <div class="f"><label for="m-to">To</label><input id="m-to" list="airports" placeholder="Chicago (ORD)" required></div>
-              <div class="f"><label for="m-flight">Airline / flight <small>(optional)</small></label><input id="m-flight" placeholder="Air India AI 127"></div>
-            </div>
-          </div>
-
-          <div class="mw-step" data-mws="2">
-            <div class="row">
-              <div class="f"><label for="m-date">Travel date</label><input id="m-date" type="date" required></div>
-              <div class="f"><label for="m-date-to">Return date <small>(optional)</small></label><input id="m-date-to" type="date"></div>
-            </div>
-          </div>
-
-          <div class="mw-step" data-mws="3">
-            <div class="f"><label>I am…</label>
-              <div class="pills">
-                <label><input type="radio" name="m-who" value="seek" checked>Seeking help</label>
-                <label><input type="radio" name="m-who" value="offer">Offering help</label>
-                <label><input type="radio" name="m-who" value="either">Open to either</label>
-              </div>
-            </div>
-            <div class="row">
-              <div class="f"><label for="m-age">Your age <small>(optional)</small></label><input id="m-age" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="e.g. 34" oninput="this.value=this.value.replace(/\D/g,'').slice(0,3)"></div>
-            </div>
-          </div>
-
-          <div class="mw-step" data-mws="4">
-            <div class="row">
-              <div class="f"><label for="m-lang">Preferred companion language</label><select id="m-lang"><option>Any</option><option>Hindi</option><option>Telugu</option><option>Tamil</option><option>Gujarati</option><option>Kannada</option><option>Malayalam</option><option>Marathi</option><option>Punjabi</option><option>Bengali</option><option>Urdu</option></select></div>
-              <div class="f"><label for="m-cgender">Companion gender <small>(optional)</small></label><select id="m-cgender"><option value="">Any</option><option value="female">Female</option><option value="male">Male</option></select></div>
-            </div>
-          </div>
-
-          <div class="mw-step" data-mws="5">
-            <div class="f"><label for="m-notes">Anything else companions should know? <small>(optional)</small></label><textarea id="m-notes" rows="3" placeholder="Layovers, special needs, what you're looking forward to…"></textarea></div>
-          </div>
-
-          <div class="mw-nav">
-            <button type="button" class="btn btn-ghost" id="mwBack" style="visibility:hidden">Back</button>
-            <button type="button" class="btn btn-navy" id="mwNext">Next</button>
-            <button class="btn btn-amber btn-lg" type="submit" id="mwSubmit" hidden>Find companions</button>
-          </div>
-        </form>
-      </div>
-
-      <!-- STEP 2 -->
-      <div class="tp" id="tp2" hidden>
-        <div class="trip-sum" id="tripSum"></div>
-        <div class="results" id="results"></div>
-        <div class="empty" id="empty" hidden>
-          <b>No travellers on this route yet.</b>
-          <p>Post your trip and our care team will notify you the moment a match appears.</p>
-          <button class="btn btn-navy" type="button" data-open="signup">Post my trip</button>
-        </div>
-        <button class="linkback" type="button" id="back1">← Change trip details</button>
-      </div>
-
-      <!-- STEP 3 -->
-      <div class="tp" id="tp3" hidden>
-        <div class="connect-box">
-          <div class="cb-head"><i id="cbAv">K</i><div><b id="cbName">Keerthi</b><span id="cbRoute">DEL → VGA · 30 Sept</span></div><em id="cbScore">92% match</em></div>
-          <div class="consent-row"><span>Share my contact details with this companion</span><label class="tog"><input type="checkbox" id="consent"><i></i></label></div>
-          <p class="cb-note">Nothing is shared until you switch this on. You can send the request anonymously and reveal details later.</p>
-          <div class="btns"><button class="btn btn-ghost" type="button" id="back2">Back to matches</button><button class="btn btn-amber" type="button" id="sendReq">Send connection request</button></div>
-          <div class="sent" id="sent" hidden>
-            <div class="sent-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg></div>
-            <b>Request sent</b>
-            <p>We'll notify you when they accept. If it goes quiet as departure nears, our care team follows up personally.</p>
-            <button class="btn btn-sky" type="button" data-open="signup">Create a free account to track this</button>
-          </div>
-        </div>
-      </div>
+    <div class="dest-head reveal">
+      <div><span class="eyebrow-line">Explore the world together</span><h2 style="margin:0">Popular Destinations</h2></div>
+      <a class="route-more" href="{{ url_for('main.all_trips') }}">View All Routes →</a>
     </div>
-  </div>
-</section>
-<!-- 6. PRIVACY: a compact trust strip, not three full cards — the same three promises are made
-     again (in more detail) in the matching pipeline above and the help form below, so this stays
-     a quick reassurance rather than a third full explanation. -->
-<section class="sec" id="privacy" style="padding:36px 0">
-  <div class="wrap">
-    <div class="priv-strip reveal">
-      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg> Private &amp; secure</span>
-      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M6 6l12 12"/></svg> Shared only with your approval</span>
-      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg> Never sold, never published</span>
-    </div>
-  </div>
-</section>
-
-<!-- 8. COUNTRIES -->
-<section class="sec sec-sand" id="countries">
-  <div class="wrap">
-    <div class="sec-head reveal"><h2>Wherever your journey takes you, we're here to help.</h2><p class="lead">Explore destinations where Travel Companion services are available.</p></div>
     {# Live trip counts from the same database the app runs on, keyed by the destination airport's
        country code — honest instead of purely decorative. Shown only where we actually have an
-       open trip right now; otherwise the card keeps its generic caption. #}
-    <div class="cgrid reveal">
-      {% for code, name, img, iw, ih in [('US','United States','l4.jpg',640,426), ('CA','Canada','l5.jpg',640,284), ('GB','United Kingdom','l6.jpg',640,284), ('AU','Australia','l7.jpg',640,354), ('DE','Germany','l8.jpg',640,480), ('IN','India','l9.jpg',640,426)] %}
+       open trip right now; otherwise the card keeps a neutral caption instead of a fabricated count. #}
+    <div class="cgrid">
+      {% for code, img in [('US','l4.jpg'), ('CA','l5.jpg'), ('GB','l6.jpg'), ('AU','l7.jpg'), ('DE','l8.jpg'), ('IN','l9.jpg')] %}
+      {% set name, flag = country_meta[code] %}
       {% set n = landing_country_counts.get(code, 0) %}
-      <a class="cc" href="{{ url_for('main.all_trips') }}"><img src="/static/img/landing/{{ img }}" alt="{{ name }}" width="{{ iw }}" height="{{ ih }}" loading="lazy"><div class="t"><div><div class="f">{{ country_meta.get(code, (name, ''))[1] }}</div><b>{{ name }}</b><span>{{ '%d trip%s open now' % (n, '' if n == 1 else 's') if n else 'Travel Companion Support' }}</span></div><div class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div></div></a>
+      <a class="cc" href="{{ url_for('main.all_trips') }}">
+        <img src="/static/img/landing/{{ img }}" alt="{{ name }}" loading="lazy">
+        <div class="t">
+          {# No flag emoji: Windows/Chromium has no flag glyphs and renders the code pair as "US". #}
+          <div><div class="f">{{ 'Flying home' if code == 'IN' else 'India → ' ~ code }}</div><b>{{ name }}</b><span>{{ '%d trip%s open now' % (n, '' if n == 1 else 's') if n else 'Travel companion support' }}</span></div>
+          <div class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        </div>
+      </a>
       {% endfor %}
     </div>
-    <div style="text-align:center;margin-top:32px"><a class="btn btn-ghost" href="{{ url_for('main.all_trips') }}">Explore all destinations</a></div>
   </div>
 </section>
 
 
+
+<!-- TRUST STRIP: consent-first promise, one line -->
+<section class="sec" style="padding-top:0;padding-bottom:0">
+  <div class="wrap">
+    <div class="priv-strip reveal">
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>Your details are private</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M6 6l12 12"/></svg>Nothing shared without your yes</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>Used only for your companion request</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="5"/></svg>Free to post, match and connect</span>
+    </div>
+  </div>
+</section>
 
 <!-- REVIEWS -->
 <section class="sec" id="reviews">
   <div class="wrap">
-    <div class="sec-head reveal">
-      <h2>Real journeys. Real people. Real support.</h2>
+    <div class="sec-head reveal" style="text-align:center;margin-left:auto;margin-right:auto">
+      <h2>Real Stories. Real Travellers.</h2>
       {% if review_stats.credible %}
-      <p class="lead">Rated {{ review_stats.avg }}/5 by travellers and the families who booked for them.</p>
+      <p class="lead" style="margin-left:auto;margin-right:auto">Thousands of Desis have already travelled together. Rated {{ review_stats.avg }}/5 by {{ review_stats.count }} traveller{{ '' if review_stats.count == 1 else 's' }}.</p>
       {% else %}
-      <p class="lead">Early days — here's what our first travellers are saying.</p>
+      <p class="lead" style="margin-left:auto;margin-right:auto">Thousands of Desis have already travelled together — here's what our first travellers are saying.</p>
       {% endif %}
     </div>
-    <div class="tests stagger">
-      {% if feedbacks %}
-      {% for fb in feedbacks %}
-      <article class="test"><div class="stars">{% for i in range(fb.rating) %}★{% endfor %}</div><blockquote>{{ fb.comment }}</blockquote><footer><div class="av">{{ (fb.user.username or 'T')[0]|upper if fb.user else 'T' }}</div><div><b>{{ fb.user.username if fb.user else 'A traveller' }}</b><span>Connecting Desis traveller</span></div></footer></article>
-      {% endfor %}
-      {% else %}
-      <p class="lead" style="grid-column:1/-1">No reviews yet — <button type="button" class="link-btn" data-open="signup">be one of the first</button> to travel with a companion.</p>
-      {% endif %}
+    {% if feedbacks %}
+    <div class="dest-carousel">
+      <button type="button" class="dest-nav prev" id="revPrev" aria-label="Previous reviews"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <div class="tests stagger" id="testsRow">
+        {% for fb in feedbacks %}
+        <article class="test"><div class="stars">{% for i in range(fb.rating) %}★{% endfor %}</div><blockquote>{{ fb.comment }}</blockquote><footer><div class="av">{% if fb.user and fb.user.photo_url %}<img src="{{ fb.user.photo_url }}" alt="">{% else %}{{ (fb.user.username or 'T')[0]|upper if fb.user else 'T' }}{% endif %}</div><div><b>{{ fb.user.username if fb.user else 'A traveller' }}</b><span>Connecting Desis traveller</span></div></footer></article>
+        {% endfor %}
+      </div>
+      <button type="button" class="dest-nav next" id="revNext" aria-label="Next reviews"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
     </div>
+    {% else %}
+    <p class="lead" style="text-align:center;margin:0 auto">No reviews yet — <button type="button" class="link-btn" data-open="signup">be one of the first</button> to travel with a companion.</p>
+    {% endif %}
     <div class="rev-foot reveal">
       {% if review_stats.credible %}<span>★ {{ review_stats.avg }} average · {{ review_stats.count }} review{{ '' if review_stats.count == 1 else 's' }}</span>{% endif %}
       <a class="btn btn-ghost" href="{{ url_for('main.reviews') }}">Read all reviews</a>
@@ -1194,79 +1440,37 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
   </div>
 </section>
 
+
 <!-- FAQ: same admin-managed questions/answers that back /help (Admin → Help Centre), not a
      hardcoded copy — an edit there shows up here too, no deploy. -->
+<!-- HUMAN SUPPORT BAND -->
+<section class="sec" id="human" style="padding-top:0">
+  <div class="wrap">
+    <div class="human reveal" data-anim="zoom">
+      <div class="in">
+        <span class="eyebrow-line" style="color:var(--amber)">Here when you need us</span>
+        <h2>Technology helps. Humans understand.</h2>
+        <p>From the first request to touchdown, a real person is here — for questions about the trip, help with the process, or reassurance when a parent is flying alone.</p>
+        <div class="hl">One journey. One support team. Real human assistance.</div>
+        <button type="button" class="btn btn-amber btn-lg" id="humanTalkBtn">Talk to a real person</button>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="sec sec-sand" id="faq">
   <div class="wrap">
-    <div class="sec-head reveal"><h2>Everything you need to know before you travel</h2></div>
+    <div class="dest-head reveal">
+      <h2 style="margin:0">Frequently Asked Questions</h2>
+      <a class="faq-all-btn" href="{{ url_for('main.help_page') }}">View All FAQs →</a>
+    </div>
     <div class="faq two-col reveal">
       {% for f in landing_faqs %}
-      <details><summary>{{ f.question }}</summary><p>{{ f.answer }}</p></details>
+      <details><summary><svg class="faq-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 2 14 10 22 12 14 14 12 22 10 14 2 12 10 10Z"/></svg><span class="faq-q">{{ f.question }}</span><span class="faq-plus">+</span></summary><p>{{ f.answer }}</p></details>
       {% else %}
-      <details><summary>What is a Travel Companion?</summary><p>A fellow traveller on the same route who keeps you company and helps with gates, forms, transit and baggage.</p></details>
-      <details><summary>How much does it cost?</summary><p>Posting a trip, matching and connecting are free for the community.</p></details>
+      <details><summary><svg class="faq-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 2 14 10 22 12 14 14 12 22 10 14 2 12 10 10Z"/></svg><span class="faq-q">What is a Travel Companion?</span><span class="faq-plus">+</span></summary><p>A fellow traveller on the same route who keeps you company and helps with gates, forms, transit and baggage.</p></details>
+      <details><summary><svg class="faq-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 2 14 10 22 12 14 14 12 22 10 14 2 12 10 10Z"/></svg><span class="faq-q">How much does it cost?</span><span class="faq-plus">+</span></summary><p>Posting a trip, matching and connecting are free for the community.</p></details>
       {% endfor %}
-    </div>
-  </div>
-</section>
-
-<!-- ================= CUSTOMER HELP FORM ================= -->
-<section class="sec" id="request">
-  <div class="wrap">
-    <div class="consult reveal" data-anim="zoom">
-      <div class="consult-side">
-        <div class="ck">Customer help</div>
-        <h2>Need help? We're here for you.</h2>
-        <p>Not sure how it works, or want us to handle it for your parents? Leave your details and a real person will get back to you, in English.</p>
-        <ul>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg> Reply within one working day</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg> A real person reads every message</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg> Call or e-mail — your choice</li>
-        </ul>
-        <div class="side-contact">
-          <a href="mailto:{{ SUPPORT_EMAIL }}"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg></span>{{ SUPPORT_EMAIL }}</a>
-        </div>
-      </div>
-      <form class="consult-form" id="helpForm" novalidate>
-        <div class="row">
-          <div class="f"><label for="h-name">Full name</label><input id="h-name" required placeholder="Anitha Reddy"></div>
-          <div class="f"><label for="h-phone">Phone / WhatsApp</label><input id="h-phone" type="tel" required placeholder="+1 or +91 …"></div>
-        </div>
-        <div class="f"><label for="h-email">Email</label><input id="h-email" type="email" required placeholder="you@example.com"></div>
-        <div class="f"><label for="h-topic">How can we help?</label>
-          <select id="h-topic"><option>Understanding how the service works</option><option>Finding a companion for my parents</option><option>Help posting my trip / uploading a ticket</option><option>A question about an existing match</option><option>Privacy and how my details are used</option><option>Something else</option></select>
-        </div>
-        <div class="f"><label>How should we contact you?</label>
-          <div class="pills">
-            <label><input type="radio" name="h-via" value="whatsapp" checked>WhatsApp</label>
-            <label><input type="radio" name="h-via" value="call">Phone call</label>
-            <label><input type="radio" name="h-via" value="email">Email</label>
-          </div>
-        </div>
-        <div class="row">
-          <div class="f"><label for="h-time">Best time to reach you</label><select id="h-time"><option>Morning (9 – 12)</option><option>Afternoon (12 – 4)</option><option>Evening (4 – 8)</option><option>Any time</option></select></div>
-          <div class="f"><label for="h-tz">Your time zone</label><select id="h-tz"><option>India (IST)</option><option>US Eastern</option><option>US Central</option><option>US Pacific</option><option>UK</option><option>Canada Eastern</option><option>Australia Eastern</option><option>Other</option></select></div>
-        </div>
-        <div class="f"><label for="h-msg">Your message</label><textarea id="h-msg" placeholder="Tell us a little about your situation…"></textarea></div>
-        <div class="consult-foot">
-          <button class="btn btn-amber btn-lg" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>&nbsp;Request a call back</button>
-        </div>
-        <div class="reassure">🔒 Your details are used only to respond to this request.</div>
-      </form>
-    </div>
-  </div>
-</section>
-
-<!-- TRAVEL INSURANCE -->
-<section class="sec" style="padding-top:0">
-  <div class="wrap">
-    <div class="ins reveal" data-anim="zoom">
-      <div class="ins-ic">🛡️</div>
-      <div>
-        <h2>Travelling soon? Don't fly without cover.</h2>
-        <p>A companion is for company. Travel insurance is for the unexpected — medical emergencies, missed connections, lost baggage. Get a quote for your parents in two minutes.</p>
-      </div>
-      <a class="btn btn-amber btn-lg" href="https://nriparentservice.com/travel-insurance">Get Travel Insurance</a>
     </div>
   </div>
 </section>
@@ -1274,10 +1478,14 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 <!-- ================= FINAL CTA ================= -->
 <section class="sec" style="padding-top:0">
   <div class="wrap">
-    <div class="band reveal" data-anim="zoom">
-      <h2>{{ landing_stats.open }} trip{{ '' if landing_stats.open == 1 else 's' }} open right now.</h2>
-      <p>Post yours in under two minutes — it's free, and matches come to you.</p>
-      <button type="button" class="btn btn-amber btn-lg" data-open="signup">Post your trip — free</button>
+    <div class="band reveal" data-anim="zoom" style="position:relative">
+      <h2>Ready to find your travel companion?</h2>
+      <p>Join thousands of Desis already travelling together. {{ landing_stats.open }} trip{{ '' if landing_stats.open == 1 else 's' }} open right now.</p>
+      <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:22px">
+        <button type="button" class="btn btn-amber btn-lg" id="finalCtaPostTrip">Post Your Trip — Free</button>
+        <a class="btn btn-outline btn-lg" href="{{ url_for('main.all_trips') }}">Find Companions</a>
+      </div>
+      <span class="band-deco">Travel further<br>together <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 21s-7.5-4.9-10-9.2C.4 8.9 1.7 5.5 4.8 5.1c1.9-.2 3.3.8 4.2 2.1.9-1.3 2.3-2.3 4.2-2.1 3.1.4 4.4 3.8 2.8 6.7C19.5 16.1 12 21 12 21z"/></svg></span>
     </div>
   </div>
 </section>
@@ -1287,10 +1495,39 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 
 <!-- Sticky mobile CTA: the page runs ~15 screens tall on a phone: the primary action stays reachable throughout. -->
 <div class="mobile-cta-bar" id="mobileCta">
-  <button type="button" class="btn btn-amber btn-lg" data-open="signup">✈️ Post your trip — free</button>
+  <button type="button" class="btn btn-amber btn-lg" id="mobileCtaPostTrip">✈️ Post your trip — free</button>
 </div>
 
 
+
+<!-- ================= CONTACT US MODAL ================= -->
+<div class="modal" id="contactModal">
+  <div class="dlg" style="max-width:460px">
+    <button type="button" class="close" id="contactModalClose" aria-label="Close">&times;</button>
+    <div class="dlg-head"><h2 style="font-size:22px">Need help? We're here for you.</h2><p>Have a question or need support? Our team is happy to help.</p></div>
+    <div class="dlg-body">
+      <form id="contactModalForm" novalidate>
+        <div class="row">
+          <div class="f"><label for="cm-name">Full name</label><input id="cm-name" required placeholder="Anitha Reddy"></div>
+          <div class="f"><label for="cm-email">Email address</label><input id="cm-email" type="email" required placeholder="you@example.com"></div>
+        </div>
+        <div class="f"><label for="cm-topic">How can we help?</label>
+          <select id="cm-topic"><option>Understanding how the service works</option><option>Finding a companion for my parents</option><option>Help posting my trip</option><option>A question about an existing match</option><option>Something else</option></select>
+        </div>
+        <div class="f"><label>How should we contact you?</label>
+          <div class="pills">
+            <label><input type="radio" name="cm-via" value="WhatsApp" checked>WhatsApp</label>
+            <label><input type="radio" name="cm-via" value="Phone call">Phone call</label>
+            <label><input type="radio" name="cm-via" value="Email">Email</label>
+          </div>
+        </div>
+        <div class="f"><label for="cm-msg">Your message</label><textarea id="cm-msg" required placeholder="Tell us a little about your situation…"></textarea></div>
+        <button class="btn btn-amber btn-lg" type="submit">Send Message <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        <div class="reassure">🔒 Your details are used only to respond to this request.</div>
+      </form>
+    </div>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 <script>
@@ -1353,6 +1590,97 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
   const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   initHeroAirportAutocomplete('s-from','s-from-drop');
   initHeroAirportAutocomplete('s-to','s-to-drop');
+  initHeroAirportAutocomplete('hp-from','hp-from-drop');
+  initHeroAirportAutocomplete('hp-to','hp-to-drop');
+  // Widget tabs: "Find a Companion" (real search) / "Post Your Trip" (a real inline 3-step
+  // flow, staying on this same widget -- see openPostTrip() below for the one shared entry
+  // point every "Post Your Trip" button on the page calls).
+  function selectWidgetTab(name){
+    $$('.wtab').forEach(x=>x.classList.toggle('active', x.dataset.wtab===name));
+    $$('[data-wpanel]').forEach(p=>{ const on=p.dataset.wpanel===name; p.classList.toggle('active',on); p.hidden=!on; });
+  }
+  $$('.wtab').forEach(t=>t.addEventListener('click',()=>selectWidgetTab(t.dataset.wtab)));
+  $$('input[name=hp-triptype]').forEach(r=>r.addEventListener('change',()=>{
+    $('#hp-return-field').hidden = r.value!=='round_trip' || !r.checked;
+  }));
+  // ----- Post Your Trip: 3-step flow (Trip details / Preferences / Review & post) -----
+  let hpStep=1;
+  function hpShow(n){
+    hpStep=Math.max(1,Math.min(3,n));
+    $$('.hp-step').forEach(s=>s.classList.toggle('on',+s.dataset.hpstep===hpStep));
+    $$('.hp-steps li').forEach(li=>li.classList.toggle('on',+li.dataset.hps===hpStep));
+    if(hpStep===3) hpRenderReview();
+  }
+  $('#hpNext1')?.addEventListener('click',()=>{
+    if(!$('#hp-from').value||!$('#hp-to').value||!$('#hp-date').value){ $('#heroPostForm').reportValidity(); return; }
+    hpShow(2);
+  });
+  $('#hpBack2')?.addEventListener('click',()=>hpShow(1));
+  $('#hpNext2')?.addEventListener('click',()=>hpShow(3));
+  $('#hpBack3')?.addEventListener('click',()=>hpShow(2));
+  const HP_FOR_LABEL={myself:'Myself',parents:'Parent / elder',loved_one:'Family member',other:'Someone else'};
+  function hpRenderReview(){
+    const tt=($('input[name=hp-triptype]:checked')||{}).value||'one_way';
+    const forWho=($('input[name=hp-for]:checked')||{}).value||'myself';
+    const assist=($('input[name=hp-assist]:checked')||{}).value==='yes';
+    const rows=[
+      [$('#hp-from').value+' → '+$('#hp-to').value, tt.replace('_',' ')],
+      [$('#hp-date').value, tt==='round_trip'?('Return '+($('#hp-return').value||'—')):'Departure'],
+      [$('#hp-travellers').selectedOptions[0].textContent, $('#hp-class').value||'Any class'],
+      [HP_FOR_LABEL[forWho], 'Travelling for'],
+      [$('#hp-lang').value||'Any', 'Preferred language'],
+      [{any:'Anyone',female:'Female',male:'Male'}[$('#hp-companion').value], 'Companion preference'],
+      [assist?'Yes':'No', 'Airport assistance'],
+    ];
+    $('#hpReview').innerHTML=rows.map(([b,s])=>`<div class="row-line"><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join('');
+  }
+  // Everything the visitor filled in, shaped for the same draft the signed-in home page already
+  // knows how to restore (main.js: restoreTripDraft) -- so after they sign up they land back on
+  // a fully pre-filled real post form instead of typing all of this again.
+  function collectHeroPostDraft(){
+    const tt=($('input[name=hp-triptype]:checked')||{}).value||'one_way';
+    const forWho=($('input[name=hp-for]:checked')||{}).value||'myself';
+    const assist=($('input[name=hp-assist]:checked')||{}).value==='yes';
+    const cls=$('#hp-class').value;
+    let notes=$('#hp-msg').value||'';
+    if(cls) notes=(notes?notes+'\n\n':'')+`Class preference: ${cls}`;
+    return {
+      trip_type:tt,
+      flying_from:$('#hp-from').value, destination:$('#hp-to').value,
+      from_date:$('#hp-date').value, to_date:tt==='round_trip'?$('#hp-return').value:'',
+      travellers:[{ who:forWho, age_group:'', gender:'', needs: assist?['immigration']:[] }],
+      pref_gender:$('#hp-companion').value,
+      preferred_languages:$('#hp-lang').value?[$('#hp-lang').value]:[],
+      additional_comments:notes,
+    };
+  }
+  $('#heroPostForm')?.addEventListener('submit', e=>{
+    e.preventDefault();
+    try{ localStorage.setItem('cd_trip_draft', JSON.stringify(collectHeroPostDraft())); }catch(err){}
+    location.href=AUTH.signup+'?next=%2F%23search';
+  });
+  // ----- One shared entry point for every "Post Your Trip" CTA on the page (hero button, the
+  // illustrated banner, How It Works' "Get Started", the parents section, the final CTA and the
+  // sticky mobile bar) -- opens this same widget's Post Your Trip tab at step 1. -----
+  function openPostTrip(opts){
+    opts=opts||{};
+    document.getElementById('top')?.scrollIntoView({behavior:'smooth',block:'start'});
+    setTimeout(()=>{
+      selectWidgetTab('post');
+      hpShow(1);
+      if(opts.travellerType){
+        const r=document.querySelector(`input[name=hp-for][value="${opts.travellerType}"]`);
+        if(r) r.checked=true;
+      }
+      $('#hp-from')?.focus();
+    },450);
+  }
+  window.openPostTrip=openPostTrip;
+  // Popular route chips: fill the search fields and run the same real search as the button.
+  $$('.route-chip').forEach(c=>c.addEventListener('click',()=>{
+    $('#s-from').value=c.dataset.from; $('#s-to').value=c.dataset.to;
+    $('#heroSearch')?.requestSubmit();
+  }));
   // Hero search submit (was an inline onsubmit — moved here to also carry the "I am" field)
   $('#heroSearch')?.addEventListener('submit',e=>{
     e.preventDefault();
@@ -1368,10 +1696,46 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
   // modal duplicate, so every trigger just goes to the same, single, real destination.
   const AUTH={ signin:'{{ url_for("auth.login") }}', signup:'{{ url_for("auth.register") }}' };
   $$('[data-open]').forEach(b=>b.addEventListener('click',()=>{ location.href=AUTH[b.dataset.open]; }));
-  document.getElementById('postTripBar')?.addEventListener('click', () => {
-    document.getElementById('connection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    setTimeout(() => { document.querySelector('.mode[data-mode="manual"]')?.click(); }, 350);
+  ['postTripBar','finalCtaPostTrip','mobileCtaPostTrip','howItWorksGetStarted'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    const go=()=>openPostTrip();
+    el.addEventListener('click', go);
+    el.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); go(); } });
   });
+  $('#postForSomeoneBtn')?.addEventListener('click',()=>openPostTrip({travellerType:'parents'}));
+  // ===== Contact Us modal (reuses the same real endpoint as the full help form further down) =====
+  function openContactModal(){ $('#contactModal').classList.add('open'); }
+  ['matchTalkBtn','humanTalkBtn'].forEach(id=>document.getElementById(id)?.addEventListener('click', openContactModal));
+  function closeContactModal(){ $('#contactModal').classList.remove('open'); }
+  $('#contactModalClose')?.addEventListener('click', closeContactModal);
+  $('#contactModal')?.addEventListener('click', e=>{ if(e.target.id==='contactModal') closeContactModal(); });
+  $('#contactModalForm')?.addEventListener('submit', async e=>{
+    e.preventDefault(); const f=e.target; if(!f.checkValidity()){f.reportValidity();return;}
+    const via=(f.querySelector('[name=cm-via]:checked')||{}).value||'';
+    const payload={ name:$('#cm-name').value, email:$('#cm-email').value, phone:'',
+      message:`Topic: ${$('#cm-topic').value} · Preferred contact: ${via}\n\n${$('#cm-msg').value}` };
+    const btn=f.querySelector('button[type=submit]'); btn.disabled=true;
+    try{ const r=await fetch('{{ url_for("main.api_landing_contact") }}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify(payload)});
+      const d=await r.json();
+      if(d.success){ toast(d.message||'Thanks — we will get back to you shortly.'); f.reset(); closeContactModal(); }
+      else toast(d.error||'Please check the form and try again.');
+    }catch(err){ toast('Network error — please try again.'); } finally{ btn.disabled=false; }
+  });
+  // Parents-section quote card: cycle through real reviews via the dots (and a slow auto-rotate).
+  (function(){
+    const slides=$$('#pqSlides .pq-slide'), dots=$$('#pqDots span');
+    if(slides.length<2) return;
+    let pqI=0;
+    function pqShow(i){ pqI=(i+slides.length)%slides.length; slides.forEach((s,x)=>s.hidden=x!==pqI); dots.forEach((d,x)=>d.classList.toggle('on',x===pqI)); }
+    dots.forEach(d=>d.addEventListener('click',()=>pqShow(+d.dataset.i)));
+    setInterval(()=>pqShow(pqI+1),6000);
+  })();
+  (function(){
+    var row=$('#testsRow'); if(!row) return;
+    function step(){ var card=row.querySelector('.test'); return card ? card.getBoundingClientRect().width+18 : row.clientWidth*0.8; }
+    $('#revPrev')?.addEventListener('click',()=>row.scrollBy({left:-step(),behavior:'smooth'}));
+    $('#revNext')?.addEventListener('click',()=>row.scrollBy({left:step(),behavior:'smooth'}));
+  })();
   // Password toggle (kept for the manual-search form's own fields, if any use data-toggle)
   $$('[data-toggle]').forEach(b=>b.addEventListener('click',()=>{ const i=$('#'+b.dataset.toggle); i.type=i.type==='password'?'text':'password'; b.textContent=i.type==='password'?'Show':'Hide'; }));
   // Toast
@@ -1384,108 +1748,6 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
   $$('.jstep').forEach(el=>{ const o=new IntersectionObserver(es=>{es.forEach(e=>{ if(e.isIntersecting){ el.querySelector('.jui').classList.add('in'); o.unobserve(el);} });},{threshold:.35}); o.observe(el); });
 
 
-  // ===== Working matcher =====
-  const TRIPS=[
-    {u:'Sleka',from:'SEA',to:'MAA',date:'2027-05-29',role:'seek',lang:['Tamil'],flex:true},
-    {u:'Anitha R.',from:'BOM',to:'ORD',date:'2026-10-20',role:'seek',lang:['Hindi','Marathi']},
-    {u:'Keerthi',from:'DEL',to:'VGA',date:'2026-09-30',role:'either',lang:['Telugu','English'],flight:'AI 127'},
-    {u:'Priya',from:'BOM',to:'VGA',date:'2027-09-08',role:'seek',lang:['Telugu']},
-    {u:'Ravi T.',from:'DEL',to:'VGA',date:'2026-10-02',role:'offer',lang:['Telugu','Hindi']},
-    {u:'Meena S.',from:'MAA',to:'ORD',date:'2026-08-19',role:'either',lang:['Tamil','English'],flight:'QR 528'},
-    {u:'Harish',from:'MAA',to:'ORD',date:'2026-08-24',role:'offer',lang:['Tamil']},
-    {u:'Lakshmi',from:'HYD',to:'SFO',date:'2026-11-12',role:'seek',lang:['Telugu']},
-    {u:'Vikram',from:'DEL',to:'LHR',date:'2026-10-05',role:'offer',lang:['Hindi','Punjabi']}
-  ];
-  const code=s=>(s||'').toUpperCase().match(/[A-Z]{3}/)?.[0]||'';
-  const days=(a,b)=>Math.abs((new Date(a)-new Date(b))/864e5);
-  const score=(q,t)=>{
-    if(code(q.from)!==t.from||code(q.to)!==t.to) return null;
-    let s=50, r=['Same route'];
-    if(q.date){ const d=days(q.date,t.date); if(d<=1){s+=25;r.push('Same day')} else if(d<=7){s+=18;r.push('Within a week')} else if(d<=30||t.flex){s+=8;r.push('Close dates')} else return null; }
-    if(q.flight&&t.flight&&q.flight.replace(/\s/g,'').toUpperCase().includes(t.flight.replace(/\s/g,''))){s+=15;r.push('Same flight')}
-    if(q.lang&&q.lang!=='Any'&&t.lang.includes(q.lang)){s+=12;r.push(q.lang)}
-    if((q.who==='seek'&&t.role!=='seek')||(q.who==='offer'&&t.role!=='offer')||t.role==='either'){s+=10;r.push('Needs ↔ offers help')}
-    return {s:Math.min(s,98),r};
-  };
-  const setStep=n=>{ $$('.tool-steps li').forEach(li=>{const s=+li.dataset.s; li.classList.toggle('on',s===n); li.classList.toggle('done',s<n);}); [1,2,3].forEach(i=>$('#tp'+i).hidden=(i!==n)); $('.tool').scrollIntoView({behavior:'smooth',block:'nearest'}); };
-  let Q={}, picked=null;
-  const runMatch=q=>{
-    Q=q; const res=TRIPS.map(t=>({t,m:score(q,t)})).filter(x=>x.m).sort((a,b)=>b.m.s-a.m.s);
-    $('#tripSum').innerHTML=`<div class="rt"><span>${code(q.from)}</span><i></i><span>${code(q.to)}</span></div><div><small>Travel date</small>${q.date?new Date(q.date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):'Flexible'}${q.flight?' · '+q.flight:''}</div><span class="cnt">${res.length} companion${res.length===1?'':'s'} found</span>`;
-    $('#results').innerHTML=res.map((x,i)=>`<div class="res" style="animation-delay:${i*.12}s"><div class="ring" style="--p:${x.m.s}"><b>${x.m.s}%</b><span>match</span></div><div><div class="who"><i>${x.t.u[0]}</i><div><b>${x.t.u}</b><span>${x.t.from} → ${x.t.to} · ${new Date(x.t.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})} · ${x.t.role==='seek'?'Seeking help':x.t.role==='offer'?'Offering help':'Open to either'}</span></div></div><div class="reasons">${x.m.r.map(r=>`<span>${r}</span>`).join('')}</div></div><button class="btn btn-amber" data-pick="${i}">Connect</button></div>`).join('');
-    $('#empty').hidden=res.length>0;
-    $$('[data-pick]').forEach(b=>b.addEventListener('click',()=>{ picked=res[+b.dataset.pick]; $('#cbAv').textContent=picked.t.u[0]; $('#cbName').textContent=picked.t.u; $('#cbRoute').textContent=`${picked.t.from} → ${picked.t.to} · ${new Date(picked.t.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}`; $('#cbScore').textContent=picked.m.s+'% match'; $('#sent').hidden=true; $('.connect-box .btns').hidden=false; setStep(3); }));
-    setStep(2);
-  };
-  // modes
-  $$('.mode').forEach(b=>b.addEventListener('click',()=>{ $$('.mode').forEach(x=>x.classList.remove('on')); b.classList.add('on'); $('#mp-upload').hidden=b.dataset.mode!=='upload'; $('#mp-manual').hidden=b.dataset.mode!=='manual'; }));
-  // 5-step manual wizard: Where / When / Who / Companion / Finish, then the existing real search fires.
-  (function(){
-    const steps=$$('.mw-step'), dots=$$('.mw-steps li'); let mw=1;
-    function show(n){ mw=Math.max(1,Math.min(5,n));
-      steps.forEach(s=>s.classList.toggle('on',+s.dataset.mws===mw));
-      dots.forEach(d=>d.classList.toggle('on',+d.dataset.mw===mw));
-      $('#mwBack').style.visibility=mw===1?'hidden':'visible';
-      $('#mwNext').hidden=mw===5; $('#mwSubmit').hidden=mw!==5;
-    }
-    $('#mwNext')?.addEventListener('click',()=>{
-      if(mw===1&&(!$('#m-from').value||!$('#m-to').value)){ $('#m-from').reportValidity(); return; }
-      if(mw===2&&!$('#m-date').value){ $('#m-date').reportValidity(); return; }
-      show(mw+1);
-    });
-    $('#mwBack')?.addEventListener('click',()=>show(mw-1));
-  })();
-  $$('[data-mode-switch]').forEach(el=>el.addEventListener('click',()=>{ $(`.mode[data-mode="${el.dataset.modeSwitch}"]`)?.click(); }));
-  // upload (simulated parse — replace with your ticket-parsing endpoint)
-  const dz=$('#dz'), fileIn=$('#ticketFile');
-  ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('over');}));
-  ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('over');}));
-  dz.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f) parseTicket(f); });
-  fileIn.addEventListener('change',()=>{ if(fileIn.files[0]) parseTicket(fileIn.files[0]); });
-  function parseTicket(f){
-    dz.hidden=true; const rd=$('#reading'); rd.hidden=false; $('#rdName').textContent='Reading '+f.name+'…';
-    $$('.rd-list li').forEach(li=>li.classList.remove('ok')); requestAnimationFrame(()=>{$('#rdBar').style.width='100%';});
-    const demo={from:'DEL',to:'VGA',date:'2026-09-30',flight:'AI 127',lang:'Any',who:'seek'};
-    [1,2,3,4].forEach(i=>setTimeout(()=>$(`.rd-list li[data-t="${i}"]`).classList.add('ok'),i*550));
-    setTimeout(()=>{ rd.hidden=true; dz.hidden=false; $('#rdBar').style.width='0'; fileIn.value=''; runMatch(demo); },2500);
-  }
-  // ===== "Find companions" (manual) hits the REAL search API — same results as /trips, no mock data =====
-  const ROLE_LABEL={seeking_help:'Seeking help',offering_help:'Offering help',open:'Open to either'};
-  function renderReal(res,q){
-    const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}):'';
-    $('#tripSum').innerHTML=`<div class="rt"><span>${code(q.from)||(q.from||'').slice(0,3).toUpperCase()}</span><i></i><span>${code(q.to)||(q.to||'').slice(0,3).toUpperCase()}</span></div><div><small>Travel date</small>${q.date?fmt(q.date):'Flexible'}${q.lang&&q.lang!=='Any'?' · '+q.lang:''}</div><span class="cnt">${res.length} companion${res.length===1?'':'s'} found</span>`;
-    $('#results').innerHTML=res.map((t,i)=>{
-      const reasons=['Same route'];
-      if(q.date&&t.from_date){ const d=Math.abs((new Date(q.date)-new Date(t.from_date))/864e5); reasons.push(d<=1?'Same day':d<=7?'Within a week':'Close dates'); }
-      if(q.lang&&q.lang!=='Any'&&(t.preferred_languages||[]).includes(q.lang)) reasons.push(q.lang);
-      const name=(t.author&&t.author.username)||'Traveller';
-      return `<div class="res" style="animation-delay:${i*.12}s"><div><div class="who"><i>${name[0].toUpperCase()}</i><div><b>${name}</b><span>${t.origin_iata||''} → ${t.dest_iata||''}${t.from_date?' · '+fmt(t.from_date):''} · ${ROLE_LABEL[t.role]||''}</span></div></div><div class="reasons">${reasons.map(r=>`<span>${r}</span>`).join('')}</div></div><button type="button" class="btn btn-amber" data-open="signup">Connect</button></div>`;
-    }).join('');
-    $('#empty').hidden=res.length>0;
-    setStep(2);
-  }
-  $('#mp-manual').addEventListener('submit',async e=>{ e.preventDefault(); const f=e.target; if(!f.checkValidity()){f.reportValidity();return;}
-    const q={from:$('#m-from').value,to:$('#m-to').value,date:$('#m-date').value,lang:$('#m-lang').value};
-    const body={flying_from:q.from,destination:q.to,limit:6}; if(q.date) body.from_date=q.date; if(q.lang&&q.lang!=='Any') body.language=q.lang;
-    const btn=f.querySelector('button[type=submit]'); btn.disabled=true;
-    try{ const r=await fetch('{{ url_for("main.search") }}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify(body)});
-      const d=await r.json(); renderReal(d.results||[],q);
-    }catch(err){ toast('Could not search right now — please try again.'); } finally{ btn.disabled=false; } });
-  $('#back1').addEventListener('click',()=>setStep(1));
-  $('#back2').addEventListener('click',()=>setStep(2));
-  $('#sendReq').addEventListener('click',()=>{ $('.connect-box .btns').hidden=true; $('#sent').hidden=false; toast($('#consent').checked?'Request sent with your contact details':'Anonymous request sent'); });
-  // help / contact form -> save as a CS message and (if enabled by admin) e-mail the configured address
-  $('#helpForm').addEventListener('submit',async e=>{ e.preventDefault(); const f=e.target; if(!f.checkValidity()){f.reportValidity();return;}
-    const via=(f.querySelector('[name=h-via]:checked')||{}).value||'';
-    const detail=`Topic: ${$('#h-topic').value} · Contact via: ${via} · Best time: ${$('#h-time').value} (${$('#h-tz').value})`;
-    const payload={ name:$('#h-name').value, email:$('#h-email').value, phone:$('#h-phone').value,
-      message:($('#h-msg').value||'').trim()+'\n\n'+detail };
-    const btn=f.querySelector('button[type=submit]'); btn.disabled=true;
-    try{ const r=await fetch('{{ url_for("main.api_landing_contact") }}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify(payload)});
-      const d=await r.json();
-      if(d.success){ toast(d.message||'Thanks — we will get back to you shortly.'); f.reset(); }
-      else toast(d.error||'Please check the form and try again.');
-    }catch(err){ toast('Network error — please try again.'); } finally{ btn.disabled=false; } });
 })();
 </script>
 <!-- Whole-page translation for non-English languages (the same Google widget the app uses elsewhere) -->

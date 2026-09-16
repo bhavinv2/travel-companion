@@ -6,10 +6,10 @@ from app.services import settings, mailer
 
 def test_landing_for_logged_out_and_functional_home_for_logged_in(client, db, user):
     html = client.get('/').data.decode()
-    assert 'id="helpForm"' in html and 'searchForm' not in html      # marketing landing
+    assert 'id="contactModal"' in html and 'searchForm' not in html      # marketing landing
     login(client, 'bob@test.com')
     html = client.get('/').data.decode()
-    assert 'searchForm' in html and 'id="helpForm"' not in html       # functional home
+    assert 'searchForm' in html and 'id="contactModal"' not in html       # functional home
 
 
 def test_landing_contact_saves_and_only_emails_when_enabled(client, db, admin_user):

@@ -3,7 +3,7 @@
    (see app/templates/_footer.html). Self-contained: no dependency on either page's own tokens. */
 .ftr { background: #0B172F; color: #B9C6DE; padding: 52px 0 26px; font-size: 13.5px; }
 .ftr .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
-.ftr-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 32px; margin-bottom: 34px; }
+.ftr-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr 1.2fr; gap: 32px; margin-bottom: 34px; }
 .ftr h4 { color: #fff; font-size: 14px; margin-bottom: 14px; font-weight: 700; }
 .ftr ul { list-style: none; display: grid; gap: 9px; padding: 0; margin: 0; }
 .ftr a { color: inherit; text-decoration: none; }
@@ -15,9 +15,23 @@
 .ftr-brand-desc { color: rgba(255, 255, 255, .55); font-size: 13px; line-height: 1.6; }
 .ftr-bottom { border-top: 1px solid rgba(255, 255, 255, .1); padding-top: 18px; display: flex;
   justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 12.5px; color: rgba(255, 255, 255, .5); }
-@media (max-width: 800px) { .ftr-grid { grid-template-columns: 1fr 1fr; } }
+.ftr-social { display: flex; gap: 10px; margin-top: 16px; }
+.ftr-social a, .ftr-social span { width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,.08);
+  color: #fff; display: grid; place-items: center; cursor: pointer; }
+.ftr-social a:hover, .ftr-social span:hover { background: rgba(255,255,255,.16); }
+.ftr-social svg { width: 15px; height: 15px; }
+.ftr-news p { color: rgba(255,255,255,.5); font-size: 12px; margin-top: 8px; }
+.ftr-news-form { display: flex; background: rgba(255,255,255,.08); border-radius: 999px; padding: 4px 4px 4px 16px; gap: 8px; align-items: center; }
+.ftr-news-form input { flex: 1; min-width: 0; background: none; border: none; color: #fff; font: inherit; font-size: 13px; }
+.ftr-news-form input::placeholder { color: rgba(255,255,255,.45); }
+.ftr-news-form input:focus { outline: none; }
+.ftr-news-form button { flex: none; width: 30px; height: 30px; border-radius: 50%; background: #F5A623; color: #0B172F;
+  display: grid; place-items: center; border: none; cursor: pointer; }
+.ftr-news-form button:hover { background: #E8961A; }
+@media (max-width: 900px) { .ftr-grid { grid-template-columns: 1fr 1fr 1fr; } .ftr-news { grid-column: 1/-1; } }
 @media (max-width: 480px) {
   .ftr-grid { grid-template-columns: 1fr; text-align: center; }
   .ftr .ftr-logo { justify-content: center; }
   .ftr-bottom { justify-content: center; text-align: center; }
+  .ftr-social { justify-content: center; }
 }

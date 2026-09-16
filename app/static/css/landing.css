@@ -16,7 +16,47 @@
   --l-cta-dark: #E8961A;
   --l-card-shadow: 0 12px 34px rgba(15, 31, 61, 0.10);
   color: var(--l-ink);
+  /* Exact palette for the "Post Your Trip" widget -- same component/colours as the public
+     landing page's own search card (app/templates/landing.html), pixel-matched separately. */
+  --rd-navy-ink:#1b2b4d; --rd-amber:#f4a422; --rd-amber-strong:#ef9a1a; --rd-amber-text:#e08a13;
+  --rd-cream:#fdf1dc; --rd-cream-soft:#fff7ea; --rd-cream-line:#f2e2c6;
+  --rd-text:#465166; --rd-text-soft:#6b7688; --rd-serif:'Playfair Display',Georgia,serif;
+  --rd-script:'Caveat',cursive;
 }
+
+/* ---------- "Post Your Trip" search card (shared design with the public landing page) ---------- */
+.search-card{background:var(--rd-cream-soft);border:1px solid var(--rd-cream-line);border-radius:22px;box-shadow:0 24px 60px -20px rgba(17,29,56,.28);padding:30px 32px 26px}
+.search-card-head{display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:0}
+.sch-icon{width:60px;height:60px;border-radius:50%;background:#fbe4b6;display:grid;place-items:center;color:var(--rd-navy-ink);flex:none}
+.sch-icon svg{width:30px;height:30px}
+.sch-text{flex:1;min-width:220px}
+.sch-text h2{font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:27px;letter-spacing:-.3px;color:var(--rd-navy-ink);margin:0}
+.sch-text p{color:var(--rd-text-soft);font-size:16px;margin:4px 0 0}
+.sch-deco{display:flex;align-items:center;gap:10px;color:var(--rd-amber-text);flex:none;margin-left:auto}
+.sch-deco .flight{width:100px;height:46px}
+.sch-deco .heart-out{width:22px;height:22px}
+.sch-deco span{font-family:var(--rd-script);font-weight:700;font-size:22px;line-height:1.08;text-align:center}
+@media(max-width:760px){.sch-deco{display:none}}
+.search-card .sfields{background:#fff;border:1px solid var(--rd-cream-line);border-radius:16px;box-shadow:0 12px 30px -14px rgba(17,29,56,.22);margin-top:24px;display:flex;align-items:stretch;overflow:hidden}
+.search-card .sf{position:relative;flex:1;display:flex;gap:12px;align-items:center;padding:14px 18px;min-width:0}
+.search-card .sf select{-webkit-appearance:none;appearance:none;border:0;outline:0;font:inherit;font-size:16px;font-weight:500;width:100%;color:var(--rd-navy-ink);background:transparent;padding:0;cursor:pointer}
+.search-card .sf .ico{width:42px;height:42px;border-radius:50%;background:#f6f0e4;display:grid;place-items:center;color:var(--rd-amber-text);flex:none}
+.search-card .sf .ico svg{width:20px;height:20px}
+.search-card .sf label{display:block;font-size:11.5px;font-weight:700;letter-spacing:.06em;color:var(--rd-amber-text);text-transform:uppercase;margin-bottom:3px}
+.search-card .sf input{border:0;outline:0;font:inherit;font-size:16px;font-weight:500;width:100%;color:var(--rd-navy-ink);background:transparent;padding:0}
+.search-card .sf input::placeholder{color:#98a1b0;font-weight:500}
+.search-card .sf + .sf::before{content:"";position:absolute;left:0;top:16px;bottom:16px;width:1px;background:var(--rd-cream-line)}
+.search-card .sfields .btn{flex:none;margin:8px;border:none;cursor:pointer;background:var(--rd-amber);color:var(--rd-navy-ink);font-family:inherit;font-weight:700;font-size:16px;display:flex;align-items:center;gap:10px;padding:0 28px;border-radius:12px;box-shadow:0 12px 22px -10px rgba(244,164,34,.75);transition:background .2s ease}
+.search-card .sfields .btn:hover{background:var(--rd-amber-strong)}
+.search-trust{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-top:22px;padding:0 6px}
+.search-trust span{display:flex;align-items:center;gap:12px;font-size:16px;font-weight:600;color:var(--rd-navy-ink);flex:1;min-width:220px;justify-content:center}
+.search-trust span:first-child{justify-content:flex-start}
+.search-trust span:last-child{justify-content:flex-end}
+.search-trust .trust-badge{position:static;width:34px;height:34px;border-radius:50%;background:#fbe9c4;display:grid;place-items:center;flex:none;color:var(--rd-amber-text)}
+.search-trust .trust-badge svg{width:18px;height:18px;flex:none}
+.search-trust .sep{flex:none;width:1px;min-width:1px;align-self:stretch;background:var(--rd-cream-line);margin:4px 0}
+@media(max-width:900px){.search-card .sfields{flex-direction:column}.search-card .sf + .sf::before{left:16px;right:16px;top:0;bottom:auto;width:auto;height:1px}.search-card .sfields .btn{margin:14px;justify-content:center;padding:15px}.search-trust .sep{display:none}.search-trust span,.search-trust span:first-child,.search-trust span:last-child{justify-content:flex-start}}
+@media(max-width:560px){.search-trust span+span{border-left:0;padding-left:0}}
 
 /* ---------- hero ---------- */
 .l-hero {
@@ -321,11 +361,16 @@
 /* ---------- focused step flow (imglobal-style) ---------- */
 .l-form-section { background-color: #f0f7ff; background-image: repeating-radial-gradient(circle at 15% 20%, transparent 0 58px, rgba(58,111,168,0.045) 58px 60px), repeating-radial-gradient(circle at 85% 80%, transparent 0 74px, rgba(58,111,168,0.04) 74px 76px); }
 .landing .search-bar { max-width: 1040px; margin: 0 auto; background: #fff; }
-.fw-rail { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-.fw-rail-step { color: var(--l-blue); font-weight: 800; font-size: 13px; letter-spacing: .02em; }
-.fw-skip { background: none; border: none; color: var(--l-blue); font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit; }
+.fw-rail { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
+.fw-skip { background: none; border: none; color: var(--l-blue); font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit; white-space: nowrap; margin-top: 6px; }
 .fw-skip:hover { text-decoration: underline; }
-.fw-railbar { height: 3px; background: #dbe9f8; border-radius: 999px; margin-bottom: 28px; overflow: hidden; }
+/* Numbered, clickable step dial -- same component as the public landing page's own wizard, so
+   the two forms read as one product. */
+.fw-steps { list-style: none; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 0; padding: 0; flex: 1; min-width: 260px; }
+.fw-steps li { text-align: center; font-size: 11px; font-weight: 700; color: #8296b3; padding-bottom: 8px; border-bottom: 3px solid #dbe9f8; cursor: pointer; user-select: none; }
+.fw-steps li span { display: block; margin-top: 2px; }
+.fw-steps li.active { color: var(--l-ink); border-color: var(--l-blue); }
+.fw-steps li.done { color: var(--l-blue); }
 .fstep { max-width: 880px; margin: 0 auto; }
 .fq { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
 .fq-num { width: 26px; height: 26px; border-radius: 50%; background: var(--l-sky); color: var(--l-blue); font-weight: 800; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; }

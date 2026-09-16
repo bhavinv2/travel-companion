@@ -9,44 +9,87 @@
           <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt=""/>
           Connecting<b>Desis</b>
         </a>
-        <p class="ftr-brand-desc">{{ _('Helping the South Asian diaspora find trusted travel companions worldwide.') }}</p>
+        <p class="ftr-brand-desc">{{ _('A community for Desis to travel together, stay connected, and feel at home anywhere in the world.') }}</p>
+        {# No real social profiles are set up yet, so these stay decorative (not linked) rather
+           than pointing anywhere fake — swap in real hrefs once the accounts exist. #}
+        <div class="ftr-social" aria-hidden="true">
+          <span title="Facebook"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.4v7A10 10 0 0 0 22 12z"/></svg></span>
+          <span title="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1"/></svg></span>
+          <span title="LinkedIn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5C4.98 4.9 3.9 6 2.5 6S0 4.9 0 3.5 1.1 1 2.5 1s2.48 1.1 2.48 2.5zM.4 8h4.2v15H.4V8zM8.3 8h4v2h.1c.6-1.1 2-2.2 4.1-2.2 4.4 0 5.2 2.9 5.2 6.6V23h-4.2v-6.9c0-1.6 0-3.7-2.3-3.7s-2.6 1.8-2.6 3.6V23H8.3V8z"/></svg></span>
+          <span title="YouTube"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.4-.4-5a3 3 0 0 0-2.1-2.1C18.9 4.5 12 4.5 12 4.5s-6.9 0-8.5.4A3 3 0 0 0 1.4 7C1 8.6 1 12 1 12s0 3.4.4 5a3 3 0 0 0 2.1 2.1c1.6.4 8.5.4 8.5.4s6.9 0 8.5-.4A3 3 0 0 0 22.6 17c.4-1.6.4-5 .4-5zM9.8 15.3V8.7l5.8 3.3-5.8 3.3z"/></svg></span>
+        </div>
       </div>
       <div>
-        <h4>{{ _('Explore') }}</h4>
+        <h4>{{ _('Quick Links') }}</h4>
         <ul>
           <li><a href="{{ url_for('main.index') }}">{{ _('Home') }}</a></li>
+          <li><a href="{{ url_for('main.index') }}#how">{{ _('How It Works') }}</a></li>
+          <li><a href="{{ url_for('main.all_trips') }}">{{ _('Desis on Move') }}</a></li>
+          <li><a href="{{ url_for('main.reviews') }}">{{ _('Success Stories') }}</a></li>
+          <li><a href="{{ url_for('blog.blog_list') }}">{{ _('Blog') }}</a></li>
           {% if current_user.is_authenticated and not is_staff %}
           <li><a href="{{ url_for('main.dashboard') }}">{{ _('My Dashboard') }}</a></li>
-          <li><a href="{{ url_for('main.all_trips') }}">{{ _('Desis on Move') }}</a></li>
-          <li><a href="{{ url_for('chat.inbox') }}">{{ _('Inbox') }}</a></li>
-          {% else %}
-          <li><a href="{{ url_for('main.all_trips') }}">{{ _('Desis on Move') }}</a></li>
-          <li><a href="{{ url_for('blog.blog_list') }}">{{ _('Desi Travellers Blog') }}</a></li>
-          <li><a href="{{ url_for('main.index') }}#how">{{ _('How It Works') }}</a></li>
           {% endif %}
         </ul>
       </div>
       <div>
-        <h4>{{ _('Company') }}</h4>
+        <h4>{{ _('Support') }}</h4>
         <ul>
-          <li><a href="{{ url_for('main.about') }}">{{ _('About Us') }}</a></li>
+          <li><a href="{{ url_for('main.help_page') }}">{{ _('FAQs') }}</a></li>
+          <li><a href="{{ url_for('main.help_page') }}">{{ _('Safety Guidelines') }}</a></li>
           <li><a href="{{ url_for('main.contact') }}">{{ _('Contact Us') }}</a></li>
-          <li><a href="{{ url_for('main.reviews') }}">{{ _('Reviews') }}</a></li>
-          <li><a href="{{ url_for('main.help_page') }}">{{ _('Help Centre') }}</a></li>
+          <li><a href="{{ url_for('main.contact') }}">{{ _('Report a User') }}</a></li>
         </ul>
       </div>
       <div>
         <h4>{{ _('Legal') }}</h4>
         <ul>
-          <li><a href="{{ url_for('main.terms') }}">{{ _('Terms of Use') }}</a></li>
           <li><a href="{{ url_for('main.privacy') }}">{{ _('Privacy Policy') }}</a></li>
-          <li><a href="{{ url_for('main.privacy') }}#cookies">{{ _('Cookie Policy') }}</a></li>
+          <li><a href="{{ url_for('main.terms') }}">{{ _('Terms of Service') }}</a></li>
+          <li><a href="{{ url_for('main.privacy') }}#cookies">{{ _('Community Guidelines') }}</a></li>
         </ul>
+      </div>
+      <div class="ftr-news">
+        <h4>{{ _('Get travel updates') }}</h4>
+        <form class="ftr-news-form" id="ftrNewsForm" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <input type="email" id="ftrNewsEmail" placeholder="{{ _('Enter your email') }}" required/>
+          <button type="submit" aria-label="{{ _('Subscribe') }}"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        </form>
+        <p>{{ _('No spam. Just useful updates.') }}</p>
       </div>
     </div>
     <div class="ftr-bottom">
-      <span>&copy; {{ now().year }} {{ _('Connecting Desis. All rights reserved.') }}</span>
-      <span>{{ SUPPORT_EMAIL }}</span>
+      <span>&copy; {{ now().year }} {{ _('ConnectingDesis. All rights reserved.') }}</span>
+      <span>{{ _('Made with') }} &#10084;&#65039; {{ _('for the Desi community') }}</span>
     </div>
   </div>
 </footer>
+<script>
+(function(){
+  var f = document.getElementById('ftrNewsForm');
+  if (!f) return;
+  f.addEventListener('submit', function(e){
+    e.preventDefault();
+    var email = document.getElementById('ftrNewsEmail').value.trim();
+    var csrf = f.querySelector('[name=csrf_token]').value;
+    var btn = f.querySelector('button');
+    btn.disabled = true;
+    fetch('{{ url_for("main.api_landing_contact") }}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+      body: JSON.stringify({
+        name: 'Newsletter subscriber', email: email, phone: '',
+        message: 'Newsletter signup request from the footer.'
+      })
+    }).then(function(r){ return r.json(); }).then(function(d){
+      f.querySelector('input[type=email]').value = '';
+      var note = f.parentElement.querySelector('p');
+      note.textContent = d.success ? 'Thanks — you\'re on the list!' : (d.error || 'Please check your email and try again.');
+    }).catch(function(){
+      var note = f.parentElement.querySelector('p');
+      note.textContent = 'Network error — please try again.';
+    }).finally(function(){ btn.disabled = false; });
+  });
+})();
+</script>
