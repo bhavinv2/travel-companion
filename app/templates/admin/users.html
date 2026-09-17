@@ -47,7 +47,8 @@
             <button class="btn-sm" onclick="toggleUser({{ user.id }}, this)">
               {{ 'Disable' if user.is_active else 'Enable' }}
             </button>
-            <button class="btn-sm danger" onclick="deleteOneUser({{ user.id }}, {{ user.username|tojson }})"><i class="fa-solid fa-trash-can"></i></button>
+            {# data-* rather than an inline onclick: a username with quotes would break the attribute #}
+            <button type="button" class="btn-sm danger user-del" data-id="{{ user.id }}" data-label="{{ user.username }}" title="Delete permanently"><i class="fa-solid fa-trash-can"></i></button>
             {% endif %}
           </td>
         </tr>
@@ -89,6 +90,10 @@ function deleteOneUser(userId, username) {
     showToast(`${d.username} deleted permanently.`, 'success');
   });
 }
+document.addEventListener('click', e => {
+  const b = e.target.closest('.user-del');
+  if (b) deleteOneUser(+b.dataset.id, b.dataset.label);
+});
 
 wireBulkSelect('userSelectAll', '.user-select', ids => {
   document.getElementById('userBulkBar').style.display = ids.length ? 'flex' : 'none';

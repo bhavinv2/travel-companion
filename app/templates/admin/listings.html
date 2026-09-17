@@ -61,7 +61,8 @@
             {% if trip.status != 'closed' %}
             <button class="btn-sm danger" onclick="disableListing({{ trip.id }})">Disable</button>
             {% endif %}
-            <button class="btn-sm danger" onclick="deleteOnePost({{ trip.id }}, {{ trip.route_display|tojson }})"><i class="fa-solid fa-trash-can"></i></button>
+            {# data-* rather than an inline onclick: a route with quotes would break the attribute #}
+            <button type="button" class="btn-sm danger post-del" data-id="{{ trip.id }}" data-label="{{ trip.route_display }}" title="Delete permanently"><i class="fa-solid fa-trash-can"></i></button>
           </td>
         </tr>
         {% else %}
@@ -93,6 +94,10 @@ function deleteOnePost(id, route) {
     showToast(`Post deleted permanently.`, 'success');
   });
 }
+document.addEventListener('click', e => {
+  const b = e.target.closest('.post-del');
+  if (b) deleteOnePost(+b.dataset.id, b.dataset.label);
+});
 
 wireBulkSelect('postSelectAll', '.post-select', ids => {
   document.getElementById('postBulkBar').style.display = ids.length ? 'flex' : 'none';

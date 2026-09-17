@@ -2877,17 +2877,25 @@ function closeHardDeleteModal() {
   if (modal) modal.style.display = 'none';
   _hdCallback = null;
 }
+function _hdConfirm() {
+  const btn = document.getElementById('hdConfirmBtn');
+  if (!btn || btn.disabled) return;
+  const cb = _hdCallback;
+  closeHardDeleteModal();
+  if (cb) cb();
+}
 document.addEventListener('input', e => {
   if (e.target && e.target.id === 'hdConfirmInput') {
     document.getElementById('hdConfirmBtn').disabled = e.target.value.trim() !== 'DELETE';
   }
 });
+document.addEventListener('keydown', e => {
+  if (e.target && e.target.id === 'hdConfirmInput' && e.key === 'Enter') { e.preventDefault(); _hdConfirm(); }
+  if (e.key === 'Escape' && document.getElementById('hardDeleteModal')?.style.display === 'flex') closeHardDeleteModal();
+});
+// closest(): the click may land on the trash icon inside the button, not the button itself
 document.addEventListener('click', e => {
-  if (e.target && e.target.id === 'hdConfirmBtn' && !e.target.disabled) {
-    const cb = _hdCallback;
-    closeHardDeleteModal();
-    if (cb) cb();
-  }
+  if (e.target && e.target.closest && e.target.closest('#hdConfirmBtn')) _hdConfirm();
 });
 
 /* ===== Shared checkbox-select-all wiring for admin bulk-action tables =====
