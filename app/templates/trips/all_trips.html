@@ -84,7 +84,7 @@ async function fetchAllTrips() {
   try {
     const res = await apiFetch('/api/search', { method: 'POST', body: JSON.stringify(Object.assign(
       { travel_type: 'air', sort, q, limit: TRIPS_PER_PAGE, offset: (_tripsPage - 1) * TRIPS_PER_PAGE },
-      tripFilterValues('atf'))) });
+      tripFilterValues('atf'), window._atfCountry ? { dest_country: window._atfCountry } : {})) });
     const data = await res.json();
     const trips = data.results || [];
     const total = (data.total !== undefined ? data.total : trips.length);
@@ -140,9 +140,23 @@ document.getElementById('tripsSearchInput').addEventListener('input', () => {
 (function prefillFromUrl() {
   const q = new URLSearchParams(location.search);
   const set = (id, key) => { const el = document.getElementById(id); const v = q.get(key); if (el && v) el.value = v; };
-  set('atfFrom', 'from'); set('atfTo', 'to'); set('atfDate', 'date');
+  set('atfFrom', 'from'); set('atfTo', 'to'); set('atfDate', 'date'); set('atfLang', 'lang');
   const role = q.get('role');
   if (role) { const r = document.querySelector(`input[name="atfRole"][value="${role}"]`); if (r) r.checked = true; }
+  // Landing "Popular destinations" cards pass a country code; /api/search narrows to every
+  // airport in it. Shown as a removable chip so the visitor knows why the list is narrower.
+  const country = (q.get('country') || '').toUpperCase().slice(0, 2);
+  if (country) {
+    window._atfCountry = country;
+    const head = document.getElementById('tripsCount');
+    if (head) {
+      const chip = document.createElement('button');
+      chip.type = 'button'; chip.className = 'chip chip-open atf-country';
+      chip.style.marginLeft = '10px'; chip.textContent = `Destination: ${q.get('country_name') || country} ✕`;
+      chip.addEventListener('click', () => { window._atfCountry = ''; chip.remove(); _tripsPage = 1; fetchAllTrips(); });
+      head.insertAdjacentElement('afterend', chip);
+    }
+  }
 })();
 initTripFilters('atf', () => { _tripsPage = 1; fetchAllTrips(); });
 fetchAllTrips();

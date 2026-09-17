@@ -225,8 +225,9 @@ def _landing_live_data():
     public = CompanionRequest.query.filter(
         CompanionRequest.status.in_(['open', 'matched']),
         (CompanionRequest.from_date == None) | (CompanionRequest.from_date >= today))  # noqa: E711
+    # Newest posts first, so a trip someone just posted shows up on the landing right away.
     teaser = (public.filter(CompanionRequest.from_date.isnot(None))
-              .order_by(CompanionRequest.from_date.asc()).limit(4).all())
+              .order_by(CompanionRequest.created_at.desc()).limit(4).all())
     open_count = public.count()
     travellers = (db.session.query(func.count(func.distinct(CompanionRequest.user_id)))
                   .filter(CompanionRequest.status.in_(['open', 'matched']),
@@ -420,6 +421,76 @@ def api_landing_contact():
                     'message': f'Thanks — we have your message and will reply to {msg.email}.'})
 
 
+# The travel-insurance partner whose embeddable "Visitors Insurance for USA" widget we were given.
+# Its quote form POSTs this JSON shape to this endpoint and opens the returned results page.
+INSURANCE_PARTNER = 'https://preventia360.brokersnexus.com'
+
+
+@main_bp.route('/api/insurance-quote', methods=['POST'])
+@rate_limit(12, 3600)
+def api_insurance_quote():
+    """Landing 'Travel insurance' drawer: our own fields in our own styling, priced by the
+    partner's widget API (the exact request its iframe makes). We validate, relay, and return
+    the partner's quote-results URL. Nothing is stored on our side."""
+    import json as _json
+    import urllib.request
+    import urllib.error
+    from datetime import datetime, date as _date
+    data = request.get_json(silent=True) or {}
+
+    def _day(key):
+        try:
+            return datetime.strptime(str(data.get(key, '') or '').strip(), '%Y-%m-%d').date()
+        except ValueError:
+            return None
+
+    start, end = _day('start_date'), _day('end_date')
+    if not start or start < _date.today():
+        return jsonify({'success': False, 'error': 'Pick a coverage start date from today onwards.'}), 400
+    if not end or end < start:
+        return jsonify({'success': False, 'error': 'The coverage end date must be on or after the start date.'}), 400
+    ages = []
+    for key in ('age1', 'age2'):
+        raw = str(data.get(key, '') or '').strip()
+        if not raw and key == 'age2':
+            continue
+        if not raw.isdigit() or int(raw) > 120:
+            return jsonify({'success': False, 'error': 'Traveller ages must be whole numbers (years).'}), 400
+        ages.append(str(int(raw)))
+    citizenship = str(data.get('citizenship', '') or '').strip().upper()
+    if not re.fullmatch(r'[A-Z]{3}', citizenship):
+        return jsonify({'success': False, 'error': 'Please choose the country of citizenship.'}), 400
+
+    payload = {
+        'travelerInfos': [{'age': a, 'dependentChild': False, 'tripCost': None, 'bdate': None} for a in ages],
+        'numChildren': '', 'startDate': start.strftime('%m/%d/%Y'), 'endDate': end.strftime('%m/%d/%Y'),
+        'citizenshipCountry': citizenship, 'policyMaximum': -1, 'primaryDestination': 'USA',
+        'coverageArea': '5', 'arrivalInUSA': '0', 'mailingState': 'OutsideUSA',
+        'physicalPresenceState': '', 'homeCountry': '', 'section': 'visitorUSA',
+    }
+    req = urllib.request.Request(
+        INSURANCE_PARTNER + '/api/compare/travel-medical', data=_json.dumps(payload).encode('utf-8'),
+        headers={'Content-Type': 'application/json', 'Accept': 'application/json',
+                 'User-Agent': 'ConnectingDesis/1.0 (+landing insurance drawer)',
+                 'Referer': INSURANCE_PARTNER + '/widget1/visitors-insurance/'},
+        method='POST')
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            body = _json.loads(resp.read().decode('utf-8', 'ignore'))
+    except (urllib.error.URLError, ValueError, OSError):
+        return jsonify({'success': False, 'error': 'Our insurance partner is not responding right now. '
+                        'Please try again in a moment, or use their form below.'}), 502
+    info = body.get('data') or {}
+    if body.get('status') == 'success' and info.get('redirectToBN'):
+        path = str(info['redirectToBN'])
+        return jsonify({'success': True, 'url': path if path.startswith('http') else INSURANCE_PARTNER + path})
+    msgs = info.get('allErrorMessages') or info.get('globalErrors') or []
+    text = ' '.join((m.get('message', '') if isinstance(m, dict) else str(m)) for m in msgs).strip()
+    if not text:
+        text = 'No plans found for these details.' if info.get('noPlansFound') else 'Our partner could not price this trip.'
+    return jsonify({'success': False, 'error': text}), 400
+
+
 @main_bp.route('/help')
 def help_page():
     """Topic index. Each category links to its own page rather than filtering in place."""
@@ -545,6 +616,14 @@ def search():
             CompanionRequest.destination.ilike(pat) | CompanionRequest.dest_iata.ilike(pat)
             | CompanionRequest.leg_rows.any(
                 TripLeg.dest_text.ilike(pat) | TripLeg.dest_iata.ilike(pat)))
+    if data.get('dest_country'):
+        # Landing "Popular destinations" cards: every airport in that country (ISO-2 code),
+        # the same join the landing's per-country counts use.
+        from app import db
+        from app.models import Airport
+        code = str(data['dest_country']).strip().upper()[:2]
+        in_country = db.session.query(Airport.iata).filter(Airport.country == code)
+        query = query.filter(CompanionRequest.dest_iata.in_(in_country))
     if data.get('role') in TRIP_ROLES:
         # An explicit browse filter: "show me posts with this role" (the dashboard's
         # Seeking / Offering dropdown).

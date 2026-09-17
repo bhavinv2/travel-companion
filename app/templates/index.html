@@ -357,7 +357,8 @@
             </div>
             <div class="field-group">
               <label>Age group</label>
-              <input type="text" class="tv-age" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="Age (optional)" oninput="this.value=this.value.replace(/\D/g,'').slice(0,3)"/>
+              {# The backend keeps an age *group* (AGE_GROUPS) — a free-typed number was silently dropped. #}
+              <select class="tv-age"><option value="">Select age group</option>{% for a in AGE_GROUPS %}<option value="{{ a }}">{{ AGE_GROUP_LABELS.get(a, a) }}</option>{% endfor %}</select>
             </div>
             <div class="field-group">
               <label>Gender</label>
