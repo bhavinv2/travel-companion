@@ -66,10 +66,17 @@ textarea, input, select, button { font-family: inherit; }
 .logo-img.sm { width: 30px; height: 30px; }
 .logo-text { font-size: 16px; color: white; letter-spacing: 0.3px; }
 .logo-text strong { color: var(--coral); }
+.logo-stack { display: flex; flex-direction: column; gap: 0; line-height: 1.15; }
+.logo-sub { display: block; font-size: 10.5px; font-weight: 500; color: rgba(255,255,255,0.55); letter-spacing: 0.02em; margin-top: 1px; }
+@media (max-width: 900px) { .logo-sub { display: none; } }
 .nav-links { display: flex; gap: 4px; margin: 0 auto; }
 .nav-links a { color: rgba(255,255,255,0.8); padding: 8px 12px; border-radius: 6px; font-size: 14px; font-weight: 500; transition: all 0.2s; white-space: nowrap; }
 .nav-links a:hover, .nav-links a.active { color: white; background: rgba(255,255,255,0.12); }
 .nav-links .highlight-link { color: var(--coral); }
+/* Redundant with the "Sign Up" pill button once nav-links renders inline (>=769px); it stays
+   in the mobile hamburger drawer below, where Sign Up is hidden under 480px and this is the
+   only way to register. */
+@media (min-width: 769px) { .nav-links .highlight-link { display: none; } }
 .nav-links a i { display: none; }  /* icons show only in the mobile drop menu, not the desktop row */
 @keyframes navDrop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 .nav-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
@@ -1382,8 +1389,16 @@ body > .footer { margin-top: auto; }
 .chat-window { bottom: 94px; right: 24px; }
 .chat-panel-header, .chat-window-header { background: linear-gradient(135deg, #10254a, #1a3a6b); padding: 13px 14px; font-family: var(--font-head); font-size: 15px; gap: 10px; border-radius: 0; }
 .chat-panel-header span i { color: #7db4e8; margin-right: 4px; }
+.cp-title { display: flex; align-items: center; gap: 8px; }
+.cp-unread { font-size: 10.5px; font-weight: 700; background: rgba(255,255,255,0.18); padding: 3px 9px; border-radius: 999px; }
+.cp-head-actions { display: flex; align-items: center; gap: 2px; }
 .chat-window-header { justify-content: flex-start; }
-.chat-window-header #chatWindowTitle { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cw-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+#chatWindowTitle { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#chatWindowSub { font-weight: 500; font-size: 10.5px; color: rgba(255,255,255,0.65); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* the "expand to full inbox" link sits next to the close button, styled the same */
+.chat-window-header .cw-actions a, .chat-panel-header .cp-expand { color: #fff; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; text-decoration: none; }
+.chat-window-header .cw-actions a:hover, .chat-panel-header .cp-expand:hover { background: rgba(255,255,255,0.18); }
 #chatBackBtn { background: rgba(255,255,255,0.12); border: none; color: #fff; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 13px; flex: 0 0 30px; }
 #chatBackBtn:hover { background: rgba(255,255,255,0.28); }
 .cw-avatar { width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.15); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; flex: 0 0 30px; }
@@ -1396,6 +1411,24 @@ body > .footer { margin-top: auto; }
 .chat-room-item { border-bottom: 1px solid #eef4fb; padding: 12px 16px; }
 .chat-room-item:hover { background: #eaf4fd; }
 .chat-room-avatar { background: #eaf4fd; color: #2f80ed; }
+.chat-room-item { align-items: flex-start; }   /* the extra timestamp/route lines need top alignment, not centered */
+.chat-room-item.unread { background: #f5f9ff; }
+.chat-room-item.unread .cri-last, .chat-room-item.unread .cri-top strong { color: #10254a; font-weight: 700; }
+.chat-room-avatar { font-weight: 700; font-size: 15px; }
+.cri-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.cri-top strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cri-top time { font-size: 10.5px; color: #9fb2cc; font-weight: 600; flex: none; }
+.cri-last { color: var(--muted); }
+.cri-route { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #2f80ed; font-weight: 600; margin-top: 3px; }
+.cri-route i { font-size: 9px; }
+/* empty state: a little context and a real way forward, not just a bare sentence */
+.chat-empty { padding: 30px 22px; text-align: center; }
+.chat-empty i { font-size: 26px; color: #b9cbe6; margin-bottom: 10px; display: block; }
+.chat-empty p { font-size: 13.5px; color: #33517a; font-weight: 700; margin-bottom: 4px; }
+.chat-empty span { font-size: 12px; color: var(--muted); display: block; margin-bottom: 14px; }
+.cp-footer { display: block; text-align: center; padding: 11px; font-size: 12.5px; font-weight: 700; color: #2f80ed; border-top: 1px solid #eef4fb; background: #fbfdff; text-decoration: none; }
+.cp-footer:hover { background: #eaf4fd; }
+.cp-footer i { margin-left: 4px; font-size: 10px; }
 
 /* conversation */
 .chat-security-msg { background: #eaf4fd; border-bottom: 1px solid #d7e6f6; color: #33517a; font-size: 10.5px; padding: 8px 14px; }
@@ -3107,3 +3140,8 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 .bulk-select-bar { display: flex; align-items: center; gap: 12px; background: #fdeaea; border: 1px solid #f5c9c6; border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px; color: #8a2721; }
 .bulk-select-bar strong { color: #b91c1c; }
 .bulk-select-bar .btn-sm { margin-left: auto; }
+
+/* Faint "safer journeys together" illustration behind the signed-in post form (bottom-right,
+   sits under the content thanks to z-index:-1 inside the section's own stacking context). */
+.search-section { z-index: 0; }   /* no overflow:hidden — the form's suggestion dropdowns must be free to hang below */
+.search-section::after { content: ""; position: absolute; right: 12px; bottom: 8px; width: min(520px, 60vw); aspect-ratio: 2043 / 770; background: url("/static/img/travelling_yourself_illustration.png") no-repeat right bottom / contain; opacity: .12; pointer-events: none; z-index: -1; }

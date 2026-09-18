@@ -1,6 +1,6 @@
 Hi {{ (trip.poster_name or trip.display_name or '').split(' ')[0] or 'there' }},
 
-A traveller on the same route as your {{ trip.route_display }} trip has just posted on Connecting Desis:
+A traveller on the same route as your {{ trip.route_display }} trip has just posted on NRI Parent Service:
 
   {{ other.display_name }} — {{ other.route_display }} on {{ other.from_date or 'a similar date' }} ({{ best.score }}% match)
 {% if count > 1 %}
@@ -12,5 +12,5 @@ Nobody's contact details have been shared yet. If you'd like to be introduced, o
   {{ site_url }}/dashboard
 
 Safe travels,
-The Connecting Desis team
+The NRI Parent Service team
 {{ site_url }} · {{ support_email }}

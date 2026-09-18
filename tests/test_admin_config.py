@@ -29,7 +29,7 @@ def test_multi_role_account_switches_between_staff_and_traveller_views(client, d
     page = client.get('/dashboard')
     assert page.status_code == 200
     html = page.data.decode()
-    assert 'All Trips' in html and 'portal-switch' in html and 'staff-tag' not in html
+    assert 'Desis on Move' in html and 'portal-switch' in html and 'staff-tag' not in html
     assert client.get('/cs/').status_code == 200                                     # CS console still allowed
     client.get('/switch-view/staff')
     assert client.get('/dashboard').status_code == 302

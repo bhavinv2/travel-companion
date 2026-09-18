@@ -36,7 +36,7 @@ def contact_page_url(party):
 
 
 def _email_subject(other):
-    return f"[Connecting Desis] Possible travel companion for your {other.route_display} trip"
+    return f"[NRI Parent Service] Possible travel companion for your {other.route_display} trip"
 
 
 def notify_party(match, trip, actor=None):
@@ -126,7 +126,7 @@ def intro_text(match, for_trip, contact_point_ids=None):
     n_matches = len(ranked_matches_for(for_trip))
     name = (for_trip.poster_name or for_trip.display_name or '').split(' ')[0]
     lines = [f"Hi {name}," if name else "Hi,", "",
-             f"Good news from Connecting Desis: we found a traveller on the same route as your "
+             f"Good news from NRI Parent Service: we found a traveller on the same route as your "
              f"{for_trip.route_display} trip ({match.score}% match"
              f"{', the closest of ' + str(n_matches) + ' possible matches' if n_matches > 1 else ''}).", "",
              f"• {other.display_name} — {other.route_display} on {other.from_date or 'a similar date'}"
@@ -138,9 +138,9 @@ def intro_text(match, for_trip, contact_point_ids=None):
         for cp in consented:
             lines.append(f"  - {CONTACT_TYPE_LABELS.get(cp.type, cp.type)}: {cp.value}" + (f" ({cp.label})" if cp.label else ""))
     elif other.user_id:
-        lines += ["", "They prefer to be contacted through Connecting Desis chat — use the link below."]
+        lines += ["", "They prefer to be contacted through NRI Parent Service chat — use the link below."]
     lines += ["", f"See their request, other matches and how to get in touch: {contact_page_url(party)}", "",
-              "Safe travels,", "The Connecting Desis team",
+              "Safe travels,", "The NRI Parent Service team",
               "(We share contact details only with the other person's consent. Please use them respectfully.)"]
     return "\n".join(lines)
 

@@ -32,7 +32,7 @@ def _send_sendgrid(subject, recipients, body, reply_to):
         return False
     payload = {
         'personalizations': [{'to': [{'email': r} for r in recipients]}],
-        'from': {'email': current_app.config.get('MAIL_DEFAULT_SENDER'), 'name': 'Connecting Desis'},
+        'from': {'email': current_app.config.get('MAIL_DEFAULT_SENDER'), 'name': 'NRI Parent Service'},
         'subject': subject,
         'content': [{'type': 'text/plain', 'value': body}],
     }

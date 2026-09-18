@@ -88,7 +88,7 @@ def _landing_structured_data(landing_faqs, review_stats):
             '@type': 'WebSite',
             '@id': f'{site}/#website',
             'url': f'{site}/',
-            'name': 'Connecting Desis',
+            'name': 'NRI Parent Service',
             'description': 'Find a trusted travel companion online for parents, senior citizens and solo travellers.',
             'publisher': {'@id': f'{site}/#organization'},
             'inLanguage': 'en',
@@ -96,10 +96,10 @@ def _landing_structured_data(landing_faqs, review_stats):
         {
             '@type': 'Organization',
             '@id': f'{site}/#organization',
-            'name': 'Connecting Desis',
+            'name': 'NRI Parent Service',
             'url': f'{site}/',
             'logo': f'{site}/static/img/logo-icon.png',
-            'description': 'Connecting Desis helps parents, senior citizens and travellers find trusted '
+            'description': 'NRI Parent Service helps parents, senior citizens and travellers find trusted '
                            'companions travelling on the same route.',
             'contactPoint': {'@type': 'ContactPoint', 'contactType': 'customer support',
                              'email': current_app.config['SUPPORT_EMAIL'], 'availableLanguage': 'English'},
@@ -172,9 +172,13 @@ def index():
         # Admin-managed FAQs (same content that backs /help) — flattened in category order so
         # the landing page's "before you travel" accordion is never a copy an admin can't edit.
         landing_faqs = [f for _cat, items in help_center.grouped() for f in items]
+        # Traveller blogs: the newest published posts, or nothing (the section hides itself).
+        from app.models import Blog
+        landing_blogs = (Blog.query.filter_by(is_published=True)
+                         .order_by(Blog.published_at.desc().nullslast(), Blog.created_at.desc()).limit(3).all())
         return render_template('landing.html', feedbacks=approved_feedback, review_stats=review_stats,
                                landing_colors=_settings.landing_settings()['colors'],
-                               country_meta=COUNTRY_META, landing_faqs=landing_faqs,
+                               country_meta=COUNTRY_META, landing_faqs=landing_faqs, landing_blogs=landing_blogs,
                                structured_data=_landing_structured_data(landing_faqs, review_stats),
                                **_landing_live_data())
     return render_template('index.html', feedbacks=approved_feedback, review_stats=review_stats,
@@ -251,6 +255,14 @@ def _landing_live_data():
                           'languages': len(options.LANGUAGES or []), 'countries': countries},
         'landing_country_counts': country_counts,
     }
+
+
+@main_bp.route('/how-it-works')
+def how_it_works():
+    """Standalone walkthrough page. Nav links (landing header, app header, footer) all point
+    here now regardless of sign-in state, instead of an in-page anchor that only existed on
+    whichever homepage variant (landing.html vs index.html) the visitor happened to be on."""
+    return render_template('pages/how_it_works.html')
 
 
 @main_bp.route('/reviews')
@@ -412,7 +424,7 @@ def api_landing_contact():
     from app.services import settings as _settings, mailer
     ls = _settings.landing_settings()
     if ls['contact_email_enabled'] and ls['contact_email']:
-        body = (f"New enquiry from the Connecting Desis landing page.\n\n"
+        body = (f"New enquiry from the NRI Parent Service landing page.\n\n"
                 f"Name: {msg.name}\nEmail: {msg.email}\nPhone: {msg.phone or '—'}\n\n"
                 f"Message:\n{msg.message}\n")
         mailer.send(f'Landing enquiry from {msg.name}', ls['contact_email'], body,

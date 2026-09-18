@@ -677,7 +677,7 @@ def register(app):
             ('user6@connectingdesis.com', 4, True, 8,
              'Got three matches for my multi-city trip. One did not reply, but support followed up for me.'),
             ('demo03@connectingdesis.com', 5, True, 12,
-             'My parents had company from Hyderabad all the way to Chicago. Thank you Connecting Desis!'),
+             'My parents had company from Hyderabad all the way to Chicago. Thank you NRI Parent Service!'),
             ('demo07@connectingdesis.com', 4, True, 15,
              'Simple to post, and the anonymous option let me share details only after we matched.'),
             ('demo11@connectingdesis.com', 5, True, 21,

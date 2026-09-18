@@ -1,9 +1,10 @@
 {% extends 'base.html' %}
-{% block title %}{{ post.title }} – Connecting Desis{% endblock %}
+{% block title %}{{ post.title }} – NRI Parent Service{% endblock %}
 {% block content %}
 <div class="static-page">
   <div class="blog-post-header">
-    {% if post.cover_image_url %}<img src="{{ post.cover_image_url }}" alt="{{ post.title }}" class="blog-cover"/>{% endif %}
+    {% set fallback_covers = ['l4.jpg','l5.jpg','l6.jpg','l7.jpg','l8.jpg','l9.jpg'] %}
+    <img src="{{ post.cover_image_url or url_for('static', filename='img/landing/' ~ fallback_covers[post.id % 6]) }}" alt="{{ post.title }}" class="blog-cover"/>
     <h1>{{ post.title }}</h1>
     <div class="blog-meta">
       <span><i class="fa-solid fa-user"></i> {{ post.author.username }}</span>

@@ -201,7 +201,7 @@ def google_callback():
     user.last_login = datetime.utcnow()
     db.session.commit()
     if is_new:
-        flash(f'Welcome to Connecting Desis, {first_name or user.username}!', 'success')
+        flash(f'Welcome to NRI Parent Service, {first_name or user.username}!', 'success')
     else:
         flash(f'Welcome back, {user.first_name or user.username}!', 'success')
     return redirect(_safe_next(session.pop('next', None)) or staff_home(user))
@@ -267,7 +267,7 @@ def _finish_oauth_login(provider, oauth_id, email, first_name, last_name, photo_
     user.last_login = datetime.utcnow()
     db.session.commit()
     if is_new:
-        flash(f'Welcome to Connecting Desis, {first_name or user.username}!', 'success')
+        flash(f'Welcome to NRI Parent Service, {first_name or user.username}!', 'success')
     else:
         flash(f'Welcome back, {user.first_name or user.username}!', 'success')
     return redirect(_safe_next(session.pop('next', None)) or staff_home(user))
@@ -420,7 +420,7 @@ def register():
             login_user(user)
             if is_ajax:
                 return jsonify({'success': True, 'verification_sent': sent})
-            flash('Account created! Welcome to Connecting Desis.' +
+            flash('Account created! Welcome to NRI Parent Service.' +
                   (' Please confirm your e-mail using the link we just sent.' if sent else ''), 'success')
             return redirect(url_for('main.index'))
         except Exception:

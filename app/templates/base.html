@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>{% block title %}Connecting Desis – Find Your Travel Companion{% endblock %}</title>
+  <title>{% block title %}NRI Parent Service – Find Your Travel Companion{% endblock %}</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo-icon.png') }}"/>
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/logo-icon.png') }}"/>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@700&family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/bg-art.css') }}"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/footer.css') }}"/>
   {% block extra_css %}{% endblock %}
   {# active colour theme, managed at /admin/themes. Last in the head so it wins over
@@ -21,8 +22,11 @@
   <!-- NAVBAR -->
   <nav class="navbar" id="navbar">
     <a href="{{ staff_home(current_user) if is_staff else url_for('main.index') }}" class="nav-logo">
-      <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt="Connecting Desis" class="logo-img"/>
-      <span class="logo-text">Connecting<strong>Desis</strong>{% if is_staff %} <small class="staff-tag">{{ 'Admin' if current_user.is_admin else 'CS' }}</small>{% endif %}</span>
+      <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt="NRI Parent Service" class="logo-img"/>
+      <span class="logo-stack">
+        <span class="logo-text">NRI <strong>Parent</strong> Service{% if is_staff %} <small class="staff-tag">{{ 'Admin' if current_user.is_admin else 'CS' }}</small>{% endif %}</span>
+        <small class="logo-sub">Connecting Desis</small>
+      </span>
     </a>
 
     <ul class="nav-links" id="navLinks">
@@ -36,11 +40,11 @@
       {% if current_user.is_authenticated %}
         <li><a href="{{ url_for('main.dashboard') }}" title="{{ _('Manage your trips, matches and profile') }}"><i class="fa-solid fa-gauge"></i> {{ _('My Dashboard') }}</a></li>
       {% endif %}
-      <li><a href="{{ url_for('blog.blog_list') }}"><i class="fa-solid fa-newspaper"></i> {{ _('Desi Travellers Blog') }}</a></li>
-      {# The "how it works" walkthrough only renders for logged-out visitors on "/" (it's marketing
-         content); a signed-in traveller already uses the workflow, so this points at the help
-         centre instead of a page section that would not exist for them. #}
-      <li><a href="{{ url_for('main.help_page') if current_user.is_authenticated else url_for('main.index') + '#how-it-works' }}"><i class="fa-solid fa-circle-info"></i> {{ _('How It Works') }}</a></li>
+      <li><a href="{{ url_for('blog.blog_list') }}"><i class="fa-solid fa-newspaper"></i> {{ _('Traveller Blogs') }}</a></li>
+      {# Signed-out visitors are on (or one click from) the marketing landing, which has this
+         content inline -- scroll them there. Signed-in travellers see the functional home
+         instead, so they get the standalone walkthrough page. #}
+      <li><a href="{{ url_for('main.index') + '#how' if not current_user.is_authenticated else url_for('main.how_it_works') }}"><i class="fa-solid fa-circle-info"></i> {{ _('How It Works') }}</a></li>
       {% if current_user.is_authenticated %}
         {% if current_user.is_cs %}
           <li><a href="{{ url_for('cs.home') }}"><i class="fa-solid fa-headset"></i> CS Console</a></li>
@@ -143,7 +147,7 @@
               <a href="{{ url_for('main.notification_settings') }}"><i class="fa-solid fa-bell"></i> {{ _('Notification settings') }}</a>
             {% else %}
               <a href="{{ url_for('main.index') }}"><i class="fa-solid fa-house"></i> {{ _('Home') }}</a>
-              <a href="{{ url_for('main.all_trips') }}"><i class="fa-solid fa-plane-departure"></i> {{ _('All Trips') }}</a>
+              <a href="{{ url_for('main.all_trips') }}"><i class="fa-solid fa-plane-departure"></i> {{ _('Desis on Move') }}</a>
               <a href="{{ url_for('main.dashboard') }}"><i class="fa-solid fa-suitcase"></i> {{ _('My Dashboard') }}</a>
               <a href="{{ url_for('chat.inbox') }}"><i class="fa-solid fa-inbox"></i> {{ _('Inbox') }}</a>
               <a href="{{ url_for('main.connections_page') }}"><i class="fa-solid fa-handshake"></i> {{ _('My Connections') }}</a>
@@ -197,13 +201,17 @@
     </button>
     <div class="chat-panel" id="chatPanel" style="display:none">
       <div class="chat-panel-header">
-        <span><i class="fa-solid fa-comment-dots"></i> Messages</span>
-        <button id="closeChatPanel">&times;</button>
+        <span class="cp-title"><i class="fa-solid fa-comment-dots"></i> Messages<span class="cp-unread" id="cpUnread" hidden></span></span>
+        <div class="cp-head-actions">
+          <a href="{{ url_for('chat.inbox') }}" class="cp-expand" title="Open full inbox"><i class="fa-solid fa-up-right-and-down-left-from-center"></i></a>
+          <button id="closeChatPanel" title="Close">&times;</button>
+        </div>
       </div>
       <input type="text" class="chat-search" id="chatSearch" placeholder="Search conversations..." />
       <div class="chat-rooms-list" id="chatRoomsList">
         <div class="chat-loading"><i class="fa-solid fa-spinner fa-spin"></i></div>
       </div>
+      <a href="{{ url_for('chat.inbox') }}" class="cp-footer">Open full inbox <i class="fa-solid fa-arrow-right"></i></a>
     </div>
   </div>
 
@@ -211,14 +219,15 @@
   <div class="chat-window" id="chatWindow" style="display:none">
     <div class="chat-window-header">
       <button id="chatBackBtn" title="All conversations"><i class="fa-solid fa-arrow-left"></i></button>
-      <span class="cw-avatar"><i class="fa-solid fa-user"></i></span>
-      <span id="chatWindowTitle">Chat</span>
+      <span class="cw-avatar" id="cwAvatar"><i class="fa-solid fa-user"></i></span>
+      <span class="cw-titles"><span id="chatWindowTitle">Chat</span><small id="chatWindowSub" hidden></small></span>
       <div class="cw-actions">
+        <a id="cwExpand" href="{{ url_for('chat.inbox') }}" title="Open in full inbox"><i class="fa-solid fa-up-right-and-down-left-from-center"></i></a>
         <button id="closeChatWindow" title="Close">&times;</button>
       </div>
     </div>
     <div class="chat-security-msg">
-      <i class="fa-solid fa-shield-halved"></i> Messages stay on Connecting Desis. Your e-mail and phone are only shared with a matched companion if you agree.
+      <i class="fa-solid fa-shield-halved"></i> Messages stay on NRI Parent Service. Your e-mail and phone are only shared with a matched companion if you agree.
     </div>
     <div class="chat-messages" id="chatMessages"></div>
     <div class="chat-input-row">
@@ -234,7 +243,7 @@
 
   {% if is_staff %}
   <footer class="footer footer-staff">
-    <div class="footer-bottom"><p>&copy; {{ now().year }} Connecting Desis &middot; staff console</p></div>
+    <div class="footer-bottom"><p>&copy; {{ now().year }} NRI Parent Service &middot; staff console</p></div>
   </footer>
   {% else %}
     {% include '_footer.html' %}
@@ -325,6 +334,8 @@
   <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" defer></script>
   <script src="{{ url_for('static', filename='js/searchselect.js') }}"></script>
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/insurance.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/contact-modal.js') }}"></script>
   {% block extra_js %}{% endblock %}
 </body>
 </html>

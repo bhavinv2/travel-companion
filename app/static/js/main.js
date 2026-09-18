@@ -2049,33 +2049,59 @@ document.getElementById('closeChatWindow')?.addEventListener('click', () => {
 
 document.getElementById('chatSearch')?.addEventListener('input', (e) => renderChatRooms(e.target.value.trim().toLowerCase()));
 
+// short, real-time-relative label for a chat's last message ("2m", "5h", "Tue", "12 Sep")
+function chatTimeAgo(iso) {
+  if (!iso) return '';
+  const d = new Date(iso), diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60) return 'now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+  if (diff < 7 * 86400) return d.toLocaleDateString(undefined, { weekday: 'short' });
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
+function chatInitials(name) {
+  return (name || '?').trim().slice(0, 1).toUpperCase();
+}
+
 function renderChatRooms(filter = '') {
   const list = document.getElementById('chatRoomsList');
   if (!list) return;
   list.innerHTML = '';
   const rooms = _chatRooms.filter(r => !filter || (r.other_user.username || '').toLowerCase().includes(filter));
   if (!rooms.length) {
-    list.innerHTML = '<div class="chat-loading">No conversations yet.</div>';
+    list.innerHTML = filter
+      ? '<div class="chat-empty"><i class="fa-solid fa-magnifying-glass"></i><p>No conversations match "' + filter.replace(/</g, '') + '".</p></div>'
+      : '<div class="chat-empty"><i class="fa-solid fa-comments"></i><p>No conversations yet.</p>'
+        + '<span>Once you connect with a fellow traveller, your chat shows up here.</span>'
+        + '<a href="/trips" class="btn-sm">Browse Desis on Move</a></div>';
     return;
   }
   rooms.forEach(room => {
     const item = document.createElement('div');
-    item.className = 'chat-room-item';
+    item.className = 'chat-room-item' + (room.unread_count > 0 ? ' unread' : '');
     const avatar = document.createElement('div'); avatar.className = 'chat-room-avatar';
     if (room.other_user.photo_url) {
       const img = document.createElement('img'); img.src = room.other_user.photo_url;
       img.style.cssText = 'width:38px;height:38px;border-radius:50%;object-fit:cover'; avatar.appendChild(img);
-    } else avatar.innerHTML = '<i class="fa-solid fa-circle-user"></i>';
+    } else avatar.textContent = chatInitials(room.other_user.username);
     const info = document.createElement('div'); info.className = 'chat-room-info';
+    const topRow = document.createElement('div'); topRow.className = 'cri-top';
     const name = document.createElement('strong'); name.textContent = room.other_user.username;
-    const last = document.createElement('span');
+    const time = document.createElement('time'); time.textContent = chatTimeAgo(room.last_message && room.last_message.created_at);
+    topRow.append(name, time);
+    const last = document.createElement('span'); last.className = 'cri-last';
     last.textContent = room.last_message ? (room.last_message.message || 'Sent a file') : 'Start chatting';
-    info.append(name, last);
+    info.append(topRow, last);
+    if (room.trip_route) {
+      const route = document.createElement('span'); route.className = 'cri-route';
+      route.innerHTML = '<i class="fa-solid fa-plane"></i> ' + room.trip_route;
+      info.appendChild(route);
+    }
     item.append(avatar, info);
     if (room.unread_count > 0) {
       const b = document.createElement('span'); b.className = 'badge'; b.textContent = room.unread_count; item.appendChild(b);
     }
-    item.onclick = () => openChatWindow(room.room_id, room.other_user.username);
+    item.onclick = () => openChatWindow(room);
     list.appendChild(item);
   });
 }
@@ -2088,12 +2114,24 @@ async function loadChatRooms() {
   const data = await res.json();
   _chatRooms = data.rooms || [];
   renderChatRooms(document.getElementById('chatSearch')?.value.trim().toLowerCase() || '');
+  const unreadTotal = _chatRooms.reduce((sum, r) => sum + (r.unread_count || 0), 0);
+  const cpUnread = document.getElementById('cpUnread');
+  if (cpUnread) { cpUnread.textContent = unreadTotal + ' unread'; cpUnread.hidden = unreadTotal === 0; }
 }
 
-function openChatWindow(roomId, username) {
-  activeChatRoomId = roomId;
+// Accepts either the full room object (from the list, so we can show its trip route/avatar
+// instantly) or a bare {room_id, other_user:{username}} shape for callers that only have that.
+function openChatWindow(room) {
+  activeChatRoomId = room.room_id;
   chatLastMsgId = 0;
-  document.getElementById('chatWindowTitle').textContent = username;
+  document.getElementById('chatWindowTitle').textContent = room.other_user.username;
+  const sub = document.getElementById('chatWindowSub');
+  if (sub) { sub.textContent = room.trip_route ? ('On ' + room.trip_route) : ''; sub.hidden = !room.trip_route; }
+  const avatarEl = document.getElementById('cwAvatar');
+  if (avatarEl) {
+    if (room.other_user.photo_url) avatarEl.innerHTML = `<img src="${room.other_user.photo_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`;
+    else avatarEl.textContent = chatInitials(room.other_user.username);
+  }
   const win = document.getElementById('chatWindow');
   win.style.display = 'flex';
   document.getElementById('chatMessages').innerHTML = '';

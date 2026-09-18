@@ -1,25 +1,27 @@
+{% from '_doodle.html' import sjt %}
+{% from '_insurance_form.html' import ins_quote_form with context %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Travel Companion | Find a Trusted Travel Buddy Online</title>
-<meta name="description" content="Help your parents travel with confidence. Find a trusted travel companion online for safe, caring and comfortable journeys, with support every step of the way.">
+<meta name="description" content="Help your loved ones travel with confidence. Find a trusted travel companion online for safe, caring and comfortable journeys, with support every step of the way.">
 <link rel="canonical" href="{{ SITE_URL }}/">
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo-icon.png') }}">
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/logo-icon.png') }}">
 
 <!-- Open Graph / Twitter Card: shown when this link is shared on WhatsApp, Facebook, X, etc. -->
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="Connecting Desis">
-<meta property="og:title" content="Connecting Desis – Find a Trusted Travel Companion in Your Language">
+<meta property="og:site_name" content="NRI Parent Service">
+<meta property="og:title" content="NRI Parent Service – Find a Trusted Travel Companion in Your Language">
 <meta property="og:description" content="Free travel companions for the Desi community — matched by route, dates and shared language. Real human support, always consent-first.">
 <meta property="og:url" content="{{ SITE_URL }}/">
 <meta property="og:image" content="{{ SITE_URL }}{{ url_for('static', filename='img/landing/l2.jpg') }}">
 <meta property="og:image:width" content="1600">
 <meta property="og:image:height" content="680">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Connecting Desis – Find a Trusted Travel Companion in Your Language">
+<meta name="twitter:title" content="NRI Parent Service – Find a Trusted Travel Companion in Your Language">
 <meta name="twitter:description" content="Free travel companions for the Desi community — matched by route, dates and shared language.">
 <meta name="twitter:image" content="{{ SITE_URL }}{{ url_for('static', filename='img/landing/l2.jpg') }}">
 
@@ -27,6 +29,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600;1,700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/footer.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/bg-art.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contact-modal.css') }}">
 {% if structured_data %}<script type="application/ld+json">{{ structured_data | tojson }}</script>{% endif %}
 <style>
 :root{
@@ -81,6 +85,9 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .hdr{background:var(--navy);position:sticky;top:0;z-index:50;box-shadow:0 1px 0 rgba(255,255,255,.06)}
 .hdr .wrap{display:flex;align-items:center;justify-content:space-between;height:66px}
 .logo{display:flex;align-items:center;gap:0;color:#fff;font-weight:700;font-size:17px;letter-spacing:-.01em}
+.logo-stack{display:flex;flex-direction:column;gap:1px;line-height:1.15}
+.logo-stack small{font-size:10.5px;font-weight:500;color:rgba(255,255,255,.55);letter-spacing:.01em}
+@media(max-width:560px){.logo-stack small{display:none}}
 .logo img{width:32px;height:32px;margin-right:10px;object-fit:contain}
 .logo b{color:var(--sky);font-weight:700}
 .nav{display:flex;gap:34px;white-space:nowrap;font-weight:600;font-size:15px;color:#DCE4F2}
@@ -98,6 +105,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .lang-menu button span{color:var(--muted);font-size:12px}
 .hdr .btn{padding:10px 22px;font-size:14px}
 .burger{display:none;width:40px;height:40px;color:#fff}
+@media(max-width:1120px){.nav{gap:22px;font-size:14px}.hdr .btn{padding:9px 16px}.hdr-right{gap:8px}}   /* full nav still fits on small laptops / tablets landscape */
 @media(max-width:920px){.nav,.hdr .btn-outline{display:none}.burger{display:grid;place-items:center}.hdr .wrap{padding:0 14px}.hdr-right{gap:8px}.lang{padding:7px 10px}.logo{font-size:16px}.hdr .btn{padding:9px 16px}}
 @media(max-width:420px){.logo b{display:none}.lang span#langCur{display:none}.lang{padding:8px}.hdr .btn{padding:8px 12px;font-size:13px}.hdr-right{gap:6px}}
 /* Mobile nav drawer: a dropdown panel under the header, opened by the burger. Desktop nav
@@ -119,11 +127,13 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .hero-inner{max-width:560px;animation:rise .7s ease-out both}
 @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 .hero-kicker{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--amber);margin-bottom:18px}
+.kicker-heart{width:16px;height:16px;color:#FF6B8A;flex:none;margin-left:2px}
+.kicker-heart.sm{width:11px;height:11px;margin-left:-6px;margin-top:-8px;opacity:.85}
 .hero-kicker i{width:22px;height:2px;background:var(--amber);display:inline-block}
 .hero h1{font-size:clamp(36px,4.4vw,54px);color:#fff;margin-bottom:18px}
 .hero h1 em{font-style:italic;font-weight:400;color:#FFD48A}
 .hero p{font-size:18px;color:#D7E0F0;max-width:52ch;margin-bottom:10px}
-.hero-trust{display:flex;flex-wrap:wrap;gap:12px 26px;margin:20px 0 30px}
+.hero-trust{display:flex;flex-wrap:wrap;gap:12px 26px;margin:20px 0 90px}
 .hero-trust span{display:flex;align-items:center;gap:9px;font-size:16px;font-weight:600;color:#EAF0FA}
 .hero-trust svg{width:20px;height:20px;color:var(--amber);flex:none}
 .hero-deco{position:absolute;top:26px;right:36px;z-index:2;display:flex;flex-direction:column;align-items:flex-end;gap:4px;color:var(--amber);text-align:right}
@@ -375,7 +385,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .ins-secure svg{color:#1E7F4F;flex:none}
 .ins-go{flex:none;min-width:200px;justify-content:center;gap:10px;padding:16px 26px;font-size:16px;box-shadow:0 12px 28px -12px rgba(245,166,35,.9)}
 .ins-go:disabled{opacity:.7;cursor:progress}
-#insuranceForm.done .ins-fields{display:none}
+.ins-form.done .ins-fields{display:none}
 .ins-ok{display:flex;gap:16px;align-items:flex-start;background:linear-gradient(135deg,#EEF9F1,#E3F5E8);border:1.5px solid #BFE5CC;border-radius:18px;padding:22px 22px 20px;margin:4px 0 12px}
 .ins-ok-ic{width:48px;height:48px;border-radius:50%;background:#1E7F4F;color:#fff;display:grid;place-items:center;flex:none;box-shadow:0 8px 20px -8px rgba(30,127,79,.8)}
 .ins-ok-body{flex:1;min-width:0}
@@ -417,23 +427,48 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .search-card{background:#fff;border:0;border-radius:0 22px 22px 22px;box-shadow:0 24px 60px -20px rgba(17,29,56,.28);padding:16px 32px 26px;position:relative}
 /* The raised white sheet: sits 58px above the card's top edge, overlapping 4px into it so the
    union with the card reads as one continuous shape (square top-left corner on the card). */
-.search-raise{position:absolute;left:0;top:-58px;width:480px;height:62px;display:block;pointer-events:none}
-.widget-tabs{position:absolute;left:22px;top:-42px;display:inline-flex;align-items:center;gap:12px;z-index:6;margin:0;padding:0;background:transparent}
-.wtab{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 20px;border-radius:999px;font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap;border:1px solid transparent;transition:background .15s,color .15s,border-color .15s}
-.wtab.active{background:#071D3A;color:#fff;box-shadow:0 2px 6px rgba(7,29,58,.18)}
-.wtab:not(.active){background:#F1F5F9;border-color:#E3E8EF;color:#17375E;padding:0 18px 0 6px}
-.wtab:not(.active):hover{background:#E9EEF4}
-.wtab-ic{width:18px;height:18px;flex:none}
-.wtab-orb{width:32px;height:32px;border-radius:50%;background:#fff;display:grid;place-items:center;flex:none;color:var(--rd-amber-strong)}
-.wtab-orb svg{width:17px;height:17px;transform:rotate(-20deg)}
+.search-raise{position:absolute;left:0;top:-80px;width:1000px;height:84px;display:block;pointer-events:none}
+.widget-tabs{position:absolute;left:20px;top:-66px;display:inline-flex;align-items:center;gap:10px;z-index:6;margin:0;padding:0;background:transparent}
+.wtab{display:inline-flex;align-items:center;gap:12px;height:58px;padding:0 20px 0 9px;border-radius:999px;font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap;border:1.5px solid #E3E8EF;background:#fff;color:#17375E;box-shadow:0 1px 2px rgba(7,29,58,.06);text-align:left;transition:background .15s,color .15s,border-color .15s,box-shadow .15s}
+.wtab:hover{border-color:#C9D3E2;background:#F8FAFD}
+.wtab.active{background:#071D3A;color:#fff;border-color:#071D3A;box-shadow:0 10px 20px -10px rgba(7,29,58,.7)}
+.wtab-txt{display:flex;flex-direction:column;gap:2px;line-height:1.15}
+.wtab-label{font-size:14px;font-weight:700}
+.wtab-sub{font-size:11.5px;font-weight:500;color:#6B7688}
+.wtab.active .wtab-sub{color:#B9C6DE}
+.wtab-orb{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;flex:none}
+.wtab-orb svg{width:18px;height:18px}
+.wtab-orb.find{background:#E3EDFB;color:#2F6FED}
+.wtab-orb.post{background:#FFF0D6;color:var(--rd-amber-strong)}
+.wtab-orb.post svg{transform:rotate(-20deg);width:19px;height:19px}
+.wtab-orb.insu{background:#E0F5F0;color:#1A9A7D}
+.wtab-orb.insu svg{width:19px;height:19px}
+.wtab.active .wtab-orb{background:var(--amber);color:#071D3A}
+/* Panel header: title + one line of context, optional badge on the right */
+.wp-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;padding:6px 4px 14px}
+.wp-head h2{font-family:var(--rd-serif);font-size:24px;line-height:1.15;color:var(--rd-navy-ink);margin:0 0 4px}
+.wp-head p{font-size:14.5px;color:var(--rd-text-soft);margin:0;max-width:62ch}
+.wp-badge{font-size:12px;font-weight:700;color:var(--sunset);background:var(--rd-cream);border:1px solid var(--rd-cream-line);border-radius:999px;padding:5px 12px;white-space:nowrap}
+.hp-wrap .wp-head{padding-top:0}
+@media(max-width:1060px){   /* single-line chips until there is room for the subtext */
+  .search-raise{width:700px;top:-66px;height:70px}
+  .widget-tabs{top:-52px}
+  .wtab{height:46px;gap:10px;padding:0 20px 0 8px}
+  .wtab-sub{display:none}
+  .wtab-orb{width:30px;height:30px}
+  .wtab-orb svg,.wtab-orb.post svg,.wtab-orb.insu svg{width:16px;height:16px}
+}
 @media(max-width:560px){
-  .search-raise{width:340px;top:-52px;height:56px}
-  .widget-tabs{left:14px;top:-40px;gap:8px}
-  .wtab{height:40px;padding:0 14px;font-size:12.5px;gap:6px}
-  .wtab:not(.active){padding:0 12px 0 4px}
-  .wtab-ic{width:15px;height:15px}
-  .wtab-orb{width:28px;height:28px}
-  .wtab-orb svg{width:14px;height:14px}
+  .search-raise{width:100%;top:-58px;height:62px}
+  .widget-tabs{left:10px;top:-44px;gap:6px}
+  .wtab{height:40px;padding:0 12px 0 6px;font-size:12.5px;gap:6px}
+  .wtab-orb{width:26px;height:26px}
+  .wtab-orb svg,.wtab-orb.post svg,.wtab-orb.insu svg{width:13px;height:13px}
+  .wtab[data-wtab=insurance] .wtab-orb{display:none}   /* three tabs must clear the sheet's curve */
+  .wtab[data-wtab=insurance]{padding:0 12px}
+  .wp-head{padding:2px 2px 12px}
+  .wp-head h2{font-size:20px}
+  .wp-head p{font-size:13.5px}
 }
 .curve-deco{display:flex;align-items:center;gap:10px;color:var(--rd-amber-text)}
 .curve-deco .flight{width:100px;height:46px;flex:none}
@@ -604,7 +639,13 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .why-caption{position:absolute;left:24px;bottom:24px;color:#fff;font-family:var(--script,'Caveat',cursive);font-size:25px;line-height:1.25;text-shadow:0 2px 10px rgba(0,0,0,.45)}
 .why-caption .heart-out{width:18px;height:18px;vertical-align:-2px;margin-left:2px}
 @media(max-width:900px){.why-v5{grid-template-columns:1fr}.why-photo{height:auto;min-height:0}.why-photo img{aspect-ratio:4/3}}
-.parents-v1{display:grid;grid-template-columns:1.3fr .95fr .95fr;gap:36px;align-items:center}
+/* Copy + quote on the left with room to breathe; photo carousel + boarding passes stacked on the right */
+.parents-v2{display:grid;grid-template-columns:1.05fr .95fr;gap:60px;align-items:start}
+.parents-copy .lead{max-width:560px}
+.parents-copy .parents-quote{margin-top:32px;max-width:540px}
+.parents-visual{display:flex;flex-direction:column;gap:26px}
+.parents-visual .pp-slides{aspect-ratio:4/3}
+.parents-visual .passes{width:min(100%,520px);margin:0 auto}
 /* Left: auto-rotating photo carousel (fade) */
 .pp-slides{position:relative;aspect-ratio:4/3.4;border-radius:22px;overflow:hidden;box-shadow:0 30px 60px rgba(0,0,0,.35)}
 .pp-slide{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .8s ease}
@@ -613,7 +654,6 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .pp-dots span{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.35);cursor:pointer;transition:width .2s}
 .pp-dots span.on{background:var(--amber);width:16px;border-radius:3px}
 /* Right: boarding-pass pair ("matched on the same flight") carousel + quote card */
-.parents-side{display:flex;flex-direction:column;gap:18px}
 .passes{position:relative;height:300px;flex:none}
 .pass-pair{position:absolute;inset:0;opacity:0;transition:opacity .7s ease}
 .pass-pair.on{opacity:1}
@@ -649,8 +689,8 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .pq-dots{display:flex;gap:6px;margin-top:14px;justify-content:center}
 .pq-dots span{width:6px;height:6px;border-radius:50%;background:var(--line);cursor:pointer}
 .pq-dots span.on{background:var(--amber);width:16px;border-radius:3px}
-@media(max-width:1100px){.parents-v1{grid-template-columns:1fr 1fr;row-gap:32px}.parents-side{grid-column:1/-1;flex-direction:row;align-items:flex-start}.parents-side>*{flex:1;min-width:0}}
-@media(max-width:900px){.parents-v1{grid-template-columns:1fr}.parents-side{flex-direction:column}.parents-side>*{flex:none}.passes{max-width:420px;width:100%}}
+@media(max-width:1100px){.parents-v2{gap:36px}}
+@media(max-width:900px){.parents-v2{grid-template-columns:1fr;gap:34px}.parents-copy .lead,.parents-copy .parents-quote{max-width:none}.parents-visual{gap:20px}.parents-visual .passes{width:100%}}
 /* 2. How it works flowchart */
 .flowchart{position:relative;padding-top:20px}
 .flowchart svg.path{position:absolute;left:0;right:0;top:64px;width:100%;height:120px;pointer-events:none}
@@ -891,6 +931,98 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .hiw-note svg{color:#1E7F4F;width:16px;height:16px}
 @media(max-width:900px){.hiw-steps{grid-template-columns:1fr 1fr;gap:44px 18px}.hiw-path::before,.hiw-plane{display:none}.hiw-path{margin-top:30px;padding-top:30px}.hiw-num{top:-26px}.hiw-step{padding-top:44px}}
 @media(max-width:560px){.hiw-steps{grid-template-columns:1fr}}
+/* Widget: third tab (travel insurance) */
+.ins-panel-w{background:var(--rd-cream-soft);border:1px solid var(--rd-cream-line);border-radius:16px;box-shadow:0 12px 30px -14px rgba(17,29,56,.22);padding:20px 24px 18px;margin-top:6px}
+.ins-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ins-grid .f{margin-bottom:0}
+.ins-compact .ins-grid{grid-template-columns:1.1fr 1.1fr .75fr .75fr 1.4fr}
+.ins-compact .ins-actions{margin-top:14px}
+@media(max-width:900px){.ins-compact .ins-grid{grid-template-columns:1fr 1fr}.ins-compact .ins-cit-f{grid-column:1/-1}}
+@media(max-width:600px){.ins-grid,.ins-compact .ins-grid{grid-template-columns:1fr}.ins-panel-w{padding:16px}}
+@media(max-width:560px){.wtab .wtab-label{display:none}.wtab::after{content:attr(data-short)}.wtab{padding:0 12px}.wtab:not(.active){padding:0 10px 0 4px}}
+/* Parents: two CTAs, stacked passes on phones */
+.parents-copy h2 em{font-style:italic;color:var(--amber)}
+.parents-ctas{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.btn-light-o{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.55);gap:8px}
+.btn-light-o:hover{background:rgba(255,255,255,.1);border-color:#fff}
+@media(max-width:900px){
+  .passes{height:auto;max-width:none}
+  .pass-pair{position:relative;inset:auto;display:none;flex-direction:column;gap:8px}
+  .pass-pair.on{display:flex}
+  .pass,.pass.a,.pass.b{position:static;top:auto;left:auto;right:auto;bottom:auto;width:100%;transform:none;box-shadow:0 14px 30px -18px rgba(0,0,0,.6)}
+  .match-pin{position:static;transform:none;align-self:center;margin:-2px 0}
+  .parents-ctas .btn{flex:1;justify-content:center}
+}
+/* Support band on phones: solid navy, compact icon-left cards */
+@media(max-width:640px){
+  .human{background:linear-gradient(160deg,#0B1F3F,#17375E);min-height:0}
+  .human::before{display:none}
+  .human-body{padding:28px 18px 24px}
+  .human-head{margin-bottom:18px}
+  .human-head h2{font-size:26px;line-height:1.15}
+  .human-head p{font-size:14.5px;color:#C9D4E8}
+  .help-grid{gap:14px}
+  .help-card{display:grid;grid-template-columns:44px 1fr;gap:8px 12px;padding:16px 16px 18px;border-radius:18px;align-items:start}
+  .help-card .ic{width:44px;height:44px;border-radius:12px}
+  .help-card .ic svg{width:22px;height:22px}
+  .help-card h3{font-size:18px;margin-bottom:2px}
+  .help-card p{font-size:13.5px;line-height:1.45}
+  .help-card .btn{grid-column:1/-1;width:100%;justify-content:center;margin:6px 0 0}
+  .help-card.ins-card{padding-top:16px}
+  .ins-flag{grid-column:1/-1;position:static;width:auto;justify-self:start;font-size:10.5px;margin:0 0 2px;white-space:normal}
+  .ins-tags{margin-top:8px}
+}
+/* Traveller blogs */
+.sec-head.blog-head{max-width:none;text-align:left;margin:0 0 30px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px}
+.blog-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.blog-card{display:flex;flex-direction:column;background:#fff;border:1px solid var(--rd-cream-line);border-radius:20px;overflow:hidden;box-shadow:0 18px 40px -26px rgba(17,29,56,.35);color:var(--ink);transition:transform .25s,box-shadow .25s}
+.blog-card:hover{transform:translateY(-5px);box-shadow:0 26px 48px -24px rgba(17,29,56,.45)}
+.blog-img{aspect-ratio:16/10;overflow:hidden;background:var(--sand)}
+.blog-img img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .5s}
+.blog-card:hover .blog-img img{transform:scale(1.04)}
+.blog-body{padding:20px 22px 22px;display:flex;flex-direction:column;gap:8px;flex:1}
+.blog-date{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--sunset)}
+.blog-body h3{font-family:var(--rd-serif);font-size:20px;line-height:1.25;color:var(--rd-navy-ink)}
+.blog-body p{font-size:14.5px;color:var(--rd-text-soft);line-height:1.55}
+.blog-more{margin-top:auto;font-weight:700;color:var(--navy);font-size:14px}
+@media(max-width:900px){.blog-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.blog-grid{grid-template-columns:1fr}.sec-head.blog-head{flex-direction:column;align-items:flex-start;gap:12px}}
+/* Faint "safer journeys together" illustration behind the FAQ */
+#faq{position:relative;z-index:0;overflow:hidden}
+#faq::after{content:"";position:absolute;right:-40px;bottom:-24px;width:520px;aspect-ratio:2043/770;background:url("/static/img/travelling_yourself_illustration.png") no-repeat right bottom/contain;opacity:.13;pointer-events:none;z-index:-1}
+/* NB: keep a space after the brace before an id selector — a brace immediately followed by a hash starts a Jinja comment. */
+@media(max-width:700px){ #faq::after{width:320px;opacity:.11} }
+/* Faint artwork in the emptier sections (img/bg/*.png, all with transparent backgrounds):
+   world-route map behind Popular Destinations, the family-walk piece behind Why choose,
+   the insurance shield behind How it works and in the insurance drawer. z-index:-1 inside each
+   section's own stacking context keeps them under the content. */
+#countries,#why,#how{position:relative;z-index:0;overflow:hidden}
+#countries::before{content:"";position:absolute;right:-60px;top:-10px;width:min(720px,60vw);aspect-ratio:1200/500;background:url("/static/img/bg/map.png") no-repeat right top/contain;opacity:.16;pointer-events:none;z-index:-1}
+#why::before{content:"";position:absolute;left:-40px;bottom:-30px;width:min(640px,55vw);aspect-ratio:1200/495;background:url("/static/img/bg/family.png") no-repeat left bottom/contain;opacity:.14;pointer-events:none;z-index:-1}
+#how::before{content:"";position:absolute;right:-80px;top:-20px;width:min(680px,58vw);aspect-ratio:1200/476;background:url("/static/img/bg/insurance.png") no-repeat right top/contain;opacity:.12;pointer-events:none;z-index:-1}
+.ins-body{position:relative;z-index:0}
+.ins-body::after{content:"";position:absolute;left:0;right:0;bottom:-10px;height:200px;background:url("/static/img/bg/insurance.png") no-repeat center bottom/contain;opacity:.16;pointer-events:none;z-index:-1}
+@media(max-width:700px){ #countries::before,#why::before,#how::before{width:80vw;opacity:.1} }
+/* Navy band under the search widget: hero -> widget -> "For your loved ones" read as one surface.
+   The parked banner's illustration lives on here, washed into the navy, plus the small doodle. */
+/* z-index above the hero's inner layer (.hero .wrap is 2) so the raised tab sheet paints over the photo */
+.search-band{position:relative;background:linear-gradient(180deg,#0B1F3F 0%,var(--navy) 100%);padding-bottom:52px;z-index:5}
+.sb-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.sb-illo{position:absolute;right:0;bottom:-6px;width:min(560px,44vw);aspect-ratio:2043/770;background:url("/static/img/travelling_yourself_illustration.png") no-repeat right bottom/contain;opacity:.18;filter:saturate(.85)}
+.sjt{display:inline-flex;flex-direction:column;align-items:center;gap:4px;color:var(--amber);text-align:center;line-height:1}
+.sjt .sjt-flight{width:110px;height:50px}
+.sjt b{font-family:var(--script,'Caveat',cursive);font-weight:700;font-size:21px;line-height:1.08;white-space:nowrap}
+.sjt .sjt-heart{width:20px;height:20px}
+.sb-doodle{position:absolute;left:18px;bottom:20px;transform:rotate(-5deg);opacity:.95}
+.sb-arc{position:absolute;inset:0;width:100%;height:100%;opacity:.5}
+.sb-ic{position:absolute;color:#fff;opacity:.18;display:block}
+.sb-ic.amber{color:var(--amber);opacity:.5}
+.sb-ic svg{width:100%;height:auto;display:block}
+@media(max-width:900px){.sb-ic{display:none}.sb-arc{opacity:.35}}
+#parents{padding-top:30px}
+@media(max-width:1280px){.sb-doodle{display:none}}   /* only fits in the band's side margin on wide screens */
+@media(max-width:900px){.sb-illo{width:min(360px,70vw);opacity:.14}}
+
 /* tool */
 .tool{background:#fff;border-radius:26px;border:1px solid var(--line);box-shadow:0 30px 70px rgba(15,31,61,.12);overflow:hidden;max-width:900px;margin:0 auto}
 .tool-steps{list-style:none;display:grid;grid-template-columns:repeat(3,1fr);background:var(--navy);color:#B9C6DE;font-weight:600;font-size:14px}
@@ -1142,21 +1274,21 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
 {% if landing_colors %}<style id="landingTheme">:root{
 {%- for var, val in landing_colors.items() %} --{{ var }}:{{ val }};{% endfor %}
 }</style>{% endif %}
+<script src="{{ url_for('static', filename='js/insurance.js') }}" defer></script>
 </head>
 <body>
 <!-- ================= HEADER ================= -->
 <header class="hdr">
   <div class="wrap">
-    <a class="logo" href="#top" aria-label="Connecting Desis home">
+    <a class="logo" href="#top" aria-label="NRI Parent Service home">
       <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt="" aria-hidden="true"/>
-      Connecting<b>Desis</b>
+      <span class="logo-stack"><span>NRI <b>Parent</b> Service</span><small>Connecting Desis</small></span>
     </a>
     <nav class="nav" aria-label="Main">
-      <a href="#top" class="active">Home</a>
       <a href="{{ url_for('main.all_trips') }}">Desis on Move</a>
       <a href="#how">How It Works</a>
-      <a href="#reviews">Success Stories</a>
-      <a href="{{ url_for('blog.blog_list') }}">Blog</a>
+      <a href="#top" onclick="openInsuranceTab();return false;">Travel Insurance</a>
+      <a href="{{ url_for('blog.blog_list') }}">Traveller Blogs</a>
     </nav>
     <div class="hdr-right">
       <div class="lang" id="langBtn" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false">
@@ -1180,11 +1312,10 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
   <!-- Mobile nav drawer: the burger above is decorative on desktop (nav shows inline) and this
        is what actually opens on phones/tablets, where .nav and Sign In are hidden. -->
   <nav class="mobile-drawer" id="mobileDrawer" aria-label="Mobile">
-    <a href="#top">Home</a>
     <a href="{{ url_for('main.all_trips') }}">Desis on Move</a>
     <a href="#how">How It Works</a>
-    <a href="#reviews">Success Stories</a>
-    <a href="{{ url_for('blog.blog_list') }}">Blog</a>
+    <a href="#top" onclick="openInsuranceTab();return false;">Travel Insurance</a>
+    <a href="{{ url_for('blog.blog_list') }}">Traveller Blogs</a>
     <div class="mobile-drawer-actions">
       <button class="btn btn-outline" data-open="signin">Sign In</button>
       <button class="btn btn-amber" data-open="signup">Sign Up</button>
@@ -1206,9 +1337,9 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
   </div>
   <div class="wrap">
     <div class="hero-inner">
-      <div class="hero-kicker"><i></i>Travel companions for the Desi community</div>
-      <h1>Your journey. Your language. <em>Your companion.</em></h1>
-      <p>Send your parents across the world with someone beside them — a trusted fellow traveller on the same flight, who speaks their language.</p>
+      <div class="hero-kicker"><i></i>Travel companions for your loved ones <svg class="kicker-heart" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.9-10-9.2C.4 8.9 1.7 5.5 4.8 5.1c1.9-.2 3.3.8 4.2 2.1.9-1.3 2.3-2.3 4.2-2.1 3.1.4 4.4 3.8 2.8 6.7C19.5 16.1 12 21 12 21z"/></svg><svg class="kicker-heart sm" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.9-10-9.2C.4 8.9 1.7 5.5 4.8 5.1c1.9-.2 3.3.8 4.2 2.1.9-1.3 2.3-2.3 4.2-2.1 3.1.4 4.4 3.8 2.8 6.7C19.5 16.1 12 21 12 21z"/></svg></div>
+      <h1>Their journey, our support — <em>a safer, happier travel experience.</em></h1>
+      <p>Send your loved ones across the world with someone beside them — a trusted fellow traveller on the same flight, who speaks their language.</p>
       <div class="hero-trust">
         <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3z"/><path d="m9 12 2 2 4-4"/></svg>Verified travellers</span>
         <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.6"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M15.5 20c0-2.4 1.6-4.2 3.8-4.2s3.7 1.8 3.7 4.2"/></svg>Same flight, same language</span>
@@ -1218,17 +1349,33 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
   </div>
 </section>
 
-<!-- Floating search bar -->
+
+<!-- Floating search bar, on a navy band so the hero flows straight into "For your loved ones" -->
+<div class="search-band">
+  <div class="sb-bg" aria-hidden="true">
+    <div class="sb-illo"></div>
+    <svg class="sb-arc" viewBox="0 0 1440 360" preserveAspectRatio="none"><path d="M-20 300 C 180 150, 380 90, 640 120 S 1140 250, 1470 110" stroke="#F5A623" stroke-width="2" stroke-dasharray="2 11" stroke-linecap="round" fill="none"/></svg>
+    <span class="sb-ic" style="left:3.5%;top:10%;width:30px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.7-7-11a7 7 0 0 1 14 0c0 5.3-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg></span>
+    <span class="sb-ic amber" style="left:7.2%;top:24%;width:24px;transform:rotate(30deg)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L11 19v-5.5L21 16z"/></svg></span>
+    <span class="sb-ic" style="left:2%;top:40%;width:34px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M8 7V5.5A2.5 2.5 0 0 1 10.5 3h3A2.5 2.5 0 0 1 16 5.5V7M8 7v13M16 7v13"/></svg></span>
+    <span class="sb-ic" style="left:6.5%;top:57%;width:22px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 20.4s-6.8-4.4-9.1-8.4C1.4 9.1 2.6 6 5.5 5.6c1.8-.2 3.3.8 4.1 2.1.8-1.3 2.3-2.3 4.1-2.1 2.9.4 4.1 3.5 2.6 6.4-2.3 4-9 8.4-9 8.4z"/></svg></span>
+    <span class="sb-ic" style="left:46%;bottom:10px;width:30px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 4 5.7 4 9s-1.5 6.5-4 9c-2.5-2.5-4-5.7-4-9s1.5-6.5 4-9Z"/></svg></span>
+    <span class="sb-ic amber" style="left:60%;bottom:14px;width:20px;transform:rotate(60deg)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L11 19v-5.5L21 16z"/></svg></span>
+    <span class="sb-ic" style="left:30%;bottom:8px;width:24px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H7a4 4 0 1 1 .9-7.9A5.5 5.5 0 0 1 18.5 12a3.5 3.5 0 0 1-1 7z"/></svg></span>
+    {{ sjt("sb-doodle") }}
+  </div>
 <div class="wrap search-wrap">
   <div class="search-card">
     {# Raised white "sheet" behind the tabs: one continuous silhouette (left rise, flat plateau,
        large downward sweep after the last tab) drawn as a single path so there are no seams. #}
-    <svg class="search-raise" viewBox="0 0 480 62" preserveAspectRatio="none" aria-hidden="true"><path d="M0 62 L0 28 C0 12.5 12.5 0 28 0 L420 0 C437.7 0 452 14.3 452 32 L452 40 C452 50 460 58 470 58 L480 58 L480 62 Z" fill="#fff"/></svg>
+    <svg class="search-raise" viewBox="0 0 1000 84" preserveAspectRatio="none" aria-hidden="true"><path d="M0 84 L0 30 C0 13.4 13.4 0 30 0 L920 0 C940 0 956 16 956 36 L956 60 C956 71 965 80 976 80 L1000 80 L1000 84 Z" fill="#fff"/></svg>
     <div class="widget-tabs">
-      <button type="button" class="wtab active" data-wtab="find"><svg class="wtab-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Find a Companion</button>
-      <button type="button" class="wtab" data-wtab="post"><span class="wtab-orb"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L11 19v-5.5L21 16z"/></svg></span>Post Your Trip</button>
+      <button type="button" class="wtab active" data-wtab="find" data-short="Find"><span class="wtab-orb find"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span><span class="wtab-txt"><span class="wtab-label">Find a Companion</span><span class="wtab-sub">Find trusted travellers on your route.</span></span></button>
+      <button type="button" class="wtab" data-wtab="post" data-short="Post"><span class="wtab-orb post"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L11 19v-5.5L21 16z"/></svg></span><span class="wtab-txt"><span class="wtab-label">Post Your Trip</span><span class="wtab-sub">Let matching travellers discover your journey.</span></span></button>
+      <button type="button" class="wtab" data-wtab="insurance" data-short="Insurance"><span class="wtab-orb insu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M8 7V5.5A2.5 2.5 0 0 1 10.5 3h3A2.5 2.5 0 0 1 16 5.5V7M8 7v13M16 7v13"/></svg></span><span class="wtab-txt"><span class="wtab-label">Travel Insurance</span><span class="wtab-sub">Travel with protection and peace of mind.</span></span></button>
     </div>
     <div class="widget-panel active" data-wpanel="find">
+    <div class="wp-head"><div><h2>Find a Travel Companion</h2><p>Find verified travellers on the same flight, heading to the same destination.</p></div></div>
     <div class="search-panel">
     <form class="search" id="heroSearch">
       <div class="sf"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L11 19v-5.5L21 16z"/></svg></div><div style="flex:1;min-width:0"><label for="s-from">From</label><input id="s-from" placeholder="City or airport" autocomplete="off"><div class="s-drop" id="s-from-drop"></div></div></div>
@@ -1249,6 +1396,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
     </div>
     </div>
     <div class="hp-wrap" data-wpanel="post" hidden>
+      <div class="wp-head"><div><h2>Post Your Trip</h2><p>Share your journey and let trusted travellers who match your route find you.</p></div><span class="wp-badge">Free · takes a few minutes</span></div>
       {# 5-step post wizard. Every dropdown is the same admin-managed list the signed-in post form
          uses (OPT.*, GENDERS, PREF_GENDERS), so the draft we stash restores 1:1 after sign-up. #}
       <ol class="hp-steps hp-steps-5">
@@ -1373,8 +1521,18 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
         </div>
       </form>
     </div>
+    <div class="widget-panel" data-wpanel="insurance" hidden>
+      <div class="wp-head"><div><h2>Travel Insurance</h2><p>Travel with added peace of mind with cover for unexpected travel emergencies.</p></div><span class="wp-badge">Visitors medical insurance · USA</span></div>
+      <div class="ins-panel-w">
+      {{ ins_quote_form('wins', compact=True) }}
+      </div>
+    </div>
   </div>
   </div>
+</div><!-- /.search-band -->
+  {# "Travelling yourself?" banner: parked for now (its illustration lives on as the faint
+     background on the FAQ, sign-in/sign-up and post-form screens). Set landing_show_post_bar to bring it back. #}
+  {% if landing_show_post_bar %}
   <div class="wrap">
   <div class="post-trip-bar" id="postTripBar" role="button" tabindex="0">
     <img class="ptb-illustration" src="{{ url_for('static', filename='img/travelling_yourself_illustration.png') }}" alt="">
@@ -1401,31 +1559,61 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
     </div>
   </div>
 </div>
+  {% endif %}
 
 
 <!-- HELPING PARENTS: the primary use case, so it comes first -->
-<section class="sec sec-navy" id="parents">
-  <div class="wrap parents-v1">
-    <div class="parents-photo reveal" data-anim="left">
+<section class="sec sec-navy bga bga-dark bga-l-ins bga-no-r" id="parents">
+  <div class="wrap parents-v2">
+    <div class="parents-copy reveal" data-anim="left">
+      <span class="eyebrow-line" style="color:var(--amber)">For your loved ones</span>
+      <h2>Helping parents travel safely — with company <em>and</em> cover.</h2>
+      <p class="lead" style="color:#B9C6DE">Sending Amma or Appa across the world alone is hard. Find a trusted fellow Desi on the same flight who speaks their language and helps at the airport — and add visitor medical insurance, so the unexpected is covered too.</p>
+      <ul class="parents-checks">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg>A companion on the same flight, in their language</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg>Help at check-in, immigration and transit</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg>Visitor medical insurance for the unexpected</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg>You stay the main contact, every step</li>
+      </ul>
+      <div class="parents-ctas">
+        <button type="button" class="btn btn-amber btn-lg" id="postForSomeoneBtn">Post a Trip for Someone →</button>
+        <button type="button" class="btn btn-light-o btn-lg" id="parentsInsBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3z"/><path d="m9 12 2 2 4-4"/></svg>Get travel insurance</button>
+      </div>
+      {# Real reviews, not placeholders — never invent a testimonial. Shown only once the
+         community has actually left one; rotates through up to 4 the same way the real
+         reviews grid below does. #}
+      {% set pq_items = feedbacks[:4] %}
+      {% if pq_items %}
+      <div class="parents-quote">
+        <div class="pq-icon">&ldquo;</div>
+        <div id="pqSlides">
+          {% for fb in pq_items %}
+          <div class="pq-slide" {% if not loop.first %}hidden{% endif %}>
+            <p>&ldquo;{{ fb.comment }}&rdquo;</p>
+            <div class="pq-foot">
+              <div class="av">{% if fb.user and fb.user.photo_url %}<img src="{{ fb.user.photo_url }}" alt="">{% else %}{{ (fb.user.username or 'T')[0]|upper if fb.user else 'T' }}{% endif %}</div>
+              <div><b>{{ fb.user.username if fb.user else 'A traveller' }}</b><span>NRI Parent Service traveller</span></div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% if pq_items|length > 1 %}
+        <div class="pq-dots" id="pqDots">
+          {% for fb in pq_items %}<span class="{{ 'on' if loop.first }}" data-i="{{ loop.index0 }}"></span>{% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+    <div class="parents-visual reveal" data-anim="right">
+      <div class="parents-photo">
       <div class="pp-slides" data-carousel="4500">
         <img class="pp-slide on" src="/static/img/2_elders.png" alt="An elderly couple travelling together on a flight" loading="lazy">
         <img class="pp-slide" src="/static/img/landing/l3.jpg" alt="A family helping their parents on a flight" loading="lazy">
         <img class="pp-slide" src="/static/img/landing/l2.jpg" alt="An elderly couple at the airport" loading="lazy">
       </div>
       <div class="pp-dots" aria-hidden="true"><span class="on"></span><span></span><span></span></div>
-    </div>
-    <div class="parents-copy reveal" data-anim="right">
-      <span class="eyebrow-line" style="color:var(--amber)">For your loved ones</span>
-      <h2>Helping parents travel, safely.</h2>
-      <p class="lead" style="color:#B9C6DE">Sending Amma or Appa across the world alone is hard. Find a trusted fellow Desi on the same flight who speaks their language, helps at the airport and sits nearby — so they're never really alone.</p>
-      <ul class="parents-checks">
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg>Familiar language &amp; culture</li>
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg>Help at check-in, immigration and transit</li>
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg>You stay the main contact, every step</li>
-      </ul>
-      <button type="button" class="btn btn-amber btn-lg" id="postForSomeoneBtn">Post a Trip for Someone →</button>
-    </div>
-    <div class="parents-side reveal" data-anim="right">
+      </div>
       {# Boarding-pass pairs are built from REAL open routes in the database (anonymity-safe):
          the passenger stub stands for your parent, the companion stub for whoever matches on
          that flight. No invented passenger names. #}
@@ -1460,31 +1648,6 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
         </div>
         {% endfor %}
       </div>
-      {# Real reviews, not placeholders — never invent a testimonial. Shown only once the
-         community has actually left one; rotates through up to 4 the same way the real
-         reviews grid below does. #}
-      {% set pq_items = feedbacks[:4] %}
-      {% if pq_items %}
-      <div class="parents-quote">
-        <div class="pq-icon">&ldquo;</div>
-        <div id="pqSlides">
-          {% for fb in pq_items %}
-          <div class="pq-slide" {% if not loop.first %}hidden{% endif %}>
-            <p>&ldquo;{{ fb.comment }}&rdquo;</p>
-            <div class="pq-foot">
-              <div class="av">{% if fb.user and fb.user.photo_url %}<img src="{{ fb.user.photo_url }}" alt="">{% else %}{{ (fb.user.username or 'T')[0]|upper if fb.user else 'T' }}{% endif %}</div>
-              <div><b>{{ fb.user.username if fb.user else 'A traveller' }}</b><span>Connecting Desis traveller</span></div>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-        {% if pq_items|length > 1 %}
-        <div class="pq-dots" id="pqDots">
-          {% for fb in pq_items %}<span class="{{ 'on' if loop.first }}" data-i="{{ loop.index0 }}"></span>{% endfor %}
-        </div>
-        {% endif %}
-      </div>
-      {% endif %}
     </div>
   </div>
 </section>
@@ -1496,7 +1659,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
       <div class="why-top">
         <div class="why-copy">
           <span class="eyebrow-line">A safer, more meaningful journey</span>
-          <h2 class="reveal" data-anim="right">Why choose ConnectingDesis?</h2>
+          <h2 class="reveal" data-anim="right">Why choose NRI Parent Service?</h2>
           <p class="lead">More than a journey — it's the comfort of familiar faces, shared language, and a helping hand along the way.</p>
         </div>
         <ul class="why-row stagger">
@@ -1525,7 +1688,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
 {# Live, anonymity-safe trips from the same database the app runs on — social proof that the
    community is real, never mock cards. #}
 {% if landing_trips %}
-<section class="sec" id="desis">
+<section class="sec bga bga-r-family bga-no-l" id="desis">
   <div class="wrap">
     <div class="dom-head reveal">
       <h2>Desis on Move <small>{{ landing_stats.open }} trip{{ '' if landing_stats.open == 1 else 's' }} open now</small></h2>
@@ -1605,6 +1768,8 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
 </section>
 <!-- THE RIGHT MATCH: how matching actually works (matches are scored leg by leg in
      app/routes/trips.py; the care team reviews requests in the CS console) -->
+{# Parked for now (set landing_show_matching to bring it back). #}
+{% if landing_show_matching %}
 <section class="sec sec-navy" id="matching">
   <div class="wrap match-v3">
     <div class="reveal" data-anim="left">
@@ -1637,6 +1802,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
 </section>
 
 <!-- 8. POPULAR DESTINATIONS -->
+{% endif %}
 <section class="sec" id="countries">
   <div class="wrap">
     <div class="dest-head reveal">
@@ -1678,7 +1844,9 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
 </section>
 
 <!-- REVIEWS -->
-<section class="sec" id="reviews">
+{# Real reviews only: the whole section stays hidden until the community has left some. #}
+{% if feedbacks %}
+<section class="sec bga bga-l-map bga-l-top bga-no-r" id="reviews">
   <div class="wrap">
     <div class="sec-head reveal" style="text-align:center;margin-left:auto;margin-right:auto">
       <h2>Real Stories. Real Travellers.</h2>
@@ -1693,7 +1861,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
       <button type="button" class="dest-nav prev" id="revPrev" aria-label="Previous reviews"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
       <div class="tests stagger" id="testsRow">
         {% for fb in feedbacks %}
-        <article class="test"><div class="stars">{% for i in range(fb.rating) %}★{% endfor %}</div><blockquote>{{ fb.comment }}</blockquote><footer><div class="av">{% if fb.user and fb.user.photo_url %}<img src="{{ fb.user.photo_url }}" alt="">{% else %}{{ (fb.user.username or 'T')[0]|upper if fb.user else 'T' }}{% endif %}</div><div><b>{{ fb.user.username if fb.user else 'A traveller' }}</b><span>Connecting Desis traveller</span></div></footer></article>
+        <article class="test"><div class="stars">{% for i in range(fb.rating) %}★{% endfor %}</div><blockquote>{{ fb.comment }}</blockquote><footer><div class="av">{% if fb.user and fb.user.photo_url %}<img src="{{ fb.user.photo_url }}" alt="">{% else %}{{ (fb.user.username or 'T')[0]|upper if fb.user else 'T' }}{% endif %}</div><div><b>{{ fb.user.username if fb.user else 'A traveller' }}</b><span>NRI Parent Service traveller</span></div></footer></article>
         {% endfor %}
       </div>
       <button type="button" class="dest-nav next" id="revNext" aria-label="Next reviews"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
@@ -1708,6 +1876,35 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
   </div>
 </section>
 
+
+{% endif %}
+
+{# TRAVELLER BLOGS: newest published posts from Admin → Blog; hidden when there are none.
+   Cover image when the post has one, otherwise one of our own destination photos. #}
+{% if landing_blogs %}
+<section class="sec sec-sand bga bga-r-illo bga-r-bottom bga-no-l" id="blogs">
+  <div class="wrap">
+    <div class="sec-head blog-head reveal">
+      <div><span class="eyebrow-line">Traveller blogs</span><h2>Stories, tips and guides from the road</h2></div>
+      <a class="btn btn-ghost" href="{{ url_for('blog.blog_list') }}">All articles →</a>
+    </div>
+    <div class="blog-grid stagger">
+      {% for b in landing_blogs %}
+      {% set fallback = ['l4.jpg','l5.jpg','l6.jpg','l7.jpg','l8.jpg','l9.jpg'][loop.index0 % 6] %}
+      <a class="blog-card" href="{{ url_for('blog.blog_post', slug=b.slug) }}">
+        <div class="blog-img"><img src="{{ b.cover_image_url or url_for('static', filename='img/landing/' ~ fallback) }}" alt="" loading="lazy"></div>
+        <div class="blog-body">
+          <span class="blog-date">{{ (b.published_at or b.created_at).strftime('%d %b %Y') }}{% if b.author %} · {{ b.author.username }}{% endif %}</span>
+          <h3>{{ b.title }}</h3>
+          <p>{{ b.excerpt(130) }}</p>
+          <span class="blog-more">Read article →</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
 
 <!-- FAQ: same admin-managed questions/answers that back /help (Admin → Help Centre), not a
      hardcoded copy — an edit there shows up here too, no deploy. -->
@@ -1788,57 +1985,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
 
 
 
-<!-- ================= CONTACT US MODAL ("Customer help" consult layout) ================= -->
-<div class="modal" id="contactModal">
-  <div class="dlg dlg-wide">
-    <button type="button" class="close" id="contactModalClose" aria-label="Close">&times;</button>
-    <div class="consult">
-      <div class="consult-side">
-        <div class="ck">Customer help</div>
-        <h2>Need help? Talk to us.</h2>
-        <p>Not sure how it works, or want us to handle it for your parents? Leave your details and a real person will get back to you.</p>
-        <ul>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg> Reply within one working day</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg> Site available in {{ OPT.SITE_LANGUAGES|length }} languages — support replies in English</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg> Call, WhatsApp or email — your choice</li>
-        </ul>
-        <div class="side-contact">
-          <a href="mailto:support@connectingdesis.com"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span>support@connectingdesis.com</a>
-        </div>
-      </div>
-      <form class="consult-form" id="contactModalForm" novalidate>
-        <div class="row">
-          <div class="f"><label for="cm-name">Full name</label><input id="cm-name" required placeholder="Anitha Reddy" autocomplete="name"></div>
-          <div class="f"><label for="cm-phone">Phone / WhatsApp</label><input id="cm-phone" type="tel" placeholder="+1 or +91 …" autocomplete="tel"></div>
-        </div>
-        <div class="row">
-          <div class="f"><label for="cm-email">Email</label><input id="cm-email" type="email" required placeholder="you@example.com" autocomplete="email"></div>
-          <div class="f"><label for="cm-lang">Preferred language</label><select id="cm-lang">{% for l in OPT.LANGUAGES %}<option>{{ l }}</option>{% endfor %}</select></div>
-        </div>
-        <div class="f"><label for="cm-topic">How can we help?</label>
-          <select id="cm-topic"><option>Understanding how the service works</option><option>Finding a companion for my parents</option><option>Help posting my trip</option><option>A question about an existing match</option><option>Privacy and how my details are used</option><option>Travel insurance</option><option>Something else</option></select>
-        </div>
-        <div class="f"><label>How should we contact you?</label>
-          <div class="pills">
-            <label><input type="radio" name="cm-via" value="WhatsApp" checked>WhatsApp</label>
-            <label><input type="radio" name="cm-via" value="Phone call">Phone call</label>
-            <label><input type="radio" name="cm-via" value="Email">Email</label>
-          </div>
-        </div>
-        <div class="row">
-          <div class="f"><label for="cm-time">Best time to reach you</label><select id="cm-time"><option>Morning (9 – 12)</option><option>Afternoon (12 – 4)</option><option>Evening (4 – 8)</option><option>Any time</option></select></div>
-          <div class="f"><label for="cm-tz">Your time zone</label><select id="cm-tz"><option>India (IST)</option><option>US Eastern</option><option>US Central</option><option>US Pacific</option><option>UK</option><option>Canada Eastern</option><option>Australia Eastern</option><option>Gulf (GST)</option><option>Other</option></select></div>
-        </div>
-        <div class="f"><label for="cm-msg">Your message</label><textarea id="cm-msg" required placeholder="Tell us a little about your situation…"></textarea></div>
-        <div class="consult-foot">
-          <button class="btn btn-amber btn-lg" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>&nbsp;Request a call back</button>
-          <a class="btn btn-ghost btn-lg" href="mailto:support@connectingdesis.com">Email support</a>
-        </div>
-        <div class="reassure">🔒 Your details are used only to respond to this request.</div>
-      </form>
-    </div>
-  </div>
-</div>
+{% include '_contact_modal.html' %}
 
 <!-- ================= TRAVEL INSURANCE DRAWER ================= -->
 <div class="drawer-overlay" id="insuranceOverlay"></div>
@@ -1858,43 +2005,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
       {# Our own fields, our own styling. The quote itself comes from the partner's widget API
          (the same request its embeddable iframe makes) via /api/insurance-quote — we relay the
          fields, hand back the partner's results page, and store nothing. #}
-      <form id="insuranceForm" novalidate>
-        <div class="ins-fields">
-        <div class="row">
-          <div class="f"><label for="ins-start">Coverage starts <i class="rq">*</i></label><input id="ins-start" type="text" readonly data-cal data-min="today" placeholder="Pick a date"></div>
-          <div class="f"><label for="ins-end">Coverage ends <i class="rq">*</i></label><input id="ins-end" type="text" readonly data-cal data-min="today" placeholder="Pick a date"></div>
-        </div>
-        <div class="row">
-          <div class="f"><label for="ins-age1">Traveller 1 age <i class="rq">*</i></label><input id="ins-age1" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="e.g. 65"></div>
-          <div class="f"><label for="ins-age2">Traveller 2 age <small>(optional)</small></label><input id="ins-age2" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="e.g. 62"></div>
-        </div>
-        <div class="f"><label for="ins-cit">Country of citizenship <i class="rq">*</i></label>
-          <select id="ins-cit">
-            <option value="IND">India</option><option value="USA">United States</option><option value="CAN">Canada</option><option value="GBR">United Kingdom</option><option value="AUS">Australia</option><option value="ARE">United Arab Emirates</option><option value="SGP">Singapore</option><option value="NPL">Nepal</option><option value="LKA">Sri Lanka</option><option value="BGD">Bangladesh</option><option value="PAK">Pakistan</option>
-            <option disabled>──────────</option>
-            <option value="BHR">Bahrain</option><option value="BRA">Brazil</option><option value="CHN">China</option><option value="FJI">Fiji</option><option value="FRA">France</option><option value="DEU">Germany</option><option value="GUY">Guyana</option><option value="HKG">Hong Kong</option><option value="IRL">Ireland</option><option value="ITA">Italy</option><option value="JPN">Japan</option><option value="KEN">Kenya</option><option value="KWT">Kuwait</option><option value="MYS">Malaysia</option><option value="MUS">Mauritius</option><option value="MEX">Mexico</option><option value="NLD">Netherlands</option><option value="NZL">New Zealand</option><option value="NGA">Nigeria</option><option value="OMN">Oman</option><option value="PHL">Philippines</option><option value="QAT">Qatar</option><option value="SAU">Saudi Arabia</option><option value="ZAF">South Africa</option><option value="KOR">South Korea</option><option value="ESP">Spain</option><option value="SWE">Sweden</option><option value="CHE">Switzerland</option><option value="THA">Thailand</option><option value="TTO">Trinidad and Tobago</option>
-          </select>
-        </div>
-        <div class="ins-err" id="insError" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><span></span></div>
-        <div class="ins-actions">
-          <div class="ins-secure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>Free quote · no account needed<br>Nothing is stored on Connecting Desis</span></div>
-          <button class="btn btn-amber btn-lg ins-go" type="submit" id="insSubmit"><span>Get live quotes</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
-        </div>
-        </div>
-        <div class="ins-ok" id="insOk" hidden>
-          <div class="ins-ok-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="26" height="26"><path d="M5 12l4 4 10-10"/></svg></div>
-          <div class="ins-ok-body">
-            <b>Your quotes are ready</b>
-            <p>They opened in a new tab on Preventia360. If it didn't appear, use the button below.</p>
-            <div class="ins-ok-sum" id="insOkSum"></div>
-            <div class="ins-ok-btns">
-              <a class="btn btn-navy btn-lg" id="insOkLink" href="#" target="_blank" rel="noopener">View my quotes <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
-              <button type="button" class="btn btn-ghost" id="insEdit">Edit details</button>
-            </div>
-          </div>
-        </div>
-        <p class="hint ins-foot">Quotes and cover come from our insurance partner (Preventia360 / Insubuy) and open on their site, where you complete the purchase.</p>
-      </form>
+      {{ ins_quote_form('ins') }}
     </div>
     <ul class="ins-points">
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Compare visitor plans side by side</li>
@@ -1910,6 +2021,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
 </aside>
 
 <div class="toast" id="toast"></div>
+<script src="{{ url_for('static', filename='js/contact-modal.js') }}"></script>
 <script>
 (function(){
   const $=(s,c=document)=>c.querySelector(s), $$=(s,c=document)=>[...c.querySelectorAll(s)];
@@ -1980,6 +2092,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
   // flow, staying on this same widget -- see openPostTrip() below for the one shared entry
   // point every "Post Your Trip" button on the page calls).
   function selectWidgetTab(name){
+    if(name==='insurance') insPrefill();
     $$('.wtab').forEach(x=>x.classList.toggle('active', x.dataset.wtab===name));
     $$('[data-wpanel]').forEach(p=>{ const on=p.dataset.wpanel===name; p.classList.toggle('active',on); p.hidden=!on; });
   }
@@ -2222,6 +2335,13 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
     },450);
   }
   window.openPostTrip=openPostTrip;
+  // Same pattern as openPostTrip() above, for the header's new "Travel Insurance" link:
+  // scroll to the widget, then switch it to the Travel Insurance tab.
+  function openInsuranceTab(){
+    document.getElementById('top')?.scrollIntoView({behavior:'smooth',block:'start'});
+    setTimeout(()=>selectWidgetTab('insurance'),450);
+  }
+  window.openInsuranceTab=openInsuranceTab;
   // Popular route chips: fill the search fields and run the same real search as the button.
   $$('.route-chip').forEach(c=>c.addEventListener('click',()=>{
     $('#s-from').value=c.dataset.from; $('#s-to').value=c.dataset.to;
@@ -2250,67 +2370,23 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
   });
   $('#postForSomeoneBtn')?.addEventListener('click',()=>openPostTrip({travellerType:'parents'}));
   // ===== Contact Us modal (reuses the same real endpoint as the full help form further down) =====
-  function openContactModal(){ $('#contactModal').classList.add('open'); }
-  ['matchTalkBtn','humanTalkBtn'].forEach(id=>document.getElementById(id)?.addEventListener('click', openContactModal));
-  function closeContactModal(){ $('#contactModal').classList.remove('open'); }
-  $('#contactModalClose')?.addEventListener('click', closeContactModal);
-  $('#contactModal')?.addEventListener('click', e=>{ if(e.target.id==='contactModal') closeContactModal(); });
   // ===== Travel Insurance drawer =====
   function openInsuranceDrawer(){ $('#insuranceOverlay').classList.add('open'); $('#insuranceDrawer').classList.add('open'); }
   function closeInsuranceDrawer(){ $('#insuranceOverlay').classList.remove('open'); $('#insuranceDrawer').classList.remove('open'); }
-  $('#insOpenBtn')?.addEventListener('click', openInsuranceDrawer);
+  ['insOpenBtn','parentsInsBtn'].forEach(id=>document.getElementById(id)?.addEventListener('click', openInsuranceDrawer));
   $('#insuranceClose')?.addEventListener('click', closeInsuranceDrawer);
   $('#insuranceOverlay')?.addEventListener('click', closeInsuranceDrawer);
   $('#insuranceContactLink')?.addEventListener('click', ()=>{ closeInsuranceDrawer(); openContactModal(); });
   document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeInsuranceDrawer(); closeContactModal(); } });
-  // Prefill the quote form from whatever the visitor already typed in the trip wizard / hero search.
+  // ----- Insurance quote forms (widget tab + drawer share the ins_quote_form macro) -----
+  // Prefill from whatever the visitor already typed in the trip wizard / hero search.
   function insPrefill(){
-    const cp=(fromId,toId)=>{ const a=$('#'+fromId), b=$('#'+toId); if(a&&b&&!b.dataset.iso&&a.dataset.iso) setCalValue(b,new Date(a.dataset.iso+'T00:00:00')); };
-    cp('hp-date','ins-start'); cp('hp-return','ins-end'); cp('s-when','ins-start');
+    $$('form.ins-form').forEach(f=>{
+      const cp=(fromId,to)=>{ const a=$('#'+fromId), b=f.querySelector(to); if(a&&b&&!b.dataset.iso&&a.dataset.iso) setCalValue(b,new Date(a.dataset.iso+'T00:00:00')); };
+      cp('hp-date','.ins-start'); cp('hp-return','.ins-end'); cp('s-when','.ins-start');
+    });
   }
-  $('#insOpenBtn')?.addEventListener('click', insPrefill);
-  // Our fields -> /api/insurance-quote -> the partner's live quote page (opened in a new tab; the
-  // link button stays in case the popup was blocked).
-  $('#insEdit')?.addEventListener('click', ()=>{ $('#insuranceForm').classList.remove('done'); $('#insOk').hidden=true; $('#ins-start').focus(); });
-  $('#insuranceForm')?.addEventListener('submit', async e=>{
-    e.preventDefault();
-    const form=e.target, err=$('#insError'), ok=$('#insOk'), btn=$('#insSubmit');
-    const start=$('#ins-start').dataset.iso||'', end=$('#ins-end').dataset.iso||'';
-    const fail=m=>{ err.querySelector('span').textContent=m; err.hidden=false; ok.hidden=true; form.classList.remove('done'); };
-    err.hidden=true;
-    if(!start){ $('#ins-start').focus(); return fail('Pick the date your cover should start.'); }
-    if(!end || end<start){ $('#ins-end').focus(); return fail('Pick an end date on or after the start date.'); }
-    if(!/^\d{1,3}$/.test($('#ins-age1').value.trim())){ $('#ins-age1').focus(); return fail("Enter traveller 1's age in years."); }
-    const body={start_date:start, end_date:end, age1:$('#ins-age1').value.trim(), age2:$('#ins-age2').value.trim(), citizenship:$('#ins-cit').value};
-    btn.disabled=true; btn.querySelector('span').textContent='Getting quotes…';
-    try{
-      const r=await fetch('{{ url_for("main.api_insurance_quote") }}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify(body)});
-      const d=await r.json();
-      if(!d.success) return fail(d.error||'Could not get quotes right now.');
-      $('#insOkLink').href=d.url; err.hidden=true;
-      $('#insOkSum').innerHTML=[`${$('#ins-start').value} → ${$('#ins-end').value}`, `Age ${body.age1}${body.age2?' & '+body.age2:''}`, $('#ins-cit').selectedOptions[0].textContent].map(s=>`<span>${esc(s)}</span>`).join('');
-      form.classList.add('done'); ok.hidden=false;
-      ok.scrollIntoView({behavior:'smooth',block:'nearest'});
-      window.open(d.url,'_blank','noopener');
-    }catch(ex){ fail('Could not reach our insurance partner right now. Please try again in a moment.'); }
-    finally{ btn.disabled=false; btn.querySelector('span').textContent='Get live quotes'; }
-  });
-  $('#contactModalForm')?.addEventListener('submit', async e=>{
-    e.preventDefault(); const f=e.target; if(!f.checkValidity()){f.reportValidity();return;}
-    const via=(f.querySelector('[name=cm-via]:checked')||{}).value||'';
-    // The endpoint stores name/email/phone/message; the extra preferences ride along in the
-    // message so CS sees them in the console and in the notification e-mail.
-    const details=[`Topic: ${$('#cm-topic').value}`, `Preferred contact: ${via}`,
-      `Preferred language: ${$('#cm-lang').value}`, `Best time: ${$('#cm-time').value} (${$('#cm-tz').value})`].join('\n');
-    const payload={ name:$('#cm-name').value, email:$('#cm-email').value, phone:$('#cm-phone').value,
-      message:`${details}\n\n${$('#cm-msg').value}` };
-    const btn=f.querySelector('button[type=submit]'); btn.disabled=true;
-    try{ const r=await fetch('{{ url_for("main.api_landing_contact") }}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify(payload)});
-      const d=await r.json();
-      if(d.success){ toast(d.message||'Thanks — we will get back to you shortly.'); f.reset(); closeContactModal(); }
-      else toast(d.error||'Please check the form and try again.');
-    }catch(err){ toast('Network error — please try again.'); } finally{ btn.disabled=false; }
-  });
+  ['insOpenBtn','parentsInsBtn'].forEach(id=>document.getElementById(id)?.addEventListener('click', insPrefill));
   // Parents-section quote card: cycle through real reviews via the dots (and a slow auto-rotate).
   (function(){
     const slides=$$('#pqSlides .pq-slide'), dots=$$('#pqDots span');
@@ -2339,6 +2415,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
   $$('[data-toggle]').forEach(b=>b.addEventListener('click',()=>{ const i=$('#'+b.dataset.toggle); i.type=i.type==='password'?'text':'password'; b.textContent=i.type==='password'?'Show':'Hide'; }));
   // Toast
   const toast=msg=>{ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3200); };
+  window.cdToast=toast;   // used by the shared contact popup (static/js/contact-modal.js)
   
 
   // Scroll reveal

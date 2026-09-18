@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Your travel companion match – Connecting Desis{% endblock %}
+{% block title %}Your travel companion match – NRI Parent Service{% endblock %}
 {% block content %}
 <div class="mcp-page">
   <div class="mcp-head">
@@ -119,7 +119,7 @@
           {% endif %}
           {% if can_chat %}
             <div class="claim-account" style="margin-top:10px">
-              <i class="fa-solid fa-comments"></i> {{ other.display_name }} can be reached through Connecting Desis chat.
+              <i class="fa-solid fa-comments"></i> {{ other.display_name }} can be reached through NRI Parent Service chat.
               {% if current_user.is_authenticated %}
                 <button type="button" class="btn-sm" onclick="requestChat({{ other.id }})">Send a connection request</button>
               {% else %}

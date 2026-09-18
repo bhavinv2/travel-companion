@@ -18,7 +18,7 @@ TEMPLATES = {
         'kind': 'cs_copy', 'title': 'Claim-link DM',
         'help': 'The message a CS agent copies into a DM together with the claim link (post page, "Copy DM text").',
         'vars': ['greeting', 'name', 'route', 'url'],
-        'body': ("{{ greeting }} this is the Connecting Desis team. We help Desi travellers find companions on the "
+        'body': ("{{ greeting }} this is the NRI Parent Service team. We help Desi travellers find companions on the "
                  "same route. We'd like to help with your {{ route }} trip. Please add your preferred contact details "
                  "here so we can introduce you to matching travellers: {{ url }}\n\n"
                  "We only share your details with a matched companion, and only with your consent."),
@@ -26,25 +26,25 @@ TEMPLATES = {
     'email_verify': {
         'kind': 'email', 'title': 'Verify e-mail',
         'help': 'Sent right after registration with the confirmation link.',
-        'subject': 'Welcome to Connecting Desis — please confirm your e-mail',
+        'subject': 'Welcome to NRI Parent Service — please confirm your e-mail',
         'template': 'email/verify_email.txt', 'vars': ['user', 'link', 'site_url', 'support_email'],
     },
     'email_password_reset': {
         'kind': 'email', 'title': 'Password reset',
         'help': 'Sent from the "Forgot password?" flow with the reset link.',
-        'subject': '[Connecting Desis] Reset your password',
+        'subject': '[NRI Parent Service] Reset your password',
         'template': 'email/password_reset.txt', 'vars': ['user', 'link', 'site_url', 'support_email'],
     },
     'email_match_found': {
         'kind': 'email', 'title': 'Match introduction',
         'help': 'Sent when CS notifies one side of a match (contact page link included).',
-        'subject': '[Connecting Desis] Possible travel companion for your {{ trip.route_display }} trip',
+        'subject': '[NRI Parent Service] Possible travel companion for your {{ trip.route_display }} trip',
         'template': 'email/match_found.txt', 'vars': ['trip', 'other', 'match', 'link', 'site_url', 'support_email'],
     },
     'email_new_match_alert': {
         'kind': 'email', 'title': 'New match alert',
         'help': 'The throttled "a new possible companion posted" alert.',
-        'subject': '[Connecting Desis] New possible companion for your {{ trip.route_display }} trip',
+        'subject': '[NRI Parent Service] New possible companion for your {{ trip.route_display }} trip',
         'template': 'email/new_match_alert.txt', 'vars': ['trip', 'other', 'best', 'count', 'site_url', 'support_email'],
     },
 }

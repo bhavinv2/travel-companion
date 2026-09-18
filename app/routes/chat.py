@@ -162,11 +162,15 @@ def get_rooms():
         unread = ChatMessage.query.filter_by(room_id=room.id, is_read=False).filter(
             ChatMessage.sender_id != current_user.id
         ).count()
+        # The trip this chat grew out of, when there is one, so the popup can show what the
+        # conversation is actually about ("Matched on HYD -> DFW") instead of just a name.
+        trip = db.session.get(CompanionRequest, room.trip_id) if room.trip_id else None
         result.append({
             'room_id': room.id,
             'other_user': {'id': other.id, 'username': other.username,
                            'photo_url': other.photo_url if other.show_photo else None},
             'last_message': last_msg.to_dict() if last_msg else None,
             'unread_count': unread,
+            'trip_route': trip.route_display if trip else None,
         })
     return jsonify({'rooms': result})

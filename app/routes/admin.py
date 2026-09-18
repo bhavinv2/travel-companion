@@ -226,8 +226,8 @@ def new_user():
         sent = False
         if form.get('send_link') == 'on':
             link = f"{current_app.config['SITE_URL']}/auth/reset/{tokens.make_reset_token(user)}"
-            sent = mailer.send('[Connecting Desis] Your account is ready', [email],
-                               f'Hello {user.first_name or user.username},\n\nAn account was created for you on Connecting Desis '
+            sent = mailer.send('[NRI Parent Service] Your account is ready', [email],
+                               f'Hello {user.first_name or user.username},\n\nAn account was created for you on NRI Parent Service '
                                f'({", ".join(user.role_keys)}).\nSet your password here: {link}\n\nLogin: {current_app.config["SITE_URL"]}/auth/login',
                                category='account')
         flash(f'Account {email} created with roles: {", ".join(user.role_keys)}.' + (' Set-password e-mail sent.' if sent else ''), 'success')
@@ -980,7 +980,7 @@ def _notify_all_blog(post):
                     link=f'/blog/{post.slug}')
         if user.marketing_consent:
             mailer.send(
-                f"[Connecting Desis] New Story: {post.title}", [user.email],
+                f"[NRI Parent Service] New Story: {post.title}", [user.email],
                 (f"Check out our latest blog post!\n\n{post.title}\n\n{post.excerpt(200)}\n\n"
                  f"Read more: {current_app.config['SITE_URL']}/blog/{post.slug}\n\n"
                  f"You receive this because you opted in to updates. To stop, change your notification "

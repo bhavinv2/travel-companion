@@ -1,16 +1,15 @@
 {% extends 'base.html' %}
-{% block title %}Desi Travellers Blog – Connecting Desis{% endblock %}
+{% block title %}Desi Travellers Blog – NRI Parent Service{% endblock %}
 {% block content %}
 <div class="static-page">
   <div class="static-hero coral"><h1>Desi Travellers Blog</h1><p>Stories, tips &amp; inspiration for the global Desi community</p></div>
+  {# Our own destination photos fill in for posts with no cover image, cycling through the
+     same set used on the landing page's "Traveller blogs" section. #}
+  {% set fallback_covers = ['l4.jpg','l5.jpg','l6.jpg','l7.jpg','l8.jpg','l9.jpg'] %}
   <div class="blog-grid">
     {% for post in posts %}
     <a href="{{ url_for('blog.blog_post', slug=post.slug) }}" class="blog-card">
-      {% if post.cover_image_url %}
-        <img src="{{ post.cover_image_url }}" alt="{{ post.title }}"/>
-      {% else %}
-        <div class="blog-card-placeholder"></div>
-      {% endif %}
+      <img src="{{ post.cover_image_url or url_for('static', filename='img/landing/' ~ fallback_covers[loop.index0 % 6]) }}" alt="{{ post.title }}"/>
       <div class="blog-card-body">
         <h3>{{ post.title }}</h3>
         <p>{{ post.excerpt() }}</p>

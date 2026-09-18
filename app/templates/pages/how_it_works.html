@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% block title %}How It Works – NRI Parent Service{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}"/>
+{% endblock %}
+{% block content %}
+<div class="static-page">
+  <div class="static-hero navy">
+    <h1>How It Works</h1>
+    <p>From posting a trip to landing with a new friend — here's the whole journey.</p>
+  </div>
+  {# This walkthrough used to live only as an in-page anchor on whichever homepage a visitor
+     happened to see (the marketing landing for signed-out visitors, this app's home for signed-in
+     ones) — so it broke the moment someone reached it from another screen, like the blog. It's
+     the same content, just addressable on its own now. Wrapped in .landing so it picks up the
+     light "mint" card styling from landing.css instead of style.css's older, navy .how-works. #}
+  <div class="landing">
+    <section class="how-works l-journey" id="how-it-works">
+      <div class="section-header">
+        <p class="section-tag">How it works</p>
+        <h2>Your journey with NRI Parent Service</h2>
+        <p class="lead">Post your trip, we find fellow travellers on your route, and you connect only when you're both happy — with a real care team watching over every match.</p>
+      </div>
+
+      <div class="j-start">
+        <div class="j-entry">
+          <div class="j-entry-card">
+            <span class="j-badge">Do it yourself</span>
+            <div class="j-icon"><i class="fa-solid fa-pen-to-square"></i></div>
+            <h3>Post your trip</h3>
+            <p>A short guided form — or upload your e-ticket and we read the route, dates and flight for you. Tell us whether you need a companion, can offer help, or are open to either.</p>
+            <ul>
+              <li>One-way, round trip or multi-stop</li>
+              <li>Flexible dates &amp; nearby airports welcome</li>
+              <li>Post anonymously if you prefer</li>
+            </ul>
+          </div>
+        </div>
+        <div class="j-or">or</div>
+        <div class="j-entry">
+          <div class="j-entry-card cs">
+            <span class="j-badge cs">Our care team</span>
+            <div class="j-icon"><i class="fa-solid fa-headset"></i></div>
+            <h3>We post it for you</h3>
+            <p>Already asked around a Facebook or WhatsApp group? Our care team brings your request in and sends you a private claim link.</p>
+            <ul>
+              <li>Confirm with one tap — no account needed first</li>
+              <li>Your contact details stay private until you claim it</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="j-merge"><i class="fa-solid fa-plane"></i></div>
+
+      <div class="j-line">
+        <div class="j-stop">
+          <div class="j-dot">1</div>
+          <div class="j-card">
+            <h3><i class="fa-solid fa-wand-magic-sparkles"></i> Matches, scored and explained</h3>
+            <p>The moment your post is live, we compare it with everyone heading the same way and rank the best companions — leg by leg, so someone can even join you for just part of a multi-stop journey. Every match comes with a score and the reasons behind it.</p>
+            <div class="j-chips"><span>Same route</span><span>Close dates</span><span>Same flight</span><span>Needs ↔ offers help</span><span>Shared languages</span><span>Your preferences</span></div>
+          </div>
+        </div>
+        <div class="j-stop">
+          <div class="j-dot">2</div>
+          <div class="j-card">
+            <h3><i class="fa-solid fa-compass"></i> See your matches — or find them yourself</h3>
+            <p>Your matches land on your dashboard, each with a match percentage and why it fits. You can also browse everyone travelling your way in <em>Desis on Move</em> and reach out directly — posts that match one of your own trips are flagged for you.</p>
+            <div class="j-chips"><span>Match % &amp; reasons</span><span>Browse all travellers</span><span class="g">“Matches your trip” flags</span></div>
+          </div>
+        </div>
+        <div class="j-stop">
+          <div class="j-dot">3</div>
+          <div class="j-card">
+            <h3><i class="fa-solid fa-shield-heart"></i> Connect, only when you both agree</h3>
+            <p>Send or accept a connection request. Contact details are shared just for that match, and only after <em>you</em> say yes — until then, the private in-app chat keeps everything between you two.</p>
+            <div class="j-chips"><span class="g">You stay in control</span><span class="g">Nothing shared without a yes</span><span class="g">Private in-app chat</span></div>
+          </div>
+        </div>
+        <div class="j-stop">
+          <div class="j-dot">4</div>
+          <div class="j-card">
+            <h3><i class="fa-solid fa-headset"></i> A real team stays close</h3>
+            <p>People, not just algorithms. If a match goes quiet as your departure nears, our care team follows up personally, suggests alternatives and keeps you posted.</p>
+            <div class="j-chips"><span>Follow-ups before take-off</span><span>Matches who share your language</span></div>
+          </div>
+        </div>
+        <div class="j-stop">
+          <div class="j-dot">5</div>
+          <div class="j-card">
+            <h3><i class="fa-solid fa-plane-departure"></i> Fly together</h3>
+            <p>Meet at the gate, share the long hours, help with bags, forms and transit — then land with a new friend and leave a review for the community.</p>
+            <div class="j-chips"><span class="g">Safe &amp; friendly</span><span class="g">Leave a review after</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="j-end">
+        {% if current_user.is_authenticated %}
+        <a class="btn btn-primary" href="{{ url_for('main.index') }}#search"><i class="fa-solid fa-pen-to-square"></i> Start your post</a>
+        {% else %}
+        <a class="btn btn-primary" href="{{ url_for('auth.register') }}"><i class="fa-solid fa-pen-to-square"></i> Start your post</a>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

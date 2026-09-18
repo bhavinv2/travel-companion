@@ -12,6 +12,8 @@
   font-size: 16px; margin-bottom: 12px; text-decoration: none; }
 .ftr .ftr-logo img { width: 28px; height: 28px; }
 .ftr .ftr-logo b { color: #F5A623; }
+.ftr .ftr-logo-stack { display: flex; flex-direction: column; gap: 1px; line-height: 1.15; }
+.ftr .ftr-logo-stack small { font-size: 11px; font-weight: 500; color: rgba(255,255,255,.5); }
 .ftr-brand-desc { color: rgba(255, 255, 255, .55); font-size: 13px; line-height: 1.6; }
 .ftr-bottom { border-top: 1px solid rgba(255, 255, 255, .1); padding-top: 18px; display: flex;
   justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 12.5px; color: rgba(255, 255, 255, .5); }

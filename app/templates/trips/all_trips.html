@@ -1,10 +1,12 @@
 {% extends "base.html" %}
 {% from '_trip_filters.html' import trip_filters with context %}
-{% block title %}All Trips – Desis on Move | Connecting Desis{% endblock %}
+{% block title %}All Trips – Desis on Move | NRI Parent Service{% endblock %}
 
 {% block extra_css %}
 <style>
-.all-trips-page { padding: 40px 5% 60px; min-height: 60vh; }
+.all-trips-page { padding: 40px 5% 60px; min-height: 60vh; position: relative; z-index: 0; }
+/* faint world-route artwork behind the page header (img/bg/map.png, transparent background) */
+.all-trips-page::before { content: ""; position: absolute; right: 0; top: 0; width: min(620px, 55vw); aspect-ratio: 1200 / 500; background: url("/static/img/bg/map.png") no-repeat right top / contain; opacity: .14; pointer-events: none; z-index: -1; }
 .all-trips-header { margin-bottom: 28px; }
 .all-trips-header h1 { font-family: 'Poppins', sans-serif; font-size: 28px; font-weight: 800; margin-bottom: 4px; }
 .all-trips-header p { color: var(--muted); font-size: 14px; }

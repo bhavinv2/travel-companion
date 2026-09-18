@@ -31,7 +31,7 @@ def test_staff_navbar_has_no_traveller_links(client, cs_user, admin_user, user):
     login(client, 'cs@test.com')
     html = client.get('/cs/').data.decode()
     assert 'CS Console' in html and 'Match Queue' in html and 'staff-tag' in html
-    for traveller_bit in ('All Trips', 'How It Works', 'My Dashboard', 'My Connections', 'id="chatSidebar"',
+    for traveller_bit in ('Desis on Move', 'How It Works', 'My Dashboard', 'My Connections', 'id="chatSidebar"',
                           'lang-dd', 'Public view', 'portal-switch'):
         assert traveller_bit not in html, traveller_bit
     logout(client)
@@ -42,9 +42,9 @@ def test_staff_navbar_has_no_traveller_links(client, cs_user, admin_user, user):
     assert html.count('aria-checked="true"') == 1 and 'fa-gauge"></i> <span>Admin</span></a>' in html
     cs_html = client.get('/cs/').data.decode()
     assert 'portal-switch' in cs_html
-    assert 'All Trips' not in html and 'id="chatSidebar"' not in html
+    assert 'Desis on Move' not in html and 'id="chatSidebar"' not in html
     logout(client)
     login(client, 'bob@test.com')
     html = client.get('/dashboard').data.decode()
-    assert 'All Trips' in html and 'My Connections' in html and 'id="chatSidebar"' in html
+    assert 'Desis on Move' in html and 'My Connections' in html and 'id="chatSidebar"' in html
     assert 'staff-tag' not in html and 'CS Console' not in html

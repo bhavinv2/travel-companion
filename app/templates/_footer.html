@@ -7,9 +7,9 @@
       <div>
         <a class="ftr-logo" href="{{ url_for('main.index') }}">
           <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt=""/>
-          Connecting<b>Desis</b>
+          <span class="ftr-logo-stack"><span>NRI <b>Parent</b> Service</span><small>Connecting Desis</small></span>
         </a>
-        <p class="ftr-brand-desc">{{ _('A community for Desis to travel together, stay connected, and feel at home anywhere in the world.') }}</p>
+        <p class="ftr-brand-desc">{{ _('Your parents, our priority. A community for Desis to travel together, stay connected, and feel at home anywhere in the world.') }}</p>
         {# No real social profiles are set up yet, so these stay decorative (not linked) rather
            than pointing anywhere fake — swap in real hrefs once the accounts exist. #}
         <div class="ftr-social" aria-hidden="true">
@@ -23,10 +23,10 @@
         <h4>{{ _('Quick Links') }}</h4>
         <ul>
           <li><a href="{{ url_for('main.index') }}">{{ _('Home') }}</a></li>
-          <li><a href="{{ url_for('main.index') }}#how">{{ _('How It Works') }}</a></li>
+          <li><a href="{{ url_for('main.index') + '#how' if not current_user.is_authenticated else url_for('main.how_it_works') }}">{{ _('How It Works') }}</a></li>
           <li><a href="{{ url_for('main.all_trips') }}">{{ _('Desis on Move') }}</a></li>
-          <li><a href="{{ url_for('main.reviews') }}">{{ _('Success Stories') }}</a></li>
-          <li><a href="{{ url_for('blog.blog_list') }}">{{ _('Blog') }}</a></li>
+          <li><a href="{{ url_for('main.reviews') }}">{{ _('Reviews') }}</a></li>
+          <li><a href="{{ url_for('blog.blog_list') }}">{{ _('Traveller Blogs') }}</a></li>
           {% if current_user.is_authenticated and not is_staff %}
           <li><a href="{{ url_for('main.dashboard') }}">{{ _('My Dashboard') }}</a></li>
           {% endif %}
@@ -46,7 +46,6 @@
         <ul>
           <li><a href="{{ url_for('main.privacy') }}">{{ _('Privacy Policy') }}</a></li>
           <li><a href="{{ url_for('main.terms') }}">{{ _('Terms of Service') }}</a></li>
-          <li><a href="{{ url_for('main.privacy') }}#cookies">{{ _('Community Guidelines') }}</a></li>
         </ul>
       </div>
       <div class="ftr-news">
@@ -60,7 +59,7 @@
       </div>
     </div>
     <div class="ftr-bottom">
-      <span>&copy; {{ now().year }} {{ _('ConnectingDesis. All rights reserved.') }}</span>
+      <span>&copy; {{ now().year }} {{ _('NRI Parent Service. All rights reserved.') }}</span>
       <span>{{ _('Made with') }} &#10084;&#65039; {{ _('for the Desi community') }}</span>
     </div>
   </div>

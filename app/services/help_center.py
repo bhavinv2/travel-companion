@@ -60,7 +60,7 @@ DEFAULT_FAQS = [
                'help someone, fill in your route and dates, choose how a matched companion may reach you, and '
                'click "Connect Desis".'},
     {'id': 'faq_start_free', 'category': 'getting_started',
-     'question': 'Is Connecting Desis free?',
+     'question': 'Is NRI Parent Service free?',
      'answer': 'Yes, the core features are completely free. We may introduce premium features in the future.'},
     {'id': 'faq_start_parents', 'category': 'getting_started',
      'question': 'Can I request a companion for my parents?',

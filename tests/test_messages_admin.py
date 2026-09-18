@@ -43,7 +43,7 @@ def test_edit_claim_dm_changes_cs_copy(client, app, db, admin_user):
     # reset returns the built-in wording
     client.post('/admin/messages/cs_claim_dm/reset', json={})
     with app.test_request_context():
-        assert 'this is the Connecting Desis team' in dm_text_for(t, 'https://x/claim/T')
+        assert 'this is the NRI Parent Service team' in dm_text_for(t, 'https://x/claim/T')
 
 
 def test_invalid_jinja_rejected(client, admin_user):

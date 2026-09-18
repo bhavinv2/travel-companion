@@ -1,0 +1,47 @@
+/* "Customer help" contact popup (templates/_contact_modal.html). Self-contained — its own palette
+   variables and every rule scoped to #contactModal — so it looks identical on the public landing
+   and inside the app shell (whose base styles differ). */
+#contactModal{--navy:#0F1F3D;--ink:#1B2438;--muted:#5B6579;--amber:#F5A623;--amber-2:#E8961A;--sky:#7FB6FF;--line:#E6E1D8;--r-pill:999px;--sans:'Plus Jakarta Sans',system-ui,sans-serif;--serif:'Fraunces',Georgia,serif;
+  position:fixed;inset:0;background:rgba(11,23,47,.7);display:none;align-items:center;justify-content:center;z-index:9500;padding:20px;backdrop-filter:blur(3px);font-family:var(--sans);color:var(--ink);line-height:1.5}
+#contactModal.open{display:flex}
+#contactModal *{box-sizing:border-box}
+#contactModal .dlg{background:#fff;border-radius:26px;width:100%;max-width:960px;max-height:92vh;overflow:auto;position:relative;box-shadow:0 40px 90px rgba(0,0,0,.4)}
+#contactModal .close{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.9);color:var(--navy);font-size:20px;display:grid;place-items:center;border:0;cursor:pointer;z-index:2;font-family:inherit;padding:0}
+#contactModal .close:hover{background:#fff}
+#contactModal .consult{display:grid;grid-template-columns:.8fr 1.4fr;overflow:hidden;border-radius:26px}
+#contactModal .consult-side{background:linear-gradient(160deg,var(--navy),#1B3A75);color:#fff;padding:44px 38px;position:relative;overflow:hidden}
+#contactModal .consult-side .ck{display:inline-block;background:var(--sky);color:var(--navy);font-size:12px;font-weight:700;border-radius:var(--r-pill);padding:5px 12px;margin-bottom:16px}
+#contactModal .consult-side h2{color:#fff;font-family:var(--serif);font-weight:500;font-size:32px;line-height:1.15;margin:0 0 10px}
+#contactModal .consult-side p{color:#C9D5EC;font-size:15px;margin:0}
+#contactModal .consult-side ul{list-style:none;margin:22px 0 0;padding:0;display:grid;gap:10px}
+#contactModal .consult-side li{display:flex;gap:10px;align-items:center;font-size:14px}
+#contactModal .consult-side li svg{width:20px;height:20px;padding:3px;border-radius:50%;background:var(--amber);color:var(--navy);flex:none}
+#contactModal .side-contact{margin-top:28px;display:grid;gap:10px}
+#contactModal .side-contact a{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:#fff;text-decoration:none}
+#contactModal .side-contact .ic{width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,.12);display:grid;place-items:center;color:var(--amber)}
+#contactModal .side-contact .ic svg{width:18px;height:18px}
+#contactModal .consult-form{background:#fff;padding:34px 36px;margin:0}
+#contactModal .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+#contactModal .f{display:grid;gap:6px;margin:0 0 12px}
+#contactModal .f label{font-size:13px;font-weight:600;color:var(--navy);margin:0;text-transform:none;letter-spacing:0}
+#contactModal .f input,#contactModal .f select,#contactModal .f textarea{width:100%;border:1.5px solid #DCE7F7;border-radius:10px;padding:12px 14px;font:inherit;font-size:15px;background:#FAFCFF;color:var(--ink);min-height:0;margin:0}
+#contactModal .f input:focus,#contactModal .f select:focus,#contactModal .f textarea:focus{outline:0;border-color:var(--sky)!important;box-shadow:0 0 0 3px rgba(127,182,255,.35)!important}
+#contactModal .f textarea{min-height:76px;resize:vertical}
+#contactModal .pills{display:flex;flex-wrap:wrap;gap:8px}
+#contactModal .pills label{white-space:nowrap;border:1.5px solid var(--line);border-radius:var(--r-pill);padding:8px 14px;font-size:14px;font-weight:500;cursor:pointer;display:flex;gap:8px;align-items:center;margin:0;text-transform:none;letter-spacing:0;color:var(--ink)}
+#contactModal .pills input{accent-color:var(--navy);margin:0;width:auto}
+#contactModal .pills label:has(input:checked){background:var(--sky);border-color:var(--sky);color:var(--navy)}
+#contactModal .consult-foot{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px}
+#contactModal .btn{display:inline-flex;align-items:center;gap:8px;padding:16px 30px;border-radius:var(--r-pill);font-weight:600;font-size:16px;border:0;cursor:pointer;font-family:inherit;text-decoration:none;white-space:nowrap;transition:background .15s}
+#contactModal .btn-amber{background:var(--amber);color:var(--navy)}
+#contactModal .btn-amber:hover{background:var(--amber-2)}
+#contactModal .btn-ghost{background:transparent;border:1.5px solid var(--navy);color:var(--navy)}
+#contactModal .btn:disabled{opacity:.7;cursor:progress}
+#contactModal .reassure{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center;margin-top:12px}
+@media(max-width:900px){#contactModal .consult{grid-template-columns:1fr}#contactModal .consult-side{padding:30px 26px 22px}#contactModal .consult-form{padding:22px 20px}}
+@media(max-width:600px){#contactModal{padding:10px}#contactModal .row{grid-template-columns:1fr}#contactModal .consult-side h2{font-size:26px}#contactModal .consult-foot .btn{width:100%;justify-content:center}}
+/* keep the two footer buttons side by side on desktop whatever the host page's .btn rules say */
+#contactModal .consult-foot .btn{flex:0 0 auto;width:auto}
+#contactModal .close{background:#EEF2F7}
+#contactModal .close:hover{background:#DDE5F0}
+@media(max-width:600px){#contactModal .consult-foot .btn{flex:1 1 100%;width:100%}}

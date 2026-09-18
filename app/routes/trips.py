@@ -466,7 +466,7 @@ def respond_connection(connection_id):
     conn.status = 'accepted' if action == 'accept' else 'denied'
     conn.recipient_anonymous = bool(data.get('anonymous', False))
 
-    recipient_name = 'Someone' if conn.recipient_anonymous else (trip.display_name if is_owner else 'The Connecting Desis team')
+    recipient_name = 'Someone' if conn.recipient_anonymous else (trip.display_name if is_owner else 'The NRI Parent Service team')
     if action == 'accept':
         notif_title = 'Connection Accepted!'
         notif_body = f'{recipient_name} accepted your connection request.'

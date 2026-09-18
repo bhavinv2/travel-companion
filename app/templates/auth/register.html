@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+{% from '_doodle.html' import sjt %}<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Join Desi Travellers – Connecting Desis</title>
+<title>Join Desi Travellers – NRI Parent Service</title>
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo-icon.png') }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -16,17 +16,29 @@
 body{margin:0;font-family:var(--sans);color:var(--ink);background:var(--sand);min-height:100vh;
   display:flex;align-items:center;justify-content:center;padding:32px 16px}
 a{color:var(--navy)}
-.wrap{width:100%;max-width:520px}
+.wrap{width:100%;max-width:520px;position:relative;z-index:1}
+/* faint "safer journeys together" illustration, bottom-right, behind the card */
+body::before{content:"";position:fixed;right:-30px;bottom:-16px;width:min(560px,72vw);aspect-ratio:2043/770;background:url("{{ url_for('static', filename='img/travelling_yourself_illustration.png') }}") no-repeat center/contain;opacity:.13;pointer-events:none;z-index:-1}
 .back{display:inline-flex;align-items:center;gap:8px;color:var(--navy);font-weight:600;font-size:14px;
   text-decoration:none;margin-bottom:18px}
 .dlg{background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 30px 70px rgba(15,31,61,.16)}
 .dlg-head{background:var(--navy);color:#fff;padding:30px 30px 24px}
 .dlg-head .logo{display:flex;align-items:center;gap:10px;margin-bottom:18px}
 .dlg-head .logo img{width:30px;height:30px;object-fit:contain}
-.dlg-head .logo b{font-family:var(--serif);font-size:17px}
+.dlg-head .logo-txt{display:flex;flex-direction:column;gap:1px;line-height:1.15}
+.dlg-head .logo b{font-family:var(--serif);font-size:17px;font-weight:600}
 .dlg-head .logo b span{color:var(--sky)}
+.dlg-head .logo small{font-size:11px;font-weight:500;color:#B9C6DE}
 .dlg-head h1{font-family:var(--serif);font-weight:500;font-size:26px;margin:0}
 .dlg-head p{color:#B9C6DE;font-size:14px;margin:6px 0 0}
+.dlg-head{position:relative}
+/* small "Safer Journeys Together" doodle, top-right of the card header */
+.sjt{display:inline-flex;flex-direction:column;align-items:center;gap:2px;color:var(--amber);text-align:center;line-height:1}
+.sjt .sjt-flight{width:84px;height:38px}
+.sjt b{font-family:var(--serif);font-style:italic;font-weight:500;font-size:15px;line-height:1.05;white-space:nowrap}
+.sjt .sjt-heart{width:16px;height:16px}
+.head-sjt{position:absolute;right:22px;top:18px;transform:rotate(-5deg);opacity:.9}
+@media(max-width:480px){.head-sjt{display:none}}
 .dlg-body{padding:26px 30px 30px}
 .social-btns{display:grid;gap:10px;margin-bottom:18px}
 .sbtn{display:flex;align-items:center;justify-content:center;gap:10px;border:1.5px solid var(--line);
@@ -59,10 +71,11 @@ a{color:var(--navy)}
 </head>
 <body>
 <div class="wrap">
-  <a class="back" href="{{ url_for('main.index') }}"><i class="fa-solid fa-arrow-left"></i> Back to Connecting Desis</a>
+  <a class="back" href="{{ url_for('main.index') }}"><i class="fa-solid fa-arrow-left"></i> Back to NRI Parent Service</a>
   <div class="dlg">
     <div class="dlg-head">
-      <div class="logo"><img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt=""><b>Connecting<span>Desis</span></b></div>
+      {{ sjt('head-sjt') }}
+      <div class="logo"><img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt=""><span class="logo-txt"><b>NRI <span>Parent</span> Service</b><small>Connecting Desis</small></span></div>
       <h1>Join Desi Travellers</h1>
       <p>Free for the community. Post a trip, get matched, travel together.</p>
     </div>

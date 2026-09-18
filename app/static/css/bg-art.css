@@ -1,0 +1,33 @@
+/* Faint, softly blurred artwork in a section's side margins — the "empty" left/right space on wide
+   screens. Sources are the transparent PNGs in static/img/bg (world-route map, family walk,
+   insurance shield) plus the travelling-yourself illustration. Add `bga` to a section, then pick
+   which piece sits on which side; `bga-no-l` / `bga-no-r` drop a side. `isolation:isolate` makes
+   the section a stacking context so the art (z-index:-1) stays under the content but above the
+   section's own background. Loaded by both the public landing and the app shell. */
+.bga { position: relative; isolation: isolate; }
+.bga::before, .bga::after {
+  content: ""; position: absolute; pointer-events: none; z-index: -1;
+  background-repeat: no-repeat; background-size: contain; opacity: .12;
+  filter: blur(1.3px) saturate(.9);
+}
+.bga::before { left: 0; bottom: 8px; width: min(520px, 42vw); aspect-ratio: 1200 / 495; background-image: url("/static/img/bg/family.png"); background-position: left bottom; }
+.bga::after  { right: 0; top: 12px;  width: min(560px, 44vw); aspect-ratio: 1200 / 500; background-image: url("/static/img/bg/map.png");    background-position: right top; }
+
+/* which piece on which side */
+.bga-l-map::before    { background-image: url("/static/img/bg/map.png");        aspect-ratio: 1200 / 500; }
+.bga-l-ins::before    { background-image: url("/static/img/bg/insurance.png");  aspect-ratio: 1200 / 476; }
+.bga-l-illo::before   { background-image: url("/static/img/travelling_yourself_illustration.png"); aspect-ratio: 2043 / 770; }
+.bga-r-family::after  { background-image: url("/static/img/bg/family.png");     aspect-ratio: 1200 / 495; }
+.bga-r-ins::after     { background-image: url("/static/img/bg/insurance.png");  aspect-ratio: 1200 / 476; }
+.bga-r-illo::after    { background-image: url("/static/img/travelling_yourself_illustration.png"); aspect-ratio: 2043 / 770; }
+.bga-l-top::before    { bottom: auto; top: 12px; background-position: left top; }
+.bga-r-bottom::after  { top: auto; bottom: 8px; background-position: right bottom; }
+.bga-no-l::before { display: none; }
+.bga-no-r::after  { display: none; }
+/* on navy sections the pieces can sit a touch stronger */
+.bga-dark::before, .bga-dark::after { opacity: .17; }
+
+@media (max-width: 900px) {
+  .bga::before, .bga::after { width: 68vw; opacity: .08; }
+  .bga-dark::before, .bga-dark::after { opacity: .12; }
+}

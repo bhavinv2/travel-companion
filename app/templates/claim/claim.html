@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% from 'cs/_macros.html' import contact_rows_widget with context %}
-{% block title %}Complete your travel companion request – Connecting Desis{% endblock %}
+{% block title %}Complete your travel companion request – NRI Parent Service{% endblock %}
 {% block content %}
 <div class="auth-page">
   <div class="auth-card wide">
@@ -33,7 +33,7 @@
 
       <label class="flex-check required-check consent-check">
         <input type="checkbox" name="consent" required {% if form and form.get('consent') == 'on' %}checked{% endif %}/>
-        <span>I agree that Connecting Desis may share the contact details above with travel companions matched to this trip, and may contact me about it. See our <a href="{{ url_for('main.privacy') }}" target="_blank">Privacy Policy</a>. *</span>
+        <span>I agree that NRI Parent Service may share the contact details above with travel companions matched to this trip, and may contact me about it. See our <a href="{{ url_for('main.privacy') }}" target="_blank">Privacy Policy</a>. *</span>
       </label>
 
       {% if not current_user.is_authenticated %}

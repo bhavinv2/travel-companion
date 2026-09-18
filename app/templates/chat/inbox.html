@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Inbox – Connecting Desis{% endblock %}
+{% block title %}Inbox – NRI Parent Service{% endblock %}
 {% block extra_css %}
 <style>
 .inbox-page.ib3 { grid-template-columns: 300px 1fr 330px; }
@@ -315,7 +315,7 @@ function openRoom(roomId, username) {
   const back = document.createElement('button'); back.className = 'inbox-back'; back.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Back'; back.onclick = closeRoom;
   const av = document.createElement('span'); av.className = 'hd-av'; av.innerHTML = '<i class="fa-solid fa-user"></i>';
   const name = document.createElement('strong'); name.textContent = username;
-  const sub = document.createElement('small'); sub.textContent = 'Messages stay on Connecting Desis';
+  const sub = document.createElement('small'); sub.textContent = 'Messages stay on NRI Parent Service';
   const nameWrap = document.createElement('div'); nameWrap.append(name, sub);
   header.append(back, av, nameWrap);
   const msgs = document.createElement('div'); msgs.className = 'inbox-messages'; msgs.id = 'inboxMessages';

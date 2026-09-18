@@ -28,7 +28,7 @@ FIELDS = [
 ]
 
 DEFAULT_THEMES = [
-    {'key': 'connecting_desis', 'name': 'Connecting Desis (default)',
+    {'key': 'connecting_desis', 'name': 'NRI Parent Service (default)',
      'colors': {'primary': '#F5A623', 'cta': '#E4632A', 'ink': '#0F1F3D',
                 'surface': '#FFF6EA', 'border': '#E6E1D8', 'success': '#199f7e'}},
     {'key': 'desi_blue', 'name': 'Desi Blue',

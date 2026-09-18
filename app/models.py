@@ -41,7 +41,7 @@ PREF_GENDERS = ('any', 'female', 'male')
 CONTACT_TYPES = ('email', 'mobile', 'whatsapp', 'facebook', 'instagram', 'inapp_chat', 'other')
 CONTACT_TYPE_LABELS = {
     'email': 'Email', 'mobile': 'Mobile', 'whatsapp': 'WhatsApp', 'facebook': 'Facebook',
-    'instagram': 'Instagram', 'inapp_chat': 'Chat on Connecting Desis', 'other': 'Other',
+    'instagram': 'Instagram', 'inapp_chat': 'Chat on NRI Parent Service', 'other': 'Other',
 }
 # Font Awesome classes (the FA 6 CSS is already loaded in base.html)
 CONTACT_TYPE_ICONS = {
