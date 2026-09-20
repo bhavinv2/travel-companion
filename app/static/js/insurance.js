@@ -29,14 +29,19 @@
       if (!start) { q('.ins-start').focus(); return fail('Pick the date your cover should start.'); }
       if (!end || end < start) { q('.ins-end').focus(); return fail('Pick an end date on or after the start date.'); }
       if (!/^\d{1,3}$/.test(q('.ins-age1').value.trim())) { q('.ins-age1').focus(); return fail("Enter traveller 1's age in years."); }
-      const body = { start_date: start, end_date: end, age1: q('.ins-age1').value.trim(), age2: q('.ins-age2').value.trim(), citizenship: q('.ins-cit').value };
+      const destEl = q('.ins-dest');
+      if (!destEl || !destEl.value) { return fail('Please select a destination.'); }
+      const insType = document.querySelector('.ins-type-tab.active')?.dataset.insType || 'visitors';
+      const body = { start_date: start, end_date: end, age1: q('.ins-age1').value.trim(), age2: q('.ins-age2').value.trim(), citizenship: q('.ins-cit').value, destination: destEl.value, insurance_type: insType };
       btn.disabled = true; btn.querySelector('span').textContent = 'Getting quotes…';
       try {
         const r = await fetch('/api/insurance-quote', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() }, body: JSON.stringify(body) });
         const d = await r.json();
         if (!d.success) return fail(d.error || 'Could not get quotes right now.');
         q('.ins-ok-link').href = d.url; err.hidden = true;
-        q('.ins-ok-sum').innerHTML = [`${pretty(q('.ins-start'))} → ${pretty(q('.ins-end'))}`, `Age ${body.age1}${body.age2 ? ' & ' + body.age2 : ''}`, q('.ins-cit').selectedOptions[0].textContent]
+        const typeNames = { visitors: 'Visitors Medical', health: 'Travel Health', schengen: 'Schengen Visa' };
+        const typeName = typeNames[body.insurance_type] || 'Travel Insurance';
+        q('.ins-ok-sum').innerHTML = [`${pretty(q('.ins-start'))} → ${pretty(q('.ins-end'))}`, `Age ${body.age1}${body.age2 ? ' & ' + body.age2 : ''}`, q('.ins-cit').selectedOptions[0].textContent, typeName]
           .map(s => `<span>${esc(s)}</span>`).join('');
         form.classList.add('done'); ok.hidden = false;
         ok.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -52,4 +57,12 @@
   window.insBindAll = () => document.querySelectorAll('form.ins-form').forEach(bind);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', window.insBindAll);
   else window.insBindAll();
+
+  // Insurance type tab selector
+  document.querySelectorAll('.ins-type-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.ins-type-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    });
+  });
 })();

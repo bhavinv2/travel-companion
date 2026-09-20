@@ -942,13 +942,20 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 @media(max-width:900px){.hiw-steps{grid-template-columns:1fr 1fr;gap:44px 18px}.hiw-path::before,.hiw-plane{display:none}.hiw-path{margin-top:30px;padding-top:30px}.hiw-num{top:-26px}.hiw-step{padding-top:44px}}
 @media(max-width:560px){.hiw-steps{grid-template-columns:1fr}}
 /* Widget: third tab (travel insurance) */
+.ins-type-tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.ins-type-tab{background:#f5f9ff;border:1.5px solid #e3ecf7;border-radius:12px;padding:10px 14px;font-size:13px;font-weight:600;color:#2f6fed;cursor:pointer;transition:all 0.2s;flex:1;min-width:140px;text-align:left}
+.ins-type-tab:hover{background:#eaf4fd;border-color:#d4e1f0}
+.ins-type-tab.active{background:#2f6fed;color:#fff;border-color:#2f6fed}
+.ins-type-label{display:block;font-weight:700;margin-bottom:2px}
+.ins-type-sub{display:block;font-size:11px;opacity:0.8}
+.ins-type-tab.active .ins-type-sub{opacity:0.9}
 .ins-panel-w{background:var(--rd-cream-soft);border:1px solid var(--rd-cream-line);border-radius:16px;box-shadow:0 12px 30px -14px rgba(17,29,56,.22);padding:20px 24px 18px;margin-top:6px}
 .ins-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .ins-grid .f{margin-bottom:0}
-.ins-compact .ins-grid{grid-template-columns:1.1fr 1.1fr .75fr .75fr 1.4fr}
+.ins-compact .ins-grid{grid-template-columns:1.1fr 1.1fr .75fr .75fr .75fr 1.4fr}
 .ins-compact .ins-actions{margin-top:14px}
-@media(max-width:900px){.ins-compact .ins-grid{grid-template-columns:1fr 1fr}.ins-compact .ins-cit-f{grid-column:1/-1}}
-@media(max-width:600px){.ins-grid,.ins-compact .ins-grid{grid-template-columns:1fr}.ins-panel-w{padding:16px}}
+@media(max-width:900px){.ins-compact .ins-grid{grid-template-columns:1fr 1fr}.ins-compact .ins-cit-f{grid-column:1/-1}.ins-type-tabs{flex-direction:column}}
+@media(max-width:600px){.ins-grid,.ins-compact .ins-grid{grid-template-columns:1fr}.ins-panel-w{padding:16px}.ins-type-tab{min-width:auto}}
 @media(max-width:560px){.wtab .wtab-label{display:none}.wtab::after{content:attr(data-short)}.wtab{padding:0 12px}.wtab:not(.active){padding:0 10px 0 4px}}
 /* Parents: two CTAs, stacked passes on phones */
 .parents-copy h2 em{font-style:italic;color:var(--amber)}
@@ -1297,7 +1304,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
     <nav class="nav" aria-label="Main">
       <a href="{{ url_for('main.all_trips') }}">Desis on Move</a>
       <a href="#how">How It Works</a>
-      <a href="#top" onclick="openInsuranceTab();return false;">Travel Insurance</a>
+      <a href="#" onclick="openInsuranceDrawer();return false;">Travel Insurance</a>
       <a href="{{ url_for('blog.blog_list') }}">Traveller Blogs</a>
     </nav>
     <div class="hdr-right">
@@ -1324,7 +1331,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
   <nav class="mobile-drawer" id="mobileDrawer" aria-label="Mobile">
     <a href="{{ url_for('main.all_trips') }}">Desis on Move</a>
     <a href="#how">How It Works</a>
-    <a href="#top" onclick="openInsuranceTab();return false;">Travel Insurance</a>
+    <a href="#" onclick="openInsuranceDrawer();return false;">Travel Insurance</a>
     <a href="{{ url_for('blog.blog_list') }}">Traveller Blogs</a>
     <div class="mobile-drawer-actions">
       <button class="btn btn-outline" data-open="signin">Sign In</button>
@@ -1540,7 +1547,12 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
       </form>
     </div>
     <div class="widget-panel" data-wpanel="insurance" hidden>
-      <div class="wp-head"><div><h2>Travel Insurance</h2><p>Travel with added peace of mind with cover for unexpected travel emergencies.</p></div><span class="wp-badge">Visitors medical insurance · USA</span></div>
+      <div class="wp-head"><div><h2>Travel Insurance</h2><p>Choose your coverage type and get live quotes in seconds.</p></div></div>
+      <div class="ins-type-tabs">
+        <button type="button" class="ins-type-tab active" data-ins-type="visitors"><span class="ins-type-label">Visitors Medical</span><span class="ins-type-sub">USA, Canada, Australia</span></button>
+        <button type="button" class="ins-type-tab" data-ins-type="health"><span class="ins-type-label">Travel Health</span><span class="ins-type-sub">International coverage</span></button>
+        <button type="button" class="ins-type-tab" data-ins-type="schengen"><span class="ins-type-label">Schengen Visa</span><span class="ins-type-sub">Europe entry requirement</span></button>
+      </div>
       <div class="ins-panel-w">
       {{ ins_quote_form('wins', compact=True) }}
       </div>
@@ -2019,7 +2031,12 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
   </div>
   <div class="ins-body">
     <div class="ins-panel">
-      <div class="ins-panel-head"><h4>Get live quotes</h4><span>Visitors medical insurance · USA</span></div>
+      <div class="ins-panel-head"><h4>Get live quotes</h4></div>
+      <div class="ins-type-tabs">
+        <button type="button" class="ins-type-tab active" data-ins-type="visitors"><span class="ins-type-label">Visitors Medical</span><span class="ins-type-sub">USA, Canada, Australia</span></button>
+        <button type="button" class="ins-type-tab" data-ins-type="health"><span class="ins-type-label">Travel Health</span><span class="ins-type-sub">International coverage</span></button>
+        <button type="button" class="ins-type-tab" data-ins-type="schengen"><span class="ins-type-label">Schengen Visa</span><span class="ins-type-sub">Europe entry requirement</span></button>
+      </div>
       {# Our own fields, our own styling. The quote itself comes from the partner's widget API
          (the same request its embeddable iframe makes) via /api/insurance-quote — we relay the
          fields, hand back the partner's results page, and store nothing. #}
@@ -2391,6 +2408,8 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
   // ===== Travel Insurance drawer =====
   function openInsuranceDrawer(){ $('#insuranceOverlay').classList.add('open'); $('#insuranceDrawer').classList.add('open'); }
   function closeInsuranceDrawer(){ $('#insuranceOverlay').classList.remove('open'); $('#insuranceDrawer').classList.remove('open'); }
+  window.openInsuranceDrawer = openInsuranceDrawer;
+  window.closeInsuranceDrawer = closeInsuranceDrawer;
   ['insOpenBtn','parentsInsBtn'].forEach(id=>document.getElementById(id)?.addEventListener('click', openInsuranceDrawer));
   $('#insuranceClose')?.addEventListener('click', closeInsuranceDrawer);
   $('#insuranceOverlay')?.addEventListener('click', closeInsuranceDrawer);

@@ -473,18 +473,48 @@ def api_insurance_quote():
     if not re.fullmatch(r'[A-Z]{3}', citizenship):
         return jsonify({'success': False, 'error': 'Please choose the country of citizenship.'}), 400
 
+    destination = str(data.get('destination', '') or '').strip().upper()
+    if not destination:
+        return jsonify({'success': False, 'error': 'Please select a destination.'}), 400
+
+    insurance_type = str(data.get('insurance_type', 'visitors') or 'visitors').strip().lower()
+
+    # Map destination codes to insurance partner URLs
+    dest_map = {
+        'USA': 'visitors-insurance',
+        'GBR': 'travel-health-insurance',
+        'CAN': 'visitors-insurance',
+        'AUS': 'visitors-insurance',
+        'EUR': 'schengen-visa-insurance',
+        'ARE': 'travel-health-insurance',
+        'SGP': 'travel-health-insurance',
+        'NZL': 'visitors-insurance',
+        'IND': 'travel-health-insurance',
+        'MYS': 'travel-health-insurance',
+        'THA': 'travel-health-insurance',
+    }
+
+    # Map insurance type to widget paths and parameters
+    type_map = {
+        'visitors': {'section': 'visitorUSA', 'path': 'visitors-insurance', 'dest': 'USA', 'area': '5'},
+        'health': {'section': 'travelHealth', 'path': 'travel-health-insurance', 'dest': destination, 'area': '1'},
+        'schengen': {'section': 'schengenVisa', 'path': 'schengen-visa-insurance', 'dest': 'EUR', 'area': '2'},
+    }
+
+    ins_config = type_map.get(insurance_type, type_map['visitors'])
+
     payload = {
         'travelerInfos': [{'age': a, 'dependentChild': False, 'tripCost': None, 'bdate': None} for a in ages],
         'numChildren': '', 'startDate': start.strftime('%m/%d/%Y'), 'endDate': end.strftime('%m/%d/%Y'),
-        'citizenshipCountry': citizenship, 'policyMaximum': -1, 'primaryDestination': 'USA',
-        'coverageArea': '5', 'arrivalInUSA': '0', 'mailingState': 'OutsideUSA',
-        'physicalPresenceState': '', 'homeCountry': '', 'section': 'visitorUSA',
+        'citizenshipCountry': citizenship, 'policyMaximum': -1, 'primaryDestination': ins_config['dest'],
+        'coverageArea': ins_config['area'], 'arrivalInUSA': '0' if insurance_type == 'visitors' else '1', 'mailingState': 'OutsideUSA',
+        'physicalPresenceState': '', 'homeCountry': '', 'section': ins_config['section'],
     }
     req = urllib.request.Request(
         INSURANCE_PARTNER + '/api/compare/travel-medical', data=_json.dumps(payload).encode('utf-8'),
         headers={'Content-Type': 'application/json', 'Accept': 'application/json',
                  'User-Agent': 'ConnectingDesis/1.0 (+landing insurance drawer)',
-                 'Referer': INSURANCE_PARTNER + '/widget1/visitors-insurance/'},
+                 'Referer': INSURANCE_PARTNER + '/widget1/' + ins_config['path'] + '/'},
         method='POST')
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
