@@ -10,13 +10,10 @@
           <span class="ftr-logo-stack"><span>NRI <b>Parent</b> Service</span><small>Connecting Desis</small></span>
         </a>
         <p class="ftr-brand-desc">{{ _('Your parents, our priority. A community for Desis to travel together, stay connected, and feel at home anywhere in the world.') }}</p>
-        {# No real social profiles are set up yet, so these stay decorative (not linked) rather
-           than pointing anywhere fake — swap in real hrefs once the accounts exist. #}
-        <div class="ftr-social" aria-hidden="true">
-          <span title="Facebook"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.4v7A10 10 0 0 0 22 12z"/></svg></span>
-          <span title="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1"/></svg></span>
-          <span title="LinkedIn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5C4.98 4.9 3.9 6 2.5 6S0 4.9 0 3.5 1.1 1 2.5 1s2.48 1.1 2.48 2.5zM.4 8h4.2v15H.4V8zM8.3 8h4v2h.1c.6-1.1 2-2.2 4.1-2.2 4.4 0 5.2 2.9 5.2 6.6V23h-4.2v-6.9c0-1.6 0-3.7-2.3-3.7s-2.6 1.8-2.6 3.6V23H8.3V8z"/></svg></span>
-          <span title="YouTube"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.4-.4-5a3 3 0 0 0-2.1-2.1C18.9 4.5 12 4.5 12 4.5s-6.9 0-8.5.4A3 3 0 0 0 1.4 7C1 8.6 1 12 1 12s0 3.4.4 5a3 3 0 0 0 2.1 2.1c1.6.4 8.5.4 8.5.4s6.9 0 8.5-.4A3 3 0 0 0 22.6 17c.4-1.6.4-5 .4-5zM9.8 15.3V8.7l5.8 3.3-5.8 3.3z"/></svg></span>
+        <div class="ftr-social">
+          {% for label, href, icon in NRI_SOCIAL %}
+          <a href="{{ href }}" target="_blank" rel="noopener" aria-label="{{ label }}" title="{{ label }}"><svg viewBox="0 0 24 24" fill="currentColor"><path d="{{ icon }}"/></svg></a>
+          {% endfor %}
         </div>
       </div>
       <div>

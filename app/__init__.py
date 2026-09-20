@@ -277,6 +277,7 @@ def create_app(test_config=None):
             'now': datetime.utcnow,
             'INSURANCE_DESTINATIONS': insurance_countries,
             'NRI_SERVICES': nri_services.SERVICES,
+            'NRI_SOCIAL': nri_services.SOCIAL,
             'INSURANCE_PARTNER_NAME': nri_services.INSURANCE_PARTNER_NAME,
             'INSURANCE_PARTNER_URL': nri_services.INSURANCE_PARTNER_URL,
             'CONTACT_TYPE_ICONS': CONTACT_TYPE_ICONS,
