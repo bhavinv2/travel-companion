@@ -328,6 +328,42 @@ def preview_message():
         return jsonify({'error': str(e)}), 400
 
 
+@admin_bp.route('/insurance-quotes')
+@login_required
+@admin_required
+def insurance_quotes():
+    """Everyone who asked for an insurance quote. The pricing and the sale happen on the
+    partner's site, so this list is the only record of who was interested — a follow-up list
+    for the ones who quoted but never came back."""
+    from app.models import InsuranceQuote
+    page, per_page = _page_args(25)
+    status = request.args.get('status') or ''
+    ins_type = request.args.get('type') or ''
+    q = (request.args.get('q') or '').strip()
+
+    query = InsuranceQuote.query
+    if status in ('quoted', 'failed'):
+        query = query.filter(InsuranceQuote.status == status)
+    if ins_type in ('visitors', 'health', 'schengen'):
+        query = query.filter(InsuranceQuote.insurance_type == ins_type)
+    if q:
+        from sqlalchemy import or_
+        pat = f'%{q}%'
+        query = query.filter(or_(InsuranceQuote.name.ilike(pat), InsuranceQuote.email.ilike(pat),
+                                 InsuranceQuote.phone.ilike(pat)))
+    query = query.order_by(InsuranceQuote.created_at.desc())
+    total = query.count()
+    pages = max((total + per_page - 1) // per_page, 1)
+    page = min(page, pages)
+    quotes = query.offset((page - 1) * per_page).limit(per_page).all()
+    counts = {'all': InsuranceQuote.query.count(),
+              'quoted': InsuranceQuote.query.filter_by(status='quoted').count(),
+              'failed': InsuranceQuote.query.filter_by(status='failed').count()}
+    return render_template('admin/insurance_quotes.html', quotes=quotes, counts=counts,
+                           status=status, ins_type=ins_type, q=q, total=total,
+                           page=page, pages=pages)
+
+
 @admin_bp.route('/voices')
 @login_required
 @admin_required

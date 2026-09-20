@@ -272,8 +272,13 @@ def create_app(test_config=None):
                                 TRIP_ROLES, TRIP_ROLE_LABELS, AGE_GROUPS, AGE_GROUP_LABELS,
                                 GENDERS, PREF_GENDERS)
         from app import options
+        from app.services import insurance_countries, nri_services
         return {
             'now': datetime.utcnow,
+            'INSURANCE_DESTINATIONS': insurance_countries,
+            'NRI_SERVICES': nri_services.SERVICES,
+            'INSURANCE_PARTNER_NAME': nri_services.INSURANCE_PARTNER_NAME,
+            'INSURANCE_PARTNER_URL': nri_services.INSURANCE_PARTNER_URL,
             'CONTACT_TYPE_ICONS': CONTACT_TYPE_ICONS,
             'CONTACT_TYPES': CONTACT_TYPES,
             'CONTACT_TYPE_LABELS': CONTACT_TYPE_LABELS,

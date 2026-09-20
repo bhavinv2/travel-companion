@@ -33,6 +33,15 @@
         </ul>
       </div>
       <div>
+        {# The rest of the NRI Parent Service group — all on other domains, so all open in a new tab. #}
+        <h4>{{ _('Our Services') }}</h4>
+        <ul>
+          {% for label, href in NRI_SERVICES %}
+          <li><a href="{{ href }}" target="_blank" rel="noopener">{{ _(label) }}</a></li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div>
         <h4>{{ _('Support') }}</h4>
         <ul>
           <li><a href="{{ url_for('main.help_page') }}">{{ _('FAQs') }}</a></li>

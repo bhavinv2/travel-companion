@@ -433,21 +433,57 @@ def api_landing_contact():
                     'message': f'Thanks — we have your message and will reply to {msg.email}.'})
 
 
-# The travel-insurance partner whose embeddable "Visitors Insurance for USA" widget we were given.
+# The travel-insurance partner whose embeddable widgets we were given.
 # Its quote form POSTs this JSON shape to this endpoint and opens the returned results page.
 INSURANCE_PARTNER = 'https://preventia360.brokersnexus.com'
+
+# The partner's three travel-medical products. All POST to the same /api/compare/travel-medical
+# endpoint, but each needs its own section + coverage settings — taken from the partner's own
+# pages, because an unrecognised section answers with an HTML error page instead of JSON.
+INSURANCE_TYPES = {
+    'visitors': {
+        'label': 'Visitors Medical', 'section': 'visitorUSA',
+        'referer': '/widget1/visitors-insurance/',
+        'extra': {'coverageArea': '5', 'policyMaximum': -1, 'primaryDestination': 'USA',
+                  'homeCountry': ''},
+    },
+    'health': {
+        # "Travel Outside U.S.A." on the partner's site: the only product that prices an
+        # arbitrary destination, so this is the one that takes a country. It has no /widget1/
+        # embed (their own page hands off to a hosted flow) but the quote API serves it fine.
+        'label': 'Travel Medical', 'section': 'travelOutsideUSA',
+        'referer': '/travel-health-insurance/', 'needs_destination': True,
+        'extra': {'coverageArea': '1', 'policyMaximum': '', 'arrivalTime': '0',
+                  'residenceCountry': ''},
+    },
+    'schengen': {
+        # Prices off the traveller's home country and sends no destination — the mirror image
+        # of visitors, which sends a destination and no home country.
+        'label': 'Schengen Visa', 'section': 'schengen',
+        'referer': '/widget1/schengen-visa-insurance/',
+        'extra': {'coverageArea': '3', 'policyMaximum': '20', 'arrivalTime': '0',
+                  'residenceCountry': ''},
+    },
+}
+MAX_TRAVELLERS = 8
 
 
 @main_bp.route('/api/insurance-quote', methods=['POST'])
 @rate_limit(12, 3600)
 def api_insurance_quote():
-    """Landing 'Travel insurance' drawer: our own fields in our own styling, priced by the
-    partner's widget API (the exact request its iframe makes). We validate, relay, and return
-    the partner's quote-results URL. Nothing is stored on our side."""
+    """Travel-insurance quote form: our own fields in our own styling, priced by the partner's
+    widget API (the exact request its iframe makes). We validate, relay, save the request as a
+    lead CS can follow up on, and return the partner's quote-results URL.
+
+    Our own form rather than the partner's iframe because the iframe is hard-capped at two
+    travellers (primaryAge/spouseAge) while this endpoint prices a whole travelerInfos array.
+    """
     import json as _json
     import urllib.request
     import urllib.error
     from datetime import datetime, date as _date
+    from app import db
+    from app.models import InsuranceQuote
     data = request.get_json(silent=True) or {}
 
     def _day(key):
@@ -461,75 +497,98 @@ def api_insurance_quote():
         return jsonify({'success': False, 'error': 'Pick a coverage start date from today onwards.'}), 400
     if not end or end < start:
         return jsonify({'success': False, 'error': 'The coverage end date must be on or after the start date.'}), 400
-    ages = []
-    for key in ('age1', 'age2'):
-        raw = str(data.get(key, '') or '').strip()
-        if not raw and key == 'age2':
+    travellers = []
+    for raw in (data.get('travellers') if isinstance(data.get('travellers'), list) else []):
+        if not isinstance(raw, dict):
             continue
-        if not raw.isdigit() or int(raw) > 120:
+        t_name = str(raw.get('name', '') or '').strip()
+        t_age = str(raw.get('age', '') or '').strip()
+        if not t_name and not t_age:
+            continue
+        if not t_name:
+            return jsonify({'success': False, 'error': 'Enter a name for every traveller.'}), 400
+        if not t_age.isdigit() or int(t_age) > 120:
             return jsonify({'success': False, 'error': 'Traveller ages must be whole numbers (years).'}), 400
-        ages.append(str(int(raw)))
+        travellers.append({'name': t_name[:120], 'age': str(int(t_age))})
+    if not travellers:
+        return jsonify({'success': False, 'error': "Enter at least one traveller's name and age."}), 400
+    if len(travellers) > MAX_TRAVELLERS:
+        return jsonify({'success': False,
+                        'error': f'We can quote up to {MAX_TRAVELLERS} travellers at a time.'}), 400
+    ages = [t['age'] for t in travellers]
+
     citizenship = str(data.get('citizenship', '') or '').strip().upper()
     if not re.fullmatch(r'[A-Z]{3}', citizenship):
         return jsonify({'success': False, 'error': 'Please choose the country of citizenship.'}), 400
 
-    destination = str(data.get('destination', '') or '').strip().upper()
-    if not destination:
-        return jsonify({'success': False, 'error': 'Please select a destination.'}), 400
+    ins_type = str(data.get('insurance_type', '') or 'visitors').strip().lower()
+    if ins_type not in INSURANCE_TYPES:
+        ins_type = 'visitors'
+    cfg = INSURANCE_TYPES[ins_type]
 
-    insurance_type = str(data.get('insurance_type', 'visitors') or 'visitors').strip().lower()
+    # Only Travel Medical takes a destination — visitors is the USA by definition and schengen
+    # is the Schengen area, so for those the country is implied and we ignore anything sent.
+    destination = None
+    if cfg.get('needs_destination'):
+        from app.services.insurance_countries import CODES
+        destination = str(data.get('destination', '') or '').strip().upper()
+        if destination not in CODES:
+            return jsonify({'success': False, 'error': 'Please choose where you are travelling to.'}), 400
 
-    # Map destination codes to insurance partner URLs
-    dest_map = {
-        'USA': 'visitors-insurance',
-        'GBR': 'travel-health-insurance',
-        'CAN': 'visitors-insurance',
-        'AUS': 'visitors-insurance',
-        'EUR': 'schengen-visa-insurance',
-        'ARE': 'travel-health-insurance',
-        'SGP': 'travel-health-insurance',
-        'NZL': 'visitors-insurance',
-        'IND': 'travel-health-insurance',
-        'MYS': 'travel-health-insurance',
-        'THA': 'travel-health-insurance',
-    }
-
-    # Map insurance type to widget paths and parameters
-    type_map = {
-        'visitors': {'section': 'visitorUSA', 'path': 'visitors-insurance', 'dest': 'USA', 'area': '5'},
-        'health': {'section': 'travelHealth', 'path': 'travel-health-insurance', 'dest': destination, 'area': '1'},
-        'schengen': {'section': 'schengenVisa', 'path': 'schengen-visa-insurance', 'dest': 'EUR', 'area': '2'},
-    }
-
-    ins_config = type_map.get(insurance_type, type_map['visitors'])
+    # The lead is whoever the quote is for first — we no longer ask for a separate contact name.
+    name = travellers[0]['name']
+    email = str(data.get('email', '') or '').strip()
+    phone = str(data.get('phone', '') or '').strip()
+    if not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', email):
+        return jsonify({'success': False, 'error': 'Please enter a valid email address.'}), 400
 
     payload = {
         'travelerInfos': [{'age': a, 'dependentChild': False, 'tripCost': None, 'bdate': None} for a in ages],
         'numChildren': '', 'startDate': start.strftime('%m/%d/%Y'), 'endDate': end.strftime('%m/%d/%Y'),
-        'citizenshipCountry': citizenship, 'policyMaximum': -1, 'primaryDestination': ins_config['dest'],
-        'coverageArea': ins_config['area'], 'arrivalInUSA': '0' if insurance_type == 'visitors' else '1', 'mailingState': 'OutsideUSA',
-        'physicalPresenceState': '', 'homeCountry': '', 'section': ins_config['section'],
+        'citizenshipCountry': citizenship, 'arrivalInUSA': '0', 'mailingState': 'OutsideUSA',
+        'physicalPresenceState': '', 'section': cfg['section'],
     }
+    payload.update(cfg['extra'])
+    if ins_type != 'visitors':
+        payload['homeCountry'] = citizenship
+    if destination:
+        payload['primaryDestination'] = destination
+
+    quote = InsuranceQuote(
+        user_id=current_user.id if current_user.is_authenticated else None,
+        name=name[:120], email=email[:255], phone=phone[:30] or None,
+        insurance_type=ins_type, citizenship=citizenship, destination=destination,
+        start_date=start, end_date=end, travellers=travellers)
+
+    def _save(status, url=None):
+        quote.status, quote.quote_url = status, url
+        db.session.add(quote)
+        db.session.commit()
+
     req = urllib.request.Request(
         INSURANCE_PARTNER + '/api/compare/travel-medical', data=_json.dumps(payload).encode('utf-8'),
         headers={'Content-Type': 'application/json', 'Accept': 'application/json',
-                 'User-Agent': 'ConnectingDesis/1.0 (+landing insurance drawer)',
-                 'Referer': INSURANCE_PARTNER + '/widget1/' + ins_config['path'] + '/'},
+                 'User-Agent': 'NRIParentService/1.0 (+travel insurance quote form)',
+                 'Referer': INSURANCE_PARTNER + cfg['referer']},
         method='POST')
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
             body = _json.loads(resp.read().decode('utf-8', 'ignore'))
     except (urllib.error.URLError, ValueError, OSError):
+        _save('failed')
         return jsonify({'success': False, 'error': 'Our insurance partner is not responding right now. '
                         'Please try again in a moment, or use their form below.'}), 502
     info = body.get('data') or {}
     if body.get('status') == 'success' and info.get('redirectToBN'):
         path = str(info['redirectToBN'])
-        return jsonify({'success': True, 'url': path if path.startswith('http') else INSURANCE_PARTNER + path})
+        url = path if path.startswith('http') else INSURANCE_PARTNER + path
+        _save('quoted', url)
+        return jsonify({'success': True, 'url': url})
     msgs = info.get('allErrorMessages') or info.get('globalErrors') or []
     text = ' '.join((m.get('message', '') if isinstance(m, dict) else str(m)) for m in msgs).strip()
     if not text:
         text = 'No plans found for these details.' if info.get('noPlansFound') else 'Our partner could not price this trip.'
+    _save('failed')
     return jsonify({'success': False, 'error': text}), 400
 
 

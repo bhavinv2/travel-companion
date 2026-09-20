@@ -1204,6 +1204,21 @@ tr.row-edited > td:first-child { box-shadow: inset 3px 0 0 var(--coral); }
 .nav-links a { border-radius: 999px; padding: 8px 15px; font-weight: 600; color: rgba(255,255,255,0.78); }
 .nav-links a:hover, .nav-links a.active { background: rgba(255,255,255,0.12); color: #fff; }
 .nav-links .highlight-link { color: #f2ab3f; }
+/* "Services" dropdown: the rest of the NRI Parent Service group, all on other domains.
+   The carets/icons need display overrides because .nav-links a i is hidden on desktop. */
+.nav-links .nav-svc { position: relative; }
+.nav-links .nav-svc > a { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+.nav-links .nav-svc > a .nav-svc-caret { display: inline-block; font-size: 9.5px; transition: transform .18s; }
+.nav-links .nav-svc.open > a { background: rgba(255,255,255,0.12); color: #fff; }
+.nav-links .nav-svc.open > a .nav-svc-caret { transform: rotate(180deg); }
+.nav-svc-menu { position: absolute; top: calc(100% + 8px); left: 0; min-width: 236px; list-style: none;
+  background: #fff; border-radius: 14px; box-shadow: 0 18px 44px rgba(15,31,61,.22); padding: 8px;
+  display: none; z-index: 120; margin: 0; }
+.nav-svc.open .nav-svc-menu { display: block; }
+.nav-svc-menu a { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  color: #0F1F3D; font-size: 14px; font-weight: 500; padding: 9px 12px; border-radius: 8px; white-space: nowrap; }
+.nav-svc-menu a:hover { background: #FFF6EA; color: #0F1F3D; }
+.nav-svc-menu a i { display: inline-block; font-size: 10px; opacity: .5; }
 .btn-outline-nav { background: transparent; border: 1.5px solid rgba(255,255,255,0.45); color: #fff; border-radius: 999px; padding: 8px 20px; font-size: 13.5px; font-weight: 700; cursor: pointer; transition: all .15s; }
 .btn-outline-nav:hover { border-color: #fff; background: rgba(255,255,255,0.1); }
 .btn-primary-nav { background: #f0940a; border: 1.5px solid #f0940a; color: #fff; border-radius: 999px; padding: 8px 20px; font-size: 13.5px; font-weight: 700; transition: all .15s; box-shadow: 0 6px 16px rgba(240,148,10,0.35); }

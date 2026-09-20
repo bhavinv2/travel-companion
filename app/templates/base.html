@@ -45,6 +45,15 @@
          content inline -- scroll them there. Signed-in travellers see the functional home
          instead, so they get the standalone walkthrough page. #}
       <li><a href="{{ url_for('main.index') + '#how' if not current_user.is_authenticated else url_for('main.how_it_works') }}"><i class="fa-solid fa-circle-info"></i> {{ _('How It Works') }}</a></li>
+      {# The rest of the NRI Parent Service group — every one of these is on another domain. #}
+      <li class="nav-svc" id="navSvc">
+        <a href="#" id="navSvcBtn" aria-haspopup="true" aria-expanded="false"><i class="fa-solid fa-grip"></i> {{ _('Services') }} <i class="fa-solid fa-chevron-down nav-svc-caret"></i></a>
+        <ul class="nav-svc-menu">
+          {% for label, href in NRI_SERVICES %}
+          <li><a href="{{ href }}" target="_blank" rel="noopener">{{ _(label) }} <i class="fa-solid fa-arrow-up-right-from-square"></i></a></li>
+          {% endfor %}
+        </ul>
+      </li>
       {% if current_user.is_authenticated %}
         {% if current_user.is_cs %}
           <li><a href="{{ url_for('cs.home') }}"><i class="fa-solid fa-headset"></i> CS Console</a></li>

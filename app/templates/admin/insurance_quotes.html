@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Insurance leads – Admin{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='insurance' %}{% include 'admin/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <h1>Insurance leads</h1>
+    <p class="admin-sub">Quote requests from the travel-insurance form. The quote itself is priced
+      and sold on our partner's site, so this is our only record of who asked.</p>
+
+    <div class="filter-row">
+      <a class="btn-sm-outline {{ 'active' if not status }}" href="{{ url_for('admin.insurance_quotes') }}">All ({{ counts.all }})</a>
+      <a class="btn-sm-outline {{ 'active' if status == 'quoted' }}" href="{{ url_for('admin.insurance_quotes', status='quoted') }}">Quoted ({{ counts.quoted }})</a>
+      <a class="btn-sm-outline {{ 'active' if status == 'failed' }}" href="{{ url_for('admin.insurance_quotes', status='failed') }}">Failed ({{ counts.failed }})</a>
+      <form method="get" class="inline-search">
+        {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+        <input type="search" name="q" value="{{ q }}" placeholder="Search name, e-mail or phone">
+        <button class="btn-sm" type="submit">Search</button>
+      </form>
+    </div>
+
+    <table class="admin-table">
+      <thead>
+        <tr><th>When</th><th>Who</th><th>Cover</th><th>Travellers</th><th>Dates</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for iq in quotes %}
+        <tr>
+          <td>{{ iq.created_at.strftime('%d %b %Y') }}<br><small>{{ iq.created_at.strftime('%H:%M') }}</small></td>
+          <td>
+            <b>{{ iq.name }}</b><br>
+            <small><a href="mailto:{{ iq.email }}">{{ iq.email }}</a>{% if iq.phone %} · {{ iq.phone }}{% endif %}</small>
+            {% if iq.user %}<br><small>Signed in as {{ iq.user.username }}</small>{% endif %}
+          </td>
+          <td>{{ {'visitors': 'Visitors Medical', 'health': 'Travel Medical', 'schengen': 'Schengen Visa'}.get(iq.insurance_type, iq.insurance_type) }}<br>
+            <small>{{ iq.citizenship }}{% if iq.destination %} &rarr; {{ iq.destination }}{% endif %}</small></td>
+          <td>{{ iq.traveller_count }}<br>
+            <small>{% for t in iq.travellers %}{{ t.name or 'Unnamed' }} ({{ t.age }}){% if not loop.last %}<br>{% endif %}{% endfor %}</small></td>
+          <td><small>{{ iq.start_date.strftime('%d %b %Y') }}<br>{{ iq.end_date.strftime('%d %b %Y') }}</small></td>
+          <td>
+            <span class="badge-pill {{ 'green' if iq.status == 'quoted' else 'yellow' }}">{{ iq.status|capitalize }}</span>
+            {% if iq.quote_url %}<br><a class="btn-sm-outline" href="{{ iq.quote_url }}" target="_blank" rel="noopener">Open quote</a>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6">No insurance quote requests yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% include 'admin/_pager.html' %}
+  </main>
+</div>
+{% endblock %}

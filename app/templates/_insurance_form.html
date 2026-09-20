@@ -4,18 +4,34 @@
      p            - id prefix (label/for pairs; the form id is "<p>Form")
      compact      - one-row field grid for wide widgets
      native_dates - use <input type="date"> (the app's global custom calendar picks it up);
-                    otherwise the landing's read-only data-cal inputs #}
+                    otherwise the landing's read-only data-cal inputs
+
+   The product chips live inside the macro, not in the page: the macro renders three times on
+   the site and each copy needs its own selection. #}
 {% macro ins_quote_form(p, compact=False, native_dates=False) %}
 {% set today = now().strftime('%Y-%m-%d') %}
 <form class="ins-form{{ ' ins-compact' if compact }}" id="{{ p }}Form" novalidate>
   <div class="ins-fields">
+    <div class="ins-types" role="tablist" aria-label="Type of cover">
+      <button type="button" class="ins-type is-on" data-ins-type="visitors" role="tab" aria-selected="true">
+        <span class="ins-type-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3z"/><path d="m9 12 2 2 4-4"/></svg></span>
+        <span class="ins-type-tx"><b>Visitors</b><small>Visiting the USA</small></span>
+      </button>
+      <button type="button" class="ins-type" data-ins-type="health" role="tab" aria-selected="false">
+        <span class="ins-type-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L11 19v-5.5L21 16z"/></svg></span>
+        <span class="ins-type-tx"><b>Travel Medical</b><small>Any destination</small></span>
+      </button>
+      <button type="button" class="ins-type" data-ins-type="schengen" role="tab" aria-selected="false">
+        <span class="ins-type-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 4 5.7 4 9s-1.4 6.3-4 9c-2.6-2.7-4-5.7-4-9s1.4-6.3 4-9Z"/></svg></span>
+        <span class="ins-type-tx"><b>Schengen</b><small>Europe visa cover</small></span>
+      </button>
+    </div>
+
     <div class="ins-grid">
       <div class="f"><label for="{{ p }}-start">Coverage starts <i class="rq">*</i></label>
         {% if native_dates %}<input id="{{ p }}-start" class="ins-start" type="date" min="{{ today }}">{% else %}<input id="{{ p }}-start" class="ins-start" type="text" readonly data-cal data-min="today" placeholder="Pick a date">{% endif %}</div>
       <div class="f"><label for="{{ p }}-end">Coverage ends <i class="rq">*</i></label>
         {% if native_dates %}<input id="{{ p }}-end" class="ins-end" type="date" min="{{ today }}">{% else %}<input id="{{ p }}-end" class="ins-end" type="text" readonly data-cal data-min="today" placeholder="Pick a date">{% endif %}</div>
-      <div class="f"><label for="{{ p }}-age1">Traveller 1 age <i class="rq">*</i></label><input id="{{ p }}-age1" class="ins-age1" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="e.g. 65"></div>
-      <div class="f"><label for="{{ p }}-age2">Traveller 2 age <small>(optional)</small></label><input id="{{ p }}-age2" class="ins-age2" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="e.g. 62"></div>
       <div class="f ins-cit-f"><label for="{{ p }}-cit">Country of citizenship <i class="rq">*</i></label>
         <select id="{{ p }}-cit" class="ins-cit" data-no-search>
           <option value="IND">India</option><option value="USA">United States</option><option value="CAN">Canada</option><option value="GBR">United Kingdom</option><option value="AUS">Australia</option><option value="ARE">United Arab Emirates</option><option value="SGP">Singapore</option><option value="NPL">Nepal</option><option value="LKA">Sri Lanka</option><option value="BGD">Bangladesh</option><option value="PAK">Pakistan</option>
@@ -23,23 +39,47 @@
           <option value="BHR">Bahrain</option><option value="BRA">Brazil</option><option value="CHN">China</option><option value="FJI">Fiji</option><option value="FRA">France</option><option value="DEU">Germany</option><option value="GUY">Guyana</option><option value="HKG">Hong Kong</option><option value="IRL">Ireland</option><option value="ITA">Italy</option><option value="JPN">Japan</option><option value="KEN">Kenya</option><option value="KWT">Kuwait</option><option value="MYS">Malaysia</option><option value="MUS">Mauritius</option><option value="MEX">Mexico</option><option value="NLD">Netherlands</option><option value="NZL">New Zealand</option><option value="NGA">Nigeria</option><option value="OMN">Oman</option><option value="PHL">Philippines</option><option value="QAT">Qatar</option><option value="SAU">Saudi Arabia</option><option value="ZAF">South Africa</option><option value="KOR">South Korea</option><option value="ESP">Spain</option><option value="SWE">Sweden</option><option value="CHE">Switzerland</option><option value="THA">Thailand</option><option value="TTO">Trinidad and Tobago</option>
         </select>
       </div>
-      <div class="f"><label for="{{ p }}-dest">Destination <i class="rq">*</i></label>
+      {# Only Travel Medical prices an arbitrary destination; the other two imply their region,
+         so JS hides this field for them. Countries come from the partner's own list. #}
+      <div class="f ins-dest-f" hidden><label for="{{ p }}-dest">Travelling to <i class="rq">*</i></label>
         <select id="{{ p }}-dest" class="ins-dest" data-no-search>
-          <option value="USA">United States</option><option value="GBR">United Kingdom</option><option value="CAN">Canada</option><option value="AUS">Australia</option><option value="EUR">Europe (Schengen)</option><option value="ARE">United Arab Emirates</option><option value="SGP">Singapore</option><option value="NZL">New Zealand</option><option value="IND">India</option><option value="MYS">Malaysia</option><option value="THA">Thailand</option>
+          {% for code, name in INSURANCE_DESTINATIONS.POPULAR %}<option value="{{ code }}">{{ name }}</option>{% endfor %}
+          <option disabled>──────────</option>
+          {% for code, name in INSURANCE_DESTINATIONS.OTHERS %}<option value="{{ code }}">{{ name }}</option>{% endfor %}
         </select>
       </div>
     </div>
+
+    {# Name + age per traveller. The partner's own iframe stops at two and never asks who is
+       travelling; this endpoint prices the whole list, and the names stay on our side. #}
+    <div class="ins-trav">
+      <div class="ins-trav-top">
+        <label>Who is travelling? <i class="rq">*</i></label>
+        <button type="button" class="ins-add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>Add traveller</button>
+      </div>
+      <div class="ins-trav-rows"></div>
+      <p class="ins-trav-hint"></p>
+    </div>
+
+    {# One contact for the whole quote. Nothing is emailed from here — the quote opens on the
+       partner's site; this is stored so the team can follow up, so the label must not promise
+       a message we never send. #}
+    <div class="ins-grid ins-contact">
+      <div class="f"><label for="{{ p }}-email">Your email <i class="rq">*</i> <small>(for follow-up)</small></label><input id="{{ p }}-email" class="ins-email" type="email" maxlength="255" autocomplete="email" placeholder="you@example.com"></div>
+      <div class="f"><label for="{{ p }}-phone">Phone <small>(optional)</small></label><input id="{{ p }}-phone" class="ins-phone" type="tel" maxlength="30" autocomplete="tel" placeholder="+91 98765 43210"></div>
+    </div>
+
     <div class="ins-err" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><span></span></div>
     <div class="ins-actions">
-      <div class="ins-secure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>Free quote · no account needed<br>Instant pricing from verified insurers</span></div>
-      <button class="btn btn-amber btn-lg ins-go" type="submit"><span>Get live quotes</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      <div class="ins-secure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>Free quote · no account needed<br>Live pricing from {{ INSURANCE_PARTNER_NAME }}</span></div>
+      <button class="btn btn-amber btn-lg ins-go" type="submit"><span>Get free quotes</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
     </div>
   </div>
   <div class="ins-ok" hidden>
     <div class="ins-ok-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="26" height="26"><path d="M5 12l4 4 10-10"/></svg></div>
     <div class="ins-ok-body">
       <b>Your quotes are ready</b>
-      <p>They opened in a new tab on our insurance partner's site. If it didn't appear, use the button below.</p>
+      <p>They opened in a new tab on {{ INSURANCE_PARTNER_NAME }}, our insurance partner. If it didn't appear, use the button below.</p>
       <div class="ins-ok-sum"></div>
       <div class="ins-ok-btns">
         <a class="btn btn-navy btn-lg ins-ok-link" href="#" target="_blank" rel="noopener">View my quotes <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
@@ -47,6 +87,6 @@
       </div>
     </div>
   </div>
-  <p class="hint ins-foot">Get live quotes from verified insurance partners, then complete your purchase directly with them.</p>
+  <p class="hint ins-foot">In partnership with <a href="{{ INSURANCE_PARTNER_URL }}" target="_blank" rel="noopener">{{ INSURANCE_PARTNER_NAME }}</a> — quotes are priced live on their site, where you complete the purchase.</p>
 </form>
 {% endmacro %}

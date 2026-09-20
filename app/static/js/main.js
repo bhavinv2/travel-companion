@@ -2959,3 +2959,18 @@ function wireBulkSelect(headId, rowSelector, onChange) {
     }
   });
 }
+// "Services" dropdown in the nav: the rest of the NRI Parent Service group.
+(function () {
+  const wrap = document.getElementById('navSvc'), btn = document.getElementById('navSvcBtn');
+  if (!wrap || !btn) return;
+  btn.addEventListener('click', e => {
+    e.preventDefault(); e.stopPropagation();
+    btn.setAttribute('aria-expanded', wrap.classList.toggle('open'));
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#navSvc')) { wrap.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { wrap.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
+  });
+})();

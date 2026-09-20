@@ -719,6 +719,54 @@ class ContactMessage(db.Model):
         }
 
 
+class InsuranceQuote(db.Model):
+    """A travel-insurance quote request from the public form.
+
+    The pricing itself happens on the partner's side, so this is the only record we keep of
+    who asked for what: a lead CS can follow up on when someone quotes but never buys.
+    user_id is nullable because the form works signed-out, like ContactMessage.
+    """
+    __tablename__ = 'insurance_quotes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    name = db.Column(db.String(120), nullable=False)   # whoever asked: the first traveller
+    email = db.Column(db.String(255), nullable=False, index=True)
+    phone = db.Column(db.String(30))
+    insurance_type = db.Column(db.String(20), nullable=False, index=True)
+    citizenship = db.Column(db.String(3), nullable=False)
+    destination = db.Column(db.String(3))   # Travel Medical only; the other two imply their region
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
+    # [{"name": "Ramesh Kumar", "age": "65"}, ...]. The partner prices on age alone; the names
+    # are ours, so CS can see who the quote was actually for.
+    travellers = db.Column(db.JSON, nullable=False, default=list)
+    status = db.Column(db.String(15), default='quoted', index=True)
+    quote_url = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    user = db.relationship('User', foreign_keys=[user_id])
+
+    @property
+    def age_list(self):
+        return [str(t.get('age', '')) for t in (self.travellers or [])]
+
+    @property
+    def traveller_count(self):
+        return len(self.travellers or [])
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'name': self.name, 'email': self.email, 'phone': self.phone,
+            'insurance_type': self.insurance_type, 'citizenship': self.citizenship,
+            'destination': self.destination,
+            'start_date': self.start_date.isoformat() if self.start_date else None,
+            'end_date': self.end_date.isoformat() if self.end_date else None,
+            'travellers': self.travellers or [], 'status': self.status, 'quote_url': self.quote_url,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 class Notification(db.Model):
     __tablename__ = 'notifications'
 

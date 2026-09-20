@@ -95,6 +95,18 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .nav a:hover{color:#fff}
 .nav a.active{color:var(--amber)}
 .nav a.active::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--amber);border-radius:2px}
+/* "Services" dropdown: the rest of the NRI Parent Service group, all on other domains. */
+.nav-svc{position:relative}
+.nav-svc>button{display:inline-flex;align-items:center;gap:6px;font:inherit;font-weight:600;color:inherit;background:none;border:0;cursor:pointer;padding:0 0 4px}
+.nav-svc>button:hover{color:#fff}
+.nav-svc>button svg{width:11px;height:11px;transition:transform .18s}
+.nav-svc.open>button{color:#fff}
+.nav-svc.open>button svg{transform:rotate(180deg)}
+.svc-menu{position:absolute;top:calc(100% + 10px);left:-14px;background:#fff;color:var(--ink);border-radius:var(--r-m);box-shadow:0 18px 44px rgba(15,31,61,.22);padding:8px;display:none;min-width:232px;font-weight:500;z-index:60}
+.nav-svc.open .svc-menu{display:block}
+.svc-menu a{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-radius:8px;font-size:14px;color:var(--ink)}
+.svc-menu a:hover{background:var(--sand);color:var(--navy)}
+.svc-menu a svg{width:11px;height:11px;color:var(--muted);flex:none}
 .hdr-right{display:flex;align-items:center;gap:12px}
 .lang{cursor:pointer;display:inline-flex;align-items:center;gap:7px;border:1.5px solid rgba(255,255,255,.55);color:#fff;border-radius:var(--r-pill);padding:8px 14px;font-weight:600;font-size:14px;position:relative}
 .lang svg{width:16px;height:16px}
@@ -115,6 +127,8 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
   .mobile-drawer{display:none;flex-direction:column;gap:2px;background:var(--navy);border-top:1px solid rgba(255,255,255,.1);padding:10px 5%}
   .mobile-drawer.open{display:flex}
   .mobile-drawer a{color:#DCE4F2;font-weight:600;font-size:15px;padding:13px 6px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .mobile-drawer .md-heading{display:block;color:rgba(255,255,255,.5);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:16px 6px 6px}
+  .mobile-drawer .md-svc{display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:500;font-size:14.5px}
   .mobile-drawer a:hover{color:#fff}
   .mobile-drawer-actions{display:flex;gap:10px;padding:14px 6px 6px}
   .mobile-drawer-actions .btn{flex:1;justify-content:center}
@@ -941,21 +955,43 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .hiw-note svg{color:#1E7F4F;width:16px;height:16px}
 @media(max-width:900px){.hiw-steps{grid-template-columns:1fr 1fr;gap:44px 18px}.hiw-path::before,.hiw-plane{display:none}.hiw-path{margin-top:30px;padding-top:30px}.hiw-num{top:-26px}.hiw-step{padding-top:44px}}
 @media(max-width:560px){.hiw-steps{grid-template-columns:1fr}}
-/* Widget: third tab (travel insurance) */
-.ins-type-tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
-.ins-type-tab{background:#f5f9ff;border:1.5px solid #e3ecf7;border-radius:12px;padding:10px 14px;font-size:13px;font-weight:600;color:#2f6fed;cursor:pointer;transition:all 0.2s;flex:1;min-width:140px;text-align:left}
-.ins-type-tab:hover{background:#eaf4fd;border-color:#d4e1f0}
-.ins-type-tab.active{background:#2f6fed;color:#fff;border-color:#2f6fed}
-.ins-type-label{display:block;font-weight:700;margin-bottom:2px}
-.ins-type-sub{display:block;font-size:11px;opacity:0.8}
-.ins-type-tab.active .ins-type-sub{opacity:0.9}
+/* Widget: third tab (travel insurance). This page carries its own copy of the shared quote-form
+   styling (it does not link landing.css) — keep in sync with the same block in landing.css. */
 .ins-panel-w{background:var(--rd-cream-soft);border:1px solid var(--rd-cream-line);border-radius:16px;box-shadow:0 12px 30px -14px rgba(17,29,56,.22);padding:20px 24px 18px;margin-top:6px}
-.ins-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ins-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
 .ins-grid .f{margin-bottom:0}
-.ins-compact .ins-grid{grid-template-columns:1.1fr 1.1fr .75fr .75fr .75fr 1.4fr}
+.ins-contact{margin-top:14px}
 .ins-compact .ins-actions{margin-top:14px}
-@media(max-width:900px){.ins-compact .ins-grid{grid-template-columns:1fr 1fr}.ins-compact .ins-cit-f{grid-column:1/-1}.ins-type-tabs{flex-direction:column}}
-@media(max-width:600px){.ins-grid,.ins-compact .ins-grid{grid-template-columns:1fr}.ins-panel-w{padding:16px}.ins-type-tab{min-width:auto}}
+/* Product chips: one per widget the partner publishes. Amber/cream to match the form. */
+.ins-types{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin-bottom:16px}
+.ins-type{display:flex;align-items:center;gap:9px;padding:11px 12px;border:1.5px solid #E6E1D8;border-radius:14px;background:#fff;cursor:pointer;text-align:left;font:inherit;transition:border-color .15s,background .15s,box-shadow .15s}
+.ins-type:hover{border-color:var(--rd-amber);background:#FFFDF8}
+.ins-type-ic{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;flex:none;background:#F3EFE6;color:var(--rd-navy-ink);transition:background .15s}
+.ins-type-tx{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.ins-type-tx b{font-size:13.5px;white-space:nowrap;font-weight:700;color:var(--rd-navy-ink)}
+.ins-type-tx small{font-size:11px;font-weight:500;color:var(--rd-text-soft)}
+.ins-type.is-on{border-color:var(--rd-amber);background:#FFF8EC;box-shadow:0 0 0 3px rgba(245,166,35,.18)}
+.ins-type.is-on .ins-type-ic{background:var(--rd-amber)}
+/* One row per traveller — the partner's own iframe stops at two, this form does not. */
+.ins-trav{margin-top:14px}
+.ins-trav-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+.ins-trav-top label{font-size:13px;font-weight:600;color:var(--rd-navy-ink)}
+.ins-add{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid #E6E1D8;border-radius:999px;padding:7px 13px;font:inherit;font-size:12.5px;font-weight:700;color:var(--rd-navy-ink);cursor:pointer}
+.ins-add:hover:not(:disabled){border-color:var(--rd-amber);background:#FFFDF8}
+.ins-add:disabled{opacity:.45;cursor:not-allowed}
+.ins-trav-rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.ins-trav-row{display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid #E6E1D8;border-radius:12px;padding:6px 8px 6px 10px}
+.ins-trav-row:focus-within{border-color:var(--rd-amber);box-shadow:0 0 0 3px rgba(245,166,35,.25)}
+.ins-trav-n{width:22px;height:22px;border-radius:50%;background:#F3EFE6;color:var(--rd-navy-ink);font-size:11.5px;font-weight:700;display:grid;place-items:center;flex:none}
+.ins-trav-row .ins-tname{flex:1;min-width:0;border:0;background:transparent;padding:6px 2px;font:inherit;font-size:15px;color:var(--rd-navy-ink)}
+.ins-trav-row .ins-age{flex:none;width:44px;border:0;border-left:1px solid #EFE6D6;background:transparent;padding:6px 0 6px 9px;margin-left:2px;font:inherit;font-size:15px;color:var(--rd-navy-ink)}
+.ins-trav-row .ins-tname:focus,.ins-trav-row .ins-age:focus{outline:0}
+.ins-trav-rm{width:26px;height:26px;border-radius:8px;border:0;background:transparent;color:var(--rd-text-soft);display:grid;place-items:center;cursor:pointer;flex:none}
+.ins-trav-rm:hover:not(:disabled){background:#FFF3F0;color:#9B2C1A}
+.ins-trav-rm:disabled{opacity:.3;cursor:not-allowed}
+.ins-trav-hint{font-size:11.5px;color:var(--rd-text-soft);margin:8px 0 0}
+@media(max-width:900px){.ins-types{grid-template-columns:1fr}}
+@media(max-width:600px){.ins-panel-w{padding:16px}.ins-grid{grid-template-columns:1fr}.ins-types{grid-template-columns:1fr}}
 @media(max-width:560px){.wtab .wtab-label{display:none}.wtab::after{content:attr(data-short)}.wtab{padding:0 12px}.wtab:not(.active){padding:0 10px 0 4px}}
 /* Parents: two CTAs, stacked passes on phones */
 .parents-copy h2 em{font-style:italic;color:var(--amber)}
@@ -1306,6 +1342,16 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
       <a href="#how">How It Works</a>
       <a href="#" onclick="openInsuranceDrawer();return false;">Travel Insurance</a>
       <a href="{{ url_for('blog.blog_list') }}">Traveller Blogs</a>
+      <div class="nav-svc" id="navSvc">
+        <button type="button" id="navSvcBtn" aria-haspopup="true" aria-expanded="false">Services
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div class="svc-menu" role="menu">
+          {% for label, href in NRI_SERVICES %}
+          <a href="{{ href }}" target="_blank" rel="noopener" role="menuitem">{{ label }}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+          {% endfor %}
+        </div>
+      </div>
     </nav>
     <div class="hdr-right">
       <div class="lang" id="langBtn" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false">
@@ -1333,6 +1379,11 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
     <a href="#how">How It Works</a>
     <a href="#" onclick="openInsuranceDrawer();return false;">Travel Insurance</a>
     <a href="{{ url_for('blog.blog_list') }}">Traveller Blogs</a>
+    <span class="md-heading">Our Services</span>
+    {% for label, href in NRI_SERVICES %}
+    <a href="{{ href }}" target="_blank" rel="noopener" class="md-svc">{{ label }}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+    {% endfor %}
     <div class="mobile-drawer-actions">
       <button class="btn btn-outline" data-open="signin">Sign In</button>
       <button class="btn btn-amber" data-open="signup">Sign Up</button>
@@ -1547,12 +1598,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
       </form>
     </div>
     <div class="widget-panel" data-wpanel="insurance" hidden>
-      <div class="wp-head"><div><h2>Travel Insurance</h2><p>Choose your coverage type and get live quotes in seconds.</p></div></div>
-      <div class="ins-type-tabs">
-        <button type="button" class="ins-type-tab active" data-ins-type="visitors"><span class="ins-type-label">Visitors Medical</span><span class="ins-type-sub">USA, Canada, Australia</span></button>
-        <button type="button" class="ins-type-tab" data-ins-type="health"><span class="ins-type-label">Travel Health</span><span class="ins-type-sub">International coverage</span></button>
-        <button type="button" class="ins-type-tab" data-ins-type="schengen"><span class="ins-type-label">Schengen Visa</span><span class="ins-type-sub">Europe entry requirement</span></button>
-      </div>
+      <div class="wp-head"><div><h2>Travel Insurance</h2><p>Choose your cover and get live quotes in seconds.</p></div></div>
       <div class="ins-panel-w">
       {{ ins_quote_form('wins', compact=True) }}
       </div>
@@ -1962,7 +2008,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3z"/><path d="m9 12 2 2 4-4"/></svg></div>
         <div>
           <h3>Travel insurance</h3>
-          <p>A companion is for company. Insurance is for the unexpected — get live visitor-plan quotes in under a minute.</p>
+          <p>A companion is for company. Insurance is for the unexpected — get live quotes for any destination in under a minute.</p>
           <ul class="ins-tags"><li>Medical emergencies</li><li>Missed connections</li><li>Lost baggage</li></ul>
         </div>
         <button type="button" class="btn btn-amber" id="insOpenBtn">Get Travel Insurance <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
@@ -2032,18 +2078,13 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
   <div class="ins-body">
     <div class="ins-panel">
       <div class="ins-panel-head"><h4>Get live quotes</h4></div>
-      <div class="ins-type-tabs">
-        <button type="button" class="ins-type-tab active" data-ins-type="visitors"><span class="ins-type-label">Visitors Medical</span><span class="ins-type-sub">USA, Canada, Australia</span></button>
-        <button type="button" class="ins-type-tab" data-ins-type="health"><span class="ins-type-label">Travel Health</span><span class="ins-type-sub">International coverage</span></button>
-        <button type="button" class="ins-type-tab" data-ins-type="schengen"><span class="ins-type-label">Schengen Visa</span><span class="ins-type-sub">Europe entry requirement</span></button>
-      </div>
       {# Our own fields, our own styling. The quote itself comes from the partner's widget API
          (the same request its embeddable iframe makes) via /api/insurance-quote — we relay the
          fields, hand back the partner's results page, and store nothing. #}
       {{ ins_quote_form('ins') }}
     </div>
     <ul class="ins-points">
-      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Compare visitor plans side by side</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Compare visitor, travel medical &amp; Schengen plans</li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Medical, evacuation &amp; baggage cover</li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Quote in under a minute, buy online</li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Ideal for parents visiting the USA</li>
@@ -2074,6 +2115,14 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
   langBtn.addEventListener('click',e=>{ if(e.target.closest('.lang-menu')) return; langMenu.classList.toggle('open'); langBtn.setAttribute('aria-expanded',langMenu.classList.contains('open')); });
   $$('#langMenu button').forEach(b=>b.addEventListener('click',e=>{ e.stopPropagation(); const code=((b.querySelector('span')||{}).textContent||'en').trim(); setSiteLang(code); }));
   document.addEventListener('click',e=>{ if(!e.target.closest('#langBtn')) langMenu.classList.remove('open'); });
+  // Services dropdown (the rest of the NRI Parent Service group)
+  const navSvc=$('#navSvc'), navSvcBtn=$('#navSvcBtn');
+  if(navSvc&&navSvcBtn){
+    navSvcBtn.addEventListener('click',e=>{ e.stopPropagation();
+      const open=navSvc.classList.toggle('open'); navSvcBtn.setAttribute('aria-expanded',open); });
+    document.addEventListener('click',e=>{ if(!e.target.closest('#navSvc')){ navSvc.classList.remove('open'); navSvcBtn.setAttribute('aria-expanded','false'); } });
+    document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ navSvc.classList.remove('open'); navSvcBtn.setAttribute('aria-expanded','false'); } });
+  }
   // Mobile nav drawer (the burger was previously decorative — it now actually opens the menu)
   const burgerBtn=$('#burgerBtn'), mobileDrawer=$('#mobileDrawer');
   if(burgerBtn&&mobileDrawer){
