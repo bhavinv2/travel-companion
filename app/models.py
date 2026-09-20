@@ -730,7 +730,7 @@ class InsuranceQuote(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
-    name = db.Column(db.String(120), nullable=False)   # whoever asked: the first traveller
+    name = db.Column(db.String(120))   # legacy: the form no longer asks for one; email is the lead
     email = db.Column(db.String(255), nullable=False, index=True)
     phone = db.Column(db.String(30))
     insurance_type = db.Column(db.String(20), nullable=False, index=True)
@@ -738,8 +738,7 @@ class InsuranceQuote(db.Model):
     destination = db.Column(db.String(3))   # Travel Medical only; the other two imply their region
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
-    # [{"name": "Ramesh Kumar", "age": "65"}, ...]. The partner prices on age alone; the names
-    # are ours, so CS can see who the quote was actually for.
+    # [{"age": "65"}, ...] — one entry per traveller. The partner prices on age alone.
     travellers = db.Column(db.JSON, nullable=False, default=list)
     status = db.Column(db.String(15), default='quoted', index=True)
     quote_url = db.Column(db.Text)

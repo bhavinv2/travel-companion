@@ -10,6 +10,7 @@
    the site and each copy needs its own selection. #}
 {% macro ins_quote_form(p, compact=False, native_dates=False) %}
 {% set today = now().strftime('%Y-%m-%d') %}
+{% set partner %}<a class="ins-partner" href="{{ INSURANCE_PARTNER_URL }}" target="_blank" rel="noopener">{{ INSURANCE_PARTNER_NAME }}</a>{% endset %}
 <form class="ins-form{{ ' ins-compact' if compact }}" id="{{ p }}Form" novalidate>
   <div class="ins-fields">
     <div class="ins-types" role="tablist" aria-label="Type of cover">
@@ -19,7 +20,7 @@
       </button>
       <button type="button" class="ins-type" data-ins-type="health" role="tab" aria-selected="false">
         <span class="ins-type-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L11 19v-5.5L21 16z"/></svg></span>
-        <span class="ins-type-tx"><b>Travel Medical</b><small>Any destination</small></span>
+        <span class="ins-type-tx"><b>Travel Medical</b><small>Canada, Australia &amp; rest of world</small></span>
       </button>
       <button type="button" class="ins-type" data-ins-type="schengen" role="tab" aria-selected="false">
         <span class="ins-type-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 4 5.7 4 9s-1.4 6.3-4 9c-2.6-2.7-4-5.7-4-9s1.4-6.3 4-9Z"/></svg></span>
@@ -43,18 +44,18 @@
          so JS hides this field for them. Countries come from the partner's own list. #}
       <div class="f ins-dest-f" hidden><label for="{{ p }}-dest">Travelling to <i class="rq">*</i></label>
         <select id="{{ p }}-dest" class="ins-dest" data-no-search>
-          {% for code, name in INSURANCE_DESTINATIONS.POPULAR %}<option value="{{ code }}">{{ name }}</option>{% endfor %}
+          {% for code, name in INSURANCE_DESTINATIONS.POPULAR %}<option value="{{ code }}"{% if code == INSURANCE_DESTINATIONS.DEFAULT %} selected{% endif %}>{{ name }}</option>{% endfor %}
           <option disabled>──────────</option>
           {% for code, name in INSURANCE_DESTINATIONS.OTHERS %}<option value="{{ code }}">{{ name }}</option>{% endfor %}
         </select>
       </div>
     </div>
 
-    {# Name + age per traveller. The partner's own iframe stops at two and never asks who is
-       travelling; this endpoint prices the whole list, and the names stay on our side. #}
+    {# Age per traveller. The partner's own iframe stops at two; this endpoint prices the whole
+       list, so the form lets you add more. #}
     <div class="ins-trav">
       <div class="ins-trav-top">
-        <label>Who is travelling? <i class="rq">*</i></label>
+        <label>Traveller ages <i class="rq">*</i></label>
         <button type="button" class="ins-add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>Add traveller</button>
       </div>
       <div class="ins-trav-rows"></div>
@@ -63,7 +64,7 @@
 
     {# One contact for the whole quote. Nothing is emailed from here — the quote opens on the
        partner's site; this is stored so the team can follow up, so the label must not promise
-       a message we never send. #}
+       a message we never send. We do not ask for a name at all. #}
     <div class="ins-grid ins-contact">
       <div class="f"><label for="{{ p }}-email">Your email <i class="rq">*</i> <small>(for follow-up)</small></label><input id="{{ p }}-email" class="ins-email" type="email" maxlength="255" autocomplete="email" placeholder="you@example.com"></div>
       <div class="f"><label for="{{ p }}-phone">Phone <small>(optional)</small></label><input id="{{ p }}-phone" class="ins-phone" type="tel" maxlength="30" autocomplete="tel" placeholder="+91 98765 43210"></div>
@@ -71,7 +72,7 @@
 
     <div class="ins-err" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><span></span></div>
     <div class="ins-actions">
-      <div class="ins-secure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>Free quote · no account needed<br>Live pricing from {{ INSURANCE_PARTNER_NAME }}</span></div>
+      <div class="ins-secure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>Free quote · no account needed<br>Live pricing from {{ partner }}</span></div>
       <button class="btn btn-amber btn-lg ins-go" type="submit"><span>Get free quotes</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
     </div>
   </div>
@@ -79,7 +80,7 @@
     <div class="ins-ok-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="26" height="26"><path d="M5 12l4 4 10-10"/></svg></div>
     <div class="ins-ok-body">
       <b>Your quotes are ready</b>
-      <p>They opened in a new tab on {{ INSURANCE_PARTNER_NAME }}, our insurance partner. If it didn't appear, use the button below.</p>
+      <p>They opened in a new tab on {{ partner }}, our insurance partner. If it didn't appear, use the button below.</p>
       <div class="ins-ok-sum"></div>
       <div class="ins-ok-btns">
         <a class="btn btn-navy btn-lg ins-ok-link" href="#" target="_blank" rel="noopener">View my quotes <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
@@ -87,6 +88,6 @@
       </div>
     </div>
   </div>
-  <p class="hint ins-foot">In partnership with <a href="{{ INSURANCE_PARTNER_URL }}" target="_blank" rel="noopener">{{ INSURANCE_PARTNER_NAME }}</a> — quotes are priced live on their site, where you complete the purchase.</p>
+  <p class="hint ins-foot">In partnership with {{ partner }} — quotes are priced live on their site, where you complete the purchase.</p>
 </form>
 {% endmacro %}

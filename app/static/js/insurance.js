@@ -30,11 +30,9 @@
     const rows = [...form.querySelectorAll('.ins-trav-row')];
     rows.forEach((row, i) => {
       row.querySelector('.ins-trav-n').textContent = i + 1;
-      const nm = row.querySelector('.ins-tname'), age = row.querySelector('.ins-age');
-      nm.setAttribute('aria-label', 'Traveller ' + (i + 1) + ' name');
-      nm.placeholder = i === 0 ? 'e.g. Ramesh Kumar' : 'Full name';
+      const age = row.querySelector('.ins-age');
       age.setAttribute('aria-label', 'Traveller ' + (i + 1) + ' age');
-      age.placeholder = i === 0 ? '65' : 'Age';
+      age.placeholder = i === 0 ? 'e.g. 65' : 'Age';
       // one traveller is a valid quote, so the last remaining row cannot be removed
       row.querySelector('.ins-trav-rm').disabled = rows.length === 1;
     });
@@ -50,7 +48,6 @@
     const row = document.createElement('div');
     row.className = 'ins-trav-row';
     row.innerHTML = '<span class="ins-trav-n"></span>'
-      + '<input class="ins-tname" type="text" maxlength="120" autocomplete="off">'
       + '<input class="ins-age" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3">'
       + '<button type="button" class="ins-trav-rm" aria-label="Remove traveller">'
       + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" width="14" height="14"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
@@ -61,7 +58,7 @@
     });
     rows.appendChild(row);
     renumber(form);
-    if (focus) row.querySelector('.ins-tname').focus();
+    if (focus) row.querySelector('.ins-age').focus();
   }
 
   function bind(form) {
@@ -102,15 +99,13 @@
       if (!end || end < start) return fail('Pick an end date on or after the start date.', q('.ins-end'));
 
       const travellers = [];
-      for (const row of form.querySelectorAll('.ins-trav-row')) {
-        const nmEl = row.querySelector('.ins-tname'), ageEl = row.querySelector('.ins-age');
-        const nm = nmEl.value.trim(), age = ageEl.value.trim();
-        if (!nm) return fail('Enter a name for every traveller, or remove the empty row.', nmEl);
-        if (!age) return fail('Enter an age for every traveller.', ageEl);
+      for (const ageEl of form.querySelectorAll('.ins-age')) {
+        const age = ageEl.value.trim();
+        if (!age) return fail('Enter an age for every traveller, or remove the empty row.', ageEl);
         if (!/^\d{1,3}$/.test(age)) return fail('Traveller ages must be whole numbers (years).', ageEl);
-        travellers.push({ name: nm, age });
+        travellers.push({ age });
       }
-      if (!travellers.length) return fail("Enter at least one traveller's name and age.");
+      if (!travellers.length) return fail("Enter at least one traveller's age.");
 
       const email = q('.ins-email').value.trim();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail('Please enter a valid email address.', q('.ins-email'));
@@ -132,7 +127,7 @@
           TYPE_LABELS[insType] || 'Travel insurance',
           body.destination ? 'To ' + q('.ins-dest').selectedOptions[0].textContent : null,
           `${pretty(q('.ins-start'))} → ${pretty(q('.ins-end'))}`,
-          travellers.map(t => `${t.name} (${t.age})`).join(', '),
+          travellers.length === 1 ? `1 traveller · age ${travellers[0].age}` : `${travellers.length} travellers · ages ${travellers.map(t => t.age).join(', ')}`,
           q('.ins-cit').selectedOptions[0].textContent,
         ].filter(Boolean).map(s => `<span>${esc(s)}</span>`).join('');
         form.classList.add('done'); ok.hidden = false;

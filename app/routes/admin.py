@@ -1038,6 +1038,7 @@ def landing_page():
         data = {
             'contact_email': request.form.get('contact_email', ''),
             'contact_email_enabled': request.form.get('contact_email_enabled') == 'on',
+            'contact_whatsapp': request.form.get('contact_whatsapp', ''),
             'colors': {k: request.form.get('color_' + k, '') for k in app_settings.LANDING_COLOR_DEFAULTS},
         }
         app_settings.set_landing_settings(data, current_user)

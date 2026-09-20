@@ -106,6 +106,9 @@ def landing_settings() -> dict:
     return {
         'contact_email': (stored.get('contact_email') or '').strip(),
         'contact_email_enabled': bool(stored.get('contact_email_enabled')),
+        # Shown on the landing sign-up prompt as "reach us directly"; hidden while empty so we
+        # never display a number nobody answers.
+        'contact_whatsapp': (stored.get('contact_whatsapp') or '').strip(),
         'colors': colors,
     }
 
@@ -116,6 +119,8 @@ def set_landing_settings(data: dict, actor=None) -> dict:
         cur['contact_email'] = (data.get('contact_email') or '').strip()[:255]
     if 'contact_email_enabled' in data:
         cur['contact_email_enabled'] = bool(data.get('contact_email_enabled'))
+    if 'contact_whatsapp' in data:
+        cur['contact_whatsapp'] = (data.get('contact_whatsapp') or '').strip()[:30]
     if isinstance(data.get('colors'), dict):
         for k in LANDING_COLOR_DEFAULTS:
             v = (data['colors'].get(k) or '').strip()

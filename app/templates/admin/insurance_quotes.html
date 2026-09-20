@@ -28,14 +28,13 @@
         <tr>
           <td>{{ iq.created_at.strftime('%d %b %Y') }}<br><small>{{ iq.created_at.strftime('%H:%M') }}</small></td>
           <td>
-            <b>{{ iq.name }}</b><br>
-            <small><a href="mailto:{{ iq.email }}">{{ iq.email }}</a>{% if iq.phone %} · {{ iq.phone }}{% endif %}</small>
+            <b><a href="mailto:{{ iq.email }}">{{ iq.email }}</a></b><br>
+            <small>{% if iq.name %}{{ iq.name }}{% if iq.phone %} · {% endif %}{% endif %}{{ iq.phone or '' }}</small>
             {% if iq.user %}<br><small>Signed in as {{ iq.user.username }}</small>{% endif %}
           </td>
           <td>{{ {'visitors': 'Visitors Medical', 'health': 'Travel Medical', 'schengen': 'Schengen Visa'}.get(iq.insurance_type, iq.insurance_type) }}<br>
             <small>{{ iq.citizenship }}{% if iq.destination %} &rarr; {{ iq.destination }}{% endif %}</small></td>
-          <td>{{ iq.traveller_count }}<br>
-            <small>{% for t in iq.travellers %}{{ t.name or 'Unnamed' }} ({{ t.age }}){% if not loop.last %}<br>{% endif %}{% endfor %}</small></td>
+          <td>{{ iq.traveller_count }}<br><small>ages {{ iq.age_list|join(', ') }}</small></td>
           <td><small>{{ iq.start_date.strftime('%d %b %Y') }}<br>{{ iq.end_date.strftime('%d %b %Y') }}</small></td>
           <td>
             <span class="badge-pill {{ 'green' if iq.status == 'quoted' else 'yellow' }}">{{ iq.status|capitalize }}</span>

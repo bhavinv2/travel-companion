@@ -176,8 +176,9 @@ def index():
         from app.models import Blog
         landing_blogs = (Blog.query.filter_by(is_published=True)
                          .order_by(Blog.published_at.desc().nullslast(), Blog.created_at.desc()).limit(3).all())
+        ls = _settings.landing_settings()
         return render_template('landing.html', feedbacks=approved_feedback, review_stats=review_stats,
-                               landing_colors=_settings.landing_settings()['colors'],
+                               landing_colors=ls['colors'], contact_whatsapp=ls['contact_whatsapp'],
                                country_meta=COUNTRY_META, landing_faqs=landing_faqs, landing_blogs=landing_blogs,
                                structured_data=_landing_structured_data(landing_faqs, review_stats),
                                **_landing_live_data())
@@ -499,19 +500,14 @@ def api_insurance_quote():
         return jsonify({'success': False, 'error': 'The coverage end date must be on or after the start date.'}), 400
     travellers = []
     for raw in (data.get('travellers') if isinstance(data.get('travellers'), list) else []):
-        if not isinstance(raw, dict):
+        t_age = str((raw.get('age') if isinstance(raw, dict) else raw) or '').strip()
+        if not t_age:
             continue
-        t_name = str(raw.get('name', '') or '').strip()
-        t_age = str(raw.get('age', '') or '').strip()
-        if not t_name and not t_age:
-            continue
-        if not t_name:
-            return jsonify({'success': False, 'error': 'Enter a name for every traveller.'}), 400
         if not t_age.isdigit() or int(t_age) > 120:
             return jsonify({'success': False, 'error': 'Traveller ages must be whole numbers (years).'}), 400
-        travellers.append({'name': t_name[:120], 'age': str(int(t_age))})
+        travellers.append({'age': str(int(t_age))})
     if not travellers:
-        return jsonify({'success': False, 'error': "Enter at least one traveller's name and age."}), 400
+        return jsonify({'success': False, 'error': "Enter at least one traveller's age."}), 400
     if len(travellers) > MAX_TRAVELLERS:
         return jsonify({'success': False,
                         'error': f'We can quote up to {MAX_TRAVELLERS} travellers at a time.'}), 400
@@ -535,8 +531,6 @@ def api_insurance_quote():
         if destination not in CODES:
             return jsonify({'success': False, 'error': 'Please choose where you are travelling to.'}), 400
 
-    # The lead is whoever the quote is for first — we no longer ask for a separate contact name.
-    name = travellers[0]['name']
     email = str(data.get('email', '') or '').strip()
     phone = str(data.get('phone', '') or '').strip()
     if not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', email):
@@ -556,7 +550,7 @@ def api_insurance_quote():
 
     quote = InsuranceQuote(
         user_id=current_user.id if current_user.is_authenticated else None,
-        name=name[:120], email=email[:255], phone=phone[:30] or None,
+        email=email[:255], phone=phone[:30] or None,
         insurance_type=ins_type, citizenship=citizenship, destination=destination,
         start_date=start, end_date=end, travellers=travellers)
 

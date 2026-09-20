@@ -19,8 +19,7 @@ END = (date.today() + timedelta(days=40)).isoformat()
 
 def payload(**over):
     body = {'start_date': START, 'end_date': END, 'citizenship': 'IND',
-            'travellers': [{'name': 'Ramesh Kumar', 'age': '65'},
-                           {'name': 'Lakshmi Kumar', 'age': '62'}],
+            'travellers': [{'age': '65'}, {'age': '62'}],
             'insurance_type': 'visitors', 'email': 'ramesh@example.com',
             'phone': '+91 98765 43210'}
     body.update(over)
@@ -71,9 +70,9 @@ def test_visitors_quote_sends_partner_params_and_stores_lead(client, db, partner
     assert 'visitors-insurance' in partner['referer']
 
     q = InsuranceQuote.query.one()
-    # the lead's name is the first traveller — we no longer ask for a separate contact name
-    assert (q.name, q.email, q.insurance_type, q.status) == ('Ramesh Kumar', 'ramesh@example.com', 'visitors', 'quoted')
-    assert q.travellers == [{'name': 'Ramesh Kumar', 'age': '65'}, {'name': 'Lakshmi Kumar', 'age': '62'}]
+    # the form asks for no name at all — the email is the lead
+    assert (q.name, q.email, q.insurance_type, q.status) == (None, 'ramesh@example.com', 'visitors', 'quoted')
+    assert q.travellers == [{'age': '65'}, {'age': '62'}]
     assert q.age_list == ['65', '62'] and q.traveller_count == 2
 
 
@@ -136,8 +135,7 @@ def test_destination_is_ignored_for_the_fixed_region_products(client, db, partne
 
 def test_more_than_two_travellers_are_all_priced(client, db, partner):
     """The partner's own iframe stops at two — our form is the reason to not embed it."""
-    four = [{'name': n, 'age': a} for n, a in
-            (('Ramesh', '65'), ('Lakshmi', '62'), ('Arun', '38'), ('Meera', '9'))]
+    four = [{'age': a} for a in ('65', '62', '38', '9')]
     r = client.post('/api/insurance-quote', json=payload(travellers=four))
     assert r.get_json()['success']
     assert [t['age'] for t in partner['body']['travelerInfos']] == ['65', '62', '38', '9']
@@ -161,10 +159,9 @@ def test_partner_outage_still_records_the_lead(client, db, partner):
 
 @pytest.mark.parametrize('bad, field', [
     ({'travellers': []}, 'no travellers'),
-    ({'travellers': [{'name': 'A', 'age': 'abc'}]}, 'age not a number'),
-    ({'travellers': [{'name': '', 'age': '40'}]}, 'missing name'),
-    ({'travellers': [{'name': 'A', 'age': ''}]}, 'missing age'),
-    ({'travellers': [{'name': 'A', 'age': '1'}] * 9}, 'over max'),
+    ({'travellers': [{'age': 'abc'}]}, 'age not a number'),
+    ({'travellers': [{'age': ''}]}, 'blank rows are skipped, leaving none'),
+    ({'travellers': [{'age': '1'}] * 9}, 'over max'),
     ({'email': 'nope'}, 'email'),
     ({'email': ''}, 'email missing'),
     ({'citizenship': 'XX'}, 'citizenship'),
@@ -182,18 +179,18 @@ def test_validation_rejects_and_stores_nothing(client, db, partner, bad, field):
 def test_admin_leads_page_lists_and_filters(client, db, admin_user, partner):
     client.post('/api/insurance-quote', json=payload())
     client.post('/api/insurance-quote', json=payload(
-        insurance_type='schengen', email='lakshmi@example.com',
-        travellers=[{'name': 'Lakshmi Iyer', 'age': '62'}]))
+        insurance_type='schengen', email='lakshmi@example.com', travellers=[{'age': '62'}]))
     login(client, 'admin@test.com')
 
     html = client.get('/admin/insurance-quotes').data.decode()
-    assert 'Ramesh Kumar' in html and 'Lakshmi Iyer' in html
+    assert 'ramesh@example.com' in html and 'lakshmi@example.com' in html
     assert 'Visitors Medical' in html and 'Schengen Visa' in html
+    assert 'ages 65, 62' in html
 
     # filters narrow the list
-    assert 'Lakshmi Iyer' not in client.get('/admin/insurance-quotes?type=visitors').data.decode()
-    assert 'Ramesh Kumar' not in client.get('/admin/insurance-quotes?q=lakshmi').data.decode()
-    assert 'Ramesh Kumar' not in client.get('/admin/insurance-quotes?status=failed').data.decode()
+    assert 'lakshmi@example.com' not in client.get('/admin/insurance-quotes?type=visitors').data.decode()
+    assert 'ramesh@example.com' not in client.get('/admin/insurance-quotes?q=lakshmi').data.decode()
+    assert 'ramesh@example.com' not in client.get('/admin/insurance-quotes?status=failed').data.decode()
 
 
 def test_admin_leads_page_is_admin_only(client, db, user):

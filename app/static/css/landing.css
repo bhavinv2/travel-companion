@@ -627,16 +627,25 @@
 .ins-form .f input[type=date]::-webkit-calendar-picker-indicator{opacity:.6}
 .ins-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
 .ins-contact{margin-top:14px}
-/* Product chips: one per widget the partner publishes. Amber/cream to match the form it sits in. */
-.ins-types{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin-bottom:16px}
-.ins-type{display:flex;align-items:center;gap:9px;padding:11px 12px;border:1.5px solid #E6E1D8;border-radius:14px;background:#fff;cursor:pointer;text-align:left;font:inherit;transition:border-color .15s,background .15s,box-shadow .15s}
-.ins-type:hover{border-color:var(--rd-amber);background:#FFFDF8}
-.ins-type-ic{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;flex:none;background:#F3EFE6;color:var(--rd-navy-ink);transition:background .15s}
-.ins-type-tx{display:flex;flex-direction:column;min-width:0;line-height:1.25}
-.ins-type-tx b{font-size:13.5px;white-space:nowrap;font-weight:700;color:var(--rd-navy-ink)}
-.ins-type-tx small{font-size:11px;font-weight:500;color:var(--rd-text-soft)}
-.ins-type.is-on{border-color:var(--rd-amber);background:#FFF8EC;box-shadow:0 0 0 3px rgba(245,166,35,.18)}
+/* Product chips: a radio-card row, one per product the partner sells. The selected card gets an
+   amber ring, a filled icon and a tick, so the choice reads at a glance. The row collapses to a
+   stacked list whenever the *form* is narrow (drawer, phone) — a container query, because the
+   drawer is narrow on a wide screen where a viewport query would not fire. */
+.ins-fields{container-type:inline-size}
+.ins-types{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:18px}
+.ins-type{position:relative;display:flex;align-items:flex-start;gap:11px;padding:13px 42px 13px 13px;border:1.5px solid #E6E1D8;border-radius:16px;background:#fff;cursor:pointer;text-align:left;font:inherit;min-height:66px;transition:border-color .15s,background .15s,box-shadow .15s,transform .15s}
+.ins-type:hover{border-color:#D9C79F;background:#FFFDF8;transform:translateY(-1px)}
+.ins-type::after{content:"";position:absolute;right:13px;top:14px;width:20px;height:20px;border-radius:50%;border:2px solid #D9D2C5;background:#fff;transition:border-color .15s,background .15s}
+.ins-type-ic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;flex:none;background:#F6F1E6;color:var(--rd-navy-ink);transition:background .15s}
+.ins-type-ic svg{width:19px;height:19px}
+.ins-type-tx{display:flex;flex-direction:column;gap:3px;min-width:0;line-height:1.25;padding-top:2px}
+.ins-type-tx b{font-size:14.5px;font-weight:700;color:var(--rd-navy-ink)}
+.ins-type-tx small{font-size:12px;font-weight:500;color:var(--rd-text-soft);line-height:1.35}
+.ins-type.is-on{border-color:var(--rd-amber);background:linear-gradient(180deg,#FFFBF2,#FFF4DE);box-shadow:0 0 0 3px rgba(245,166,35,.2),0 12px 26px -16px rgba(245,166,35,.7)}
 .ins-type.is-on .ins-type-ic{background:var(--rd-amber)}
+.ins-type.is-on::after{border-color:var(--rd-amber);background:var(--rd-amber) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231b2b4d' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l4 4 10-10'/%3E%3C/svg%3E") center/12px no-repeat}
+.ins-type:focus-visible{outline:0;box-shadow:0 0 0 3px rgba(245,166,35,.45)}
+@container (max-width:640px){.ins-types{grid-template-columns:1fr;gap:8px}.ins-type{min-height:0;padding:11px 42px 11px 12px}.ins-type::after{top:50%;transform:translateY(-50%)}.ins-type-tx{flex-direction:row;align-items:baseline;gap:8px;flex-wrap:wrap;padding-top:6px}.ins-type-tx small{font-size:12px}}
 /* One row per traveller — the partner's own iframe stops at two, this form does not. */
 .ins-trav{margin-top:14px}
 .ins-trav-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
@@ -644,13 +653,15 @@
 .ins-add{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid #E6E1D8;border-radius:999px;padding:7px 13px;font:inherit;font-size:12.5px;font-weight:700;color:var(--rd-navy-ink);cursor:pointer}
 .ins-add:hover:not(:disabled){border-color:var(--rd-amber);background:#FFFDF8}
 .ins-add:disabled{opacity:.45;cursor:not-allowed}
-.ins-trav-rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
-.ins-trav-row{display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid #E6E1D8;border-radius:12px;padding:6px 8px 6px 10px}
+.ins-trav-rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.ins-trav-row{display:flex;align-items:center;gap:8px;min-width:0;background:#fff;border:1.5px solid #E6E1D8;border-radius:12px;padding:6px 8px 6px 10px}
 .ins-trav-row:focus-within{border-color:var(--rd-amber);box-shadow:0 0 0 3px rgba(245,166,35,.25)}
 .ins-trav-n{width:22px;height:22px;border-radius:50%;background:#F3EFE6;color:var(--rd-navy-ink);font-size:11.5px;font-weight:700;display:grid;place-items:center;flex:none}
-.ins-trav-row .ins-tname{flex:1;min-width:0;border:0;background:transparent;padding:6px 2px;font:inherit;font-size:15px;color:var(--rd-navy-ink)}
-.ins-trav-row .ins-age{flex:none;width:44px;border:0;border-left:1px solid #EFE6D6;background:transparent;padding:6px 0 6px 9px;margin-left:2px;font:inherit;font-size:15px;color:var(--rd-navy-ink)}
-.ins-trav-row .ins-tname:focus,.ins-trav-row .ins-age:focus{outline:0}
+.ins-trav-row .ins-age{flex:1;min-width:0;border:0;background:transparent;padding:6px 2px;font:inherit;font-size:15px;color:var(--rd-navy-ink)}
+.ins-trav-row .ins-age:focus{outline:0}
+/* The partner's name is a highlighted, linked brand mark wherever it appears in the form. */
+.ins-partner{display:inline-block;color:#b86a05;background:#FFF0D2;font-weight:800;padding:1px 7px;border-radius:6px;text-decoration:none;line-height:1.35;border-bottom:0;transition:background .15s,color .15s}
+.ins-partner:hover{background:var(--rd-amber);color:#1b2b4d}
 .ins-trav-rm{width:26px;height:26px;border-radius:8px;border:0;background:transparent;color:var(--rd-text-soft);display:grid;place-items:center;cursor:pointer;flex:none}
 .ins-trav-rm:hover:not(:disabled){background:#FFF3F0;color:#9B2C1A}
 .ins-trav-rm:disabled{opacity:.3;cursor:not-allowed}

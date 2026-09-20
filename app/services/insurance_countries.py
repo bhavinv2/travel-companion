@@ -264,4 +264,7 @@ OTHERS = [
 
 ALL = POPULAR + OTHERS
 CODES = {code for code, _ in ALL}
+# Pre-selected in the "Travelling to" dropdown. Travel Medical is the non-USA product (the USA
+# is what Visitors covers), so the default is the next most common destination.
+DEFAULT = 'CAN'
 

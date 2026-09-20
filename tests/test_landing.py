@@ -54,3 +54,24 @@ def test_admin_landing_rejects_bad_hex(client, db, admin_user):
 def test_admin_landing_requires_admin(client, db, user):
     login(client, 'bob@test.com')
     assert client.get('/admin/landing').status_code in (302, 403)
+
+
+def test_signup_prompt_contact_block_only_with_a_configured_number(client, db, admin_user):
+    """The 'reach us directly' block must never show a placeholder number."""
+    html = client.get('/').data.decode()
+    assert 'id="suModal"' in html                       # the prompt itself is always there
+    # contact form + support e-mail are always offered; WhatsApp only once a number exists
+    assert 'id="suContactBtn"' in html and 'mailto:' in html
+    assert 'wa.me/' not in html and 'Call or text' not in html
+
+    settings.set_landing_settings({'contact_whatsapp': '+91 98765 43210'}, admin_user)
+    html = client.get('/').data.decode()
+    assert 'https://wa.me/919876543210' in html and 'tel:+919876543210' in html
+    assert 'Call or text +91 98765 43210' in html
+
+    # admins set it from the Landing page screen, and clearing it hides the block again
+    login(client, 'admin@test.com')
+    client.post('/admin/landing', data={'contact_email': '', 'contact_whatsapp': ''})
+    assert settings.landing_settings()['contact_whatsapp'] == ''
+    client.get('/auth/logout')
+    assert 'wa.me/' not in client.get('/').data.decode()
