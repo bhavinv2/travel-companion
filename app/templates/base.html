@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  {# URL prefix for the browser side (subpath deployment) — must precede every other script #}
+  <meta name="app-root" content="{{ request.script_root }}"/>
+  <script src="{{ url_for('static', filename='js/app-root.js') }}"></script>
   <title>{% block title %}NRI Parent Service – Find Your Travel Companion{% endblock %}</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo-icon.png') }}"/>
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/logo-icon.png') }}"/>

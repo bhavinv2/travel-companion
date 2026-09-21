@@ -10,16 +10,16 @@
   background-repeat: no-repeat; background-size: contain; opacity: .12;
   filter: blur(1.3px) saturate(.9);
 }
-.bga::before { left: 0; bottom: 8px; width: min(520px, 42vw); aspect-ratio: 1200 / 495; background-image: url("/static/img/bg/family.png"); background-position: left bottom; }
-.bga::after  { right: 0; top: 12px;  width: min(560px, 44vw); aspect-ratio: 1200 / 500; background-image: url("/static/img/bg/map.png");    background-position: right top; }
+.bga::before { left: 0; bottom: 8px; width: min(520px, 42vw); aspect-ratio: 1200 / 495; background-image: url("../img/bg/family.png"); background-position: left bottom; }
+.bga::after  { right: 0; top: 12px;  width: min(560px, 44vw); aspect-ratio: 1200 / 500; background-image: url("../img/bg/map.png");    background-position: right top; }
 
 /* which piece on which side */
-.bga-l-map::before    { background-image: url("/static/img/bg/map.png");        aspect-ratio: 1200 / 500; }
-.bga-l-ins::before    { background-image: url("/static/img/bg/insurance.png");  aspect-ratio: 1200 / 476; }
-.bga-l-illo::before   { background-image: url("/static/img/travelling_yourself_illustration.png"); aspect-ratio: 2043 / 770; }
-.bga-r-family::after  { background-image: url("/static/img/bg/family.png");     aspect-ratio: 1200 / 495; }
-.bga-r-ins::after     { background-image: url("/static/img/bg/insurance.png");  aspect-ratio: 1200 / 476; }
-.bga-r-illo::after    { background-image: url("/static/img/travelling_yourself_illustration.png"); aspect-ratio: 2043 / 770; }
+.bga-l-map::before    { background-image: url("../img/bg/map.png");        aspect-ratio: 1200 / 500; }
+.bga-l-ins::before    { background-image: url("../img/bg/insurance.png");  aspect-ratio: 1200 / 476; }
+.bga-l-illo::before   { background-image: url("../img/travelling_yourself_illustration.png"); aspect-ratio: 2043 / 770; }
+.bga-r-family::after  { background-image: url("../img/bg/family.png");     aspect-ratio: 1200 / 495; }
+.bga-r-ins::after     { background-image: url("../img/bg/insurance.png");  aspect-ratio: 1200 / 476; }
+.bga-r-illo::after    { background-image: url("../img/travelling_yourself_illustration.png"); aspect-ratio: 2043 / 770; }
 .bga-l-top::before    { bottom: auto; top: 12px; background-position: left top; }
 .bga-r-bottom::after  { top: auto; bottom: 8px; background-position: right bottom; }
 .bga-no-l::before { display: none; }

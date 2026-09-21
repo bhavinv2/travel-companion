@@ -3159,4 +3159,4 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 /* Faint "safer journeys together" illustration behind the signed-in post form (bottom-right,
    sits under the content thanks to z-index:-1 inside the section's own stacking context). */
 .search-section { z-index: 0; }   /* no overflow:hidden — the form's suggestion dropdowns must be free to hang below */
-.search-section::after { content: ""; position: absolute; right: 12px; bottom: 8px; width: min(520px, 60vw); aspect-ratio: 2043 / 770; background: url("/static/img/travelling_yourself_illustration.png") no-repeat right bottom / contain; opacity: .12; pointer-events: none; z-index: -1; }
+.search-section::after { content: ""; position: absolute; right: 12px; bottom: 8px; width: min(520px, 60vw); aspect-ratio: 2043 / 770; background: url("../img/travelling_yourself_illustration.png") no-repeat right bottom / contain; opacity: .12; pointer-events: none; z-index: -1; }

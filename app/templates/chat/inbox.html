@@ -254,7 +254,7 @@ function openNotifDetail(n, item) {
   card.querySelector('p.body').textContent = n.body || 'No further details for this notification.';
   const actions = card.querySelector('.nd-actions');
   if (n.link && n.link !== '/inbox' && n.link !== '#') {
-    const go = document.createElement('a'); go.className = 'btn btn-primary'; go.href = n.link;
+    const go = document.createElement('a'); go.className = 'btn btn-primary'; go.href = appUrl(n.link);
     go.innerHTML = '<i class="fa-solid fa-arrow-up-right-from-square"></i> Open';
     actions.appendChild(go);
   }

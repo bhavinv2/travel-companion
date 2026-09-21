@@ -8,6 +8,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Travel Companion | Find a Trusted Travel Buddy Online</title>
 <meta name="description" content="Help your loved ones travel with confidence. Find a trusted travel companion online for safe, caring and comfortable journeys, with support every step of the way.">
+<meta name="app-root" content="{{ request.script_root }}">
+<script src="{{ url_for('static', filename='js/app-root.js') }}"></script>
 <link rel="canonical" href="{{ SITE_URL }}/">
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo-icon.png') }}">
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/logo-icon.png') }}">
@@ -18,13 +20,13 @@
 <meta property="og:title" content="NRI Parent Service – Find a Trusted Travel Companion in Your Language">
 <meta property="og:description" content="Free travel companions for the Desi community — matched by route, dates and shared language. Real human support, always consent-first.">
 <meta property="og:url" content="{{ SITE_URL }}/">
-<meta property="og:image" content="{{ SITE_URL }}{{ url_for('static', filename='img/landing/l2.jpg') }}">
+<meta property="og:image" content="{{ url_for('static', filename='img/landing/l2.jpg', _external=True) }}">
 <meta property="og:image:width" content="1600">
 <meta property="og:image:height" content="680">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="NRI Parent Service – Find a Trusted Travel Companion in Your Language">
 <meta name="twitter:description" content="Free travel companions for the Desi community — matched by route, dates and shared language.">
-<meta name="twitter:image" content="{{ SITE_URL }}{{ url_for('static', filename='img/landing/l2.jpg') }}">
+<meta name="twitter:image" content="{{ url_for('static', filename='img/landing/l2.jpg', _external=True) }}">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -664,7 +666,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 /* Final CTA: the couple stands on the left of the photo looking out over the mountains, so the
    copy sits on the right over a navy scrim that fades away from them. On phones the photo is
    cropped to keep the couple and the copy is centred over a heavier scrim. */
-.band{position:relative;overflow:hidden;background:linear-gradient(90deg,rgba(11,35,80,.05) 0%,rgba(11,35,80,.35) 38%,rgba(11,35,80,.86) 62%,rgba(11,35,80,.94) 100%),url('/static/img/cta_couple_mountains.jpg') left 6% center/cover no-repeat,#0d2d61;color:#fff;border-radius:24px;padding:64px 56px 60px 50%;text-align:left;min-height:400px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center}
+.band{position:relative;overflow:hidden;background:linear-gradient(90deg,rgba(11,35,80,.05) 0%,rgba(11,35,80,.35) 38%,rgba(11,35,80,.86) 62%,rgba(11,35,80,.94) 100%),url('{{ url_for('static', filename='img/cta_couple_mountains.jpg') }}') left 6% center/cover no-repeat,#0d2d61;color:#fff;border-radius:24px;padding:64px 48px 60px 48%;text-align:center;min-height:400px;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .band h2,.band p,.band-ctas{position:relative;z-index:1}
 .band-sky{position:absolute;inset:0;pointer-events:none;z-index:0}
 .band-arc{position:absolute;left:0;top:0;width:100%;height:100%;opacity:.7}
@@ -673,13 +675,13 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .band-plane svg,.band-pin svg{width:100%;height:auto;display:block}
 @keyframes band-pin-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
 @media(max-width:1000px){.band-sky{display:none}}
-.band-ctas{display:flex;gap:14px;flex-wrap:wrap;margin-top:22px}
-@media(max-width:1000px){.band{padding:56px 28px 52px;text-align:center;align-items:center;min-height:0;background:linear-gradient(180deg,rgba(11,35,80,.5) 0%,rgba(11,35,80,.82) 45%,rgba(11,35,80,.94) 100%),url('/static/img/cta_couple_mountains.jpg') 18% center/cover no-repeat,#0d2d61}.band-ctas{justify-content:center}.band h2{max-width:20ch}}
+.band-ctas{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:22px}
+@media(max-width:1000px){.band{padding:56px 28px 52px;text-align:center;align-items:center;min-height:0;background:linear-gradient(180deg,rgba(11,35,80,.5) 0%,rgba(11,35,80,.82) 45%,rgba(11,35,80,.94) 100%),url('{{ url_for('static', filename='img/cta_couple_mountains.jpg') }}') 18% center/cover no-repeat,#0d2d61}.band-ctas{justify-content:center}.band h2{max-width:20ch}}
 /* the script note sits at the top-right, in the sky above the copy, clear of the buttons */
 .band-deco{position:absolute;right:30px;top:20px;font-family:'Caveat',cursive;font-weight:700;color:#FFD48A;font-size:19px;line-height:1.15;display:none;align-items:flex-end;gap:6px;text-align:right;text-shadow:0 1px 6px rgba(5,15,40,.6)}
 @media(min-width:1001px){.band-deco{display:inline-flex}}
-.band h2{color:#fff;font-size:clamp(28px,3.4vw,40px);max-width:16ch;margin:0 0 12px}
-.band p{color:#C9D5EC;max-width:52ch;margin:0 0 4px}
+.band h2{color:#fff;font-size:clamp(28px,3.4vw,40px);max-width:16ch;margin:0 auto 12px}
+.band p{color:#C9D5EC;max-width:52ch;margin:0 auto 4px}
 @media(max-width:1000px){.band h2,.band p{margin-left:auto;margin-right:auto}}
 /* Form compact */
 .form-wrap{gap:40px}
@@ -835,7 +837,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .priv-strip svg{width:19px;height:19px;color:var(--sunset);flex:none}
 @media(max-width:700px){.priv-strip{flex-direction:column;align-items:flex-start;gap:12px}}
 /* 7. Human support band */
-.human{position:relative;border-radius:28px;overflow:hidden;min-height:420px;display:flex;align-items:center;color:#fff;background:var(--navy) url("/static/img/landing/l1.jpg") center/cover}
+.human{position:relative;border-radius:28px;overflow:hidden;min-height:420px;display:flex;align-items:center;color:#fff;background:var(--navy) url("{{ url_for('static', filename='img/landing/l1.jpg') }}") center/cover}
 .human::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(15,31,61,.95),rgba(15,31,61,.75) 55%,rgba(15,31,61,.35))}
 .human .in{position:relative;padding:60px 56px;max-width:600px}
 .human h2{color:#fff;margin-bottom:12px}
@@ -1120,7 +1122,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 @media(max-width:600px){.blog-grid{grid-template-columns:1fr}.sec-head.blog-head{flex-direction:column;align-items:flex-start;gap:12px}}
 /* Faint "safer journeys together" illustration behind the FAQ */
 #faq{position:relative;z-index:0;overflow:hidden}
-#faq::after{content:"";position:absolute;right:-40px;bottom:-24px;width:520px;aspect-ratio:2043/770;background:url("/static/img/travelling_yourself_illustration.png") no-repeat right bottom/contain;opacity:.13;pointer-events:none;z-index:-1}
+#faq::after{content:"";position:absolute;right:-40px;bottom:-24px;width:520px;aspect-ratio:2043/770;background:url("{{ url_for('static', filename='img/travelling_yourself_illustration.png') }}") no-repeat right bottom/contain;opacity:.13;pointer-events:none;z-index:-1}
 /* NB: keep a space after the brace before an id selector — a brace immediately followed by a hash starts a Jinja comment. */
 @media(max-width:700px){ #faq::after{width:320px;opacity:.11} }
 /* Faint artwork in the emptier sections (img/bg/*.png, all with transparent backgrounds):
@@ -1128,18 +1130,18 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
    the insurance shield behind How it works and in the insurance drawer. z-index:-1 inside each
    section's own stacking context keeps them under the content. */
 #countries,#why,#how{position:relative;z-index:0;overflow:hidden}
-#countries::before{content:"";position:absolute;right:-60px;top:-10px;width:min(720px,60vw);aspect-ratio:1200/500;background:url("/static/img/bg/map.png") no-repeat right top/contain;opacity:.16;pointer-events:none;z-index:-1}
-#why::before{content:"";position:absolute;left:-40px;bottom:-30px;width:min(640px,55vw);aspect-ratio:1200/495;background:url("/static/img/bg/family.png") no-repeat left bottom/contain;opacity:.14;pointer-events:none;z-index:-1}
-#how::before{content:"";position:absolute;right:-80px;top:-20px;width:min(680px,58vw);aspect-ratio:1200/476;background:url("/static/img/bg/insurance.png") no-repeat right top/contain;opacity:.12;pointer-events:none;z-index:-1}
+#countries::before{content:"";position:absolute;right:-60px;top:-10px;width:min(720px,60vw);aspect-ratio:1200/500;background:url("{{ url_for('static', filename='img/bg/map.png') }}") no-repeat right top/contain;opacity:.16;pointer-events:none;z-index:-1}
+#why::before{content:"";position:absolute;left:-40px;bottom:-30px;width:min(640px,55vw);aspect-ratio:1200/495;background:url("{{ url_for('static', filename='img/bg/family.png') }}") no-repeat left bottom/contain;opacity:.14;pointer-events:none;z-index:-1}
+#how::before{content:"";position:absolute;right:-80px;top:-20px;width:min(680px,58vw);aspect-ratio:1200/476;background:url("{{ url_for('static', filename='img/bg/insurance.png') }}") no-repeat right top/contain;opacity:.12;pointer-events:none;z-index:-1}
 .ins-body{position:relative;z-index:0}
-.ins-body::after{content:"";position:absolute;left:0;right:0;bottom:-10px;height:200px;background:url("/static/img/bg/insurance.png") no-repeat center bottom/contain;opacity:.16;pointer-events:none;z-index:-1}
+.ins-body::after{content:"";position:absolute;left:0;right:0;bottom:-10px;height:200px;background:url("{{ url_for('static', filename='img/bg/insurance.png') }}") no-repeat center bottom/contain;opacity:.16;pointer-events:none;z-index:-1}
 @media(max-width:700px){ #countries::before,#why::before,#how::before{width:80vw;opacity:.1} }
 /* Navy band under the search widget: hero -> widget -> "For your loved ones" read as one surface.
    The parked banner's illustration lives on here, washed into the navy, plus the small doodle. */
 /* z-index above the hero's inner layer (.hero .wrap is 2) so the raised tab sheet paints over the photo */
 .search-band{position:relative;background:linear-gradient(180deg,#0B1F3F 0%,var(--navy) 100%);padding-bottom:52px;z-index:5}
 .sb-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none}
-.sb-illo{position:absolute;right:0;bottom:-6px;width:min(560px,44vw);aspect-ratio:2043/770;background:url("/static/img/travelling_yourself_illustration.png") no-repeat right bottom/contain;opacity:.18;filter:saturate(.85)}
+.sb-illo{position:absolute;right:0;bottom:-6px;width:min(560px,44vw);aspect-ratio:2043/770;background:url("{{ url_for('static', filename='img/travelling_yourself_illustration.png') }}") no-repeat right bottom/contain;opacity:.18;filter:saturate(.85)}
 .sjt{display:inline-flex;flex-direction:column;align-items:center;gap:4px;color:var(--amber);text-align:center;line-height:1}
 .sjt .sjt-flight{width:110px;height:50px}
 .sjt b{font-family:var(--script,'Caveat',cursive);font-weight:700;font-size:21px;line-height:1.08;white-space:nowrap}
@@ -1346,21 +1348,21 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
 .human .help-card{box-shadow:0 20px 50px -24px rgba(0,0,0,.6)}
 @media(max-width:700px){.human-body{padding:34px 24px 30px}}
 .help-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-.help-card{display:flex;gap:18px;align-items:center;border-radius:22px;padding:24px 26px;border:1px solid var(--line);background:#fff;color:var(--ink);text-align:left}
+.help-card{display:grid;grid-template-columns:56px 1fr;grid-template-rows:1fr auto;column-gap:18px;row-gap:18px;align-items:start;border-radius:22px;padding:24px 26px;border:1px solid var(--line);background:#fff;color:var(--ink);text-align:left}
+.help-card > div{min-width:0}
 .help-card.ins-card{background:linear-gradient(135deg,#FFF6E3 0%,#FFE7B8 100%);border:2px solid var(--amber);position:relative;padding-top:34px;box-shadow:0 0 0 6px rgba(245,166,35,.18),0 20px 50px -24px rgba(0,0,0,.6)}
 .ins-flag{position:absolute;top:-13px;left:22px;background:var(--navy);color:#FFD48A;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:999px;padding:6px 12px;white-space:nowrap}
 .ins-tags{list-style:none;display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0;padding:0}
 .ins-tags li{font-size:12px;font-weight:700;color:var(--navy);background:#fff;border:1px solid #F1DDBD;border-radius:999px;padding:4px 10px}
-.help-grid{grid-template-columns:.9fr 1.1fr}
+.help-grid{grid-template-columns:1fr 1fr}
 .help-card .ic{width:56px;height:56px;border-radius:16px;display:grid;place-items:center;flex:none;background:#e3edfb;color:#2f6fed}
 .help-card .ic svg{width:26px;height:26px}
 .help-card.ins-card .ic{background:var(--amber);color:var(--navy)}
 .help-card h3{font-family:var(--serif);font-weight:600;font-size:22px;margin-bottom:4px;color:var(--navy)}
 .help-card p{color:var(--muted);font-size:14.5px}
-.help-card .btn{margin-left:auto;white-space:nowrap}
-@media(max-width:1150px){.help-card{flex-wrap:wrap}.help-card > div{flex:1 1 100%;min-width:0}.help-card .btn{margin-left:0;width:100%;justify-content:center}}
+.help-card .btn{grid-column:1/-1;justify-self:start;white-space:nowrap}
 @media(max-width:900px){.help-grid{grid-template-columns:1fr}}
-@media(max-width:600px){.help-card{flex-wrap:wrap}.help-card .btn{margin-left:0;width:100%;justify-content:center}.help-card.ins-card{padding-top:22px}.ins-flag{position:static;flex:0 0 auto;width:auto;max-width:100%;white-space:normal;margin:0 0 2px}.help-card > div{min-width:0}}
+@media(max-width:600px){.help-card{grid-template-columns:44px 1fr;column-gap:12px;row-gap:14px}.help-card .btn{justify-self:stretch;justify-content:center}.help-card.ins-card{padding-top:22px}.ins-flag{position:static;grid-column:1/-1;justify-self:start;width:auto;max-width:100%;white-space:normal;margin:0 0 2px}}
 /* Wide dialog for the consult-style contact form */
 .dlg-wide{max-width:960px;border-radius:26px}
 .dlg-wide .consult{box-shadow:none;border-radius:0}
@@ -1438,7 +1440,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
   /* "here when you need us": tighter cards */
   .human-body{padding:30px 16px 26px}
   .human .in{padding:30px 16px}
-  .help-card{padding:18px 16px;gap:12px;border-radius:18px}
+  .help-card{padding:18px 16px;border-radius:18px}
   .help-card.ins-card{padding-top:16px}
   .help-card .ic{width:44px;height:44px;border-radius:12px}
   .help-card .ic svg{width:22px;height:22px}
@@ -1521,7 +1523,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
 
 <!-- ================= HERO ================= -->
 <section class="hero" id="top">
-  <img class="hero-bg" src="/static/img/landing/l2.jpg" alt="" width="1600" height="680" fetchpriority="high">
+  <img class="hero-bg" src="{{ url_for('static', filename='img/landing/l2.jpg') }}" alt="" width="1600" height="680" fetchpriority="high">
   <div class="hero-deco">
     <span>Same routes<br>Bigger connections</span>
     <div class="deco-row">
@@ -1810,9 +1812,9 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
     <div class="parents-visual reveal" data-anim="right">
       <div class="parents-photo">
       <div class="pp-slides" data-carousel="4500">
-        <img class="pp-slide on" src="/static/img/2_elders.png" alt="An elderly couple travelling together on a flight" loading="lazy">
-        <img class="pp-slide" src="/static/img/landing/l3.jpg" alt="A family helping their parents on a flight" loading="lazy">
-        <img class="pp-slide" src="/static/img/landing/l2.jpg" alt="An elderly couple at the airport" loading="lazy">
+        <img class="pp-slide on" src="{{ url_for('static', filename='img/2_elders.png') }}" alt="An elderly couple travelling together on a flight" loading="lazy">
+        <img class="pp-slide" src="{{ url_for('static', filename='img/landing/l3.jpg') }}" alt="A family helping their parents on a flight" loading="lazy">
+        <img class="pp-slide" src="{{ url_for('static', filename='img/landing/l2.jpg') }}" alt="An elderly couple at the airport" loading="lazy">
       </div>
       <div class="pp-dots" aria-hidden="true"><span class="on"></span><span></span><span></span></div>
       </div>
@@ -1881,7 +1883,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
       </ul>
     </div>
     <div class="why-photo reveal" data-anim="left">
-      <img src="/static/img/landing/l3.jpg" alt="A family helping each other on a flight" loading="lazy">
+      <img src="{{ url_for('static', filename='img/landing/l3.jpg') }}" alt="A family helping each other on a flight" loading="lazy">
       <span class="why-caption">New places<br>Same people <svg class="heart-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 20.4s-6.8-4.4-9.1-8.4C1.4 9.1 2.6 6 5.5 5.6c1.8-.2 3.3.8 4.1 2.1.8-1.3 2.3-2.3 4.1-2.1 2.9.4 4.1 3.5 2.6 6.4-2.3 4-9 8.4-9 8.4z"/></svg></span>
     </div>
   </div>
@@ -2019,7 +2021,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
       {% set name, flag = country_meta[code] %}
       {% set n = landing_country_counts.get(code, 0) %}
       <a class="cc" href="{{ url_for('main.all_trips', country=code, country_name=name) }}">
-        <img src="/static/img/landing/{{ img }}" alt="{{ name }}" loading="lazy">
+        <img src="{{ url_for('static', filename='img/landing/' ~ img) }}" alt="{{ name }}" loading="lazy">
         <div class="t">
           {# No flag emoji: Windows/Chromium has no flag glyphs and renders the code pair as "US". #}
           <div><div class="f">{{ 'Flying home' if code == 'IN' else 'India → ' ~ code }}</div><b>{{ name }}</b><span>{{ '%d trip%s open now' % (n, '' if n == 1 else 's') if n else 'Travel companion support' }}</span></div>

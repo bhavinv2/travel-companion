@@ -50,7 +50,9 @@ Copy `.env.example` to `.env`.
 | `MAIL_*` | Outgoing e-mail (skipped if `MAIL_PASSWORD` unset) |
 | `UPLOAD_FOLDER` / `PRIVATE_UPLOAD_FOLDER` | Public / private upload locations |
 | `MAX_CONTENT_LENGTH` | Max upload size (bytes) |
-| `SITE_URL` | Absolute site URL used in e-mails / links |
+| `SITE_URL` | Public base URL used in e-mails / canonical / sitemap — include the subpath when there is one, e.g. `https://nriparentservice.com/travel-companions` |
+| `APP_URL_PREFIX` | Serve the whole app under a subpath behind a reverse proxy, e.g. `/travel-companions` (see `PrefixMiddleware` in `app/__init__.py`). Unset = served from `/`. Requests without the prefix still work, so the Railway domain stays usable for testing |
+| `APP_PUBLIC_HOST` | With `APP_URL_PREFIX`: the public host, e.g. `nriparentservice.com`, so OAuth callbacks, absolute URLs and CSRF's Referer check use the public site rather than the proxy hop |
 | `SUPPORT_EMAIL` | Shown on help/legal/claim pages |
 | `CLAIM_TOKEN_DAYS` | Validity of claim links (default 14) |
 | `CLAIM_SHOW_ROUTE` | Show route/dates on the claim page (default True) |

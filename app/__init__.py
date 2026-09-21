@@ -22,6 +22,49 @@ csrf = CSRFProtect()
 log = logging.getLogger(__name__)
 
 
+class PrefixMiddleware:
+    """Serve the whole app under a URL prefix such as /travel-companions, behind a reverse proxy.
+
+    This is the server-rendered equivalent of a router "basename": once SCRIPT_NAME is set, every
+    url_for() (routes, static files, redirects, Flask-Login's login redirect, OAuth callback URLs)
+    comes out prefixed, so the templates need no per-link changes.
+
+    Two proxy styles are accepted, so the Cloudflare Worker can be written either way:
+      * path preserved  -> /travel-companions/dashboard arrives as-is: strip it into SCRIPT_NAME
+      * path stripped   -> /dashboard arrives with X-Forwarded-Prefix: /travel-companions
+    A request that carries neither (the bare Railway domain, local dev) is passed through
+    untouched, which keeps the Railway URL working as a test address.
+
+    public_host: when the prefix is active, the request's host/scheme are set to the public site
+    so that absolute URLs (OAuth redirect_uri, sitemap, e-mails) and Flask-WTF's Referer check
+    use nriparentservice.com rather than whatever Host the proxy hop presented.
+    """
+
+    def __init__(self, wsgi_app, prefix='', public_host='', public_scheme='https'):
+        self.wsgi_app = wsgi_app
+        self.prefix = ('/' + prefix.strip('/')) if prefix and prefix.strip('/') else ''
+        self.public_host = (public_host or '').strip()
+        self.public_scheme = public_scheme
+
+    def __call__(self, environ, start_response):
+        header = (environ.get('HTTP_X_FORWARDED_PREFIX') or '').strip()
+        header = ('/' + header.strip('/')) if header.strip('/') else ''
+        prefix = header or self.prefix
+        path = environ.get('PATH_INFO', '') or '/'
+        active = False
+        if prefix and (path == prefix or path.startswith(prefix + '/')):
+            environ['SCRIPT_NAME'] = (environ.get('SCRIPT_NAME') or '') + prefix
+            environ['PATH_INFO'] = path[len(prefix):] or '/'
+            active = True
+        elif header:
+            environ['SCRIPT_NAME'] = (environ.get('SCRIPT_NAME') or '') + header
+            active = True
+        if active and self.public_host:
+            environ['HTTP_HOST'] = self.public_host
+            environ['wsgi.url_scheme'] = self.public_scheme
+        return self.wsgi_app(environ, start_response)
+
+
 def _env_bool(name, default):
     """Boolean env var that accepts True/true/1/yes/on (Railway dashboards store lowercase 'true')."""
     v = os.environ.get(name)
@@ -32,6 +75,15 @@ def _env_bool(name, default):
 
 def create_app(test_config=None):
     app = Flask(__name__)
+    # Optional subpath deployment (https://nriparentservice.com/travel-companions/): see PrefixMiddleware.
+    app.config['APP_URL_PREFIX'] = os.environ.get('APP_URL_PREFIX', '').strip()
+    app.config['APP_PUBLIC_HOST'] = os.environ.get('APP_PUBLIC_HOST', '').strip()
+    if test_config:
+        for k in ('APP_URL_PREFIX', 'APP_PUBLIC_HOST'):
+            if k in test_config:
+                app.config[k] = test_config[k]
+    app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=app.config['APP_URL_PREFIX'],
+                                    public_host=app.config['APP_PUBLIC_HOST'])
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     is_production = os.environ.get('FLASK_ENV') == 'production'

@@ -710,7 +710,7 @@
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files && fileInput.files[0];
       if (!file) return;
-      if (!IS_LOGGED_IN) { window.location = '/auth/login'; return; }
+      if (!IS_LOGGED_IN) { window.location = appUrl('/auth/login'); return; }
 
       say('busy', '<i class="fa-solid fa-spinner fa-spin"></i> Reading ' + esc(file.name) + '…');
       const fd = new FormData();

@@ -180,8 +180,8 @@ def sample_ctx():
                                   {'ok': True, 'label': 'Dates', 'detail': 'same day'}])
     return dict(trip=trip, other=other, match=match, best=match, count=2,
                 user=_O(first_name='Priya', username='priya'),
-                link='https://connectingdesis.com/claim/EXAMPLE',
-                url='https://connectingdesis.com/claim/EXAMPLE',
+                link=current_app.config.get('SITE_URL', '') + '/claim/EXAMPLE',
+                url=current_app.config.get('SITE_URL', '') + '/claim/EXAMPLE',
                 name='Priya', greeting='Hi Priya,', route=trip.route_display,
                 site_url=current_app.config.get('SITE_URL', ''),
                 support_email=current_app.config.get('SUPPORT_EMAIL', ''))

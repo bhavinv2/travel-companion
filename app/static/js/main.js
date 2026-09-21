@@ -130,7 +130,7 @@ async function loadNotifications() {
     data.notifications.forEach(n => {
       const a = document.createElement('a');
       a.className = 'notif-item' + (n.is_read ? '' : ' unread');
-      a.href = n.link || '#';
+      a.href = n.link ? appUrl(n.link) : '#';
       const title = document.createElement('strong'); title.textContent = n.title || '';
       const body = document.createElement('span'); body.textContent = truncate(n.body || '', 120);
       const when = document.createElement('small'); when.textContent = n.created_at ? new Date(n.created_at).toLocaleString() : '';
@@ -139,7 +139,7 @@ async function loadNotifications() {
         if (!n.is_read) {
           e.preventDefault();
           await apiFetch(`/api/notifications/${n.id}/read`, { method: 'POST', body: '{}' });
-          window.location = n.link || '/';
+          window.location = appUrl(n.link || '/');
         }
       });
       list.appendChild(a);
@@ -985,7 +985,7 @@ function buildTripCard(trip, isOwn = false) {
     btn.onclick = e => {
       e.stopPropagation();
       if (IS_LOGGED_IN) openConnectModal(trip.id, (trip.author && trip.author.username) || 'this traveller');
-      else window.location = '/auth/register';
+      else window.location = appUrl('/auth/register');
     };
     actions.appendChild(btn);
   }
@@ -1140,7 +1140,7 @@ document.getElementById('postTripBtn')?.addEventListener('click', async () => {
   if (!IS_LOGGED_IN) {
     try { localStorage.setItem(TRIP_DRAFT_KEY, JSON.stringify(formData)); } catch (e) {}
     if (window.showToast) showToast("Create your free account to post — we've saved your trip details.", 'info');
-    setTimeout(() => { window.location = '/auth/register?next=%2F%23search'; }, 400);
+    setTimeout(() => { window.location = appUrl('/auth/register') + '?next=' + encodeURIComponent(appUrl('/') + '#search'); }, 400);
     return;
   }
 
@@ -1386,7 +1386,7 @@ async function disableTrip(tripId) {
 // ===== MODIFY TRIP (in place) =====
 async function modifyTrip(tripId) {
   const modal = document.getElementById('editTripModal');
-  if (!modal) { window.location = '/dashboard'; return; }
+  if (!modal) { window.location = appUrl('/dashboard'); return; }
   const res = await apiFetch(`/api/trip/${tripId}`);
   const d = await res.json();
   if (!d.trip) return showToast(d.error || 'Could not load this trip.', 'danger');
@@ -1913,7 +1913,7 @@ document.getElementById('confirmConnectBtn')?.addEventListener('click', async ()
 // ===== RESPOND TO CONNECTION MODAL =====
 function openRespondModal(connectionId, body) {
   const modal = document.getElementById('respondModal');
-  if (!modal) { window.location = '/connections'; return; }
+  if (!modal) { window.location = appUrl('/connections'); return; }
   document.getElementById('respondConnectionId').value = connectionId;
   document.getElementById('respondModalBody').textContent = body;
   document.getElementById('respondAnonymous').checked = false;
@@ -2073,7 +2073,7 @@ function renderChatRooms(filter = '') {
       ? '<div class="chat-empty"><i class="fa-solid fa-magnifying-glass"></i><p>No conversations match "' + filter.replace(/</g, '') + '".</p></div>'
       : '<div class="chat-empty"><i class="fa-solid fa-comments"></i><p>No conversations yet.</p>'
         + '<span>Once you connect with a fellow traveller, your chat shows up here.</span>'
-        + '<a href="/trips" class="btn-sm">Browse Desis on Move</a></div>';
+        + '<a href="' + appUrl('/trips') + '" class="btn-sm">Browse Desis on Move</a></div>';
     return;
   }
   rooms.forEach(room => {
@@ -2634,7 +2634,7 @@ function tdBuildActions(box, trip, ownTrip) {
   connect.onclick = () => {
     closeTripDetails();
     if (IS_LOGGED_IN) openConnectModal(trip.id, (trip.author && trip.author.username) || 'this traveller');
-    else window.location = '/auth/register';
+    else window.location = appUrl('/auth/register');
   };
   box.appendChild(connect);
 }
