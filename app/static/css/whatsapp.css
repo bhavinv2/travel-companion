@@ -1,0 +1,38 @@
+/* WhatsApp "reach us" button + team chooser (templates/_whatsapp.html). One look everywhere. */
+.wa-btn{display:inline-flex;align-items:center;gap:9px;background:#25D366;color:#063B1E;border:0;border-radius:999px;padding:11px 18px;font:inherit;font-size:14px;font-weight:700;line-height:1;cursor:pointer;text-decoration:none;white-space:nowrap;box-shadow:0 10px 22px -12px rgba(37,211,102,.95);transition:background .15s,transform .15s}
+.wa-btn:hover{background:#1FBF5A;color:#063B1E;transform:translateY(-1px)}
+.wa-btn .wa-ic{width:19px;height:19px;flex:none}
+.wa-btn.wa-btn-sm{padding:9px 14px;font-size:13px}
+.wa-btn.wa-btn-sm .wa-ic{width:17px;height:17px}
+
+/* floating button on the public landing (there is no in-app chat bubble there) */
+.wa-float{position:fixed;right:20px;bottom:20px;z-index:70}
+.wa-float .wa-btn{padding:13px 20px 13px 16px;font-size:15px;box-shadow:0 14px 34px -12px rgba(37,211,102,1),0 4px 14px rgba(5,15,40,.2)}
+.wa-float .wa-btn .wa-ic{width:24px;height:24px}
+@media(max-width:640px){
+  .wa-float{right:14px;bottom:calc(74px + env(safe-area-inset-bottom))}   /* clear of the sticky CTA bar */
+  .wa-float .wa-btn{width:54px;height:54px;padding:0;justify-content:center;border-radius:50%}
+  .wa-float .wa-btn span{display:none}
+  .wa-float .wa-btn .wa-ic{width:28px;height:28px}
+}
+
+/* the chooser */
+.wa-chooser-overlay{position:fixed;inset:0;background:rgba(8,20,45,.55);z-index:220;opacity:0;transition:opacity .2s}
+.wa-chooser-overlay.open{opacity:1}
+.wa-chooser{position:fixed;left:50%;top:50%;transform:translate(-50%,-46%);width:min(400px,calc(100% - 28px));background:#fff;color:#1B2438;border-radius:20px;box-shadow:0 30px 80px rgba(6,16,38,.45);padding:22px 22px 18px;z-index:221;opacity:0;transition:opacity .2s,transform .2s}
+.wa-chooser.open{opacity:1;transform:translate(-50%,-50%)}
+.wa-chooser-close{position:absolute;right:12px;top:12px;width:32px;height:32px;border-radius:50%;border:0;background:#F3EFE6;color:#1B2438;font-size:20px;line-height:1;cursor:pointer;display:grid;place-items:center}
+.wa-chooser-head{display:flex;align-items:center;gap:10px;padding-right:36px;margin-bottom:6px}
+.wa-chooser-head .wa-ic{width:26px;height:26px;color:#25D366;flex:none}
+.wa-chooser h4{font-size:17px;font-weight:700;margin:0;line-height:1.25}
+.wa-chooser p{font-size:13px;color:#5B6579;margin:0 0 14px}
+.wa-opt{position:relative;display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid #E6E1D8;border-radius:14px;background:#fff;text-decoration:none;color:inherit;margin-bottom:8px;transition:border-color .15s,background .15s}
+.wa-opt:hover{border-color:#25D366;background:#F0FBF4}
+.wa-opt.is-likely{border-color:#25D366;background:#F0FBF4;box-shadow:0 0 0 3px rgba(37,211,102,.18)}
+.wa-flag{flex:none;width:36px;height:24px;border-radius:4px;overflow:hidden;box-shadow:0 0 0 1px rgba(0,0,0,.08)}
+.wa-flag svg{display:block;width:100%;height:100%}
+.wa-opt-tx{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.wa-opt-tx b{font-size:15px;color:#1B2438}
+.wa-opt-tx small{font-size:12.5px;color:#5B6579}
+.wa-likely{display:none;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#146C3A;background:#D6F5E1;border-radius:999px;padding:4px 8px;flex:none}
+.wa-opt.is-likely .wa-likely{display:inline-block}

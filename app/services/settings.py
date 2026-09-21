@@ -106,11 +106,25 @@ def landing_settings() -> dict:
     return {
         'contact_email': (stored.get('contact_email') or '').strip(),
         'contact_email_enabled': bool(stored.get('contact_email_enabled')),
-        # Shown on the landing sign-up prompt as "reach us directly"; hidden while empty so we
-        # never display a number nobody answers.
-        'contact_whatsapp': (stored.get('contact_whatsapp') or '').strip(),
+        # WhatsApp numbers for the India and USA teams. Every WhatsApp button on the site reads
+        # these: both set -> the visitor picks a team; one set -> it opens directly; none ->
+        # the buttons are not rendered at all, so we never show a number nobody answers.
+        'whatsapp_in': (stored.get('whatsapp_in') or '').strip(),
+        'whatsapp_us': (stored.get('whatsapp_us') or '').strip(),
         'colors': colors,
     }
+
+
+def whatsapp_numbers() -> dict:
+    """{'in': {'display', 'digits'} | None, 'us': ...} for the templates. `digits` is what
+    wa.me wants (country code, no plus, no spaces); `display` is the number as typed."""
+    ls = landing_settings()
+    out = {}
+    for key in ('in', 'us'):
+        raw = ls['whatsapp_' + key]
+        digits = ''.join(ch for ch in raw if ch.isdigit())
+        out[key] = {'display': raw, 'digits': digits} if len(digits) >= 8 else None
+    return out
 
 
 def set_landing_settings(data: dict, actor=None) -> dict:
@@ -119,8 +133,9 @@ def set_landing_settings(data: dict, actor=None) -> dict:
         cur['contact_email'] = (data.get('contact_email') or '').strip()[:255]
     if 'contact_email_enabled' in data:
         cur['contact_email_enabled'] = bool(data.get('contact_email_enabled'))
-    if 'contact_whatsapp' in data:
-        cur['contact_whatsapp'] = (data.get('contact_whatsapp') or '').strip()[:30]
+    for key in ('whatsapp_in', 'whatsapp_us'):
+        if key in data:
+            cur[key] = (data.get(key) or '').strip()[:30]
     if isinstance(data.get('colors'), dict):
         for k in LANDING_COLOR_DEFAULTS:
             v = (data['colors'].get(k) or '').strip()

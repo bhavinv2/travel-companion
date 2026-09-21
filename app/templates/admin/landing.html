@@ -28,13 +28,21 @@
       </section>
 
       <section class="admin-card lp-card">
-        <h2><i class="fa-brands fa-whatsapp"></i> WhatsApp number</h2>
-        <p class="muted small">Shown on the landing page's sign-up prompt as "reach us directly", with a
-          <strong>Chat on WhatsApp</strong> button and a call/text link. Leave it empty and that block is hidden
-          entirely &mdash; nothing is shown until a real number is here.</p>
-        <div class="field-group" style="max-width:420px">
-          <label>WhatsApp number (international format)</label>
-          <input type="tel" name="contact_whatsapp" value="{{ ls.contact_whatsapp }}" placeholder="+91 98765 43210"/>
+        <h2><i class="fa-brands fa-whatsapp"></i> WhatsApp numbers</h2>
+        <p class="muted small">Drives every <strong>Chat on WhatsApp</strong> button on the site &mdash; the landing
+          page's floating button, the sign-up prompt, the Contact Us popup and the footer. With <strong>both</strong>
+          numbers set, visitors pick the India or USA team (the likely one is pre-selected from their time zone).
+          With one, the button opens it directly. With none, the buttons are hidden &mdash; nothing is shown
+          until a real number is here.</p>
+        <div class="lp-colors" style="max-width:640px">
+          <div class="field-group">
+            <label>India team (international format)</label>
+            <input type="tel" name="whatsapp_in" value="{{ ls.whatsapp_in }}" placeholder="+91 98765 43210"/>
+          </div>
+          <div class="field-group">
+            <label>USA team (international format)</label>
+            <input type="tel" name="whatsapp_us" value="{{ ls.whatsapp_us }}" placeholder="+1 917 555 0100"/>
+          </div>
         </div>
       </section>
 

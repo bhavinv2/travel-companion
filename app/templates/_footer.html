@@ -1,6 +1,8 @@
 {# Shared site footer — same design on the public landing and every signed-in page.
    Menu items differ by session state; brand, legal and layout stay identical everywhere,
-   per the "one footer design, menu items can change" direction. #}
+   per the "one footer design, menu items can change" direction.
+   Also hosts the one WhatsApp team chooser + its script, since every page has a footer. #}
+{% from '_whatsapp.html' import wa_button, wa_chooser with context %}
 <footer class="ftr">
   <div class="wrap">
     <div class="ftr-grid">
@@ -15,6 +17,7 @@
           <a href="{{ href }}" target="_blank" rel="noopener" aria-label="{{ label }}" title="{{ label }}"><svg viewBox="0 0 24 24" fill="currentColor"><path d="{{ icon }}"/></svg></a>
           {% endfor %}
         </div>
+        <div class="ftr-wa">{{ wa_button('wa-btn-sm') }}</div>
       </div>
       <div>
         <h4>{{ _('Quick Links') }}</h4>
@@ -70,6 +73,8 @@
     </div>
   </div>
 </footer>
+{{ wa_chooser() }}
+<script src="{{ url_for('static', filename='js/whatsapp.js') }}" defer></script>
 <script>
 (function(){
   var f = document.getElementById('ftrNewsForm');

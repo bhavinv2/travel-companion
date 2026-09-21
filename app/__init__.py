@@ -273,11 +273,13 @@ def create_app(test_config=None):
                                 GENDERS, PREF_GENDERS)
         from app import options
         from app.services import insurance_countries, nri_services
+        from app.services import settings as _settings
         return {
             'now': datetime.utcnow,
             'INSURANCE_DESTINATIONS': insurance_countries,
             'NRI_SERVICES': nri_services.SERVICES,
             'NRI_SOCIAL': nri_services.SOCIAL,
+            'WHATSAPP': _settings.whatsapp_numbers,
             'INSURANCE_PARTNER_NAME': nri_services.INSURANCE_PARTNER_NAME,
             'INSURANCE_PARTNER_URL': nri_services.INSURANCE_PARTNER_URL,
             'CONTACT_TYPE_ICONS': CONTACT_TYPE_ICONS,

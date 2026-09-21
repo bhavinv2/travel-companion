@@ -178,9 +178,8 @@ def index():
         from app.models import Blog
         landing_blogs = (Blog.query.filter_by(is_published=True)
                          .order_by(Blog.published_at.desc().nullslast(), Blog.created_at.desc()).limit(3).all())
-        ls = _settings.landing_settings()
         return render_template('landing.html', feedbacks=approved_feedback, review_stats=review_stats,
-                               landing_colors=ls['colors'], contact_whatsapp=ls['contact_whatsapp'],
+                               landing_colors=_settings.landing_settings()['colors'],
                                country_meta=COUNTRY_META, landing_faqs=landing_faqs, landing_blogs=landing_blogs,
                                structured_data=_landing_structured_data(landing_faqs, review_stats),
                                **_landing_live_data())

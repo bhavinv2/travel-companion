@@ -56,22 +56,42 @@ def test_admin_landing_requires_admin(client, db, user):
     assert client.get('/admin/landing').status_code in (302, 403)
 
 
-def test_signup_prompt_contact_block_only_with_a_configured_number(client, db, admin_user):
-    """The 'reach us directly' block must never show a placeholder number."""
+def test_whatsapp_buttons_follow_the_configured_numbers(client, db, admin_user, user):
+    """None -> no button anywhere. One -> direct wa.me links. Both -> one button + a team chooser.
+    Never a placeholder number."""
     html = client.get('/').data.decode()
-    assert 'id="suModal"' in html                       # the prompt itself is always there
-    # contact form + support e-mail are always offered; WhatsApp only once a number exists
-    assert 'id="suContactBtn"' in html and 'mailto:' in html
-    assert 'wa.me/' not in html and 'Call or text' not in html
+    assert 'id="suModal"' in html and 'id="suContactBtn"' in html and 'mailto:' in html
+    assert 'class="wa-btn' not in html and 'wa.me/' not in html and 'id="waChooser"' not in html
 
-    settings.set_landing_settings({'contact_whatsapp': '+91 98765 43210'}, admin_user)
+    # one number: every placement is a plain link straight to it, no chooser
+    settings.set_landing_settings({'whatsapp_in': '+91 98765 43210', 'whatsapp_us': ''}, admin_user)
     html = client.get('/').data.decode()
-    assert 'https://wa.me/919876543210' in html and 'tel:+919876543210' in html
-    assert 'Call or text +91 98765 43210' in html
+    assert html.count('href="https://wa.me/919876543210"') == 4      # float, sign-up, contact modal, footer
+    assert 'data-wa-open' not in html and 'id="waChooser"' not in html
 
-    # admins set it from the Landing page screen, and clearing it hides the block again
-    login(client, 'admin@test.com')
-    client.post('/admin/landing', data={'contact_email': '', 'contact_whatsapp': ''})
-    assert settings.landing_settings()['contact_whatsapp'] == ''
+    # both numbers: the placements become chooser buttons and exactly one chooser is on the page
+    settings.set_landing_settings({'whatsapp_us': '+1 917 555 0100'}, admin_user)
+    html = client.get('/').data.decode()
+    assert html.count('data-wa-open') == 4
+    assert html.count('id="waChooser"') == 1
+    assert 'https://wa.me/919876543210' in html and 'https://wa.me/19175550100' in html
+    assert 'India team' in html and 'USA team' in html
+
+    # the footer is shared, so a signed-in traveller's home gets the same button and chooser
+    login(client, 'bob@test.com')
+    html = client.get('/').data.decode()
+    assert 'data-wa-open' in html and html.count('id="waChooser"') == 1
     client.get('/auth/logout')
-    assert 'wa.me/' not in client.get('/').data.decode()
+    # admins set the numbers from the Landing page screen; clearing hides everything again
+    login(client, 'admin@test.com')
+    client.post('/admin/landing', data={'contact_email': '', 'whatsapp_in': '', 'whatsapp_us': ''})
+    assert settings.landing_settings()['whatsapp_in'] == '' and settings.landing_settings()['whatsapp_us'] == ''
+    client.get('/auth/logout')
+    assert 'class="wa-btn' not in client.get('/').data.decode()
+
+
+def test_whatsapp_number_needs_enough_digits_to_count(client, db, admin_user):
+    """A typo like '+91' alone must not put a broken button on the site."""
+    settings.set_landing_settings({'whatsapp_in': '+91', 'whatsapp_us': ''}, admin_user)
+    assert settings.whatsapp_numbers() == {'in': None, 'us': None}
+    assert 'class="wa-btn' not in client.get('/').data.decode()

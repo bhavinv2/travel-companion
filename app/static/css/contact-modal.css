@@ -17,6 +17,8 @@
 #contactModal .consult-side li{display:flex;gap:10px;align-items:center;font-size:14px}
 #contactModal .consult-side li svg{width:20px;height:20px;padding:3px;border-radius:50%;background:var(--amber);color:var(--navy);flex:none}
 #contactModal .side-contact{margin-top:28px;display:grid;gap:10px}
+#contactModal .side-wa{margin-bottom:4px}
+#contactModal .side-wa .wa-btn{width:100%;justify-content:center;color:#063B1E;font-size:14px}
 #contactModal .side-contact a{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:#fff;text-decoration:none}
 #contactModal .side-contact .ic{width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,.12);display:grid;place-items:center;color:var(--amber)}
 #contactModal .side-contact .ic svg{width:18px;height:18px}

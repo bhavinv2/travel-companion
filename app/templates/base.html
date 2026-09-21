@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/bg-art.css') }}"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/footer.css') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/whatsapp.css') }}"/>
   {% block extra_css %}{% endblock %}
   {# active colour theme, managed at /admin/themes. Last in the head so it wins over
      both style.css (:root) and landing.css (.landing). #}
@@ -36,7 +37,10 @@
         <li><a href="{{ url_for('cs.new_post') }}"><i class="fa-solid fa-plus"></i> New Post</a></li>
         <li><a href="{{ url_for('imports.import_page') }}"><i class="fa-solid fa-file-import"></i> Import</a></li>
       {% else %}
+      {# No "Home" link while you are already home — the logo is the way back, same as the landing. #}
+      {% if request.endpoint != 'main.index' %}
       <li><a href="{{ url_for('main.index') }}" title="{{ _('Post a trip, search, and see your matches') }}"><i class="fa-solid fa-house"></i> {{ _('Home') }}</a></li>
+      {% endif %}
       {% if current_user.is_authenticated %}
         <li><a href="{{ url_for('main.dashboard') }}" title="{{ _('Manage your trips, matches and profile') }}"><i class="fa-solid fa-gauge"></i> {{ _('My Dashboard') }}</a></li>
       {% endif %}
