@@ -5,7 +5,7 @@
   position:fixed;inset:0;background:rgba(11,23,47,.7);display:none;align-items:center;justify-content:center;z-index:9500;padding:20px;backdrop-filter:blur(3px);font-family:var(--sans);color:var(--ink);line-height:1.5}
 #contactModal.open{display:flex}
 #contactModal *{box-sizing:border-box}
-#contactModal .dlg{background:#fff;border-radius:26px;width:100%;max-width:960px;max-height:92vh;overflow:auto;position:relative;box-shadow:0 40px 90px rgba(0,0,0,.4)}
+#contactModal .dlg{background:#fff;border-radius:26px;width:100%;max-width:960px;max-height:92vh;max-height:92dvh;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;position:relative;margin:auto;box-shadow:0 40px 90px rgba(0,0,0,.4)}
 #contactModal .close{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.9);color:var(--navy);font-size:20px;display:grid;place-items:center;border:0;cursor:pointer;z-index:2;font-family:inherit;padding:0}
 #contactModal .close:hover{background:#fff}
 #contactModal .consult{display:grid;grid-template-columns:.8fr 1.4fr;overflow:hidden;border-radius:26px}
@@ -41,7 +41,7 @@
 #contactModal .btn:disabled{opacity:.7;cursor:progress}
 #contactModal .reassure{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center;margin-top:12px}
 @media(max-width:900px){#contactModal .consult{grid-template-columns:1fr}#contactModal .consult-side{padding:30px 26px 22px}#contactModal .consult-form{padding:22px 20px}}
-@media(max-width:600px){#contactModal{padding:10px}#contactModal .row{grid-template-columns:1fr}#contactModal .consult-side h2{font-size:26px}#contactModal .consult-foot .btn{width:100%;justify-content:center}}
+@media(max-width:600px){#contactModal{padding:10px;align-items:flex-start;overflow-y:auto}#contactModal .dlg{max-height:none;border-radius:20px}#contactModal .row{grid-template-columns:1fr}#contactModal .consult-side h2{font-size:26px}#contactModal .consult-foot .btn{width:100%;justify-content:center}}
 /* keep the two footer buttons side by side on desktop whatever the host page's .btn rules say */
 #contactModal .consult-foot .btn{flex:0 0 auto;width:auto}
 #contactModal .close{background:#EEF2F7}

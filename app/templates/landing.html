@@ -87,7 +87,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .hdr{background:var(--navy);position:sticky;top:0;z-index:50;box-shadow:0 1px 0 rgba(255,255,255,.06)}
 .hdr .wrap{display:flex;align-items:center;justify-content:space-between;height:66px}
 .logo{display:flex;align-items:center;gap:0;color:#fff;font-weight:700;font-size:17px;letter-spacing:-.01em}
-.logo-stack{display:flex;flex-direction:column;gap:1px;line-height:1.15}
+.logo-stack{display:flex;flex-direction:column;gap:1px;line-height:1.15;white-space:nowrap}
 .logo-stack small{font-size:10.5px;font-weight:600;color:var(--amber);letter-spacing:.01em}
 @media(max-width:560px){.logo-stack small{display:none}}
 .logo img{width:32px;height:32px;margin-right:10px;object-fit:contain}
@@ -120,13 +120,13 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .hdr .btn{padding:10px 22px;font-size:14px}
 .burger{display:none;width:40px;height:40px;color:#fff}
 @media(max-width:1120px){.nav{gap:22px;font-size:14px}.hdr .btn{padding:9px 16px}.hdr-right{gap:8px}}   /* full nav still fits on small laptops / tablets landscape */
-@media(max-width:920px){.nav,.hdr .btn-outline{display:none}.burger{display:grid;place-items:center}.hdr .wrap{padding:0 14px}.hdr-right{gap:8px}.lang{padding:7px 10px}.logo{font-size:16px}.hdr .btn{padding:9px 16px}}
+@media(max-width:1080px){.nav,.hdr .btn-outline{display:none}.burger{display:grid;place-items:center}.hdr .wrap{padding:0 14px}.hdr-right{gap:8px}.lang{padding:7px 10px}.logo{font-size:16px}.hdr .btn{padding:9px 16px}}
 /* Phones: the brand must always read "NRI Parent Service" — shrink it, never drop "Parent". */
 @media(max-width:420px){.logo{font-size:14px;letter-spacing:-.02em}.logo img{width:28px;height:28px;margin-right:7px}.lang span#langCur{display:none}.lang{padding:8px}.hdr .btn{padding:8px 11px;font-size:13px}.hdr-right{gap:6px}}
 /* Mobile nav drawer: a dropdown panel under the header, opened by the burger. Desktop nav
    (.nav, inline) stays as-is; this only ever shows ≤920px. */
 .mobile-drawer{display:none}
-@media(max-width:920px){
+@media(max-width:1080px){
   .mobile-drawer{display:none;flex-direction:column;gap:2px;background:var(--navy);border-top:1px solid rgba(255,255,255,.1);padding:10px 5%}
   .mobile-drawer.open{display:flex}
   .mobile-drawer a{color:#DCE4F2;font-weight:600;font-size:15px;padding:13px 6px;border-bottom:1px solid rgba(255,255,255,.08)}
@@ -590,7 +590,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .trust-chips{display:flex;justify-content:center;flex-wrap:wrap;gap:10px;margin-top:22px}
 .trust-chips span{background:#fff;border:1px solid var(--line);border-radius:var(--r-pill);padding:9px 16px;font-size:14px;font-weight:600;display:inline-flex;gap:8px;align-items:center}
 .trust-chips b{color:var(--sunset)}
-@media(max-width:900px){.search{flex-direction:column}.sf + .sf::before{left:16px;right:16px;top:0;bottom:auto;width:auto;height:1px}.search .btn{margin:14px;justify-content:center;padding:15px}}
+@media(max-width:1000px){.search{flex-direction:column}.sf + .sf::before{left:16px;right:16px;top:0;bottom:auto;width:auto;height:1px}.search .btn{margin:14px;justify-content:center;padding:15px}}
 @media(max-width:560px){.search{grid-template-columns:1fr}.search-wrap{margin-top:-40px}.search-card{padding:20px}}
 /* Intro */
 .intro{text-align:center;max-width:680px;margin:0 auto}
@@ -672,15 +672,15 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .band-pin{position:absolute;left:79.5%;top:9%;width:26px;color:#FFD48A;filter:drop-shadow(0 2px 6px rgba(5,15,40,.5));animation:band-pin-bob 2.6s ease-in-out infinite}
 .band-plane svg,.band-pin svg{width:100%;height:auto;display:block}
 @keyframes band-pin-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
-@media(max-width:900px){.band-sky{display:none}}
+@media(max-width:1000px){.band-sky{display:none}}
 .band-ctas{display:flex;gap:14px;flex-wrap:wrap;margin-top:22px}
-@media(max-width:900px){.band{padding:56px 28px 52px;text-align:center;align-items:center;min-height:0;background:linear-gradient(180deg,rgba(11,35,80,.5) 0%,rgba(11,35,80,.82) 45%,rgba(11,35,80,.94) 100%),url('/static/img/cta_couple_mountains.jpg') 18% center/cover no-repeat,#0d2d61}.band-ctas{justify-content:center}.band h2{max-width:20ch}}
+@media(max-width:1000px){.band{padding:56px 28px 52px;text-align:center;align-items:center;min-height:0;background:linear-gradient(180deg,rgba(11,35,80,.5) 0%,rgba(11,35,80,.82) 45%,rgba(11,35,80,.94) 100%),url('/static/img/cta_couple_mountains.jpg') 18% center/cover no-repeat,#0d2d61}.band-ctas{justify-content:center}.band h2{max-width:20ch}}
 /* the script note sits at the top-right, in the sky above the copy, clear of the buttons */
 .band-deco{position:absolute;right:30px;top:20px;font-family:'Caveat',cursive;font-weight:700;color:#FFD48A;font-size:19px;line-height:1.15;display:none;align-items:flex-end;gap:6px;text-align:right;text-shadow:0 1px 6px rgba(5,15,40,.6)}
-@media(min-width:900px){.band-deco{display:inline-flex}}
+@media(min-width:1001px){.band-deco{display:inline-flex}}
 .band h2{color:#fff;font-size:clamp(28px,3.4vw,40px);max-width:16ch;margin:0 0 12px}
 .band p{color:#C9D5EC;max-width:52ch;margin:0 0 4px}
-@media(max-width:900px){.band h2,.band p{margin-left:auto;margin-right:auto}}
+@media(max-width:1000px){.band h2,.band p{margin-left:auto;margin-right:auto}}
 /* Form compact */
 .form-wrap{gap:40px}
 .form{padding:28px}
@@ -1358,6 +1358,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
 .help-card h3{font-family:var(--serif);font-weight:600;font-size:22px;margin-bottom:4px;color:var(--navy)}
 .help-card p{color:var(--muted);font-size:14.5px}
 .help-card .btn{margin-left:auto;white-space:nowrap}
+@media(max-width:1150px){.help-card{flex-wrap:wrap}.help-card > div{flex:1 1 100%;min-width:0}.help-card .btn{margin-left:0;width:100%;justify-content:center}}
 @media(max-width:900px){.help-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.help-card{flex-wrap:wrap}.help-card .btn{margin-left:0;width:100%;justify-content:center}.help-card.ins-card{padding-top:22px}.ins-flag{position:static;flex:0 0 auto;width:auto;max-width:100%;white-space:normal;margin:0 0 2px}.help-card > div{min-width:0}}
 /* Wide dialog for the consult-style contact form */
