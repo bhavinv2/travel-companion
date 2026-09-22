@@ -114,7 +114,7 @@ def import_page():
         if not f or not f.filename:
             flash('Choose an .xlsx or .csv file.', 'danger')
             return redirect(url_for('imports.import_page'))
-        default_source = request.form.get('default_source') if request.form.get('default_source') in ('facebook', 'website', 'excel') else 'website'
+        default_source = request.form.get('default_source') if request.form.get('default_source') in ('whatsapp', 'facebook', 'website', 'other', 'excel') else 'website'
         records, err = importer.parse_file(f.stream, f.filename)
         if err:
             flash(err, 'danger')

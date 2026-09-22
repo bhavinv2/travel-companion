@@ -242,7 +242,7 @@ def build_row(canon, idx, default_source='website'):
         'pref_gender': canon.get('pref_gender', '').lower() if canon.get('pref_gender', '').lower() in PREF_GENDERS else 'any',
         'pref_age_min': _int(canon.get('pref_age_min')), 'pref_age_max': _int(canon.get('pref_age_max')),
         'ticket_booked': (canon.get('ticket_booked', '') or '').lower() in ('yes', 'y', 'true', '1', 'booked'),
-        'source': canon.get('source', '').lower() if canon.get('source', '').lower() in ('facebook', 'website', 'excel') else default_source,
+        'source': canon.get('source', '').lower() if canon.get('source', '').lower() in ('whatsapp', 'facebook', 'website', 'other', 'excel') else default_source,
         'source_url': canon.get('source_url', '')[:500],
     })
     for col in ('contact', 'email', 'phone', 'facebook'):

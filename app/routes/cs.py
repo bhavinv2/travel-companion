@@ -10,7 +10,8 @@ from sqlalchemy import func, or_
 from app import db
 from app.models import (
     CompanionRequest, ContactPoint, ClaimToken, ActivityEvent, Notification, User,
-    TRIP_STATUSES, TRIP_SOURCES, TRIP_ROLES, TRIP_ROLE_LABELS, CLOSED_REASONS, CLOSED_REASON_LABELS,
+    TRIP_STATUSES, TRIP_SOURCES, CS_TRIP_SOURCES, TRIP_SOURCE_LABELS, TRIP_ROLES, TRIP_ROLE_LABELS,
+    CLOSED_REASONS, CLOSED_REASON_LABELS,
     AGE_GROUPS, AGE_GROUP_LABELS, GENDERS, PREF_GENDERS, CONTACT_TYPES, CONTACT_TYPE_LABELS,
 )
 from app import options
@@ -46,7 +47,8 @@ TRIP_TYPE_LABELS = {'one_way': 'One-way', 'round_trip': 'Round trip',
 def _choices():
     return dict(
         TRIP_TYPES=TRIP_TYPES, TRIP_TYPE_LABELS=TRIP_TYPE_LABELS,
-        TRIP_STATUSES=TRIP_STATUSES, TRIP_SOURCES=TRIP_SOURCES, TRIP_ROLES=TRIP_ROLES,
+        TRIP_STATUSES=TRIP_STATUSES, TRIP_SOURCES=TRIP_SOURCES, CS_TRIP_SOURCES=CS_TRIP_SOURCES,
+        TRIP_SOURCE_LABELS=TRIP_SOURCE_LABELS, TRIP_ROLES=TRIP_ROLES,
         TRIP_ROLE_LABELS=TRIP_ROLE_LABELS, CLOSED_REASONS=CLOSED_REASONS,
         CLOSED_REASON_LABELS=CLOSED_REASON_LABELS, AGE_GROUPS=AGE_GROUPS, AGE_GROUP_LABELS=AGE_GROUP_LABELS,
         GENDERS=GENDERS, PREF_GENDERS=PREF_GENDERS, CONTACT_TYPES=CONTACT_TYPES,
@@ -494,7 +496,13 @@ def _apply_form(trip, form, files, is_new):
     errors = []
     trip.travel_type = 'air'
     trip.trip_type = form.get('trip_type') or 'one_way'
-    trip.source = form.get('source') if form.get('source') in TRIP_SOURCES else 'website'
+    # Staff pick from CS_TRIP_SOURCES. 'organic' (the traveller posted it) and 'excel' (imported)
+    # are facts about where a post came from rather than fields staff edit, so once a post carries
+    # one this leaves it alone — otherwise saving an edit would flip is_claimed and drag a
+    # self-posted trip into the CS follow-up queue.
+    if not trip.source or trip.source in CS_TRIP_SOURCES:
+        submitted = form.get('source')
+        trip.source = submitted if submitted in CS_TRIP_SOURCES else (trip.source or 'website')
     trip.source_url = (form.get('source_url') or '').strip()[:500] or None
     trip.poster_name = (form.get('poster_name') or '').strip()[:120] or None
     trip.traveler_name = (form.get('traveler_name') or '').strip()[:120] or None

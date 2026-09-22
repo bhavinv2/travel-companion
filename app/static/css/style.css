@@ -587,6 +587,11 @@ label .opt { text-transform: none; letter-spacing: 0; font-weight: 500; font-siz
 .admin-table th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border); font-size: 12px; text-transform: uppercase; color: var(--muted); }
 .admin-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
 .admin-table tr:hover td { background: var(--bg); }
+/* "Departs" cells read as one unit: 2026-09-23 (1d). The date and the countdown are separate
+   inline elements, so a narrow column would otherwise break them onto two lines. Any "posted ..."
+   note below is on its own <br/> line and still wraps normally. */
+.admin-table td[data-label="Departs"] { white-space: nowrap; }
+.admin-table td[data-label="Departs"] small.muted, .admin-table td[data-label="Departs"] small.urgent { white-space: nowrap; }
 .badge-pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px; }
 .badge-pill.green { background: #dcfce7; color: #16a34a; }
 .badge-pill.red { background: #fee2e2; color: #dc2626; }
@@ -1207,8 +1212,11 @@ tr.row-edited > td:first-child { box-shadow: inset 3px 0 0 var(--coral); }
 /* "Services" dropdown: the rest of the NRI Parent Service group, all on other domains.
    The carets/icons need display overrides because .nav-links a i is hidden on desktop. */
 .nav-links .nav-svc { position: relative; }
-.nav-links .nav-svc > a { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
-.nav-links .nav-svc > a .nav-svc-caret { display: inline-block; font-size: 9.5px; transition: transform .18s; }
+/* The anchor stays display:inline like every other nav link. As inline-flex it became an atomic
+   inline box, so its padding counted toward layout and the label sat ~7px lower than its siblings. */
+.nav-links .nav-svc > a { cursor: pointer; }
+.nav-links .nav-svc > a .nav-svc-caret { display: inline-block; font-size: 9.5px; margin-left: 6px;
+  vertical-align: baseline; transition: transform .18s; }
 .nav-links .nav-svc.open > a { background: rgba(255,255,255,0.12); color: #fff; }
 .nav-links .nav-svc.open > a .nav-svc-caret { transform: rotate(180deg); }
 .nav-svc-menu { position: absolute; top: calc(100% + 8px); left: 0; min-width: 236px; list-style: none;

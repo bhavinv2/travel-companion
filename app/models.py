@@ -12,7 +12,16 @@ import bcrypt
 USER_ROLES = ('user', 'cs', 'admin')
 
 TRIP_STATUSES = ('unconfirmed', 'open', 'matched', 'closed')
-TRIP_SOURCES = ('organic', 'facebook', 'website', 'excel')
+# Every source a post can carry. 'organic' means the traveller posted it themselves — it is set by
+# the public post form, and is_claimed/the CS queue/reminder jobs all key off it, so it is never an
+# option a human picks. 'excel' is stamped by the importer. CS_TRIP_SOURCES is what staff can choose
+# when creating a post on someone's behalf.
+TRIP_SOURCES = ('organic', 'whatsapp', 'facebook', 'website', 'other', 'excel')
+CS_TRIP_SOURCES = ('whatsapp', 'website', 'facebook', 'other')
+TRIP_SOURCE_LABELS = {
+    'organic': 'Organic (self-posted)', 'whatsapp': 'WhatsApp', 'facebook': 'Facebook',
+    'website': 'Website', 'other': 'Other', 'excel': 'Excel import',
+}
 TRIP_ROLES = ('seeking_help', 'offering_help', 'open')
 TRIP_ROLE_LABELS = {
     'seeking_help': 'Seeking help',
@@ -231,7 +240,7 @@ class CompanionRequest(db.Model):
     expires_at = db.Column(db.Date)
 
     # Phase 2: intake, people, role, preferences, lifecycle
-    source = db.Column(db.String(20), default='organic', index=True)   # organic/facebook/website/excel
+    source = db.Column(db.String(20), default='organic', index=True)   # see TRIP_SOURCES
     source_url = db.Column(db.String(500))
     import_key = db.Column(db.String(64), unique=True, nullable=True)
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # CS agent

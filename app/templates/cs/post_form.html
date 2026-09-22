@@ -50,7 +50,11 @@
           <div class="form-row">
             <div class="field-group">
               <label>Source <span class="req">*</span></label>
-              <select name="source">{% for s in TRIP_SOURCES %}<option value="{{ s }}" {{ sel('source', s, 'website') }}>{{ s|capitalize }}</option>{% endfor %}</select>
+              {# Staff choose from CS_TRIP_SOURCES. When editing a post whose source is not one of
+                 those (organic / excel), it is listed too so the form shows the truth and round-trips. #}
+              {% set src_choices = CS_TRIP_SOURCES | list %}
+              {% if trip and trip.source and trip.source not in src_choices %}{% set src_choices = src_choices + [trip.source] %}{% endif %}
+              <select name="source">{% for s in src_choices %}<option value="{{ s }}" {{ sel('source', s, 'website') }}>{{ TRIP_SOURCE_LABELS.get(s, s|capitalize) }}</option>{% endfor %}</select>
             </div>
             <div class="field-group wide">
               <label>Source link</label>

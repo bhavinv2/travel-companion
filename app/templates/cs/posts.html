@@ -23,7 +23,7 @@
       </select>
       <select name="source">
         <option value="">Any source</option>
-        {% for s in TRIP_SOURCES %}<option value="{{ s }}" {% if filters.source == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}
+        {% for s in TRIP_SOURCES %}<option value="{{ s }}" {% if filters.source == s %}selected{% endif %}>{{ TRIP_SOURCE_LABELS.get(s, s|capitalize) }}</option>{% endfor %}
       </select>
       <select name="role">
         <option value="">Any role</option>
