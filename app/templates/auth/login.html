@@ -83,11 +83,15 @@ body::before{content:"";position:fixed;right:-30px;bottom:-16px;width:min(560px,
           <div class="err" style="display:block">{{ message }}</div>
         {% endfor %}
       {% endwith %}
+      {# a provider's button only appears once its client id is configured #}
+      {% set _oauth = config.GOOGLE_OAUTH_CLIENT_ID or config.FACEBOOK_OAUTH_CLIENT_ID %}
+      {% if _oauth %}
       <div class="social-btns">
-        <a href="{{ url_for('auth.google_login') }}" class="sbtn"><i class="fa-brands fa-google"></i> Continue with Google</a>
-        <a href="{{ url_for('auth.facebook_login') }}" class="sbtn"><i class="fa-brands fa-facebook-f"></i> Continue with Facebook</a>
+        {% if config.GOOGLE_OAUTH_CLIENT_ID %}<a href="{{ url_for('auth.google_login') }}" class="sbtn"><i class="fa-brands fa-google"></i> Continue with Google</a>{% endif %}
+        {% if config.FACEBOOK_OAUTH_CLIENT_ID %}<a href="{{ url_for('auth.facebook_login') }}" class="sbtn"><i class="fa-brands fa-facebook-f"></i> Continue with Facebook</a>{% endif %}
       </div>
       <div class="or">or sign in with email</div>
+      {% endif %}
       <form method="POST" action="{{ url_for('auth.login') }}" novalidate>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="f"><label for="li-email">Email</label><input id="li-email" type="email" name="email" required autocomplete="username" placeholder="you@example.com"></div>

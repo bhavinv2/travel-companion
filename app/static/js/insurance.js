@@ -109,11 +109,14 @@
 
       const email = q('.ins-email').value.trim();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail('Please enter a valid email address.', q('.ins-email'));
+      const phone = q('.ins-phone').value.trim();
+      if (!phone) return fail('Please enter a phone number.', q('.ins-phone'));
+      if (!/^[\d\s()+-]{7,20}$/.test(phone)) return fail('That phone number does not look right — digits, spaces, + and - only.', q('.ins-phone'));
 
       const insType = selectedType(form);
       const body = {
         start_date: start, end_date: end, travellers, citizenship: q('.ins-cit').value,
-        insurance_type: insType, email, phone: q('.ins-phone').value.trim(),
+        insurance_type: insType, email, phone,
       };
       if (NEEDS_DESTINATION[insType]) body.destination = q('.ins-dest').value;
 

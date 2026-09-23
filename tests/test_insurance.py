@@ -70,8 +70,9 @@ def test_visitors_quote_sends_partner_params_and_stores_lead(client, db, partner
     assert 'visitors-insurance' in partner['referer']
 
     q = InsuranceQuote.query.one()
-    # the form asks for no name at all — the email is the lead
+    # the form asks for no name at all — email + phone are the lead
     assert (q.name, q.email, q.insurance_type, q.status) == (None, 'ramesh@example.com', 'visitors', 'quoted')
+    assert q.phone == '+91 98765 43210'
     assert q.travellers == [{'age': '65'}, {'age': '62'}]
     assert q.age_list == ['65', '62'] and q.traveller_count == 2
 
@@ -164,6 +165,8 @@ def test_partner_outage_still_records_the_lead(client, db, partner):
     ({'travellers': [{'age': '1'}] * 9}, 'over max'),
     ({'email': 'nope'}, 'email'),
     ({'email': ''}, 'email missing'),
+    ({'phone': ''}, 'phone missing'),
+    ({'phone': 'call me maybe'}, 'phone not a number'),
     ({'citizenship': 'XX'}, 'citizenship'),
     ({'start_date': (date.today() - timedelta(days=1)).isoformat()}, 'start'),
     ({'end_date': (date.today() + timedelta(days=2)).isoformat(),
@@ -197,3 +200,23 @@ def test_admin_leads_page_is_admin_only(client, db, user):
     assert client.get('/admin/insurance-quotes').status_code in (301, 302)   # anonymous -> login
     login(client, 'bob@test.com')
     assert client.get('/admin/insurance-quotes').status_code in (302, 403)
+
+
+def test_a_failed_lead_write_still_returns_the_quote(client, db, partner, monkeypatch):
+    """The partner has already priced the quote by the time we store the lead, so a DB problem
+    (e.g. a schema behind the code) must not turn a working quote into a 500 — and must not
+    silently swallow the cause either."""
+    from app import db as _db
+    logged = {}
+
+    def boom():
+        raise RuntimeError('insurance_quotes is behind the code')
+
+    monkeypatch.setattr(_db.session, 'commit', boom)
+    monkeypatch.setattr(_db.session, 'rollback', lambda: logged.setdefault('rolled_back', True))
+
+    r = client.post('/api/insurance-quote', json=payload())
+    body = r.get_json()
+    assert r.status_code == 200 and body['success'] is True
+    assert body['url'].endswith('/retrieve-insurance-quotes/?id=42')   # the customer still gets it
+    assert logged.get('rolled_back') is True                            # session left clean

@@ -536,6 +536,11 @@ def api_insurance_quote():
     phone = str(data.get('phone', '') or '').strip()
     if not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', email):
         return jsonify({'success': False, 'error': 'Please enter a valid email address.'}), 400
+    if not phone:
+        return jsonify({'success': False, 'error': 'Please enter a phone number.'}), 400
+    if not re.fullmatch(r'[\d\s()+-]{7,20}', phone):
+        return jsonify({'success': False,
+                        'error': 'That phone number does not look right — digits, spaces, + and - only.'}), 400
 
     payload = {
         'travelerInfos': [{'age': a, 'dependentChild': False, 'tripCost': None, 'bdate': None} for a in ages],
@@ -551,14 +556,22 @@ def api_insurance_quote():
 
     quote = InsuranceQuote(
         user_id=current_user.id if current_user.is_authenticated else None,
-        email=email[:255], phone=phone[:30] or None,
+        email=email[:255], phone=phone[:30],
         insurance_type=ins_type, citizenship=citizenship, destination=destination,
         start_date=start, end_date=end, travellers=travellers)
 
     def _save(status, url=None):
+        """Record the lead. The quote is the product and the partner has already priced it by
+        this point, so a lead we cannot store must never cost the customer their quote — log it
+        and carry on rather than turning a working quote into a 500."""
+        from flask import current_app
         quote.status, quote.quote_url = status, url
-        db.session.add(quote)
-        db.session.commit()
+        try:
+            db.session.add(quote)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception('Insurance lead not stored (quote still served) for %s', email)
 
     req = urllib.request.Request(
         INSURANCE_PARTNER + '/api/compare/travel-medical', data=_json.dumps(payload).encode('utf-8'),

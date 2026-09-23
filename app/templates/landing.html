@@ -396,7 +396,11 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .su-eyebrow{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);margin-bottom:8px}
 .su-head h3{font-family:var(--serif);font-size:23px;font-weight:600;line-height:1.2;margin:0 0 6px;color:#fff}
 .su-head p{font-size:14px;line-height:1.5;color:#C9D5EC;margin:0}
-.su-form{padding:20px 28px 24px}
+.su-tabs{display:flex;gap:4px;padding:0 28px;margin:14px 0 0;border-bottom:1px solid var(--line)}
+.su-tab{flex:1;background:none;border:0;border-bottom:2px solid transparent;font:inherit;font-size:13.5px;font-weight:700;color:var(--muted);padding:10px 6px;cursor:pointer;margin-bottom:-1px}
+.su-tab:hover{color:var(--navy)}
+.su-tab.is-on{color:var(--navy);border-bottom-color:var(--amber)}
+.su-form{padding:18px 28px 22px}
 .su-form .f{display:grid;gap:5px;margin-bottom:12px}
 .su-form label{font-size:12.5px;font-weight:700;color:var(--navy)}
 .su-form input:not([type=checkbox]){width:100%;border:1.5px solid var(--line);border-radius:10px;padding:11px 13px;font:inherit;font-size:14.5px;color:var(--ink);background:#fff}
@@ -423,7 +427,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .su-wa-hint{color:#1E5C3A}
 .su-wa-hint b{color:#146C3A}
 /* direct contact: only rendered when a number is configured in admin */
-.su-contact{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:0 28px 24px;padding:16px 18px;border-radius:16px;background:linear-gradient(135deg,#F0FBF4,#E3F5E8);border:1.5px solid #BFE5CC}
+.su-contact{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:18px 28px 24px;padding:16px 18px;border-radius:16px;background:linear-gradient(135deg,#F0FBF4,#E3F5E8);border:1.5px solid #BFE5CC}
 .su-contact-tx{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
 .su-contact-tx b{font-size:14.5px;color:#14603A}
 .su-contact-tx span{font-size:12.5px;color:#1E5C3A}
@@ -433,7 +437,9 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .su-tel-btn{background:#fff;color:#14603A;border:1.5px solid #9FD8B4}
 .su-tel-btn:hover{border-color:#25D366}
 .su-tel-btn svg{width:15px;height:15px}
-@media(max-width:480px){.su-row{grid-template-columns:1fr}.su-head{padding:22px 52px 18px 20px}.su-form{padding:16px 20px 20px}.su-head h3{font-size:20px}.su-contact{margin:0 20px 20px;padding:14px}.su-contact-btns{width:100%}.su-tel-btn,.su-contact .wa-btn{flex:1;justify-content:center}}
+/* Phones: keep the short name fields side by side (stacking them cost ~90px each) and drop the
+   intro paragraph, so the sign-up panel fits without an inner scroll. */
+@media(max-width:480px){.su-tabs{padding:0 20px}.su-row-wide{grid-template-columns:1fr}.su-head{padding:18px 52px 14px 20px}.su-head p{display:none}.su-head h3{font-size:19px}.su-form{padding:14px 20px 18px}.su-form .f{margin-bottom:10px}.su-form input:not([type=checkbox]){padding:10px 12px}.su-wa{padding:10px 12px;margin:2px 0 12px}.su-wa-hint{font-size:11.5px}.su-alt{margin-top:10px}.su-contact{margin:14px 20px 20px;padding:14px}.su-contact-btns{width:100%}.su-tel-btn,.su-contact .wa-btn{flex:1;justify-content:center}}
 /* ===== Travel Insurance drawer ===== */
 .drawer-overlay{position:fixed;inset:0;background:rgba(11,23,47,.55);z-index:100;display:none}
 .drawer-overlay.open{display:block}
@@ -2215,14 +2221,22 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
     <h3 id="suTitle">Find a travel companion for your parents</h3>
     <p>Create a free account to post a trip, get matched with a fellow Desi on the same flight, and chat safely — under a minute.</p>
   </div>
-  <form method="POST" action="{{ url_for('auth.register') }}" class="su-form">
+  {# Two short panels instead of one long scroll: the form, and the ways to reach a human.
+     Every field stays inside the one <form>, so it still posts to /auth/register in one go. #}
+  <div class="su-tabs" role="tablist">
+    <button type="button" class="su-tab is-on" data-su-tab="join" role="tab" aria-selected="true">Create account</button>
+    <button type="button" class="su-tab" data-su-tab="talk" role="tab" aria-selected="false">Talk to us</button>
+  </div>
+  <form method="POST" action="{{ url_for('auth.register') }}" class="su-form" data-su-panel="join">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="su-row">
       <div class="f"><label for="sup-first">First name</label><input id="sup-first" name="first_name" required autocomplete="given-name"></div>
       <div class="f"><label for="sup-last">Last name</label><input id="sup-last" name="last_name" autocomplete="family-name"></div>
     </div>
-    <div class="f"><label for="sup-email">Email</label><input id="sup-email" type="email" name="email" required autocomplete="email" placeholder="you@example.com"><span class="su-hint">We'll send match updates here.</span></div>
-    <div class="f"><label for="sup-username">Username</label><input id="sup-username" name="username" required minlength="3" maxlength="30" pattern="[A-Za-z0-9_.\-]{3,30}" autocomplete="username" placeholder="Unique — visible to others"></div>
+    <div class="su-row su-row-wide">
+      <div class="f"><label for="sup-email">Email</label><input id="sup-email" type="email" name="email" required autocomplete="email" placeholder="you@example.com"></div>
+      <div class="f"><label for="sup-username">Username</label><input id="sup-username" name="username" required minlength="3" maxlength="30" pattern="[A-Za-z0-9_.\-]{3,30}" autocomplete="username" placeholder="Visible to others"></div>
+    </div>
     <div class="f"><label for="sup-pass">Create password</label>
       <div class="su-pw"><input id="sup-pass" type="password" name="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters"><button type="button" class="su-pw-toggle" data-su-toggle="sup-pass">Show</button></div>
     </div>
@@ -2239,7 +2253,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
   </form>
   {# Always offered, so nobody has to sign up just to ask a question. WhatsApp appears once a
      number is set in Admin -> Landing page (see _whatsapp.html); the form and e-mail are always real. #}
-  <div class="su-contact">
+  <div class="su-contact" data-su-panel="talk" hidden>
     <div class="su-contact-tx">
       <b>Prefer to talk to a person?</b>
       <span>Reach us directly — a real person replies within one working day.</span>
@@ -2672,6 +2686,18 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
     $$('[data-su-toggle]').forEach(b=>b.addEventListener('click',()=>{ const i=document.getElementById(b.dataset.suToggle); if(!i) return; const show=i.type==='password'; i.type=show?'text':'password'; b.textContent=show?'Hide':'Show'; }));
     $('#suClose').addEventListener('click',close);
     $('#suLater').addEventListener('click',close);
+    const panels=$$('[data-su-panel]'), tabs=$$('.su-tab');
+    const showPanel=name=>{
+      tabs.forEach(t=>{ const on=t.dataset.suTab===name; t.classList.toggle('is-on',on); t.setAttribute('aria-selected',on?'true':'false'); });
+      panels.forEach(p=>{ p.hidden = p.dataset.suPanel!==name; });
+    };
+    tabs.forEach(t=>t.addEventListener('click',()=>showPanel(t.dataset.suTab)));
+    // A required field inside a hidden panel cannot be focused, which would make the browser
+    // refuse to submit with no visible reason — so show the form again before it validates.
+    modal.querySelector('.su-form')?.addEventListener('submit',e=>{
+      const f=e.currentTarget;
+      if(!f.checkValidity()){ showPanel('join'); }
+    });
     $('#suContactBtn')?.addEventListener('click',()=>{ close(); setTimeout(()=>window.openContactModal&&window.openContactModal(),280); });
     overlay.addEventListener('click',close);
     document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!modal.hidden) close(); });
