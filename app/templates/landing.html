@@ -2233,10 +2233,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
       <div class="f"><label for="sup-first">First name</label><input id="sup-first" name="first_name" required autocomplete="given-name"></div>
       <div class="f"><label for="sup-last">Last name</label><input id="sup-last" name="last_name" autocomplete="family-name"></div>
     </div>
-    <div class="su-row su-row-wide">
-      <div class="f"><label for="sup-email">Email</label><input id="sup-email" type="email" name="email" required autocomplete="email" placeholder="you@example.com"></div>
-      <div class="f"><label for="sup-username">Username</label><input id="sup-username" name="username" required minlength="3" maxlength="30" pattern="[A-Za-z0-9_.\-]{3,30}" autocomplete="username" placeholder="Visible to others"></div>
-    </div>
+    <div class="f"><label for="sup-email">Email</label><input id="sup-email" type="email" name="email" required autocomplete="email" placeholder="you@example.com"><span class="su-hint">We'll send match updates here.</span></div>
     <div class="f"><label for="sup-pass">Create password</label>
       <div class="su-pw"><input id="sup-pass" type="password" name="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters"><button type="button" class="su-pw-toggle" data-su-toggle="sup-pass">Show</button></div>
     </div>

@@ -70,20 +70,44 @@ def dashboard():
 @login_required
 @admin_required
 def users():
-    search = request.args.get('q', '')
+    from sqlalchemy import or_
+    from app import options
+    search = request.args.get('q', '').strip()
+    role = request.args.get('role', '')
+    status = request.args.get('status', '')
+    verified = request.args.get('verified', '')
+
     query = User.query
     if search:
-        query = query.filter(
-            (User.username.ilike(f'%{search}%')) | (User.email.ilike(f'%{search}%'))
-        )
+        pat = f'%{search}%'
+        # whoever CS is looking for, they have one of these to hand — including a phone number,
+        # which is often the only thing a caller can give you
+        conds = [User.username.ilike(pat), User.email.ilike(pat), User.phone.ilike(pat),
+                 User.first_name.ilike(pat), User.last_name.ilike(pat)]
+        if search.isdigit():
+            conds.append(User.id == int(search))
+        query = query.filter(or_(*conds))
+    known_roles = {r['key'] for r in options.role_defs()}
+    if role in known_roles:
+        # `roles` is a plain JSON column (not JSONB), so Postgres has no containment operator for
+        # it — compare the serialised text instead, which behaves the same on SQLite. The quotes
+        # keep 'admin' from matching a key like 'superadmin', and `role` is already whitelisted
+        # against known_roles above, so it cannot inject.
+        query = query.filter(or_(db.cast(User.roles, db.Text).like(f'%"{role}"%'),
+                                 User.role == role))
+    if status in ('active', 'inactive'):
+        query = query.filter(User.is_active.is_(status == 'active'))
+    if verified in ('yes', 'no'):
+        query = query.filter(User.is_verified.is_(verified == 'yes'))
+
     page, per_page = _page_args(25)
     total = query.count()
     pages = max((total + per_page - 1) // per_page, 1)
     page = min(page, pages)
     users_list = query.order_by(User.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
-    from app import options
     return render_template('admin/users.html', users=users_list, search=search, roles=options.role_defs(),
-                           role_labels=options.role_labels(), page=page, pages=pages, total=total)
+                           role_labels=options.role_labels(), page=page, pages=pages, total=total,
+                           filters=dict(q=search, role=role, status=status, verified=verified))
 
 
 @admin_bp.route('/users/<int:user_id>/delete', methods=['POST'])

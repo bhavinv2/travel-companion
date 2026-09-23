@@ -1132,6 +1132,96 @@ function _truthyVal(v) { return v === true || v === 'on' || v === 'true' || v ==
   document.getElementById('search')?.scrollIntoView({ behavior: 'smooth' });
 })();
 
+// Posting and "yes, post it anyway" are the same request; the only difference is the
+// confirm_duplicate flag, so both go through here.
+async function submitTrip(formData, confirmDuplicate) {
+  const btn = document.getElementById('postTripBtn');
+  btn.disabled = true;
+  btn.classList.add('loading');
+  try {
+    const body = confirmDuplicate ? Object.assign({}, formData, { confirm_duplicate: true }) : formData;
+    const res = await apiFetch('/api/post-trip', { method: 'POST', body: JSON.stringify(body) });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.matches_count
+        ? `Trip posted! We found ${data.matches_count} possible companion${data.matches_count === 1 ? '' : 's'} — see My Trips.`
+        : 'Trip posted successfully! We will notify you when a companion on your route appears.', 'success');
+      resetPostForm();
+      loadResults();
+      loadMyTrips();
+      document.getElementById('my-trips')?.scrollIntoView({ behavior: 'smooth' });
+    } else if (res.status === 409 && data.duplicate) {
+      // Nothing was stored. Show what it looks like and let them decide.
+      showDuplicateModal(formData, data.duplicates || [], data.error);
+    } else {
+      showToast(data.error || 'Failed to post trip', 'danger');
+    }
+  } catch (e) {
+    showToast('Network error. Please try again.', 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('loading');
+  }
+}
+
+// ===== POSSIBLE DUPLICATE MODAL =====
+// Only ever lists the visitor's own live posts (the server filters by account), so showing the
+// route, dates and flight back to them gives away nothing and is exactly what they need to tell
+// "I already did this" from "no, this is my other trip".
+let _dupPending = null;
+
+function dupCardHtml(d) {
+  const why = (d.reasons || []).map(r => '<span>' + esc(r) + '</span>').join('');
+  const facts = [];
+  if (d.departs) facts.push('<span><b>Departs</b> ' + esc(tcFmtDate(d.departs)) + '</span>');
+  if (d.returns) facts.push('<span><b>Returns</b> ' + esc(tcFmtDate(d.returns)) + '</span>');
+  if (d.flight) facts.push('<span><b>Flight</b> ' + esc(d.flight) + '</span>');
+  else if (d.airline) facts.push('<span><b>Airline</b> ' + esc(d.airline) + '</span>');
+  if (d.role) facts.push('<span><b>Role</b> ' + esc(d.role) + '</span>');
+  if (d.status_label) facts.push('<span><b>Status</b> ' + esc(d.status_label) + '</span>');
+  return '<div class="dup-card">' +
+    '<div class="dup-card-top"><span class="dup-route">' + esc(d.route || '—') + '</span>' +
+      '<span class="dup-id">Post #' + esc(String(d.id)) + '</span></div>' +
+    (facts.length ? '<div class="dup-facts">' + facts.join('') + '</div>' : '') +
+    (why ? '<div class="dup-why">' + why + '</div>' : '') +
+    '</div>';
+}
+
+function showDuplicateModal(formData, dups, message) {
+  const modal = document.getElementById('dupModal');
+  if (!modal) {
+    // No dialog markup on this page. Still ask -- never post over a duplicate unasked.
+    const lines = dups.map(d => '#' + d.id + ' ' + (d.route || '') +
+      (d.departs ? ', departs ' + d.departs : '')).join('; ');
+    if (window.confirm((message || 'This looks like a post you already have.') +
+        ' (' + lines + ') Post this as a different trip anyway?')) submitTrip(formData, true);
+    return;
+  }
+  _dupPending = formData;
+  document.getElementById('dupLead').textContent = dups.length === 1
+    ? 'One of your live posts has the same details. If this is the same trip, there is nothing more to do — it is already up.'
+    : `${dups.length} of your live posts have the same details. If this is the same trip, there is nothing more to do — they are already up.`;
+  document.getElementById('dupList').innerHTML = dups.map(dupCardHtml).join('');
+  modal.style.display = 'flex';
+}
+
+function closeDuplicateModal() {
+  const modal = document.getElementById('dupModal');
+  if (modal) modal.style.display = 'none';
+  _dupPending = null;
+}
+
+document.getElementById('closeDupModal')?.addEventListener('click', closeDuplicateModal);
+document.getElementById('cancelDupBtn')?.addEventListener('click', () => {
+  closeDuplicateModal();
+  document.getElementById('my-trips')?.scrollIntoView({ behavior: 'smooth' });
+});
+document.getElementById('confirmDupBtn')?.addEventListener('click', () => {
+  const pending = _dupPending;
+  closeDuplicateModal();
+  if (pending) submitTrip(pending, true);
+});
+
 document.getElementById('postTripBtn')?.addEventListener('click', async () => {
   const formData = buildTripFormData();
 
@@ -1144,29 +1234,7 @@ document.getElementById('postTripBtn')?.addEventListener('click', async () => {
     return;
   }
 
-  const btn = document.getElementById('postTripBtn');
-  btn.disabled = true;
-  btn.classList.add('loading');
-  try {
-    const res = await apiFetch('/api/post-trip', { method: 'POST', body: JSON.stringify(formData) });
-    const data = await res.json();
-    if (data.success) {
-      showToast(data.matches_count
-        ? `Trip posted! We found ${data.matches_count} possible companion${data.matches_count === 1 ? '' : 's'} — see My Trips.`
-        : 'Trip posted successfully! We will notify you when a companion on your route appears.', 'success');
-      resetPostForm();
-      loadResults();
-      loadMyTrips();
-      document.getElementById('my-trips')?.scrollIntoView({ behavior: 'smooth' });
-    } else {
-      showToast(data.error || 'Failed to post trip', 'danger');
-    }
-  } catch (e) {
-    showToast('Network error. Please try again.', 'danger');
-  } finally {
-    btn.disabled = false;
-    btn.classList.remove('loading');
-  }
+  submitTrip(formData, false);
 });
 
 document.getElementById('findDesisBtn')?.addEventListener('click', () => {

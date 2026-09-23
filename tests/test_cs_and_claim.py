@@ -147,7 +147,9 @@ def test_private_ticket_attachment_access(client, cs_user, user, other_user, db)
 def test_duplicate_contact_is_flagged_on_cs_home(client, cs_user, db):
     login(client, 'cs@test.com')
     _create_cs_post(client)
-    _create_cs_post(client, from_date='2099-12-09')
+    # a second post off the same source page is what this panel exists to surface, so the
+    # submit-time duplicate check is answered rather than avoided
+    _create_cs_post(client, from_date='2099-12-09', confirm_duplicate='1')
     r = client.get('/cs/')
     assert r.status_code == 200 and b'Same contact on several posts' in r.data
 

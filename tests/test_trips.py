@@ -97,7 +97,8 @@ def test_modify_trip_updates_travellers(client, user, db):
 def test_search_filters_role_and_bounds_limit(client, user):
     login(client, 'bob@test.com')
     client.post('/api/post-trip', json=TRIP_JSON)
-    client.post('/api/post-trip', json={**TRIP_JSON, 'role': 'offering_help'})
+    # same account, same route: the duplicate check asks first, and this test means it
+    client.post('/api/post-trip', json={**TRIP_JSON, 'role': 'offering_help', 'confirm_duplicate': True})
     assert client.post('/api/search', json={'role': 'offering_help'}).get_json()['count'] == 1
     assert client.post('/api/search', json={'limit': 'abc'}).status_code == 200
     assert client.post('/api/search', json={'q': 'HYD'}).get_json()['count'] == 2

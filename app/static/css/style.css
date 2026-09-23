@@ -601,8 +601,12 @@ label .opt { text-transform: none; letter-spacing: 0; font-weight: 500; font-siz
 .btn-sm.danger { border-color: #dc2626; color: #dc2626; }
 .btn-sm.green { border-color: #16a34a; color: #16a34a; }
 .admin-input { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; margin-bottom: 12px; outline: none; }
-.admin-search-form { display: flex; gap: 12px; margin-bottom: 20px; }
-.admin-search-form input { flex: 1; }
+/* search + filters wrap onto a second line rather than squeezing the search box */
+.admin-search-form { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+.admin-search-form input { flex: 1 1 260px; }
+.admin-search-form .ss { flex: 0 0 auto; min-width: 150px; }
+/* the role multi-select sits inside a table cell, so keep it from stretching the column */
+.admin-table .role-select + .ss { min-width: 150px; max-width: 210px; }
 .admin-form { display: flex; flex-direction: column; gap: 16px; max-width: 600px; }
 .feedback-list { display: flex; flex-direction: column; gap: 16px; }
 .feedback-item { background: var(--bg); border-radius: var(--radius); padding: 20px; border: 1px solid var(--border); }
@@ -3168,3 +3172,31 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
    sits under the content thanks to z-index:-1 inside the section's own stacking context). */
 .search-section { z-index: 0; }   /* no overflow:hidden — the form's suggestion dropdowns must be free to hang below */
 .search-section::after { content: ""; position: absolute; right: 12px; bottom: 8px; width: min(520px, 60vw); aspect-ratio: 2043 / 770; background: url("../img/travelling_yourself_illustration.png") no-repeat right bottom / contain; opacity: .12; pointer-events: none; z-index: -1; }
+
+/* ===== POSSIBLE DUPLICATE ===== */
+/* Shown before a post is stored, on the traveller's form and in the CS console alike. It is a
+   warning, never a refusal: the list explains which live post this resembles and why, and the
+   confirm button posts anyway. Amber, not red -- posting again is allowed. */
+.dup-modal .modal-box { max-width: 620px; text-align: left; }
+.dup-lead { display: flex; gap: 12px; align-items: flex-start; background: var(--coral-light);
+  border: 1px solid var(--coral); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; }
+.dup-lead i { color: var(--coral-dark); font-size: 19px; margin-top: 2px; }
+.dup-lead p { margin: 0; color: var(--text); font-size: 14px; }
+.dup-list { display: grid; gap: 12px; max-height: 46vh; overflow-y: auto; margin-bottom: 18px; }
+.dup-card { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--white); }
+.dup-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.dup-route { font-weight: 700; font-size: 15px; }
+.dup-id { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.dup-facts { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; font-size: 13px; color: var(--muted); }
+.dup-facts b { color: var(--text); font-weight: 600; }
+.dup-why { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.dup-why span { background: var(--coral-light); color: var(--coral-dark-text); border-radius: 999px;
+  padding: 3px 10px; font-size: 12px; font-weight: 600; }
+.dup-card a.dup-open { font-size: 13px; font-weight: 600; color: var(--coral-dark-text);
+  text-decoration: underline; display: inline-block; margin-top: 8px; }
+.dup-modal .modal-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+@media (max-width: 560px) {
+  .dup-card-top { flex-direction: column; }
+  .dup-modal .modal-actions { flex-direction: column-reverse; }
+  .dup-modal .modal-actions .btn { width: 100%; }
+}

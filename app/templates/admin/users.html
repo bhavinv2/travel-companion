@@ -9,9 +9,27 @@
       <a class="btn btn-primary" href="{{ url_for('admin.new_user') }}"><i class="fa-solid fa-user-plus"></i> Add account</a>
     </div>
     <form method="GET" class="admin-search-form">
-      <input type="text" name="q" value="{{ search }}" placeholder="Search username or email..."/>
+      <input type="text" name="q" value="{{ filters.q }}" placeholder="Search name, username, e-mail, phone or ID..."/>
+      <select name="role" data-placeholder="Any role">
+        <option value="">Any role</option>
+        {% for r in roles %}<option value="{{ r.key }}" {{ 'selected' if filters.role == r.key }}>{{ role_labels.get(r.key, r.key) }}</option>{% endfor %}
+      </select>
+      <select name="status">
+        <option value="">Any status</option>
+        <option value="active" {{ 'selected' if filters.status == 'active' }}>Active</option>
+        <option value="inactive" {{ 'selected' if filters.status == 'inactive' }}>Inactive</option>
+      </select>
+      <select name="verified">
+        <option value="">Any e-mail state</option>
+        <option value="yes" {{ 'selected' if filters.verified == 'yes' }}>E-mail verified</option>
+        <option value="no" {{ 'selected' if filters.verified == 'no' }}>Not verified</option>
+      </select>
       <button type="submit" class="btn btn-primary">Search</button>
+      {% if filters.q or filters.role or filters.status or filters.verified %}
+        <a class="btn-sm-outline" href="{{ url_for('admin.users') }}">Clear</a>
+      {% endif %}
     </form>
+    <p class="muted" style="font-size:13px;margin:-4px 0 10px">{{ total }} account{{ '' if total == 1 else 's' }} match.</p>
     <p class="muted" style="font-size:13px">An account can hold several roles (e.g. traveller + CS). Roles and their access levels are defined under <a href="{{ url_for('admin.options_page') }}">Options &amp; dropdowns</a>.</p>
 
     <div class="bulk-select-bar" id="userBulkBar" style="display:none">
@@ -21,23 +39,37 @@
 
     <div class="table-wrap">
     <table class="admin-table stack-mobile">
-      <thead><tr><th style="width:32px"><input type="checkbox" id="userSelectAll"/></th><th>ID</th><th>Username</th><th>Email</th><th>Joined</th><th>Roles</th><th>Active</th><th>Actions</th></tr></thead>
+      <thead><tr><th style="width:32px"><input type="checkbox" id="userSelectAll"/></th><th>ID</th><th>Name</th><th>Contact</th><th>Joined</th><th>Roles</th><th>Active</th><th>Actions</th></tr></thead>
       <tbody>
         {% for user in users %}
         <tr id="user-row-{{ user.id }}">
           <td data-label="">{% if user.id != current_user.id %}<input type="checkbox" class="user-select" value="{{ user.id }}"/>{% endif %}</td>
           <td data-label="ID">{{ user.id }}</td>
-          <td data-label="Username">{{ user.username }}</td>
-          <td data-label="Email">{{ user.email }}</td>
-          <td data-label="Joined">{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+          <td data-label="Name">
+            <b>{{ user.full_name }}</b><br><small class="muted">@{{ user.username }}</small>
+          </td>
+          <td data-label="Contact">
+            <a href="mailto:{{ user.email }}">{{ user.email }}</a>
+            {% if user.is_verified %}<i class="fa-solid fa-circle-check" style="color:#1E7F4F" title="E-mail verified"></i>
+            {% else %}<i class="fa-regular fa-circle" style="color:#B9C6DE" title="E-mail not verified"></i>{% endif %}
+            <br>
+            {% if user.phone %}<small><a href="tel:{{ user.phone }}">{{ user.phone }}</a></small>
+            {% else %}<small class="muted">no phone</small>{% endif %}
+            {% if user.oauth_provider %}<br><small class="muted">via {{ user.oauth_provider|capitalize }}</small>{% endif %}
+          </td>
+          <td data-label="Joined">{{ user.created_at.strftime('%Y-%m-%d') }}<br>
+            <small class="muted">{{ 'last seen ' + user.last_login.strftime('%Y-%m-%d') if user.last_login else 'never signed in' }}</small></td>
           <td data-label="Roles">
             {% if user.id == current_user.id %}
               {% for k in user.role_keys %}<span class="badge-pill green">{{ role_labels.get(k, k) }}</span> {% endfor %}
               <br/><small class="muted">you — ask another admin to change your roles</small>
             {% else %}
-              <div class="role-checks" id="roles-{{ user.id }}">
-                {% for r in roles %}<label class="flex-check" style="font-size:12px;margin-right:8px"><input type="checkbox" value="{{ r.key }}" {% if r.key in user.role_keys %}checked{% endif %} onchange="setRoles({{ user.id }})"/> {{ r.label }}</label>{% endfor %}
-              </div>
+              {# A multi-select: searchselect.js turns it into a dropdown with tick boxes and an
+                 "N selected" label, and still dispatches change, so roles save exactly as before. #}
+              <select multiple class="role-select" id="roles-{{ user.id }}" data-placeholder="No roles"
+                      onchange="setRoles({{ user.id }})">
+                {% for r in roles %}<option value="{{ r.key }}" {% if r.key in user.role_keys %}selected{% endif %}>{{ role_labels.get(r.key, r.key) }}</option>{% endfor %}
+              </select>
               <small class="muted" id="level-{{ user.id }}">access: {{ user.effective_role }}</small>
             {% endif %}
           </td>
@@ -71,7 +103,7 @@ function toggleUser(userId, btn) {
     });
 }
 function setRoles(userId) {
-  const roles = [...document.querySelectorAll(`#roles-${userId} input:checked`)].map(i => i.value);
+  const roles = [...document.getElementById(`roles-${userId}`).selectedOptions].map(o => o.value);
   fetch(`/admin/users/${userId}/roles`, { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN}, body: JSON.stringify({ roles }) })
     .then(r => r.json()).then(d => {
       if (d.error) return showToast(d.error, 'danger');

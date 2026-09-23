@@ -15,6 +15,23 @@ import requests as http_requests
 auth_bp = Blueprint('auth', __name__)
 
 USERNAME_RE = re.compile(r'^[A-Za-z0-9_.-]{3,30}$')
+
+
+def unique_username(first_name, last_name, fallback='user'):
+    """Derive a free username from a person's name.
+
+    Nobody is asked to invent one: sign-up (e-mail and social alike) takes the name they already
+    gave and appends a number only if that handle is taken.
+    """
+    base = re.sub(r'[^a-z0-9]', '', f'{first_name or ""}{last_name or ""}'.lower())[:30] or fallback
+    if len(base) < 3:
+        base = (base + fallback)[:30]
+    username, counter = base, 1
+    while User.query.filter(db.func.lower(User.username) == username.lower()).first():
+        suffix = str(counter)
+        username = base[:30 - len(suffix)] + suffix     # stay inside the 30-char limit
+        counter += 1
+    return username
 EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
 
@@ -172,14 +189,7 @@ def google_callback():
             mark_email_verified(user)
     else:
         is_new = True
-        base_username = re.sub(r'[^a-z0-9]', '', (first_name + last_name).lower())[:30] or 'user'
-        if len(base_username) < 3:
-            base_username = (base_username + 'user')[:30]
-        username = base_username
-        counter = 1
-        while User.query.filter_by(username=username).first():
-            username = f'{base_username}{counter}'
-            counter += 1
+        username = unique_username(first_name, last_name)
         user = User(
             email=email,
             username=username,
@@ -238,14 +248,7 @@ def _finish_oauth_login(provider, oauth_id, email, first_name, last_name, photo_
                   'your e-mail, or allow e-mail access and try again.', 'danger')
             return redirect(url_for('auth.register'))
         is_new = True
-        base_username = re.sub(r'[^a-z0-9]', '', (first_name + last_name).lower())[:30] or 'user'
-        if len(base_username) < 3:
-            base_username = (base_username + 'user')[:30]
-        username = base_username
-        counter = 1
-        while User.query.filter_by(username=username).first():
-            username = f'{base_username}{counter}'
-            counter += 1
+        username = unique_username(first_name, last_name)
         user = User(
             email=email,
             username=username,
@@ -350,7 +353,6 @@ def register():
 
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
-        username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         first_name = request.form.get('first_name', '').strip()[:100]
         last_name = request.form.get('last_name', '').strip()[:100]
@@ -363,8 +365,6 @@ def register():
         errors = []
         if not email or not EMAIL_RE.match(email):
             errors.append('Valid email is required.')
-        if not USERNAME_RE.match(username):
-            errors.append('Username must be 3-30 characters: letters, numbers, dot, dash or underscore.')
         if not password or len(password) < 8:
             errors.append('Password must be at least 8 characters.')
         if not first_name:
@@ -375,8 +375,6 @@ def register():
             errors.append('Please accept the Terms of Use and Privacy Policy.')
         if User.query.filter_by(email=email).first():
             errors.append('Email already registered.')
-        if User.query.filter(db.func.lower(User.username) == username.lower()).first():
-            errors.append('Username already taken.')
 
         if errors:
             if is_ajax:
@@ -392,6 +390,8 @@ def register():
             except ValueError:
                 pass
 
+        # derived from the name, never asked for
+        username = unique_username(first_name, last_name)
         user = User(
             email=email,
             username=username,

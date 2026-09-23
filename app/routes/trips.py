@@ -6,6 +6,7 @@ from app.models import (CompanionRequest, Notification, ChatRoom, ConnectionRequ
 from app.services.locations import apply_route
 from app.services.contacts import parse_contact_rows
 from app.services import matching
+from app.services import duplicates
 from app.services.ratelimit import rate_limit
 from datetime import datetime
 
@@ -205,6 +206,15 @@ def post_trip():
     trip.set_status('open')
     apply_route(trip)
 
+    # Nothing is stored yet, so this is the last moment the traveller can decide they already
+    # posted this trip. We only ever describe their OWN posts back to them, and a second submit
+    # carrying confirm_duplicate goes straight in -- the check informs, it does not refuse.
+    dups = duplicates.find(trip, contact_values=[r['value'] for r in contact_rows],
+                           owner_id=current_user.id)
+    if dups and not _truthy(get('confirm_duplicate')):
+        return jsonify({'success': False, 'duplicate': True, 'duplicates': dups,
+                        'error': duplicates.summary(dups)}), 409
+
     try:
         db.session.add(trip)
         db.session.flush()
@@ -215,7 +225,9 @@ def post_trip():
             db.session.add(ContactPoint(trip=trip, user_id=current_user.id, type=r['type'], value=r['value'],
                                         label=r['label'] or None, consent_to_share=consent, added_by='owner'))
         ActivityEvent.log('post_created', trip, actor=current_user, source='organic',
-                          contact_types=sorted({r['type'] for r in contact_rows}), consent=consent)
+                          contact_types=sorted({r['type'] for r in contact_rows}), consent=consent,
+                          # they were shown these and said it is a different trip
+                          confirmed_over=[d['id'] for d in dups] or None)
         db.session.commit()
         # Instant matching (plan §9): compute now so the UI can show "N possible matches" immediately.
         found = matching.compute_matches_for(trip, actor=current_user)

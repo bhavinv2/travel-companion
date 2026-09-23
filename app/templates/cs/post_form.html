@@ -34,6 +34,8 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       {% if form and form.get('scrape_row_id') %}<input type="hidden" name="scrape_row_id" value="{{ form.get('scrape_row_id') }}"/>{% endif %}
       <input type="hidden" name="legs" id="csLegsJson" value=""/>
+      {# set by the possible-duplicate dialog below; blank on a first submit #}
+      <input type="hidden" name="confirm_duplicate" id="csConfirmDup" value=""/>
 
       <!-- step rail -->
       <ol class="cs-steps" id="csSteps">
@@ -249,6 +251,48 @@
         <a href="{{ url_for('cs.post_detail', trip_id=trip.id) if trip and trip.id else url_for('cs.posts') }}" class="btn btn-ghost">Cancel</a>
       </div>
     </form>
+
+    {% if duplicates %}
+    {# Nothing has been stored yet: these are live posts that look like the one being created.
+       CS decides -- "post it anyway" re-submits the same form with confirm_duplicate set. #}
+    <div class="modal-overlay dup-modal" id="csDupModal" style="display:flex">
+      <div class="modal-box">
+        <h2><i class="fa-solid fa-copy"></i> Possible duplicate{{ '' if duplicates|length == 1 else 's' }}</h2>
+        <div class="dup-lead">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <p>This post was <strong>not created</strong> yet. {{ 'A live post' if duplicates|length == 1 else '%s live posts' % duplicates|length }}
+             already {{ 'looks' if duplicates|length == 1 else 'look' }} like the same request. Check {{ 'it' if duplicates|length == 1 else 'them' }},
+             then either go back and edit, or post anyway.</p>
+        </div>
+        <div class="dup-list">
+          {% for d in duplicates %}
+          <div class="dup-card">
+            <div class="dup-card-top">
+              <span class="dup-route">{{ d.route or '—' }}</span>
+              <span class="dup-id">Post #{{ d.id }}</span>
+            </div>
+            <div class="dup-facts">
+              <span><b>Person</b> {{ d.person }}</span>
+              {% if d.departs %}<span><b>Departs</b> {{ d.departs }}</span>{% endif %}
+              {% if d.returns %}<span><b>Returns</b> {{ d.returns }}</span>{% endif %}
+              {% if d.flight %}<span><b>Flight</b> {{ d.flight }}</span>{% elif d.airline %}<span><b>Airline</b> {{ d.airline }}</span>{% endif %}
+              <span><b>Role</b> {{ d.role }}</span>
+              <span><b>Status</b> {{ d.status_label }}</span>
+              {% if d.source %}<span><b>Source</b> {{ d.source }}</span>{% endif %}
+            </div>
+            <div class="dup-why">{% for r in d.reasons %}<span>{{ r }}</span>{% endfor %}</div>
+            <a class="dup-open" href="{{ url_for('cs.post_detail', trip_id=d.id) }}" target="_blank" rel="noopener">
+              Open post #{{ d.id }} <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline-coral" id="csDupBack"><i class="fa-solid fa-pen"></i> Back to the form</button>
+          <button type="button" class="btn btn-primary" id="csDupPost"><i class="fa-solid fa-floppy-disk"></i> Post it anyway</button>
+        </div>
+      </div>
+    </div>
+    {% endif %}
   </main>
 </div>
 
@@ -396,8 +440,24 @@
     }
   });
 
+  // ---- possible-duplicate dialog ---------------------------------------------
+  // The server re-rendered this form instead of creating the post, because a live post looks
+  // like the same request. Nothing was stored, so both buttons are safe: one returns to the
+  // fields, the other submits the very same form again with the confirmation set.
+  const dupModal = document.getElementById('csDupModal');
+  document.getElementById('csDupBack')?.addEventListener('click', () => {
+    dupModal.style.display = 'none';
+    show(1);
+  });
+  document.getElementById('csDupPost')?.addEventListener('click', () => {
+    document.getElementById('csConfirmDup').value = '1';
+    dupModal.style.display = 'none';
+    submit.click();          // via the button, so the form's submit handler still runs
+  });
+
   applyType();
-  show(1);
+  // Land on the last step when the dialog is up: "post it anyway" submits from there.
+  show(dupModal ? TOTAL : 1);
 })();
 </script>
 {% endblock %}

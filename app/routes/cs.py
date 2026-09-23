@@ -19,6 +19,7 @@ from app.services.locations import apply_route
 from app.services.contacts import parse_contact_rows
 from app.services.storage import save_private_document, delete_private
 from app.services import matching
+from app.services import duplicates
 
 cs_bp = Blueprint('cs', __name__)
 
@@ -614,24 +615,6 @@ def _replace_contact_points(trip, rows):
             db.session.delete(cp)
 
 
-def _duplicate_warnings(trip, rows):
-    warnings = []
-    for r in rows:
-        others = (CompanionRequest.query.join(ContactPoint, ContactPoint.trip_id == CompanionRequest.id)
-                  .filter(ContactPoint.value == r['value'], CompanionRequest.id != trip.id)
-                  .limit(5).all())
-        for o in others:
-            warnings.append(f"Contact {r['value']} also appears on post #{o.id} ({o.route_display}).")
-    if trip.origin_iata and trip.dest_iata and trip.from_date:
-        q = CompanionRequest.query.filter_by(origin_iata=trip.origin_iata, dest_iata=trip.dest_iata,
-                                             from_date=trip.from_date).filter(CompanionRequest.id != trip.id)
-        if trip.poster_name:
-            q = q.filter(CompanionRequest.poster_name.ilike(trip.poster_name))
-        for o in q.limit(5).all():
-            warnings.append(f"Post #{o.id} has the same route/date{' and name' if trip.poster_name else ''}.")
-    return warnings
-
-
 @cs_bp.route('/posts/new', methods=['GET', 'POST'])
 @login_required
 @cs_required
@@ -646,6 +629,12 @@ def new_post():
                 flash(e, 'danger')
             return render_template('cs/post_form.html', trip=trip, form=request.form,
                                    contact_rows=rows, is_new=True, **_choices())
+        # Nothing is stored yet. CS sees every duplicate signal (no owner filter) and the same
+        # form comes back with the matches listed; a confirmed submit creates the post as normal.
+        dups = duplicates.find(trip, contact_values=[r['value'] for r in rows])
+        if dups and request.form.get('confirm_duplicate') != '1':
+            return render_template('cs/post_form.html', trip=trip, form=request.form,
+                                   contact_rows=rows, is_new=True, duplicates=dups, **_choices())
         publish_now = request.form.get('publish_now') == 'on'
         trip.set_status('open' if publish_now else 'unconfirmed')
         if publish_now:
@@ -653,12 +642,14 @@ def new_post():
         db.session.add(trip)
         db.session.flush()
         _replace_contact_points(trip, rows)
-        ActivityEvent.log('post_created', trip, actor=current_user, source=trip.source, status=trip.status)
+        ActivityEvent.log('post_created', trip, actor=current_user, source=trip.source, status=trip.status,
+                          confirmed_over=[d['id'] for d in dups] or None)
         db.session.commit()
         _link_scraped_row(trip, request.form.get('scrape_row_id'), publish_now)
         found = matching.compute_matches_for(trip, include_unconfirmed=True, actor=current_user)
-        for w in _duplicate_warnings(trip, rows):
-            flash(w, 'info')
+        if dups:
+            flash('Posted anyway over %s possible duplicate(s): %s.'
+                  % (len(dups), ', '.join('#%s' % d['id'] for d in dups)), 'info')
         flash('Post created.' + (f' {len(found)} possible match(es) found.' if found else ''), 'success')
         return redirect(url_for('cs.post_detail', trip_id=trip.id))
     form, contact_rows = {}, []

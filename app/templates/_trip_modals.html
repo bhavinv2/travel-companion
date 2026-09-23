@@ -290,3 +290,20 @@
     </div>
   </div>
 </div>
+
+<!-- POSSIBLE DUPLICATE POST MODAL (filled by showDuplicateModal in main.js) -->
+<div class="modal-overlay dup-modal" id="dupModal" style="display:none">
+  <div class="modal-box">
+    <button class="modal-close" id="closeDupModal">&times;</button>
+    <h2><i class="fa-solid fa-copy"></i> You may have posted this already</h2>
+    <div class="dup-lead">
+      <i class="fa-solid fa-circle-exclamation"></i>
+      <p id="dupLead"></p>
+    </div>
+    <div class="dup-list" id="dupList"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline-coral" id="cancelDupBtn"><i class="fa-solid fa-pen"></i> Let me check</button>
+      <button class="btn btn-primary" id="confirmDupBtn"><i class="fa-solid fa-paper-plane"></i> This is a different trip — post it</button>
+    </div>
+  </div>
+</div>
