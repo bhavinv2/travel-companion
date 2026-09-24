@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% from 'cs/_macros.html' import role_chip, contact_icons with context %}
-{% from '_post_filters.html' import filter_button, filter_chip_row, filter_popup %}
+{% from '_post_filters.html' import filter_button, filter_chip_row, filter_drawer %}
 {% block title %}Listings – Admin{% endblock %}
 {% block content %}
 <div class="admin-page">
@@ -20,7 +20,7 @@
       {{ filter_button(filter_chips) }}
       <button type="submit" class="btn btn-primary">Filter</button>
       <a href="{{ url_for('admin.listings') }}" class="btn-sm">Reset</a>
-      {{ filter_popup(filter_groups, filter_values) }}
+      {{ filter_drawer(filter_groups, filter_values) }}
     </form>
     {{ filter_chip_row(filter_chips, url_for('admin.listings')) }}
     <p class="muted">{{ total }} listing{{ '' if total == 1 else 's' }}</p>

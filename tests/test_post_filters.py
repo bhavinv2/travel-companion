@@ -74,7 +74,6 @@ def listed(client, url, posts):
     ('airline=qatar', {'ravi'}),                            # case-insensitive
     ('flight=BA138', {'lakshmi'}),
     ('trip_type=round_trip', {'lakshmi'}),
-    ('days=7', {'ravi'}),
     ('flex=yes', {'lakshmi'}),
     ('flex=no', {'ravi'}),
     ('ticket=yes', {'ravi'}),
@@ -114,6 +113,23 @@ def test_date_filters_read_the_right_column(client, cs_user, posts):
     assert listed(client, '/cs/posts?posted_to=%s' % date.today().isoformat(), posts) == {'ravi', 'lakshmi'}
 
 
+def test_a_date_range_is_one_filter_with_two_bounds(client, cs_user, posts):
+    """dep_from/dep_to are two URL params but one idea -- one control, one chip."""
+    login(client, 'cs@test.com')
+    soon = (date.today() + timedelta(days=10)).isoformat()
+    html = client.get('/cs/posts?dep_from=%s&dep_to=%s' % (date.today().isoformat(), soon)).data.decode()
+    assert html.count('data-pf-clear="dep_from,dep_to"') == 1        # one chip, clearing both
+    assert 'Departure:' in html
+    assert listed(client, '/cs/posts?dep_from=%s&dep_to=%s' % (date.today().isoformat(), soon), posts) == {'ravi'}
+
+
+def test_a_backwards_range_is_read_the_way_it_was_meant(client, cs_user, posts):
+    """Typing the later date first is a slip, not a request for nothing."""
+    login(client, 'cs@test.com')
+    late, early = (date.today() + timedelta(days=10)).isoformat(), date.today().isoformat()
+    assert listed(client, '/cs/posts?dep_from=%s&dep_to=%s' % (late, early), posts) == {'ravi'}
+
+
 def test_filters_combine_by_narrowing(client, cs_user, posts):
     """The ask: date, then date + departure, then date + departure + arrival."""
     login(client, 'cs@test.com')
@@ -142,10 +158,9 @@ def test_a_hand_edited_url_cannot_break_the_page(client, cs_user, posts):
     assert listed(client, '/cs/posts?' + junk, posts) == {'ravi', 'lakshmi'}
     # none of it counts as an applied filter, so none of it reaches the chips or the dropdowns
     html = r.data.decode()
-    for key in ('dep_from', 'dep_to', 'days', 'status', 'trip_type', 'age', 'gender',
+    for key in ('dep_from,dep_to', 'status', 'trip_type', 'age', 'gender',
                 'consent', 'matched', 'language'):
         assert 'data-pf-clear="%s"' % key not in html, key
-    assert 'script' not in html[html.index('id="pfModal"'):html.index('</form>')]
 
 
 # ---------------------------------------------------------------------------
@@ -180,16 +195,18 @@ def test_the_two_consoles_differ_only_in_the_closed_default(client, cs_user, adm
     ('cs@test.com', '/cs/posts?dest=DFW&need=wheelchair'),
     ('admin@test.com', '/admin/listings?dest=DFW&need=wheelchair'),
 ])
-def test_both_pages_render_the_same_popup(client, cs_user, admin_user, posts, who, url):
+def test_both_pages_render_the_same_drawer(client, cs_user, admin_user, posts, who, url):
     login(client, who)
     html = client.get(url).data.decode()
 
-    assert 'id="pfModal"' in html
+    assert 'id="pfDrawer"' in html
     # inside the filter form, which is what lets the existing form serialisation carry the fields
-    assert html.index('id="pfModal"') > html.index('class="cs-filters"')
-    # every declared filter has an input
-    for key in post_filters.FIELDS:
-        assert 'name="%s"' % key in html, key
+    assert html.index('id="pfDrawer"') > html.index('class="cs-filters"')
+    # every declared filter has an input -- a range contributes its two date params
+    for key, field in post_filters.FIELDS.items():
+        names = [field['from_key'], field['to_key']] if field['kind'] == 'daterange' else [key]
+        for name in names:
+            assert 'name="%s"' % name in html, name
     # the applied ones come back as removable chips, and the button carries the count
     assert 'data-pf-clear="dest"' in html and 'data-pf-clear="need"' in html
     assert 'pf-count' in html
@@ -199,17 +216,33 @@ def test_both_pages_render_the_same_popup(client, cs_user, admin_user, posts, wh
 def test_no_filter_means_no_chips_and_no_count(client, cs_user, posts):
     login(client, 'cs@test.com')
     html = client.get('/cs/posts').data.decode()
-    assert 'id="pfModal"' in html                   # the popup is always available
+    assert 'id="pfDrawer"' in html                  # the drawer is always available
     assert 'pf-chip' not in html and 'pf-count' not in html
 
 
-def test_the_popup_selects_opt_out_of_the_searchable_wrapper(client, cs_user, posts):
-    """searchselect's panel is absolutely positioned and this dialog scrolls, so it would clip."""
+def test_one_control_per_date_idea(client, cs_user, posts):
+    """The complaint that started this: six date boxes for three ideas is unreadable.
+
+    Each range is a single preset dropdown; the two exact-date boxes belong to it and stay hidden
+    until someone asks for them.
+    """
     login(client, 'cs@test.com')
     html = client.get('/cs/posts').data.decode()
-    pop = html[html.index('id="pfModal"'):]
-    pop = pop[:pop.index('</div>\n</div>') if '</div>\n</div>' in pop else len(pop)]
-    assert pop.count('<select') == pop.count('data-no-search')
+    drawer = html[html.index('id="pfDrawer"'):]
+
+    ranges = [f for f in post_filters.FIELDS.values() if f['kind'] == 'daterange']
+    assert len(ranges) == 3                                  # departure, return, posted
+    assert drawer.count('data-pf-preset') == 3               # one control each
+    assert drawer.count('data-pf-dates') == 3                # ...and one hidden pair each
+    assert 'name="days"' not in drawer                       # the old duplicate window is gone
+
+
+def test_the_route_fields_offer_the_same_autocomplete_as_the_post_form(client, cs_user, posts):
+    """Nobody should have to guess how a city is spelled in our data."""
+    login(client, 'cs@test.com')
+    html = client.get('/cs/posts').data.decode()
+    assert 'class="autocomplete-airport"' in html
+    assert 'class="autocomplete-airline"' in html
 
 
 # ---------------------------------------------------------------------------
@@ -219,38 +252,56 @@ def test_the_popup_selects_opt_out_of_the_searchable_wrapper(client, cs_user, po
 def test_every_declared_filter_builds_runnable_sql(app, db):
     """A filter that only breaks when someone picks it is worse than no filter."""
     samples = {
-        'dep_from': '2099-01-01', 'dep_to': '2099-12-31', 'ret_from': '2099-02-01',
-        'ret_to': '2099-03-01', 'posted_from': '2026-01-01', 'posted_to': '2026-12-31',
-        'days': '7', 'flex': 'yes', 'origin': 'Hyderabad', 'dest': 'DFW', 'airline': 'Qatar',
-        'flight': 'QR573', 'trip_type': 'round_trip', 'ticket': 'no', 'status': 'open',
-        'source': 'facebook', 'role': 'seeking_help', 'category': 'Family visit',
-        'matched': 'no', 'claimed': 'yes', 'anon': 'no', 'age': '60_plus', 'gender': 'female',
-        'pref_gender': 'female', 'need': 'wheelchair', 'language': 'Telugu',
-        'on_behalf': 'mother', 'contact_type': 'whatsapp', 'consent': 'yes',
+        'dep': {'dep_from': '2099-01-01', 'dep_to': '2099-12-31'},
+        'ret': {'ret_from': '2099-02-01', 'ret_to': '2099-03-01'},
+        'posted': {'posted_from': '2026-01-01', 'posted_to': '2026-12-31'},
+        'flex': {'flex': 'yes'}, 'origin': {'origin': 'Hyderabad'}, 'dest': {'dest': 'DFW'},
+        'airline': {'airline': 'Qatar'}, 'flight': {'flight': 'QR573'},
+        'trip_type': {'trip_type': 'round_trip'}, 'ticket': {'ticket': 'no'},
+        'status': {'status': 'open'}, 'source': {'source': 'facebook'},
+        'role': {'role': 'seeking_help'}, 'category': {'category': 'Family visit'},
+        'matched': {'matched': 'no'}, 'claimed': {'claimed': 'yes'}, 'anon': {'anon': 'no'},
+        'age': {'age': '60_plus'}, 'gender': {'gender': 'female'},
+        'pref_gender': {'pref_gender': 'female'}, 'need': {'need': 'wheelchair'},
+        'language': {'language': 'Telugu'}, 'on_behalf': {'on_behalf': 'mother'},
+        'contact_type': {'contact_type': 'whatsapp'}, 'consent': {'consent': 'yes'},
     }
     assert set(samples) == set(post_filters.FIELDS), 'a filter was added without a sample here'
 
     from werkzeug.datastructures import MultiDict
-    for key, value in samples.items():
-        query, active = post_filters.apply(CompanionRequest.query, MultiDict({key: value}))
+    everything = {}
+    for key, args in samples.items():
+        query, active = post_filters.apply(CompanionRequest.query, MultiDict(args))
         query.count()                       # executes; raises if the SQL is malformed
-        assert list(active) == [key]
+        assert list(active) == [key], key
+        everything.update(args)
 
     # and all of them at once, which is what a keen user will do
-    query, active = post_filters.apply(CompanionRequest.query, MultiDict(samples))
+    query, active = post_filters.apply(CompanionRequest.query, MultiDict(everything))
     assert query.count() == 0 and len(active) == len(samples)
 
 
-def test_chips_read_in_popup_order_with_human_labels(app, db):
+def test_chips_read_in_drawer_order_with_human_labels(app, db):
     from werkzeug.datastructures import MultiDict
     _, active = post_filters.apply(CompanionRequest.query,
                                    MultiDict({'need': 'wheelchair', 'dep_from': '2099-01-01',
                                               'flex': 'yes'}))
     chips = post_filters.chips(active)
-    assert [c['key'] for c in chips] == ['dep_from', 'flex', 'need']       # declaration order
-    assert [c['value'] for c in chips] == ['2099-01-01', 'Yes', 'Wheelchair Assistance']
-    assert [c['label'] for c in chips] == ['Departs on or after', 'Dates flexible',
-                                           'Assistance needed']
+    assert [c['key'] for c in chips] == ['dep', 'flex', 'need']            # declaration order
+    assert [c['value'] for c in chips] == ['from 01 Jan 2099', 'Yes', 'Wheelchair Assistance']
+    assert [c['label'] for c in chips] == ['Departure', 'Dates flexible', 'Assistance needed']
+    # a chip has to know every param it owns, or its X leaves half the filter behind
+    assert [c['params'] for c in chips] == [['dep_from', 'dep_to'], ['flex'], ['need']]
+
+
+def test_a_range_chip_reads_as_one_phrase(app, db):
+    from werkzeug.datastructures import MultiDict
+    for args, want in [({'dep_from': '2099-01-01', 'dep_to': '2099-03-04'},
+                        '01 Jan 2099 to 04 Mar 2099'),
+                       ({'dep_from': '2099-01-01'}, 'from 01 Jan 2099'),
+                       ({'dep_to': '2099-03-04'}, 'until 04 Mar 2099')]:
+        _, active = post_filters.apply(CompanionRequest.query, MultiDict(args))
+        assert post_filters.chips(active)[0]['value'] == want
 
 
 def test_sorting_covers_every_offered_option(app, db):

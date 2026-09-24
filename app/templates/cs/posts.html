@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% from 'cs/_macros.html' import posts_table with context %}
-{% from '_post_filters.html' import filter_button, filter_chip_row, filter_popup %}
+{% from '_post_filters.html' import filter_button, filter_chip_row, filter_drawer %}
 {% block title %}Posts – CS Console{% endblock %}
 {% block content %}
 <div class="admin-page">
@@ -24,9 +24,8 @@
       </select>
       {{ filter_button(filter_chips) }}
       <a href="{{ url_for('cs.posts') }}" class="btn-sm">Reset</a>
-      {{ filter_popup(filter_groups, filter_values) }}
+      {{ filter_drawer(filter_groups, filter_values) }}
     </form>
-    {{ filter_chip_row(filter_chips, url_for('cs.posts')) }}
     {% if 'status' not in filter_values %}
     <p class="muted" style="font-size:12.5px;margin:6px 0 0">Showing open and unconfirmed posts — pick a status in the filters to see closed ones.</p>
     {% endif %}

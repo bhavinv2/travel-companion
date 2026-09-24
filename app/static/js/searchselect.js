@@ -118,30 +118,53 @@
       if (sel.multiple) renderList(); else close();
     }
 
+    /* Anchor the panel to the trigger in viewport coordinates.
+       Called on open and again on scroll/resize, because a fixed panel does not travel with the
+       page the way an absolutely positioned one does. */
+    function place() {
+      const r = wrap.getBoundingClientRect();
+      const gap = 6;
+      const vw = document.documentElement.clientWidth;
+      const vh = window.innerHeight;
+
+      pop.style.width = Math.max(r.width, 230) + 'px';
+      const ph = pop.offsetHeight;                       // measured with the real width applied
+
+      // below unless there is not room for it and there is more room above
+      const below = vh - r.bottom - gap;
+      const above = r.top - gap;
+      const up = below < Math.min(ph, 260) && above > below;
+      pop.style.top = (up ? Math.max(8, r.top - gap - ph) : r.bottom + gap) + 'px';
+
+      // keep it on screen horizontally; a narrow trigger near the right edge used to push the
+      // page sideways, which read as the whole section stretching
+      const w = pop.offsetWidth;
+      pop.style.left = Math.max(8, Math.min(r.left, vw - 8 - w)) + 'px';
+    }
+
     function open() {
       if (sel.disabled) return;
       closeAll();
+      // Out of the card and onto <body>: nothing that scrolls or hides its overflow can clip it
+      // there, which is the whole reason the list used to appear cut off inside the panel.
+      document.body.appendChild(pop);
       pop.hidden = false;
       wrap.classList.add('is-open');
       btn.setAttribute('aria-expanded', 'true');
       search.value = '';
       renderList();
+      place();
       OPEN.push(close);
-      const r = wrap.getBoundingClientRect();
-      // flip upwards when there is no room below
-      pop.classList.toggle('ss-up', window.innerHeight - r.bottom < 280 && r.top > 300);
-      // ...and anchor to the right edge when a narrow trigger would push the panel off
-      // screen. Left as-is it creates page-wide horizontal overflow and the whole layout
-      // scrolls sideways, which reads as the section stretching.
-      pop.classList.remove('ss-right');
-      if (pop.getBoundingClientRect().right > document.documentElement.clientWidth - 8) {
-        pop.classList.add('ss-right');
-      }
+      window.addEventListener('scroll', place, true);    // capture: any scrolling ancestor counts
+      window.addEventListener('resize', place);
       search.focus();
     }
 
     function close() {
       pop.hidden = true;
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+      if (pop.parentNode !== wrap) wrap.appendChild(pop);   // back where it belongs
       wrap.classList.remove('is-open');
       btn.setAttribute('aria-expanded', 'false');
       const i = OPEN.indexOf(close);
@@ -177,6 +200,9 @@
 
     // anything that changes the select programmatically should refresh the button
     sel.addEventListener('change', paintLabel);
+    // a row removed while its panel is open must not leave the panel orphaned on <body>
+    new MutationObserver(() => { if (!wrap.isConnected && !pop.hidden) close(); })
+      .observe(document.body, { childList: true, subtree: true });
     sel.ssSync = () => { paintLabel(); if (!pop.hidden) renderList(); };
     paintLabel();
   }

@@ -5,8 +5,11 @@ created this week departing next month, round trips to Hyderabad needing wheelch
 from Facebook with no match yet. Rather than grow two filter bars in two templates that drift
 apart, the whole set is declared once here:
 
-* `GROUPS` describes every filter (key, label, widget, choices) so the popup renders itself and
-  both pages always offer exactly the same options.
+* `GROUPS` describes every filter (key, label, widget, choices) so the drawer renders itself and
+  both pages always offer exactly the same options. Adding a filter is one entry here and nothing
+  else -- no template edit, no route edit.
+* A date range is ONE entry (`kind='daterange'`) that owns its two URL params. Six separate date
+  boxes for three ideas is what made the old panel unreadable.
 * `apply()` turns request args into SQL, ignoring anything unparseable so a hand-edited URL can
   never 500 the page.
 * `chips()` names what is currently applied, so the listing can show it and offer a one-click
@@ -105,13 +108,51 @@ def _bool(query, value, column):
 # sql:    (query, value) -> query.  Only called with a value that passed `parse`.
 # parse:  raw string -> usable value or None to skip the filter entirely.
 
-def _field(key, label, kind, sql, choices=None, parse=None, placeholder=None, wide=False):
+# Presets are client-side sugar: picking one fills the two date boxes, so the server still sees a
+# plain from/to range and a shared URL means exactly one thing. Offsets are in days from today,
+# `None` meaning open-ended.
+DEPARTURE_PRESETS = (
+    ('next7', 'In the next 7 days', 0, 7),
+    ('next30', 'In the next 30 days', 0, 30),
+    ('next90', 'In the next 3 months', 0, 90),
+    ('past', 'Already departed', None, -1),
+)
+POSTED_PRESETS = (
+    ('today', 'Today', 0, 0),
+    ('last7', 'In the last 7 days', -7, 0),
+    ('last30', 'In the last 30 days', -30, 0),
+    ('last90', 'In the last 3 months', -90, 0),
+)
+RETURN_PRESETS = (
+    ('next30', 'In the next 30 days', 0, 30),
+    ('next90', 'In the next 3 months', 0, 90),
+)
+
+
+def _daterange(key, label, column, from_key, to_key, presets, is_datetime=False, hint=None):
+    """One filter covering a from/to pair on a single column.
+
+    The two URL params are kept (`dep_from`/`dep_to` and friends) so existing links and bookmarks
+    still work -- what changes is that the UI, the chips and this spec treat them as one thing.
+    """
+    return {'key': key, 'label': label, 'kind': 'daterange', 'column': column,
+            'from_key': from_key, 'to_key': to_key, 'presets': presets,
+            'is_datetime': is_datetime, 'hint': hint,
+            'choices': None, 'parse': None, 'placeholder': None, 'wide': True, 'sql': None,
+            'widget': None}
+
+
+def _field(key, label, kind, sql, choices=None, parse=None, placeholder=None, wide=False,
+           widget=None):
     # A yes/no filter is just a two-option select; filling in its choices here means the popup
     # template has one code path for every dropdown.
     if kind == 'bool' and choices is None:
         choices = _pairs(YES_NO)
     return {'key': key, 'label': label, 'kind': kind, 'sql': sql, 'choices': choices,
-            'parse': parse, 'placeholder': placeholder, 'wide': wide}
+            'parse': parse, 'placeholder': placeholder, 'wide': wide,
+            # 'airport' / 'airline' ask the template for the same autocomplete the post form uses,
+            # so nobody has to know how a city is spelled in our data
+            'widget': widget}
 
 
 GROUPS = [
@@ -119,22 +160,12 @@ GROUPS = [
         'title': 'When',
         'hint': 'Departure and return read the trip; posted reads when it reached us.',
         'fields': [
-            _field('dep_from', 'Departs on or after', 'date', parse=_date,
-                   sql=lambda q, v: q.filter(CompanionRequest.from_date >= v)),
-            _field('dep_to', 'Departs on or before', 'date', parse=_date,
-                   sql=lambda q, v: q.filter(CompanionRequest.from_date <= v)),
-            _field('ret_from', 'Returns on or after', 'date', parse=_date,
-                   sql=lambda q, v: q.filter(CompanionRequest.to_date >= v)),
-            _field('ret_to', 'Returns on or before', 'date', parse=_date,
-                   sql=lambda q, v: q.filter(CompanionRequest.to_date <= v)),
-            _field('posted_from', 'Posted on or after', 'date', parse=_date,
-                   sql=lambda q, v: q.filter(CompanionRequest.created_at >= datetime.combine(v, datetime.min.time()))),
-            _field('posted_to', 'Posted on or before', 'date', parse=_date,
-                   sql=lambda q, v: q.filter(CompanionRequest.created_at < datetime.combine(v + timedelta(days=1), datetime.min.time()))),
-            _field('days', 'Quick departure window', 'select', choices=_pairs(DEPARTURE_WINDOWS),
-                   parse=lambda r: _int(r) if (_int(r) or 0) > 0 else None,
-                   sql=lambda q, v: q.filter(CompanionRequest.from_date >= date.today(),
-                                             CompanionRequest.from_date <= date.today() + timedelta(days=v))),
+            _daterange('dep', 'Departure', CompanionRequest.from_date, 'dep_from', 'dep_to',
+                       DEPARTURE_PRESETS),
+            _daterange('ret', 'Return', CompanionRequest.to_date, 'ret_from', 'ret_to',
+                       RETURN_PRESETS, hint='Round trips only — one-way posts have no return date.'),
+            _daterange('posted', 'Posted to us', CompanionRequest.created_at, 'posted_from',
+                       'posted_to', POSTED_PRESETS, is_datetime=True),
             _field('flex', 'Dates flexible', 'bool',
                    sql=lambda q, v: q.filter(or_(CompanionRequest.from_date_flexible.is_(True),
                                                  CompanionRequest.to_date_flexible.is_(True))
@@ -149,13 +180,16 @@ GROUPS = [
         'title': 'Route and flight',
         'hint': 'City, airport name or IATA code — all four route columns are searched.',
         'fields': [
-            _field('origin', 'Departure city / airport', 'text', placeholder='Hyderabad, HYD…',
+            _field('origin', 'Departure city / airport', 'text', widget='airport',
+                   placeholder='Start typing a city or code…',
                    sql=lambda q, v: _text_any(q, v, [CompanionRequest.flying_from, CompanionRequest.origin_iata,
                                                      CompanionRequest.origin_city, CompanionRequest.origin_metro])),
-            _field('dest', 'Arrival city / airport', 'text', placeholder='Dallas, DFW…',
+            _field('dest', 'Arrival city / airport', 'text', widget='airport',
+                   placeholder='Start typing a city or code…',
                    sql=lambda q, v: _text_any(q, v, [CompanionRequest.destination, CompanionRequest.dest_iata,
                                                      CompanionRequest.dest_city, CompanionRequest.dest_metro])),
-            _field('airline', 'Airline', 'text', placeholder='Qatar Airways…',
+            _field('airline', 'Airline', 'text', widget='airline',
+                   placeholder='Start typing an airline…',
                    sql=lambda q, v: _text_any(q, v, [CompanionRequest.airline, CompanionRequest.return_airline])),
             _field('flight', 'Flight number', 'text', placeholder='QR573',
                    sql=lambda q, v: _text_any(q, v, [CompanionRequest.flight_number,
@@ -227,6 +261,28 @@ GROUPS = [
 FIELDS = {f['key']: f for g in GROUPS for f in g['fields']}
 
 
+def _parse_range(field, args):
+    """{'from': date|None, 'to': date|None} or None when neither end is usable."""
+    lo, hi = _date(args.get(field['from_key'])), _date(args.get(field['to_key']))
+    if lo and hi and lo > hi:
+        lo, hi = hi, lo                       # a backwards range is a slip, not an empty result
+    return {'from': lo, 'to': hi} if (lo or hi) else None
+
+
+def _range_sql(field, query, value):
+    col = field['column']
+    if value['from']:
+        lo = datetime.combine(value['from'], datetime.min.time()) if field['is_datetime'] else value['from']
+        query = query.filter(col >= lo)
+    if value['to']:
+        if field['is_datetime']:
+            # "posted on or before the 5th" has to include everything that happened during the 5th
+            query = query.filter(col < datetime.combine(value['to'] + timedelta(days=1), datetime.min.time()))
+        else:
+            query = query.filter(col <= value['to'])
+    return query
+
+
 def _parse(field, raw):
     raw = (raw or '').strip()
     if not raw:
@@ -245,7 +301,7 @@ def values(args):
     """Every filter that is set and valid, as {key: parsed value}."""
     out = {}
     for key, field in FIELDS.items():
-        v = _parse(field, args.get(key))
+        v = _parse_range(field, args) if field['kind'] == 'daterange' else _parse(field, args.get(key))
         if v is not None:
             out[key] = v
     return out
@@ -255,7 +311,9 @@ def apply(query, args, vals=None):
     """AND every valid filter in `args` onto `query`. Returns (query, values)."""
     vals = values(args) if vals is None else vals
     for key, value in vals.items():
-        query = FIELDS[key]['sql'](query, value)
+        field = FIELDS[key]
+        query = _range_sql(field, query, value) if field['kind'] == 'daterange' \
+            else field['sql'](query, value)
     return query, vals
 
 
@@ -271,6 +329,11 @@ def sort_query(query, sort):
 
 
 def _label_for(field, value):
+    if field['kind'] == 'daterange':
+        lo, hi = value['from'], value['to']
+        if lo and hi:
+            return '%s to %s' % (lo.strftime('%d %b %Y'), hi.strftime('%d %b %Y'))
+        return ('from %s' % lo.strftime('%d %b %Y')) if lo else ('until %s' % hi.strftime('%d %b %Y'))
     if field['kind'] == 'bool':
         return 'Yes' if value == 'yes' else 'No'
     for v, label in (field['choices'] or []):
@@ -280,10 +343,16 @@ def _label_for(field, value):
 
 
 def chips(vals):
-    """What is applied, in popup order, ready to render as removable chips."""
+    """What is applied, in drawer order, ready to render as removable chips.
+
+    `params` is what a chip's X has to blank out -- a date range owns two of them, so the chip
+    cannot just clear an input named after its own key.
+    """
     out = []
     for key in FIELDS:
         if key in vals:
-            out.append({'key': key, 'label': FIELDS[key]['label'],
-                        'value': _label_for(FIELDS[key], vals[key])})
+            field = FIELDS[key]
+            params = [field['from_key'], field['to_key']] if field['kind'] == 'daterange' else [key]
+            out.append({'key': key, 'label': field['label'],
+                        'value': _label_for(field, vals[key]), 'params': params})
     return out

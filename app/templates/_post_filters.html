@@ -1,13 +1,15 @@
 {# Shared filter UI for the post listings (CS console "All posts" and Admin "All listings").
 
-   The popup's inputs live INSIDE the page's filter <form>, so the existing liveSearch() picks
-   them up in its FormData with no extra plumbing: "Show results" simply submits that form and
-   the results swap in behind the dialog. Both pages therefore offer exactly the same filters,
-   declared once in app/services/post_filters.py. #}
+   A right-hand drawer rather than a centre dialog: there are two dozen filters, they group into
+   sections, and a drawer gives them room without covering the results you are narrowing.
+
+   The fields live INSIDE the page's filter <form>, so the existing form serialisation carries them
+   with no extra plumbing -- "Show results" just submits that form. Everything rendered here comes
+   from app/services/post_filters.py, so a new filter is one entry there and nothing to do here. #}
 
 {% macro filter_button(chips) -%}
-<button type="button" class="pf-btn" data-pf-open>
-  <i class="fa-solid fa-sliders"></i> More filters{% if chips %}<span class="pf-count">{{ chips|length }}</span>{% endif %}
+<button type="button" class="pf-btn" data-pf-open aria-controls="pfDrawer">
+  <i class="fa-solid fa-sliders"></i> Filters{% if chips %}<span class="pf-count">{{ chips|length }}</span>{% endif %}
 </button>
 {%- endmacro %}
 
@@ -19,7 +21,7 @@
   <span class="pf-chips-label">Filtering by</span>
   {% for c in chips %}
   <span class="pf-chip">{{ c.label }}: <b>{{ c.value }}</b>
-    <button type="button" data-pf-clear="{{ c.key }}" title="Remove this filter"
+    <button type="button" data-pf-clear="{{ c.params|join(',') }}" title="Remove this filter"
             aria-label="Remove the {{ c.label }} filter">&times;</button></span>
   {% endfor %}
   <a class="pf-clear-all" href="{{ reset_url }}">Clear all</a>
@@ -27,46 +29,80 @@
 {% endif %}
 {%- endmacro %}
 
-{% macro filter_popup(groups, values) -%}
-<div class="modal-overlay pf-modal" id="pfModal" style="display:none">
-  <div class="modal-box">
-    <button type="button" class="modal-close" data-pf-close aria-label="Close">&times;</button>
-    <h2><i class="fa-solid fa-sliders"></i> Filter posts</h2>
-    <p>Pick as many as you need — each one narrows what the others left. Blank means “don’t care”.</p>
-    <div class="pf-groups">
-      {% for g in groups %}
-      <fieldset class="pf-group">
-        <legend>{{ g.title }}</legend>
-        {% if g.hint %}<p class="pf-hint">{{ g.hint }}</p>{% endif %}
-        <div class="pf-fields">
-          {% for f in g.fields %}
-          <label class="pf-field{% if f.wide %} pf-wide{% endif %}">
-            <span class="pf-lbl">{{ f.label }}</span>
-            {% if f.kind == 'date' %}
-              <input type="date" name="{{ f.key }}" value="{{ values.get(f.key) or '' }}"/>
-            {% elif f.kind == 'text' %}
-              <input type="text" name="{{ f.key }}" value="{{ values.get(f.key) or '' }}"
-                     placeholder="{{ f.placeholder or '' }}" autocomplete="off"/>
-            {% else %}
-              {# data-no-search on purpose: the site-wide searchable-select panel is absolutely
-                 positioned, and this dialog scrolls, which would clip it. #}
-              <select name="{{ f.key }}" data-no-search>
-                <option value="">Any</option>
-                {% for value, label in f.choices %}
-                <option value="{{ value }}" {% if values.get(f.key)|string == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-              </select>
-            {% endif %}
-          </label>
-          {% endfor %}
-        </div>
-      </fieldset>
+
+{# ---- one field ---------------------------------------------------------- #}
+{% macro _field(f, values) -%}
+{% set val = values.get(f.key) %}
+{% if f.kind == 'daterange' %}
+  {# One control for one idea. The preset fills the two date boxes below it, which are the only
+     things actually submitted -- so a shared URL still means exactly one thing. #}
+  <div class="pf-field pf-wide" data-pf-range>
+    <span class="pf-lbl">{{ f.label }}</span>
+    <select class="pf-preset" data-pf-preset aria-label="{{ f.label }} range">
+      <option value="">Any time</option>
+      {% for id, label, lo, hi in f.presets %}
+      <option value="{{ id }}" data-from="{{ '' if lo is none else lo }}" data-to="{{ '' if hi is none else hi }}">{{ label }}</option>
       {% endfor %}
+      <option value="custom">Exact dates…</option>
+    </select>
+    <div class="pf-dates" data-pf-dates hidden>
+      <label><span>From</span><input type="date" name="{{ f.from_key }}" value="{{ (val and val['from']) or '' }}"></label>
+      <label><span>To</span><input type="date" name="{{ f.to_key }}" value="{{ (val and val['to']) or '' }}"></label>
     </div>
-    <div class="modal-actions">
-      <button type="button" class="btn btn-ghost" data-pf-reset>Clear every filter</button>
-      <button type="button" class="btn btn-primary" data-pf-apply><i class="fa-solid fa-filter"></i> Show results</button>
-    </div>
+    {% if f.hint %}<span class="pf-hint">{{ f.hint }}</span>{% endif %}
   </div>
-</div>
+{% elif f.kind == 'text' %}
+  <label class="pf-field{% if f.wide %} pf-wide{% endif %}">
+    <span class="pf-lbl">{{ f.label }}</span>
+    {# the same airport/airline autocomplete the post form uses, so nobody has to guess how a
+       city is spelled in our data #}
+    <input type="text" name="{{ f.key }}" value="{{ val or '' }}" placeholder="{{ f.placeholder or '' }}"
+           autocomplete="off"{% if f.widget == 'airport' %} class="autocomplete-airport"
+           {% elif f.widget == 'airline' %} class="autocomplete-airline"{% endif %}>
+  </label>
+{% else %}
+  <label class="pf-field{% if f.wide %} pf-wide{% endif %}">
+    <span class="pf-lbl">{{ f.label }}</span>
+    <select name="{{ f.key }}">
+      <option value="">Any</option>
+      {% for value, label in f.choices %}
+      <option value="{{ value }}" {% if val|string == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+{% endif %}
+{%- endmacro %}
+
+
+{% macro filter_drawer(groups, values) -%}
+<div class="pf-scrim" data-pf-close hidden></div>
+<aside class="pf-drawer" id="pfDrawer" aria-label="Filter posts" aria-hidden="true">
+  <header class="pf-head">
+    <span class="pf-head-t"><i class="fa-solid fa-sliders"></i> Filters</span>
+    <button type="button" class="pf-x" data-pf-close aria-label="Close filters">&times;</button>
+  </header>
+
+  <div class="pf-body">
+    {% for g in groups %}
+    <section class="pf-group" data-pf-group>
+      <button type="button" class="pf-group-h" data-pf-toggle aria-expanded="true">
+        <span>{{ g.title }}</span>
+        <span class="pf-group-n" data-pf-group-count hidden></span>
+        <i class="fa-solid fa-chevron-up"></i>
+      </button>
+      <div class="pf-group-b">
+        {% if g.hint %}<p class="pf-hint pf-group-hint">{{ g.hint }}</p>{% endif %}
+        <div class="pf-fields">
+          {% for f in g.fields %}{{ _field(f, values) }}{% endfor %}
+        </div>
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+
+  <footer class="pf-foot">
+    <button type="button" class="btn btn-ghost" data-pf-reset>Clear all</button>
+    <button type="button" class="btn btn-primary" data-pf-apply><i class="fa-solid fa-filter"></i> Show results</button>
+  </footer>
+</aside>
 {%- endmacro %}

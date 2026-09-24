@@ -259,7 +259,8 @@ label .opt { text-transform: none; letter-spacing: 0; font-weight: 500; font-siz
 
 /* Airport autocomplete */
 .airport-autocomplete { position: relative; }
-.airport-dropdown { display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); z-index: 600; overflow: hidden; margin-top: 2px; }
+/* position/coords are set by floatPanel() in main.js once it is moved to <body> */
+.airport-dropdown { display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); z-index: 4000; overflow: hidden; margin-top: 2px; }
 .airport-dropdown.open { display: block; }
 .airport-option { padding: 10px 14px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 10px; }
 .airport-option:hover, .airport-option.active { background: var(--coral-light); }
@@ -2029,14 +2030,15 @@ input[type="date"] { cursor: pointer; }
 .ss.is-open .ss-caret { transform: rotate(180deg); }
 .ss-disabled .ss-btn { background: #f4f6f9; color: var(--muted); cursor: not-allowed; }
 
+/* Fixed, and moved to <body> while open (see searchselect.js). Absolutely positioned it was
+   clipped by any ancestor that scrolls -- the contact rows on the CS post form, a dialog with its
+   own scroll box -- so the list appeared cut off inside the card instead of floating over it.
+   searchselect.js sets top/left/width; everything here is just the panel's own skin. */
 .ss-pop {
-  position: absolute; z-index: 3000; left: 0; right: 0; top: calc(100% + 6px);
+  position: fixed; z-index: 4000;
   background: #fff; border: 1px solid var(--border); border-radius: 12px;
-  box-shadow: 0 14px 40px rgba(12,35,64,.16); overflow: hidden; min-width: 200px;
+  box-shadow: 0 18px 46px rgba(12,35,64,.22); overflow: hidden; min-width: 200px;
 }
-.ss-pop.ss-up { top: auto; bottom: calc(100% + 6px); }
-/* narrow trigger (a small category select, say): keep the wider panel on screen */
-.ss-pop.ss-right { left: auto; right: 0; }
 /* nothing inside a card should be able to scroll the page sideways */
 .admin-main, .hc-split, .hc-faqs, .hc-faq { max-width: 100%; }
 /* Laid out with flex rather than an absolute icon over a padded input: a global
@@ -3201,10 +3203,9 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
   .dup-modal .modal-actions .btn { width: 100%; }
 }
 
-/* ===== POST FILTER POPUP ===== */
-/* Used by the CS posts list and the Admin listings page. The consoles re-theme the brand
-   tokens under .admin-page, so everything here is expressed in tokens and picks up the
-   console's blue automatically. */
+/* ===== POST FILTERS ===== */
+/* A right-hand drawer shared by the CS posts list and the Admin listings page. Tokens only, so
+   the consoles' blue theme under .admin-page applies automatically. */
 .pf-btn { display: inline-flex; align-items: center; gap: 7px; border: 1.5px solid var(--border);
   background: #fff; color: var(--text); border-radius: 8px; padding: 8px 14px; font-size: 13px;
   font-weight: 600; cursor: pointer; white-space: nowrap; }
@@ -3224,24 +3225,65 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 .pf-chip button:hover { background: rgba(0,0,0,.16); }
 .pf-clear-all { font-size: 12.5px; font-weight: 600; color: var(--muted); text-decoration: underline; }
 
-.pf-modal .modal-box { max-width: 900px; text-align: left; }
-.pf-modal h2 { display: flex; align-items: center; gap: 9px; }
-.pf-groups { display: grid; gap: 14px; max-height: 60vh; overflow-y: auto; padding: 2px 2px 6px;
-  margin-bottom: 18px; }
-.pf-group { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px 14px; }
-.pf-group legend { font-size: 12px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .05em; color: var(--muted); padding: 0 6px; }
-.pf-hint { font-size: 12px; color: var(--muted); margin: 0 0 10px; }
-.pf-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 14px; }
-.pf-field { display: grid; gap: 5px; }
+/* ---- the drawer ---- */
+.pf-scrim { position: fixed; inset: 0; background: rgba(9,22,44,.45); z-index: 3400;
+  opacity: 0; transition: opacity .22s ease; }
+.pf-scrim.open { opacity: 1; }
+.pf-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100%);
+  display: flex; flex-direction: column; background: var(--bg); z-index: 3500;
+  box-shadow: -24px 0 60px rgba(9,22,44,.28);
+  transform: translateX(102%); transition: transform .26s cubic-bezier(.22,.61,.36,1);
+}
+.pf-drawer.open { transform: none; }
+.pf-head { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 16px 18px; background: #fff; border-bottom: 1px solid var(--border); }
+.pf-head-t { display: inline-flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 700;
+  color: var(--text); }
+.pf-head-t i { color: var(--coral); }
+.pf-x { border: none; background: none; font-size: 26px; line-height: 1; color: var(--muted);
+  cursor: pointer; padding: 0 4px; }
+.pf-x:hover { color: var(--text); }
+.pf-body { flex: 1 1 auto; overflow-y: auto; padding: 12px 16px 18px; }
+
+.pf-group { background: #fff; border: 1px solid var(--border); border-radius: 12px;
+  margin-bottom: 10px; overflow: hidden; }
+.pf-group-h { width: 100%; display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+  background: none; border: 0; font: inherit; font-size: 13px; font-weight: 700; color: var(--text);
+  text-transform: uppercase; letter-spacing: .05em; cursor: pointer; }
+.pf-group-h span:first-child { flex: 1 1 auto; text-align: left; }
+.pf-group-h i { font-size: 11px; color: var(--muted); transition: transform .18s; }
+.pf-group.is-shut .pf-group-h i { transform: rotate(180deg); }
+.pf-group.is-shut .pf-group-b { display: none; }
+.pf-group-n { background: var(--coral); color: #fff; border-radius: 999px; min-width: 18px;
+  padding: 0 6px; font-size: 11px; line-height: 17px; text-align: center; letter-spacing: 0; }
+.pf-group-b { padding: 0 14px 14px; }
+.pf-group-hint { margin: -2px 0 10px; }
+
+.pf-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+.pf-field { display: grid; gap: 5px; align-content: start; min-width: 0; }
 .pf-field.pf-wide { grid-column: 1 / -1; }
 .pf-lbl { font-size: 12.5px; font-weight: 600; color: var(--text); }
-.pf-field input, .pf-field select { width: 100%; border: 1.5px solid var(--border); border-radius: 8px;
-  padding: 8px 10px; font: inherit; font-size: 13.5px; background: #fff; color: var(--text); }
+.pf-hint { font-size: 11.5px; color: var(--muted); line-height: 1.45; margin: 0; }
+.pf-field input, .pf-field select, .pf-preset { width: 100%; border: 1.5px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13.5px; background: #fff;
+  color: var(--text); }
 .pf-field input:focus, .pf-field select:focus { outline: 0; border-color: var(--coral);
   box-shadow: 0 0 0 3px rgba(245,166,35,.18); }
-@media (max-width: 640px) {
-  .pf-modal .modal-box { max-width: 100%; }
-  .pf-groups { max-height: 66vh; }
+/* the two exact-date boxes only appear when "Exact dates…" is chosen */
+.pf-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 2px; }
+.pf-dates label { display: grid; gap: 3px; }
+.pf-dates span { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+
+.pf-foot { display: flex; gap: 10px; padding: 12px 16px; background: #fff;
+  border-top: 1px solid var(--border); }
+.pf-foot .btn { flex: 1 1 auto; justify-content: center; }
+.pf-foot .btn-ghost { flex: 0 0 auto; }
+
+@media (max-width: 560px) {
+  .pf-drawer { width: 100%; }
   .pf-fields { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pf-drawer, .pf-scrim { transition: none; }
 }

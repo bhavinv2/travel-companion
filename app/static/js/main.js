@@ -2314,6 +2314,31 @@ if (IS_LOGGED_IN) {
 
 document.querySelectorAll('.toast').forEach(t => setTimeout(() => t.remove(), 5000));
 
+// A suggestion list has to be able to leave its box: inside the filter drawer, a dialog or any
+// card with its own scrollbar, an absolutely positioned panel gets clipped and the options appear
+// cut in half. Moving it to <body> and pinning it to the input in viewport coordinates is the same
+// trick searchselect.js uses, and it costs nothing on a page that was not clipping anything.
+function floatPanel(anchor, panel) {
+  if (panel.parentElement !== document.body) {
+    panel._home = panel.parentElement;
+    document.body.appendChild(panel);
+  }
+  const r = anchor.getBoundingClientRect();
+  const vw = document.documentElement.clientWidth;
+  panel.style.position = 'fixed';
+  panel.style.width = Math.max(r.width, 240) + 'px';
+  const h = panel.offsetHeight;
+  const below = window.innerHeight - r.bottom - 6;
+  panel.style.top = (below < Math.min(h, 220) && r.top > below ? Math.max(8, r.top - 6 - h)
+                                                               : r.bottom + 6) + 'px';
+  panel.style.left = Math.max(8, Math.min(r.left, vw - 8 - panel.offsetWidth)) + 'px';
+}
+
+function unfloatPanel(panel) {
+  if (panel._home && panel.parentElement === document.body) panel._home.appendChild(panel);
+  panel.style.position = panel.style.top = panel.style.left = panel.style.width = '';
+}
+
 // ===== AIRPORT AUTOCOMPLETE =====
 function initAirportAutocomplete(input) {
   const wrapper = input.closest('.input-with-icon') || input.parentElement;
@@ -2329,6 +2354,7 @@ function initAirportAutocomplete(input) {
 
   function close() {
     dropdown.classList.remove('open');
+    unfloatPanel(dropdown);
     activeIdx = -1;
   }
 
@@ -2350,6 +2376,7 @@ function initAirportAutocomplete(input) {
       dropdown.appendChild(div);
     });
     dropdown.classList.add('open');
+    floatPanel(input, dropdown);
   }
 
   function setActive(idx) {
@@ -2406,7 +2433,7 @@ function initAirlineAutocomplete(input) {
   let activeIdx = -1;
   let options = [];
 
-  function close() { dropdown.classList.remove('open'); activeIdx = -1; }
+  function close() { dropdown.classList.remove('open'); unfloatPanel(dropdown); activeIdx = -1; }
 
   function renderOptions(airlines) {
     options = airlines;
@@ -2425,6 +2452,7 @@ function initAirlineAutocomplete(input) {
       dropdown.appendChild(div);
     });
     dropdown.classList.add('open');
+    floatPanel(input, dropdown);
   }
 
   function setActive(idx) {
@@ -3027,6 +3055,164 @@ function wireBulkSelect(headId, rowSelector, onChange) {
     }
   });
 }
+// "Services" dropdown in the nav: the rest of the NRI Parent Service group.
+(function () {
+  const wrap = document.getElementById('navSvc'), btn = document.getElementById('navSvcBtn');
+  if (!wrap || !btn) return;
+  btn.addEventListener('click', e => {
+    e.preventDefault(); e.stopPropagation();
+    btn.setAttribute('aria-expanded', wrap.classList.toggle('open'));
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#navSvc')) { wrap.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { wrap.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
+  });
+})();
+
+// ===== POST FILTERS DRAWER (CS "All posts" and Admin "All listings") =====
+// The drawer's fields sit inside the page's filter form, so applying is just submitting that
+// form. Everything below is open/close, the collapsible groups, and the date presets -- which
+// are pure sugar: they fill the two date inputs that are actually submitted, so one URL always
+// means one thing. Self-initialises on any page that includes _post_filters.html.
+(function () {
+  const drawer = document.getElementById('pfDrawer');
+  if (!drawer) return;
+  const form = drawer.closest('form');
+  if (!form) return;
+  const scrim = document.querySelector('.pf-scrim');
+
+  const iso = d => d.toISOString().slice(0, 10);
+  const shift = n => { const d = new Date(); d.setDate(d.getDate() + n); return iso(d); };
+
+  // ---- date presets ---------------------------------------------------------
+  // Each option carries day offsets from today; blank means that end is open.
+  function rangeOf(opt) {
+    if (!opt || !opt.value || opt.value === 'custom') return null;
+    const from = opt.dataset.from, to = opt.dataset.to;
+    return { from: from === '' ? '' : shift(+from), to: to === '' ? '' : shift(+to) };
+  }
+
+  function wireRange(row) {
+    const preset = row.querySelector('[data-pf-preset]');
+    const dates = row.querySelector('[data-pf-dates]');
+    const from = dates.querySelector('input[type=date]:first-of-type');
+    const to = dates.querySelectorAll('input[type=date]')[1];
+
+    function sync() {
+      if (preset.value === 'custom') { dates.hidden = false; return; }
+      const r = rangeOf(preset.selectedOptions[0]);
+      dates.hidden = true;
+      from.value = r ? r.from : '';
+      to.value = r ? r.to : '';
+    }
+
+    // A link someone shared carries only from/to, so work out which preset that was -- and fall
+    // back to the exact-date boxes when it matches none of them.
+    (function restore() {
+      if (!from.value && !to.value) return;
+      for (const opt of preset.options) {
+        const r = rangeOf(opt);
+        if (r && r.from === from.value && r.to === to.value) { preset.value = opt.value; return; }
+      }
+      preset.value = 'custom';
+      dates.hidden = false;
+    })();
+
+    preset.addEventListener('change', sync);
+  }
+  drawer.querySelectorAll('[data-pf-range]').forEach(wireRange);
+
+  // ---- how many filters each section holds ----------------------------------
+  function countGroups() {
+    drawer.querySelectorAll('[data-pf-group]').forEach(g => {
+      const n = [...g.querySelectorAll('input[name], select[name]')].filter(el => el.value).length;
+      const badge = g.querySelector('[data-pf-group-count]');
+      badge.textContent = n;
+      badge.hidden = !n;
+    });
+  }
+  countGroups();
+  drawer.addEventListener('change', countGroups);
+  drawer.addEventListener('input', countGroups);
+
+  // ---- open / close ---------------------------------------------------------
+  let lastFocus = null;
+  function open() {
+    lastFocus = document.activeElement;
+    if (scrim) { scrim.hidden = false; requestAnimationFrame(() => scrim.classList.add('open')); }
+    drawer.classList.add('open');
+    drawer.setAttribute('aria-hidden', 'false');
+    drawer.querySelector('.pf-x').focus();
+  }
+  function close() {
+    drawer.classList.remove('open');
+    drawer.setAttribute('aria-hidden', 'true');
+    if (scrim) { scrim.classList.remove('open'); setTimeout(() => { scrim.hidden = true; }, 240); }
+    if (lastFocus) lastFocus.focus();
+  }
+
+  function submit() {
+    const page = form.querySelector('input[name="page"]');   // a new filter starts at page one
+    if (page) page.value = '1';
+    if (form.requestSubmit) form.requestSubmit();
+    else form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+  }
+
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-pf-open]')) { open(); return; }
+    if (e.target.closest('[data-pf-close]')) { close(); return; }
+
+    const head = e.target.closest('[data-pf-toggle]');
+    if (head) {
+      const group = head.closest('[data-pf-group]');
+      const shut = group.classList.toggle('is-shut');
+      head.setAttribute('aria-expanded', String(!shut));
+      return;
+    }
+    if (e.target.closest('[data-pf-apply]')) { close(); paintCount(); submit(); return; }
+    if (e.target.closest('[data-pf-reset]')) {
+      drawer.querySelectorAll('input, select').forEach(el => { el.value = ''; });
+      drawer.querySelectorAll('[data-pf-dates]').forEach(d => { d.hidden = true; });
+      if (window.refreshSearchSelects) drawer.querySelectorAll('select').forEach(window.syncSearchSelect);
+      countGroups();
+      close();
+      submit();
+      return;
+    }
+    // a chip's X names the params it owns -- a date range owns two
+    const chip = e.target.closest('[data-pf-clear]');
+    if (chip) {
+      chip.getAttribute('data-pf-clear').split(',').forEach(name => {
+        form.querySelectorAll('[name="' + name + '"]').forEach(el => { el.value = ''; });
+      });
+      submit();
+    }
+  });
+
+  // The CS list swaps only its results in, so the button's badge has to be kept in step here
+  // rather than relying on the next full page render.
+  function paintCount() {
+    const n = [...drawer.querySelectorAll('input[name], select[name]')].filter(el => el.value).length;
+    document.querySelectorAll('[data-pf-open]').forEach(btn => {
+      let badge = btn.querySelector('.pf-count');
+      if (!n) { if (badge) badge.remove(); return; }
+      if (!badge) { badge = document.createElement('span'); badge.className = 'pf-count'; btn.appendChild(badge); }
+      badge.textContent = n;
+    });
+  }
+  paintCount();
+  drawer.addEventListener('change', paintCount);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && drawer.classList.contains('open')) close();
+  });
+  drawer.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') { e.preventDefault(); close(); submit(); }
+  });
+})();
+
 // "Services" dropdown in the nav: the rest of the NRI Parent Service group.
 (function () {
   const wrap = document.getElementById('navSvc'), btn = document.getElementById('navSvcBtn');
