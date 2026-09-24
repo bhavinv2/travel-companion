@@ -1,0 +1,72 @@
+{# Shared filter UI for the post listings (CS console "All posts" and Admin "All listings").
+
+   The popup's inputs live INSIDE the page's filter <form>, so the existing liveSearch() picks
+   them up in its FormData with no extra plumbing: "Show results" simply submits that form and
+   the results swap in behind the dialog. Both pages therefore offer exactly the same filters,
+   declared once in app/services/post_filters.py. #}
+
+{% macro filter_button(chips) -%}
+<button type="button" class="pf-btn" data-pf-open>
+  <i class="fa-solid fa-sliders"></i> More filters{% if chips %}<span class="pf-count">{{ chips|length }}</span>{% endif %}
+</button>
+{%- endmacro %}
+
+{# Named ..._row, not filter_chips: the routes pass the chip list itself as `filter_chips`, and a
+   macro of that name would shadow it. #}
+{% macro filter_chip_row(chips, reset_url) -%}
+{% if chips %}
+<div class="pf-chips">
+  <span class="pf-chips-label">Filtering by</span>
+  {% for c in chips %}
+  <span class="pf-chip">{{ c.label }}: <b>{{ c.value }}</b>
+    <button type="button" data-pf-clear="{{ c.key }}" title="Remove this filter"
+            aria-label="Remove the {{ c.label }} filter">&times;</button></span>
+  {% endfor %}
+  <a class="pf-clear-all" href="{{ reset_url }}">Clear all</a>
+</div>
+{% endif %}
+{%- endmacro %}
+
+{% macro filter_popup(groups, values) -%}
+<div class="modal-overlay pf-modal" id="pfModal" style="display:none">
+  <div class="modal-box">
+    <button type="button" class="modal-close" data-pf-close aria-label="Close">&times;</button>
+    <h2><i class="fa-solid fa-sliders"></i> Filter posts</h2>
+    <p>Pick as many as you need — each one narrows what the others left. Blank means “don’t care”.</p>
+    <div class="pf-groups">
+      {% for g in groups %}
+      <fieldset class="pf-group">
+        <legend>{{ g.title }}</legend>
+        {% if g.hint %}<p class="pf-hint">{{ g.hint }}</p>{% endif %}
+        <div class="pf-fields">
+          {% for f in g.fields %}
+          <label class="pf-field{% if f.wide %} pf-wide{% endif %}">
+            <span class="pf-lbl">{{ f.label }}</span>
+            {% if f.kind == 'date' %}
+              <input type="date" name="{{ f.key }}" value="{{ values.get(f.key) or '' }}"/>
+            {% elif f.kind == 'text' %}
+              <input type="text" name="{{ f.key }}" value="{{ values.get(f.key) or '' }}"
+                     placeholder="{{ f.placeholder or '' }}" autocomplete="off"/>
+            {% else %}
+              {# data-no-search on purpose: the site-wide searchable-select panel is absolutely
+                 positioned, and this dialog scrolls, which would clip it. #}
+              <select name="{{ f.key }}" data-no-search>
+                <option value="">Any</option>
+                {% for value, label in f.choices %}
+                <option value="{{ value }}" {% if values.get(f.key)|string == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            {% endif %}
+          </label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      {% endfor %}
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" data-pf-reset>Clear every filter</button>
+      <button type="button" class="btn btn-primary" data-pf-apply><i class="fa-solid fa-filter"></i> Show results</button>
+    </div>
+  </div>
+</div>
+{%- endmacro %}

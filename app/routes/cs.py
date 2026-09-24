@@ -20,6 +20,7 @@ from app.services.contacts import parse_contact_rows
 from app.services.storage import save_private_document, delete_private
 from app.services import matching
 from app.services import duplicates
+from app.services import post_filters
 
 cs_bp = Blueprint('cs', __name__)
 
@@ -40,9 +41,10 @@ def cs_required(f):
 
 # Journey shapes a post can have. The column stores these three; the labels are what CS
 # reads in the filter.
-TRIP_TYPES = ('one_way', 'round_trip', 'multi_destination')
-TRIP_TYPE_LABELS = {'one_way': 'One-way', 'round_trip': 'Round trip',
-                    'multi_destination': 'Multi-trip'}
+# Declared in the filter service so the CS console, the admin listings and the filter popup
+# cannot drift apart; re-exported here because the CS templates read it from this module.
+TRIP_TYPES = post_filters.TRIP_TYPES
+TRIP_TYPE_LABELS = post_filters.TRIP_TYPE_LABELS
 
 
 def _choices():
@@ -413,31 +415,15 @@ def metrics():
 @cs_required
 def posts():
     q = (request.args.get('q') or '').strip()
-    status = request.args.get('status') or ''
-    source = request.args.get('source') or ''
-    role = request.args.get('role') or ''
-    contact_type = request.args.get('contact_type') or ''
-    trip_type = request.args.get('trip_type') or ''
-    days = _int_or_none(request.args.get('days'))
     sort = request.args.get('sort') or 'departure'
     page = max(_int_or_none(request.args.get('page')) or 1, 1)
 
-    query = CompanionRequest.query
-    if status:
-        query = query.filter(CompanionRequest.status == status)
-    else:
+    # Every structured filter comes from the shared engine (see services/post_filters.py), so the
+    # popup, this list and the admin listings always offer the same set.
+    query, active = post_filters.apply(CompanionRequest.query, request.args)
+    if 'status' not in active:
+        # The working list is live posts; closed ones show up only when a status is asked for.
         query = query.filter(CompanionRequest.status != 'closed')
-    if source:
-        query = query.filter(CompanionRequest.source == source)
-    if role:
-        query = query.filter(CompanionRequest.role == role)
-    if contact_type:
-        query = query.filter(CompanionRequest.contact_points.any(ContactPoint.type == contact_type))
-    if trip_type in TRIP_TYPES:
-        query = query.filter(CompanionRequest.trip_type == trip_type)
-    if days is not None:
-        query = query.filter(CompanionRequest.from_date >= date.today(),
-                             CompanionRequest.from_date <= date.today() + timedelta(days=days))
     if q:
         pat = f"%{q}%"
         query = query.filter(or_(
@@ -456,12 +442,7 @@ def posts():
                 User.first_name.ilike(pat), User.last_name.ilike(pat),
             )),
         ))
-    if sort == 'newest':
-        query = query.order_by(CompanionRequest.created_at.desc())
-    elif sort == 'updated':
-        query = query.order_by(CompanionRequest.updated_at.desc())
-    else:
-        query = query.order_by(CompanionRequest.from_date.asc().nulls_last(), CompanionRequest.created_at.desc())
+    query = post_filters.sort_query(query, sort)
 
     total = query.count()
     items = query.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE).all()
@@ -481,10 +462,9 @@ def posts():
     # A live search asks for the results only; the surrounding page stays put.
     template = 'cs/_posts_results.html' if request.args.get('partial') else 'cs/posts.html'
     return render_template(template, posts=items, total=total, page=page, pages=pages,
-                           match_info=match_info,
-                           filters=dict(q=q, status=status, source=source, role=role,
-                                        contact_type=contact_type, trip_type=trip_type,
-                                        days=days, sort=sort),
+                           match_info=match_info, filters=dict(q=q, sort=sort),
+                           filter_groups=post_filters.GROUPS, filter_values=active,
+                           filter_chips=post_filters.chips(active), SORTS=post_filters.SORTS,
                            today=date.today(), **_choices())
 
 

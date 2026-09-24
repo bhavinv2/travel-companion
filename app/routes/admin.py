@@ -861,13 +861,14 @@ def airlines_delete(airline_id):
 @admin_required
 def listings():
     from sqlalchemy import or_
-    from app.models import Match, ContactPoint, TRIP_STATUSES
+    from app.models import Match
+    from app.services import post_filters
     page, per_page = _page_args(25)
     q = (request.args.get('q') or '').strip()
-    status = request.args.get('status') or ''
-    query = CompanionRequest.query
-    if status:
-        query = query.filter(CompanionRequest.status == status)
+    sort = request.args.get('sort') or 'newest'
+    # Same filter engine as the CS posts list, so staff learn one filter popup, not two. Admin
+    # shows closed posts by default -- this page is the archive view, not the working queue.
+    query, active = post_filters.apply(CompanionRequest.query, request.args)
     if q:
         pat = f"%{q}%"
         query = (query.outerjoin(User, CompanionRequest.user_id == User.id)
@@ -876,7 +877,7 @@ def listings():
                              CompanionRequest.poster_name.ilike(pat), CompanionRequest.traveler_name.ilike(pat),
                              CompanionRequest.airline.ilike(pat), CompanionRequest.flight_number.ilike(pat),
                              User.username.ilike(pat), User.email.ilike(pat))))
-    query = query.order_by(CompanionRequest.created_at.desc())
+    query = post_filters.sort_query(query, sort)
     total = query.count()
     pages = max((total + per_page - 1) // per_page, 1)
     page = min(page, pages)
@@ -893,7 +894,9 @@ def listings():
                     e['n'] += 1
                     e['best'] = max(e['best'], m.score or 0)
     return render_template('admin/listings.html', trips=trips, page=page, pages=pages, total=total,
-                           match_info=match_info, q=q, status=status, TRIP_STATUSES=TRIP_STATUSES)
+                           match_info=match_info, q=q, sort=sort,
+                           filter_groups=post_filters.GROUPS, filter_values=active,
+                           filter_chips=post_filters.chips(active), SORTS=post_filters.SORTS)
 
 
 @admin_bp.route('/listings/<int:trip_id>/disable', methods=['POST'])

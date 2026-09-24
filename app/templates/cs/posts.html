@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% from 'cs/_macros.html' import posts_table with context %}
+{% from '_post_filters.html' import filter_button, filter_chip_row, filter_popup %}
 {% block title %}Posts – CS Console{% endblock %}
 {% block content %}
 <div class="admin-page">
@@ -7,8 +8,9 @@
   <main class="admin-main">
     <div class="card-head"><h1>All Posts</h1><a class="btn btn-primary" href="{{ url_for('cs.new_post') }}"><i class="fa-solid fa-plus"></i> New Post</a></div>
 
-    {# Selects apply as soon as they change; the search box waits for Enter, so typing a
-       route never fires a query on every keystroke or on a stray blur. #}
+    {# The search box waits for Enter (typing a route must not fire a query per keystroke) and the
+       sort select applies at once. Every structured filter lives in the popup below, which is part
+       of THIS form -- that is what lets liveSearch() pick its fields up with no extra wiring. #}
     <form method="GET" class="cs-filters" id="csFilters">
       <span class="cs-search">
         <i class="fa-solid fa-magnifying-glass"></i>
@@ -17,37 +19,17 @@
         <button type="button" class="cs-search-x" id="csClear" aria-label="Clear search" hidden>&times;</button>
         <span class="cs-spin" id="csSpin" hidden><i class="fa-solid fa-circle-notch fa-spin"></i></span>
       </span>
-      <select name="status">
-        <option value="">Open + unconfirmed</option>
-        {% for s in TRIP_STATUSES %}<option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s|replace('_',' ')|capitalize }}</option>{% endfor %}
-      </select>
-      <select name="source">
-        <option value="">Any source</option>
-        {% for s in TRIP_SOURCES %}<option value="{{ s }}" {% if filters.source == s %}selected{% endif %}>{{ TRIP_SOURCE_LABELS.get(s, s|capitalize) }}</option>{% endfor %}
-      </select>
-      <select name="role">
-        <option value="">Any role</option>
-        {% for r in TRIP_ROLES %}<option value="{{ r }}" {% if filters.role == r %}selected{% endif %}>{{ TRIP_ROLE_LABELS[r] }}</option>{% endfor %}
-      </select>
-      <select name="trip_type">
-        <option value="">Any journey</option>
-        {% for tt in TRIP_TYPES %}<option value="{{ tt }}" {% if filters.trip_type == tt %}selected{% endif %}>{{ TRIP_TYPE_LABELS[tt] }}</option>{% endfor %}
-      </select>
-      <select name="contact_type">
-        <option value="">Any contact type</option>
-        {% for c in CONTACT_TYPES %}<option value="{{ c }}" {% if filters.contact_type == c %}selected{% endif %}>{{ CONTACT_TYPE_LABELS[c] }}</option>{% endfor %}
-      </select>
-      <select name="days">
-        <option value="">Any departure</option>
-        {% for d in [3, 7, 14, 30] %}<option value="{{ d }}" {% if filters.days == d %}selected{% endif %}>Departing within {{ d }} days</option>{% endfor %}
-      </select>
       <select name="sort">
-        <option value="departure" {% if filters.sort == 'departure' %}selected{% endif %}>Soonest departure</option>
-        <option value="newest" {% if filters.sort == 'newest' %}selected{% endif %}>Newest</option>
-        <option value="updated" {% if filters.sort == 'updated' %}selected{% endif %}>Recently updated</option>
+        {% for value, label in SORTS %}<option value="{{ value }}" {% if filters.sort == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
       </select>
+      {{ filter_button(filter_chips) }}
       <a href="{{ url_for('cs.posts') }}" class="btn-sm">Reset</a>
+      {{ filter_popup(filter_groups, filter_values) }}
     </form>
+    {{ filter_chip_row(filter_chips, url_for('cs.posts')) }}
+    {% if 'status' not in filter_values %}
+    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Showing open and unconfirmed posts — pick a status in the filters to see closed ones.</p>
+    {% endif %}
 
     <div id="csResults">
       {% include 'cs/_posts_results.html' %}

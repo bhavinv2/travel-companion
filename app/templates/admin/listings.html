@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% from 'cs/_macros.html' import role_chip, contact_icons with context %}
+{% from '_post_filters.html' import filter_button, filter_chip_row, filter_popup %}
 {% block title %}Listings – Admin{% endblock %}
 {% block content %}
 <div class="admin-page">
@@ -8,15 +9,20 @@
     <h1>All Listings</h1>
     <p class="muted">For intake, claim links and lifecycle actions use the <a href="{{ url_for('cs.posts') }}">CS console</a>.</p>
 
+    {# Same popup as the CS posts list (macros + engine are shared), so the two consoles filter
+       identically. This page submits normally rather than swapping results in: the bulk-select
+       checkboxes bind to the table that is on the page at load. #}
     <form method="GET" class="cs-filters">
       <input type="text" name="q" value="{{ q }}" placeholder="Search route, name, e-mail, flight…"/>
-      <select name="status">
-        <option value="">Any status</option>
-        {% for s in TRIP_STATUSES %}<option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s|replace('_',' ')|capitalize }}</option>{% endfor %}
+      <select name="sort">
+        {% for value, label in SORTS %}<option value="{{ value }}" {% if sort == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
       </select>
+      {{ filter_button(filter_chips) }}
       <button type="submit" class="btn btn-primary">Filter</button>
       <a href="{{ url_for('admin.listings') }}" class="btn-sm">Reset</a>
+      {{ filter_popup(filter_groups, filter_values) }}
     </form>
+    {{ filter_chip_row(filter_chips, url_for('admin.listings')) }}
     <p class="muted">{{ total }} listing{{ '' if total == 1 else 's' }}</p>
 
     <div class="bulk-select-bar" id="postBulkBar" style="display:none">

@@ -3042,3 +3042,65 @@ function wireBulkSelect(headId, rowSelector, onChange) {
     if (e.key === 'Escape') { wrap.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
   });
 })();
+
+// ===== POST FILTER POPUP (CS "All posts" and Admin "All listings") =====
+// The dialog's fields sit inside the page's filter form, so applying is just submitting that
+// form: liveSearch() serialises the whole form and swaps the results in. Everything below is
+// open/close plumbing plus the chip removals, and it self-initialises on any page that
+// includes _post_filters.html.
+(function () {
+  const modal = document.getElementById('pfModal');
+  if (!modal) return;
+  const form = modal.closest('form');
+  if (!form) return;
+
+  const fields = () => [...modal.querySelectorAll('input, select')];
+  const open = () => { modal.style.display = 'flex'; };
+  const close = () => { modal.style.display = 'none'; };
+
+  // Paging is per result set: changing a filter has to start from page one, or "page 4 of the
+  // old search" quietly returns nothing.
+  function resetPage() {
+    const hidden = form.querySelector('input[name="page"]');
+    if (hidden) hidden.value = '1';
+  }
+
+  function submit() {
+    resetPage();
+    if (form.requestSubmit) form.requestSubmit();
+    else form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+  }
+
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-pf-open]')) { open(); return; }
+    if (e.target.closest('[data-pf-close]')) { close(); return; }
+    if (e.target === modal) { close(); return; }              // click the backdrop
+
+    if (e.target.closest('[data-pf-apply]')) {
+      close();
+      submit();
+      return;
+    }
+    if (e.target.closest('[data-pf-reset]')) {
+      fields().forEach(el => { el.value = ''; });
+      close();
+      submit();
+      return;
+    }
+    const chip = e.target.closest('[data-pf-clear]');
+    if (chip) {
+      const key = chip.getAttribute('data-pf-clear');
+      form.querySelectorAll(`[name="${key}"]`).forEach(el => { el.value = ''; });
+      submit();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.style.display === 'flex') close();
+  });
+
+  // Enter inside the dialog means "show me the results", not "submit whatever has focus".
+  modal.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); close(); submit(); }
+  });
+})();
