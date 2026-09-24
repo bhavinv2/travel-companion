@@ -390,27 +390,38 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .su-overlay.open{opacity:1}
 .su-modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-46%);width:min(520px,calc(100% - 24px));max-height:calc(100vh - 24px);overflow:auto;background:#fff;color:var(--ink);border-radius:22px;box-shadow:0 30px 80px rgba(6,16,38,.45);z-index:181;opacity:0;transition:opacity .25s,transform .25s}
 .su-modal.open{opacity:1;transform:translate(-50%,-50%)}
-.su-head{position:relative;background:linear-gradient(120deg,var(--navy),#123a78);color:#fff;padding:26px 56px 22px 28px;border-radius:22px 22px 0 0}
+/* Short viewports: drop the blurb and tighten the chrome instead of handing them a scrollbar.
+   overflow:auto stays on .su-modal as the last resort for genuinely tiny screens. */
+@media(max-height:780px){
+  .su-head{padding:12px 50px 11px 24px}
+  .su-head h3{font-size:17.5px}
+  .su-head p{display:none}
+  .su-form{padding:12px 24px 14px}
+  .su-form .f{margin-bottom:7px}
+  .su-wa-hint{display:none}
+  .su-tabs{margin:6px 0 0}
+}
+.su-head{position:relative;background:linear-gradient(120deg,var(--navy),#123a78);color:#fff;padding:16px 52px 14px 24px;border-radius:22px 22px 0 0}
 .su-close{position:absolute;right:14px;top:14px;width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.16);color:#fff;font-size:22px;line-height:1;cursor:pointer;display:grid;place-items:center}
 .su-close:hover{background:rgba(255,255,255,.28)}
-.su-eyebrow{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);margin-bottom:8px}
-.su-head h3{font-family:var(--serif);font-size:23px;font-weight:600;line-height:1.2;margin:0 0 6px;color:#fff}
-.su-head p{font-size:14px;line-height:1.5;color:#C9D5EC;margin:0}
-.su-tabs{display:flex;gap:4px;padding:0 28px;margin:14px 0 0;border-bottom:1px solid var(--line)}
-.su-tab{flex:1;background:none;border:0;border-bottom:2px solid transparent;font:inherit;font-size:13.5px;font-weight:700;color:var(--muted);padding:10px 6px;cursor:pointer;margin-bottom:-1px}
+.su-eyebrow{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);margin-bottom:3px}
+.su-head h3{font-family:var(--serif);font-size:19px;font-weight:600;line-height:1.25;margin:0 0 4px;color:#fff}
+.su-head p{font-size:13px;line-height:1.45;color:#C9D5EC;margin:0}
+.su-tabs{display:flex;gap:4px;padding:0 24px;margin:8px 0 0;border-bottom:1px solid var(--line)}
+.su-tab{flex:1;background:none;border:0;border-bottom:2px solid transparent;font:inherit;font-size:13.5px;font-weight:700;color:var(--muted);padding:8px 6px;cursor:pointer;margin-bottom:-1px}
 .su-tab:hover{color:var(--navy)}
 .su-tab.is-on{color:var(--navy);border-bottom-color:var(--amber)}
-.su-form{padding:18px 28px 22px}
-.su-form .f{display:grid;gap:5px;margin-bottom:12px}
+.su-form{padding:14px 24px 16px}
+.su-form .f{display:grid;gap:4px;margin-bottom:9px}
 .su-form label{font-size:12.5px;font-weight:700;color:var(--navy)}
-.su-form input:not([type=checkbox]){width:100%;border:1.5px solid var(--line);border-radius:10px;padding:11px 13px;font:inherit;font-size:14.5px;color:var(--ink);background:#fff}
+.su-form input:not([type=checkbox]){width:100%;border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;font:inherit;font-size:14.5px;color:var(--ink);background:#fff}
 .su-form input:focus{outline:0;border-color:var(--amber);box-shadow:0 0 0 3px rgba(245,166,35,.25)}
 .su-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.su-consent{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;line-height:1.45;color:var(--muted);margin:2px 0 14px;cursor:pointer}
+.su-consent{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;line-height:1.4;color:var(--muted);margin:2px 0 10px;cursor:pointer}
 .su-consent input{margin-top:3px;accent-color:var(--amber)}
 .su-consent a{color:var(--navy);font-weight:600;text-decoration:underline}
 .su-submit{width:100%;justify-content:center}
-.su-alt{text-align:center;font-size:13px;color:var(--muted);margin:12px 0 0}
+.su-alt{text-align:center;font-size:13px;color:var(--muted);margin:8px 0 0}
 .su-alt a{color:var(--navy);font-weight:700}
 .su-later{background:none;border:0;font:inherit;font-size:13px;color:var(--muted);text-decoration:underline;cursor:pointer;padding:0}
 .su-hint{font-size:12px;color:var(--muted);line-height:1.4}
@@ -419,7 +430,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .su-pw-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:0;font:inherit;font-size:12.5px;font-weight:700;color:var(--navy);cursor:pointer;padding:6px 8px;border-radius:6px}
 .su-pw-toggle:hover{background:var(--sand)}
 /* WhatsApp is how a match reaches them: the field gets a green tint, icon and the full hint */
-.su-wa{background:#F0FBF4;border:1.5px solid #BFE5CC;border-radius:14px;padding:12px 14px 12px;margin:2px 0 14px}
+.su-wa{background:#F0FBF4;border:1.5px solid #BFE5CC;border-radius:14px;padding:10px 12px;margin:2px 0 10px}
 .su-wa label{display:flex;align-items:center;gap:7px;color:#146C3A}
 .su-wa label svg{width:18px;height:18px;color:#25D366;flex:none}
 .su-form .su-wa input{border-color:#9FD8B4;background:#fff}
@@ -2219,7 +2230,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
     <button type="button" class="su-close" id="suClose" aria-label="Close">&times;</button>
     <span class="su-eyebrow">Free to join</span>
     <h3 id="suTitle">Find a travel companion for your parents</h3>
-    <p>Create a free account to post a trip, get matched with a fellow Desi on the same flight, and chat safely — under a minute.</p>
+    <p>Post a trip, get matched with a Desi on your flight, and chat safely — in under a minute.</p>
   </div>
   {# Two short panels instead of one long scroll: the form, and the ways to reach a human.
      Every field stays inside the one <form>, so it still posts to /auth/register in one go. #}
@@ -2242,7 +2253,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
     <div class="f su-wa">
       <label for="sup-phone"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2a9.9 9.9 0 0 0-8.44 15.1L2 22l5.05-1.55A9.9 9.9 0 1 0 12.04 2zm0 18.1a8.2 8.2 0 0 1-4.2-1.15l-.3-.18-3 .92.95-2.9-.2-.3a8.2 8.2 0 1 1 6.75 3.6zm4.5-6.15c-.25-.12-1.46-.72-1.69-.8-.23-.08-.39-.12-.56.12-.16.25-.64.8-.78.97-.14.16-.29.18-.54.06a6.7 6.7 0 0 1-3.32-2.9c-.25-.43.25-.4.72-1.33.08-.16.04-.3-.02-.43-.06-.12-.56-1.35-.77-1.85-.2-.48-.41-.42-.56-.43h-.48a.92.92 0 0 0-.67.31 2.8 2.8 0 0 0-.87 2.08c0 1.23.9 2.42 1.02 2.58.12.16 1.76 2.69 4.27 3.77 1.58.68 2.2.74 2.99.62.48-.07 1.46-.6 1.67-1.18.2-.58.2-1.07.14-1.18-.06-.1-.22-.16-.47-.28z"/></svg> WhatsApp / phone number</label>
       <input id="sup-phone" type="tel" name="phone" required autocomplete="tel" placeholder="+1 234 567 8900">
-      <span class="su-hint su-wa-hint"><b>Stay connected:</b> sharing your WhatsApp number lets us reach you instantly the moment we find your travel companion match.</span>
+      <span class="su-hint su-wa-hint"><b>Stay connected:</b> we'll WhatsApp you the moment we find a match.</span>
     </div>
     <label class="su-consent"><input type="checkbox" name="agree_terms" required><span>I agree to the <a href="{{ url_for('main.terms') }}" target="_blank">Terms of Use</a> and <a href="{{ url_for('main.privacy') }}" target="_blank">Privacy Policy</a></span></label>
     <button class="btn btn-amber btn-lg su-submit" type="submit">Create my free account</button>
