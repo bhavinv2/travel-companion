@@ -1,0 +1,76 @@
+/* Ask our own server for the partner quote, the way the travel-companion drawer already does.
+ *
+ * The page used to build a preventia360 URL in the browser and send people straight there. That
+ * works, but the request exists nowhere afterwards: nobody can follow up with the person who
+ * asked for a quote and never came back. POSTing to /api/insurance-quote instead means the
+ * server calls the partner with the parameters we have verified against their widget, records
+ * the lead in insurance_quotes, and hands back the URL to open.
+ *
+ * Every failure path falls back to the direct partner link. Somebody mid-quote should never be
+ * stranded because our own endpoint had a bad minute.
+ */
+import { SCHENGEN } from '../data/countries';
+import { site } from '../data/site';
+
+export type PlanKind = 'visitors' | 'health' | 'schengen';
+
+/** ISO-3 for a country name, using the list the server sent. '' when we cannot map it. */
+export function iso3(name?: string): string {
+  if (!name) return '';
+  return (site.countries || {})[name] || '';
+}
+
+/** Which of the three products this trip is, matching the server's own rules. */
+export function planFor(destination: string, presection?: string): PlanKind {
+  if (presection === 'visitorUSA' || destination === 'United States') return 'visitors';
+  if (presection === 'schengen' || SCHENGEN.has(destination)) return 'schengen';
+  return 'health';
+}
+
+export interface QuoteRequest {
+  plan: PlanKind;
+  start: string;
+  end: string;
+  citizenship: string;   // country NAME; mapped to ISO-3 here
+  destination?: string;  // country NAME
+  ages: string[];
+  email: string;
+  phone: string;
+}
+
+/** The partner URL to send the visitor to, or null if the caller should fall back. */
+export async function requestQuoteUrl(req: QuoteRequest): Promise<string | null> {
+  if (!site.quoteUrl) return null;
+
+  const citizenship = iso3(req.citizenship);
+  const destination = iso3(req.destination);
+  // Travel-medical is the only product that prices a specific country; without a code the
+  // server would reject it, so let the direct link handle that case.
+  if (!citizenship || (req.plan === 'health' && !destination)) return null;
+
+  const body: Record<string, unknown> = {
+    insurance_type: req.plan,
+    start_date: req.start,
+    end_date: req.end,
+    citizenship,
+    travellers: req.ages.filter(Boolean).map((age) => ({ age })),
+    email: req.email,
+    phone: req.phone,
+  };
+  if (req.plan === 'health') body.destination = destination;
+
+  try {
+    const res = await fetch(site.quoteUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(site.csrfToken ? { 'X-CSRFToken': site.csrfToken } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    return data && data.success && data.url ? (data.url as string) : null;
+  } catch {
+    return null;
+  }
+}

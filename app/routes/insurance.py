@@ -1,8 +1,9 @@
 """Travel insurance: the public landing page and the enquiries it produces.
 
-The page itself is a port of the standalone travel-insurance build (see
-templates/insurance/landing.html). Everything on it that is not marketing copy comes from the
-places staff already manage:
+The page is the React app in frontend/insurance, built into static/insurance and mounted by
+templates/insurance/landing.html. Everything on it that is not marketing copy comes from the
+places staff already manage, injected as window.__INSURANCE__ so the bundle never has to fetch
+it separately:
 
   * testimonials  -> services/insurance_page.py  (Admin -> Insurance page)
   * FAQs          -> services/help_center.py, the 'travel_insurance' category
@@ -17,7 +18,7 @@ from flask_login import current_user
 
 from app import db
 from app.models import ActivityEvent, ContactMessage
-from app.services import help_center, insurance_page
+from app.services import help_center, insurance_countries, insurance_page, settings
 from app.services.ratelimit import rate_limit
 
 insurance_bp = Blueprint('insurance', __name__)
@@ -52,12 +53,15 @@ def landing():
     # section does. Real ones are entered in Admin -> Insurance page.
     samples = insurance_page.is_using_samples()
     staff = current_user.is_authenticated and (current_user.is_admin or current_user.is_cs)
+    wa = (settings.whatsapp_numbers() or {})
+    number = wa.get('in') or wa.get('us')
     return render_template('insurance/landing.html',
                            reviews=[] if (samples and not staff) else insurance_page.reviews(),
                            reviews_are_samples=samples,
-                           price_from=insurance_page.price_from(),
-                           assurances=insurance_page.assurances(),
-                           faqs=_faqs(),
+                           faqs=[{'question': f['question'], 'answer': f['answer']} for f in _faqs()],
+                           countries={name: code for code, name in insurance_countries.ALL},
+                           whatsapp_number=number['digits'] if number else '',
+                           whatsapp_display=number['display'] if number else '',
                            canonical_url=_canonical())
 
 

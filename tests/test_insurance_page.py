@@ -1,11 +1,16 @@
-"""The travel-insurance landing page, and the places its content is managed from.
+"""The travel-insurance page, and the places its content is managed from.
 
-The page was a separate React project; it now lives in this app at /travel-insurance. What
-these tests protect is the part that made it worth merging rather than linking: nothing on the
-page is hard-coded any more. Testimonials come from the admin screen, questions come from the
-same Help & FAQ screen the rest of the site uses, and an enquiry lands in the one inbox CS
-already works from instead of a second system nobody remembers to check.
+The page is the React app in frontend/insurance, built into static/insurance and mounted by the
+Flask template. The server hands it everything that is not marketing copy as window.__INSURANCE__
+before the bundle runs, so these tests read that payload rather than the DOM -- rendering is the
+bundle's job and is checked in a browser, but what the server decides is checked here.
+
+What matters and is protected below: testimonials come from the admin screen, questions from the
+same Help & FAQ screen the rest of the site uses, the quote goes through our own endpoint so the
+lead is recorded, and an enquiry lands in the one inbox CS already works from.
 """
+import json
+import re
 from datetime import date, timedelta
 
 import pytest
@@ -33,96 +38,110 @@ def insurance_faq(app, db):
 # The page
 # ---------------------------------------------------------------------------
 
-def test_the_page_is_served_from_this_app(client, db):
-    r = client.get('/travel-insurance')
-    assert r.status_code == 200
-    html = r.data.decode()
-    assert 'Travel Insurance for Every Journey' in html
-    # inside the site's own shell, not a standalone build
-    assert 'nav-logo' in html and 'travel-insurance.css' in html
-    # the ported stylesheet is scoped, or it would fight the site's own
-    assert 'class="ti-page"' in html
-
-
-def test_the_pages_images_are_served_locally(client, db):
-    """They were base64-inlined into one 1.3 MB file; a page that heavy is a page nobody waits for."""
+def injected(client):
+    """window.__INSURANCE__ -- everything the server decides for the bundle."""
     html = client.get('/travel-insurance').data.decode()
-    assert 'data:image' not in html
-    assert '/static/img/insurance/' in html
+    blob = re.search(r'window\.__INSURANCE__ = (\{.*?\});', html, re.S)
+    assert blob, 'the page must hand the bundle its data'
+    return json.loads(blob.group(1)), html
+
+
+def test_the_page_mounts_the_react_app_inside_the_site_shell(client, db):
+    data, html = injected(client)
+    assert '<div id="root"></div>' in html
+    assert 'insurance/travel-insurance.js' in html and 'insurance/travel-insurance.css' in html
+    assert 'nav-logo' in html                      # the site's own navbar
+    assert data['chrome'] is False                 # so the bundle skips its own header/footer
+
+
+def test_the_built_bundle_is_committed_and_served(client, db):
+    """The Railway image is Python only; the bundle is built here and committed, so it has to be
+    present and reachable or the page is a blank div."""
+    for path in ('/static/insurance/travel-insurance.js',
+                 '/static/insurance/travel-insurance.css',
+                 '/static/insurance/photos/hero-banner.jpg'):
+        assert client.get(path).status_code == 200, path
+
+
+def test_the_asset_base_is_resolved_at_request_time(client, db):
+    """Baking the URL prefix into the bundle means a rebuild whenever it changes, and 404s on any
+    deployment that uses a different one. The server states it instead."""
+    data, _ = injected(client)
+    assert data['assetBase'].endswith('/static/insurance/')
+    assert '?' not in data['assetBase']            # static URLs carry a cache-busting ?v=
 
 
 def test_questions_come_from_the_admin_help_centre(client, db, insurance_faq):
-    html = client.get('/travel-insurance').data.decode()
-    assert 'What is visitor insurance?' in html
-    # rendered by the server: a question built by script after load is invisible to search engines
-    assert 'faqList' in html and 'Travel medical cover' in html
+    data, _ = injected(client)
+    assert {'question': 'What is visitor insurance?',
+            'answer': 'Travel medical cover for people visiting another country.'} in data['faqs']
 
 
 def test_only_the_insurance_questions_appear(client, db, insurance_faq):
-    """The help centre holds every FAQ on the site; this page shows its own category."""
-    html = client.get('/travel-insurance').data.decode()
+    """The help centre holds every FAQ on the site; this page gets its own category."""
+    data, _ = injected(client)
+    sent = {f['question'] for f in data['faqs']}
     other = [f for f in help_center.faqs() if f['category'] != insurance_page.FAQ_CATEGORY]
     assert other, 'fixture should leave some non-insurance FAQs'
-    assert other[0]['question'] not in html
+    assert other[0]['question'] not in sent
 
 
 def test_the_public_never_sees_invented_customers(client, db, cs_user):
     """Three made-up testimonials on an insurance page cost more trust than no section at all,
-    so until real ones are entered the section is simply absent for visitors."""
-    html = client.get('/travel-insurance').data.decode()
-    assert html.count('card lift rev') == 0
-    assert 'What Travellers Say' not in html
+    so until real ones are entered none are sent to the bundle."""
+    data, _ = injected(client)
+    assert data['reviews'] == []
 
-    # staff can still see the samples, so the section can be previewed before it is filled
+    # staff still get the samples, so the section can be previewed before it is filled
     login(client, 'cs@test.com')
-    staff_html = client.get('/travel-insurance').data.decode()
-    assert staff_html.count('card lift rev') == 3
-    assert 'Sample reviews' in staff_html
+    data, _ = injected(client)
+    assert len(data['reviews']) == 3 and data['reviewsAreSamples'] is True
 
 
-def test_no_placeholder_contact_details_are_published(client, db):
-    """[support@domain] on an insurance page does more damage than any design flaw."""
-    import re
-    html = client.get('/travel-insurance').data.decode()
-    # scripts and styles are not visible text, and their comments legitimately mention example.com
-    html = re.sub(r'<(script|style)\b.*?</\1>', ' ', html, flags=re.S | re.I)
-    text = re.sub(r'<[^>]+>', ' ', html)
-    for junk in ('[support@domain]', '[+91 00000 00000]', '[Name]', 'example.com'):
-        assert junk not in text, junk
-    assert 'support@' in text                       # the real one is there instead
+def test_contact_details_come_from_settings(client, db):
+    """The bundle ships a hard-coded support address and number; the server overrides both, so
+    the page can never advertise a mailbox or a number nobody is watching."""
+    data, _ = injected(client)
+    assert data['supportEmail'] == 'support@connectingdesis.com'
+    assert 'whatsapp' in data and 'supportPhone' in data
 
 
-def test_the_price_line_and_assurances_only_appear_once_set(client, db):
-    """Both are claims about the business. Nothing is invented on its behalf: an empty setting
-    renders nothing rather than a plausible-sounding default."""
-    html = client.get('/travel-insurance').data.decode()
-    assert 'ti-price' not in html and 'ti-assure' not in html
-
-    insurance_page.save_page('Plans from $1.20 a day',
-                             ['Policy documents by e-mail within minutes', 'Free look period'])
-    html = client.get('/travel-insurance').data.decode()
-    assert 'Plans from $1.20 a day' in html
-    assert html.count('<li><svg class="ico sm"') == 2
+def test_the_quote_goes_through_our_own_endpoint(client, db):
+    """The page used to send people straight to the partner, which left no record of who asked.
+    Routing it through /api/insurance-quote records the lead and uses the parameters we have
+    verified against the partner's widget."""
+    data, _ = injected(client)
+    assert data['quoteUrl'].endswith('/api/insurance-quote')
+    # the browser has to speak ISO-3 to that endpoint, so the server ships the lookup
+    assert data['countries']['United States'] == 'USA'
+    assert data['countries']['India'] == 'IND'
 
 
-def test_the_page_speaks_with_one_cta_vocabulary(client, db):
-    """Seven different ways to say the same thing reads as indecision, not choice."""
-    import re
-    html = client.get('/travel-insurance').data.decode()
-    for stale in ('Get Your Free Quote', 'Check Your Coverage Options',
-                  'Explore Travel Insurance Options', 'Book Your Free Consultation'):
-        assert stale not in html, stale
-    assert html.count('data-quote>Get a free quote') >= 3      # one primary label, repeated
+def test_the_enquiry_endpoint_is_handed_over_with_a_csrf_token(client, db):
+    """Both lead forms POST to it; without the token every submission would be rejected."""
+    data, _ = injected(client)
+    assert data['enquiryUrl'].endswith('/api/insurance-enquiry')
+    assert data['csrfToken']
+
+
+def test_the_react_source_lives_in_this_repo(db):
+    """One codebase: the page's source is here, not in a sibling project that can drift."""
+    import os
+    root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'insurance')
+    assert os.path.isfile(os.path.join(root, 'package.json'))
+    assert os.path.isfile(os.path.join(root, 'src', 'App.tsx'))
+    assert os.path.isdir(os.path.join(root, 'public', 'photos'))
 
 
 def test_saved_testimonials_are_shown_to_everyone(client, db):
     insurance_page.save_reviews([
         {'quote': 'Cover sorted in ten minutes.', 'name': 'K. Rao', 'place': 'United States',
          'cc': 'us', 'tag': 'Parents visiting children', 'photo': ''}])
-    html = client.get('/travel-insurance').data.decode()
-    assert html.count('card lift rev') == 1
-    assert 'K. Rao' in html and '>US<' in html          # country code is upper-cased on save
-    assert 'Sample reviews' not in html
+    data, _ = injected(client)
+    assert len(data['reviews']) == 1
+    assert data['reviews'][0]['name'] == 'K. Rao'
+    assert data['reviews'][0]['cc'] == 'US'            # upper-cased on save
+    assert data['reviewsAreSamples'] is False
 
 
 # ---------------------------------------------------------------------------
