@@ -3230,7 +3230,9 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
   opacity: 0; transition: opacity .22s ease; }
 .pf-scrim.open { opacity: 1; }
 .pf-drawer {
-  position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100%);
+  /* Two columns of controls need about 560px before the labels start fighting the inputs;
+     620 leaves the placeholders room to finish their sentence. */
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(620px, 100%);
   display: flex; flex-direction: column; background: var(--bg); z-index: 3500;
   box-shadow: -24px 0 60px rgba(9,22,44,.28);
   transform: translateX(102%); transition: transform .26s cubic-bezier(.22,.61,.36,1);
@@ -3244,7 +3246,7 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 .pf-x { border: none; background: none; font-size: 26px; line-height: 1; color: var(--muted);
   cursor: pointer; padding: 0 4px; }
 .pf-x:hover { color: var(--text); }
-.pf-body { flex: 1 1 auto; overflow-y: auto; padding: 12px 16px 18px; }
+.pf-body { flex: 1 1 auto; overflow-y: auto; padding: 14px 18px 20px; }
 
 .pf-group { background: #fff; border: 1px solid var(--border); border-radius: 12px;
   margin-bottom: 10px; overflow: hidden; }
@@ -3257,21 +3259,28 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 .pf-group.is-shut .pf-group-b { display: none; }
 .pf-group-n { background: var(--coral); color: #fff; border-radius: 999px; min-width: 18px;
   padding: 0 6px; font-size: 11px; line-height: 17px; text-align: center; letter-spacing: 0; }
-.pf-group-b { padding: 0 14px 14px; }
+.pf-group-b { padding: 0 16px 16px; }
 .pf-group-hint { margin: -2px 0 10px; }
 
-.pf-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
-.pf-field { display: grid; gap: 5px; align-content: start; min-width: 0; }
+/* auto-fit, so the same markup is two roomy columns in the drawer and one column on a phone
+   without a second breakpoint deciding it */
+.pf-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 14px 16px; }
+.pf-field { display: grid; gap: 6px; align-content: start; min-width: 0; }
 .pf-field.pf-wide { grid-column: 1 / -1; }
 .pf-lbl { font-size: 12.5px; font-weight: 600; color: var(--text); }
 .pf-hint { font-size: 11.5px; color: var(--muted); line-height: 1.45; margin: 0; }
 .pf-field input, .pf-field select, .pf-preset { width: 100%; border: 1.5px solid var(--border);
-  border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13.5px; background: #fff;
+  border-radius: 9px; padding: 9px 12px; font: inherit; font-size: 13.5px; background: #fff;
   color: var(--text); }
+/* a placeholder that runs out of room should trail off, not be sliced mid-letter */
+.pf-field input::placeholder { text-overflow: ellipsis; }
 .pf-field input:focus, .pf-field select:focus { outline: 0; border-color: var(--coral);
   box-shadow: 0 0 0 3px rgba(245,166,35,.18); }
 /* the two exact-date boxes only appear when "Exact dates…" is chosen */
-.pf-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 2px; }
+/* stacked rather than side by side: a date input needs ~140px and a half-width column cannot
+   give two of them that much */
+.pf-dates { display: grid; gap: 8px; margin-top: 4px; }
 .pf-dates label { display: grid; gap: 3px; }
 .pf-dates span { font-size: 11.5px; color: var(--muted); font-weight: 600; }
 
@@ -3280,10 +3289,43 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 .pf-foot .btn { flex: 1 1 auto; justify-content: center; }
 .pf-foot .btn-ghost { flex: 0 0 auto; }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .pf-drawer { width: 100%; }
-  .pf-fields { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {
   .pf-drawer, .pf-scrim { transition: none; }
 }
+
+/* Which service a contact enquiry is about (one inbox, two front doors). */
+.cm-topic { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11.5px;
+  font-weight: 700; white-space: nowrap; }
+.cm-topic-companion { background: #EEF3FB; color: #29547f; border: 1px solid #d6e3f3; }
+.cm-topic-insurance { background: #E9F6EF; color: #146C3A; border: 1px solid #bfe5cc; }
+.cm-filter-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px; }
+
+/* Insurance testimonials editor */
+.ins-rev-table textarea, .ins-rev-table input { width: 100%; border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 9px; font: inherit; font-size: 13.5px; }
+.ins-rev-table td { vertical-align: top; }
+
+/* Insurance page: reassurance line inputs */
+.ins-assure-rows { display: grid; gap: 8px; max-width: 620px; }
+.ins-assure-rows input { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+  font: inherit; font-size: 13.5px; }
+
+/* Sahayak queue (CS + admin) */
+.sk-asap { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+  background: #FDECEC; color: #8A1F1F; font-size: 10.5px; font-weight: 800; letter-spacing: .04em; }
+.sk-queue .chip-new { background: #FFF3D6; color: #8a5a06; }
+.sk-queue .chip-assigned { background: #E3EDFB; color: #29547f; }
+.sk-queue .chip-completed { background: #E9F6EF; color: #146C3A; }
+.sk-queue .chip-cancelled { background: #EEF0F3; color: #5B6579; }
+.sk-assignee, .sk-cs-note { border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px;
+  font: inherit; font-size: 13px; width: 100%; max-width: 190px; }
+.sk-notes-row td { background: #FBFAF7; border-top: 0; }
+.sk-note-fam { font-size: 13px; color: var(--text); margin-bottom: 8px; }
+.sk-note-cs { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
+.sk-note-cs .sk-cs-note { max-width: 520px; }
+.sk-svc-table textarea, .sk-svc-table input { width: 100%; border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 9px; font: inherit; font-size: 13.5px; }
+.sk-svc-table td { vertical-align: top; }

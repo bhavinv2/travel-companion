@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+{# Sahayak home healthcare.
+
+   A request desk, not a dispatch system: the form below creates a booking request that CS works
+   by hand. Prices and the service list come from Admin -> Sahayak services, the questions from
+   the ordinary Help & FAQ screen, so nothing on this page is hard-coded copy. #}
+{% block title %}Book a Sahayak – Home Healthcare | NRI Parent Service{% endblock %}
+
+{% block extra_css %}
+<link rel="canonical" href="{{ canonical_url }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/sahayak.css') }}"/>
+{% endblock %}
+
+{% block content %}
+<div class="sk-page">
+
+  <!-- HERO -->
+  <section class="sk-hero">
+    <div class="sk-wrap sk-hero-in">
+      <div>
+        <span class="sk-kick"><i class="fa-solid fa-house-medical"></i> Home healthcare for your family in India</span>
+        <h1>A trained Sahayak at their door, <em>usually within the hour</em></h1>
+        <p class="sk-lead">Vitals, blood draws, vaccinations, dressings and daily care — carried out at
+          home by a verified healthcare worker, with the readings shared straight back to you.</p>
+        <div class="sk-hero-cta">
+          <a class="sk-btn sk-btn-p" href="#book"><i class="fa-solid fa-calendar-check"></i> Book a visit</a>
+          <a class="sk-btn sk-btn-o" href="#services">See all services</a>
+        </div>
+        <ul class="sk-hero-trust">
+          <li><i class="fa-solid fa-id-badge"></i> Background-checked and certified</li>
+          <li><i class="fa-solid fa-clock"></i> Available 24/7, every day</li>
+          <li><i class="fa-solid fa-indian-rupee-sign"></i> From ₹99 a visit</li>
+        </ul>
+      </div>
+      <div class="sk-hero-card">
+        <h2>Who is this for?</h2>
+        <ul>
+          <li><b>Parents living alone in India</b> while you are abroad</li>
+          <li><b>Someone recovering at home</b> after surgery or hospital</li>
+          <li><b>A chronic condition</b> that needs regular checks — diabetes, blood pressure, heart</li>
+          <li><b>Anyone who cannot easily travel</b> to a clinic or lab</li>
+        </ul>
+        <p class="sk-note">You book and follow it from wherever you are. They stay at home.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SERVICES -->
+  <section class="sk-sec" id="services">
+    <div class="sk-wrap">
+      <header class="sk-head">
+        <span class="sk-kick">What we do at home</span>
+        <h2>{{ services|length }} services, all bookable for a home visit</h2>
+        <p>Prices exclude GST. Lab tests, vaccines and consumables where applicable are charged separately.</p>
+      </header>
+      <div class="sk-grid">
+        {% for s in services %}
+        <article class="sk-card">
+          <span class="sk-card-ic"><i class="fa-solid {{ s.icon or 'fa-notes-medical' }}"></i></span>
+          <h3>{{ s.name }}</h3>
+          <p>{{ s.blurb }}</p>
+          <footer>
+            <span class="sk-price">₹{{ s.price }}</span>
+            {% if s.duration %}<span class="sk-dur"><i class="fa-regular fa-clock"></i> {{ s.duration }}</span>{% endif %}
+            <button type="button" class="sk-pick" data-sk-pick="{{ s.key }}">Book this</button>
+          </footer>
+        </article>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="sk-sec sk-sec-alt">
+    <div class="sk-wrap">
+      <header class="sk-head">
+        <span class="sk-kick">How it works</span>
+        <h2>Four steps, and you can do all of them from abroad</h2>
+      </header>
+      <ol class="sk-steps">
+        <li><span>1</span><b>Tell us what is needed</b><p>Pick the service, the address and whether it is
+          urgent or for a particular day.</p></li>
+        <li><span>2</span><b>We call to confirm</b><p>Our team rings the number you give us, checks the
+          details and agrees a time.</p></li>
+        <li><span>3</span><b>A Sahayak visits</b><p>A verified healthcare worker arrives, explains what
+          they are doing, and carries out the service.</p></li>
+        <li><span>4</span><b>You hear how it went</b><p>The team follows up with what was done and what,
+          if anything, needs attention next.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- BOOKING FORM -->
+  <section class="sk-sec" id="book">
+    <div class="sk-wrap sk-book-wrap">
+      <div class="sk-book-copy">
+        <span class="sk-kick">Book a visit</span>
+        <h2>Request a Sahayak</h2>
+        <p>Takes a minute. Nothing is charged here — the team calls to confirm the details and the
+          price before anybody is sent.</p>
+        <ul class="sk-book-points">
+          <li><i class="fa-solid fa-phone"></i> We call the number you give us</li>
+          <li><i class="fa-solid fa-user-shield"></i> Only what we need to reach the right door</li>
+          <li><i class="fa-solid fa-clock-rotate-left"></i> Change or cancel any time before the visit</li>
+        </ul>
+      </div>
+
+      <form class="sk-form" id="skForm" novalidate>
+        <div class="sk-f">
+          <label for="sk-service">Which service?</label>
+          <select id="sk-service" name="service" required>
+            <option value="">Choose a service…</option>
+            {% for s in services %}
+            <option value="{{ s.key }}" data-price="{{ s.price }}">{{ s.name }} — ₹{{ s.price }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="sk-row">
+          <div class="sk-f"><label for="sk-patient">Who is the visit for?</label>
+            <input id="sk-patient" name="patient_name" required placeholder="Full name"></div>
+          <div class="sk-f sk-f-sm"><label for="sk-age">Age</label>
+            <input id="sk-age" name="patient_age" type="number" min="1" max="120" placeholder="e.g. 68"></div>
+        </div>
+
+        <div class="sk-row">
+          <div class="sk-f"><label for="sk-phone">Phone to call <span class="sk-req">required</span></label>
+            <input id="sk-phone" name="phone" type="tel" required placeholder="+91 90000 00000"></div>
+          <div class="sk-f"><label for="sk-email">E-mail <span class="sk-opt">optional</span></label>
+            <input id="sk-email" name="email" type="email" placeholder="you@example.com"></div>
+        </div>
+
+        <div class="sk-f"><label for="sk-address">Address for the visit</label>
+          <textarea id="sk-address" name="address" rows="2" required placeholder="Flat, building, street, city"></textarea></div>
+
+        <div class="sk-row">
+          <div class="sk-f"><label for="sk-landmark">Landmark <span class="sk-opt">optional</span></label>
+            <input id="sk-landmark" name="landmark" placeholder="Near…"></div>
+          <div class="sk-f sk-f-sm"><label for="sk-pin">PIN code</label>
+            <input id="sk-pin" name="pincode" inputmode="numeric" placeholder="110016"></div>
+        </div>
+
+        <div class="sk-f"><label for="sk-access">How does the Sahayak get in? <span class="sk-opt">optional</span></label>
+          <input id="sk-access" name="access_notes" placeholder="Ring the bell twice · gate code · ask the guard"></div>
+
+        <fieldset class="sk-f sk-when">
+          <legend>When?</legend>
+          <label class="sk-radio"><input type="radio" name="when_type" value="asap" checked> As soon as possible</label>
+          <label class="sk-radio"><input type="radio" name="when_type" value="scheduled"> At a particular time</label>
+          <input id="sk-datetime" name="scheduled_for" type="datetime-local" hidden>
+        </fieldset>
+
+        <div class="sk-f"><label for="sk-notes">Anything the Sahayak should know? <span class="sk-opt">optional</span></label>
+          <textarea id="sk-notes" name="notes" rows="3" placeholder="Conditions, mobility, language preference, what the doctor asked for"></textarea></div>
+
+        <p class="sk-consent">By requesting a visit you agree that we may contact you about it, and to our
+          <a href="{{ url_for('main.privacy') }}" target="_blank" rel="noopener">Privacy Policy</a>.</p>
+
+        <button class="sk-btn sk-btn-p sk-submit" type="submit">
+          <i class="fa-solid fa-calendar-check"></i> Request this visit</button>
+        <p class="sk-msg" id="skMsg" role="status" hidden></p>
+      </form>
+    </div>
+  </section>
+
+  {% if faqs %}
+  <section class="sk-sec sk-sec-alt" id="faq">
+    <div class="sk-wrap">
+      <header class="sk-head">
+        <span class="sk-kick">FAQs</span>
+        <h2>Questions families ask</h2>
+      </header>
+      <div class="sk-faq">
+        {% for f in faqs %}
+        <details{{ ' open' if loop.first }}>
+          <summary>{{ f.question }}</summary>
+          <p>{{ f.answer }}</p>
+        </details>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/sahayak.js') }}"></script>
+{% endblock %}

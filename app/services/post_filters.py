@@ -132,13 +132,20 @@ RETURN_PRESETS = (
 def _daterange(key, label, column, from_key, to_key, presets, is_datetime=False, hint=None):
     """One filter covering a from/to pair on a single column.
 
+    A timestamp column (created_at) is stored and displayed in UTC -- the listings print
+    "posted 2026-09-24" straight from it -- so the range is compared in UTC too. Filtering in
+    local time would disagree with the date printed next to the row, which is worse than the
+    few hours of skew it would fix.
+
     The two URL params are kept (`dep_from`/`dep_to` and friends) so existing links and bookmarks
     still work -- what changes is that the UI, the chips and this spec treat them as one thing.
     """
     return {'key': key, 'label': label, 'kind': 'daterange', 'column': column,
             'from_key': from_key, 'to_key': to_key, 'presets': presets,
             'is_datetime': is_datetime, 'hint': hint,
-            'choices': None, 'parse': None, 'placeholder': None, 'wide': True, 'sql': None,
+            # not 'wide': a range is one dropdown like any other, and the exact-date boxes
+            # stack underneath it when they are asked for
+            'choices': None, 'parse': None, 'placeholder': None, 'wide': False, 'sql': None,
             'widget': None}
 
 
@@ -180,18 +187,18 @@ GROUPS = [
         'title': 'Route and flight',
         'hint': 'City, airport name or IATA code — all four route columns are searched.',
         'fields': [
-            _field('origin', 'Departure city / airport', 'text', widget='airport',
-                   placeholder='Start typing a city or code…',
+            _field('origin', 'Departing from', 'text', widget='airport',
+                   placeholder='City or code…',
                    sql=lambda q, v: _text_any(q, v, [CompanionRequest.flying_from, CompanionRequest.origin_iata,
                                                      CompanionRequest.origin_city, CompanionRequest.origin_metro])),
-            _field('dest', 'Arrival city / airport', 'text', widget='airport',
-                   placeholder='Start typing a city or code…',
+            _field('dest', 'Arriving at', 'text', widget='airport',
+                   placeholder='City or code…',
                    sql=lambda q, v: _text_any(q, v, [CompanionRequest.destination, CompanionRequest.dest_iata,
                                                      CompanionRequest.dest_city, CompanionRequest.dest_metro])),
             _field('airline', 'Airline', 'text', widget='airline',
-                   placeholder='Start typing an airline…',
+                   placeholder='Airline name…',
                    sql=lambda q, v: _text_any(q, v, [CompanionRequest.airline, CompanionRequest.return_airline])),
-            _field('flight', 'Flight number', 'text', placeholder='QR573',
+            _field('flight', 'Flight number', 'text', placeholder='e.g. QR573',
                    sql=lambda q, v: _text_any(q, v, [CompanionRequest.flight_number,
                                                      CompanionRequest.return_flight_number])),
             _field('trip_type', 'Journey', 'select', choices=_pairs(TRIP_TYPES, TRIP_TYPE_LABELS),

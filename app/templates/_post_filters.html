@@ -36,7 +36,7 @@
 {% if f.kind == 'daterange' %}
   {# One control for one idea. The preset fills the two date boxes below it, which are the only
      things actually submitted -- so a shared URL still means exactly one thing. #}
-  <div class="pf-field pf-wide" data-pf-range>
+  <div class="pf-field{% if f.wide %} pf-wide{% endif %}" data-pf-range>
     <span class="pf-lbl">{{ f.label }}</span>
     <select class="pf-preset" data-pf-preset aria-label="{{ f.label }} range">
       <option value="">Any time</option>

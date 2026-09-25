@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block title %}Sahayak services – Admin{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='sahayak_services' %}{% include 'admin/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <h1>Sahayak services</h1>
+    <p class="admin-sub">The catalogue and prices shown on
+      <a href="{{ url_for('sahayak.landing') }}" target="_blank" rel="noopener">/sahayak</a>, and the
+      list people pick from when they request a visit. Questions on that page come from
+      <a href="{{ url_for('admin.help_center_page') }}">Help &amp; FAQ</a> — add them under the
+      <strong>{{ faq_category }}</strong> category.</p>
+
+    {% if not is_customised %}
+    <p class="admin-note"><i class="fa-solid fa-circle-info"></i>
+      Showing the twelve services from the Sahayak business guide. Saving here replaces that list
+      with whatever you leave in the table.</p>
+    {% endif %}
+
+    <form method="POST" class="hc-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <div class="table-wrap">
+        <table class="admin-table sk-svc-table">
+          <thead>
+            <tr><th>Name</th><th>What it covers</th><th>₹ (ex GST)</th><th>Duration</th>
+                <th>Icon</th><th>Key</th><th></th></tr>
+          </thead>
+          <tbody id="svcRows">
+            {% for s in services %}
+            <tr>
+              <td><input type="text" name="name" value="{{ s.name }}" placeholder="Health checkup"/></td>
+              <td><textarea name="blurb" rows="2" placeholder="One sentence a family would understand">{{ s.blurb }}</textarea></td>
+              <td><input type="text" name="price" value="{{ s.price }}" style="width:80px" placeholder="299"/></td>
+              <td><input type="text" name="duration" value="{{ s.duration }}" style="width:110px" placeholder="15–20 min"/></td>
+              <td><input type="text" name="icon" value="{{ s.icon }}" style="width:150px" placeholder="fa-heart-pulse"/></td>
+              <td><input type="text" name="key" value="{{ s.key }}" style="width:130px" readonly title="Used in links and saved on every booking — changing it would orphan past bookings"/></td>
+              <td><button type="button" class="btn-sm danger row-del" title="Remove"><i class="fa-solid fa-trash-can"></i></button></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="hc-actions">
+        <button type="button" class="btn-sm-outline" id="addSvc"><i class="fa-solid fa-plus"></i> Add service</button>
+        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save catalogue</button>
+      </div>
+      <p class="muted" style="font-size:13px">A row needs a name to be kept. Removing a service hides
+        it from the page; bookings already taken for it keep the name and price they were quoted.</p>
+    </form>
+  </main>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const body = document.getElementById('svcRows');
+  document.getElementById('addSvc').addEventListener('click', () => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td><input type="text" name="name" placeholder="Health checkup"/></td>'
+      + '<td><textarea name="blurb" rows="2" placeholder="One sentence a family would understand"></textarea></td>'
+      + '<td><input type="text" name="price" style="width:80px" placeholder="299"/></td>'
+      + '<td><input type="text" name="duration" style="width:110px" placeholder="15–20 min"/></td>'
+      + '<td><input type="text" name="icon" style="width:150px" placeholder="fa-heart-pulse"/></td>'
+      // blank key: the server generates one from the name, so a new row cannot collide
+      + '<td><input type="text" name="key" style="width:130px" placeholder="auto"/></td>'
+      + '<td><button type="button" class="btn-sm danger row-del"><i class="fa-solid fa-trash-can"></i></button></td>';
+    body.appendChild(tr);
+    tr.querySelector('input').focus();
+  });
+  body.addEventListener('click', (e) => {
+    const b = e.target.closest('.row-del');
+    if (b) b.closest('tr').remove();
+  });
+})();
+</script>
+{% endblock %}

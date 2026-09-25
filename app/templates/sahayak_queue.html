@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{# Sahayak bookings. One screen for both consoles: CS works the queue, admin reads it.
+   `endpoint` and `sidebar` are all that differ, so the two can never drift into showing
+   different things about the same request. #}
+{% block title %}Sahayak bookings{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='sahayak' %}{% include sidebar %}{% endwith %}
+  <main class="admin-main">
+    <h1>Sahayak bookings</h1>
+    <p class="admin-sub">Requests for a home visit. Nobody is dispatched automatically — call the
+      family, assign a Sahayak by name, then mark how it went.</p>
+
+    <div class="filter-row">
+      <a class="btn-sm-outline {{ 'active' if not status }}" href="{{ url_for(endpoint) }}">
+        {{ 'Open queue' if endpoint.startswith('cs.') else 'All' }}</a>
+      {% for s in SAHAYAK_STATUSES %}
+      <a class="btn-sm-outline {{ 'active' if status == s }}" href="{{ url_for(endpoint, status=s) }}">
+        {{ SAHAYAK_STATUS_LABELS[s] }} ({{ counts[s] }})</a>
+      {% endfor %}
+      <form method="get" class="inline-search">
+        {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+        <select name="service" onchange="this.form.submit()">
+          <option value="">Any service</option>
+          {% for s in services %}
+          <option value="{{ s.key }}" {{ 'selected' if service == s.key }}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+        <input type="search" name="q" value="{{ q }}" placeholder="Name, phone, PIN, Sahayak">
+        <button class="btn-sm" type="submit">Search</button>
+      </form>
+    </div>
+
+    <p class="muted">{{ total }} booking{{ '' if total == 1 else 's' }}</p>
+
+    <div class="table-wrap">
+      <table class="admin-table stack-mobile sk-queue">
+        <thead>
+          <tr><th>When</th><th>Service</th><th>Patient</th><th>Contact</th><th>Where</th>
+              <th>Status</th><th>Sahayak</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+          {% for b in bookings %}
+          <tr id="sk-{{ b.id }}">
+            <td data-label="When" class="nowrap">
+              <strong>{{ b.when_display }}</strong>
+              {% if b.when_type == 'asap' %}<span class="sk-asap">ASAP</span>{% endif %}
+              <br/><small class="muted">asked {{ b.created_at.strftime('%d %b, %H:%M') if b.created_at }}</small>
+            </td>
+            <td data-label="Service">{{ b.service_name }}
+              {% if b.quoted_price %}<br/><small class="muted">quoted ₹{{ b.quoted_price }}</small>{% endif %}</td>
+            <td data-label="Patient"><strong>{{ b.patient_name }}</strong>
+              {% if b.patient_age %}<br/><small class="muted">{{ b.patient_age }} years</small>{% endif %}</td>
+            <td data-label="Contact" class="nowrap">
+              <a href="tel:{{ b.phone }}">{{ b.phone }}</a>
+              {% if b.contact_name %}<br/><small class="muted">{{ b.contact_name }}</small>{% endif %}
+              {% if b.email %}<br/><small class="muted">{{ b.email }}</small>{% endif %}</td>
+            <td data-label="Where">{{ b.address }}
+              {% if b.landmark %}<br/><small class="muted">near {{ b.landmark }}</small>{% endif %}
+              {% if b.pincode %}<br/><small class="muted">PIN {{ b.pincode }}</small>{% endif %}
+              {% if b.access_notes %}<br/><small class="muted"><i class="fa-solid fa-key"></i> {{ b.access_notes }}</small>{% endif %}</td>
+            <td data-label="Status"><span class="chip chip-{{ b.status }}">{{ SAHAYAK_STATUS_LABELS[b.status] }}</span>
+              {% if b.cancelled_reason %}<br/><small class="muted">{{ b.cancelled_reason }}</small>{% endif %}</td>
+            <td data-label="Sahayak">
+              <input type="text" class="sk-assignee" data-id="{{ b.id }}" value="{{ b.assigned_to_name or '' }}"
+                     placeholder="Name" aria-label="Sahayak assigned to booking {{ b.id }}">
+              {% if b.assigned_by %}<br/><small class="muted">by {{ b.assigned_by.username }}</small>{% endif %}</td>
+            <td data-label="Actions" class="nowrap row-actions">
+              {% if b.status in ('new', 'assigned') %}
+              <button class="btn-sm" data-sk-act="assigned" data-id="{{ b.id }}">Assign</button>
+              <button class="btn-sm" data-sk-act="completed" data-id="{{ b.id }}">Done</button>
+              <button class="btn-sm danger" data-sk-act="cancelled" data-id="{{ b.id }}">Cancel</button>
+              {% else %}
+              <span class="muted">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% if b.notes or b.cs_notes %}
+          <tr class="sk-notes-row">
+            <td colspan="8">
+              {% if b.notes %}<div class="sk-note-fam"><b>From the family:</b> {{ b.notes }}</div>{% endif %}
+              <label class="sk-note-cs"><span>Internal note</span>
+                <input type="text" class="sk-cs-note" data-id="{{ b.id }}" value="{{ b.cs_notes or '' }}"
+                       placeholder="Never shown to the family"></label>
+            </td>
+          </tr>
+          {% endif %}
+          {% else %}
+          <tr><td colspan="8" class="muted">Nothing in this queue.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% include 'admin/_pager.html' %}
+  </main>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const BASE = appUrl('/cs/sahayak/');
+
+  async function send(id, payload) {
+    const row = document.getElementById('sk-' + id);
+    const assignee = document.querySelector('.sk-assignee[data-id="' + id + '"]');
+    const note = document.querySelector('.sk-cs-note[data-id="' + id + '"]');
+    // the typed name and note travel with every action: an agent fills them in and hits a
+    // button, and losing either to a separate save step is how notes go missing
+    if (assignee) payload.assigned_to_name = assignee.value.trim();
+    if (note) payload.cs_notes = note.value;
+
+    const res = await apiFetch(BASE + id + '/update', { method: 'POST', body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (data.error) { showToast(data.error, 'danger'); return null; }
+    if (row) { row.style.transition = 'opacity .2s'; row.style.opacity = '.55'; }
+    return data;
+  }
+
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-sk-act]');
+    if (!btn) return;
+    const status = btn.getAttribute('data-sk-act');
+    const id = btn.getAttribute('data-id');
+    const payload = { status };
+    if (status === 'cancelled') {
+      const why = prompt('Why is this cancelled? (the family may be told)');
+      if (why === null) return;
+      payload.cancelled_reason = why;
+    }
+    btn.disabled = true;
+    const data = await send(id, payload);
+    btn.disabled = false;
+    if (data) {
+      showToast('Booking #' + id + ' → ' + data.status, 'success');
+      setTimeout(() => window.location.reload(), 700);
+    }
+  });
+
+  // a note or a name saves on blur, so it is never lost by navigating away
+  document.addEventListener('blur', async (e) => {
+    const el = e.target.closest('.sk-assignee, .sk-cs-note');
+    if (!el || el.value === el.defaultValue) return;
+    el.defaultValue = el.value;
+    const data = await send(el.getAttribute('data-id'), {});
+    if (data) showToast('Saved', 'success');
+  }, true);
+})();
+</script>
+{% endblock %}

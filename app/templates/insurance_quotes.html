@@ -1,17 +1,20 @@
 {% extends 'base.html' %}
-{% block title %}Insurance leads – Admin{% endblock %}
+{# One screen, both consoles. `endpoint` and `sidebar` are all that differ, so CS and admin can
+   never drift into showing different things about the same lead. #}
+{% set endpoint = endpoint or 'admin.insurance_quotes' %}
+{% block title %}Insurance leads{% endblock %}
 {% block content %}
 <div class="admin-page">
-  {% with active='insurance' %}{% include 'admin/_sidebar.html' %}{% endwith %}
+  {% with active='insurance' %}{% include sidebar or 'admin/_sidebar.html' %}{% endwith %}
   <main class="admin-main">
     <h1>Insurance leads</h1>
     <p class="admin-sub">Quote requests from the travel-insurance form. The quote itself is priced
       and sold on our partner's site, so this is our only record of who asked.</p>
 
     <div class="filter-row">
-      <a class="btn-sm-outline {{ 'active' if not status }}" href="{{ url_for('admin.insurance_quotes') }}">All ({{ counts.all }})</a>
-      <a class="btn-sm-outline {{ 'active' if status == 'quoted' }}" href="{{ url_for('admin.insurance_quotes', status='quoted') }}">Quoted ({{ counts.quoted }})</a>
-      <a class="btn-sm-outline {{ 'active' if status == 'failed' }}" href="{{ url_for('admin.insurance_quotes', status='failed') }}">Failed ({{ counts.failed }})</a>
+      <a class="btn-sm-outline {{ 'active' if not status }}" href="{{ url_for(endpoint) }}">All ({{ counts.all }})</a>
+      <a class="btn-sm-outline {{ 'active' if status == 'quoted' }}" href="{{ url_for(endpoint, status='quoted') }}">Quoted ({{ counts.quoted }})</a>
+      <a class="btn-sm-outline {{ 'active' if status == 'failed' }}" href="{{ url_for(endpoint, status='failed') }}">Failed ({{ counts.failed }})</a>
       <form method="get" class="inline-search">
         {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
         <input type="search" name="q" value="{{ q }}" placeholder="Search name, e-mail or phone">

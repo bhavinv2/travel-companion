@@ -383,10 +383,113 @@ def insurance_quotes():
     counts = {'all': InsuranceQuote.query.count(),
               'quoted': InsuranceQuote.query.filter_by(status='quoted').count(),
               'failed': InsuranceQuote.query.filter_by(status='failed').count()}
-    return render_template('admin/insurance_quotes.html', quotes=quotes, counts=counts,
+    return render_template('insurance_quotes.html', quotes=quotes, counts=counts,
                            status=status, ins_type=ins_type, q=q, total=total,
                            page=page, pages=pages)
 
+
+
+@admin_bp.route('/insurance-page', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def insurance_page_content():
+    """Testimonials shown on /travel-insurance.
+
+    Kept with the rest of the admin-managed content (one JSON blob in app_settings) rather than
+    a table of its own: these are marketing copy, not user submissions, and an edit has to show
+    on the page without a migration. The FAQs on that page are the ordinary Help & FAQ screen,
+    so there is only one place to learn.
+    """
+    from app.models import ActivityEvent
+    from app.services import insurance_page
+
+    if request.method == 'POST':
+        cols = {f: request.form.getlist(f) for f in ('id',) + insurance_page.FIELDS}
+        n = max((len(v) for v in cols.values()), default=0)
+        rows = [{f: (cols[f][i] if i < len(cols[f]) else '') for f in cols} for i in range(n)]
+        saved = insurance_page.save_reviews(rows, actor=current_user)
+        insurance_page.save_page(request.form.get('price_from'),
+                                 request.form.getlist('assurance'), actor=current_user)
+        ActivityEvent.log('insurance_reviews_saved', actor=current_user, count=len(saved))
+        db.session.commit()
+        flash('Saved %d testimonial%s.' % (len(saved), '' if len(saved) == 1 else 's'), 'success')
+        return redirect(url_for('admin.insurance_page_content'))
+
+    return render_template('admin/insurance_page.html',
+                           reviews=insurance_page.reviews(),
+                           using_samples=insurance_page.is_using_samples(),
+                           price_from=insurance_page.price_from(),
+                           assurances=insurance_page.assurances(),
+                           suggestions=insurance_page.ASSURANCE_SUGGESTIONS,
+                           max_assurances=insurance_page.MAX_ASSURANCES,
+                           faq_category=insurance_page.FAQ_CATEGORY)
+
+
+@admin_bp.route('/sahayak')
+@login_required
+@admin_required
+def sahayak_bookings():
+    """The same queue the CS console works, including the finished ones by default: admin reads
+    this screen to see volume and outcomes rather than to work the list."""
+    from app.models import SahayakBooking, SAHAYAK_STATUSES, SAHAYAK_STATUS_LABELS
+    from app.services import sahayak as sahayak_service
+    from sqlalchemy import or_
+    page, per_page = _page_args(25)
+    status = request.args.get('status') or ''
+    service_key = request.args.get('service') or ''
+    q = (request.args.get('q') or '').strip()
+
+    query = SahayakBooking.query
+    if status in SAHAYAK_STATUSES:
+        query = query.filter(SahayakBooking.status == status)
+    if service_key:
+        query = query.filter(SahayakBooking.service_key == service_key)
+    if q:
+        pat = f'%{q}%'
+        query = query.filter(or_(SahayakBooking.patient_name.ilike(pat),
+                                 SahayakBooking.contact_name.ilike(pat),
+                                 SahayakBooking.phone.ilike(pat),
+                                 SahayakBooking.email.ilike(pat),
+                                 SahayakBooking.pincode.ilike(pat),
+                                 SahayakBooking.assigned_to_name.ilike(pat)))
+    query = query.order_by(SahayakBooking.created_at.desc())
+    total = query.count()
+    pages = max((total + per_page - 1) // per_page, 1)
+    page = min(page, pages)
+    bookings = query.offset((page - 1) * per_page).limit(per_page).all()
+    counts = {s: SahayakBooking.query.filter_by(status=s).count() for s in SAHAYAK_STATUSES}
+    return render_template('sahayak_queue.html', bookings=bookings, counts=counts, total=total,
+                           page=page, pages=pages, status=status, service=service_key, q=q,
+                           services=sahayak_service.services(),
+                           SAHAYAK_STATUSES=SAHAYAK_STATUSES,
+                           SAHAYAK_STATUS_LABELS=SAHAYAK_STATUS_LABELS,
+                           endpoint='admin.sahayak_bookings', action_base='cs',
+                           sidebar='admin/_sidebar.html')
+
+
+@admin_bp.route('/sahayak/services', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def sahayak_services():
+    """The service catalogue behind /sahayak. Prices change; this is so they can change without
+    a deploy, the same way the other admin-managed content works."""
+    from app.models import ActivityEvent
+    from app.services import sahayak as sahayak_service
+
+    if request.method == 'POST':
+        cols = {f: request.form.getlist(f) for f in sahayak_service.FIELDS}
+        n = max((len(v) for v in cols.values()), default=0)
+        rows = [{f: (cols[f][i] if i < len(cols[f]) else '') for f in cols} for i in range(n)]
+        saved = sahayak_service.save(rows, actor=current_user)
+        ActivityEvent.log('sahayak_services_saved', actor=current_user, count=len(saved))
+        db.session.commit()
+        flash('Saved %d service%s.' % (len(saved), '' if len(saved) == 1 else 's'), 'success')
+        return redirect(url_for('admin.sahayak_services'))
+
+    return render_template('admin/sahayak_services.html',
+                           services=sahayak_service.services(),
+                           is_customised=sahayak_service.is_customised(),
+                           faq_category=sahayak_service.FAQ_CATEGORY)
 
 @admin_bp.route('/voices')
 @login_required
@@ -394,7 +497,8 @@ def insurance_quotes():
 def voices():
     """Everything users send us, in one place: enquiries from the Contact form and the
     reviews they leave. Mirrors the two tabs on the public "Talk to us" widget."""
-    from app.models import ContactMessage, MatchReport, CONTACT_STATUSES, CONTACT_STATUS_LABELS
+    from app.models import (ContactMessage, MatchReport, CONTACT_STATUSES, CONTACT_STATUS_LABELS,
+                            CONTACT_TOPICS, CONTACT_TOPIC_LABELS)
     tab = request.args.get('tab') or 'contact'
     if tab == 'reviews':          # older links used this name
         tab = 'feedback'
@@ -405,6 +509,9 @@ def voices():
     status = request.args.get('status') or ''
     q = (request.args.get('q') or '').strip()
     cq = ContactMessage.query
+    topic = request.args.get('topic') or ''
+    if topic in CONTACT_TOPICS:
+        cq = cq.filter(ContactMessage.topic == topic)
     if status in CONTACT_STATUSES:
         cq = cq.filter(ContactMessage.status == status)
     if q:
@@ -446,7 +553,8 @@ def voices():
                            pending=pending,
                            reports=reports, r_total=r_total, r_page=r_page, r_pages=r_pages,
                            r_status=r_status, reports_open=reports_open,
-                           CONTACT_STATUSES=CONTACT_STATUSES, CONTACT_STATUS_LABELS=CONTACT_STATUS_LABELS)
+                           CONTACT_STATUSES=CONTACT_STATUSES, CONTACT_STATUS_LABELS=CONTACT_STATUS_LABELS, CONTACT_TOPICS=CONTACT_TOPICS,
+                           CONTACT_TOPIC_LABELS=CONTACT_TOPIC_LABELS, topic=topic)
 
 
 @admin_bp.route('/voices/<int:mid>/status', methods=['POST'])

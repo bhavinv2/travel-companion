@@ -176,6 +176,121 @@ def home():
                            dup_route_groups=dup_route_groups, closed=closed, today=today, **_choices())
 
 
+@cs_bp.route('/sahayak')
+@login_required
+@cs_required
+def sahayak_bookings():
+    """The Sahayak queue. Requests arrive here and an agent works them: call, assign somebody by
+    name, then mark it done. There is no worker app yet, so this screen is the whole dispatch."""
+    from app.models import SahayakBooking, SAHAYAK_STATUSES, SAHAYAK_STATUS_LABELS
+    from app.services import sahayak as sahayak_service
+    page = max(_int_or_none(request.args.get('page')) or 1, 1)
+    per_page = 25
+    status = request.args.get('status') or ''
+    service_key = request.args.get('service') or ''
+    q = (request.args.get('q') or '').strip()
+
+    query = SahayakBooking.query
+    if status in SAHAYAK_STATUSES:
+        query = query.filter(SahayakBooking.status == status)
+    else:
+        # the working queue is what still needs somebody; finished work is a filter away
+        query = query.filter(SahayakBooking.status.in_(('new', 'assigned')))
+    if service_key:
+        query = query.filter(SahayakBooking.service_key == service_key)
+    if q:
+        pat = f'%{q}%'
+        query = query.filter(or_(SahayakBooking.patient_name.ilike(pat),
+                                 SahayakBooking.contact_name.ilike(pat),
+                                 SahayakBooking.phone.ilike(pat),
+                                 SahayakBooking.email.ilike(pat),
+                                 SahayakBooking.pincode.ilike(pat),
+                                 SahayakBooking.assigned_to_name.ilike(pat)))
+    # soonest first: an ASAP request that has been sitting is the most urgent thing on the screen
+    query = query.order_by(SahayakBooking.status.asc(), SahayakBooking.created_at.asc())
+
+    total = query.count()
+    pages = max((total + per_page - 1) // per_page, 1)
+    page = min(page, pages)
+    bookings = query.offset((page - 1) * per_page).limit(per_page).all()
+    counts = {s: SahayakBooking.query.filter_by(status=s).count() for s in SAHAYAK_STATUSES}
+    return render_template('sahayak_queue.html', bookings=bookings, counts=counts, total=total,
+                           page=page, pages=pages, status=status, service=service_key, q=q,
+                           services=sahayak_service.services(),
+                           SAHAYAK_STATUSES=SAHAYAK_STATUSES,
+                           SAHAYAK_STATUS_LABELS=SAHAYAK_STATUS_LABELS,
+                           endpoint='cs.sahayak_bookings', action_base='cs',
+                           sidebar='cs/_sidebar.html')
+
+
+@cs_bp.route('/sahayak/<int:booking_id>/update', methods=['POST'])
+@login_required
+@cs_required
+def sahayak_update(booking_id):
+    """Assign, complete, cancel, or leave a note. One endpoint: the screen is a worklist, and
+    every action on it is the same shape."""
+    from app.models import SahayakBooking, SAHAYAK_STATUSES
+    booking = SahayakBooking.query.get_or_404(booking_id)
+    data = request.get_json(silent=True) or request.form
+
+    assignee = (data.get('assigned_to_name') or '').strip()[:120]
+    notes = data.get('cs_notes')
+    status = (data.get('status') or '').strip()
+
+    if assignee:
+        booking.assigned_to_name = assignee
+    if notes is not None:
+        booking.cs_notes = (notes or '').strip()[:4000] or None
+    if status:
+        if status not in SAHAYAK_STATUSES:
+            return jsonify({'error': 'Unknown status'}), 400
+        if status == 'assigned' and not (assignee or booking.assigned_to_name):
+            return jsonify({'error': 'Name the Sahayak you are assigning first.'}), 400
+        booking.set_status(status, by=current_user,
+                           reason=(data.get('cancelled_reason') or '').strip())
+    ActivityEvent.log('sahayak_booking_updated', actor=current_user, booking_id=booking.id,
+                      status=booking.status, assigned_to=booking.assigned_to_name)
+    db.session.commit()
+    return jsonify({'success': True, 'status': booking.status,
+                    'assigned_to': booking.assigned_to_name})
+
+
+@cs_bp.route('/insurance-quotes')
+@login_required
+@cs_required
+def insurance_quotes():
+    """The same insurance leads the admin sees. CS is who actually follows them up, so the list
+    cannot live behind an admin-only door -- the quote is priced on the partner's site, which
+    makes this the only record that somebody asked."""
+    from app.models import InsuranceQuote
+    page = max(_int_or_none(request.args.get('page')) or 1, 1)
+    per_page = 25
+    status = request.args.get('status') or ''
+    ins_type = request.args.get('type') or ''
+    q = (request.args.get('q') or '').strip()
+
+    query = InsuranceQuote.query
+    if status in ('quoted', 'failed'):
+        query = query.filter(InsuranceQuote.status == status)
+    if ins_type in ('visitors', 'health', 'schengen'):
+        query = query.filter(InsuranceQuote.insurance_type == ins_type)
+    if q:
+        pat = f'%{q}%'
+        query = query.filter(or_(InsuranceQuote.name.ilike(pat), InsuranceQuote.email.ilike(pat),
+                                 InsuranceQuote.phone.ilike(pat)))
+    query = query.order_by(InsuranceQuote.created_at.desc())
+    total = query.count()
+    pages = max((total + per_page - 1) // per_page, 1)
+    page = min(page, pages)
+    quotes = query.offset((page - 1) * per_page).limit(per_page).all()
+    counts = {'all': InsuranceQuote.query.count(),
+              'quoted': InsuranceQuote.query.filter_by(status='quoted').count(),
+              'failed': InsuranceQuote.query.filter_by(status='failed').count()}
+    return render_template('insurance_quotes.html', quotes=quotes, counts=counts, total=total,
+                           page=page, pages=pages, status=status, ins_type=ins_type, q=q,
+                           endpoint='cs.insurance_quotes', sidebar='cs/_sidebar.html')
+
+
 @cs_bp.route('/voices')
 @login_required
 @cs_required
@@ -183,7 +298,8 @@ def voices():
     """Everything users send in: enquiries from the Contact form and the reviews they
     leave. The same two halves the admin sees, and the same two the public writes into
     from the home page -- a message or a review reaches CS the moment it is submitted."""
-    from app.models import ContactMessage, Feedback, MatchReport, CONTACT_STATUSES, CONTACT_STATUS_LABELS
+    from app.models import (ContactMessage, Feedback, MatchReport, CONTACT_STATUSES,
+                            CONTACT_STATUS_LABELS, CONTACT_TOPICS, CONTACT_TOPIC_LABELS)
     tab = request.args.get('tab') or 'contact'
     if tab not in ('contact', 'feedback', 'report'):
         tab = 'contact'
@@ -192,6 +308,9 @@ def voices():
     page = max(_int_or_none(request.args.get('page')) or 1, 1)
 
     query = ContactMessage.query
+    topic = request.args.get('topic') or ''
+    if topic in CONTACT_TOPICS:
+        query = query.filter(ContactMessage.topic == topic)
     if status in CONTACT_STATUSES:
         query = query.filter(ContactMessage.status == status)
     if q:
@@ -233,7 +352,8 @@ def voices():
                            pending=pending,
                            reports=reports, r_total=r_total, r_page=r_page, r_pages=r_pages,
                            r_status=r_status, reports_open=reports_open, can_delete=True,
-                           CONTACT_STATUSES=CONTACT_STATUSES, CONTACT_STATUS_LABELS=CONTACT_STATUS_LABELS,
+                           CONTACT_STATUSES=CONTACT_STATUSES, CONTACT_STATUS_LABELS=CONTACT_STATUS_LABELS, CONTACT_TOPICS=CONTACT_TOPICS,
+                           CONTACT_TOPIC_LABELS=CONTACT_TOPIC_LABELS, topic=topic,
                            **_choices())
 
 

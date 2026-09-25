@@ -40,11 +40,14 @@ class PrefixMiddleware:
     use nriparentservice.com rather than whatever Host the proxy hop presented.
     """
 
-    def __init__(self, wsgi_app, prefix='', public_host='', public_scheme='https'):
+    def __init__(self, wsgi_app, prefix='', public_host='', public_scheme='https', aliases=()):
         self.wsgi_app = wsgi_app
         self.prefix = ('/' + prefix.strip('/')) if prefix and prefix.strip('/') else ''
         self.public_host = (public_host or '').strip()
         self.public_scheme = public_scheme
+        # Public paths that sit BESIDE the prefix rather than inside it -- /travel-insurance is
+        # its own product and reads wrong nested under /travel-companions. See __call__.
+        self.aliases = [('/' + a.strip('/')) for a in aliases if a and a.strip('/')]
 
     def __call__(self, environ, start_response):
         header = (environ.get('HTTP_X_FORWARDED_PREFIX') or '').strip()
@@ -55,6 +58,13 @@ class PrefixMiddleware:
         if prefix and (path == prefix or path.startswith(prefix + '/')):
             environ['SCRIPT_NAME'] = (environ.get('SCRIPT_NAME') or '') + prefix
             environ['PATH_INFO'] = path[len(prefix):] or '/'
+            active = True
+        elif any(path == a or path.startswith(a + '/') for a in self.aliases):
+            # An alias is an ENTRY POINT, not a second mount: SCRIPT_NAME still says
+            # /travel-companions, so every link, asset and redirect this request renders keeps the
+            # one canonical prefix, and the app is not reachable twice at two sets of URLs.
+            # PATH_INFO is left alone because /travel-insurance is a real route in this app.
+            environ['SCRIPT_NAME'] = (environ.get('SCRIPT_NAME') or '') + prefix
             active = True
         elif header:
             environ['SCRIPT_NAME'] = (environ.get('SCRIPT_NAME') or '') + header
@@ -78,12 +88,17 @@ def create_app(test_config=None):
     # Optional subpath deployment (https://nriparentservice.com/travel-companions/): see PrefixMiddleware.
     app.config['APP_URL_PREFIX'] = os.environ.get('APP_URL_PREFIX', '').strip()
     app.config['APP_PUBLIC_HOST'] = os.environ.get('APP_PUBLIC_HOST', '').strip()
+    # Top-level paths this app answers on besides its prefix. They only ever reach us if the proxy
+    # in front routes them here, so listing one costs nothing until that rule exists.
+    app.config['APP_ALIAS_PATHS'] = [p for p in (
+        os.environ.get('APP_ALIAS_PATHS', '/travel-insurance,/sahayak').split(',')) if p.strip()]
     if test_config:
         for k in ('APP_URL_PREFIX', 'APP_PUBLIC_HOST'):
             if k in test_config:
                 app.config[k] = test_config[k]
     app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=app.config['APP_URL_PREFIX'],
-                                    public_host=app.config['APP_PUBLIC_HOST'])
+                                    public_host=app.config['APP_PUBLIC_HOST'],
+                                    aliases=app.config['APP_ALIAS_PATHS'])
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     is_production = os.environ.get('FLASK_ENV') == 'production'
@@ -230,6 +245,8 @@ def create_app(test_config=None):
 
     # Register blueprints
     from app.routes.main import main_bp
+    from app.routes.insurance import insurance_bp
+    from app.routes.sahayak import sahayak_bp
     from app.routes.auth import auth_bp
     from app.routes.trips import trips_bp
     from app.routes.chat import chat_bp
@@ -245,6 +262,8 @@ def create_app(test_config=None):
     from app.routes.scraper import scraper_bp
 
     app.register_blueprint(main_bp)
+    app.register_blueprint(insurance_bp)
+    app.register_blueprint(sahayak_bp)
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(trips_bp, url_prefix='/api')
     app.register_blueprint(chat_bp)

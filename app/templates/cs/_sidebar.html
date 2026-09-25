@@ -11,6 +11,9 @@
     <a href="{{ url_for('cs.new_post') }}" class="{{ 'active' if active == 'new' }}" title="New Post"><i class="fa-solid fa-plus"></i> <span>New Post</span></a>
     <a href="{{ url_for('imports.import_page') }}" class="{{ 'active' if active == 'import' }}" title="Import"><i class="fa-solid fa-file-import"></i> <span>Import</span></a>
     <a href="{{ url_for('cs.voices') }}" class="{{ 'active' if active == 'voices' }}" title="User Voices"><i class="fa-solid fa-comment-dots"></i> <span>User Voices</span></a>
+    {# CS follows these up, so the list cannot sit behind an admin-only door #}
+    <a href="{{ url_for('cs.sahayak_bookings') }}" class="{{ 'active' if active == 'sahayak' }}" title="Sahayak queue"><i class="fa-solid fa-house-medical"></i> <span>Sahayak</span></a>
+    <a href="{{ url_for('cs.insurance_quotes') }}" class="{{ 'active' if active == 'insurance' }}" title="Insurance leads"><i class="fa-solid fa-shield-heart"></i> <span>Insurance leads</span></a>
     <a href="{{ url_for('cs.notifications') }}" class="{{ 'active' if active == 'notifications' }}" title="Notifications"><i class="fa-solid fa-bell"></i> <span>Notifications</span></a>
     <a href="{{ url_for('cs.metrics') }}" class="{{ 'active' if active == 'metrics' }}" title="Metrics"><i class="fa-solid fa-chart-simple"></i> <span>Metrics</span></a>
     {% if current_user.is_admin %}

@@ -6,7 +6,7 @@ have bitten before, because these columns are `json`, not `jsonb`. Two: filters 
 which is the whole point of the popup — "posted this week AND departing in March AND arriving in
 Dallas" must narrow three times, not return the union.
 """
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -106,11 +106,14 @@ def test_date_filters_read_the_right_column(client, cs_user, posts):
     assert listed(client, '/cs/posts?dep_to=%s' % mid, posts) == {'ravi'}
     # only the round trip has a return date at all
     assert listed(client, '/cs/posts?ret_from=%s' % LATER.isoformat(), posts) == {'lakshmi'}
-    # posted-on is about when it reached us, not when anyone flies
-    assert listed(client, '/cs/posts?posted_from=%s' % date.today().isoformat(), posts) == {'ravi', 'lakshmi'}
-    assert listed(client, '/cs/posts?posted_to=%s' % (date.today() - timedelta(days=1)).isoformat(), posts) == set()
+    # posted-on is about when it reached us, not when anyone flies. created_at is UTC and the
+    # listings print it as UTC, so the range is UTC -- which only differs from the local date
+    # for part of the day, and that is exactly when this used to break.
+    utc_today = datetime.utcnow().date()
+    assert listed(client, '/cs/posts?posted_from=%s' % utc_today.isoformat(), posts) == {'ravi', 'lakshmi'}
+    assert listed(client, '/cs/posts?posted_to=%s' % (utc_today - timedelta(days=1)).isoformat(), posts) == set()
     # today counts as "posted on or before today" -- the whole day, not midnight
-    assert listed(client, '/cs/posts?posted_to=%s' % date.today().isoformat(), posts) == {'ravi', 'lakshmi'}
+    assert listed(client, '/cs/posts?posted_to=%s' % utc_today.isoformat(), posts) == {'ravi', 'lakshmi'}
 
 
 def test_a_date_range_is_one_filter_with_two_bounds(client, cs_user, posts):

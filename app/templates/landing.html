@@ -559,8 +559,9 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
   .wtab{height:40px;padding:0 12px 0 6px;font-size:12.5px;gap:6px}
   .wtab-orb{width:26px;height:26px}
   .wtab-orb svg,.wtab-orb.post svg,.wtab-orb.insu svg{width:13px;height:13px}
-  .wtab[data-wtab=insurance] .wtab-orb{display:none}   /* three tabs must clear the sheet's curve */
-  .wtab[data-wtab=insurance]{padding:0 12px}
+  /* The insurance chip used to drop its icon here to make three tabs fit. Now that the
+     unselected chips collapse to their icon alone, dropping it left an empty pill -- and an
+     icon is the only thing identifying a collapsed chip. The collapse is what buys the room. */
   .wp-head{padding:2px 2px 12px}
   .wp-head h2{font-size:20px}
   .wp-head p{font-size:13.5px}
@@ -1089,7 +1090,24 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .ins-trav-hint{font-size:11.5px;color:var(--rd-text-soft);margin:8px 0 0}
 @media(max-width:900px){.ins-types{grid-template-columns:1fr}}
 @media(max-width:600px){.ins-panel-w{padding:16px}.ins-grid{grid-template-columns:1fr}.ins-types{grid-template-columns:1fr}}
-@media(max-width:560px){.wtab .wtab-label{display:none}.wtab::after{content:attr(data-short)}.wtab{padding:0 12px}.wtab:not(.active){padding:0 10px 0 4px}}
+/* Phone chips expand instead of abbreviating.
+   Abbreviating every chip to "Find / Post / Insurance" made the row read like three truncated
+   words. Here the selected chip carries its full label and the others collapse to their icon --
+   still recognisable, still a comfortable tap target -- and the width animates, so choosing one
+   looks like it opening rather than the row reflowing. */
+@media(max-width:560px){
+  .wtab{padding:0 7px;gap:0;transition:background .15s,color .15s,border-color .15s,box-shadow .15s,padding .3s cubic-bezier(.22,.61,.36,1)}
+  .wtab.active{padding:0 18px 0 7px}
+  .wtab::after{content:none}
+  .wtab .wtab-label{
+    display:block;max-width:0;opacity:0;margin-left:0;overflow:hidden;white-space:nowrap;
+    transition:max-width .3s cubic-bezier(.22,.61,.36,1),opacity .2s ease,margin-left .3s cubic-bezier(.22,.61,.36,1);
+  }
+  .wtab.active .wtab-label{max-width:15ch;opacity:1;margin-left:10px}
+}
+@media(prefers-reduced-motion:reduce){
+  .wtab,.wtab .wtab-label{transition:none}
+}
 /* Parents: two CTAs, stacked passes on phones */
 .parents-copy h2 em{font-style:italic;color:var(--amber)}
 .parents-ctas{display:flex;gap:12px;flex-wrap:wrap;align-items:center}

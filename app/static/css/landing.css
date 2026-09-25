@@ -698,4 +698,19 @@
 .qs-head-l .sch-icon svg{width:28px;height:28px}
 @media(max-width:640px){.qs-head-l{gap:12px}.qs-head-l .sch-icon{width:44px;height:44px}.qs-head-l .sch-icon svg{width:22px;height:22px}}
 @media(max-width:640px){.qs-tab{padding:0 12px 0 5px;gap:6px;font-size:12.5px}}
-@media(max-width:420px){.qs-tab .txt{display:none}.qs-tab::after{content:attr(data-short)}.qs-tab{padding:0 14px 0 6px}}
+/* Phone chips expand instead of abbreviating -- see the matching rule on the logged-out
+   landing. The selected chip says what it is; the others keep their icon and collapse. */
+@media(max-width:560px){
+  .qs-tab{padding:0 7px;gap:0;transition:background .15s,color .15s,border-color .15s,box-shadow .15s,padding .3s cubic-bezier(.22,.61,.36,1)}
+  .qs-tab.active{padding:0 18px 0 7px}
+  .qs-tab::after{content:none}
+  .qs-tab .txt{display:flex}
+  .qs-tab .txt>span:first-child{
+    display:block;max-width:0;opacity:0;margin-left:0;overflow:hidden;white-space:nowrap;
+    transition:max-width .3s cubic-bezier(.22,.61,.36,1),opacity .2s ease,margin-left .3s cubic-bezier(.22,.61,.36,1);
+  }
+  .qs-tab.active .txt>span:first-child{max-width:15ch;opacity:1;margin-left:10px}
+}
+@media(prefers-reduced-motion:reduce){
+  .qs-tab,.qs-tab .txt>span:first-child{transition:none}
+}

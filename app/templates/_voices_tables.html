@@ -7,11 +7,11 @@
    Only the endpoints differ between admin and CS, so they are passed in.
 #}
 
-{% macro contact_table(messages, status_endpoint, statuses, labels, next_url, with_notes=False) %}
+{% macro contact_table(messages, status_endpoint, statuses, labels, next_url, with_notes=False, topic_labels={}) %}
 <table class="admin-table vc-table">
   <thead>
     <tr>
-      <th>When</th><th>From</th><th>Phone</th><th>Message</th>
+      <th>When</th><th>About</th><th>From</th><th>Phone</th><th>Message</th>
       <th>Status</th><th>Handled by</th><th>Move to</th>
     </tr>
   </thead>
@@ -19,6 +19,8 @@
   {% for m in messages %}
     <tr>
       <td class="nowrap">{{ m.created_at.strftime('%d %b %Y<br/>%H:%M')|safe if m.created_at }}</td>
+      {# which service the enquiry came from: the insurance page writes into this same inbox #}
+      <td class="nowrap"><span class="cm-topic cm-topic-{{ m.topic or 'companion' }}">{{ topic_labels.get(m.topic, 'Travel companion') }}</span></td>
       <td><strong>{{ m.name }}</strong><br/><a href="mailto:{{ m.email }}">{{ m.email }}</a></td>
       <td class="nowrap">{{ m.phone or '—' }}</td>
       <td class="cm-cell">

@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% block title %}Insurance page – Admin{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='insurance_page' %}{% include 'admin/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <h1>Insurance page</h1>
+    <p class="admin-sub">Testimonials shown in “What Travellers Say” on
+      <a href="{{ url_for('insurance.landing') }}" target="_blank" rel="noopener">/travel-insurance</a>.
+      The questions on that page come from <a href="{{ url_for('admin.help_center_page') }}">Help &amp; FAQ</a>
+      — add them under the <strong>{{ faq_category }}</strong> category.</p>
+
+    {% if using_samples %}
+    <p class="admin-note"><i class="fa-solid fa-circle-info"></i>
+      The page is showing three sample testimonials, and says so on the page itself. Saving a real
+      one here replaces all three.</p>
+    {% endif %}
+
+    <form method="POST" class="hc-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+      <h2 class="hc-h2">Price anchor</h2>
+      <p class="muted" style="font-size:13px;margin-bottom:8px">Shown under the hero button. People
+        compare on price whether or not we give them a number, so an empty line here sends them
+        elsewhere to find one. Leave it blank rather than guess — it goes on the page as written.</p>
+      <input type="text" name="price_from" value="{{ price_from }}" style="width:100%;max-width:620px"
+             placeholder="e.g. Plans from $1.20 a day for a 65-year-old visiting the USA"/>
+
+      <h2 class="hc-h2" style="margin-top:26px">Reassurance lines</h2>
+      <p class="muted" style="font-size:13px;margin-bottom:8px">Up to {{ max_assurances }} short
+        lines beside the quote button. Only add the ones that are actually true of the plans sold —
+        these read as promises. Common ones in this market:
+        {{ suggestions|join(' · ') }}</p>
+      <div class="ins-assure-rows">
+        {% for i in range(max_assurances) %}
+        <input type="text" name="assurance" value="{{ assurances[i] if i < assurances|length else '' }}"
+               maxlength="60" placeholder="Line {{ loop.index }} (optional)"/>
+        {% endfor %}
+      </div>
+
+      <h2 class="hc-h2" style="margin-top:26px">Testimonials</h2>
+      <table class="admin-table ins-rev-table">
+        <thead>
+          <tr><th>Quote</th><th>Name</th><th>Place</th><th>Country code</th><th>Tag</th><th>Photo URL</th><th></th></tr>
+        </thead>
+        <tbody id="revRows">
+          {% for r in reviews %}
+          <tr>
+            <td><input type="hidden" name="id" value="{{ r.id }}"/>
+              <textarea name="quote" rows="3" placeholder="What they said">{{ r.quote }}</textarea></td>
+            <td><input type="text" name="name" value="{{ r.name }}" placeholder="S. Krishnan"/></td>
+            <td><input type="text" name="place" value="{{ r.place }}" placeholder="Canada"/></td>
+            <td><input type="text" name="cc" value="{{ r.cc }}" maxlength="3" placeholder="CA" style="width:70px"/></td>
+            <td><input type="text" name="tag" value="{{ r.tag }}" placeholder="Parents visiting children"/></td>
+            <td><input type="url" name="photo" value="{{ r.photo }}" placeholder="optional"/></td>
+            <td><button type="button" class="btn-sm danger row-del" title="Remove"><i class="fa-solid fa-trash-can"></i></button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="hc-actions">
+        <button type="button" class="btn-sm-outline" id="addRev"><i class="fa-solid fa-plus"></i> Add testimonial</button>
+        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save testimonials</button>
+      </div>
+      <p class="muted" style="font-size:13px">A row needs a quote and a name to be kept; anything
+        blank is dropped on save. Leave the photo empty for the drawn avatar the design ships with.</p>
+    </form>
+  </main>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const body = document.getElementById('revRows');
+  document.getElementById('addRev').addEventListener('click', () => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td><input type="hidden" name="id" value=""/>'
+      + '<textarea name="quote" rows="3" placeholder="What they said"></textarea></td>'
+      + '<td><input type="text" name="name" placeholder="S. Krishnan"/></td>'
+      + '<td><input type="text" name="place" placeholder="Canada"/></td>'
+      + '<td><input type="text" name="cc" maxlength="3" placeholder="CA" style="width:70px"/></td>'
+      + '<td><input type="text" name="tag" placeholder="Parents visiting children"/></td>'
+      + '<td><input type="url" name="photo" placeholder="optional"/></td>'
+      + '<td><button type="button" class="btn-sm danger row-del" title="Remove"><i class="fa-solid fa-trash-can"></i></button></td>';
+    body.appendChild(tr);
+    tr.querySelector('textarea').focus();
+  });
+  // Removing a row only stages it: nothing changes on the page until Save.
+  body.addEventListener('click', (e) => {
+    const b = e.target.closest('.row-del');
+    if (b) b.closest('tr').remove();
+  });
+})();
+</script>
+{% endblock %}

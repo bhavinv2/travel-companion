@@ -34,18 +34,25 @@
       {% for s in CONTACT_STATUSES %}
       <a class="btn-sm-outline {{ 'active' if status == s }}" href="{{ url_for('admin.voices', tab='contact', status=s) }}">{{ CONTACT_STATUS_LABELS[s] }} ({{ counts[s] }})</a>
       {% endfor %}
+      {# one inbox for both services; which one an enquiry is about is a filter, not a screen #}
+      <span class="cm-filter-sep"></span>
+      <a class="btn-sm-outline {{ 'active' if not topic }}" href="{{ url_for('admin.voices', tab='contact', status=status) }}">Both services</a>
+      {% for t in CONTACT_TOPICS %}
+      <a class="btn-sm-outline {{ 'active' if topic == t }}" href="{{ url_for('admin.voices', tab='contact', status=status, topic=t) }}">{{ CONTACT_TOPIC_LABELS[t] }}</a>
+      {% endfor %}
       <span class="muted" style="font-size:13px;margin-left:auto">CS agents work these in the
         <a href="{{ url_for('cs.voices') }}">CS console</a></span>
     </div>
 
     {{ vt.contact_table(messages, 'admin.voice_status',
-                        CONTACT_STATUSES, CONTACT_STATUS_LABELS, request.full_path) }}
+                        CONTACT_STATUSES, CONTACT_STATUS_LABELS, request.full_path,
+                        topic_labels=CONTACT_TOPIC_LABELS) }}
 
     {% if c_pages > 1 %}
     <div class="pagination">
       {% for p in range(1, c_pages + 1) %}
       <a class="page {{ 'current' if p == c_page }}"
-         href="{{ url_for('admin.voices', tab='contact', status=status, page=p) }}">{{ p }}</a>
+         href="{{ url_for('admin.voices', tab='contact', status=status, topic=topic, page=p) }}">{{ p }}</a>
       {% endfor %}
     </div>
     {% endif %}

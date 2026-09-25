@@ -109,3 +109,49 @@ def test_api_calls_work_under_the_prefix(pclient):
     # and the unprefixed path is NOT served when a prefix is configured and the path lacks it —
     # it is passed through untouched, which is exactly what the Railway test domain needs
     assert pclient.get('/api/airports?q=hyd').status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Sibling entry points (/travel-insurance)
+# ---------------------------------------------------------------------------
+# Travel insurance is its own product, so its public address sits beside the companion prefix
+# rather than inside it. The middleware treats such a path as an entry point, not a second mount:
+# the page answers there, but every link it renders still carries the one canonical prefix, so the
+# whole app never becomes reachable at two sets of URLs.
+
+ALIAS = '/travel-insurance'
+
+
+def test_the_insurance_page_answers_on_its_own_top_level_path(pclient):
+    r = pclient.get(ALIAS)
+    assert r.status_code == 200
+    assert 'Travel Insurance for Every Journey' in r.data.decode()
+
+
+def test_the_same_page_still_answers_inside_the_prefix(pclient):
+    """url_for builds the prefixed one for internal links, so it cannot 404."""
+    assert pclient.get(f'{PREFIX}{ALIAS}').status_code == 200
+
+
+def test_links_on_the_sibling_url_keep_the_canonical_prefix(pclient):
+    """Otherwise a click from this page would leave the proxied path and 404 on the main site."""
+    import re
+    html = pclient.get(ALIAS).data.decode()
+    links = set(re.findall(r'(?:href|src)="(/[^"]*)"', html))
+    assert links, 'page should render absolute in-app links'
+    assert [l for l in links if not l.startswith(PREFIX + '/')] == []
+
+
+def test_both_addresses_name_the_same_canonical_one(pclient):
+    """Same page at two URLs: search engines are told which counts rather than left to guess."""
+    import re
+    canon = f'https://{HOST}{ALIAS}'
+    for path in (ALIAS, f'{PREFIX}{ALIAS}'):
+        html = pclient.get(path).data.decode()
+        assert re.search(r'rel="canonical" href="([^"]+)"', html).group(1) == canon
+
+
+def test_an_alias_does_not_mount_the_whole_app_a_second_time(pclient):
+    """Only the insurance route lives out there; everything else stays behind the one prefix."""
+    assert pclient.get(f'{ALIAS}/dashboard').status_code == 404
+    assert pclient.get(f'{ALIAS}/auth/login').status_code == 404

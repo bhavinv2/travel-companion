@@ -686,6 +686,10 @@ class Feedback(db.Model):
 
 CONTACT_STATUSES = ('new', 'in_progress', 'closed')
 CONTACT_STATUS_LABELS = {'new': 'New', 'in_progress': 'In progress', 'closed': 'Closed'}
+# Which service the enquiry is about. One inbox, so CS never has to check two screens; the
+# topic is what lets them filter and see at a glance what they are answering.
+CONTACT_TOPICS = ('companion', 'insurance')
+CONTACT_TOPIC_LABELS = {'companion': 'Travel companion', 'insurance': 'Travel insurance'}
 
 
 class ContactMessage(db.Model):
@@ -702,6 +706,7 @@ class ContactMessage(db.Model):
     email = db.Column(db.String(255), nullable=False, index=True)
     phone = db.Column(db.String(30))
     message = db.Column(db.Text, nullable=False)
+    topic = db.Column(db.String(20), default='companion', nullable=False, index=True)
     status = db.Column(db.String(15), default='new', index=True)
     handled_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     handled_at = db.Column(db.DateTime)
@@ -723,7 +728,7 @@ class ContactMessage(db.Model):
     def to_dict(self):
         return {
             'id': self.id, 'name': self.name, 'email': self.email, 'phone': self.phone,
-            'message': self.message, 'status': self.status,
+            'message': self.message, 'status': self.status, 'topic': self.topic,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -771,6 +776,90 @@ class InsuranceQuote(db.Model):
             'start_date': self.start_date.isoformat() if self.start_date else None,
             'end_date': self.end_date.isoformat() if self.end_date else None,
             'travellers': self.travellers or [], 'status': self.status, 'quote_url': self.quote_url,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+SAHAYAK_STATUSES = ('new', 'assigned', 'completed', 'cancelled')
+SAHAYAK_STATUS_LABELS = {'new': 'New request', 'assigned': 'Assigned',
+                         'completed': 'Completed', 'cancelled': 'Cancelled'}
+SAHAYAK_WHEN = ('asap', 'scheduled')
+SAHAYAK_WHEN_LABELS = {'asap': 'As soon as possible', 'scheduled': 'At a chosen time'}
+
+
+class SahayakBooking(db.Model):
+    """A request for a Sahayak home healthcare visit.
+
+    This is a request, not a dispatch: there is no Sahayak-facing app and no automated matching
+    in this phase, so a booking sits in the CS queue until an agent assigns somebody and records
+    how it went. `assigned_to_name` is free text for that reason -- the people doing the visits
+    are not users of this system yet, and giving them accounts would pretend otherwise.
+
+    No payment is taken here. `quoted_price` is what the catalogue said when the request was
+    made, kept as a record of what the person was shown rather than as a charge.
+    """
+    __tablename__ = 'sahayak_bookings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # nullable: somebody booking care for a parent may not have an account, and requiring one
+    # would turn away exactly the person who needs this most
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+
+    service_key = db.Column(db.String(40), nullable=False, index=True)
+    service_name = db.Column(db.String(80), nullable=False)   # as shown, in case prices change
+    quoted_price = db.Column(db.String(12))
+
+    # who the visit is for -- often not the person booking it
+    patient_name = db.Column(db.String(120), nullable=False)
+    patient_age = db.Column(db.Integer)
+    contact_name = db.Column(db.String(120))
+    phone = db.Column(db.String(30), nullable=False)
+    email = db.Column(db.String(255), index=True)
+
+    address = db.Column(db.Text, nullable=False)
+    landmark = db.Column(db.String(200))
+    pincode = db.Column(db.String(12), index=True)
+    access_notes = db.Column(db.String(300))      # "ring twice", "gate code 4821"
+
+    when_type = db.Column(db.String(12), default='asap', nullable=False)
+    scheduled_for = db.Column(db.DateTime)        # only when when_type == 'scheduled'
+    notes = db.Column(db.Text)                    # what the person told us about the need
+
+    status = db.Column(db.String(15), default='new', nullable=False, index=True)
+    assigned_to_name = db.Column(db.String(120))  # the Sahayak, by name
+    assigned_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    assigned_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
+    cancelled_reason = db.Column(db.String(200))
+    cs_notes = db.Column(db.Text)                 # internal, never shown to the patient
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User', foreign_keys=[user_id])
+    assigned_by = db.relationship('User', foreign_keys=[assigned_by_id])
+
+    def set_status(self, status, by=None, reason=None):
+        assert status in SAHAYAK_STATUSES, status
+        self.status = status
+        if status == 'assigned':
+            self.assigned_by_id = by.id if by else None
+            self.assigned_at = datetime.utcnow()
+        elif status == 'completed':
+            self.completed_at = datetime.utcnow()
+        elif status == 'cancelled':
+            self.cancelled_reason = (reason or '')[:200] or None
+
+    @property
+    def when_display(self):
+        if self.when_type == 'scheduled' and self.scheduled_for:
+            return self.scheduled_for.strftime('%d %b %Y, %H:%M')
+        return 'As soon as possible'
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'service': self.service_name, 'patient': self.patient_name,
+            'phone': self.phone, 'status': self.status, 'when': self.when_display,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
 
