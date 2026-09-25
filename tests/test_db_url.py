@@ -1,9 +1,9 @@
 """The database URL a host hands us must not decide which library has to be installed.
 
-Railway served `postgresql+psycopg://` (psycopg 3) while this image installs psycopg2. SQLAlchemy
-honoured the name, every gunicorn worker died at import with "No module named 'psycopg'", and the
-site was down behind a bare 502 that pointed at nothing. Which driver we use is our decision, so a
-named one that is not importable falls back instead of taking the app with it.
+SQLAlchemy 2.1 changed what a bare `postgresql://` means: psycopg2 on 2.0, psycopg 3 on 2.1. The
+dependency was unpinned, so a rebuild of an unchanged commit swapped the driver, every gunicorn
+worker died at import with "No module named 'psycopg'", and the site went down behind a 502 that
+pointed at nothing. The URL now names the driver we actually ship, whatever the default is.
 """
 import pytest
 
@@ -21,10 +21,10 @@ def cfg(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize('given, expected_uri', [
     # the production failure: a driver we do not ship
-    ('postgresql+psycopg://u:p@h:5432/db', 'postgresql://u:p@h:5432/db'),
+    ('postgresql+psycopg://u:p@h:5432/db', 'postgresql+psycopg2://u:p@h:5432/db'),
     # Heroku-style legacy scheme, already handled
-    ('postgres://u:p@h:5432/db', 'postgresql://u:p@h:5432/db'),
-    ('postgresql://u:p@h:5432/db', 'postgresql://u:p@h:5432/db'),
+    ('postgres://u:p@h:5432/db', 'postgresql+psycopg2://u:p@h:5432/db'),
+    ('postgresql://u:p@h:5432/db', 'postgresql+psycopg2://u:p@h:5432/db'),
     # a driver we DO ship is left exactly as asked for
     ('postgresql+psycopg2://u:p@h:5432/db', 'postgresql+psycopg2://u:p@h:5432/db'),
 ])

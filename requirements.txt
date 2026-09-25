@@ -6,6 +6,12 @@ flask-mail==0.10.0
 flask-wtf==1.2.1
 flask-babel==4.0.0
 psycopg2-binary==2.9.9
+# Pinned deliberately. SQLAlchemy 2.1 changed the default PostgreSQL driver for a bare
+# `postgresql://` URL from psycopg2 to psycopg 3, so an unpinned rebuild replaced the driver
+# under us and every worker failed to boot. The app names the driver explicitly now as well,
+# but a core dependency that can change behaviour between two builds of the same commit does
+# not belong unpinned.
+sqlalchemy==2.0.52
 bcrypt==4.1.3
 python-dotenv==1.0.1
 gunicorn==22.0.0
