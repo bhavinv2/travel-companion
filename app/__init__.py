@@ -106,6 +106,19 @@ def create_app(test_config=None):
     db_url = os.environ.get('DATABASE_URL', 'sqlite:///dev.db')
     if db_url.startswith('postgres://'):
         db_url = db_url.replace('postgres://', 'postgresql://', 1)
+    # A hosting provider may hand over a URL that names a specific driver -- Railway has served
+    # `postgresql+psycopg://` (psycopg 3) -- while this image installs psycopg2. Honouring a name
+    # for a library that is not here kills every gunicorn worker at import with
+    # "No module named 'psycopg'", which reads as the whole app being down. Which driver we use is
+    # ours to decide, so an unavailable one falls back to whatever SQLAlchemy can actually load.
+    if '+psycopg' in db_url.split('://', 1)[0]:
+        named = db_url.split('://', 1)[0].split('+', 1)[1]
+        try:
+            __import__(named)
+        except ImportError:
+            db_url = 'postgresql://' + db_url.split('://', 1)[1]
+            log.warning('DATABASE_URL asked for %s, which is not installed; using the default '
+                        'PostgreSQL driver instead.', named)
 
     # Secret key: never silently fall back to a known value in production.
     secret = os.environ.get('SECRET_KEY') or os.environ.get('FLASK_SECRET_KEY')
