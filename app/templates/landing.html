@@ -112,6 +112,10 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .svc-menu a:hover{background:var(--sand);color:var(--navy)}
 .svc-menu a svg{width:11px;height:11px;color:var(--muted);flex:none}
 .hdr-right{display:flex;align-items:center;gap:12px}
+/* Support: same pill as the language control next to it, so the header utilities read as a set. */
+.hdr-support{display:inline-flex;align-items:center;gap:7px;border:1.5px solid rgba(255,255,255,.55);color:#fff;border-radius:var(--r-pill);padding:8px 14px;font-weight:600;font-size:14px;text-decoration:none;white-space:nowrap;transition:background .15s,border-color .15s}
+.hdr-support:hover{background:rgba(255,255,255,.12);border-color:#fff}
+.hdr-support svg{width:16px;height:16px}
 .lang{cursor:pointer;display:inline-flex;align-items:center;gap:7px;border:1.5px solid rgba(255,255,255,.55);color:#fff;border-radius:var(--r-pill);padding:8px 14px;font-weight:600;font-size:14px;position:relative}
 .lang svg{width:16px;height:16px}
 .lang-menu{position:absolute;top:calc(100% + 8px);right:0;background:#fff;color:var(--ink);border-radius:var(--r-m);box-shadow:0 18px 44px rgba(15,31,61,.22);padding:8px;display:none;grid-template-columns:1fr 1fr;gap:2px;width:260px;font-weight:500}
@@ -125,6 +129,8 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 @media(max-width:1080px){.nav,.hdr .btn-outline{display:none}.burger{display:grid;place-items:center}.hdr .wrap{padding:0 14px}.hdr-right{gap:8px}.lang{padding:7px 10px}.logo{font-size:16px}.hdr .btn{padding:9px 16px}}
 /* Phones: the brand must always read "NRI Parent Service" — shrink it, never drop "Parent". */
 @media(max-width:420px){.logo{font-size:14px;letter-spacing:-.02em}.logo img{width:28px;height:28px;margin-right:7px}.lang span#langCur{display:none}.lang{padding:8px}.hdr .btn{padding:8px 11px;font-size:13px}.hdr-right{gap:6px}}
+/* The header runs out of room before the drawer does; Support is in the drawer from 1080px down. */
+@media(max-width:1080px){.hdr-support{display:none}}
 /* Mobile nav drawer: a dropdown panel under the header, opened by the burger. Desktop nav
    (.nav, inline) stays as-is; this only ever shows ≤920px. */
 .mobile-drawer{display:none}
@@ -1517,6 +1523,10 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
       </div>
     </nav>
     <div class="hdr-right">
+      <a class="hdr-support" href="{{ url_for('main.help_page') }}" title="Help centre and contact us">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><path d="M4 14a2 2 0 0 1 2-2h1v6H6a2 2 0 0 1-2-2zM20 14a2 2 0 0 0-2-2h-1v6h1a2 2 0 0 0 2-2z"/><path d="M17 18v1a3 3 0 0 1-3 3h-2"/></svg>
+        Support
+      </a>
       <div class="lang" id="langBtn" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>
         <span id="langCur">EN</span>
@@ -1542,6 +1552,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
     <a href="#how">How It Works</a>
     <a href="#" onclick="openInsuranceDrawer();return false;">Travel Insurance</a>
     <a href="{{ url_for('blog.blog_list') }}">Traveller Blogs</a>
+    <a href="{{ url_for('main.help_page') }}">Support</a>
     <span class="md-heading">Our Services</span>
     {% for label, href in NRI_SERVICES %}
     <a href="{{ href }}" target="_blank" rel="noopener" class="md-svc">{{ label }}

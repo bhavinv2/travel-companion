@@ -7,9 +7,7 @@ import WhyRail from './components/WhyRail';
 import StoryGrid from './components/StoryGrid';
 import DoctorSection from './components/DoctorSection';
 import Requirements from './components/Requirements';
-import Benefits from './components/Benefits';
 import HowItWorks from './components/HowItWorks';
-import TrustRow from './components/TrustRow';
 import Partners from './components/Partners';
 import Reviews from './components/Reviews';
 import ExpertContact from './components/ExpertContact';
@@ -27,9 +25,9 @@ export default function App() {
     <QuoteProvider>
       <IconSprite />
       <a className="skip" href="#main">Skip to content</a>
-      {/* Embedded in the site, the page sits inside the shared NRI Parent Service navbar and
-          footer, so this build's own header and footer would be a second set. Standalone
-          (npm run dev) nothing injects the flag and they render as before. */}
+      {/* Embedded in the site, this page sits inside the shared NRI Parent Service navbar
+          and footer, so the build's own would be a second set. Standalone (npm run dev)
+          nothing injects the flag and they render as before. */}
       {showChrome && <Header />}
       <main id="main">
         <Hero />
@@ -39,9 +37,7 @@ export default function App() {
         <StoryGrid />
         <DoctorSection />
         <Requirements />
-        <Benefits />
         <HowItWorks />
-        <TrustRow />
         <Partners />
         <Reviews />
         <ExpertContact />

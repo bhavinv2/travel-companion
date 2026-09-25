@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Icon from './Icon';
 import { useQuote } from '../context/QuoteContext';
+import { asset } from '../data/site';
 
 const NAV_LINKS = [
   { href: '#top', label: 'Travel Insurance', current: true },
@@ -24,7 +25,7 @@ export default function Header() {
       <div className="wrap hdr-in">
         <a className="logo" href="#top" aria-label="NRI Parent Service home">
           <span className="logo-mark">
-            <Icon name="i-shield" />
+            <img src={asset('logo-mark.png')} alt="" width={200} height={161} />
           </span>
           <span className="logo-word">
             NRI Parent Service

@@ -81,6 +81,13 @@ textarea, input, select, button { font-family: inherit; }
 @keyframes navDrop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 .nav-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 
+/* Support. Same pill as the language button beside it, so the two read as one group of
+   utilities rather than two competing controls. */
+.nav-support { display: inline-flex; align-items: center; gap: 7px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.16); color: rgba(255,255,255,0.88); font-size: 13px; font-weight: 600; padding: 7px 12px; border-radius: 999px; text-decoration: none; white-space: nowrap; transition: background 0.15s, border-color 0.15s; }
+.nav-support:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.32); color: #fff; }
+.nav-support.active { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.38); color: #fff; }
+.nav-support .fa-headset { font-size: 14px; color: #f0940a; }
+
 /* Language selector */
 /* Language dropdown (custom, matches the profile dropdown) */
 .lang-dd { position: relative; }
@@ -945,6 +952,9 @@ html, body { overflow-x: clip; }  /* clip (not hidden): hidden turns body into a
   .nav-right { gap: 8px; }
   .lang-cur { display: none; }
   .lang-btn { padding: 7px 10px; gap: 5px; }
+  /* Icon only, same as the language pill: the headset is the recognisable part. */
+  .nav-support-tx { display: none; }
+  .nav-support { padding: 7px 10px; gap: 0; }
   .user-btn { padding: 6px 8px; }
   .btn-outline-nav, .btn-primary-nav { width: auto; padding: 8px 12px; font-size: 13px; }
   .search-section { padding: 16px 4% 32px; }

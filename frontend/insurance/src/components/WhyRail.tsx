@@ -1,78 +1,60 @@
-import { useRef } from 'react';
 import Icon from './Icon';
- import { photo } from '../data/site';
 import SideDecor from './SideDecor';
 import { useQuote } from '../context/QuoteContext';
 import { useReveal } from '../hooks/useReveal';
+import { useDragRail } from '../hooks/useDragRail';
+import { photo } from '../data/site';
 
 const CARDS = [
   {
-    icon: 'i-heart', tag: 'Medical cover', title: 'Medical Emergencies',
-    desc: 'Treatment abroad can cost far more than at home.',
-    photo: photo('why-medical.jpg'), alt: 'Doctor in scrubs ready to treat a travelling patient',
+    tag: 'Medical cover', title: 'Emergency Medical Expenses',
+    desc: 'Eligible treatment costs abroad, within plan limits.',
+    photo: photo('benefit-medical.jpg'), alt: 'Doctor ready to treat a travelling patient',
   },
   {
-    icon: 'i-route', tag: 'Trip cover', title: 'Trip Interruptions',
-    desc: 'Plans change when something happens at home.',
-    photo: photo('why-interruption.jpg'), alt: 'City street at dusk, a trip cut short',
+    tag: 'Hospital cover', title: 'Hospitalisation Support',
+    desc: 'Help arranging admission, with direct billing where available.',
+    photo: photo('benefit-hospitalisation.jpg'), alt: 'Clean hospital reception desk',
   },
   {
-    icon: 'i-bag', tag: 'Baggage cover', title: 'Lost or Delayed Baggage',
-    desc: 'Essentials to tide you over until bags arrive.',
-    photo: photo('why-baggage.jpg'), alt: 'Travel backpack packed and ready',
+    tag: 'Evacuation', title: 'Emergency Evacuation',
+    desc: 'Transfer to suitable care when medically necessary.',
+    photo: photo('benefit-evacuation.jpg'), alt: 'Hospital building with an emergency entrance sign',
   },
   {
-    icon: 'i-clock', tag: 'Delay cover', title: 'Flight Delays',
-    desc: 'Long waits mean meals, transfers and extra nights.',
-    photo: photo('why-delay.jpg'), alt: 'Hand holding a small clock, marking time lost to a delay',
+    tag: 'Trip cover', title: 'Trip Interruption',
+    desc: 'Eligible costs if you must cut a trip short.',
+    photo: photo('benefit-interruption.jpg'), alt: 'City street at dusk',
   },
   {
-    icon: 'i-ambulance', tag: 'Evacuation', title: 'Emergency Evacuation',
-    desc: 'Transport to suitable care when it is needed.',
-    photo: photo('why-evacuation.jpg'), alt: 'Hospital building with an emergency entrance sign',
+    tag: 'Delay cover', title: 'Trip Delay',
+    desc: 'Support for covered delays beyond set hours.',
+    photo: photo('benefit-delay.jpg'), alt: 'Hand holding a small clock',
   },
   {
-    icon: 'i-wallet', tag: 'Trip costs', title: 'Unexpected Expenses',
-    desc: "Rebookings, extra stays and costs you didn't plan for.",
-    photo: photo('why-expenses.jpg'), alt: 'Foreign currency notes spread out, representing trip costs',
+    tag: 'Baggage cover', title: 'Baggage Protection',
+    desc: 'Cover for eligible lost or delayed checked bags.',
+    photo: photo('benefit-baggage.jpg'), alt: 'Travel backpack packed and ready',
+  },
+  {
+    tag: '24/7 cover', title: '24/7 Assistance',
+    desc: 'A helpline for emergencies, in any time zone.',
+    photo: photo('benefit-support-247.jpg'), alt: 'Two people shaking hands over paperwork',
+  },
+  {
+    tag: 'Support cover', title: 'Travel Support',
+    desc: 'Guidance on documents, clinics and next steps.',
+    photo: photo('benefit-support-docs.jpg'), alt: 'Hand signing travel paperwork',
   },
 ];
 
 export default function WhyRail() {
   const { openQuote } = useQuote();
   const reveal = useReveal<HTMLDivElement>();
-  const railRef = useRef<HTMLDivElement>(null);
-  const drag = useRef({ down: false, sx: 0, sl: 0, moved: 0 });
-
-  function onPointerDown(e: React.PointerEvent) {
-    if ((e.target as HTMLElement).closest('button')) return;
-    const rail = railRef.current;
-    if (!rail) return;
-    drag.current = { down: true, sx: e.clientX, sl: rail.scrollLeft, moved: 0 };
-    rail.classList.add('drag');
-    rail.setPointerCapture(e.pointerId);
-  }
-  function onPointerMove(e: React.PointerEvent) {
-    if (!drag.current.down) return;
-    const rail = railRef.current;
-    if (!rail) return;
-    const dx = e.clientX - drag.current.sx;
-    drag.current.moved = Math.abs(dx);
-    rail.scrollLeft = drag.current.sl - dx;
-  }
-  function endDrag() {
-    drag.current.down = false;
-    railRef.current?.classList.remove('drag');
-  }
-  function scrollRail(dir: 'prev' | 'next') {
-    const rail = railRef.current;
-    if (!rail) return;
-    const w = (rail.firstElementChild as HTMLElement)?.offsetWidth ?? 300;
-    rail.scrollBy({ left: dir === 'next' ? w + 20 : -(w + 20), behavior: 'smooth' });
-  }
+  const { railProps, scrollRail, canScrollLeft, canScrollRight } = useDragRail();
 
   return (
-    <section className="sec">
+    <section className="sec" id="benefits">
       <SideDecor icons={[
         { name: 'i-route', side: 'left', top: '22%', size: 30, rotate: -10, opacity: 0.14 },
         { name: 'i-bag', side: 'left', top: '64%', size: 100, rotate: 12, opacity: 0.06 },
@@ -84,43 +66,60 @@ export default function WhyRail() {
           <div>
             <span className="kick">Why it matters</span>
             <h2 className="h2" style={{ marginTop: 12 }}>Why You Need Travel Insurance</h2>
-            <span className="script-tag" style={{ fontSize: 22, color: 'var(--marigold)' }}>Expect the unexpected.</span>
+            <span className="script-tag" style={{ fontSize: 22, color: 'var(--marigold)' }}>Prevent medical bills from disrupting your trip.</span>
             <p className="lead" style={{ marginTop: 10 }}>Because unexpected moments shouldn't become unexpected expenses.</p>
           </div>
-          <div className="rail-nav">
-            <button className="rnav" type="button" aria-label="Previous cards" onClick={() => scrollRail('prev')}>
-              <Icon name="i-back" className="ico n sm" />
-            </button>
-            <button className="rnav" type="button" aria-label="Next cards" onClick={() => scrollRail('next')}>
-              <Icon name="i-arrow" className="ico n sm" />
-            </button>
+        </div>
+
+        <div className="rail-wrap-box">
+          <button
+            className="rnav-side left"
+            type="button"
+            aria-label="Previous cards"
+            disabled={!canScrollLeft}
+            onClick={() => scrollRail('prev')}
+          >
+            <Icon name="i-back" className="ico sm" />
+          </button>
+
+          <div
+            className="rail"
+            tabIndex={0}
+            role="group"
+            aria-label="Reasons to buy travel insurance — drag or use arrows"
+            {...railProps}
+          >
+            {CARDS.map((c) => (
+              <article className="wtile" key={c.title}>
+                <img src={c.photo} alt={c.alt} loading="lazy" decoding="async" draggable={false} />
+                <span className="wtile-scrim" aria-hidden="true" />
+                <span className="wtile-tag">{c.tag}</span>
+                <div className="wtile-body">
+                  <h3>{c.title}</h3>
+                  <div className="wtile-reveal">
+                    <div>
+                      <p>{c.desc}</p>
+                      <button className="wtile-cta" type="button" onClick={() => openQuote()}>
+                        Get Quotes
+                        <Icon name="i-arrow" className="ico w xs" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
           </div>
+
+          <button
+            className="rnav-side right"
+            type="button"
+            aria-label="Next cards"
+            disabled={!canScrollRight}
+            onClick={() => scrollRail('next')}
+          >
+            <Icon name="i-arrow" className="ico sm" />
+          </button>
         </div>
-        <div
-          className="rail"
-          ref={railRef}
-          tabIndex={0}
-          role="group"
-          aria-label="Reasons to buy travel insurance — drag or use arrows"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
-        >
-          {CARDS.map((c) => (
-            <article className="wcard" key={c.title}>
-              <div className="tile"><Icon name={c.icon} /></div>
-              <h3 className="t3" style={{ marginTop: 14 }}>{c.title}</h3>
-              <p className="small">{c.desc}</p>
-              <div className="wcard-img">
-                <span className="tag">{c.tag}</span>
-                <img src={c.photo} alt={c.alt} loading="lazy" />
-                <button className="btn btn-p wcta" type="button" onClick={() => openQuote()}>Get Quotes</button>
-              </div>
-            </article>
-          ))}
-        </div>
-        <p className="rail-hint tiny"><Icon name="i-arrow" className="ico s xs" />Drag or swipe to see more reasons</p>
       </div>
     </section>
   );

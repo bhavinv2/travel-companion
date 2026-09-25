@@ -1,8 +1,8 @@
 import Icon from './Icon';
- import { photo } from '../data/site';
 import SideDecor from './SideDecor';
 import { useQuote } from '../context/QuoteContext';
 import { useReveal } from '../hooks/useReveal';
+import { photo } from '../data/site';
 
 const CARDS = [
   {

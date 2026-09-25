@@ -1,19 +1,41 @@
+import { useEffect, useState } from 'react';
 import Icon from './Icon';
- import { photo } from '../data/site';
 import SideDecor from './SideDecor';
 import { useQuote } from '../context/QuoteContext';
 import { useReveal } from '../hooks/useReveal';
+import { photo } from '../data/site';
 
-const CARDS: Array<{ icon: string; title: string; desc: string; accent?: boolean }> = [
-  { icon: 'i-heart', title: 'Medical Emergency Coverage', desc: 'Eligible treatment and hospital costs.' },
-  { icon: 'i-headset', title: 'Emergency Assistance', desc: 'A helpline when something goes wrong.' },
-  { icon: 'i-steth', title: 'Hospital & Doctor Support', desc: 'Guidance to find care nearby.' },
-  { icon: 'i-shield', title: 'Travel Protection', desc: 'Cover for eligible trip disruptions.', accent: true },
+const CARDS: Array<{ title: string; desc: string; tone: string }> = [
+  { title: 'Medical Emergency Coverage', desc: 'Eligible treatment and hospital costs.', tone: 'blue' },
+  { title: 'Emergency Assistance', desc: 'A helpline when something goes wrong.', tone: 'green' },
+  { title: 'Hospital & Doctor Support', desc: 'Guidance to find care nearby.', tone: 'amber' },
+  { title: 'Travel Protection', desc: 'Cover for eligible trip disruptions.', tone: 'rose' },
+];
+
+// Add more photos here later — the carousel and dots activate automatically once there's more than one.
+const VISITOR_SLIDES = [
+  { src: photo('visitor-main.jpg'), alt: 'Family spending time together at home during a visit abroad' },
+  { src: photo('visitor-2.png'), alt: 'Indian parents sharing tea with their daughter at home, luggage packed by the door' },
+  { src: photo('visitor-3.png'), alt: 'Indian grandparents walking with their granddaughter beside the Thames in London' },
+];
+
+const MAP_PINS = [
+  { name: 'USA', left: '19%', top: '46%' },
+  { name: 'Canada', left: '21%', top: '25%' },
+  { name: 'India', left: '68%', top: '54%' },
+  { name: 'Schengen', left: '46%', top: '37%' },
 ];
 
 export default function VisitorInsurance() {
   const { openQuote } = useQuote();
   const reveal = useReveal<HTMLDivElement>();
+  const [slide, setSlide] = useState(0);
+
+  useEffect(() => {
+    if (VISITOR_SLIDES.length < 2) return;
+    const t = setInterval(() => setSlide((s) => (s + 1) % VISITOR_SLIDES.length), 4000);
+    return () => clearInterval(t);
+  }, []);
 
   return (
     <section className="sec" id="visitor" style={{ background: 'var(--cloud)' }}>
@@ -23,19 +45,40 @@ export default function VisitorInsurance() {
         { name: 'i-passport', side: 'right', top: '62%', size: 32, rotate: 6, opacity: 0.14 },
         { name: 'i-globe', side: 'right', top: '10%', size: 90, rotate: 10, opacity: 0.06 },
       ]} />
-      <div className={`wrap split z1 ${reveal.className}`} ref={reveal.ref as any}>
+      <div className={`wrap split vsplit z1 ${reveal.className}`} ref={reveal.ref as any}>
         <div className="vcluster">
           <span className="vglow" aria-hidden="true" />
-          <span className="script-tag" style={{ position: 'absolute', left: -8, top: -30, fontSize: 26, color: 'var(--blue)', zIndex: 2 }}>Together, always.</span>
+          <span className="script-tag" style={{ position: 'absolute', left: -8, top: -30, fontSize: 24, color: 'var(--blue)', zIndex: 2 }}>Welcoming parents home with peace of mind.</span>
           <div className="vmain">
-            <img src={photo('visitor-main.jpg')} alt="Family spending time together at home during a visit abroad" loading="lazy" />
+            {VISITOR_SLIDES.map((s, i) => (
+              <img key={s.src} src={s.src} alt={s.alt} loading={i === 0 ? 'eager' : 'lazy'} className={i === slide ? 'on' : ''} />
+            ))}
+            {VISITOR_SLIDES.length > 1 && (
+              <span className="vdots" role="tablist" aria-label="Visitor insurance photos">
+                {VISITOR_SLIDES.map((s, i) => (
+                  <button
+                    key={s.src}
+                    type="button"
+                    role="tab"
+                    aria-label={`Show photo ${i + 1}`}
+                    aria-selected={i === slide}
+                    className={i === slide ? 'on' : ''}
+                    onClick={() => setSlide(i)}
+                  />
+                ))}
+              </span>
+            )}
           </div>
           <div className="vinset">
-            <img src={photo('visitor-inset.jpg')} alt="World map symbolising international travel" loading="lazy" />
-          </div>
-          <div className="vexp">
-            <span className="vexp-num">30</span>
-            <span className="vexp-txt">Years of<br />experience</span>
+            <span className="vinset-img">
+              <img src={photo('visitor-inset.jpg')} alt="World map highlighting India, the USA, Canada and the Schengen area" loading="lazy" />
+            </span>
+            {MAP_PINS.map((p) => (
+              <span key={p.name} className="vpin" style={{ left: p.left, top: p.top }}>
+                <i />
+                <b>{p.name}</b>
+              </span>
+            ))}
           </div>
         </div>
         <div>
@@ -49,12 +92,11 @@ export default function VisitorInsurance() {
             <span><Icon name="i-check" className="ico g sm" />Instant e-policy by email</span>
             <span><Icon name="i-check" className="ico g sm" />Claims support in your language</span>
           </div>
-          <div className="g2" style={{ marginTop: 24 }}>
+          <div className="vben">
             {CARDS.map((c) => (
-              <div className="card lift" style={{ padding: 20 }} key={c.title}>
-                <div className={`tile${c.accent ? ' g' : ''}`}><Icon name={c.icon} className={c.accent ? 'ico g' : 'ico'} /></div>
-                <h3 className="t3" style={{ marginTop: 12, fontSize: 18 }}>{c.title}</h3>
-                <p className="small">{c.desc}</p>
+              <div className={`vben-card t-${c.tone}`} key={c.title}>
+                <h3>{c.title}</h3>
+                <p>{c.desc}</p>
               </div>
             ))}
           </div>

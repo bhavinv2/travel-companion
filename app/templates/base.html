@@ -76,6 +76,14 @@
 
     <div class="nav-right">
       {% if not is_staff %}
+      {# Support. The help centre first, because most questions are answered there and it carries
+         its own "Contact us" button; sending everyone straight to the form would bury CS in
+         questions the FAQ already answers. Staff have the CS console instead. #}
+      <a href="{{ url_for('main.help_page') }}" class="nav-support{{ ' active' if request.endpoint in ('main.help_page', 'main.help_category', 'main.contact') }}" title="{{ _('Help centre and contact us') }}">
+        <i class="fa-solid fa-headset"></i>
+        <span class="nav-support-tx">{{ _('Support') }}</span>
+      </a>
+
       <!-- Language selector -->
       {% set _cur = (OPT.SITE_LANGUAGES | selectattr('code', 'equalto', CURRENT_LANG) | list | first) %}
       <div class="lang-dd" id="langDD">

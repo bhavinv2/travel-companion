@@ -1,32 +1,54 @@
 import Icon from './Icon';
 import SideDecor from './SideDecor';
 import { useReveal } from '../hooks/useReveal';
-import { fromServer, photo, site } from '../data/site';
+import { photo, site } from '../data/site';
 
 const REVIEWS = [
   {
-    tag: 'Parents visiting children', quote: 'The quote took a few minutes and the plan terms were easy to follow.',
-    name: 'S. Krishnan', place: 'Canada', cc: 'CA', avatar: photo('avatar-1.jpg'),
+    tone: 'amber', tag: 'Easy quote process',
+    quote: 'The quote took a few minutes and the plan terms were easy to follow.',
+    name: 'S. Krishnan', place: 'Canada', avatar: photo('avatar-1.jpg'),
   },
   {
-    tag: 'Family trip', quote: 'Having one number to call while abroad made the whole trip calmer.',
-    name: 'R. Fernandes', place: 'United Kingdom', cc: 'GB', avatar: photo('avatar-2.jpg'),
+    tone: 'blue', tag: '24/7 support',
+    quote: 'Having one number to call while abroad made the whole trip calmer.',
+    name: 'R. Fernandes', place: 'United Kingdom', avatar: photo('avatar-2.jpg'),
   },
   {
-    tag: 'Business travel', quote: 'I uploaded my documents from my phone and could track every step.',
-    name: 'A. Menon', place: 'Singapore', cc: 'SG', avatar: photo('avatar-3.jpg'),
+    tone: 'green', tag: 'Digital claims',
+    quote: 'I uploaded my documents from my phone and could track every step.',
+    name: 'A. Menon', place: 'Singapore', avatar: photo('avatar-3.jpg'),
   },
 ];
 
+/** The colour rotation the shipped three use, continued for however many are saved. */
+const TONES = ['amber', 'blue', 'green'];
+
 export default function Reviews() {
   const reveal = useReveal<HTMLDivElement>();
-  // Testimonials are managed in Admin -> Insurance page. REVIEWS below is what this build
-  // shipped with and is only used when nothing was injected (the dev server).
-  const reviews = fromServer(site.reviews, REVIEWS);
-  const areSamples = site.reviews ? !!site.reviewsAreSamples : true;
+
+  // Testimonials are entered in Admin -> Insurance page. Unlike the FAQs there is no falling back
+  // to the shipped three once the server has spoken: they are invented, and three invented
+  // customers on an insurance page costs more trust than no section at all. The server sends the
+  // samples to staff only, so the section can still be previewed before it is filled.
+  const injected = Array.isArray(site.reviews);
+  const reviews = injected
+    ? site.reviews!.map((r, i) => ({
+        tone: TONES[i % TONES.length],
+        tag: r.tag || '',
+        quote: r.quote,
+        name: r.name,
+        place: r.place || '',
+        avatar: r.photo || photo(`avatar-${(i % 3) + 1}.jpg`),
+      }))
+    : REVIEWS;
+  const areSamples = injected ? !!site.reviewsAreSamples : true;
+
+  if (!reviews.length) return null;
 
   return (
-    <section className="sec">
+    <section className="sec rev-sec">
+      <span className="rev-glow" aria-hidden="true" />
       <SideDecor icons={[
         { name: 'i-star', side: 'left', top: '26%', size: 28, rotate: -12, opacity: 0.14 },
         { name: 'i-users', side: 'left', top: '66%', size: 95, rotate: 10, opacity: 0.06 },
@@ -34,43 +56,37 @@ export default function Reviews() {
         { name: 'i-checkc', side: 'right', top: '12%', size: 80, rotate: -8, opacity: 0.06 },
       ]} />
       <div className={`wrap z1 ${reveal.className}`} ref={reveal.ref as any}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-end', justifyContent: 'space-between' }}>
-          <div>
-            <span className="kick">Reviews</span>
-            <h2 className="h2" style={{ marginTop: 12 }}>What Travellers Say</h2>
-            <span className="script-tag" style={{ fontSize: 22, color: 'var(--blue)' }}>Real trips. Real peace of mind.</span>
-          </div>
+        <div className="center">
+          <span className="kick rev-kick">Reviews</span>
+          <h2 className="h2" style={{ marginTop: 12 }}>What Travellers Say</h2>
+          <span className="script-tag" style={{ fontSize: 22, color: 'var(--marigold)' }}>Real trips. Real peace of mind.</span>
+          <p className="lead" style={{ marginTop: 12, maxWidth: 520 }}>
+            What families tell us after insuring a trip with our team.
+          </p>
           {areSamples && (
-            <span className="chip" style={{ background: 'var(--cloud)', color: 'var(--slate)', border: '1px solid var(--mist)', fontSize: 13 }}>
-              <Icon name="i-info" className="ico s xs" />Sample reviews &middot; add real ones in Admin &rarr; Insurance page
-            </span>
+            <p className="tiny" style={{ marginTop: 10 }}>
+              Sample reviews &middot; add real ones in Admin &rarr; Insurance page
+            </p>
           )}
         </div>
-        <div className="g3" style={{ marginTop: 36 }}>
+        <div className="rev-grid">
           {reviews.map((r) => (
-            <figure className="card lift rev" key={r.name}>
-              <div className="rev-top">
-                <span className="stars" aria-label="5 out of 5 stars">
-                  {Array.from({ length: 5 }, (_, i) => <Icon key={i} name="i-star" className="star" />)}
-                </span>
-                <span className="chip" style={{ fontSize: 13, minHeight: 28 }}>{r.tag}</span>
-              </div>
-              <blockquote>&ldquo;{r.quote}&rdquo;</blockquote>
+            <figure className={`rev t-${r.tone}`} key={r.name}>
+              <span className="rev-mark" aria-hidden="true">&rdquo;</span>
+              <span className="stars" aria-label="5 out of 5 stars">
+                {Array.from({ length: 5 }, (_, i) => <Icon key={i} name="i-star" className="star" />)}
+              </span>
+              <blockquote>{r.quote}</blockquote>
               <figcaption>
-                <img
-                  src={(r as { avatar?: string }).avatar || r.photo || photo('avatar-1.jpg')}
-                  alt={r.name}
-                  width={44}
-                  height={44}
-                  loading="lazy"
-                  style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-                />
-                <span style={{ flex: 1 }}>
-                  <span style={{ display: 'block', fontWeight: 600 }}>{r.name}</span>
-                  <span className="tiny">{r.place}</span>
+                <span className="rev-av">
+                  <img src={r.avatar} alt="" width={46} height={46} loading="lazy" decoding="async" />
                 </span>
-                <span className="cc">{r.cc}</span>
+                <span className="rev-who">
+                  <b>{r.name}</b>
+                  <span>{r.place}</span>
+                </span>
               </figcaption>
+              <span className="rev-tag">{r.tag}</span>
             </figure>
           ))}
         </div>

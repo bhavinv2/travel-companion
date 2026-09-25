@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import Icon from './Icon';
 import CountrySelect, { DialSelect } from './CountrySelect';
-import AgeGrid from './AgeGrid';
 import { useQuote } from '../context/QuoteContext';
 import { buildQuoteUrl } from '../utils/quoteUrl';
 import { planFor, requestQuoteUrl } from '../utils/quoteRequest';
@@ -10,7 +9,7 @@ const today = new Date().toISOString().slice(0, 10);
 const TITLES = ['Tell us about your trip', 'Who is travelling?', 'Your quotes are ready'];
 
 export default function QuoteModal() {
-  const { quoteOpen, closeQuote, step, goStep, form, setForm, setAge, setTravellers } = useQuote();
+  const { quoteOpen, closeQuote, step, goStep, form, setForm, setAge, addTraveller, removeTraveller } = useQuote();
   const lastFocus = useRef<HTMLElement | null>(null);
   const url = buildQuoteUrl(form);
 
@@ -41,8 +40,8 @@ export default function QuoteModal() {
     if (!quoteOpen || step !== 3) return;
     let cancelled = false;
     const t = setTimeout(async () => {
-      // Same hand-off as the plan form: our endpoint prices and records it, and the direct
-      // partner link is the fallback so nobody is left on a spinner.
+      // Same hand-off as the plan form: our endpoint prices and records it, the direct partner
+      // link is the fallback so nobody is left watching a spinner.
       const served = await requestQuoteUrl({
         plan: planFor(form.destination),
         start: form.start,
@@ -116,18 +115,6 @@ export default function QuoteModal() {
                     <input className="inp" id="m-end" type="date" min={form.start || today} value={form.end} onChange={(e) => setForm({ end: e.target.value })} />
                   </span>
                 </p>
-                <div className="fg">
-                  <span className="lbl" id="travLbl">Number of travellers</span>
-                  <div className="stepper" style={{ border: '1.5px solid var(--mist)', borderRadius: 12, minHeight: 52, justifyContent: 'space-between', padding: '0 6px' }} role="group" aria-labelledby="travLbl">
-                    <button className="sbtn" type="button" aria-label="Remove a traveller" style={{ border: 0, background: 'var(--sky)' }} disabled={form.travellers <= 1} onClick={() => setTravellers(form.travellers - 1)}>
-                      <Icon name="i-minus" className="ico n sm" />
-                    </button>
-                    <output style={{ fontSize: 17, fontWeight: 600 }}>{form.travellers === 1 ? '1 traveller' : `${form.travellers} travellers`}</output>
-                    <button className="sbtn" type="button" aria-label="Add a traveller" style={{ border: 0, background: 'var(--sky)' }} disabled={form.travellers >= 6} onClick={() => setTravellers(form.travellers + 1)}>
-                      <Icon name="i-plus" className="ico sm" />
-                    </button>
-                  </div>
-                </div>
                 <p className="fg">
                   <label className="lbl" htmlFor="m-cit">Citizenship</label>
                   <span className="iw"><Icon name="i-passport" className="ico sm" />
@@ -141,12 +128,33 @@ export default function QuoteModal() {
                   </span>
                 </p>
               </div>
-              <div style={{ marginTop: 18, background: 'var(--sky)', borderRadius: 16, padding: '16px 18px' }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 14, fontWeight: 600 }}>Traveller ages</span>
-                  <span className="tiny">Age on the trip start date</span>
+              <div className="iform-ages" style={{ marginTop: 18, background: 'var(--sky)', borderRadius: 16, padding: '16px 18px' }}>
+                <div className="iform-ages-hd">
+                  <label className="lbl" style={{ marginBottom: 0 }}>Traveller ages <span style={{ color: 'var(--blue)' }}>*</span></label>
+                  <button className="add-traveller" type="button" onClick={addTraveller} disabled={form.ages.length >= 8}>
+                    <Icon name="i-plus" className="ico sm" />Add traveller
+                  </button>
                 </div>
-                <AgeGrid count={form.travellers} prefix="age" values={form.ages} onChange={setAge} style={{ gridTemplateColumns: 'repeat(6,minmax(0,1fr))' }} />
+                <div className="age-row">
+                  {form.ages.map((v, i) => (
+                    <span className="age-chip" key={i}>
+                      <span className="num">{i + 1}</span>
+                      <input
+                        type="number" min={0} max={110} inputMode="numeric"
+                        aria-label={`Age of traveller ${i + 1}`}
+                        placeholder={i === 0 ? 'e.g. 65' : 'Age'}
+                        value={v}
+                        onChange={(e) => setAge(i, e.target.value)}
+                      />
+                      {form.ages.length > 1 && (
+                        <button type="button" aria-label={`Remove traveller ${i + 1}`} onClick={() => removeTraveller(i)}>
+                          <Icon name="i-x" className="ico s xs" />
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                </div>
+                <p className="tiny" style={{ marginTop: 10 }}>Age on the trip start date &mdash; each age is priced separately.</p>
               </div>
               <div className="modal-ft">
                 <span className="tiny" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

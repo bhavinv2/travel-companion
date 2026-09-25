@@ -1,20 +1,22 @@
 import { useEffect, useState } from 'react';
 import Icon from './Icon';
-import CountrySelect, { DialSelect } from './CountrySelect';
+import { PhoneCombo, DestinationCombo } from './CountryCombo';
 import { useQuote } from '../context/QuoteContext';
-import { site } from '../data/site';
+import { photo, site } from '../data/site';
 
-// Fallback only: the live page injects the number staff set in Admin -> Landing page.
+// Fallback only: the served page injects the number staff set in the admin screens.
 const WHATSAPP_NUMBER = '918019111360';
 
 export default function WelcomePopup() {
   const { consultOpen, openConsult, closeConsult, quoteOpen } = useQuote();
   const [name, setName] = useState('');
   const [country, setCountry] = useState('India');
+  const [countryInvalid, setCountryInvalid] = useState(false);
   const [dial, setDial] = useState('+91');
   const [tel, setTel] = useState('');
   const [email, setEmail] = useState('');
   const [travel, setTravel] = useState('Canada');
+  const [travelInvalid, setTravelInvalid] = useState(false);
   const [sent, setSent] = useState(false);
   const [waUrl, setWaUrl] = useState('');
 
@@ -62,6 +64,10 @@ export default function WelcomePopup() {
       e.currentTarget.reportValidity();
       return;
     }
+    let ok = true;
+    if (!country) { setCountryInvalid(true); ok = false; }
+    if (!travel) { setTravelInvalid(true); ok = false; }
+    if (!ok) return;
     const lines = [
       'Hello! I would like a travel insurance consultation.', '',
       `Name: ${name}`,
@@ -73,8 +79,8 @@ export default function WelcomePopup() {
     const number = (site.whatsapp || WHATSAPP_NUMBER).replace(/[^0-9]/g, '');
     setWaUrl(`https://api.whatsapp.com/send/?phone=${number}&text=${encodeURIComponent(lines.join('\n'))}`);
 
-    // Same reasoning as the expert form: this is a lead, and a WhatsApp link that somebody never
-    // clicks leaves no trace of it. Record first, hand off second.
+    // A WhatsApp link somebody never clicks leaves no trace of the enquiry. Record it in the inbox
+    // CS already works from first, hand off second; a failed POST must not block the hand-off.
     if (site.enquiryUrl) {
       try {
         await fetch(site.enquiryUrl, {
@@ -114,25 +120,25 @@ export default function WelcomePopup() {
                 <Icon name="i-user" className="ico s sm" />
                 <input className="cinp" type="text" placeholder="Name" required value={name} onChange={(e) => setName(e.target.value)} />
               </span>
-              <span className="cfield">
-                <Icon name="i-globe" className="ico s sm" />
-                <CountrySelect value={country} onChange={setCountry} className="cinp csel" required placeholder="Country" />
-                <Icon name="i-chev" className="ico s xs cfield-chev" rotate={90} />
-              </span>
-              <span className="cfield cfield-tel">
-                <Icon name="i-phone" className="ico s sm" />
-                <DialSelect value={dial} onChange={setDial} className="cdial" />
-                <input className="cinp" type="tel" inputMode="tel" placeholder="Mobile Number" required value={tel} onChange={(e) => setTel(e.target.value)} />
-              </span>
+              <div>
+                <label className="lbl" style={{ fontSize: 13, marginBottom: 6 }}>Country</label>
+                <DestinationCombo value={country} invalid={countryInvalid} onChange={(v) => { setCountry(v); setCountryInvalid(false); }} />
+              </div>
+              <div className="xtel">
+                <PhoneCombo dial={dial} onChange={(c) => setDial(`+${c.dial}`)} />
+                <span className="cfield" style={{ flex: 1 }}>
+                  <Icon name="i-phone" className="ico s sm" />
+                  <input className="cinp" type="tel" inputMode="tel" placeholder="Mobile Number" required value={tel} onChange={(e) => setTel(e.target.value)} />
+                </span>
+              </div>
               <span className="cfield">
                 <Icon name="i-mail" className="ico s sm" />
                 <input className="cinp" type="email" placeholder="Email" required value={email} onChange={(e) => setEmail(e.target.value)} />
               </span>
-              <span className="cfield">
-                <Icon name="i-plane" className="ico s sm" />
-                <CountrySelect value={travel} onChange={setTravel} className="cinp csel" required placeholder="Travel to" />
-                <Icon name="i-chev" className="ico s xs cfield-chev" rotate={90} />
-              </span>
+              <div>
+                <label className="lbl" style={{ fontSize: 13, marginBottom: 6 }}>Travelling to</label>
+                <DestinationCombo value={travel} invalid={travelInvalid} onChange={(v) => { setTravel(v); setTravelInvalid(false); }} />
+              </div>
             </div>
             <button className="cpop-cta" type="submit">
               Book Consultation Now
@@ -146,6 +152,9 @@ export default function WelcomePopup() {
             <h2 className="cpop-h2">Thank You!</h2>
             <p className="cpop-sub2">Get Your Details on <b>WhatsApp</b> with Our Assistance</p>
             <p className="cpop-body">Our team will contact you shortly on WhatsApp to assist you with the next steps.</p>
+            <div className="cpop-pic">
+              <img src={photo('whatsapp-expert.jpg')} alt="Our travel insurance expert, ready to chat on WhatsApp" width={582} height={326} loading="lazy" decoding="async" />
+            </div>
             <a className="cpop-wa" href={waUrl} target="_blank" rel="noopener noreferrer">
               <Icon name="i-whatsapp" className="ico-solid" style={{ width: 22, height: 22 }} />
               Chat with Us on WhatsApp

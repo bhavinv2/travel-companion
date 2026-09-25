@@ -22,7 +22,7 @@ const initialForm: QuoteForm = {
   start: '',
   end: '',
   travellers: 2,
-  ages: [],
+  ages: ['', ''],
   citizenship: 'India',
   residence: 'India',
   name: '',
@@ -39,6 +39,8 @@ interface QuoteContextValue {
   setForm: (patch: Partial<QuoteForm>) => void;
   setAge: (index: number, value: string) => void;
   setTravellers: (n: number) => void;
+  addTraveller: () => void;
+  removeTraveller: (index: number) => void;
 
   quoteOpen: boolean;
   step: 1 | 2 | 3;
@@ -63,10 +65,30 @@ export function QuoteProvider({ children }: { children: ReactNode }) {
     setFormState((f) => ({ ...f, ...patch }));
   }, []);
 
+  const MAX_TRAVELLERS = 8;
+
+  /** travellers is kept in step with the ages list, which is what the form edits. */
   const setTravellers = useCallback((n: number) => {
     setFormState((f) => {
-      const travellers = Math.min(6, Math.max(1, n));
-      return { ...f, travellers };
+      const travellers = Math.min(MAX_TRAVELLERS, Math.max(1, n));
+      const ages = Array.from({ length: travellers }, (_, i) => f.ages[i] ?? '');
+      return { ...f, travellers, ages };
+    });
+  }, []);
+
+  const addTraveller = useCallback(() => {
+    setFormState((f) => {
+      if (f.ages.length >= MAX_TRAVELLERS) return f;
+      const ages = [...f.ages, ''];
+      return { ...f, ages, travellers: ages.length };
+    });
+  }, []);
+
+  const removeTraveller = useCallback((index: number) => {
+    setFormState((f) => {
+      if (f.ages.length <= 1) return f;
+      const ages = f.ages.filter((_, i) => i !== index);
+      return { ...f, ages, travellers: ages.length };
     });
   }, []);
 
@@ -92,11 +114,11 @@ export function QuoteProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<QuoteContextValue>(
     () => ({
-      form, setForm, setAge, setTravellers,
+      form, setForm, setAge, setTravellers, addTraveller, removeTraveller,
       quoteOpen, step, goStep, openQuote, closeQuote,
       consultOpen, openConsult, closeConsult,
     }),
-    [form, setForm, setAge, setTravellers, quoteOpen, step, goStep, openQuote, closeQuote, consultOpen, openConsult, closeConsult],
+    [form, setForm, setAge, setTravellers, addTraveller, removeTraveller, quoteOpen, step, goStep, openQuote, closeQuote, consultOpen, openConsult, closeConsult],
   );
 
   return <QuoteContext.Provider value={value}>{children}</QuoteContext.Provider>;

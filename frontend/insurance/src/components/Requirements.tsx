@@ -2,14 +2,15 @@ import Icon from './Icon';
 import SideDecor from './SideDecor';
 import { useQuote } from '../context/QuoteContext';
 import { useReveal } from '../hooks/useReveal';
+import { photo } from '../data/site';
 
 const ITEMS = [
-  { icon: 'i-pin', title: 'Destination', desc: 'Country and region rules' },
-  { icon: 'i-passport', title: 'Visa type', desc: 'Some visas need proof of cover' },
-  { icon: 'i-stamp', title: 'Immigration', desc: 'Entry conditions on arrival' },
-  { icon: 'i-flag', title: 'Schengen rules', desc: 'Minimum medical cover applies' },
-  { icon: 'i-ticket', title: 'Airline & trip terms', desc: 'Carrier or tour conditions' },
-  { icon: 'i-landmark', title: 'Local regulations', desc: 'Rules can change, check first' },
+  { photo: 'destination', tone: 'blue', title: 'Destination', alt: 'Globe and landmark models on an old world map' },
+  { photo: 'visa-type', tone: 'amber', title: 'Visa type', alt: 'Passport with entry stamps beside a medical check form' },
+  { photo: 'immigration', tone: 'blue', title: 'Immigration', alt: 'Immigration officer stamping a passport on arrival' },
+  { photo: 'schengen-rules', tone: 'indigo', title: 'Schengen rules', alt: 'Schengen visa insurance policy documents and an EU flag' },
+  { photo: 'airline-trip', tone: 'rose', title: 'Airline & trip terms', alt: 'Airport departure board above waiting suitcases' },
+  { photo: 'local-regulations', tone: 'teal', title: 'Local regulations', alt: 'Local regulations notice mounted on a stone wall' },
 ];
 
 export default function Requirements() {
@@ -17,7 +18,8 @@ export default function Requirements() {
   const reveal = useReveal<HTMLDivElement>();
 
   return (
-    <section className="sec">
+    <section className="sec req-sec">
+      <span className="req-glow" aria-hidden="true" />
       <SideDecor icons={[
         { name: 'i-stamp', side: 'left', top: '20%', size: 30, rotate: -8, opacity: 0.14 },
         { name: 'i-landmark', side: 'left', top: '66%', size: 95, rotate: 6, opacity: 0.06 },
@@ -26,27 +28,26 @@ export default function Requirements() {
       ]} />
       <div className={`wrap split z1 ${reveal.className}`} ref={reveal.ref as any}>
         <div>
-          <span className="kick">Travel requirements</span>
+          <span className="kick req-kick">Travel requirements</span>
           <h2 className="h2" style={{ marginTop: 12 }}>Is Travel Insurance Mandatory?</h2>
           <span className="script-tag" style={{ fontSize: 22, color: 'var(--blue)' }}>Know before you go.</span>
           <p className="lead" style={{ marginTop: 14 }}>It depends on where you're going and why. Requirements differ by destination, visa and trip.</p>
-          <div style={{ marginTop: 22, background: 'var(--sky)', borderRadius: 20, padding: '20px 22px', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-            <span className="tile" style={{ background: '#fff' }}><Icon name="i-info" /></span>
+          <div className="req-note">
+            <span className="req-note-ic"><Icon name="i-info" /></span>
             <span>
-              <span style={{ display: 'block', fontSize: 17, fontWeight: 600, lineHeight: 1.4 }}>Check the requirements for your destination before travelling.</span>
-              <span className="small">Embassy and immigration sources have the final word.</span>
+              <b>Check the requirements for your destination before travelling.</b>
+              <span>Embassy and immigration sources have the final word.</span>
             </span>
           </div>
           <button className="btn btn-p full" type="button" style={{ marginTop: 22 }} onClick={() => openQuote()}>Check Your Coverage Options</button>
         </div>
-        <div className="g2">
+        <div className="req-grid">
           {ITEMS.map((it) => (
-            <div className="card lift" style={{ padding: 18, display: 'flex', gap: 14, alignItems: 'center' }} key={it.title}>
-              <span className="tile"><Icon name={it.icon} /></span>
-              <span>
-                <span style={{ display: 'block', fontWeight: 600, fontSize: 17 }}>{it.title}</span>
-                <span className="tiny">{it.desc}</span>
-              </span>
+            <div className={`req-card t-${it.tone}`} key={it.title}>
+              <div className="req-img">
+                <img src={photo(`requirements/${it.photo}.jpg`)} alt={it.alt} width={720} height={360} loading="lazy" decoding="async" />
+                <span className="req-badge">{it.title}</span>
+              </div>
             </div>
           ))}
         </div>

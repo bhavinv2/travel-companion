@@ -53,15 +53,19 @@ def landing():
     # section does. Real ones are entered in Admin -> Insurance page.
     samples = insurance_page.is_using_samples()
     staff = current_user.is_authenticated and (current_user.is_admin or current_user.is_cs)
+    # Both teams, each labelled, so the page can offer a caller the number in their own country
+    # instead of one number and a long-distance charge. Unset numbers are left out rather than
+    # shown: the rule everywhere else on the site is never to publish a line nobody answers.
     wa = (settings.whatsapp_numbers() or {})
-    number = wa.get('in') or wa.get('us')
+    phones = [dict(label=label, **wa[key]) for key, label in (('in', 'India'), ('us', 'USA'))
+              if wa.get(key)]
     return render_template('insurance/landing.html',
                            reviews=[] if (samples and not staff) else insurance_page.reviews(),
                            reviews_are_samples=samples,
                            faqs=[{'question': f['question'], 'answer': f['answer']} for f in _faqs()],
                            countries={name: code for code, name in insurance_countries.ALL},
-                           whatsapp_number=number['digits'] if number else '',
-                           whatsapp_display=number['display'] if number else '',
+                           whatsapp_number=phones[0]['digits'] if phones else '',
+                           support_phones=phones,
                            canonical_url=_canonical())
 
 

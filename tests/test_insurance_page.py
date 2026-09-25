@@ -99,11 +99,39 @@ def test_the_public_never_sees_invented_customers(client, db, cs_user):
 
 
 def test_contact_details_come_from_settings(client, db):
-    """The bundle ships a hard-coded support address and number; the server overrides both, so
-    the page can never advertise a mailbox or a number nobody is watching."""
+    """The bundle ships a hard-coded support address and two numbers; the server overrides them,
+    so the page can never advertise a mailbox or a line nobody is watching."""
     data, _ = injected(client)
     assert data['supportEmail'] == 'support@connectingdesis.com'
-    assert 'whatsapp' in data and 'supportPhone' in data
+    # Nothing is set in a fresh install, so nothing is published. The bundle then shows what it
+    # shipped with -- but the server never invents a number on the business's behalf.
+    assert data['supportPhones'] == []
+    assert data['whatsapp'] == ''
+
+
+def test_both_support_teams_are_published_with_their_country(client, db):
+    """+91 and +1 mean nothing on their own. Whoever is calling should be able to pick the team in
+    their own country instead of paying for a long-distance call to the other one."""
+    from app.services import settings
+    settings.set_landing_settings({'whatsapp_in': '+91 80191 11360', 'whatsapp_us': '+1 917 900 5094'})
+
+    data, _ = injected(client)
+    assert [p['label'] for p in data['supportPhones']] == ['India', 'USA']
+    india = data['supportPhones'][0]
+    assert india['display'] == '+91 80191 11360'   # as staff typed it, for reading
+    assert india['digits'] == '918019111360'       # digits only, for tel: and wa.me
+    # the forms' WhatsApp hand-off uses the first team
+    assert data['whatsapp'] == '918019111360'
+
+
+def test_a_cleared_number_stops_being_published(client, db):
+    """Taking a line out of the admin screen has to take it off the page, or the page keeps
+    advertising a number that now rings nowhere."""
+    from app.services import settings
+    settings.set_landing_settings({'whatsapp_in': '+91 80191 11360', 'whatsapp_us': ''})
+
+    data, _ = injected(client)
+    assert [p['label'] for p in data['supportPhones']] == ['India']
 
 
 def test_the_quote_goes_through_our_own_endpoint(client, db):

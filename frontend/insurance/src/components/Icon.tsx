@@ -6,9 +6,13 @@ interface IconProps {
 }
 
 export default function Icon({ name, className = 'ico', rotate, style }: IconProps) {
+  const combinedStyle = rotate
+    ? { ...style, transform: `rotate(${rotate}deg)` }
+    : style;
+
   return (
-    <svg className={className} style={style} aria-hidden="true">
-      <use href={`#${name}`} transform={rotate ? `rotate(${rotate} 12 12)` : undefined} />
+    <svg className={className} style={combinedStyle} aria-hidden="true">
+      <use href={`#${name}`} />
     </svg>
   );
 }
