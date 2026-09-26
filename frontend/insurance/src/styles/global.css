@@ -686,20 +686,30 @@ button{font-family:inherit}
 .iw{position:relative;display:block}
 .iw .ico{position:absolute;left:14px;top:16px;pointer-events:none}
 .inp{width:100%;min-height:52px;border:1.5px solid var(--mist);border-radius:12px;padding:0 14px 0 44px;font-family:var(--sans);font-size:16px;color:var(--navy);background:#fff;outline:none;appearance:none}
-.inp:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(0,78,254,.12)}
+.inp:focus{border-color:var(--blue)}
 .inp.plain{padding-left:14px}
-/* Date fields: draw our own dd-mm-yyyy hint so it reads the same on every browser and tablet,
-   instead of relying on the native one.
+/* Focus, quietly.
 
-   Both rules are scoped to :not(:focus). The hint sits exactly where the native day/month/year
-   segments render, and the field counts as empty until all three are filled -- so while somebody
-   was typing, their digits were transparent underneath a hint that stayed put. The field looked
-   dead until the last keystroke. Focused, the native editor is always visible and the hint is
-   not. */
-.inp.is-empty:not(:focus)::-webkit-datetime-edit{color:transparent}
-.date-ph{position:absolute;left:44px;top:50%;transform:translateY(-50%);
-  pointer-events:none;font-family:var(--sans);font-size:16px;color:var(--slate);opacity:.75}
-.iw:focus-within .date-ph{display:none}
+   This page is embedded in the site's shell, and that stylesheet styles every
+   input[type=...]:focus with `border-color:#2f80ed !important` plus a 3.5px ring -- its own blue,
+   not this page's, and heavy enough to read as a box drawn around the field. An element selector
+   with an attribute out-specifies a plain .inp:focus, so these are scoped to #root (which the
+   embedded page and the dev server both have) in order to win.
+
+   No ring at all now: a 1.5px border moving from #DCE3F0 to #004EFE is a large enough change to
+   show focus on its own. */
+#root input:focus, #root select:focus, #root textarea:focus{box-shadow:none}
+#root .inp:focus, #root .xinp:focus, #root .itel-search:focus, #root .spop-ta:focus{
+  border-color:var(--blue) !important}
+#root .cfield:focus-within, #root .idest:focus-within, #root .itel:focus-within{
+  border-color:var(--blue)}
+/* Date fields show the browser's own placeholder and the browser's own value, with nothing drawn
+   over them. There used to be a hand-drawn "dd-mm-yyyy" hint positioned on top of the field, and
+   the native text was forced transparent whenever React believed the field was empty. It bought a
+   hint that reads the same in every browser, and it cost far more than that is worth: the display
+   depended on a React copy of the value agreeing with the DOM, so any disagreement between them
+   showed a placeholder sitting on top of a date somebody had just picked. The browser already
+   knows whether it is empty, and it is never wrong about that. */
 .inp-s{padding:0 12px;min-height:48px}
 .tel{display:flex;gap:10px}
 .tel select{flex:0 0 132px;min-height:52px;border:1.5px solid var(--mist);border-radius:12px;padding:0 10px;font-family:var(--sans);font-size:16px;background:#fff;color:var(--navy)}
@@ -878,7 +888,7 @@ a.ec-v:hover{color:var(--blue)}
   background:#FBFCFF;outline:none;appearance:none;
   transition:border-color .2s,box-shadow .2s,background .2s}
 .xinp:hover{border-color:#BFD0F5}
-.xinp:focus{border-color:var(--blue);background:#fff;box-shadow:0 0 0 4px rgba(0,78,254,.13)}
+.xinp:focus{border-color:var(--blue);background:#fff}
 .xlbl{display:block;font-size:14px;font-weight:600;color:var(--navy);margin:16px 0 8px}
 .xlbl:first-child{margin-top:0}
 .xinp::placeholder{color:#8A93A6}
@@ -912,7 +922,7 @@ a.ec-v:hover{color:var(--blue)}
 .idest-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:52px;padding:0 16px;border:1.5px solid var(--mist);border-radius:12px;background:#fff;font-family:var(--sans);font-size:15.5px;color:var(--navy);cursor:pointer;text-align:left;
   transition:border-color .2s,box-shadow .2s}
 .idest-btn:hover{border-color:#BFD0F5}
-.idest-btn:focus-visible,.idest-btn[aria-expanded="true"]{border-color:var(--blue);box-shadow:0 0 0 4px rgba(0,78,254,.12);outline:none}
+.idest-btn:focus-visible,.idest-btn[aria-expanded="true"]{border-color:var(--blue);outline:none}
 .idest-btn.invalid{border-color:#D6336C}
 .idest-val{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .idest-val.ph{color:#8A93A6}
@@ -977,7 +987,9 @@ a.ec-v:hover{color:var(--blue)}
   .rev{padding:20px}
 }
 /* floating WhatsApp button */
-.wafab{position:fixed;left:22px;bottom:22px;z-index:9010;display:flex;align-items:center;justify-content:center;width:60px;height:60px;border-radius:50%;background:#25D366;box-shadow:0 12px 30px rgba(37,211,102,.5),0 0 0 0 rgba(37,211,102,.5);animation:wapulse 2.4s ease-out infinite;transition:left .45s cubic-bezier(.2,.7,.3,1),right .45s cubic-bezier(.2,.7,.3,1),transform .2s}
+/* Below the overlay, not above it. At 9010 this floated on top of every open modal, which
+   is why CountryCombo carries code to dodge it when placing a popover. A modal is modal. */
+.wafab{position:fixed;left:22px;bottom:22px;z-index:8990;display:flex;align-items:center;justify-content:center;width:60px;height:60px;border-radius:50%;background:#25D366;box-shadow:0 12px 30px rgba(37,211,102,.5),0 0 0 0 rgba(37,211,102,.5);animation:wapulse 2.4s ease-out infinite;transition:left .45s cubic-bezier(.2,.7,.3,1),right .45s cubic-bezier(.2,.7,.3,1),transform .2s}
 .wafab:hover{transform:scale(1.07)}
 .wafab-tip{position:absolute;left:72px;white-space:nowrap;background:#011038;color:#fff;font-size:13px;font-weight:600;padding:8px 12px;border-radius:10px;opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease;transform:translateX(-6px)}
 .wafab:hover .wafab-tip{opacity:1;transform:none}

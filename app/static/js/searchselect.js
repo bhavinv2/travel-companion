@@ -34,6 +34,14 @@
 
   function build(sel) {
     if (sel.dataset.ssDone || sel.hasAttribute('data-no-search')) return;
+    // Not inside a React root. The travel-insurance page mounts a bundle at #root that renders
+    // its own selects, including ones that appear later inside its modals -- and the observer
+    // below sees those the moment they are added. Wrapping them replaced a working control with
+    // a hidden one plus a widget positioned by this file, which on that page showed up as a
+    // dropdown that would not open properly; it also writes back to sel.value directly, which
+    // React does not notice, so the component's state silently stopped matching the field.
+    // A framework owns the DOM it renders. Leave it alone.
+    if (sel.closest('#root')) return;
     sel.dataset.ssDone = '1';
 
     const wrap = document.createElement('div');

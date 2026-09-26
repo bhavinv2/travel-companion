@@ -433,25 +433,41 @@ def test_the_page_speaks_with_one_cta_vocabulary(db):
     assert text.count('Talk to an Expert') >= 3
 
 
-def test_the_date_hint_gets_out_of_the_way_when_you_type(db):
-    """"Coverage ends" draws its own dd-mm-yyyy hint, because the native one reads differently on
-    every browser. The hint sits exactly where the day/month/year segments render, and the field
-    counts as empty until all three are filled -- so while somebody typed, their digits were
-    transparent underneath a hint that stayed put and the field looked dead.
+def test_the_date_field_is_left_to_the_browser(db):
+    """"Coverage ends" used to have a hand-drawn dd-mm-yyyy hint positioned over it, with the
+    native text forced transparent whenever React believed the field was empty.
 
-    Both rules are scoped to :not(:focus) / :focus-within. Checked in the stylesheet, because it
-    is one careless edit away from coming back and nothing else would catch it.
+    That made the display depend on a React copy of the value agreeing with the DOM, and when they
+    disagreed the field showed a placeholder on top of a date somebody had just picked -- it looked
+    empty until you clicked back into it. The browser already knows whether a date input is empty.
     """
+    import os
+    root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        'frontend', 'insurance', 'src')
+    css = open(os.path.join(root, 'styles', 'global.css'), encoding='utf-8').read()
+    form = open(os.path.join(root, 'components', 'InsuranceQuoteForm.tsx'), encoding='utf-8').read()
+
+    assert 'date-ph' not in css and 'date-ph' not in form
+    assert 'is-empty' not in css and 'is-empty' not in form
+    assert '::-webkit-datetime-edit' not in css
+
+
+def test_a_focused_field_is_not_drawn_a_box_around(db):
+    """The site shell this page is embedded in styles every input[type=...]:focus with a 3.5px
+    ring in its own blue, !important, which out-specifies a plain .inp:focus. Focus is shown by
+    the border colour instead -- #DCE3F0 to #004EFE on a 1.5px border, which is change enough."""
     import os
     css = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                        'frontend', 'insurance', 'src', 'styles', 'global.css')
     text = open(css, encoding='utf-8').read()
 
-    assert '.inp.is-empty:not(:focus)::-webkit-datetime-edit{color:transparent}' in text
-    assert '.iw:focus-within .date-ph{display:none}' in text
-    # the unconditional form is what caused it
-    assert '.inp.is-empty::-webkit-datetime-edit' not in text.replace(
-        '.inp.is-empty:not(:focus)::-webkit-datetime-edit', '')
+    assert '#root input:focus, #root select:focus, #root textarea:focus{box-shadow:none}' in text
+    assert '#root .inp:focus' in text and 'border-color:var(--blue) !important' in text
+    # no glow rings left on any field -- including the country combo's button, which looks
+    # like one. (.vpin is a pulsing map marker, not a field, and keeps its ring.)
+    for selector in ('.inp:focus', '.xinp:focus', '.idest-btn:focus-visible'):
+        rule = text.split(selector, 1)[1].split('}', 1)[0]
+        assert 'box-shadow' not in rule, selector
 
 
 def test_the_quote_form_has_no_client_side_partner_url(db):
@@ -550,3 +566,59 @@ def test_the_quote_cta_is_not_repeated_into_noise(db):
     whyrail = open(os.path.join(root, 'WhyRail.tsx'), encoding='utf-8').read()
     assert 'wtile-cta' not in whyrail
     assert 'openQuote' not in whyrail
+
+
+def test_the_date_fields_are_left_uncontrolled(db):
+    """"The coverage end date must be on or after the start date" was the server correctly
+    describing an EMPTY field. The visitor had picked one, but `value={end}` meant every later
+    keystroke in the form re-rendered the input and wrote '' back over their date -- so it
+    vanished between choosing it and pressing the button.
+
+    The browser owns these values now; React reads them from refs on submit.
+    """
+    import os
+    p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     'frontend', 'insurance', 'src', 'components', 'InsuranceQuoteForm.tsx')
+    src = open(p, encoding='utf-8').read()
+    dates = re.findall(r'<input\b[^>]*type="date"[^>]*(?:/>|>)', src, re.S)
+    assert len(dates) == 2, len(dates)
+    for tag in dates:
+        assert 'ref={' in tag, tag[:90]
+        assert re.search(r'\bvalue=\{', tag) is None, 'a controlled date field is back: ' + tag[:90]
+    # and submit reads the fields, not the mirrored state
+    assert 'startRef.current?.value' in src and 'endRef.current?.value' in src
+
+
+def test_no_bare_number_can_leak_into_the_quote_form(db):
+    """`{'' || list.length && <x/>}` renders 0 as text when the list is empty -- which is where a
+    stray "0" above the quote button came from."""
+    import os
+    p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     'frontend', 'insurance', 'src', 'components', 'InsuranceQuoteForm.tsx')
+    src = open(p, encoding='utf-8').read()
+    assert 'Boolean(site.priceFrom || site.assurances?.length)' in src
+    assert '{(site.priceFrom || site.assurances?.length) &&' not in src
+
+
+def test_the_site_widgets_leave_the_react_app_alone(db):
+    """searchselect.js wraps every <select> on the page in its own button+popup, and it watches
+    the whole body -- so it caught the ones the bundle renders inside its modals, replacing a
+    working control with a hidden select and a widget it positioned itself. It also writes back to
+    select.value directly, which React never hears."""
+    import os
+    js = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                      'app', 'static', 'js', 'searchselect.js')
+    text = open(js, encoding='utf-8').read()
+    assert "if (sel.closest('#root')) return;" in text
+
+
+def test_a_modal_covers_the_whatsapp_button(db):
+    """At z-index 9010 it floated on top of every open dialog -- which is why CountryCombo carries
+    code to dodge it when placing a popover."""
+    import os
+    css = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       'frontend', 'insurance', 'src', 'styles', 'global.css')
+    text = open(css, encoding='utf-8').read()
+    fab = int(re.search(r'\.wafab\{[^}]*z-index:(\d+)', text).group(1))
+    overlay = int(re.search(r'\.ov\{[^}]*z-index:(\d+)', text).group(1))
+    assert fab < overlay, 'FAB %d should sit under the overlay %d' % (fab, overlay)

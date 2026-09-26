@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Icon from './Icon';
 import { DestinationCombo } from './CountryCombo';
 import SideDecor from './SideDecor';
@@ -47,6 +47,11 @@ export default function InsuranceQuoteForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [quoteUrl, setQuoteUrl] = useState('');
+  // The date inputs are read from directly on submit. A native date picker does not always get a
+  // change event through to React, and when it does not, a controlled value quietly stays empty
+  // while the field on screen shows the date the visitor chose.
+  const startRef = useRef<HTMLInputElement>(null);
+  const endRef = useRef<HTMLInputElement>(null);
 
   function setAge(i: number, v: string) {
     setAges((a) => a.map((x, idx) => (idx === i ? v : x)));
@@ -67,6 +72,23 @@ export default function InsuranceQuoteForm() {
     if (isMedical && !destination) { setDestinationInvalid(true); ok = false; }
     if (!ok) return;
 
+    // What the fields actually hold, not what state believes they hold.
+    const startValue = startRef.current?.value || start;
+    const endValue = endRef.current?.value || end;
+    if (!endValue) {
+      setError('Please choose the date your cover should end.');
+      endRef.current?.focus();
+      return;
+    }
+    if (endValue < startValue) {
+      setError('The end date has to be on or after the start date.');
+      endRef.current?.focus();
+      return;
+    }
+    // keep state in step, so the two fields constrain each other correctly from here on
+    if (startValue !== start) setStart(startValue);
+    if (endValue !== end) setEnd(endValue);
+
     setBusy(true);
     setError('');
     const presection = PLANS.find((p) => p.id === plan)!.presection;
@@ -76,7 +98,9 @@ export default function InsuranceQuoteForm() {
     // drawer on the companion landing.
     const res = await requestQuote({
       plan: planFor(destination, presection),
-      start, end, citizenship, ages, email, phone,
+      start: startValue,
+      end: endValue,
+      citizenship, ages, email, phone,
       destination: isMedical ? destination : undefined,
     });
     setBusy(false);
@@ -157,9 +181,19 @@ export default function InsuranceQuoteForm() {
               <label className="lbl" htmlFor="if-start">Coverage starts <span style={{ color: 'var(--blue)' }}>*</span></label>
               <span className="iw"><Icon name="i-cal" className="ico sm" />
                 <input
+                  ref={startRef}
                   className="inp" id="if-start" type="date" min={today} required
-                  value={start}
-                  onChange={(e) => { const v = e.target.value; setStart(v); if (end && end < v) setEnd(v); }}
+                  defaultValue={today}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setStart(v);
+                    // keep the end date at or after it, in the field as well as in state
+                    const endEl = endRef.current;
+                    if (endEl && endEl.value && endEl.value < v) {
+                      endEl.value = v;
+                      setEnd(v);
+                    }
+                  }}
                 />
               </span>
             </p>
@@ -167,10 +201,10 @@ export default function InsuranceQuoteForm() {
               <label className="lbl" htmlFor="if-end">Coverage ends <span style={{ color: 'var(--blue)' }}>*</span></label>
               <span className="iw"><Icon name="i-cal" className="ico sm" />
                 <input
-                  className={`inp${end ? '' : ' is-empty'}`} id="if-end" type="date" min={start || today} required
-                  value={end} onChange={(e) => setEnd(e.target.value)}
+                  ref={endRef}
+                  className="inp" id="if-end" type="date" min={start || today} required
+                  onChange={(e) => setEnd(e.target.value)}
                 />
-                {!end && <span className="date-ph" aria-hidden="true">dd-mm-yyyy</span>}
               </span>
             </p>
             <div className="fg">
@@ -241,7 +275,9 @@ export default function InsuranceQuoteForm() {
           {/* Both of these are claims about what the business actually offers, so they are entered
               in Admin -> Insurance page and render only once somebody has. A price anchor is the
               strongest thing this form could say -- and an invented one is the worst. */}
-          {(site.priceFrom || site.assurances?.length) && (
+          {/* Boolean, not the raw length: `'' || 0` is 0, and React renders 0 as text. That is
+              where the stray "0" above the quote button came from. */}
+          {Boolean(site.priceFrom || site.assurances?.length) && (
             <div className="iform-claims">
               {site.priceFrom && (
                 <p className="iform-price">
