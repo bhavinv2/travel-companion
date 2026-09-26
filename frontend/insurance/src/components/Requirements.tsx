@@ -1,6 +1,5 @@
 import Icon from './Icon';
 import SideDecor from './SideDecor';
-import { useQuote } from '../context/QuoteContext';
 import { useReveal } from '../hooks/useReveal';
 import { photo } from '../data/site';
 
@@ -14,7 +13,6 @@ const ITEMS = [
 ];
 
 export default function Requirements() {
-  const { openQuote } = useQuote();
   const reveal = useReveal<HTMLDivElement>();
 
   return (
@@ -39,7 +37,9 @@ export default function Requirements() {
               <span>Embassy and immigration sources have the final word.</span>
             </span>
           </div>
-          <button className="btn btn-p full" type="button" style={{ marginTop: 22 }} onClick={() => openQuote()}>Get a Free Quote</button>
+          {/* No quote button here on purpose. This section's job is to say "check the official
+              source for your destination"; asking for the sale in the same breath undercuts it,
+              and the four-step section 700px below closes with the same CTA anyway. */}
         </div>
         <div className="req-grid">
           {ITEMS.map((it) => (

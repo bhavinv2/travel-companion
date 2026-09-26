@@ -1,6 +1,5 @@
 import Icon from './Icon';
 import SideDecor from './SideDecor';
-import { useQuote } from '../context/QuoteContext';
 import { useReveal } from '../hooks/useReveal';
 import { useDragRail } from '../hooks/useDragRail';
 import { photo } from '../data/site';
@@ -49,7 +48,6 @@ const CARDS = [
 ];
 
 export default function WhyRail() {
-  const { openQuote } = useQuote();
   const reveal = useReveal<HTMLDivElement>();
   const { railProps, scrollRail, canScrollLeft, canScrollRight } = useDragRail();
 
@@ -96,13 +94,12 @@ export default function WhyRail() {
                 <span className="wtile-tag">{c.tag}</span>
                 <div className="wtile-body">
                   <h3>{c.title}</h3>
+                  {/* The reveal carries the explanation, nothing more. There used to be a
+                      quote button in every one of these cards -- eight identical buttons at one
+                      scroll position, with the section's own CTAs already above and below it. */}
                   <div className="wtile-reveal">
                     <div>
                       <p>{c.desc}</p>
-                      <button className="wtile-cta" type="button" onClick={() => openQuote()}>
-                        Get a Free Quote
-                        <Icon name="i-arrow" className="ico w xs" />
-                      </button>
                     </div>
                   </div>
                 </div>

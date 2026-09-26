@@ -510,3 +510,43 @@ def test_the_insurance_page_keeps_a_warm_accent(db):
     text = open(css, encoding='utf-8').read()
     assert '--marigold:#004EFE' not in text      # the same blue as --blue
     assert '--marigold:#B76C0C' in text
+
+
+def test_the_quote_cta_is_not_repeated_into_noise(db):
+    """The page had 13 controls all saying "Get a Free Quote" and all doing the same thing --
+    EIGHT of them at one scroll position, one inside every card of "Why You Need Travel
+    Insurance". Repeating a CTA down a long page is right; eight times in one section is not a
+    second chance, it is noise.
+
+    Four remain, one per stage of the argument: the quote form, after the visitor-insurance
+    explainer, after the four steps, and the close. Counted in the source because a card CTA
+    inside a .map() is one line away from becoming eight again.
+    """
+    import os
+    root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        'frontend', 'insurance', 'src', 'components')
+    per_file = {}
+    for name in sorted(os.listdir(root)):
+        if name.endswith('.tsx'):
+            body = open(os.path.join(root, name), encoding='utf-8').read()
+            body = re.sub(r'/\*.*?\*/', '', body, flags=re.S)
+            body = re.sub(r'(?m)^\s*//.*$', '', body)
+            n = body.count('Get a Free Quote')
+            if n:
+                per_file[name] = n
+
+    # Header renders only in the standalone build, and carries two -- the desktop nav and the
+    # mobile drawer, which are the same control at two widths. The other four are the page's
+    # own rhythm, one per stage of the argument.
+    assert per_file == {
+        'FinalCTA.tsx': 1,
+        'Header.tsx': 2,
+        'HowItWorks.tsx': 1,
+        'InsuranceQuoteForm.tsx': 1,
+        'VisitorInsurance.tsx': 1,
+    }, per_file
+
+    # the two that were removed, and the card button in particular
+    whyrail = open(os.path.join(root, 'WhyRail.tsx'), encoding='utf-8').read()
+    assert 'wtile-cta' not in whyrail
+    assert 'openQuote' not in whyrail
