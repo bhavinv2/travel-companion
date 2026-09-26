@@ -52,6 +52,7 @@
             <span class="sv-item-name">
               {% if f.rolls_forward %}<i class="fa-solid fa-rotate sv-roll" title="Moves with the date"></i>{% endif %}
               {{ f.name }}
+              {% if f.is_new %}<span class="sv-new">New</span>{% endif %}
               {% if f.shared %}<span class="sv-tag"><i class="fa-solid fa-user-group"></i> Shared</span>{% endif %}
             </span>
             <span class="sv-item-reads">{{ f.reads_as }}</span>
@@ -64,39 +65,52 @@
             <a class="btn btn-primary btn-sm"
                href="{{ url_for('saved.open_filter', filter_id=f.id, **{'from': listing}) }}">Open</a>
 
-            <details class="sv-more">
-              <summary aria-label="More actions for {{ f.name }}"><i class="fa-solid fa-ellipsis"></i></summary>
-              <div class="sv-more-menu">
-                <form method="post" action="{{ url_for('saved.rename', filter_id=f.id) }}" class="sv-inline">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                  <input type="hidden" name="from" value="{{ listing }}"/>
-                  <input name="name" value="{{ f.name }}" maxlength="60" aria-label="New name"/>
-                  <button class="btn-sm" type="submit">Rename</button>
-                </form>
+            {# Laid out as buttons rather than hidden behind a menu. There are three actions,
+               they all fit, and a <details> popover on a row meant a cramped panel that clipped
+               against the row below it. Rename opens a proper dialog. #}
+            <button type="button" class="btn-sm sv-act"
+                    data-sv-rename="{{ url_for('saved.rename', filter_id=f.id) }}"
+                    data-sv-name="{{ f.name }}">Rename</button>
 
-                <form method="post" action="{{ url_for('saved.share', filter_id=f.id) }}">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                  <input type="hidden" name="from" value="{{ listing }}"/>
-                  {% if not f.shared %}<input type="hidden" name="shared" value="on"/>{% endif %}
-                  <button class="btn-sm" type="submit">
-                    {{ 'Make private' if f.shared else 'Share with the team' }}
-                  </button>
-                </form>
+            <form method="post" action="{{ url_for('saved.share', filter_id=f.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <input type="hidden" name="from" value="{{ listing }}"/>
+              {% if not f.shared %}<input type="hidden" name="shared" value="on"/>{% endif %}
+              <button class="btn-sm sv-act" type="submit">
+                {{ 'Make private' if f.shared else 'Share' }}
+              </button>
+            </form>
 
-                <form method="post" action="{{ url_for('saved.delete', filter_id=f.id) }}"
-                      onsubmit="return confirm('Delete the saved view “{{ f.name }}”?')">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                  <input type="hidden" name="from" value="{{ listing }}"/>
-                  <button class="btn-sm sv-danger" type="submit">Delete</button>
-                </form>
-              </div>
-            </details>
+            <form method="post" action="{{ url_for('saved.delete', filter_id=f.id) }}"
+                  onsubmit="return confirm('Delete the saved view “{{ f.name }}”?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <input type="hidden" name="from" value="{{ listing }}"/>
+              <button class="btn-sm sv-act sv-danger" type="submit" title="Delete {{ f.name }}">
+                <i class="fa-solid fa-trash-can"></i><span class="sr-only">Delete</span>
+              </button>
+            </form>
           </span>
         </li>
         {% endfor %}
       </ul>
     {% endif %}
   </section>
+
+  {# One dialog, reused: a form per row would mean twenty identical dialogs in the page. #}
+  <div class="sv-dlg" id="svRenameDlg" hidden>
+    <form method="post" class="sv-dlg-in" id="svRenameForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <input type="hidden" name="from" value="{{ listing }}"/>
+      <h3>Rename this view</h3>
+      <label class="sv-dlg-lbl" for="svRenameInput">Call it</label>
+      <input class="sv-dlg-inp" id="svRenameInput" name="name" maxlength="60" required
+             autocomplete="off"/>
+      <div class="sv-dlg-ft">
+        <button type="button" class="btn btn-light" id="svRenameCancel">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save name</button>
+      </div>
+    </form>
+  </div>
 
   {% if shared %}
   <section class="sv-sec">
@@ -109,6 +123,7 @@
           <span class="sv-item-name">
             {% if f.rolls_forward %}<i class="fa-solid fa-rotate sv-roll" title="Moves with the date"></i>{% endif %}
             {{ f.name }}
+            {% if f.is_new %}<span class="sv-new">New</span>{% endif %}
             <span class="sv-tag"><i class="fa-solid fa-user"></i> {{ f.owner.username if f.owner else 'A colleague' }}</span>
           </span>
           <span class="sv-item-reads">{{ f.reads_as }}</span>

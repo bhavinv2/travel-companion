@@ -3409,3 +3409,15 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
   .sv-item { flex-wrap: wrap; }
   .sv-item-acts { width: 100%; justify-content: flex-end; }
 }
+
+/* Saved-view row actions: three buttons in a row rather than a popover menu. A <details> panel
+   on a list row clipped against the row below it, and hid a rename behind two clicks. */
+.sv-item-acts form { display: inline-flex; margin: 0; }
+.sv-act { border: 1px solid var(--border); background: #fff; border-radius: 8px; padding: 7px 12px; font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer; white-space: nowrap; }
+.sv-act:hover { border-color: var(--coral); background: var(--coral-light); }
+.sv-act.sv-danger { color: #b42318; }
+.sv-act.sv-danger:hover { border-color: #b42318; background: #fef3f2; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+/* "New" for a few days after saving, so a colleague notices a view that was shared while they
+   were away. It expires on its own -- see saved_filters.NEW_FOR_DAYS. */
+.sv-new { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #0b7a5f; background: #e7f7f4; border: 1px solid #b9e6da; border-radius: 999px; padding: 2px 7px; }

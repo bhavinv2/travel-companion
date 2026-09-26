@@ -126,6 +126,7 @@
          title="{{ f.reads_as }}">
         {% if f.rolls_forward %}<i class="fa-solid fa-rotate sv-roll" title="Moves with the date"></i>{% endif %}
         <span>{{ f.name }}</span>
+        {% if f.is_new %}<span class="sv-new" title="Saved in the last few days">New</span>{% endif %}
         {% if f.owner_id != current_user.id %}<i class="fa-solid fa-user-group sv-shared" title="Shared by {{ f.owner.username if f.owner else 'a colleague' }}"></i>{% endif %}
       </a>
       {% endfor %}
@@ -159,8 +160,11 @@
   <form method="post" action="{{ url_for('saved.save') }}" class="sv-dlg-in">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <input type="hidden" name="from" value="{{ listing }}"/>
+    {# `partial` must never travel: the CS console renders the bare results fragment when it is
+       set, so carrying it into the redirect brought the page back with no layout and no styles.
+       `page` and `view` are about the current visit, not about the filter. #}
     {% for k, v in request.args.items() %}
-      {% if k not in ('page', 'view') %}<input type="hidden" name="{{ k }}" value="{{ v }}"/>{% endif %}
+      {% if k not in ('page', 'view', 'partial') %}<input type="hidden" name="{{ k }}" value="{{ v }}"/>{% endif %}
     {% endfor %}
 
     <h3>Save this view</h3>

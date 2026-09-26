@@ -16,7 +16,7 @@ Ownership: a filter belongs to whoever made it. Sharing is opt-in and read-only 
 else -- a colleague can use a shared filter but cannot rename, change or delete it, so nobody's
 morning shortcut vanishes because somebody tidied up.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import or_
 
@@ -28,6 +28,10 @@ NAME_MAX = 60
 # Enough to be useful, few enough that the chip row stays a row. Somebody with forty daily views
 # does not have daily views, they have a search box.
 MAX_PER_USER = 20
+# How long a newly saved view wears a "New" badge. Long enough that a colleague who is off for a
+# couple of days still sees one that was shared while they were away, short enough that the strip
+# is not permanently decorated.
+NEW_FOR_DAYS = 5
 
 
 class FilterError(ValueError):
@@ -83,9 +87,12 @@ def decorate(rows):
     Computed once here rather than in each template so the chip's tooltip, the manage screen's
     summary and the listing's chips can never describe the same filter differently.
     """
+    cutoff = datetime.utcnow() - timedelta(days=NEW_FOR_DAYS)
     for f in rows:
         f.reads_as = ' · '.join(describe(f.params)) or 'No filters'
         f.rolls_forward = is_relative(f.params)
+        # created_at is UTC, like every other timestamp here
+        f.is_new = bool(f.created_at and f.created_at > cutoff)
     return rows
 
 

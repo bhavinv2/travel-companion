@@ -70,7 +70,10 @@ def open_filter(filter_id):
 def save():
     """Keep the filters currently applied to a listing, under a name."""
     listing = request.form.get('from') or 'cs'
-    keep = {k: v for k, v in request.form.items() if k not in ('name', 'from', 'shared', 'csrf_token')}
+    # `partial` would send the redirect back to the bare results fragment -- no layout, no
+    # styles. `page` and `view` describe this visit, not the filter.
+    skip = ('name', 'from', 'shared', 'csrf_token', 'partial', 'page', 'view')
+    keep = {k: v for k, v in request.form.items() if k not in skip}
     try:
         f = saved_filters.create(current_user, request.form.get('name'), keep,
                                  sort=request.form.get('sort'),
