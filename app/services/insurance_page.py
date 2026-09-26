@@ -27,6 +27,61 @@ SETTING_KEY = 'insurance_page'
 # is the existing Admin -> Help & FAQ screen; nothing insurance-specific to learn.
 FAQ_CATEGORY = 'travel_insurance'
 
+# Shown until somebody files questions under that category. These live here, on the server,
+# rather than in the bundle for two reasons: the JSON-LD has to declare exactly the questions the
+# page displays, and a search engine that answers one of these is how somebody finds the page at
+# all. Staff can replace any of them; saving one insurance FAQ retires this whole list.
+#
+# Every answer is deliberately about travel insurance in general and defers to the policy wording
+# for specifics. What a given plan covers, excludes or waits out differs by plan and by insurer,
+# and this page sells 65+ of them -- a confident number here would be wrong for most of them.
+DEFAULT_FAQS = [
+    ('What is travel insurance?',
+     'A policy that can help cover eligible costs from unexpected events on a trip, such as '
+     'medical emergencies, evacuation, delays or lost baggage. It pays towards what the policy '
+     'lists, up to the limits you choose when you buy.'),
+    ('What does travel insurance cover?',
+     'It varies by plan. Common benefits are emergency medical treatment, hospitalisation, '
+     'emergency evacuation, trip interruption and baggage. The amount each one pays, and the '
+     'deductible you meet first, are set by the plan you pick. Always read the policy wording '
+     'before you buy — that document, not this page, is the contract.'),
+    ('What is not covered?',
+     'Most travel medical plans exclude routine or planned treatment, check-ups, dental and '
+     'vision beyond emergencies, pregnancy and childbirth in many cases, injuries from extreme '
+     'sports, and anything arising while under the influence. Exclusions differ between plans, '
+     'so compare them rather than assuming they match.'),
+    ('Are pre-existing conditions covered?',
+     'Sometimes, and it is the question worth asking before you buy. Plans differ: some exclude '
+     'pre-existing conditions outright, some cover an acute onset of one, and some cover them '
+     'after a look-back period during which you were stable. The look-back window and what '
+     'counts as stable are defined in each policy. If somebody travelling has a known '
+     'condition, tell us and we will point you at the plans that address it.'),
+    ('Is there a waiting period?',
+     'Many plans apply one, so cover for certain benefits starts a set number of days after the '
+     'policy does. It is one of the things that differs most between plans, and one of the '
+     'reasons to buy before departure rather than after a problem appears.'),
+    ('When should I buy?',
+     'Before the trip starts, and ideally as soon as it is booked. Cover cannot be bought for '
+     'something that has already happened, and benefits that protect the cost of the trip only '
+     'apply to bookings made before the policy was issued.'),
+    ('Is travel insurance mandatory?',
+     'For some destinations and visa types, yes — many Schengen visa applications require proof '
+     'of minimum medical cover, and some countries ask for it on entry. Requirements change, so '
+     'check the embassy or immigration source for your destination; they have the final word.'),
+    ('What is visitor insurance?',
+     'Travel medical cover for people visiting another country — most often parents staying with '
+     'family abroad, or tourists. It covers emergencies that happen during the visit rather than '
+     'ongoing care, and it is bought for the length of the stay.'),
+    ('How do I make a claim?',
+     'You claim with the insurer who issued the policy, not with us. Keep every medical report, '
+     'bill and receipt, and tell the insurer as soon as you reasonably can — most set a deadline '
+     'for notifying them. Their emergency line is on your policy document. If you are not sure '
+     'where to start, contact us and we will walk you through it.'),
+    ('Can I buy travel insurance online?',
+     'Yes. Get a quote, compare 65+ A-rated plans side by side and buy online. Policy documents '
+     'are sent to you by e-mail.'),
+]
+
 DEFAULT_REVIEWS = [
     {'id': 'sample-1', 'tag': 'Parents visiting children',
      'quote': 'The quote took a few minutes and the plan terms were easy to follow.',

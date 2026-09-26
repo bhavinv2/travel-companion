@@ -66,7 +66,7 @@ export default function HowItWorks() {
 
         <div className="how-cta">
           <button className="btn btn-p btn-lg" type="button" onClick={() => openQuote()}>
-            Get Your Free Quote
+            Get a Free Quote
             <Icon name="i-arrow" className="ico w sm" />
           </button>
           <p className="how-note">

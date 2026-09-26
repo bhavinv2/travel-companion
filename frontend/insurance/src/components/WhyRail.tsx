@@ -100,7 +100,7 @@ export default function WhyRail() {
                     <div>
                       <p>{c.desc}</p>
                       <button className="wtile-cta" type="button" onClick={() => openQuote()}>
-                        Get Quotes
+                        Get a Free Quote
                         <Icon name="i-arrow" className="ico w xs" />
                       </button>
                     </div>

@@ -37,7 +37,7 @@
         <h4>{{ _('Our Services') }}</h4>
         <ul>
           {% for label, href in NRI_SERVICES %}
-          <li><a href="{{ href }}" target="_blank" rel="noopener">{{ _(label) }}</a></li>
+          <li><a href="{{ href }}"{% if href.startswith('http') %} target="_blank" rel="noopener"{% endif %}>{{ _(label) }}</a></li>
           {% endfor %}
         </ul>
       </div>

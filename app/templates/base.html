@@ -7,6 +7,11 @@
   <meta name="app-root" content="{{ request.script_root }}"/>
   <script src="{{ url_for('static', filename='js/app-root.js') }}"></script>
   <title>{% block title %}NRI Parent Service – Find Your Travel Companion{% endblock %}</title>
+  {# Without this Google writes its own snippet out of whatever text it finds first, which on a
+     page that opens with a form is usually the field labels. Each page that has something better
+     to say overrides the block. #}
+  <meta name="description" content="{% block meta_description %}NRI Parent Service connects Indian parents travelling abroad with verified companions on the same flight, and arranges the travel cover for the trip.{% endblock %}"/>
+  {% block extra_head %}{% endblock %}
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo-icon.png') }}"/>
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/logo-icon.png') }}"/>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@700&family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -29,7 +34,9 @@
       <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt="NRI Parent Service" class="logo-img"/>
       <span class="logo-stack">
         <span class="logo-text">NRI <strong>Parent</strong> Service{% if is_staff %} <small class="staff-tag">{{ 'Admin' if current_user.is_admin else 'CS' }}</small>{% endif %}</span>
-        <small class="logo-sub">Connecting Desis</small>
+        {# A page that is its own product says so here -- /travel-insurance overrides it. Everywhere
+           else this is the group's line. #}
+        <small class="logo-sub">{% block logo_sub %}Connecting Desis{% endblock %}</small>
       </span>
     </a>
 
@@ -52,12 +59,14 @@
          content inline -- scroll them there. Signed-in travellers see the functional home
          instead, so they get the standalone walkthrough page. #}
       <li><a href="{{ url_for('main.index') + '#how' if not current_user.is_authenticated else url_for('main.how_it_works') }}"><i class="fa-solid fa-circle-info"></i> {{ _('How It Works') }}</a></li>
-      {# The rest of the NRI Parent Service group — every one of these is on another domain. #}
+      {# The rest of the NRI Parent Service group. Most are on other domains and open in a new
+         tab; travel insurance is a page this app serves, so it is an ordinary internal link. #}
       <li class="nav-svc" id="navSvc">
         <a href="#" id="navSvcBtn" aria-haspopup="true" aria-expanded="false"><i class="fa-solid fa-grip"></i> {{ _('Services') }} <i class="fa-solid fa-chevron-down nav-svc-caret"></i></a>
         <ul class="nav-svc-menu">
           {% for label, href in NRI_SERVICES %}
-          <li><a href="{{ href }}" target="_blank" rel="noopener">{{ _(label) }} <i class="fa-solid fa-arrow-up-right-from-square"></i></a></li>
+          {% set ext = href.startswith('http') %}
+          <li><a href="{{ href }}"{% if ext %} target="_blank" rel="noopener"{% endif %}>{{ _(label) }}{% if ext %} <i class="fa-solid fa-arrow-up-right-from-square"></i>{% endif %}</a></li>
           {% endfor %}
         </ul>
       </li>
@@ -79,7 +88,9 @@
       {# Support. The help centre first, because most questions are answered there and it carries
          its own "Contact us" button; sending everyone straight to the form would bury CS in
          questions the FAQ already answers. Staff have the CS console instead. #}
-      <a href="{{ url_for('main.help_page') }}" class="nav-support{{ ' active' if request.endpoint in ('main.help_page', 'main.help_category', 'main.contact') }}" title="{{ _('Help centre and contact us') }}">
+      {# The href is the fallback and the no-JS answer. A page that has its own support popup
+         (the insurance bundle) intercepts the click by this id and opens that instead. #}
+      <a id="navSupport" href="{{ url_for('main.help_page') }}" class="nav-support{{ ' active' if request.endpoint in ('main.help_page', 'main.help_category', 'main.contact') }}" title="{{ _('Help centre and contact us') }}">
         <i class="fa-solid fa-headset"></i>
         <span class="nav-support-tx">{{ _('Support') }}</span>
       </a>

@@ -13,6 +13,20 @@
    how `npm run dev` keeps working standalone. #}
 {% block title %}Travel Insurance for Every Journey – NRI Parent Service{% endblock %}
 
+{# This page is its own product, so the brand line names it. Everywhere else it reads
+   "Connecting Desis". #}
+{% block logo_sub %}Travel Insurance{% endblock %}
+
+{% block meta_description %}Quote and compare 65+ A-rated travel and visitor insurance plans for emergency medical cover, hospitalisation, evacuation and trip disruption. Free quote in minutes, no account needed.{% endblock %}
+
+{# Structured data. The page already answers these questions and names these products; saying so
+   in a form search engines read is the difference between being the answer and being a result.
+   Everything below is generated from what the page actually shows -- the questions are the ones
+   rendered, the contact numbers are the ones published. Nothing is asserted twice. #}
+{% block extra_head %}
+<script type="application/ld+json">{{ structured_data | tojson }}</script>
+{% endblock %}
+
 {% block extra_css %}
 <link rel="canonical" href="{{ canonical_url }}"/>
 <link rel="stylesheet" href="{{ url_for('static', filename='insurance/travel-insurance.css') }}"/>
@@ -42,6 +56,8 @@
     'whatsapp': whatsapp_number,
     'supportEmail': SUPPORT_EMAIL,
     'supportPhones': support_phones,
+    'priceFrom': price_from,
+    'assurances': assurances,
   } | tojson }};
 </script>
 <div id="root"></div>

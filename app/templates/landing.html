@@ -1516,8 +1516,9 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
         <div class="svc-menu" role="menu">
           {% for label, href in NRI_SERVICES %}
-          <a href="{{ href }}" target="_blank" rel="noopener" role="menuitem">{{ label }}
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+          {% set ext = href.startswith('http') %}
+          <a href="{{ href }}"{% if ext %} target="_blank" rel="noopener"{% endif %} role="menuitem">{{ label }}
+            {% if ext %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg>{% endif %}</a>
           {% endfor %}
         </div>
       </div>
@@ -1555,8 +1556,9 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
     <a href="{{ url_for('main.help_page') }}">Support</a>
     <span class="md-heading">Our Services</span>
     {% for label, href in NRI_SERVICES %}
-    <a href="{{ href }}" target="_blank" rel="noopener" class="md-svc">{{ label }}
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+    {% set ext = href.startswith('http') %}
+    <a href="{{ href }}"{% if ext %} target="_blank" rel="noopener"{% endif %} class="md-svc">{{ label }}
+      {% if ext %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><path d="M7 17 17 7M9 7h8v8"/></svg>{% endif %}</a>
     {% endfor %}
     <div class="mobile-drawer-actions">
       <button class="btn btn-outline" data-open="signin">Sign In</button>

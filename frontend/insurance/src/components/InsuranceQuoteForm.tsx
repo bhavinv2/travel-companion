@@ -5,7 +5,7 @@ import SideDecor from './SideDecor';
 import FlightPath from './FlightPath';
 import { useReveal } from '../hooks/useReveal';
 import { buildPlanQuoteUrl } from '../utils/quoteUrl';
-import { photo } from '../data/site';
+import { photo, site } from '../data/site';
 import { planFor, requestQuoteUrl } from '../utils/quoteRequest';
 
 /** Today in the visitor's own timezone, as yyyy-mm-dd. */
@@ -228,13 +228,34 @@ export default function InsuranceQuoteForm() {
             </p>
           </div>
 
+          {/* Both of these are claims about what the business actually offers, so they are entered
+              in Admin -> Insurance page and render only once somebody has. A price anchor is the
+              strongest thing this form could say -- and an invented one is the worst. */}
+          {(site.priceFrom || site.assurances?.length) && (
+            <div className="iform-claims">
+              {site.priceFrom && (
+                <p className="iform-price">
+                  <Icon name="i-wallet" className="ico sm" />
+                  <b>{site.priceFrom}</b>
+                </p>
+              )}
+              {!!site.assurances?.length && (
+                <ul className="iform-assure">
+                  {site.assurances.map((a) => (
+                    <li key={a}><Icon name="i-check" className="ico g xs" />{a}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
           <div className="iform-ft">
             <span className="iform-trust">
               <span className="l1"><Icon name="i-lock" className="ico g sm" />Free quote &middot; no account needed</span>
               <span>Live pricing from <a href="https://preventia360.com/" target="_blank" rel="noopener noreferrer" className="preventia-link">Preventia360</a></span>
             </span>
             <button className="btn btn-p btn-lg" type="submit">
-              Get free quotes<Icon name="i-arrow" className="ico w sm" />
+              Get a Free Quote<Icon name="i-arrow" className="ico w sm" />
             </button>
           </div>
         </div>

@@ -39,7 +39,7 @@ export default function Requirements() {
               <span>Embassy and immigration sources have the final word.</span>
             </span>
           </div>
-          <button className="btn btn-p full" type="button" style={{ marginTop: 22 }} onClick={() => openQuote()}>Check Your Coverage Options</button>
+          <button className="btn btn-p full" type="button" style={{ marginTop: 22 }} onClick={() => openQuote()}>Get a Free Quote</button>
         </div>
         <div className="req-grid">
           {ITEMS.map((it) => (

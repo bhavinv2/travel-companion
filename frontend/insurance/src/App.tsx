@@ -16,6 +16,7 @@ import FinalCTA from './components/FinalCTA';
 import Footer from './components/Footer';
 import WelcomePopup from './components/WelcomePopup';
 import QuoteModal from './components/QuoteModal';
+import SupportModal from './components/SupportModal';
 import WhatsAppFab from './components/WhatsAppFab';
 import { QuoteProvider } from './context/QuoteContext';
 import { showChrome } from './data/site';
@@ -47,6 +48,7 @@ export default function App() {
       {showChrome && <Footer />}
       <WelcomePopup />
       <QuoteModal />
+      <SupportModal />
       <WhatsAppFab />
     </QuoteProvider>
   );

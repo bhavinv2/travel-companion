@@ -45,7 +45,7 @@ export default function Header() {
             Support
           </a>
           <a className="btn btn-o lnk-signin" href="#signin">Sign in</a>
-          <button className="btn btn-p" type="button" onClick={() => openQuote()}>Get a Quote</button>
+          <button className="btn btn-p" type="button" onClick={() => openQuote()}>Get a Free Quote</button>
           <button
             className="burger"
             type="button"

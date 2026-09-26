@@ -151,7 +151,7 @@ export default function ExpertContact() {
               />
               <button className="xbtn" type="submit">
                 <span className="xbtn-ic"><Icon name="i-arrow" className="ico w sm" /></span>
-                Get a Consultation
+                Talk to an Expert
               </button>
             </form>
           ) : (

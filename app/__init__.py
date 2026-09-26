@@ -371,7 +371,7 @@ def create_app(test_config=None):
         return {
             'now': datetime.utcnow,
             'INSURANCE_DESTINATIONS': insurance_countries,
-            'NRI_SERVICES': nri_services.SERVICES,
+            'NRI_SERVICES': nri_services.resolved(),
             'NRI_SOCIAL': nri_services.SOCIAL,
             'WHATSAPP': _settings.whatsapp_numbers,
             'INSURANCE_PARTNER_NAME': nri_services.INSURANCE_PARTNER_NAME,

@@ -186,6 +186,37 @@ def test_an_enquiry_lands_in_the_shared_inbox(client, db):
     assert 'Canada' in msg.message
 
 
+def test_a_support_request_carries_what_they_actually_asked(client, db):
+    """The Support popup is the one form with a message box. CS has to see the question, what it
+    was about and how the person wants to be reached, or the record is just another name."""
+    r = client.post('/api/insurance-enquiry', json={
+        'kind': 'support', 'name': 'Ravi', 'email': 'ravi@example.com', 'phone': '+91 98765 43210',
+        'subject': 'Pre-existing conditions', 'preferred': 'WhatsApp',
+        'message': 'My father has a heart condition. Which plan covers him in Dallas?'})
+    assert r.status_code == 201 and r.get_json()['success']
+
+    msg = ContactMessage.query.one()
+    assert msg.topic == 'insurance'                 # same inbox, same tag as every other enquiry
+    assert 'Support request' in msg.message
+    assert 'Pre-existing conditions' in msg.message
+    assert 'Preferred contact: WhatsApp' in msg.message
+    assert 'heart condition' in msg.message
+
+
+def test_a_support_request_needs_an_actual_question(client, db):
+    """A two-word message gives CS nothing to answer, so it is refused rather than filed."""
+    r = client.post('/api/insurance-enquiry', json={
+        'kind': 'support', 'name': 'Ravi', 'email': 'ravi@example.com',
+        'phone': '+91 98765 43210', 'message': 'help'})
+    assert r.status_code == 400
+    assert ContactMessage.query.count() == 0
+
+    # the lead forms have no message box at all, so the rule must not reach them
+    r = client.post('/api/insurance-enquiry', json={
+        'name': 'Ravi', 'email': 'ravi@example.com', 'phone': '+91 98765 43210'})
+    assert r.status_code == 201
+
+
 @pytest.mark.parametrize('bad, why', [
     ({'name': ''}, 'no name'),
     ({'email': 'nope'}, 'not an email'),
@@ -290,3 +321,113 @@ def test_admin_saves_testimonials_and_drops_the_blanks(client, db, admin_user):
 def test_the_testimonial_screen_is_admin_only(client, db, cs_user):
     login(client, 'cs@test.com')
     assert client.get('/admin/insurance-page').status_code in (302, 403)
+
+
+def test_the_brand_line_names_this_product(client, db):
+    """On its own page the logo reads "Travel Insurance"; everywhere else it is the group line.
+    Getting this wrong would tell a visitor they had wandered off the page they came for."""
+    assert 'logo-sub">Travel Insurance<' in client.get('/travel-insurance').data.decode()
+    assert 'logo-sub">Connecting Desis<' in client.get('/help').data.decode()
+
+
+def test_support_still_works_without_javascript(client, db):
+    """The popup is an enhancement. The link underneath it has to be a real destination, or
+    somebody with a blocked bundle has no way to reach us at all."""
+    html = client.get('/travel-insurance').data.decode()
+    assert 'id="navSupport"' in html and 'href="/help"' in html
+    assert client.get('/help').status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Being found at all
+# ---------------------------------------------------------------------------
+
+def test_the_page_describes_itself_to_search_engines(client, db):
+    """With no description Google writes its own out of whatever text it finds first, which on a
+    page that opens with a form is the field labels."""
+    html = client.get('/travel-insurance').data.decode()
+    m = re.search(r'<meta name="description" content="([^"]+)"', html)
+    assert m, 'no meta description'
+    assert 'compare 65+' in m.group(1).lower()
+    # and it is this page's own, not the site-wide default
+    assert 'companion' not in m.group(1).lower()
+
+
+def test_the_structured_data_declares_the_questions_the_page_shows(client, db, insurance_faq):
+    """Schema promising an answer the page does not display is what earns a manual penalty, so
+    the two are generated from one list."""
+    html = client.get('/travel-insurance').data.decode()
+    blob = re.search(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
+    assert blob, 'no JSON-LD'
+    graph = {n['@type']: n for n in json.loads(blob.group(1))['@graph']}
+    assert set(graph) == {'Organization', 'WebPage', 'Service', 'FAQPage'}
+
+    shown = {f['question'] for f in injected(client)[0]['faqs']}
+    declared = {q['name'] for q in graph['FAQPage']['mainEntity']}
+    assert declared == shown
+    assert 'What is visitor insurance?' in declared        # the admin one, from the fixture
+
+
+def test_no_rating_is_invented_in_the_structured_data(client, db):
+    """An aggregateRating with no verified reviews behind it is a lie told to a search engine."""
+    html = client.get('/travel-insurance').data.decode()
+    blob = re.search(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
+    assert 'aggregateRating' not in blob.group(1)
+    assert 'reviewCount' not in blob.group(1)
+
+
+def test_the_default_questions_answer_what_the_page_was_missing(client, db):
+    """With nothing filed in admin the page still has to answer the questions somebody actually
+    has before buying -- exclusions, pre-existing conditions, waiting periods, claiming."""
+    faqs = injected(client)[0]['faqs']
+    asked = ' '.join(f['question'].lower() for f in faqs)
+    for topic in ('not covered', 'pre-existing', 'waiting period', 'claim', 'when should i buy'):
+        assert topic in asked, topic
+    # and every answer defers to the policy rather than promising specifics we cannot know
+    assert any('policy wording' in f['answer'].lower() for f in faqs)
+
+
+def test_the_page_is_in_the_sitemap(client, db):
+    """It was not, which is most of why nothing found it."""
+    xml = client.get('/sitemap.xml').data.decode()
+    assert '/travel-insurance<' in xml
+    assert '/sahayak<' in xml
+
+
+def test_the_services_menu_links_to_our_own_page_internally(client, db):
+    """It pointed at the production URL with a trailing slash: a redirect on every click, and on
+    staging or locally a link that leaves the site altogether."""
+    html = client.get('/help').data.decode()
+    assert 'href="/travel-insurance"' in html
+    assert 'nriparentservice.com/travel-insurance' not in html
+
+
+def test_the_price_line_is_never_invented(client, db):
+    """It is a claim about the business. Empty until staff make it; then it shows."""
+    data, _ = injected(client)
+    assert data['priceFrom'] == '' and data['assurances'] == []
+
+    insurance_page.save_page('from $1.20 a day', ['Policy documents by e-mail within minutes'])
+    data, _ = injected(client)
+    assert data['priceFrom'] == 'from $1.20 a day'
+    assert data['assurances'] == ['Policy documents by e-mail within minutes']
+
+
+def test_the_page_speaks_with_one_cta_vocabulary(db):
+    """There are two actions on this page -- get priced, or reach a person. There were eight
+    labels for them, which reads as indecision and stops a repeated CTA building any
+    recognition. Checked in the source, because it is the source that drifts."""
+    import os
+    root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        'frontend', 'insurance', 'src', 'components')
+    text = ''
+    for name in sorted(os.listdir(root)):
+        if name.endswith('.tsx'):
+            text += open(os.path.join(root, name), encoding='utf-8').read()
+
+    for stale in ('Get free quotes', 'Get Your Free Quote', 'Get Quotes',
+                  'Check Your Coverage Options', 'Book Your Free Consultation',
+                  'Get a Consultation', 'Book Consultation Now'):
+        assert stale not in text, stale
+    assert text.count('Get a Free Quote') >= 5
+    assert text.count('Talk to an Expert') >= 3

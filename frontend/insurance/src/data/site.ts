@@ -50,6 +50,10 @@ export interface SiteData {
   supportEmail?: string;
   /** every support line staff have set; empty when none are, so nothing is published */
   supportPhones?: SitePhone[];
+  /** e.g. "from $1.20 a day". Empty until staff enter it -- a made-up price is worse than none */
+  priceFrom?: string;
+  /** short reassurance lines shown with the quote button; empty by default, for the same reason */
+  assurances?: string[];
 }
 
 declare global {

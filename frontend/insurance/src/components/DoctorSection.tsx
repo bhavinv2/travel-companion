@@ -44,7 +44,7 @@ export default function DoctorSection() {
           </ul>
 
           <button className="btn btn-p btn-lg" type="button" style={{ marginTop: 26 }} onClick={openConsult}>
-            Book Your Free Consultation
+            Talk to an Expert
             <Icon name="i-arrow" className="ico w sm" />
           </button>
 

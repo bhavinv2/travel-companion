@@ -301,10 +301,22 @@ def sitemap_xml():
     from flask import Response, current_app
     from app.models import Blog
     site = current_app.config['SITE_URL']
+    # SITE_URL carries the app's prefix (…/travel-companions). /travel-insurance and /sahayak are
+    # entry points beside it, so they need the bare host or the sitemap would list addresses that
+    # redirect.
+    public = site
+    prefix = (current_app.config.get('APP_URL_PREFIX') or '').strip('/')
+    if prefix and public.rstrip('/').endswith('/' + prefix):
+        public = public.rstrip('/')[: -(len(prefix) + 1)]
+    public = public.rstrip('/')
     today = date.today().isoformat()
     urls = [
         (f'{site}/', 'daily', '1.0', today),
         (f'{site}/trips', 'hourly', '0.9', today),
+        # The two standalone service pages. They sit beside the app's prefix rather than under
+        # it, so they are built from the public host, not from SITE_URL.
+        (f'{public}/travel-insurance', 'weekly', '0.9', today),
+        (f'{public}/sahayak', 'weekly', '0.8', today),
         (f'{site}/blog', 'daily', '0.7', today),
         (f'{site}/reviews', 'daily', '0.6', today),
         (f'{site}/about', 'monthly', '0.5', today),

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
 import { PhoneCombo, DestinationCombo } from './CountryCombo';
 import { useQuote } from '../context/QuoteContext';
@@ -19,21 +19,56 @@ export default function WelcomePopup() {
   const [travelInvalid, setTravelInvalid] = useState(false);
   const [sent, setSent] = useState(false);
   const [waUrl, setWaUrl] = useState('');
+  // The listeners below outlive a render, so they read the live value through a ref rather than
+  // closing over a stale one.
+  const quoteOpenRef = useRef(quoteOpen);
+  quoteOpenRef.current = quoteOpen;
 
-  // auto-open once per browser session, 7s after load, unless the quote modal is already up
+  /* Auto-open once per browser session. It used to fire at a flat 7 seconds, which lands on
+     somebody who has just started reading the second section -- the most annoying possible
+     moment, and the one that teaches people to close the thing without looking.
+     Now it waits for a signal that they are actually finished or leaving:
+       * the pointer leaves through the top of the window (heading for the tab bar or Back),
+       * or they reach the foot of the page,
+       * or two minutes pass, as a floor.
+     Whichever comes first, and never while the quote modal is up. */
   useEffect(() => {
     try {
       if (sessionStorage.getItem('welShown')) return;
     } catch {
       // ignore storage errors (private browsing etc.)
     }
-    const t = setTimeout(() => {
-      if (!quoteOpen) {
-        openConsult();
-        try { sessionStorage.setItem('welShown', '1'); } catch { /* ignore */ }
-      }
-    }, 7000);
-    return () => clearTimeout(t);
+    let done = false;
+
+    function fire() {
+      if (done || quoteOpenRef.current) return;
+      done = true;
+      cleanup();
+      openConsult();
+      try { sessionStorage.setItem('welShown', '1'); } catch { /* ignore */ }
+    }
+
+    function onLeave(e: MouseEvent) {
+      // only upward, and only a real exit -- moving onto a <select> popup also fires mouseout
+      if (e.clientY <= 0 && !e.relatedTarget) fire();
+    }
+    function onScroll() {
+      const seen = window.scrollY + window.innerHeight;
+      if (seen >= document.body.scrollHeight - 400) fire();
+    }
+
+    // A touch screen has no pointer to leave the window, so the scroll signal and the floor are
+    // what it gets. That is the right trade: on a phone the popup is the whole screen.
+    document.addEventListener('mouseout', onLeave);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    const t = setTimeout(fire, 120000);
+
+    function cleanup() {
+      document.removeEventListener('mouseout', onLeave);
+      window.removeEventListener('scroll', onScroll);
+      clearTimeout(t);
+    }
+    return cleanup;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -141,7 +176,7 @@ export default function WelcomePopup() {
               </div>
             </div>
             <button className="cpop-cta" type="submit">
-              Book Consultation Now
+              Talk to an Expert
               <Icon name="i-arrow" className="ico w sm" />
             </button>
             <p className="cpop-safe"><Icon name="i-lock" className="ico s xs" />Your information is safe with us.</p>

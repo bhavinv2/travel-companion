@@ -37,7 +37,7 @@ export default function FinalCTA() {
             </p>
             <div className="fcta-btns">
               <button className="btn fcta-a" type="button" onClick={() => openQuote()}>
-                Get Your Free Quote
+                Get a Free Quote
               </button>
               <a className="btn fcta-b" href="#contact">Talk to an Expert</a>
             </div>
