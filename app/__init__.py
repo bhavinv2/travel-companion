@@ -225,18 +225,63 @@ def create_app(test_config=None):
     login_manager.login_message_category = 'info'
 
     IST = timedelta(hours=5, minutes=30)
+    app.config['IST_OFFSET'] = IST
 
     @app.template_filter('ist')
     def _ist(value, fmt='%d %b %Y, %H:%M'):
-        """Render a stored UTC datetime in India Standard Time.
+        """Render a stored UTC datetime in India Standard Time, labelled.
 
         A fixed offset rather than a named zone on purpose: IST has never observed DST, so
         +05:30 is exact, and zoneinfo needs a tz database that is not present on every host
         this runs on.
+
+        Every timestamp in the database is UTC, because that is the only sane thing to store.
+        Nobody reading this app is in UTC, though: the team and almost every traveller are on
+        IST, so a row that says 18:40 for something that happened at midnight is not a small
+        inaccuracy, it is a wrong answer. Storage stays UTC; display is converted here.
         """
         if value is None:
             return ''
         return (value + IST).strftime(fmt) + ' IST'
+
+    @app.template_filter('istd')
+    def _istd(value, fmt='%Y-%m-%d'):
+        """The same conversion for a date-only display.
+
+        No "IST" suffix: a bare date does not need a clock label, and the conversion still
+        matters -- anything recorded after 18:30 UTC belongs to the NEXT day in India, so
+        printing the raw UTC date is off by one for a quarter of every day.
+
+        Pass a plain `date` (a trip's departure, a policy's start) and it is returned untouched:
+        those are calendar dates with no time zone, and shifting them would invent a change
+        nobody made.
+        """
+        if value is None:
+            return ''
+        if not isinstance(value, datetime):
+            return value.strftime(fmt)
+        return (value + IST).strftime(fmt)
+
+    @app.before_request
+    def _cs_screen_guard():
+        """Stop a restricted agent opening a screen they were not given.
+
+        Hiding a link is not access control -- the URL is still there, and a bookmark or a
+        colleague's pasted link reaches it. This runs before every request, so the menu and the
+        door agree. Admins and unrestricted agents fall straight through.
+        """
+        from flask import flash, redirect, request, url_for
+        from flask_login import current_user
+        from app.services import cs_access
+
+        if not cs_access.applies_to(current_user):
+            return None
+        if cs_access.can_open_endpoint(current_user, request.endpoint):
+            return None
+        flash('That part of the console has not been enabled for your account.', 'warning')
+        # their own landing page, unless that is the very thing they cannot open
+        home = 'cs.home' if cs_access.can_open(current_user, 'home') else 'main.index'
+        return redirect(url_for(home))
 
     @app.url_defaults
     def _static_cache_bust(endpoint, values):
@@ -368,11 +413,16 @@ def create_app(test_config=None):
                                 TRIP_ROLES, TRIP_ROLE_LABELS, AGE_GROUPS, AGE_GROUP_LABELS,
                                 GENDERS, PREF_GENDERS)
         from app import options
-        from app.services import insurance_countries, nri_services, urls
+        from app.services import admin_nav, cs_access, insurance_countries, nri_services, urls
         from app.services import settings as _settings
         return {
-            'now': datetime.utcnow,
+            # Templates use this for "today" in date inputs. Between 18:30 and 00:00 IST,
+            # utcnow() is still yesterday in India, which would let somebody pick a date that
+            # has already gone or block one that has not.
+            'now': lambda: datetime.utcnow() + IST,
             'INSURANCE_DESTINATIONS': insurance_countries,
+            'ADMIN_NAV': admin_nav,
+            'CS_ACCESS': cs_access,
             'NRI_SERVICES': nri_services.resolved(),
             # For linking TO /travel-insurance or /sahayak: those answer beside the app's prefix,
             # so url_for would offer the in-prefix address instead of the one they are known by.

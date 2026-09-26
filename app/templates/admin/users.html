@@ -57,8 +57,8 @@
             {% else %}<small class="muted">no phone</small>{% endif %}
             {% if user.oauth_provider %}<br><small class="muted">via {{ user.oauth_provider|capitalize }}</small>{% endif %}
           </td>
-          <td data-label="Joined">{{ user.created_at.strftime('%Y-%m-%d') }}<br>
-            <small class="muted">{{ 'last seen ' + user.last_login.strftime('%Y-%m-%d') if user.last_login else 'never signed in' }}</small></td>
+          <td data-label="Joined">{{ user.created_at|istd }}<br>
+            <small class="muted">{{ 'last seen ' + (user.last_login|istd) if user.last_login else 'never signed in' }}</small></td>
           <td data-label="Roles">
             {% if user.id == current_user.id %}
               {% for k in user.role_keys %}<span class="badge-pill green">{{ role_labels.get(k, k) }}</span> {% endfor %}
@@ -75,6 +75,14 @@
           </td>
           <td data-label="Active"><span class="badge-pill {{ 'green' if user.is_active else 'red' }}">{{ 'Active' if user.is_active else 'Inactive' }}</span></td>
           <td data-label="Actions">
+            {# Only for agents: an admin is never restricted and a traveller has no console. #}
+            {% if user.is_cs and not user.is_admin %}
+            <a class="btn-sm" href="{{ url_for('admin.cs_screen_access', user_id=user.id) }}"
+               title="Which console screens this agent can open">
+              <i class="fa-solid fa-user-lock"></i>
+              {{ 'All screens' if user.cs_access is none else (user.cs_access|length) ~ ' screens' }}
+            </a>
+            {% endif %}
             {% if user.id != current_user.id %}
             <button class="btn-sm" onclick="toggleUser({{ user.id }}, this)">
               {{ 'Disable' if user.is_active else 'Enable' }}

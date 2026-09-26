@@ -98,7 +98,7 @@
           <dt>Connect to</dt><dd>{{ (trip.connect_me_to or [])|join(', ')|replace('_',' ') or '—' }}</dd>
           <dt>Comments</dt><dd>{{ trip.additional_comments or '—' }}</dd>
           <dt>Source</dt><dd>{{ trip.source }}{% if trip.source_url %} · <a href="{{ trip.source_url }}" target="_blank" rel="noopener noreferrer">link</a>{% endif %}</dd>
-          <dt>Created</dt><dd>{{ trip.created_at.strftime('%Y-%m-%d %H:%M') }}{% if trip.created_by %} by {{ trip.created_by.username }}{% endif %}</dd>
+          <dt>Created</dt><dd>{{ trip.created_at|ist('%Y-%m-%d %H:%M') }}{% if trip.created_by %} by {{ trip.created_by.username }}{% endif %}</dd>
           {% if trip.cs_notes %}<dt>CS notes</dt><dd class="cs-notes">{{ trip.cs_notes }}</dd>{% endif %}
         </dl>
       </div>
@@ -131,7 +131,7 @@
             </td>
             <td data-label="Label">{{ cp.label or '—' }}</td>
             <td data-label="May share?">{% if cp.consent_to_share %}<span class="chip chip-open">yes</span>{% else %}<span class="chip chip-unconfirmed">no</span>{% endif %}</td>
-            <td data-label="Added by"><small class="muted">{{ cp.added_by }} · {{ cp.created_at.strftime('%Y-%m-%d') }}</small></td>
+            <td data-label="Added by"><small class="muted">{{ cp.added_by }} · {{ cp.created_at|istd }}</small></td>
           </tr>
         {% endfor %}
         </tbody></table></div>
@@ -160,7 +160,7 @@
             <div class="copy-row"><input type="text" id="claimUrl" value="{{ latest_url }}" readonly/><button class="btn-sm" onclick="copyText(document.getElementById('claimUrl').value)">Copy link</button></div>
             <textarea id="claimDm" rows="6" readonly>{{ dm_text }}</textarea>
             <button class="btn-sm" onclick="copyText(document.getElementById('claimDm').value)"><i class="fa-solid fa-copy"></i> Copy DM text</button>
-            <small class="muted">expires {{ latest_token.expires_at.strftime('%Y-%m-%d') }}</small>
+            <small class="muted">expires {{ latest_token.expires_at|istd }}</small>
           {% else %}
             <p class="muted">No active link.</p>
           {% endif %}

@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{# One agent's console access. Written to be decided from, not decoded: each screen says what it
+   is, the sites are grouped the way the console itself is, and the two modes are stated as a
+   choice rather than implied by an empty list. #}
+{% block title %}Console access – {{ agent.username }}{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+  {% with active='users' %}{% include 'admin/_sidebar.html' %}{% endwith %}
+
+  <main class="admin-main">
+    <p><a class="btn-sm" href="{{ url_for('admin.users') }}"><i class="fa-solid fa-arrow-left"></i> Back to users</a></p>
+    <h1>Console access</h1>
+    <p class="muted" style="max-width:720px">
+      What <b>{{ agent.username }}</b> can open in the CS console. This controls screens, not
+      records &mdash; a screen they are not given is closed to them by the menu and by the address
+      bar alike, but the shared inboxes still show every message they always did.
+    </p>
+
+    <form method="post" class="admin-card" style="max-width:760px">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+      <label class="csa-mode">
+        <input type="radio" name="mode" value="all" {{ 'checked' if current is none }}
+               onchange="document.getElementById('csaList').hidden = true"/>
+        <span>
+          <b>The whole console</b>
+          <small>Everything, including screens added later. This is what every agent has unless
+            somebody changes it.</small>
+        </span>
+      </label>
+
+      <label class="csa-mode">
+        <input type="radio" name="mode" value="some" {{ 'checked' if current is not none }}
+               onchange="document.getElementById('csaList').hidden = false"/>
+        <span>
+          <b>Only the screens I tick</b>
+          <small>A screen added to the console later will not appear for them until it is ticked
+            here.</small>
+        </span>
+      </label>
+
+      <div id="csaList" {{ 'hidden' if current is none }}>
+        {% for key, label, icon in sites %}
+          {% set items = screens | selectattr('site', 'equalto', key) | list %}
+          {% if items %}
+          <fieldset class="csa-group">
+            <legend><i class="fa-solid {{ icon }}"></i> {{ label }}</legend>
+            {% for s in items %}
+            <label class="csa-screen">
+              <input type="checkbox" name="screen" value="{{ s.key }}"
+                     {{ 'checked' if current and s.key in current }}/>
+              <span>
+                <i class="fa-solid {{ s.icon }}"></i> {{ s.label }}
+                {% if s.get('admin_only') %}<em class="csa-note">normally admin only</em>{% endif %}
+              </span>
+            </label>
+            {% endfor %}
+          </fieldset>
+          {% endif %}
+        {% endfor %}
+
+        <p class="muted" style="font-size:13px;margin-top:10px">
+          Tick nothing and they can sign in but reach no console screen. If that is what you want,
+          disabling the account is usually clearer.
+        </p>
+      </div>
+
+      <div style="margin-top:18px;display:flex;gap:10px">
+        <button class="btn btn-primary" type="submit">Save access</button>
+        <a class="btn btn-light" href="{{ url_for('admin.users') }}">Cancel</a>
+      </div>
+    </form>
+  </main>
+</div>
+{% endblock %}

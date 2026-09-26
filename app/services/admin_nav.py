@@ -1,0 +1,120 @@
+"""What the admin sidebar shows, grouped by the product it belongs to.
+
+The panel grew one link at a time until it was sixteen in a flat list, mixing three separate
+products with the settings that apply to all of them. Somebody who came in to answer a Sahayak
+booking read past insurance testimonials and colour themes to find it.
+
+So the menu is grouped, and the header carries a tab per product. Picking one narrows the sidebar
+to that product's screens; the settings that genuinely apply site-wide live in their own tab
+rather than being repeated in each.
+
+Contact messages and feedback were reachable before this but never named in the menu: they are
+three tabs inside one screen called "User voices", which tells you nothing about what is in it.
+They are listed here by what they are, and the enquiry list is split by topic -- a travel-cover
+enquiry belongs with the insurance screens, not filed under the companion app with everything
+else. One screen, one URL, different slices of it.
+
+Two judgements worth stating, because they are the ones most likely to be wrong for you:
+
+  * The Dashboard is not in any tab. It reports across all three, so burying it under one would
+    be a lie about what it shows.
+  * Help & FAQ sits under Travel Companion even though the insurance page reads its own category
+    from it. It is one screen with one URL, and listing it twice would suggest there are two.
+"""
+
+
+def _item(key, endpoint, label, icon, **args):
+    """One line in the sidebar. `args` are query parameters, for screens that are really one
+    page showing different slices (the enquiry inbox, filtered by topic)."""
+    return {'key': key, 'endpoint': endpoint, 'label': label, 'icon': icon, 'args': args}
+
+
+SECTIONS = [
+    {
+        'key': 'companion',
+        'label': 'Travel Companion',
+        'icon': 'fa-plane-departure',
+        'items': [
+            _item('listings', 'admin.listings', 'Listings', 'fa-list'),
+            _item('voices_contact', 'admin.voices', 'Contact us', 'fa-envelope',
+                  tab='contact', topic='companion'),
+            _item('voices_feedback', 'admin.voices', 'Feedback', 'fa-star', tab='feedback'),
+            _item('voices_report', 'admin.voices', 'Reports', 'fa-flag-checkered', tab='report'),
+            _item('landing', 'admin.landing_page', 'Landing page', 'fa-flag'),
+            _item('blog', 'admin.new_blog', 'New blog post', 'fa-pen'),
+            _item('help', 'admin.help_center_page', 'Help & FAQ', 'fa-circle-question'),
+        ],
+    },
+    {
+        'key': 'insurance',
+        'label': 'Travel Insurance',
+        'icon': 'fa-shield-heart',
+        'items': [
+            _item('insurance', 'admin.insurance_quotes', 'Quote leads', 'fa-shield-heart'),
+            _item('voices_insurance', 'admin.voices', 'Enquiries', 'fa-envelope',
+                  tab='contact', topic='insurance'),
+            _item('insurance_page', 'admin.insurance_page_content', 'Page content', 'fa-quote-left'),
+        ],
+    },
+    {
+        'key': 'sahayak',
+        'label': 'Sahayak',
+        'icon': 'fa-house-medical',
+        'items': [
+            _item('sahayak', 'admin.sahayak_bookings', 'Bookings', 'fa-house-medical'),
+            _item('sahayak_services', 'admin.sahayak_services', 'Services & prices', 'fa-list-check'),
+        ],
+    },
+    {
+        'key': 'site',
+        'label': 'Site',
+        'icon': 'fa-gear',
+        'items': [
+            _item('users', 'admin.users', 'Users', 'fa-users'),
+            _item('options', 'admin.options_page', 'Options & dropdowns', 'fa-sliders'),
+            _item('messages', 'admin.messages_page', 'Messages & e-mails', 'fa-envelope-open-text'),
+            _item('notiflog', 'admin.notification_log', 'Notifications', 'fa-bell'),
+            _item('notifications', 'admin.notification_switches', 'Notification switches', 'fa-bell-slash'),
+            _item('themes', 'admin.themes_page', 'Colour themes', 'fa-palette'),
+        ],
+    },
+]
+
+# Shown above the tabs, because it reports on all of them.
+DASHBOARD = {'key': 'dashboard', 'endpoint': 'admin.dashboard', 'label': 'Dashboard',
+             'icon': 'fa-gauge', 'args': {}}
+
+# Screens reached from another one rather than from the menu.
+ALIASES = {'feedback': 'voices_feedback'}
+
+
+def current_key(active, args=None):
+    """Which sidebar line this request corresponds to.
+
+    Four of them share one endpoint -- the enquiry inbox, feedback and reports are tabs of the
+    same screen, and the inbox is split again by topic -- so the route's `active` alone cannot
+    say which line is the current one. The query string finishes the job.
+    """
+    args = args or {}
+    if active == 'voices':
+        tab = args.get('tab') or 'contact'
+        if tab == 'feedback':
+            return 'voices_feedback'
+        if tab == 'report':
+            return 'voices_report'
+        return 'voices_insurance' if args.get('topic') == 'insurance' else 'voices_contact'
+    return ALIASES.get(active, active)
+
+
+def section_for(active, args=None):
+    """Which tab the given page belongs to. Defaults to the first, so an unknown key still
+    renders a sane menu rather than an empty one."""
+    key = current_key(active, args)
+    for section in SECTIONS:
+        if any(i['key'] == key for i in section['items']):
+            return section['key']
+    return SECTIONS[0]['key']
+
+
+def is_dashboard(active):
+    return active == DASHBOARD['key']

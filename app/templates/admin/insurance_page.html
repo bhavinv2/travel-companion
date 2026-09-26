@@ -19,6 +19,31 @@
     <form method="POST" class="hc-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
+      <h2 class="hc-h2">Support details</h2>
+      <p class="muted" style="font-size:13px;margin-bottom:8px">What the &ldquo;Discuss your travel
+        cover&rdquo; block shows, and the Support popup. Leave a box empty to use the site-wide value
+        &mdash; nothing here is invented, so an empty field simply falls back.</p>
+
+      <label class="hc-lbl" for="ipSupportEmail">Support e-mail</label>
+      <input type="email" name="support_email" id="ipSupportEmail" value="{{ support_email }}"
+             style="width:100%;max-width:620px"
+             placeholder="{{ default_support_email }} (site-wide default)"/>
+
+      <label class="hc-lbl" style="margin-top:14px" for="ipAvailability">Availability line</label>
+      <input type="text" name="availability" id="ipAvailability" value="{{ availability }}"
+             style="width:100%;max-width:620px" maxlength="80"
+             placeholder="Across time zones, every day"/>
+
+      <p class="muted" style="font-size:13px;margin-top:12px">
+        Phone numbers come from
+        <a href="{{ url_for('admin.landing_page') }}">Admin &rarr; Landing page</a>,
+        the same two the rest of the site uses:
+        {% set shown = [] %}
+        {% if whatsapp.get('in') %}{% set _ = shown.append('India ' ~ whatsapp['in']['display']) %}{% endif %}
+        {% if whatsapp.get('us') %}{% set _ = shown.append('USA ' ~ whatsapp['us']['display']) %}{% endif %}
+        <b>{{ shown|join(' · ') if shown else 'none set — the page shows no number at all' }}</b>.
+      </p>
+
       <h2 class="hc-h2">Price anchor</h2>
       <p class="muted" style="font-size:13px;margin-bottom:8px">Shown under the hero button. People
         compare on price whether or not we give them a number, so an empty line here sends them

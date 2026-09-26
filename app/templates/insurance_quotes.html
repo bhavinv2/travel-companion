@@ -29,7 +29,7 @@
       <tbody>
         {% for iq in quotes %}
         <tr>
-          <td>{{ iq.created_at.strftime('%d %b %Y') }}<br><small>{{ iq.created_at.strftime('%H:%M') }}</small></td>
+          <td>{{ iq.created_at|istd('%d %b %Y') }}<br><small>{{ iq.created_at|ist('%H:%M') }}</small></td>
           <td>
             <b><a href="mailto:{{ iq.email }}">{{ iq.email }}</a></b><br>
             <small>{% if iq.name %}{{ iq.name }}{% if iq.phone %} · {% endif %}{% endif %}{{ iq.phone or '' }}</small>

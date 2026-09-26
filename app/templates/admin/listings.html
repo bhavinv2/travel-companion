@@ -55,7 +55,7 @@
           </td>
           <td data-label="Departs">{{ trip.from_date or trip.road_from_date or '—' }}
             {% if trip.days_to_departure is not none %}<small class="{{ 'urgent' if trip.days_to_departure <= 3 else 'muted' }}">({{ trip.days_to_departure }}d)</small>{% endif %}
-            <br/><small class="muted">posted {{ trip.created_at.strftime('%Y-%m-%d') }}</small>
+            <br/><small class="muted">posted {{ trip.created_at|istd }}</small>
           </td>
           <td data-label="Role">{{ role_chip(trip) }}</td>
           <td data-label="Source">{{ trip.source }}</td>

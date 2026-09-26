@@ -15,7 +15,7 @@
         <p>{{ post.excerpt() }}</p>
         <div class="blog-meta">
           <span><i class="fa-solid fa-user"></i> {{ post.author.username }}</span>
-          <span><i class="fa-solid fa-calendar"></i> {{ post.published_at.strftime('%b %d, %Y') if post.published_at else '' }}</span>
+          <span><i class="fa-solid fa-calendar"></i> {{ post.published_at|istd('%b %d, %Y') if post.published_at else '' }}</span>
         </div>
       </div>
     </a>

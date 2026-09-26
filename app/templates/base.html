@@ -42,10 +42,12 @@
 
     <ul class="nav-links" id="navLinks">
       {% if is_staff %}
-        <li><a href="{{ url_for('cs.posts') }}"><i class="fa-solid fa-list"></i> Posts</a></li>
-        <li><a href="{{ url_for('matches.cs_match_queue') }}"><i class="fa-solid fa-handshake"></i> Match Queue</a></li>
-        <li><a href="{{ url_for('cs.new_post') }}"><i class="fa-solid fa-plus"></i> New Post</a></li>
-        <li><a href="{{ url_for('imports.import_page') }}"><i class="fa-solid fa-file-import"></i> Import</a></li>
+        {# Offered only where the agent can actually go: an admin may have narrowed their console
+           access, and a link that answers "not for you" is worse than no link. #}
+        {% if CS_ACCESS.can_open(current_user, 'posts') %}<li><a href="{{ url_for('cs.posts') }}"><i class="fa-solid fa-list"></i> Posts</a></li>{% endif %}
+        {% if CS_ACCESS.can_open(current_user, 'matches') %}<li><a href="{{ url_for('matches.cs_match_queue') }}"><i class="fa-solid fa-handshake"></i> Match Queue</a></li>{% endif %}
+        {% if CS_ACCESS.can_open(current_user, 'new') %}<li><a href="{{ url_for('cs.new_post') }}"><i class="fa-solid fa-plus"></i> New Post</a></li>{% endif %}
+        {% if CS_ACCESS.can_open(current_user, 'import') %}<li><a href="{{ url_for('imports.import_page') }}"><i class="fa-solid fa-file-import"></i> Import</a></li>{% endif %}
       {% else %}
       {# No "Home" link while you are already home — the logo is the way back, same as the landing. #}
       {% if request.endpoint != 'main.index' %}
@@ -78,6 +80,9 @@
           <li><a href="{{ url_for('admin.dashboard') }}"><i class="fa-solid fa-user-shield"></i> Admin</a></li>
         {% endif %}
       {% else %}
+        {# Both of these live in the menu on phones, where the navbar has no room for them --
+           see the .nav-signin rule. Sign In is in .nav-right on wider screens. #}
+        <li><a href="{{ url_for('auth.login') }}" class="nav-signin"><i class="fa-solid fa-right-to-bracket"></i> {{ _('Sign In') }}</a></li>
         <li><a href="{{ url_for('auth.register') }}" class="highlight-link"><i class="fa-solid fa-user-plus"></i> {{ _('Join Desi Travellers') }}</a></li>
       {% endif %}
       {% endif %}

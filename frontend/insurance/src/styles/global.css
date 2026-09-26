@@ -141,6 +141,9 @@ button{font-family:inherit}
 .hero::after{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(90deg,rgba(1,16,56,.80) 0%,rgba(1,16,56,.55) 36%,rgba(1,16,56,.18) 64%,rgba(1,16,56,.02) 100%)}
 .hero::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
   background:linear-gradient(180deg,rgba(1,16,56,.34) 0%,rgba(1,16,56,.12) 34%,rgba(1,16,56,.55) 74%,var(--navy) 100%)}
+/* The site's navbar is sticky, so an anchor jump (#contact, #faq) would land with the section's
+   first line underneath it. */
+section[id]{scroll-margin-top:84px}
 .hero-in{position:relative;z-index:2;padding-top:100px}
 .hero-copy{max-width:600px}
 .script-tag{font-family:'Caveat',cursive;font-weight:600;line-height:1.15;color:var(--marigold);transform:rotate(-2deg);display:inline-block}
@@ -180,6 +183,13 @@ button{font-family:inherit}
   .hero-bg{object-position:70% center}
   .hero::after{background:linear-gradient(180deg,rgba(1,16,56,.88) 0%,rgba(1,16,56,.72) 40%,rgba(1,16,56,.42) 62%,rgba(1,16,56,.12) 100%)}
   .hero-copy{max-width:none}
+  /* "Worry-free travel for you & your loved ones." is handwriting with long descenders sitting
+     2px above a pill, so on a phone the two collided and the line read as if it were behind the
+     chip. Sent to the top right, on its own line, clear of everything under it. */
+  .hero-script{text-align:right;font-size:19px;line-height:1.32;margin:0 0 16px}
+}
+@media(max-width:480px){
+  .hero-script{font-size:17px;margin-bottom:14px}
 }
 
 /* shared stepper (quote modal traveller count) */
@@ -666,6 +676,22 @@ button{font-family:inherit}
 .ov{position:fixed;inset:0;z-index:9000;background:rgba(1,16,56,.62);backdrop-filter:blur(4px);display:flex;align-items:flex-start;justify-content:center;padding:24px 16px;overflow-y:auto;animation:fade .25s ease}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 @keyframes pop{from{opacity:0;transform:translateY(24px) scale(.98)}to{opacity:1;transform:none}}
+/* Thin scrollbars inside the overlay and its dialogs. The system default puts a grey slab down
+   the inside edge of a rounded white card, which reads as a rendering fault rather than a
+   control. Styled rather than hidden: it is the only sign that there is more below. */
+.ov,.modal,.itel-list,.spop-form,.spop-side{scrollbar-width:thin;scrollbar-color:rgba(120,140,170,.45) transparent}
+.ov::-webkit-scrollbar,.modal::-webkit-scrollbar,.itel-list::-webkit-scrollbar,
+.spop-form::-webkit-scrollbar,.spop-side::-webkit-scrollbar{width:8px;height:8px}
+.ov::-webkit-scrollbar-track,.modal::-webkit-scrollbar-track,.itel-list::-webkit-scrollbar-track,
+.spop-form::-webkit-scrollbar-track,.spop-side::-webkit-scrollbar-track{background:transparent}
+.ov::-webkit-scrollbar-thumb,.modal::-webkit-scrollbar-thumb,.itel-list::-webkit-scrollbar-thumb,
+.spop-form::-webkit-scrollbar-thumb,.spop-side::-webkit-scrollbar-thumb{
+  background:rgba(120,140,170,.38);border-radius:999px;border:2px solid transparent;background-clip:content-box}
+.ov::-webkit-scrollbar-thumb:hover,.modal::-webkit-scrollbar-thumb:hover{
+  background:rgba(120,140,170,.62);background-clip:content-box}
+/* the support popup's navy panel needs a light thumb to be visible at all */
+.spop-side{scrollbar-color:rgba(255,255,255,.3) transparent}
+.spop-side::-webkit-scrollbar-thumb{background:rgba(255,255,255,.28);background-clip:content-box}
 .modal{width:100%;max-width:880px;background:#fff;border-radius:28px;box-shadow:0 40px 100px rgba(1,16,56,.35);max-height:calc(100vh - 48px);overflow-y:auto;animation:pop .35s cubic-bezier(.2,.8,.3,1)}
 .modal.sm{max-width:520px;position:relative}
 .modal-hd{padding:24px 26px 0;display:flex;gap:16px;justify-content:space-between;align-items:flex-start}
@@ -849,6 +875,15 @@ a.ec-v:hover{color:var(--blue)}
 .ec-go{flex:0 0 auto;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;
   justify-content:center;background:rgba(0,78,254,.08);color:var(--blue);
   transition:background .2s,transform .2s}
+/* On a phone the chevron was costing the e-mail address the 30px it needed, so
+   support@connectingdesis.com broke mid-word across two lines. The whole card is the link. */
+@media(max-width:560px){
+  .ec{gap:12px;padding:13px 14px}
+  .ec-ic{width:44px;height:44px;border-radius:13px}
+  .ec-go{display:none}
+  .ec-v{font-size:15.5px}
+  .ec-num{gap:7px}
+}
 .ec-act:hover .ec-go{background:rgba(0,78,254,.16);transform:translateX(3px)}
 /* one row per team: the number, whose team it is, and a way to message them */
 .ec-nums{display:flex;flex-direction:column;gap:7px;margin-top:3px}
@@ -1000,7 +1035,16 @@ a.ec-v:hover{color:var(--blue)}
 .wafab.wafab-right .wafab-tip{left:auto;right:72px;transform:translateX(6px)}
 .wafab.wafab-right:hover .wafab-tip{transform:none}
 @keyframes wapulse{0%{box-shadow:0 12px 30px rgba(37,211,102,.5),0 0 0 0 rgba(37,211,102,.5)}70%{box-shadow:0 12px 30px rgba(37,211,102,.5),0 0 0 14px rgba(37,211,102,0)}100%{box-shadow:0 12px 30px rgba(37,211,102,.5),0 0 0 0 rgba(37,211,102,0)}}
-@media(max-width:560px){.wafab{width:54px;height:54px;left:16px;bottom:16px}.wafab.wafab-right{right:16px}}
+/* Bottom RIGHT on a phone. At this width every section is a single full-bleed column of
+   left-aligned text, so a button in the bottom-left corner sits on the first few characters of
+   whatever line it lands on -- it was eating the start of "Add everyone travelling..." and the
+   Name field in the expert form. On the right it covers line ends and margins instead. */
+@media(max-width:760px){
+  .wafab{left:auto;right:16px;bottom:16px}
+  .wafab .wafab-tip{left:auto;right:72px;transform:translateX(6px)}
+  .wafab:hover .wafab-tip{transform:none}
+}
+@media(max-width:560px){.wafab{width:54px;height:54px;right:16px;bottom:16px}.wafab.wafab-right{right:16px}}
 
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001s!important;transition-duration:.001s!important}

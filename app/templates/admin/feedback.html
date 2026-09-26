@@ -10,7 +10,7 @@
       <div class="feedback-item" id="fb-{{ fb.id }}">
         <div class="stars">{% for i in range(fb.rating) %}★{% endfor %}{% for i in range(5-fb.rating) %}☆{% endfor %}</div>
         <p>{{ fb.comment }}</p>
-        <small>By {{ fb.user.username }} — {{ fb.created_at.strftime('%Y-%m-%d') }}</small>
+        <small>By {{ fb.user.username }} — {{ fb.created_at|istd }}</small>
         <span class="badge-pill {{ 'green' if fb.is_approved else 'yellow' }}" id="fb-badge-{{ fb.id }}">{{ 'Approved' if fb.is_approved else 'Pending' }}</span>
         <div class="fb-actions">
           {% if not fb.is_approved %}

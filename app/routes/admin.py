@@ -402,6 +402,7 @@ def insurance_page_content():
     """
     from app.models import ActivityEvent
     from app.services import insurance_page
+    from app.services import settings as settings_service
 
     if request.method == 'POST':
         cols = {f: request.form.getlist(f) for f in ('id',) + insurance_page.FIELDS}
@@ -409,7 +410,9 @@ def insurance_page_content():
         rows = [{f: (cols[f][i] if i < len(cols[f]) else '') for f in cols} for i in range(n)]
         saved = insurance_page.save_reviews(rows, actor=current_user)
         insurance_page.save_page(request.form.get('price_from'),
-                                 request.form.getlist('assurance'), actor=current_user)
+                                 request.form.getlist('assurance'), actor=current_user,
+                                 support_email_text=request.form.get('support_email'),
+                                 availability_text=request.form.get('availability'))
         ActivityEvent.log('insurance_reviews_saved', actor=current_user, count=len(saved))
         db.session.commit()
         flash('Saved %d testimonial%s.' % (len(saved), '' if len(saved) == 1 else 's'), 'success')
@@ -422,6 +425,10 @@ def insurance_page_content():
                            assurances=insurance_page.assurances(),
                            suggestions=insurance_page.ASSURANCE_SUGGESTIONS,
                            max_assurances=insurance_page.MAX_ASSURANCES,
+                           support_email=insurance_page.support_email(),
+                           availability=insurance_page.availability(),
+                           default_support_email=current_app.config.get('SUPPORT_EMAIL', ''),
+                           whatsapp=settings_service.whatsapp_numbers(),
                            faq_category=insurance_page.FAQ_CATEGORY)
 
 
@@ -962,6 +969,42 @@ def airlines_delete(airline_id):
     db.session.commit()
     airlines_svc.reset_cache()
     return jsonify({'success': True})
+
+
+@admin_bp.route('/users/<int:user_id>/cs-access', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def cs_screen_access(user_id):
+    """Which CS console screens one agent may open.
+
+    A screen of its own rather than more controls in the users table: this is a decision about
+    somebody's job, made occasionally and deliberately, and it needs room to say what each screen
+    actually is. The table keeps one link.
+    """
+    from app.models import ActivityEvent
+    from app.services import cs_access
+
+    agent = User.query.get_or_404(user_id)
+    if not agent.is_cs or agent.is_admin:
+        # An admin is never restricted, and a non-agent has no console to restrict.
+        flash('Access limits apply to CS agents only.', 'warning')
+        return redirect(url_for('admin.users'))
+
+    if request.method == 'POST':
+        if request.form.get('mode') == 'all':
+            agent.cs_access = None                      # null means unrestricted
+        else:
+            agent.cs_access = cs_access.clean(request.form.getlist('screen'))
+        db.session.commit()
+        ActivityEvent.log('cs_access_changed', actor=current_user, target_user=agent.id,
+                          screens=('all' if agent.cs_access is None else len(agent.cs_access)))
+        db.session.commit()
+        flash('Access saved for %s.' % agent.username, 'success')
+        return redirect(url_for('admin.cs_screen_access', user_id=agent.id))
+
+    return render_template('admin/cs_access.html', active='users', agent=agent,
+                           sites=cs_access.SITES, screens=cs_access.SCREENS,
+                           current=agent.cs_access)
 
 
 @admin_bp.route('/listings')

@@ -1,25 +1,52 @@
+{# The admin menu, grouped by product.
+
+   It was sixteen links in one flat list covering three products plus the settings that apply to
+   all of them. The tabs pick a product; the list below shows only that product's screens.
+
+   The grouping lives in services/admin_nav.py so it can be reasoned about and tested rather than
+   read out of a template -- and because four of these lines are one screen seen through different
+   query strings (contact, feedback and reports are tabs of "User voices", and the enquiry inbox
+   is split again by topic), which needs more than a template can say clearly. #}
+{% set nav = ADMIN_NAV %}
+{% set here = nav.current_key(active, request.args) %}
+{% set current = nav.section_for(active, request.args) %}
 <aside class="admin-sidebar">
   <h3>Admin Panel</h3>
   <button type="button" class="rail-toggle" data-rail-toggle
           aria-label="Collapse the menu" aria-expanded="true" title="Collapse the menu">
     <i class="fa-solid fa-bars"></i>
   </button>
-  <nav>
-    <a href="{{ url_for('admin.dashboard') }}" class="{{ 'active' if active == 'dashboard' }}" title="Dashboard"><i class="fa-solid fa-gauge"></i> <span>Dashboard</span></a>
-    <a href="{{ url_for('admin.users') }}" class="{{ 'active' if active == 'users' }}" title="Users"><i class="fa-solid fa-users"></i> <span>Users</span></a>
-    <a href="{{ url_for('admin.listings') }}" class="{{ 'active' if active == 'listings' }}" title="Listings"><i class="fa-solid fa-list"></i> <span>Listings</span></a>
-    <a href="{{ url_for('admin.new_blog') }}" class="{{ 'active' if active == 'blog' }}" title="New Blog Post"><i class="fa-solid fa-pen"></i> <span>New Blog Post</span></a>
-    <a href="{{ url_for('admin.options_page') }}" class="{{ 'active' if active == 'options' }}" title="Options & dropdowns"><i class="fa-solid fa-sliders"></i> <span>Options &amp; dropdowns</span></a>
-    <a href="{{ url_for('admin.notification_log') }}" class="{{ 'active' if active == 'notiflog' }}" title="Notifications"><i class="fa-solid fa-bell"></i> <span>Notifications</span></a>
-    <a href="{{ url_for('admin.notification_switches') }}" class="{{ 'active' if active == 'notifications' }}" title="Notification switches"><i class="fa-solid fa-bell-slash"></i> <span>Notification switches</span></a>
-    <a href="{{ url_for('admin.messages_page') }}" class="{{ 'active' if active == 'messages' }}" title="Messages & e-mails"><i class="fa-solid fa-envelope-open-text"></i> <span>Messages &amp; e-mails</span></a>
-    <a href="{{ url_for('admin.themes_page') }}" class="{{ 'active' if active == 'themes' }}" title="Colour themes"><i class="fa-solid fa-palette"></i> <span>Colour themes</span></a>
-    <a href="{{ url_for('admin.landing_page') }}" class="{{ 'active' if active == 'landing' }}" title="Landing page"><i class="fa-solid fa-flag"></i> <span>Landing page</span></a>
-    <a href="{{ url_for('admin.help_center_page') }}" class="{{ 'active' if active == 'help' }}" title="Help & FAQ"><i class="fa-solid fa-circle-question"></i> <span>Help &amp; FAQ</span></a>
-    <a href="{{ url_for('admin.voices') }}" class="{{ 'active' if active == 'voices' }}" title="User Voices"><i class="fa-solid fa-comment-dots"></i> <span>User Voices</span></a>
-    <a href="{{ url_for('admin.sahayak_bookings') }}" class="{{ 'active' if active == 'sahayak' }}" title="Sahayak bookings"><i class="fa-solid fa-house-medical"></i> <span>Sahayak</span></a>
-    <a href="{{ url_for('admin.sahayak_services') }}" class="{{ 'active' if active == 'sahayak_services' }}" title="Sahayak services"><i class="fa-solid fa-list-check"></i> <span>Sahayak services</span></a>
-    <a href="{{ url_for('admin.insurance_quotes') }}" class="{{ 'active' if active == 'insurance' }}" title="Insurance leads"><i class="fa-solid fa-shield-heart"></i> <span>Insurance leads</span></a>
-    <a href="{{ url_for('admin.insurance_page_content') }}" class="{{ 'active' if active == 'insurance_page' }}" title="Insurance page"><i class="fa-solid fa-quote-left"></i> <span>Insurance page</span></a>
+
+  {# Above the tabs on purpose: it reports across all three products, so filing it under one
+     would misdescribe what it shows. #}
+  <nav class="admin-nav-top">
+    <a href="{{ url_for(nav.DASHBOARD.endpoint) }}" title="{{ nav.DASHBOARD.label }}"
+       class="{{ 'active' if nav.is_dashboard(active) }}">
+      <i class="fa-solid {{ nav.DASHBOARD.icon }}"></i> <span>{{ nav.DASHBOARD.label }}</span>
+    </a>
+  </nav>
+
+  <div class="admin-tabs" role="tablist" aria-label="Which site to manage">
+    {% for s in nav.SECTIONS %}
+    {% set on = s.key == current and not nav.is_dashboard(active) %}
+    {# Each tab links to that product's first screen, so switching goes somewhere useful rather
+       than to a menu that asks you to choose again. #}
+    <a class="admin-tab{{ ' on' if on }}"
+       href="{{ url_for(s['items'][0].endpoint, **s['items'][0].args) }}"
+       role="tab" aria-selected="{{ 'true' if on else 'false' }}" title="{{ s.label }}">
+      <i class="fa-solid {{ s.icon }}"></i><span>{{ s.label }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <nav class="admin-nav-items">
+    {% for s in nav.SECTIONS if s.key == current %}
+      {% for item in s['items'] %}
+      <a href="{{ url_for(item.endpoint, **item.args) }}"
+         class="{{ 'active' if item.key == here }}" title="{{ item.label }}">
+        <i class="fa-solid {{ item.icon }}"></i> <span>{{ item.label }}</span>
+      </a>
+      {% endfor %}
+    {% endfor %}
   </nav>
 </aside>

@@ -2146,7 +2146,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
       <a class="blog-card" href="{{ url_for('blog.blog_post', slug=b.slug) }}">
         <div class="blog-img"><img src="{{ b.cover_image_url or url_for('static', filename='img/landing/' ~ fallback) }}" alt="" loading="lazy"></div>
         <div class="blog-body">
-          <span class="blog-date">{{ (b.published_at or b.created_at).strftime('%d %b %Y') }}{% if b.author %} · {{ b.author.username }}{% endif %}</span>
+          <span class="blog-date">{{ (b.published_at or b.created_at)|istd('%d %b %Y') }}{% if b.author %} · {{ b.author.username }}{% endif %}</span>
           <h3>{{ b.title }}</h3>
           <p>{{ b.excerpt(130) }}</p>
           <span class="blog-more">Read article →</span>

@@ -84,6 +84,10 @@ class User(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
     role = db.Column(db.String(20), default='user')      # legacy: highest access level (user / cs / admin)
+    # Which CS console screens this agent may open. NULL means all of them, which is what
+    # everybody has today and what a new hire gets -- an admin narrows it afterwards. See
+    # services/cs_access.py; it grants screens, not rows.
+    cs_access = db.Column(db.JSON)
     # All roles the account holds, e.g. ["user", "cs"]. Role keys and their access levels are configurable at
     # /admin/options; `role` and `is_admin` are kept in sync by set_roles() so existing checks keep working.
     roles = db.Column(db.JSON)

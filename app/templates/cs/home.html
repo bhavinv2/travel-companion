@@ -17,7 +17,7 @@
 
     <div class="admin-card" id="needs-action">
       <div class="card-head"><h2><i class="fa-solid fa-triangle-exclamation"></i> 0 · Needs action</h2>
-        <a class="btn-sm" href="{{ url_for('matches.cs_match_queue') }}">Match queue</a></div>
+        {% if CS_ACCESS.can_open(current_user, 'matches') %}<a class="btn-sm" href="{{ url_for('matches.cs_match_queue') }}">Match queue</a>{% endif %}</div>
       {% if open_reports %}
       <h3 class="sub"><i class="fa-solid fa-flag" style="color:#c0392b"></i> Reported matches <span class="chip chip-open">{{ reports_total }}</span></h3>
       <div class="table-wrap"><table class="admin-table stack-mobile">
@@ -25,7 +25,7 @@
         <tbody>
         {% for r in open_reports %}
           <tr>
-            <td class="nowrap" data-label="When">{{ r.created_at.strftime('%d %b %H:%M') if r.created_at }}</td>
+            <td class="nowrap" data-label="When">{{ r.created_at|ist('%d %b %H:%M') if r.created_at }}</td>
             <td data-label="Reporter">{{ r.reporter.username if r.reporter else 'Guest' }}</td>
             <td data-label="Match">{% if r.match %}<strong>#{{ r.match_id }}</strong><br/><small class="muted">{{ r.match.trip_a.route_display if r.match.trip_a else '' }}</small>{% else %}—{% endif %}</td>
             <td class="urgent" data-label="Problem">{{ (r.reason or '')[:120] }}{{ '…' if r.reason and r.reason|length > 120 }}</td>
@@ -125,7 +125,7 @@
             <td data-label="Route">{{ t.route_display }}</td>
             <td data-label="Departed">{{ t.from_date or '—' }}</td>
             <td data-label="Reason">{{ CLOSED_REASON_LABELS.get(t.closed_reason, t.closed_reason or '—') }}</td>
-            <td data-label="Closed"><small class="muted">{{ t.closed_at.strftime('%Y-%m-%d') if t.closed_at else '' }}{% if t.closed_by %} by {{ t.closed_by.username }}{% endif %}</small></td>
+            <td data-label="Closed"><small class="muted">{{ t.closed_at|istd if t.closed_at else '' }}{% if t.closed_by %} by {{ t.closed_by.username }}{% endif %}</small></td>
             <td class="row-actions"><form method="POST" action="{{ url_for('cs.reopen_post', trip_id=t.id) }}" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ url_for('cs.home') }}#closed"/><button class="btn-sm">Reopen</button></form></td>
           </tr>
         {% else %}<tr><td colspan="7" class="muted">Nothing closed yet.</td></tr>{% endfor %}

@@ -76,7 +76,7 @@ textarea, input, select, button { font-family: inherit; }
 /* Redundant with the "Sign Up" pill button once nav-links renders inline (>=769px); it stays
    in the mobile hamburger drawer below, where Sign Up is hidden under 480px and this is the
    only way to register. */
-@media (min-width: 769px) { .nav-links .highlight-link { display: none; } }
+@media (min-width: 769px) { .nav-links .highlight-link, .nav-links .nav-signin { display: none; } }
 .nav-links a i { display: none; }  /* icons show only in the mobile drop menu, not the desktop row */
 @keyframes navDrop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 .nav-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
@@ -955,6 +955,10 @@ html, body { overflow-x: clip; }  /* clip (not hidden): hidden turns body into a
   /* Icon only, same as the language pill: the headset is the recognisable part. */
   .nav-support-tx { display: none; }
   .nav-support { padding: 7px 10px; gap: 0; }
+  /* The navbar needs 459px on a 390px phone once the logo, Support, language, Sign In and the
+     burger are laid out, and the overflow pushed the BURGER off screen -- taking the whole menu,
+     and with it the only route to signing up, out of reach. Sign In moves into that menu. */
+  .btn-outline-nav { display: none; }
   .user-btn { padding: 6px 8px; }
   .btn-outline-nav, .btn-primary-nav { width: auto; padding: 8px 12px; font-size: 13px; }
   .search-section { padding: 16px 4% 32px; }
@@ -3421,3 +3425,102 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 /* "New" for a few days after saving, so a colleague notices a view that was shared while they
    were away. It expires on its own -- see saved_filters.NEW_FOR_DAYS. */
 .sv-new { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #0b7a5f; background: #e7f7f4; border: 1px solid #b9e6da; border-radius: 999px; padding: 2px 7px; }
+
+/* ---- Admin: one product at a time ---------------------------------------
+   The panel was sixteen links in a flat list covering three separate products. The tabs pick
+   which one you are managing; the list below shows only its screens. Dashboard sits above the
+   tabs because it reports across all of them. */
+.admin-nav-top { display: flex; flex-direction: column; margin-bottom: 10px; }
+.admin-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 10px 0 12px; margin-bottom: 10px; border-top: 1px solid rgba(255,255,255,.10); border-bottom: 1px solid rgba(255,255,255,.10); }
+.admin-tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; text-align: center; padding: 10px 6px; border-radius: 10px; font-size: 11.5px; font-weight: 700; line-height: 1.25; color: rgba(255,255,255,.72); border: 1px solid transparent; }
+.admin-tab i { font-size: 15px; opacity: .85; }
+.admin-tab:hover { background: rgba(255,255,255,.08); color: #fff; }
+.admin-tab.on { background: rgba(47,128,237,.22); border-color: rgba(47,128,237,.55); color: #fff; }
+.admin-tab.on i { opacity: 1; color: #8fc0ff; }
+
+/* Collapsed rail: labels go, icons stay, one tab per row so they stay distinguishable at 68px.
+   The collapse class is `is-rail` on .admin-page, which is what the toggle actually sets. */
+.admin-page.is-rail .admin-tabs { grid-template-columns: 1fr; padding-top: 40px; }
+.admin-page.is-rail .admin-tab span { display: none; }
+.admin-page.is-rail .admin-tab { padding: 9px 4px; }
+
+@media (max-width: 900px) {
+  /* The sidebar becomes a dropdown here and its <nav>s are hidden until it is opened. The tabs
+     are not a <nav>, so they have to be hidden to match -- otherwise four product buttons sit
+     across the collapsed bar with nothing under them. */
+  .admin-tabs { display: none; grid-template-columns: repeat(4, 1fr); }
+  .admin-sidebar.nav-open .admin-tabs { display: grid; margin: 0; padding: 10px 12px; }
+  .admin-sidebar.nav-open .admin-nav-top { margin: 0; }
+  .admin-tab span { display: none; }
+  .admin-tab { padding: 12px 4px; }
+  /* the tabs sit inside the dropdown, so it has to be positioned like the nav lists are */
+  .admin-sidebar.nav-open .admin-tabs { position: absolute; top: 100%; left: 0; right: 0;
+    background: var(--navy); z-index: 901; border-top: 1px solid rgba(255,255,255,.08); }
+  .admin-sidebar.nav-open .admin-nav-items { top: calc(100% + 66px); }
+}
+/* A heading between product groups in the CS menu. Only shown from the second group on: the
+   first is the console itself and needs no label. */
+.cs-nav-head { display: block; padding: 14px 16px 6px; font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.42); }
+.admin-page.is-rail .cs-nav-head { padding: 10px 0 4px; text-align: center; }
+.admin-page.is-rail .cs-nav-head span { display: none; }
+.admin-page.is-rail .cs-nav-head::before { content: ""; display: block; height: 1px; background: rgba(255,255,255,.14); margin: 0 12px; }
+
+/* Console access editor: two modes stated as a choice, then the screens grouped by product. */
+.csa-mode { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 12px; margin-bottom: 10px; cursor: pointer; }
+.csa-mode:hover { border-color: var(--coral); }
+.csa-mode b { display: block; font-size: 15px; }
+.csa-mode small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.csa-group { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin: 12px 0 0; }
+.csa-group legend { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 0 6px; }
+.csa-screen { display: flex; gap: 10px; align-items: center; padding: 7px 4px; font-size: 14.5px; cursor: pointer; }
+.csa-screen i { width: 18px; text-align: center; color: var(--muted); }
+.csa-note { color: var(--coral-dark-text); font-size: 11.5px; font-style: normal; background: var(--coral-light); border-radius: 999px; padding: 2px 8px; margin-left: 6px; }
+
+/* ---- Scrollbars inside panels ------------------------------------------
+   A chunky grey system scrollbar down the inside edge of a rounded white dialog reads as a
+   rendering fault, not a control. These are thin, have no track and no arrows, and the thumb is
+   a translucent rounded bar that picks up the surface it sits on.
+
+   Deliberately styled rather than removed: `scrollbar-width: none` would take away the only clue
+   that there is more to read. Firefox gets the standard properties, Chromium and Safari the
+   ::-webkit- pseudo-elements; a browser that supports neither keeps its default, which is
+   ugly but never broken. */
+.admin-sidebar, .admin-sidebar nav, .admin-nav-items,
+.modal-overlay, .dlg, .su-modal, .sv-dlg-in, .sv-more-menu,
+.lang-menu-list, .notif-dropdown, .ss-pop, .pf-drawer, .pf-body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 140, 170, .45) transparent;
+}
+.admin-sidebar::-webkit-scrollbar, .admin-sidebar nav::-webkit-scrollbar,
+.admin-nav-items::-webkit-scrollbar, .modal-overlay::-webkit-scrollbar,
+.dlg::-webkit-scrollbar, .su-modal::-webkit-scrollbar, .sv-dlg-in::-webkit-scrollbar,
+.sv-more-menu::-webkit-scrollbar, .lang-menu-list::-webkit-scrollbar,
+.notif-dropdown::-webkit-scrollbar, .ss-pop::-webkit-scrollbar,
+.pf-drawer::-webkit-scrollbar, .pf-body::-webkit-scrollbar { width: 8px; height: 8px; }
+
+.admin-sidebar::-webkit-scrollbar-track, .admin-sidebar nav::-webkit-scrollbar-track,
+.admin-nav-items::-webkit-scrollbar-track, .modal-overlay::-webkit-scrollbar-track,
+.dlg::-webkit-scrollbar-track, .su-modal::-webkit-scrollbar-track,
+.sv-dlg-in::-webkit-scrollbar-track, .sv-more-menu::-webkit-scrollbar-track,
+.lang-menu-list::-webkit-scrollbar-track, .notif-dropdown::-webkit-scrollbar-track,
+.ss-pop::-webkit-scrollbar-track, .pf-drawer::-webkit-scrollbar-track,
+.pf-body::-webkit-scrollbar-track { background: transparent; }
+
+.admin-sidebar::-webkit-scrollbar-thumb, .admin-sidebar nav::-webkit-scrollbar-thumb,
+.admin-nav-items::-webkit-scrollbar-thumb, .modal-overlay::-webkit-scrollbar-thumb,
+.dlg::-webkit-scrollbar-thumb, .su-modal::-webkit-scrollbar-thumb,
+.sv-dlg-in::-webkit-scrollbar-thumb, .sv-more-menu::-webkit-scrollbar-thumb,
+.lang-menu-list::-webkit-scrollbar-thumb, .notif-dropdown::-webkit-scrollbar-thumb,
+.ss-pop::-webkit-scrollbar-thumb, .pf-drawer::-webkit-scrollbar-thumb,
+.pf-body::-webkit-scrollbar-thumb {
+  background: rgba(120, 140, 170, .38); border-radius: 999px; border: 2px solid transparent;
+  background-clip: content-box;
+}
+.dlg::-webkit-scrollbar-thumb:hover, .su-modal::-webkit-scrollbar-thumb:hover,
+.modal-overlay::-webkit-scrollbar-thumb:hover,
+.admin-sidebar::-webkit-scrollbar-thumb:hover { background: rgba(120, 140, 170, .62); background-clip: content-box; }
+
+/* On the dark sidebar the same bar has to be light to be seen at all. */
+.admin-sidebar, .admin-sidebar nav, .admin-nav-items { scrollbar-color: rgba(255,255,255,.28) transparent; }
+.admin-sidebar::-webkit-scrollbar-thumb, .admin-sidebar nav::-webkit-scrollbar-thumb,
+.admin-nav-items::-webkit-scrollbar-thumb { background: rgba(255,255,255,.26); background-clip: content-box; }

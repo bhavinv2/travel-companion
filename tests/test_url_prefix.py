@@ -214,3 +214,59 @@ def test_links_inside_the_app_still_carry_the_prefix(pclient):
     html = pclient.get('/travel-insurance').data.decode()
     assert f'href="{PREFIX}/static/insurance/travel-insurance.css' in html
     assert f'href="{PREFIX}/help"' in html          # the Support link is an ordinary app page
+
+
+# ---------------------------------------------------------------------------
+# Times are stored in UTC and read in India
+# ---------------------------------------------------------------------------
+
+def test_a_stored_timestamp_is_shown_in_ist(papp):
+    """Every timestamp column is UTC, which is the right thing to store and the wrong thing to
+    show: nobody reading this app is in UTC. 19:00 UTC is half past midnight the NEXT day in
+    India, so printing the raw value is not a rounding error -- it is the wrong day."""
+    from datetime import datetime, date
+    with papp.app_context():
+        ist = papp.jinja_env.filters['ist']
+        istd = papp.jinja_env.filters['istd']
+        late = datetime(2026, 9, 26, 19, 0)
+
+        assert ist(late) == '27 Sep 2026, 00:30 IST'
+        assert istd(late) == '2026-09-27'
+        # a calendar date has no time zone; shifting it would invent a change nobody made
+        assert istd(date(2026, 11, 20)) == '2026-11-20'
+        assert ist(None) == '' and istd(None) == ''
+
+
+def test_the_posted_filter_means_indian_days(papp):
+    """The listing prints "27 Sep" for something recorded at 19:00 UTC on the 26th, so asking for
+    the 27th has to return it. Filter and display have to agree or the filter looks broken."""
+    from datetime import datetime
+    from app.models import CompanionRequest
+    from app.services import post_filters
+
+    with papp.app_context():
+        _db.session.add(CompanionRequest(
+            poster_name='late night', flying_from='Delhi', destination='Dubai',
+            travel_type='one_way', trip_type='one_way', status='open',
+            created_at=datetime(2026, 9, 26, 19, 0)))
+        _db.session.commit()
+
+        def count(day):
+            q, _ = post_filters.apply(CompanionRequest.query, {'posted_from': day, 'posted_to': day})
+            return q.count()
+
+        assert count('2026-09-26') == 0      # the UTC day it was written
+        assert count('2026-09-27') == 1      # the Indian day it happened
+
+
+def test_today_in_a_date_input_is_the_indian_day(papp):
+    """Between 18:30 and midnight IST, utcnow() is still yesterday in India -- a date input
+    offering it as the minimum would block today or allow a day already gone."""
+    from datetime import datetime, timedelta
+    from flask import render_template_string
+    # render_template_string, not jinja_env.from_string: `now` comes from a context processor,
+    # which only runs for a real template render inside a request.
+    with papp.test_request_context('/'):
+        rendered = render_template_string("{{ now().strftime('%Y-%m-%d %H:%M') }}")
+    expected = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime('%Y-%m-%d %H:%M')
+    assert rendered == expected, '%s != %s' % (rendered, expected)

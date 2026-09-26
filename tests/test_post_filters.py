@@ -106,14 +106,15 @@ def test_date_filters_read_the_right_column(client, cs_user, posts):
     assert listed(client, '/cs/posts?dep_to=%s' % mid, posts) == {'ravi'}
     # only the round trip has a return date at all
     assert listed(client, '/cs/posts?ret_from=%s' % LATER.isoformat(), posts) == {'lakshmi'}
-    # posted-on is about when it reached us, not when anyone flies. created_at is UTC and the
-    # listings print it as UTC, so the range is UTC -- which only differs from the local date
-    # for part of the day, and that is exactly when this used to break.
-    utc_today = datetime.utcnow().date()
-    assert listed(client, '/cs/posts?posted_from=%s' % utc_today.isoformat(), posts) == {'ravi', 'lakshmi'}
-    assert listed(client, '/cs/posts?posted_to=%s' % (utc_today - timedelta(days=1)).isoformat(), posts) == set()
+    # Posted-on is about when it reached us, not when anyone flies. created_at is stored in UTC
+    # and DISPLAYED in IST, so the range is asked and answered in Indian days -- a post recorded
+    # at 19:00 UTC shows as the next day's date, and has to be found under that date. Between
+    # 18:30 and 00:00 UTC the two calendars disagree, which is exactly when this used to break.
+    ist_today = (datetime.utcnow() + timedelta(hours=5, minutes=30)).date()
+    assert listed(client, '/cs/posts?posted_from=%s' % ist_today.isoformat(), posts) == {'ravi', 'lakshmi'}
+    assert listed(client, '/cs/posts?posted_to=%s' % (ist_today - timedelta(days=1)).isoformat(), posts) == set()
     # today counts as "posted on or before today" -- the whole day, not midnight
-    assert listed(client, '/cs/posts?posted_to=%s' % utc_today.isoformat(), posts) == {'ravi', 'lakshmi'}
+    assert listed(client, '/cs/posts?posted_to=%s' % ist_today.isoformat(), posts) == {'ravi', 'lakshmi'}
 
 
 def test_a_date_range_is_one_filter_with_two_bounds(client, cs_user, posts):

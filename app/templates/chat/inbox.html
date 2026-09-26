@@ -113,7 +113,7 @@
             <span>{{ (last_msg.message[:40] if last_msg and last_msg.message else ('Sent a file' if last_msg else 'No messages yet')) }}</span>
           </div>
           <div class="inbox-meta">
-            <small>{{ last_msg.created_at.strftime('%b %d') if last_msg else '' }}</small>
+            <small>{{ last_msg.created_at|istd('%b %d') if last_msg else '' }}</small>
           </div>
         </div>
       {% else %}

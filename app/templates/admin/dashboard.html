@@ -44,7 +44,7 @@
             <td>{{ user.username }}</td>
             <td>{{ user.email }}</td>
             <td>{{ user.effective_role }}</td>
-            <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+            <td>{{ user.created_at|istd }}</td>
             <td><span class="badge-pill {{ 'green' if user.is_active else 'red' }}">{{ 'Active' if user.is_active else 'Inactive' }}</span></td>
             <td>
               <button class="btn-sm" onclick="toggleUser({{ user.id }}, this)">

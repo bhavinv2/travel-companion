@@ -18,7 +18,7 @@
   <tbody>
   {% for m in messages %}
     <tr>
-      <td class="nowrap">{{ m.created_at.strftime('%d %b %Y<br/>%H:%M')|safe if m.created_at }}</td>
+      <td class="nowrap">{{ m.created_at|ist('%d %b %Y<br/>%H:%M')|safe if m.created_at }}</td>
       {# which service the enquiry came from: the insurance page writes into this same inbox #}
       <td class="nowrap"><span class="cm-topic cm-topic-{{ m.topic or 'companion' }}">{{ topic_labels.get(m.topic, 'Travel companion') }}</span></td>
       <td><strong>{{ m.name }}</strong><br/><a href="mailto:{{ m.email }}">{{ m.email }}</a></td>
@@ -67,7 +67,7 @@
   <tbody>
   {% for fb in feedbacks %}
     <tr id="fb-{{ fb.id }}">
-      <td class="nowrap">{{ fb.created_at.strftime('%d %b %Y<br/>%H:%M')|safe if fb.created_at }}</td>
+      <td class="nowrap">{{ fb.created_at|ist('%d %b %Y<br/>%H:%M')|safe if fb.created_at }}</td>
       <td><strong>{{ fb.user.username if fb.user else 'A traveller' }}</strong>
         {% if fb.user %}<br/><a href="mailto:{{ fb.user.email }}">{{ fb.user.email }}</a>{% endif %}</td>
       <td class="nowrap vc-stars" aria-label="{{ fb.rating }} out of 5">
@@ -110,7 +110,7 @@
   {% for r in reports %}
     {% set m = r.match %}
     <tr id="rp-{{ r.id }}" class="{{ 'rp-open' if r.status == 'open' }}">
-      <td class="nowrap" data-label="When">{{ r.created_at.strftime('%d %b %Y<br/>%H:%M')|safe if r.created_at }}</td>
+      <td class="nowrap" data-label="When">{{ r.created_at|ist('%d %b %Y<br/>%H:%M')|safe if r.created_at }}</td>
       <td data-label="Reporter">
         {% if r.reporter %}<strong>{{ r.reporter.username }}</strong><br/><a href="mailto:{{ r.reporter.email }}">{{ r.reporter.email }}</a>
         {% else %}<span class="muted">Guest / not signed in</span>{% endif %}
@@ -127,7 +127,7 @@
       <td class="cm-cell" data-label="Problem">
         {{ r.reason or '(no reason given)' }}
         {% if r.cs_notes %}<div class="cm-notes-sm"><i class="fa-solid fa-note-sticky"></i> {{ r.cs_notes }}</div>{% endif %}
-        {% if r.status == 'resolved' and r.resolved_by %}<div class="cm-notes-sm">Resolved by {{ r.resolved_by.username }}{% if r.resolved_at %} · {{ r.resolved_at.strftime('%d %b') }}{% endif %}</div>{% endif %}
+        {% if r.status == 'resolved' and r.resolved_by %}<div class="cm-notes-sm">Resolved by {{ r.resolved_by.username }}{% if r.resolved_at %} · {{ r.resolved_at|istd('%d %b') }}{% endif %}</div>{% endif %}
       </td>
       <td data-label="Status"><span class="cm-status cm-status-{{ 'new' if r.status == 'open' else 'closed' }}" id="rp-badge-{{ r.id }}">{{ 'Open' if r.status == 'open' else 'Resolved' }}</span></td>
       <td data-label="Actions">

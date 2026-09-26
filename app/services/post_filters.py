@@ -134,10 +134,11 @@ RETURN_PRESETS = (
 def _daterange(key, label, column, from_key, to_key, presets, is_datetime=False, hint=None):
     """One filter covering a from/to pair on a single column.
 
-    A timestamp column (created_at) is stored and displayed in UTC -- the listings print
-    "posted 2026-09-24" straight from it -- so the range is compared in UTC too. Filtering in
-    local time would disagree with the date printed next to the row, which is worse than the
-    few hours of skew it would fix.
+    A timestamp column (created_at) is stored in UTC and DISPLAYED in IST, so the range is
+    converted before it is compared. That pairing is the point: the listing prints
+    "posted 27 Sep" for something recorded at 19:00 UTC on the 26th, and asking for the 27th
+    has to return it. Comparing the raw UTC instead would disagree with the date printed next
+    to the row for everything logged after 18:30 UTC -- a quarter of every day.
 
     The two URL params are kept (`dep_from`/`dep_to` and friends) so existing links and bookmarks
     still work -- what changes is that the UI, the chips and this spec treat them as one thing.
@@ -298,15 +299,28 @@ def _parse_range(field, args):
     return {'from': lo, 'to': hi} if (lo or hi) else None
 
 
+# India Standard Time, as a fixed offset -- it has never observed DST, so this is exact. Same
+# value the `ist` display filter uses; the two have to agree or a filter stops matching what the
+# listing shows.
+IST = timedelta(hours=5, minutes=30)
+
+
 def _range_sql(field, query, value):
     col = field['column']
     if value['from']:
-        lo = datetime.combine(value['from'], datetime.min.time()) if field['is_datetime'] else value['from']
+        if field['is_datetime']:
+            # The person means an Indian calendar day. Midnight IST is 18:30 UTC the day before,
+            # and the column is UTC, so the boundary moves with it.
+            lo = datetime.combine(value['from'], datetime.min.time()) - IST
+        else:
+            lo = value['from']
         query = query.filter(col >= lo)
     if value['to']:
         if field['is_datetime']:
-            # "posted on or before the 5th" has to include everything that happened during the 5th
-            query = query.filter(col < datetime.combine(value['to'] + timedelta(days=1), datetime.min.time()))
+            # "posted on or before the 5th" includes everything that happened during the 5th,
+            # where "the 5th" is the day as it was lived in India.
+            hi = datetime.combine(value['to'] + timedelta(days=1), datetime.min.time()) - IST
+            query = query.filter(col < hi)
         else:
             query = query.filter(col <= value['to'])
     return query

@@ -130,6 +130,10 @@ def landing():
                            # Claims about the business, blank until staff fill them in.
                            price_from=insurance_page.price_from(),
                            assurances=insurance_page.assurances(),
+                           # Admin -> Insurance page overrides the site-wide address; empty falls
+                           # back, so the field only has to be filled when it differs.
+                           support_email=insurance_page.support_email(),
+                           availability=insurance_page.availability(),
                            structured_data=_structured_data(faqs, phones, canonical),
                            canonical_url=canonical)
 

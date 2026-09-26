@@ -1,3 +1,9 @@
+{# The CS console menu, grouped by product and filtered by what this agent may open.
+
+   The grouping and the permissions both come from services/cs_access.py, so the menu and the
+   guard that blocks the URL read from one list -- a link that is hidden is a link that is also
+   refused, and neither can drift from the other. #}
+{% set sites = CS_ACCESS.sites_for(current_user) %}
 <aside class="admin-sidebar">
   <h3>CS Console</h3>
   <button type="button" class="rail-toggle" data-rail-toggle
@@ -5,19 +11,12 @@
     <i class="fa-solid fa-bars"></i>
   </button>
   <nav>
-    <a href="{{ url_for('cs.home') }}" class="{{ 'active' if active == 'home' }}" title="Queues"><i class="fa-solid fa-inbox"></i> <span>Queues</span></a>
-    <a href="{{ url_for('cs.posts') }}" class="{{ 'active' if active == 'posts' }}" title="All Posts"><i class="fa-solid fa-list"></i> <span>All Posts</span></a>
-    <a href="{{ url_for('matches.cs_match_queue') }}" class="{{ 'active' if active == 'matches' }}" title="Match Queue"><i class="fa-solid fa-handshake"></i> <span>Match Queue</span></a>
-    <a href="{{ url_for('cs.new_post') }}" class="{{ 'active' if active == 'new' }}" title="New Post"><i class="fa-solid fa-plus"></i> <span>New Post</span></a>
-    <a href="{{ url_for('imports.import_page') }}" class="{{ 'active' if active == 'import' }}" title="Import"><i class="fa-solid fa-file-import"></i> <span>Import</span></a>
-    <a href="{{ url_for('cs.voices') }}" class="{{ 'active' if active == 'voices' }}" title="User Voices"><i class="fa-solid fa-comment-dots"></i> <span>User Voices</span></a>
-    {# CS follows these up, so the list cannot sit behind an admin-only door #}
-    <a href="{{ url_for('cs.sahayak_bookings') }}" class="{{ 'active' if active == 'sahayak' }}" title="Sahayak queue"><i class="fa-solid fa-house-medical"></i> <span>Sahayak</span></a>
-    <a href="{{ url_for('cs.insurance_quotes') }}" class="{{ 'active' if active == 'insurance' }}" title="Insurance leads"><i class="fa-solid fa-shield-heart"></i> <span>Insurance leads</span></a>
-    <a href="{{ url_for('cs.notifications') }}" class="{{ 'active' if active == 'notifications' }}" title="Notifications"><i class="fa-solid fa-bell"></i> <span>Notifications</span></a>
-    <a href="{{ url_for('cs.metrics') }}" class="{{ 'active' if active == 'metrics' }}" title="Metrics"><i class="fa-solid fa-chart-simple"></i> <span>Metrics</span></a>
-    {% if current_user.is_admin %}
-    <a href="{{ url_for('scraper.recipes') }}" class="{{ 'active' if active == 'scraper' }}" title="Scraper"><i class="fa-solid fa-spider"></i> <span>Scraper</span></a>
-    {% endif %}
+    {% for site in sites %}
+      {% if not loop.first %}<span class="cs-nav-head"><span>{{ site.label }}</span></span>{% endif %}
+      {% for s in site['items'] %}
+      <a href="{{ url_for(s.endpoints[0]) }}" class="{{ 'active' if active == s.key }}"
+         title="{{ s.label }}"><i class="fa-solid {{ s.icon }}"></i> <span>{{ s.label }}</span></a>
+      {% endfor %}
+    {% endfor %}
   </nav>
 </aside>

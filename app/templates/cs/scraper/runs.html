@@ -55,7 +55,7 @@
           <tr>
             <td data-label="Run"><a href="{{ url_for('scraper.run_detail', run_id=run.id) }}"><strong>#{{ run.id }}</strong></a> <small class="muted">{{ run.trigger }}</small></td>
             <td data-label="Status"><span class="chip {{ {'done': 'chip-open', 'running': 'chip-matched', 'queued': 'chip-src', 'failed': 'chip-closed', 'cancelled': 'chip-unconfirmed'}.get(run.status, 'chip-src') }}">{{ run.status }}</span></td>
-            <td data-label="Started">{{ run.started_at.strftime('%Y-%m-%d %H:%M') if run.started_at else '—' }}{% if run.duration_seconds is not none %}<br/><small class="muted">{{ run.duration_seconds }} s</small>{% endif %}</td>
+            <td data-label="Started">{{ run.started_at|ist('%Y-%m-%d %H:%M') if run.started_at else '—' }}{% if run.duration_seconds is not none %}<br/><small class="muted">{{ run.duration_seconds }} s</small>{% endif %}</td>
             <td data-label="Pages">{{ run.progress_pages or 0 }}</td>
             <td data-label="Items">{{ run.rows_total or 0 }}</td>
             <td data-label="New">{{ run.rows_new or 0 }}{% if run.rows_duplicate %} <small class="muted">({{ run.rows_duplicate }} dup)</small>{% endif %}</td>

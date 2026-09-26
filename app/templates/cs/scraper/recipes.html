@@ -26,7 +26,7 @@
             <td data-label="Rows">{{ c.rows }}<br/><small class="muted">{{ c.new }} new · {{ c.imported }} imported</small></td>
             <td data-label="Last run">
               {% if c.active %}<span class="chip chip-matched">{{ c.active.status }}</span> <a href="{{ url_for('scraper.run_detail', run_id=c.active.id) }}">#{{ c.active.id }}</a>
-              {% elif r.last_run_at %}<span class="chip {{ 'chip-open' if r.last_status == 'done' else 'chip-closed' if r.last_status == 'failed' else 'chip-unconfirmed' }}">{{ r.last_status }}</span><br/><small class="muted">{{ r.last_run_at.strftime('%Y-%m-%d %H:%M') }}</small>
+              {% elif r.last_run_at %}<span class="chip {{ 'chip-open' if r.last_status == 'done' else 'chip-closed' if r.last_status == 'failed' else 'chip-unconfirmed' }}">{{ r.last_status }}</span><br/><small class="muted">{{ r.last_run_at|ist('%Y-%m-%d %H:%M') }}</small>
               {% else %}<span class="muted">never</span>{% endif %}
             </td>
             <td data-label="Schedule">{% if r.schedule_enabled %}every {{ r.schedule_every_hours }} h{% else %}<span class="muted">off</span>{% endif %}</td>

@@ -85,7 +85,7 @@
       <td data-label="Status">
         <span class="nm-status {{ 'is-unread' if not n.is_read else 'is-read' }}">{{ 'Unread' if not n.is_read else 'Read' }}</span>
       </td>
-      <td data-label="When"><small class="muted">{{ n.created_at.strftime('%Y-%m-%d %H:%M') if n.created_at else '' }}</small></td>
+      <td data-label="When"><small class="muted">{{ n.created_at|ist('%Y-%m-%d %H:%M') if n.created_at else '' }}</small></td>
       <td data-label="Actions" class="nm-actions">
         <button type="button" class="btn-sm-outline nm-read" data-id="{{ n.id }}" data-read="{{ 'read' if n.is_read else 'unread' }}">
           <i class="fa-solid {{ 'fa-envelope-open' if n.is_read else 'fa-envelope' }}"></i>

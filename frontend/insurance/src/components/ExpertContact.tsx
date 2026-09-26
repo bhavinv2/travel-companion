@@ -8,6 +8,7 @@ import { photo, site } from '../data/site';
 // Fallbacks only: the served page injects whatever staff set in the admin screens.
 const WHATSAPP_NUMBER = '918019111360';
 const SUPPORT_EMAIL = 'support@nriparentservice.com';
+const AVAILABILITY = 'Across time zones, every day';
 const SUPPORT_PHONES = [
   { label: 'India', display: '+91 80191 11360', digits: '918019111360' },
   { label: 'USA', display: '+1 917 900 5094', digits: '19179005094' },
@@ -126,7 +127,7 @@ export default function ExpertContact() {
               <span className="ec-ic"><Icon name="i-clock" className="ico w sm" /></span>
               <span className="ec-bd">
                 <span className="ec-l">Availability</span>
-                <span className="ec-v">Across time zones, every day</span>
+                <span className="ec-v">{site.availability || AVAILABILITY}</span>
               </span>
             </div>
           </div>

@@ -81,8 +81,8 @@
                 </div>
                 <div class="cmx-side-status">
                   {% if p %}<span class="chip chip-{{ 'open' if p.status in ('connected','contact_viewed') else 'matched' if p.status in ('sent','opened') else 'closed' if p.status in ('not_suitable','no_response') else 'unconfirmed' }}">{{ p.status|replace('_',' ') }}</span>
-                    {% if p.sent_at %}<small class="muted">sent {{ p.sent_at.strftime('%m-%d %H:%M') }}{% if p.sent_by %} by {{ p.sent_by.username }}{% endif %}</small>{% endif %}
-                    {% if p.viewed_at %}<small class="muted">viewed {{ p.viewed_at.strftime('%m-%d %H:%M') }}</small>{% endif %}
+                    {% if p.sent_at %}<small class="muted">sent {{ p.sent_at|ist('%m-%d %H:%M') }}{% if p.sent_by %} by {{ p.sent_by.username }}{% endif %}</small>{% endif %}
+                    {% if p.viewed_at %}<small class="muted">viewed {{ p.viewed_at|ist('%m-%d %H:%M') }}</small>{% endif %}
                   {% else %}<span class="muted">not contacted yet</span>{% endif %}
                 </div>
                 <div class="cmx-side-actions">

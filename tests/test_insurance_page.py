@@ -643,3 +643,77 @@ def test_the_support_popup_uses_the_pages_own_dropdown(db):
     # chevron rotated to point down, as on the country fields
     assert "name=\"i-chev\" className=\"ico s xs\" rotate={90}" in \
         combo.split('export function OptionCombo')[1]
+
+
+def _enclosing_media(css_text, rule):
+    """The @media condition the given rule sits inside. A stylesheet has many blocks at the same
+    breakpoint, so splitting on the first one tests the wrong place."""
+    i = css_text.index(rule)
+    before = css_text[:i]
+    at = before.rfind('@media')
+    assert at != -1, 'rule is not inside any media query: ' + rule[:50]
+    # it must not have been closed again before our rule
+    opened = before[at:]
+    assert opened.count('{') > opened.count('}'), 'rule sits after that block closed: ' + rule[:50]
+    return css_text[at:css_text.index('{', at)].strip()
+
+
+def test_signing_in_is_reachable_on_a_phone(client, db):
+    """Adding the Support pill to the navbar pushed its content to 459px against a 390px screen,
+    and what fell off the end was Sign In and the HAMBURGER -- taking the menu, and with it the
+    only remaining route to signing up, out of reach. Sign In lives in the menu on phones."""
+    import os
+    css = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       'app', 'static', 'css', 'style.css')
+    text = open(css, encoding='utf-8').read()
+    base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        'app', 'templates', 'base.html')
+    html = open(base, encoding='utf-8').read()
+
+    # in the menu markup...
+    assert 'class="nav-signin"' in html
+    # ...shown only where the navbar cannot carry it
+    assert '.nav-links .highlight-link, .nav-links .nav-signin { display: none; }' in text
+    # and the navbar drops the button at phone widths
+    assert _enclosing_media(text, '.btn-outline-nav { display: none; }') == '@media (max-width: 768px)'
+
+
+def test_the_hero_line_clears_the_chip_on_a_phone(db):
+    """"Worry-free travel for you & your loved ones." is handwriting with long descenders sitting
+    2px above a pill; on a phone the two collided and it read as if it were behind the chip."""
+    import os
+    css = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       'frontend', 'insurance', 'src', 'styles', 'global.css')
+    text = open(css, encoding='utf-8').read()
+    assert '.hero-script{text-align:right;font-size:19px;line-height:1.32;margin:0 0 16px}' in text
+
+
+def test_the_whatsapp_button_is_out_of_the_way_on_a_phone(db):
+    """Bottom-left, over a single full-bleed column of left-aligned text, it covered the START of
+    whatever line it landed on -- the traveller-ages hint and the expert form's Name field."""
+    import os
+    css = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       'frontend', 'insurance', 'src', 'styles', 'global.css')
+    text = open(css, encoding='utf-8').read()
+    rule = '.wafab{left:auto;right:16px;bottom:16px}'
+    assert _enclosing_media(text, rule) == '@media(max-width:760px)'
+
+
+def test_support_details_can_be_set_from_the_admin_screen(client, db):
+    """Phone numbers already came from Admin -> Landing page. The address and the availability
+    line did not: one was an environment variable, the other was hard-coded in the bundle."""
+    from app.services import insurance_page as ip
+    data, _ = injected(client)
+    assert data['supportEmail'] == 'support@connectingdesis.com'   # the site-wide default
+    assert data['availability'] == ''                              # bundle keeps its own line
+
+    ip.save_page('', [], support_email_text='insurance@nriparentservice.com',
+                 availability_text='9am-9pm IST, seven days')
+    data, _ = injected(client)
+    assert data['supportEmail'] == 'insurance@nriparentservice.com'
+    assert data['availability'] == '9am-9pm IST, seven days'
+
+    # cleared means "use the default", not "publish nothing"
+    ip.save_page('', [], support_email_text='', availability_text='')
+    data, _ = injected(client)
+    assert data['supportEmail'] == 'support@connectingdesis.com'

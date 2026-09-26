@@ -47,3 +47,11 @@
 #contactModal .close{background:#EEF2F7}
 #contactModal .close:hover{background:#DDE5F0}
 @media(max-width:600px){#contactModal .consult-foot .btn{flex:1 1 100%;width:100%}}
+
+/* Thin scrollbar inside the dialog: the system default is a grey slab down the inside of a
+   rounded white card. Styled, not removed -- it is the only sign there is more below. */
+#contactModal .dlg { scrollbar-width: thin; scrollbar-color: rgba(120,140,170,.45) transparent; }
+#contactModal .dlg::-webkit-scrollbar { width: 8px; }
+#contactModal .dlg::-webkit-scrollbar-track { background: transparent; }
+#contactModal .dlg::-webkit-scrollbar-thumb { background: rgba(120,140,170,.38); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
+#contactModal .dlg::-webkit-scrollbar-thumb:hover { background: rgba(120,140,170,.62); background-clip: content-box; }

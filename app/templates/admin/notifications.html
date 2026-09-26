@@ -41,7 +41,7 @@
       <div class="form-actions">
         <button class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save switches</button>
       </div>
-      {% if setting_row %}<small class="muted">Last changed {{ setting_row.updated_at.strftime('%Y-%m-%d %H:%M') }}{% if setting_row.updated_by %} by {{ setting_row.updated_by.username }}{% endif %}</small>{% endif %}
+      {% if setting_row %}<small class="muted">Last changed {{ setting_row.updated_at|ist('%Y-%m-%d %H:%M') }}{% if setting_row.updated_by %} by {{ setting_row.updated_by.username }}{% endif %}</small>{% endif %}
     </form>
 
     <div class="admin-card">

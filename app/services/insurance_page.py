@@ -132,10 +132,28 @@ def assurances():
     return [a for a in (_blob().get('assurances') or []) if a]
 
 
-def save_page(price_from_text, assurance_rows, actor=None):
+def support_email():
+    """The address shown on the page. Empty means "use the site-wide SUPPORT_EMAIL", so an admin
+    only has to set this when insurance should answer somewhere else."""
+    return (_blob().get('support_email') or '').strip()
+
+
+def availability():
+    """The "Availability" line in the contact block, e.g. "Across time zones, every day". Empty
+    falls back to what the page shipped with -- it is a claim about staffing, so the business
+    says it, not us."""
+    return (_blob().get('availability') or '').strip()
+
+
+def save_page(price_from_text, assurance_rows, actor=None, support_email_text=None,
+              availability_text=None):
     blob = _blob()
     blob['price_from'] = (price_from_text or '').strip()[:120]
     blob['assurances'] = [(a or '').strip()[:60] for a in assurance_rows if (a or '').strip()][:MAX_ASSURANCES]
+    if support_email_text is not None:
+        blob['support_email'] = (support_email_text or '').strip()[:255]
+    if availability_text is not None:
+        blob['availability'] = (availability_text or '').strip()[:80]
     settings.set_setting(SETTING_KEY, blob, actor)
     settings.clear_cache()
     return blob
