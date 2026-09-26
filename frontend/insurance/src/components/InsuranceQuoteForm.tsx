@@ -4,9 +4,8 @@ import { DestinationCombo } from './CountryCombo';
 import SideDecor from './SideDecor';
 import FlightPath from './FlightPath';
 import { useReveal } from '../hooks/useReveal';
-import { buildPlanQuoteUrl } from '../utils/quoteUrl';
 import { photo, site } from '../data/site';
-import { planFor, requestQuoteUrl } from '../utils/quoteRequest';
+import { openQuotes, planFor, requestQuote } from '../utils/quoteRequest';
 
 /** Today in the visitor's own timezone, as yyyy-mm-dd. */
 const today = (() => {
@@ -45,6 +44,9 @@ export default function InsuranceQuoteForm() {
   const [ages, setAges] = useState<string[]>(['', '']);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [quoteUrl, setQuoteUrl] = useState('');
 
   function setAge(i: number, v: string) {
     setAges((a) => a.map((x, idx) => (idx === i ? v : x)));
@@ -64,19 +66,27 @@ export default function InsuranceQuoteForm() {
     if (!citizenship) { setCitizenshipInvalid(true); ok = false; }
     if (isMedical && !destination) { setDestinationInvalid(true); ok = false; }
     if (!ok) return;
+
+    setBusy(true);
+    setError('');
     const presection = PLANS.find((p) => p.id === plan)!.presection;
-    // Through our own endpoint first: it prices with the parameters we have verified against the
-    // partner's widget and records the lead, so somebody who never comes back can still be
-    // followed up. The direct partner link stays as the fallback.
-    const served = await requestQuoteUrl({
+    // Our own endpoint prices the trip with the parameters we have verified against the partner's
+    // widget and records the lead. The results open in a new tab, so this page -- and everything
+    // the visitor was reading -- is still here when they come back. Same behaviour as the quote
+    // drawer on the companion landing.
+    const res = await requestQuote({
       plan: planFor(destination, presection),
       start, end, citizenship, ages, email, phone,
       destination: isMedical ? destination : undefined,
     });
-    window.location.assign(served || buildPlanQuoteUrl({
-      presection, start, end, citizenship, ages, email, phone,
-      destination: isMedical ? destination : undefined,
-    }));
+    setBusy(false);
+    if (res.error || !res.url) {
+      setError(res.error || 'Something went wrong. Please try again.');
+      return;
+    }
+    setQuoteUrl(res.url);
+    // A blocked pop-up is not an error; the link below covers it.
+    openQuotes(res.url);
   }
 
   return (
@@ -249,13 +259,35 @@ export default function InsuranceQuoteForm() {
             </div>
           )}
 
+          {/* Said out loud rather than swallowed. This used to navigate to the partner's own blank
+              form on any failure, which looked like success and lost the lead. */}
+          {error && (
+            <p className="iform-err" role="alert">
+              <Icon name="i-info" className="ico sm" />{error}
+            </p>
+          )}
+
+          {quoteUrl && (
+            <div className="iform-done" role="status">
+              <span className="iform-done-ic"><Icon name="i-checkc" className="ico" /></span>
+              <span className="iform-done-tx">
+                <b>Your quotes are ready</b>
+                <span>They opened in a new tab. If nothing happened, use the button.</span>
+              </span>
+              <a className="btn btn-p" href={quoteUrl} target="_blank" rel="noopener noreferrer">
+                View my quotes<Icon name="i-arrow" className="ico w sm" />
+              </a>
+            </div>
+          )}
+
           <div className="iform-ft">
             <span className="iform-trust">
               <span className="l1"><Icon name="i-lock" className="ico g sm" />Free quote &middot; no account needed</span>
               <span>Live pricing from <a href="https://preventia360.com/" target="_blank" rel="noopener noreferrer" className="preventia-link">Preventia360</a></span>
             </span>
-            <button className="btn btn-p btn-lg" type="submit">
-              Get a Free Quote<Icon name="i-arrow" className="ico w sm" />
+            <button className="btn btn-p btn-lg" type="submit" disabled={busy}>
+              {busy ? 'Getting quotes…' : 'Get a Free Quote'}
+              <Icon name="i-arrow" className="ico w sm" />
             </button>
           </div>
         </div>

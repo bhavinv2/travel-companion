@@ -1,6 +1,17 @@
 import Icon from './Icon';
 import { asset } from '../data/site';
 
+/* The group's own profiles. This footer only renders standalone (npm run dev) -- served inside
+   the site, base.html's footer draws these from nri_services.SOCIAL -- but four icons pointing at
+   "#about" were still wrong, and X was missing entirely. Keep the two lists in step. */
+const SOCIAL = [
+  { label: 'Instagram', icon: 'i-ig', href: 'https://www.instagram.com/nriparentservice_/' },
+  { label: 'Facebook', icon: 'i-fb', href: 'https://www.facebook.com/profile.php?id=61590811413987' },
+  { label: 'X', icon: 'i-xcom', href: 'https://x.com/NRIParentHelp' },
+  { label: 'LinkedIn', icon: 'i-li', href: 'https://www.linkedin.com/company/nriparentservice/' },
+  { label: 'YouTube', icon: 'i-yt', href: 'https://www.youtube.com/@NRIParentService' },
+];
+
 export default function Footer() {
   return (
     <footer id="about" style={{ background: 'var(--navy)', padding: '36px 0 24px', color: '#C9D5F0' }}>
@@ -21,10 +32,14 @@ export default function Footer() {
             </p>
             <span className="script-tag" style={{ fontSize: 22, color: 'var(--horizon)', marginTop: 10, display: 'block' }}>Until your next journey.</span>
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-              <a className="soc" href="#about" aria-label="Instagram"><Icon name="i-ig" className="ico w sm" /></a>
-              <a className="soc" href="#about" aria-label="Facebook"><Icon name="i-fb" className="ico w sm" /></a>
-              <a className="soc" href="#about" aria-label="LinkedIn"><Icon name="i-li" className="ico w sm" /></a>
-              <a className="soc" href="#about" aria-label="YouTube"><Icon name="i-yt" className="ico w sm" /></a>
+              {SOCIAL.map((s) => (
+                <a className="soc" key={s.label} href={s.href} aria-label={s.label}
+                   target="_blank" rel="noopener noreferrer">
+                  <Icon name={s.icon}
+                        className={s.icon === 'i-xcom' ? 'ico-solid' : 'ico w sm'}
+                        style={s.icon === 'i-xcom' ? { width: 18, height: 18 } : undefined} />
+                </a>
+              ))}
             </div>
           </div>
           <nav aria-label="Insurance">

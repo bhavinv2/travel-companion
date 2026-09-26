@@ -3,7 +3,13 @@
   --cloud:#FFFFFF; --mist:#DCE3F0; --slate:#5A6478;
   /* one accent only: the brand blue. --marigold is kept as the accent hook so the
      markup needs no change; --horizon is its counterpart on navy grounds. */
-  --marigold:#004EFE; --cream:#EEF4FF;
+  --marigold:#B76C0C /* the group's amber, deepened for text on white.
+     The design has two accents: blue for actions, a warm one for the handwritten asides.
+     This slot had been set to the same blue as --blue, which flattened the page to one
+     colour and left it sharing nothing with the amber the shared navbar and the companion
+     landing are built on. Brand amber #F5A623 is 2.03:1 on white -- fine on the navy
+     navbar at 8:1, unreadable here -- so this is the same hue carried down to 4.07:1,
+     which clears AA for the 22px+ script type that uses it. */; --cream:#EEF4FF;
   --green:#0F9D8C; --green-dark:#0C8377; --green-light:#E1F5F2;
   --serif:'Plus Jakarta Sans', Arial, Helvetica, sans-serif; --sans:'Plus Jakarta Sans', Arial, Helvetica, sans-serif;
   --shadow:0 20px 44px rgba(1,16,56,.10);
@@ -259,7 +265,22 @@ button{font-family:inherit}
 .iform-price .ico{color:var(--green)}
 .iform-assure{display:flex;flex-wrap:wrap;gap:8px 20px;margin:0}
 .iform-assure li{display:flex;align-items:center;gap:7px;font-size:14px;color:var(--slate)}
+/* What went wrong, said on the page. The form used to navigate to the partner's own blank quote
+   form on any failure, so an error looked like success. */
+.iform-err{display:flex;align-items:flex-start;gap:10px;margin-top:18px;padding:12px 14px;
+  border:1px solid #FEE4E2;background:#FEF3F2;border-radius:12px;color:#B42318;font-size:14.5px;
+  line-height:1.45}
+.iform-err .ico{flex:0 0 auto;margin-top:1px;color:#B42318}
+/* Quotes open in a new tab, so this page survives. The link is here for a blocked pop-up. */
+.iform-done{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-top:18px;padding:14px 16px;
+  border:1px solid #BBF3E4;background:#F0FDF9;border-radius:14px}
+.iform-done-ic{flex:0 0 auto;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;background:rgba(15,157,140,.14);color:var(--green)}
+.iform-done-tx{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.iform-done-tx b{font-size:15.5px;color:var(--navy)}
+.iform-done-tx span{font-size:13.5px;color:var(--slate)}
 .iform-ft{margin-top:24px;display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:center}
+.iform-ft button[disabled]{opacity:.65;cursor:progress}
 .iform-trust{display:flex;flex-direction:column;gap:2px}
 .iform-trust span{font-size:13.5px;color:var(--slate)}
 .iform-trust .l1{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--navy)}

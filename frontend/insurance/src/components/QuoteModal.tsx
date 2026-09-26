@@ -1,9 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
 import CountrySelect, { DialSelect } from './CountrySelect';
 import { useQuote } from '../context/QuoteContext';
-import { buildQuoteUrl } from '../utils/quoteUrl';
-import { planFor, requestQuoteUrl } from '../utils/quoteRequest';
+import { openQuotes, planFor, requestQuote } from '../utils/quoteRequest';
 
 const today = new Date().toISOString().slice(0, 10);
 const TITLES = ['Tell us about your trip', 'Who is travelling?', 'Your quotes are ready'];
@@ -11,7 +10,8 @@ const TITLES = ['Tell us about your trip', 'Who is travelling?', 'Your quotes ar
 export default function QuoteModal() {
   const { quoteOpen, closeQuote, step, goStep, form, setForm, setAge, addTraveller, removeTraveller } = useQuote();
   const lastFocus = useRef<HTMLElement | null>(null);
-  const url = buildQuoteUrl(form);
+  const [quoteUrl, setQuoteUrl] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (quoteOpen) {
@@ -33,16 +33,21 @@ export default function QuoteModal() {
     return () => document.removeEventListener('keydown', onKey);
   }, [quoteOpen, closeQuote]);
 
-  // reaching step 3 (either by finishing step 2, or a fully-filled search bar
-  // jumping straight there) hands off to the live quote engine, same as the
-  // original static page's goQuotes().
+  /* Reaching step 3 (by finishing step 2, or by a fully-filled search bar jumping straight
+     there) prices the trip through our own endpoint, which records the lead, and opens the
+     results in a new tab so this page survives.
+
+     It used to navigate this tab to a URL built in the browser whenever the endpoint did not
+     answer -- and that URL is the partner's own blank quote form, not the priced results. A
+     validation error therefore looked like success and dropped somebody back on a form they had
+     just filled in. Now the error is shown and step 2 is one click away. */
   useEffect(() => {
     if (!quoteOpen || step !== 3) return;
     let cancelled = false;
-    const t = setTimeout(async () => {
-      // Same hand-off as the plan form: our endpoint prices and records it, the direct partner
-      // link is the fallback so nobody is left watching a spinner.
-      const served = await requestQuoteUrl({
+    setQuoteUrl('');
+    setError('');
+    (async () => {
+      const res = await requestQuote({
         plan: planFor(form.destination),
         start: form.start,
         end: form.end,
@@ -52,9 +57,15 @@ export default function QuoteModal() {
         email: form.email,
         phone: form.phone ? `${form.dial} ${form.phone}`.trim() : '',
       });
-      if (!cancelled) window.location.assign(served || url);
-    }, 700);
-    return () => { cancelled = true; clearTimeout(t); };
+      if (cancelled) return;
+      if (res.url) {
+        setQuoteUrl(res.url);
+        openQuotes(res.url);
+      } else {
+        setError(res.error || 'Something went wrong. Please try again.');
+      }
+    })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quoteOpen, step]);
 
@@ -229,14 +240,37 @@ export default function QuoteModal() {
 
           {step === 3 && (
             <div className="center" style={{ padding: '26px 0 8px', gap: 14 }}>
-              <span className="tile" style={{ width: 64, height: 64, borderRadius: 20 }}><Icon name="i-list" /></span>
-              <h3 className="h3">Opening your travel insurance plans…</h3>
-              <p className="small" style={{ maxWidth: 420, textAlign: 'center' }}>
-                We're passing your trip details to our secure quote engine so you can compare plans and buy online.
-              </p>
-              <a className="btn btn-p btn-lg" href={url} rel="noopener noreferrer">
-                View &amp; Buy My Plans<Icon name="i-arrow" className="ico w sm" />
-              </a>
+              {!quoteUrl && !error && (
+                <>
+                  <span className="tile" style={{ width: 64, height: 64, borderRadius: 20 }}><Icon name="i-list" /></span>
+                  <h3 className="h3">Pricing your travel insurance plans…</h3>
+                  <p className="small" style={{ maxWidth: 420, textAlign: 'center' }}>
+                    We're passing your trip details to our secure quote engine so you can compare plans and buy online.
+                  </p>
+                </>
+              )}
+
+              {quoteUrl && (
+                <>
+                  <span className="tile" style={{ width: 64, height: 64, borderRadius: 20 }}><Icon name="i-checkc" /></span>
+                  <h3 className="h3">Your quotes are ready</h3>
+                  <p className="small" style={{ maxWidth: 420, textAlign: 'center' }}>
+                    They opened in a new tab. If nothing happened, your browser blocked it — use the button below.
+                  </p>
+                  <a className="btn btn-p btn-lg" href={quoteUrl} target="_blank" rel="noopener noreferrer">
+                    View &amp; Buy My Plans<Icon name="i-arrow" className="ico w sm" />
+                  </a>
+                </>
+              )}
+
+              {error && (
+                <>
+                  <span className="tile" style={{ width: 64, height: 64, borderRadius: 20 }}><Icon name="i-info" /></span>
+                  <h3 className="h3">We could not price that trip</h3>
+                  <p className="small" style={{ maxWidth: 420, textAlign: 'center' }} role="alert">{error}</p>
+                </>
+              )}
+
               <button className="btn btn-o" type="button" style={{ minHeight: 44 }} onClick={() => goStep(2)}>Edit my details</button>
             </div>
           )}

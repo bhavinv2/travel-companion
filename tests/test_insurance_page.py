@@ -452,3 +452,61 @@ def test_the_date_hint_gets_out_of_the_way_when_you_type(db):
     # the unconditional form is what caused it
     assert '.inp.is-empty::-webkit-datetime-edit' not in text.replace(
         '.inp.is-empty:not(:focus)::-webkit-datetime-edit', '')
+
+
+def test_the_quote_form_has_no_client_side_partner_url(db):
+    """The page used to fall back to a URL built in the browser whenever our endpoint did not
+    answer -- and that URL is /get-travel-insurance-quotes/, the partner's own BLANK form, not
+    /retrieve-insurance-quotes/?id=..., the priced results the endpoint produces. So a validation
+    error looked like success: somebody landed back on a form they had just filled in, and the
+    lead was never recorded. The builder is gone; re-importing it is how this would come back."""
+    import os
+    root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        'frontend', 'insurance', 'src')
+    assert not os.path.exists(os.path.join(root, 'utils', 'quoteUrl.ts'))
+
+    text = ''
+    for dirpath, _dirs, files in os.walk(root):
+        for name in sorted(files):
+            if name.endswith(('.ts', '.tsx')):
+                text += open(os.path.join(dirpath, name), encoding='utf-8').read()
+
+    # Comments stripped first: the ones explaining this fix necessarily name what was removed.
+    code = re.sub(r'/\*.*?\*/', '', text, flags=re.S)
+    code = re.sub(r'(?m)^\s*//.*$', '', code)
+
+    assert 'get-travel-insurance-quotes' not in code
+    assert 'buildPlanQuoteUrl' not in code
+    assert 'buildQuoteUrl' not in code
+    # and the results are handed over the way the companion drawer does it: a new tab, not a
+    # navigation, so the page the visitor was reading survives
+    assert 'window.open(url' in code
+    assert 'window.location.assign' not in code
+
+
+def test_the_social_profiles_are_the_current_ones(client, db):
+    from app.services import nri_services
+    by_label = {label: href for label, href, _icon in nri_services.SOCIAL}
+    assert by_label == {
+        'Facebook': 'https://www.facebook.com/profile.php?id=61590811413987',
+        'LinkedIn': 'https://www.linkedin.com/company/nriparentservice/',
+        'X': 'https://x.com/NRIParentHelp',
+        'Instagram': 'https://www.instagram.com/nriparentservice_/',
+        'YouTube': 'https://www.youtube.com/@NRIParentService',
+    }
+    html = client.get('/help').data.decode()
+    for href in by_label.values():
+        assert href in html, href
+    assert '61590630328535' not in html          # the superseded Facebook page
+
+
+def test_the_insurance_page_keeps_a_warm_accent(db):
+    """The design carries two accents -- blue for actions, a warm one for the handwritten asides.
+    --marigold had been set to the same blue as --blue, which flattened the page to one colour and
+    left it sharing nothing with the amber the shared navbar is built on."""
+    import os
+    css = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       'frontend', 'insurance', 'src', 'styles', 'global.css')
+    text = open(css, encoding='utf-8').read()
+    assert '--marigold:#004EFE' not in text      # the same blue as --blue
+    assert '--marigold:#B76C0C' in text
