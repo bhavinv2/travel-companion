@@ -18,7 +18,7 @@ from app import options
 from app.services.locations import apply_route
 from app.services.contacts import parse_contact_rows
 from app.services.storage import save_private_document, delete_private
-from app.services import matching
+from app.services import matching, saved_filters
 from app.services import duplicates
 from app.services import post_filters
 
@@ -584,7 +584,10 @@ def posts():
     return render_template(template, posts=items, total=total, page=page, pages=pages,
                            match_info=match_info, filters=dict(q=q, sort=sort),
                            filter_groups=post_filters.GROUPS, filter_values=active,
-                           filter_chips=post_filters.chips(active), SORTS=post_filters.SORTS,
+                           filter_chips=post_filters.chips(active),
+                           saved_views=saved_filters.for_user(current_user),
+                           saved_listing='cs',
+                           active_view=_int_or_none(request.args.get('view')), SORTS=post_filters.SORTS,
                            today=date.today(), **_choices())
 
 

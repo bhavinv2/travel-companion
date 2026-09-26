@@ -112,6 +112,8 @@ def _bool(query, value, column):
 # plain from/to range and a shared URL means exactly one thing. Offsets are in days from today,
 # `None` meaning open-ended.
 DEPARTURE_PRESETS = (
+    ('today', 'Departing today', 0, 0),
+    ('tomorrow', 'Departing tomorrow', 1, 1),
     ('next7', 'In the next 7 days', 0, 7),
     ('next30', 'In the next 30 days', 0, 30),
     ('next90', 'In the next 3 months', 0, 90),
@@ -268,9 +270,29 @@ GROUPS = [
 FIELDS = {f['key']: f for g in GROUPS for f in g['fields']}
 
 
+def preset_range(field, preset_id, today=None):
+    """The dates a preset means, counted from today. None if it is not one of this field's."""
+    for pid, _label, lo, hi in field['presets']:
+        if pid == preset_id:
+            base = today or date.today()
+            return {'from': base + timedelta(days=lo) if lo is not None else None,
+                    'to': base + timedelta(days=hi) if hi is not None else None,
+                    'preset': pid}
+    return None
+
+
 def _parse_range(field, args):
-    """{'from': date|None, 'to': date|None} or None when neither end is usable."""
+    """{'from': date|None, 'to': date|None} or None when neither end is usable.
+
+    A preset id in the field's own key (dep=today) is resolved here rather than in the browser, so
+    the same saved filter means a different week next week. Explicit dates still win: somebody who
+    typed a range meant that range.
+    """
     lo, hi = _date(args.get(field['from_key'])), _date(args.get(field['to_key']))
+    if not lo and not hi:
+        got = preset_range(field, (args.get(field['key']) or '').strip())
+        if got:
+            return got
     if lo and hi and lo > hi:
         lo, hi = hi, lo                       # a backwards range is a slip, not an empty result
     return {'from': lo, 'to': hi} if (lo or hi) else None
@@ -337,6 +359,12 @@ def sort_query(query, sort):
 
 def _label_for(field, value):
     if field['kind'] == 'daterange':
+        # A preset names itself. "Departing today" tells somebody the filter will still be right
+        # tomorrow; "26 Sep 2026 to 26 Sep 2026" tells them the opposite.
+        if value.get('preset'):
+            for pid, label, _lo, _hi in field['presets']:
+                if pid == value['preset']:
+                    return label
         lo, hi = value['from'], value['to']
         if lo and hi:
             return '%s to %s' % (lo.strftime('%d %b %Y'), hi.strftime('%d %b %Y'))
@@ -359,7 +387,12 @@ def chips(vals):
     for key in FIELDS:
         if key in vals:
             field = FIELDS[key]
-            params = [field['from_key'], field['to_key']] if field['kind'] == 'daterange' else [key]
+            # A range owns two params, so the chip cannot just clear an input named after its
+            # own key -- and when the range came from a preset it owns that key as well, or the
+            # X would blank the dates and leave dep=today to put them straight back.
+            params = [key] if field['kind'] != 'daterange' else (
+                [field['from_key'], field['to_key']]
+                + ([key] if vals[key].get('preset') else []))
             out.append({'key': key, 'label': field['label'],
                         'value': _label_for(field, vals[key]), 'params': params})
     return out

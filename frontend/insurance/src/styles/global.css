@@ -914,6 +914,9 @@ a.ec-v:hover{color:var(--blue)}
 .itel-list{list-style:none;margin:0;padding:0;max-height:232px;overflow-y:auto}
 .itel-list li{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;cursor:pointer;font-size:14px}
 .itel-list li:hover{background:var(--sky)}
+/* the row you are already on, so the list opens showing where you are */
+.itel-list li.on{background:rgba(0,78,254,.07);color:var(--blue)}
+.itel-list li.on .itel-nm{color:var(--blue);font-weight:600}
 .itel-list .itel-nm{flex:1;color:var(--navy)}
 .itel-list .itel-dl{color:var(--slate);font-weight:600}
 

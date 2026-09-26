@@ -166,3 +166,59 @@ export function DestinationCombo({
     </div>
   );
 }
+
+/** A plain list of choices in the same dropdown as the country pickers.
+ *
+ * A native <select> looked out of place here: its list is drawn by the operating system, so on a
+ * page styled this carefully it arrives as a grey system menu in a different font, and the only
+ * part we can style -- the closed control -- ends up promising something the open list does not
+ * deliver. This reuses the popover the country fields already use, including its placement logic,
+ * so it sits correctly inside a scrolling modal. No search box: a handful of options do not need
+ * one.
+ */
+export function OptionCombo({
+  id, value, options, onChange, icon,
+}: {
+  id?: string;
+  value: string;
+  options: readonly string[];
+  onChange: (value: string) => void;
+  icon?: string;
+}) {
+  const { boxRef, open, toggle, place } = usePopover();
+
+  return (
+    <div className="idest" ref={boxRef}>
+      <button
+        id={id}
+        type="button"
+        className="idest-btn"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => toggle()}
+      >
+        {icon && <Icon name={icon} className="ico s sm" />}
+        <span className="idest-val">{value}</span>
+        <Icon name="i-chev" className="ico s xs" rotate={90} />
+      </button>
+      {open && (
+        <div className={`itel-pop idest-pop${place.up ? ' up' : ''}`}>
+          <ul className="itel-list" role="listbox" style={{ maxHeight: place.listMax }}>
+            {options.map((o) => (
+              <li
+                key={o}
+                role="option"
+                aria-selected={o === value}
+                className={o === value ? 'on' : undefined}
+                onClick={() => { onChange(o); toggle(false); }}
+              >
+                <span className="itel-nm">{o}</span>
+                {o === value && <Icon name="i-check" className="ico s xs" />}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}

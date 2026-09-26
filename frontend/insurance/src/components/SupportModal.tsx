@@ -10,7 +10,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
-import { PhoneCombo } from './CountryCombo';
+import { OptionCombo, PhoneCombo } from './CountryCombo';
 import { site } from '../data/site';
 
 const SUPPORT_EMAIL = 'support@nriparentservice.com';
@@ -182,16 +182,10 @@ export default function SupportModal() {
               </span>
             </p>
 
-            <p className="fg">
+            <div className="fg">
               <label className="lbl" htmlFor="sp-topic">What do you need help with?</label>
-              <span className="cfield">
-                <Icon name="i-list" className="ico s sm" />
-                <select className="cinp" id="sp-topic" value={topic} onChange={(e) => setTopic(e.target.value)}>
-                  {TOPICS.map((t) => <option key={t}>{t}</option>)}
-                </select>
-                <Icon name="i-chev" className="ico s sm cfield-chev" />
-              </span>
-            </p>
+              <OptionCombo id="sp-topic" icon="i-list" value={topic} options={TOPICS} onChange={setTopic} />
+            </div>
 
             <div className="fg">
               <span className="lbl">How should we reach you?</span>

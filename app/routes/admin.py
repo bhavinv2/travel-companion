@@ -970,7 +970,7 @@ def airlines_delete(airline_id):
 def listings():
     from sqlalchemy import or_
     from app.models import Match
-    from app.services import post_filters
+    from app.services import post_filters, saved_filters
     page, per_page = _page_args(25)
     q = (request.args.get('q') or '').strip()
     sort = request.args.get('sort') or 'newest'
@@ -1004,7 +1004,11 @@ def listings():
     return render_template('admin/listings.html', trips=trips, page=page, pages=pages, total=total,
                            match_info=match_info, q=q, sort=sort,
                            filter_groups=post_filters.GROUPS, filter_values=active,
-                           filter_chips=post_filters.chips(active), SORTS=post_filters.SORTS)
+                           filter_chips=post_filters.chips(active), SORTS=post_filters.SORTS,
+                           saved_views=saved_filters.for_user(current_user),
+                           saved_listing='admin',
+                           active_view=(request.args.get('view') or '').isdigit()
+                                       and int(request.args['view']) or None)
 
 
 @admin_bp.route('/listings/<int:trip_id>/disable', methods=['POST'])

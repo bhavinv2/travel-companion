@@ -622,3 +622,24 @@ def test_a_modal_covers_the_whatsapp_button(db):
     fab = int(re.search(r'\.wafab\{[^}]*z-index:(\d+)', text).group(1))
     overlay = int(re.search(r'\.ov\{[^}]*z-index:(\d+)', text).group(1))
     assert fab < overlay, 'FAB %d should sit under the overlay %d' % (fab, overlay)
+
+
+def test_the_support_popup_uses_the_pages_own_dropdown(db):
+    """"What do you need help with?" was a native <select>. Its list is drawn by the operating
+    system, so on a page styled this carefully it arrived as a grey system menu in another font --
+    and the only part that can be styled, the closed control, promised something the open list did
+    not deliver. It also wore a chevron pointing right, which reads as a link, not a dropdown."""
+    import os
+    root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        'frontend', 'insurance', 'src', 'components')
+    modal = open(os.path.join(root, 'SupportModal.tsx'), encoding='utf-8').read()
+    combo = open(os.path.join(root, 'CountryCombo.tsx'), encoding='utf-8').read()
+
+    assert '<select' not in modal
+    assert 'OptionCombo' in modal and 'export function OptionCombo' in combo
+    # it reuses the country picker's popover, so it inherits the placement logic that keeps a
+    # dropdown inside a scrolling modal
+    assert 'usePopover()' in combo.split('export function OptionCombo')[1]
+    # chevron rotated to point down, as on the country fields
+    assert "name=\"i-chev\" className=\"ico s xs\" rotate={90}" in \
+        combo.split('export function OptionCombo')[1]

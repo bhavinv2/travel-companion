@@ -106,3 +106,71 @@
   </footer>
 </aside>
 {%- endmacro %}
+
+
+{# ---- saved filters ------------------------------------------------------ #}
+{# The row of shortcuts above a listing. Built for somebody who does the same search every
+   morning and should not have to rebuild it: one click, and the dates move with the day. #}
+{% macro saved_filter_bar(saved, listing, chips, active_id=None) -%}
+<div class="sv-bar">
+  <span class="sv-bar-lbl"><i class="fa-solid fa-bookmark"></i> Saved views</span>
+
+  {% if saved %}
+    <div class="sv-chips">
+      {% for f in saved %}
+      <a class="sv-chip{{ ' on' if active_id and f.id == active_id }}"
+         href="{{ url_for('saved.open_filter', filter_id=f.id, **{'from': listing}) }}"
+         title="{{ f.reads_as }}">
+        {% if f.rolls_forward %}<i class="fa-solid fa-rotate sv-roll" title="Moves with the date"></i>{% endif %}
+        <span>{{ f.name }}</span>
+        {% if f.owner_id != current_user.id %}<i class="fa-solid fa-user-group sv-shared" title="Shared by {{ f.owner.username if f.owner else 'a colleague' }}"></i>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <span class="sv-empty">None yet &mdash; set some filters below, then save them for tomorrow.</span>
+  {% endif %}
+
+  <span class="sv-bar-acts">
+    {% if chips %}
+    <button type="button" class="sv-save" id="svSaveBtn">
+      <i class="fa-solid fa-plus"></i> Save this view
+    </button>
+    {% endif %}
+    <a class="sv-manage" href="{{ url_for('saved.manage', **{'from': listing}) }}">Manage</a>
+  </span>
+</div>
+
+{% if chips %}
+{# Named here, not on the manage screen, because this is the moment somebody knows what the
+   filter is for. The dialog states plainly which parts will move with the date. #}
+<div class="sv-dlg" id="svSaveDlg" hidden>
+  <form method="post" action="{{ url_for('saved.save') }}" class="sv-dlg-in">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <input type="hidden" name="from" value="{{ listing }}"/>
+    {% for k, v in request.args.items() %}
+      {% if k not in ('page', 'view') %}<input type="hidden" name="{{ k }}" value="{{ v }}"/>{% endif %}
+    {% endfor %}
+
+    <h3>Save this view</h3>
+    <p class="sv-dlg-sum">
+      {% for c in chips %}<span class="sv-sum-chip">{{ c.label }}: <b>{{ c.value }}</b></span>{% endfor %}
+    </p>
+
+    <label class="sv-dlg-lbl" for="svName">Call it</label>
+    <input class="sv-dlg-inp" id="svName" name="name" maxlength="60" required
+           placeholder="e.g. Departing today from Delhi" autocomplete="off"/>
+
+    <label class="sv-dlg-check">
+      <input type="checkbox" name="shared"/>
+      <span>Share with the CS team <small>They can use it; only you can change it.</small></span>
+    </label>
+
+    <div class="sv-dlg-ft">
+      <button type="button" class="btn btn-light" id="svCancel">Cancel</button>
+      <button type="submit" class="btn btn-primary"><i class="fa-solid fa-bookmark"></i> Save view</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+{%- endmacro %}

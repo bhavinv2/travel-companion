@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{# Housekeeping for saved views. Built to be read, not decoded: every filter states in plain
+   English what it will show, and the ones that move with the date say so, because that is the
+   single thing about this feature somebody has to understand to trust it. #}
+{% block title %}Saved views – NRI Parent Service{% endblock %}
+
+{% block content %}
+<div class="sv-page">
+  <header class="sv-head">
+    <div>
+      <h1>Saved views</h1>
+      <p class="sv-sub">
+        A set of filters you named, so tomorrow's list is one click instead of a dozen boxes.
+        Views marked <i class="fa-solid fa-rotate sv-roll"></i> move with the date on their own &mdash;
+        &ldquo;departing today&rdquo; means today, whichever day you open it.
+      </p>
+    </div>
+    <a class="btn btn-light" href="{{ url_for('cs.posts' if listing == 'cs' else 'admin.listings') }}">
+      <i class="fa-solid fa-arrow-left"></i> Back to the list
+    </a>
+  </header>
+
+  <section class="sv-sec">
+    <h2>Yours <span class="sv-count">{{ mine|length }} of {{ max_per_user }}</span></h2>
+
+    {% if not mine %}
+      <div class="sv-none">
+        <i class="fa-solid fa-bookmark"></i>
+        <p><b>No saved views yet.</b></p>
+        <p>Go to the list, set the filters you want, then press <b>Save this view</b>.
+           It takes about ten seconds and you never set them again.</p>
+        <a class="btn btn-primary" href="{{ url_for('cs.posts' if listing == 'cs' else 'admin.listings') }}">
+          Set up my first view
+        </a>
+      </div>
+    {% else %}
+      <ul class="sv-list">
+        {% for f in mine %}
+        <li class="sv-item">
+          <span class="sv-item-ord">
+            <form method="post" action="{{ url_for('saved.move', filter_id=f.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <input type="hidden" name="from" value="{{ listing }}"/>
+              <button name="dir" value="up" title="Move up" aria-label="Move {{ f.name }} up"
+                      {{ 'disabled' if loop.first }}><i class="fa-solid fa-chevron-up"></i></button>
+              <button name="dir" value="down" title="Move down" aria-label="Move {{ f.name }} down"
+                      {{ 'disabled' if loop.last }}><i class="fa-solid fa-chevron-down"></i></button>
+            </form>
+          </span>
+
+          <span class="sv-item-main">
+            <span class="sv-item-name">
+              {% if f.rolls_forward %}<i class="fa-solid fa-rotate sv-roll" title="Moves with the date"></i>{% endif %}
+              {{ f.name }}
+              {% if f.shared %}<span class="sv-tag"><i class="fa-solid fa-user-group"></i> Shared</span>{% endif %}
+            </span>
+            <span class="sv-item-reads">{{ f.reads_as }}</span>
+            <span class="sv-item-meta">
+              {% if f.use_count %}Opened {{ f.use_count }} time{{ '' if f.use_count == 1 else 's' }}{% else %}Not opened yet{% endif %}
+            </span>
+          </span>
+
+          <span class="sv-item-acts">
+            <a class="btn btn-primary btn-sm"
+               href="{{ url_for('saved.open_filter', filter_id=f.id, **{'from': listing}) }}">Open</a>
+
+            <details class="sv-more">
+              <summary aria-label="More actions for {{ f.name }}"><i class="fa-solid fa-ellipsis"></i></summary>
+              <div class="sv-more-menu">
+                <form method="post" action="{{ url_for('saved.rename', filter_id=f.id) }}" class="sv-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                  <input type="hidden" name="from" value="{{ listing }}"/>
+                  <input name="name" value="{{ f.name }}" maxlength="60" aria-label="New name"/>
+                  <button class="btn-sm" type="submit">Rename</button>
+                </form>
+
+                <form method="post" action="{{ url_for('saved.share', filter_id=f.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                  <input type="hidden" name="from" value="{{ listing }}"/>
+                  {% if not f.shared %}<input type="hidden" name="shared" value="on"/>{% endif %}
+                  <button class="btn-sm" type="submit">
+                    {{ 'Make private' if f.shared else 'Share with the team' }}
+                  </button>
+                </form>
+
+                <form method="post" action="{{ url_for('saved.delete', filter_id=f.id) }}"
+                      onsubmit="return confirm('Delete the saved view “{{ f.name }}”?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                  <input type="hidden" name="from" value="{{ listing }}"/>
+                  <button class="btn-sm sv-danger" type="submit">Delete</button>
+                </form>
+              </div>
+            </details>
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </section>
+
+  {% if shared %}
+  <section class="sv-sec">
+    <h2>Shared by the team</h2>
+    <p class="sv-sub">You can open these. Only the person who made one can change it.</p>
+    <ul class="sv-list">
+      {% for f in shared %}
+      <li class="sv-item">
+        <span class="sv-item-main">
+          <span class="sv-item-name">
+            {% if f.rolls_forward %}<i class="fa-solid fa-rotate sv-roll" title="Moves with the date"></i>{% endif %}
+            {{ f.name }}
+            <span class="sv-tag"><i class="fa-solid fa-user"></i> {{ f.owner.username if f.owner else 'A colleague' }}</span>
+          </span>
+          <span class="sv-item-reads">{{ f.reads_as }}</span>
+        </span>
+        <span class="sv-item-acts">
+          <a class="btn btn-primary btn-sm"
+             href="{{ url_for('saved.open_filter', filter_id=f.id, **{'from': listing}) }}">Open</a>
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

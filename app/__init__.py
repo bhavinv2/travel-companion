@@ -283,6 +283,7 @@ def create_app(test_config=None):
     from app.routes.imports import imports_bp
     from app.routes.jobs import jobs_bp
     from app.routes.scraper import scraper_bp
+    from app.routes.saved_views import saved_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(insurance_bp)
@@ -300,6 +301,7 @@ def create_app(test_config=None):
     app.register_blueprint(imports_bp)
     app.register_blueprint(jobs_bp)
     app.register_blueprint(scraper_bp, url_prefix='/cs/scraper')
+    app.register_blueprint(saved_bp)
 
     from app import cli
     cli.register(app)

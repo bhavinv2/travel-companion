@@ -1314,3 +1314,50 @@ class ScrapeRow(db.Model):
             'duplicate_of_id': self.duplicate_of_id, 'imported_post_id': self.imported_post_id,
             'imported_at': self.imported_at.isoformat() if self.imported_at else None,
         }
+
+
+class SavedFilter(db.Model):
+    """A set of filters an agent named and kept, so a daily view is one click instead of twelve.
+
+    The point is that it keeps working tomorrow. What is stored is the filter PARAMS, not the rows
+    and not resolved dates -- "departing today" is saved as dep=today and worked out against the
+    day it is opened (see services/post_filters.preset_range). An agent who saves "today, from
+    Delhi" on Monday sees Tuesday's Delhi departures on Tuesday without touching it.
+
+    Both post listings read the same filter engine, so a saved filter is not tied to one of them;
+    it shows on the CS console and the admin listings alike.
+
+    Sharing is opt-in and one-way: a filter belongs to the person who made it, and marking it
+    shared puts it on their colleagues' listings read-only. Only the owner can rename, change or
+    delete it, so nobody's daily shortcut can disappear because somebody else tidied up.
+    """
+    __tablename__ = 'saved_filters'
+
+    id = db.Column(db.Integer, primary_key=True)
+    owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    name = db.Column(db.String(60), nullable=False)
+
+    # The filter engine's own params, e.g. {"dep": "today", "from_place": "DEL"}. Stored as given
+    # so that adding a filter to post_filters.GROUPS needs no migration here.
+    params = db.Column(db.JSON, nullable=False, default=dict)
+    sort = db.Column(db.String(20))
+
+    shared = db.Column(db.Boolean, nullable=False, default=False)
+    # what the owner dragged it to; ties broken by name so the order is never arbitrary
+    position = db.Column(db.Integer, nullable=False, default=0)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # for "recently used" ordering and for spotting shortcuts nobody opens any more
+    last_used_at = db.Column(db.DateTime)
+    use_count = db.Column(db.Integer, nullable=False, default=0)
+
+    owner = db.relationship('User', foreign_keys=[owner_id])
+
+    __table_args__ = (
+        db.UniqueConstraint('owner_id', 'name', name='uq_saved_filter_owner_name'),
+        db.Index('ix_saved_filters_shared', 'shared'),
+    )
+
+    def __repr__(self):
+        return '<SavedFilter %r of user %s>' % (self.name, self.owner_id)

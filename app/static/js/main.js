@@ -3275,3 +3275,20 @@ function wireBulkSelect(headId, rowSelector, onChange) {
     if (e.key === 'Enter') { e.preventDefault(); close(); submit(); }
   });
 })();
+
+// "Save this view": open the naming dialog for the filters currently applied. The form inside it
+// already carries the live filter params as hidden inputs (see _post_filters.html), so there is
+// nothing to collect here -- this is open, close, and stay out of the way.
+(function () {
+  const btn = document.getElementById('svSaveBtn');
+  const dlg = document.getElementById('svSaveDlg');
+  if (!btn || !dlg) return;
+  const close = () => { dlg.hidden = true; };
+  btn.addEventListener('click', () => {
+    dlg.hidden = false;
+    setTimeout(() => document.getElementById('svName')?.focus(), 40);
+  });
+  document.getElementById('svCancel')?.addEventListener('click', close);
+  dlg.addEventListener('click', e => { if (e.target === dlg) close(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !dlg.hidden) close(); });
+})();
