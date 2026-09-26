@@ -667,11 +667,18 @@ button{font-family:inherit}
 .inp{width:100%;min-height:52px;border:1.5px solid var(--mist);border-radius:12px;padding:0 14px 0 44px;font-family:var(--sans);font-size:16px;color:var(--navy);background:#fff;outline:none;appearance:none}
 .inp:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(0,78,254,.12)}
 .inp.plain{padding-left:14px}
-/* date fields: draw our own dd-mm-yyyy hint so it reads the same on every
-   browser and tablet, instead of relying on the native one */
-.inp.is-empty::-webkit-datetime-edit{color:transparent}
+/* Date fields: draw our own dd-mm-yyyy hint so it reads the same on every browser and tablet,
+   instead of relying on the native one.
+
+   Both rules are scoped to :not(:focus). The hint sits exactly where the native day/month/year
+   segments render, and the field counts as empty until all three are filled -- so while somebody
+   was typing, their digits were transparent underneath a hint that stayed put. The field looked
+   dead until the last keystroke. Focused, the native editor is always visible and the hint is
+   not. */
+.inp.is-empty:not(:focus)::-webkit-datetime-edit{color:transparent}
 .date-ph{position:absolute;left:44px;top:50%;transform:translateY(-50%);
   pointer-events:none;font-family:var(--sans);font-size:16px;color:var(--slate);opacity:.75}
+.iw:focus-within .date-ph{display:none}
 .inp-s{padding:0 12px;min-height:48px}
 .tel{display:flex;gap:10px}
 .tel select{flex:0 0 132px;min-height:52px;border:1.5px solid var(--mist);border-radius:12px;padding:0 10px;font-family:var(--sans);font-size:16px;background:#fff;color:var(--navy)}

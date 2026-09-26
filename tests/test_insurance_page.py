@@ -431,3 +431,24 @@ def test_the_page_speaks_with_one_cta_vocabulary(db):
         assert stale not in text, stale
     assert text.count('Get a Free Quote') >= 5
     assert text.count('Talk to an Expert') >= 3
+
+
+def test_the_date_hint_gets_out_of_the_way_when_you_type(db):
+    """"Coverage ends" draws its own dd-mm-yyyy hint, because the native one reads differently on
+    every browser. The hint sits exactly where the day/month/year segments render, and the field
+    counts as empty until all three are filled -- so while somebody typed, their digits were
+    transparent underneath a hint that stayed put and the field looked dead.
+
+    Both rules are scoped to :not(:focus) / :focus-within. Checked in the stylesheet, because it
+    is one careless edit away from coming back and nothing else would catch it.
+    """
+    import os
+    css = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       'frontend', 'insurance', 'src', 'styles', 'global.css')
+    text = open(css, encoding='utf-8').read()
+
+    assert '.inp.is-empty:not(:focus)::-webkit-datetime-edit{color:transparent}' in text
+    assert '.iw:focus-within .date-ph{display:none}' in text
+    # the unconditional form is what caused it
+    assert '.inp.is-empty::-webkit-datetime-edit' not in text.replace(
+        '.inp.is-empty:not(:focus)::-webkit-datetime-edit', '')
