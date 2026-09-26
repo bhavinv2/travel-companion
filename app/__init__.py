@@ -366,12 +366,15 @@ def create_app(test_config=None):
                                 TRIP_ROLES, TRIP_ROLE_LABELS, AGE_GROUPS, AGE_GROUP_LABELS,
                                 GENDERS, PREF_GENDERS)
         from app import options
-        from app.services import insurance_countries, nri_services
+        from app.services import insurance_countries, nri_services, urls
         from app.services import settings as _settings
         return {
             'now': datetime.utcnow,
             'INSURANCE_DESTINATIONS': insurance_countries,
             'NRI_SERVICES': nri_services.resolved(),
+            # For linking TO /travel-insurance or /sahayak: those answer beside the app's prefix,
+            # so url_for would offer the in-prefix address instead of the one they are known by.
+            'public_url': urls.public_url,
             'NRI_SOCIAL': nri_services.SOCIAL,
             'WHATSAPP': _settings.whatsapp_numbers,
             'INSURANCE_PARTNER_NAME': nri_services.INSURANCE_PARTNER_NAME,

@@ -20,15 +20,19 @@ def resolved():
     Two of these are no longer somebody else's website: travel insurance is a page this app
     serves. Linking to it by its production URL made every click a redirect (the address carried
     a trailing slash the app redirects away), sent staging and local traffic to the live site,
-    and gave search engines an external link where an internal one belongs. url_for solves all
-    three and keeps working whatever prefix the app is mounted under.
+    and gave search engines an external link where an internal one belongs.
+
+    public_url, not url_for: the page answers on /travel-insurance, beside the app's prefix
+    rather than inside it. url_for would offer /travel-companions/travel-insurance, which loads
+    the same page but is not the address this service is known by -- and which changes depending
+    on the page the menu happens to be rendered on.
     """
-    from flask import url_for
+    from app.services.urls import public_url
     out = []
     for row in SERVICES:
         label, href = row[0], row[1]
         endpoint = row[2] if len(row) > 2 else None
-        out.append((label, url_for(endpoint) if endpoint else href))
+        out.append((label, public_url(endpoint) if endpoint else href))
     return out
 
 # Our insurance partner: they price every quote and take the purchase, so we credit them

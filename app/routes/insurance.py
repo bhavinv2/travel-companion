@@ -18,7 +18,7 @@ from flask_login import current_user
 
 from app import db
 from app.models import ActivityEvent, ContactMessage
-from app.services import help_center, insurance_countries, insurance_page, settings
+from app.services import help_center, insurance_countries, insurance_page, settings, urls
 from app.services.ratelimit import rate_limit
 
 insurance_bp = Blueprint('insurance', __name__)
@@ -102,10 +102,7 @@ def _canonical():
     inside the app's prefix (what url_for builds for internal links). Same page either way, so
     search engines are told which one counts rather than left to guess.
     """
-    aliases = current_app.config.get('APP_ALIAS_PATHS') or []
-    if not aliases:
-        return request.url
-    return request.host_url.rstrip('/') + '/' + aliases[0].strip('/')
+    return urls.public_absolute('insurance.landing')
 
 
 @insurance_bp.route('/travel-insurance')
@@ -140,8 +137,12 @@ def landing():
 @insurance_bp.route('/travel-insurances')
 def landing_plural():
     """The address briefly used before the singular one was settled on. A permanent redirect
-    costs nothing and means a link shared in the meantime still lands."""
-    return redirect(url_for('insurance.landing'), code=301)
+    costs nothing and means a link shared in the meantime still lands.
+
+    public_url, so the redirect lands on /travel-insurance rather than sending somebody who
+    followed an old link into the prefixed copy of the same page.
+    """
+    return redirect(urls.public_url('insurance.landing'), code=301)
 
 
 @insurance_bp.route('/api/insurance-enquiry', methods=['POST'])

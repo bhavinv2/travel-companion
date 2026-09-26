@@ -133,13 +133,24 @@ def test_the_same_page_still_answers_inside_the_prefix(pclient):
     assert pclient.get(f'{PREFIX}{ALIAS}').status_code == 200
 
 
-def test_links_on_the_sibling_url_keep_the_canonical_prefix(pclient):
-    """Otherwise a click from this page would leave the proxied path and 404 on the main site."""
+def test_links_on_the_sibling_url_keep_the_canonical_prefix(pclient, papp):
+    """Otherwise a click from this page would leave the proxied path and 404 on the main site.
+
+    The exception is a link to one of the alias entry points itself. Those are not accidental
+    escapes: the proxy routes them here by their own rule, and they are the addresses these
+    service pages are printed and shared under, so a menu must offer them unprefixed or it would
+    read differently depending on the screen it was rendered on.
+    """
     import re
     html = pclient.get(ALIAS).data.decode()
     links = set(re.findall(r'(?:href|src)="(/[^"]*)"', html))
     assert links, 'page should render absolute in-app links'
-    assert [l for l in links if not l.startswith(PREFIX + '/')] == []
+    aliases = papp.config['APP_ALIAS_PATHS']
+    assert aliases, 'fixture should configure the alias paths'
+    escaped = [l for l in links
+               if not l.startswith(PREFIX + '/')
+               and not any(l == a or l.startswith(a + '/') for a in aliases)]
+    assert escaped == []
 
 
 def test_both_addresses_name_the_same_canonical_one(pclient):
@@ -155,3 +166,51 @@ def test_an_alias_does_not_mount_the_whole_app_a_second_time(pclient):
     """Only the insurance route lives out there; everything else stays behind the one prefix."""
     assert pclient.get(f'{ALIAS}/dashboard').status_code == 404
     assert pclient.get(f'{ALIAS}/auth/login').status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# The two standalone pages answer BESIDE the prefix, so a link to them is the
+# one thing that must NOT carry it.
+# ---------------------------------------------------------------------------
+
+def test_the_services_menu_offers_the_address_the_page_is_known_by(pclient):
+    """Under the prefix, url_for turns /travel-insurance into
+    /travel-companions/travel-insurance. That loads the same page, so it looked fine -- but it is
+    not the address printed, shared or advertised, and it changed depending on which screen the
+    menu was rendered on. The menu has to read the same everywhere."""
+    for path in (f'{PREFIX}/', f'{PREFIX}/help', '/travel-insurance', '/sahayak'):
+        html = pclient.get(path).data.decode()
+        assert 'href="/travel-insurance"' in html, path
+        assert f'href="{PREFIX}/travel-insurance"' not in html, path
+
+
+def test_the_canonical_is_the_unprefixed_address(pclient):
+    """Both addresses serve the page; exactly one of them should be indexed."""
+    html = pclient.get('/travel-insurance').data.decode()
+    assert f'<link rel="canonical" href="https://{HOST}/travel-insurance"/>' in html
+    assert f'{PREFIX}/travel-insurance' not in html.split('rel="canonical"')[1][:200]
+
+
+def test_the_sitemap_lists_the_unprefixed_addresses(pclient):
+    xml = pclient.get(f'{PREFIX}/sitemap.xml').data.decode()
+    assert f'<loc>https://{HOST}/travel-insurance</loc>' in xml
+    assert f'<loc>https://{HOST}/sahayak</loc>' in xml
+    assert f'{PREFIX}/travel-insurance' not in xml
+    # the companion app's own pages keep the prefix
+    assert f'<loc>https://{HOST}{PREFIX}/trips</loc>' in xml
+
+
+def test_the_old_plural_redirects_out_of_the_prefix(pclient):
+    """Somebody following an old /travel-insurances link should land on the canonical address,
+    not inside the prefixed copy of it."""
+    r = pclient.get('/travel-insurances')
+    assert r.status_code == 301
+    assert r.headers['Location'].endswith('/travel-insurance')
+    assert PREFIX not in r.headers['Location']
+
+
+def test_links_inside_the_app_still_carry_the_prefix(pclient):
+    """The fix must not leak: only the alias paths lose the prefix."""
+    html = pclient.get('/travel-insurance').data.decode()
+    assert f'href="{PREFIX}/static/insurance/travel-insurance.css' in html
+    assert f'href="{PREFIX}/help"' in html          # the Support link is an ordinary app page

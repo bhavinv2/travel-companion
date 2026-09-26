@@ -6,7 +6,7 @@
   <main class="admin-main">
     <h1>Sahayak services</h1>
     <p class="admin-sub">The catalogue and prices shown on
-      <a href="{{ url_for('sahayak.landing') }}" target="_blank" rel="noopener">/sahayak</a>, and the
+      <a href="{{ public_url('sahayak.landing') }}" target="_blank" rel="noopener">/sahayak</a>, and the
       list people pick from when they request a visit. Questions on that page come from
       <a href="{{ url_for('admin.help_center_page') }}">Help &amp; FAQ</a> — add them under the
       <strong>{{ faq_category }}</strong> category.</p>
