@@ -188,3 +188,50 @@ def test_the_manage_screen_is_staff_only(client, db, other_user):
     login(client, 'alice@test.com')
     r = client.get('/saved-filters/', follow_redirects=False)
     assert r.status_code == 302 and '/saved-filters' not in r.headers['Location']
+
+
+# ---------------------------------------------------------------------------
+# The drawer has to submit the intent, or none of the above matters
+# ---------------------------------------------------------------------------
+
+def test_the_drawer_submits_the_preset_itself(client, db, cs_user):
+    """The preset dropdown had no `name`, so it was never submitted: picking "Departing today"
+    filled the two date boxes and the server only ever saw dep_from=…&dep_to=…. Every view saved
+    through the UI would have frozen on the day it was made -- and the chip said so out loud,
+    "Departure: 26 Sep 2026 to 26 Sep 2026". The whole feature turned on this one attribute."""
+    login(client, 'cs@test.com')
+    html = client.get('/cs/posts').data.decode()
+    assert 'class="pf-preset" name="dep"' in html
+    assert 'class="pf-preset" name="posted"' in html
+
+
+def test_a_preset_in_the_url_is_shown_as_chosen(client, db, cs_user):
+    """Coming back to a saved view, the drawer has to show the preset selected -- otherwise
+    re-applying silently converts it into fixed dates."""
+    login(client, 'cs@test.com')
+    html = client.get('/cs/posts?dep=today').data.decode()
+    dep = html.split('name="dep"', 1)[1].split('</select>', 1)[0]
+    chosen = [line for line in dep.splitlines() if 'selected' in line]
+    assert len(chosen) == 1 and 'Departing today' in chosen[0], chosen
+
+
+def test_the_saved_views_bar_travels_with_the_results(db):
+    """On the CS console a filter apply swaps in only the results fragment. The bar was left
+    outside it, so its "Save this view" button never noticed that filters had been applied --
+    which is why it looked like there was no way to save."""
+    import os
+    root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        'app', 'templates', 'cs')
+    partial = open(os.path.join(root, '_posts_results.html'), encoding='utf-8').read()
+    outer = open(os.path.join(root, 'posts.html'), encoding='utf-8').read()
+    assert 'saved_filter_bar(' in partial
+    assert 'saved_filter_bar(' not in outer        # or it would render twice
+
+
+def test_there_is_always_a_way_to_start(client, db, cs_user):
+    """With no filters set there is nothing to save, but hiding the button meant somebody landing
+    on the page had no visible route in. It stays, and opens the filters instead."""
+    login(client, 'cs@test.com')
+    html = client.get('/cs/posts').data.decode()
+    assert 'Save this view' in html
+    assert 'data-pf-open' in html.split('sv-bar-acts', 1)[1].split('</span>', 1)[0]

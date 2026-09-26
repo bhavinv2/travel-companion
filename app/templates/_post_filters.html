@@ -34,14 +34,17 @@
 {% macro _field(f, values) -%}
 {% set val = values.get(f.key) %}
 {% if f.kind == 'daterange' %}
-  {# One control for one idea. The preset fills the two date boxes below it, which are the only
-     things actually submitted -- so a shared URL still means exactly one thing. #}
+  {# One control for one idea. The preset is submitted AS ITSELF (dep=today) and resolved on the
+     server on every request, so a filter that says "departing today" still says it tomorrow --
+     which is what makes it worth saving. Choosing "Exact dates" blanks the preset and submits the
+     two boxes instead, because somebody who typed a range meant that range. #}
   <div class="pf-field{% if f.wide %} pf-wide{% endif %}" data-pf-range>
     <span class="pf-lbl">{{ f.label }}</span>
-    <select class="pf-preset" data-pf-preset aria-label="{{ f.label }} range">
+    <select class="pf-preset" name="{{ f.key }}" data-pf-preset aria-label="{{ f.label }} range">
       <option value="">Any time</option>
       {% for id, label, lo, hi in f.presets %}
-      <option value="{{ id }}" data-from="{{ '' if lo is none else lo }}" data-to="{{ '' if hi is none else hi }}">{{ label }}</option>
+      <option value="{{ id }}" data-from="{{ '' if lo is none else lo }}" data-to="{{ '' if hi is none else hi }}"
+              {{ 'selected' if val and val.get('preset') == id }}>{{ label }}</option>
       {% endfor %}
       <option value="custom">Exact dates…</option>
     </select>
@@ -128,12 +131,20 @@
       {% endfor %}
     </div>
   {% else %}
-    <span class="sv-empty">None yet &mdash; set some filters below, then save them for tomorrow.</span>
+    <span class="sv-empty">Nothing saved yet &mdash; set the filters you want, then press <b>Save this view</b>.</span>
   {% endif %}
 
   <span class="sv-bar-acts">
+    {# The button is always here, so nobody has to discover that it appears only once filters are
+       set. With none set it opens the Filters drawer instead, which is the step they were
+       missing anyway. #}
     {% if chips %}
     <button type="button" class="sv-save" id="svSaveBtn">
+      <i class="fa-solid fa-plus"></i> Save this view
+    </button>
+    {% else %}
+    <button type="button" class="sv-save" data-pf-open aria-controls="pfDrawer"
+            title="Pick your filters first — this opens them">
       <i class="fa-solid fa-plus"></i> Save this view
     </button>
     {% endif %}

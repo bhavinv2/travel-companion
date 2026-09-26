@@ -28,7 +28,6 @@
       <a href="{{ url_for('cs.posts') }}" class="btn-sm">Reset</a>
       {{ filter_drawer(filter_groups, filter_values) }}
     </form>
-    {{ saved_filter_bar(saved_views, saved_listing, filter_chips, active_view) }}
     {% if 'status' not in filter_values %}
     <p class="muted" style="font-size:12.5px;margin:6px 0 0">Showing open and unconfirmed posts — pick a status in the filters to see closed ones.</p>
     {% endif %}

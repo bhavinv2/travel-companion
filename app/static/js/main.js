@@ -3100,17 +3100,21 @@ function wireBulkSelect(headId, rowSelector, onChange) {
     const from = dates.querySelector('input[type=date]:first-of-type');
     const to = dates.querySelectorAll('input[type=date]')[1];
 
+    // "custom" is a UI state, not a filter -- the submit handler below keeps it out of the URL.
     function sync() {
       if (preset.value === 'custom') { dates.hidden = false; return; }
-      const r = rangeOf(preset.selectedOptions[0]);
       dates.hidden = true;
-      from.value = r ? r.from : '';
-      to.value = r ? r.to : '';
+      // The preset is submitted by name and resolved on the server, so the boxes are CLEARED
+      // rather than filled. Leaving today's dates in them is what pinned a saved view to today.
+      from.value = '';
+      to.value = '';
     }
 
     // A link someone shared carries only from/to, so work out which preset that was -- and fall
     // back to the exact-date boxes when it matches none of them.
     (function restore() {
+      // a preset the server recognised is already marked selected in the markup
+      if (preset.value && preset.value !== 'custom') { dates.hidden = true; return; }
       if (!from.value && !to.value) return;
       for (const opt of preset.options) {
         const r = rangeOf(opt);
@@ -3121,6 +3125,10 @@ function wireBulkSelect(headId, rowSelector, onChange) {
     })();
 
     preset.addEventListener('change', sync);
+    // A disabled control is not submitted, which is how "custom" stays out of the query string.
+    preset.form?.addEventListener('submit', () => {
+      if (preset.value === 'custom') preset.disabled = true;
+    });
   }
   drawer.querySelectorAll('[data-pf-range]').forEach(wireRange);
 
@@ -3279,16 +3287,29 @@ function wireBulkSelect(headId, rowSelector, onChange) {
 // "Save this view": open the naming dialog for the filters currently applied. The form inside it
 // already carries the live filter params as hidden inputs (see _post_filters.html), so there is
 // nothing to collect here -- this is open, close, and stay out of the way.
+//
+// Delegated, not bound once: on the CS console a filter apply replaces the results fragment, and
+// the saved-views bar travels with it. A listener attached to the old button would be thrown away
+// with it, which is how the button ended up doing nothing after the first search.
 (function () {
-  const btn = document.getElementById('svSaveBtn');
-  const dlg = document.getElementById('svSaveDlg');
-  if (!btn || !dlg) return;
-  const close = () => { dlg.hidden = true; };
-  btn.addEventListener('click', () => {
-    dlg.hidden = false;
-    setTimeout(() => document.getElementById('svName')?.focus(), 40);
+  const dlg = () => document.getElementById('svSaveDlg');
+  const close = () => { const d = dlg(); if (d) d.hidden = true; };
+
+  document.addEventListener('click', e => {
+    if (e.target.closest('#svSaveBtn')) {
+      const d = dlg();
+      if (!d) return;
+      d.hidden = false;
+      setTimeout(() => document.getElementById('svName')?.focus(), 40);
+      return;
+    }
+    if (e.target.closest('#svCancel')) { close(); return; }
+    const d = dlg();
+    if (d && !d.hidden && e.target === d) close();
   });
-  document.getElementById('svCancel')?.addEventListener('click', close);
-  dlg.addEventListener('click', e => { if (e.target === dlg) close(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !dlg.hidden) close(); });
+
+  document.addEventListener('keydown', e => {
+    const d = dlg();
+    if (e.key === 'Escape' && d && !d.hidden) close();
+  });
 })();

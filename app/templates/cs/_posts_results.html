@@ -1,9 +1,12 @@
 {# Just the results, so live search can replace them without reloading the page. #}
 {% from 'cs/_macros.html' import posts_table with context %}
 <p class="muted cs-count">{{ total }} post{{ '' if total == 1 else 's' }}</p>
-{% from '_post_filters.html' import filter_chip_row %}
-{# inside the swapped-in fragment on purpose: a live filter apply refreshes the results, and the
-   chips have to travel with them or they describe the previous search #}
+{% from '_post_filters.html' import filter_chip_row, saved_filter_bar with context %}
+{# inside the swapped-in fragment on purpose: a live filter apply refreshes the results, and
+   anything describing the current search has to travel with them or it describes the previous
+   one. That is true of the saved-views bar too -- left outside, its "Save this view" button
+   never noticed that filters had been applied. #}
+{{ saved_filter_bar(saved_views, saved_listing, filter_chips, active_view) }}
 {{ filter_chip_row(filter_chips, url_for('cs.posts')) }}
 {{ posts_table(posts, empty='No posts match these filters.', tree=True) }}
 {% include 'admin/_pager.html' %}
