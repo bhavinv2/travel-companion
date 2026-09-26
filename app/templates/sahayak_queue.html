@@ -11,28 +11,38 @@
     <p class="admin-sub">Requests for a home visit. Nobody is dispatched automatically — call the
       family, assign a Sahayak by name, then mark how it went.</p>
 
+    {# Status is a tab, service and search are filters on top of it: one segmented control for
+       the first, a toolbar for the rest, rather than six loose chips in a line. #}
     <div class="filter-row">
-      <a class="btn-sm-outline {{ 'active' if not status }}" href="{{ url_for(endpoint) }}">
-        {{ 'Open queue' if endpoint.startswith('cs.') else 'All' }}</a>
-      {% for s in SAHAYAK_STATUSES %}
-      <a class="btn-sm-outline {{ 'active' if status == s }}" href="{{ url_for(endpoint, status=s) }}">
-        {{ SAHAYAK_STATUS_LABELS[s] }} ({{ counts[s] }})</a>
-      {% endfor %}
+      <div class="seg" role="tablist">
+        {# no count on this one: in the CS console it means the open queue (new + assigned), not
+           the whole table, and a number here would be read as the total. #}
+        <a class="seg-item {{ 'active' if not status }}" role="tab" href="{{ url_for(endpoint) }}">
+          {{ 'Open queue' if endpoint.startswith('cs.') else 'All' }}</a>
+        {% for s in SAHAYAK_STATUSES %}
+        <a class="seg-item {{ 'active' if status == s }}{{ ' empty' if not counts[s] }}" role="tab"
+           href="{{ url_for(endpoint, status=s) }}">
+          {{ SAHAYAK_STATUS_LABELS[s] }} <span class="seg-n">{{ counts[s] }}</span></a>
+        {% endfor %}
+      </div>
       <form method="get" class="inline-search">
         {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
-        <select name="service" onchange="this.form.submit()">
+        <select name="service" onchange="this.form.submit()" aria-label="Service">
           <option value="">Any service</option>
           {% for s in services %}
           <option value="{{ s.key }}" {{ 'selected' if service == s.key }}>{{ s.name }}</option>
           {% endfor %}
         </select>
         <input type="search" name="q" value="{{ q }}" placeholder="Name, phone, PIN, Sahayak">
-        <button class="btn-sm" type="submit">Search</button>
+        <button class="btn btn-primary btn-sm" type="submit"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+        {% if q or service %}<a class="btn-sm" href="{{ url_for(endpoint, status=status) }}">Clear</a>{% endif %}
       </form>
     </div>
 
-    <p class="muted">{{ total }} booking{{ '' if total == 1 else 's' }}</p>
+    <p class="admin-count"><b>{{ total }}</b> booking{{ '' if total == 1 else 's' }}{{ ' in this view' if (status or service or q) }}</p>
 
+    <div class="admin-panel">
+    <div class="table-wrap">
     <div class="table-wrap">
       <table class="admin-table stack-mobile sk-queue">
         <thead>
@@ -86,10 +96,14 @@
           </tr>
           {% endif %}
           {% else %}
-          <tr><td colspan="8" class="muted">Nothing in this queue.</td></tr>
+          <tr><td colspan="8" class="admin-empty">
+            <i class="fa-regular fa-calendar-check"></i>
+            {{ 'No bookings match this view.' if (status or service or q) else 'Nothing in this queue.' }}
+          </td></tr>
           {% endfor %}
         </tbody>
       </table>
+    </div>
     </div>
 
     {% include 'admin/_pager.html' %}

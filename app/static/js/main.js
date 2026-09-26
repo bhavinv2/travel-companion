@@ -3338,3 +3338,21 @@ function wireBulkSelect(headId, rowSelector, onChange) {
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !dlg.hidden) close(); });
 })();
+
+// Site switcher in the header. Delegated, because the CS console swaps fragments in and out.
+(function () {
+  document.addEventListener('click', e => {
+    const wrap = document.getElementById('siteSw');
+    if (!wrap) return;
+    if (e.target.closest('#siteSwBtn')) {
+      const open = wrap.classList.toggle('open');
+      document.getElementById('siteSwBtn').setAttribute('aria-expanded', open);
+      return;
+    }
+    if (!e.target.closest('#siteSwMenu')) wrap.classList.remove('open');
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    document.getElementById('siteSw')?.classList.remove('open');
+  });
+})();

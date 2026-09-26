@@ -1,51 +1,89 @@
 {% extends 'base.html' %}
+{# The service catalogue, one card per service rather than one row of seven boxes. What it covers
+   is a sentence, and a sentence needs the width of the card; the price, duration and icon are
+   short and sit together underneath. #}
 {% block title %}Sahayak services – Admin{% endblock %}
 {% block content %}
 <div class="admin-page">
   {% with active='sahayak_services' %}{% include 'admin/_sidebar.html' %}{% endwith %}
   <main class="admin-main">
-    <h1>Sahayak services</h1>
-    <p class="admin-sub">The catalogue and prices shown on
-      <a href="{{ public_url('sahayak.landing') }}" target="_blank" rel="noopener">/sahayak</a>, and the
-      list people pick from when they request a visit. Questions on that page come from
+    <div class="results-header">
+      <h1>Sahayak services</h1>
+      <a class="btn btn-outline-coral" href="{{ public_url('sahayak.landing') }}" target="_blank" rel="noopener">
+        <i class="fa-solid fa-arrow-up-right-from-square"></i> View the page</a>
+    </div>
+    <p class="admin-sub">The catalogue and prices shown on /sahayak, and the list people pick from
+      when they request a visit. Questions on that page come from
       <a href="{{ url_for('admin.help_center_page') }}">Help &amp; FAQ</a> — add them under the
       <strong>{{ faq_category }}</strong> category.</p>
 
     {% if not is_customised %}
     <p class="admin-note"><i class="fa-solid fa-circle-info"></i>
-      Showing the twelve services from the Sahayak business guide. Saving here replaces that list
-      with whatever you leave in the table.</p>
+      <span>Showing the twelve services from the Sahayak business guide. Saving here replaces that
+      list with whatever you leave below.</span></p>
     {% endif %}
 
     <form method="POST" class="hc-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-      <div class="table-wrap">
-        <table class="admin-table sk-svc-table">
-          <thead>
-            <tr><th>Name</th><th>What it covers</th><th>₹ (ex GST)</th><th>Duration</th>
-                <th>Icon</th><th>Key</th><th></th></tr>
-          </thead>
-          <tbody id="svcRows">
-            {% for s in services %}
-            <tr>
-              <td><input type="text" name="name" value="{{ s.name }}" placeholder="Health checkup"/></td>
-              <td><textarea name="blurb" rows="2" placeholder="One sentence a family would understand">{{ s.blurb }}</textarea></td>
-              <td><input type="text" name="price" value="{{ s.price }}" style="width:80px" placeholder="299"/></td>
-              <td><input type="text" name="duration" value="{{ s.duration }}" style="width:110px" placeholder="15–20 min"/></td>
-              <td><input type="text" name="icon" value="{{ s.icon }}" style="width:150px" placeholder="fa-heart-pulse"/></td>
-              <td><input type="text" name="key" value="{{ s.key }}" style="width:130px" readonly title="Used in links and saved on every booking — changing it would orphan past bookings"/></td>
-              <td><button type="button" class="btn-sm danger row-del" title="Remove"><i class="fa-solid fa-trash-can"></i></button></td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+
+      <section class="hc-sec">
+        <h2 class="hc-h2"><i class="fa-solid fa-list-check"></i> Services &amp; prices</h2>
+        <p class="hc-hint">A row needs a name to be kept. Removing a service hides it from the page;
+          bookings already taken for it keep the name and price they were quoted.</p>
+
+        <div class="ed-rows" id="svcRows">
+          {% for s in services %}
+          <div class="ed-row">
+            <div class="ed-grid">
+              {# The name and the sentence about it are what anybody actually edits, so they get
+                 the width; the four short fields share the line underneath. #}
+              <div class="ed-pair">
+                <div>
+                  <label class="hc-lbl">Name</label>
+                  <input type="text" name="name" value="{{ s.name }}" placeholder="Health checkup"/>
+                </div>
+                <div>
+                  <label class="hc-lbl">What it covers</label>
+                  <textarea name="blurb" rows="2" placeholder="One sentence a family would understand">{{ s.blurb }}</textarea>
+                </div>
+              </div>
+              <div class="ed-cols narrow">
+                <div>
+                  <label class="hc-lbl">₹ (ex GST)</label>
+                  <input type="text" name="price" value="{{ s.price }}" placeholder="299"/>
+                </div>
+                <div>
+                  <label class="hc-lbl">Duration</label>
+                  <input type="text" name="duration" value="{{ s.duration }}" placeholder="15–20 min"/>
+                </div>
+                <div>
+                  <label class="hc-lbl">Icon</label>
+                  <input type="text" name="icon" value="{{ s.icon }}" placeholder="fa-heart-pulse"/>
+                </div>
+                <div>
+                  <label class="hc-lbl">Key</label>
+                  <input type="text" name="key" value="{{ s.key }}" readonly
+                         title="Used in links and saved on every booking — changing it would orphan past bookings"/>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="ed-del row-del" title="Remove this service"
+                    aria-label="Remove this service"><i class="fa-solid fa-trash-can"></i></button>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="ed-empty" id="svcEmpty" {{ 'hidden' if services }}>No services listed. The page has
+          nothing to show and nobody can request a visit until you add one.</p>
+
+        <div style="margin-top:14px">
+          <button type="button" class="btn-sm" id="addSvc"><i class="fa-solid fa-plus"></i> Add service</button>
+        </div>
+      </section>
+
       <div class="hc-actions">
-        <button type="button" class="btn-sm-outline" id="addSvc"><i class="fa-solid fa-plus"></i> Add service</button>
         <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save catalogue</button>
+        <span class="hc-note">The whole list is saved at once, in the order shown here.</span>
       </div>
-      <p class="muted" style="font-size:13px">A row needs a name to be kept. Removing a service hides
-        it from the page; bookings already taken for it keep the name and price they were quoted.</p>
     </form>
   </main>
 </div>
@@ -55,22 +93,40 @@
 <script>
 (function () {
   const body = document.getElementById('svcRows');
+  const empty = document.getElementById('svcEmpty');
+  const lbl = (t) => '<label class="hc-lbl">' + t + '</label>';
+
+  function sync() { empty.hidden = body.children.length > 0; }
+
   document.getElementById('addSvc').addEventListener('click', () => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = '<td><input type="text" name="name" placeholder="Health checkup"/></td>'
-      + '<td><textarea name="blurb" rows="2" placeholder="One sentence a family would understand"></textarea></td>'
-      + '<td><input type="text" name="price" style="width:80px" placeholder="299"/></td>'
-      + '<td><input type="text" name="duration" style="width:110px" placeholder="15–20 min"/></td>'
-      + '<td><input type="text" name="icon" style="width:150px" placeholder="fa-heart-pulse"/></td>'
-      // blank key: the server generates one from the name, so a new row cannot collide
-      + '<td><input type="text" name="key" style="width:130px" placeholder="auto"/></td>'
-      + '<td><button type="button" class="btn-sm danger row-del"><i class="fa-solid fa-trash-can"></i></button></td>';
-    body.appendChild(tr);
-    tr.querySelector('input').focus();
+    const row = document.createElement('div');
+    row.className = 'ed-row';
+    // Field order matters more than layout: the server reads each name as a parallel list, so a
+    // row has to contribute exactly one value per name, in row order. The key is left blank --
+    // the server generates one from the name, so a new row cannot collide with an old booking.
+    row.innerHTML = '<div class="ed-grid">'
+      +   '<div class="ed-pair">'
+      +     '<div>' + lbl('Name') + '<input type="text" name="name" placeholder="Health checkup"/></div>'
+      +     '<div>' + lbl('What it covers')
+      +       '<textarea name="blurb" rows="2" placeholder="One sentence a family would understand"></textarea></div>'
+      +   '</div>'
+      +   '<div class="ed-cols narrow">'
+      +     '<div>' + lbl('₹ (ex GST)') + '<input type="text" name="price" placeholder="299"/></div>'
+      +     '<div>' + lbl('Duration') + '<input type="text" name="duration" placeholder="15–20 min"/></div>'
+      +     '<div>' + lbl('Icon') + '<input type="text" name="icon" placeholder="fa-heart-pulse"/></div>'
+      +     '<div>' + lbl('Key') + '<input type="text" name="key" placeholder="made from the name"/></div>'
+      +   '</div>'
+      + '</div>'
+      + '<button type="button" class="ed-del row-del" title="Remove this service"'
+      + ' aria-label="Remove this service"><i class="fa-solid fa-trash-can"></i></button>';
+    body.appendChild(row);
+    sync();
+    row.querySelector('input').focus();
   });
+
   body.addEventListener('click', (e) => {
     const b = e.target.closest('.row-del');
-    if (b) b.closest('tr').remove();
+    if (b) { b.closest('.ed-row').remove(); sync(); }
   });
 })();
 </script>

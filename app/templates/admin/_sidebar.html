@@ -26,18 +26,9 @@
     </a>
   </nav>
 
-  <div class="admin-tabs" role="tablist" aria-label="Which site to manage">
-    {% for s in nav.SECTIONS %}
-    {% set on = s.key == current and not nav.is_dashboard(active) %}
-    {# Each tab links to that product's first screen, so switching goes somewhere useful rather
-       than to a menu that asks you to choose again. #}
-    <a class="admin-tab{{ ' on' if on }}"
-       href="{{ url_for(s['items'][0].endpoint, **s['items'][0].args) }}"
-       role="tab" aria-selected="{{ 'true' if on else 'false' }}" title="{{ s.label }}">
-      <i class="fa-solid {{ s.icon }}"></i><span>{{ s.label }}</span>
-    </a>
-    {% endfor %}
-  </div>
+  {# The product tabs used to live here. They are in the header now -- one switcher for both
+     consoles, in the same place on every screen, instead of a grid that only the admin panel
+     had and that disappeared when the rail collapsed. #}
 
   <nav class="admin-nav-items">
     {% for s in nav.SECTIONS if s.key == current %}

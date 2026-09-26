@@ -124,6 +124,15 @@ def can_open_endpoint(user, endpoint):
     return True if owner is None else can_open(user, owner)
 
 
+def site_for_endpoint(endpoint):
+    """Which product an endpoint belongs to, for the header switcher -- which renders before the
+    sidebar has said where it is."""
+    key = _OWNER.get(endpoint or '')
+    if not key:
+        return None
+    return next((s['site'] for s in SCREENS if s['key'] == key), None)
+
+
 def screens_for(user):
     """The menu this agent should see, in declaration order."""
     keys = allowed_keys(user)
@@ -147,6 +156,26 @@ def sites_for(user):
         items = [s for s in visible if s['site'] == key]
         if items:
             out.append({'key': key, 'label': label, 'icon': icon, 'items': items})
+    return out
+
+
+def summary_for(user):
+    """Per-site counts for the admin list: what this agent can actually open, out of what could
+    be granted to them.
+
+    The numerator is screens_for(), not the stored list, because the two disagree: the scraper is
+    closed unless an admin ticks it, so an agent with no limits set reaches four of Travel
+    Companion's five screens, not five. Counting the stored list would print 5/5 and describe a
+    door that is shut.
+    """
+    reachable = {s['key'] for s in screens_for(user)}
+    out = []
+    for key, label, icon in SITES:
+        owned = [s for s in SCREENS if s['site'] == key]
+        got = [s for s in owned if s['key'] in reachable]
+        out.append({'key': key, 'label': label, 'icon': icon,
+                    'got': len(got), 'total': len(owned),
+                    'names': ', '.join(s['label'] for s in got) or 'nothing'})
     return out
 
 

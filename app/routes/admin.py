@@ -971,6 +971,33 @@ def airlines_delete(airline_id):
     return jsonify({'success': True})
 
 
+@admin_bp.route('/cs-agents')
+@login_required
+@admin_required
+def cs_agents():
+    """The CS team and what each of them can reach.
+
+    A screen of its own rather than a column on Users: this is about the handful of people who
+    work the console, and the Users table is about everybody who has an account. Looking down a
+    list of travellers to find three agents is not a search anyone should have to do.
+    """
+    from app.services import cs_access
+
+    agents = (User.query
+              .filter(User.role.contains('cs'), User.is_active.is_(True))
+              .order_by(User.username.asc()).all())
+    # an admin holds the cs role too, and is never restricted -- listing them here would offer a
+    # control that does nothing
+    agents = [a for a in agents if not a.is_admin]
+    # The counts are worked out here, from what each agent can actually open -- a template can
+    # filter the stored list but it cannot know that the scraper stays shut unless it was granted.
+    rows = [{'agent': a, 'limited': a.cs_access is not None,
+             'sites': cs_access.summary_for(a),
+             'open': len(cs_access.screens_for(a))} for a in agents]
+    return render_template('admin/cs_agents.html', active='cs_agents', rows=rows,
+                           total_screens=len(cs_access.ALL_KEYS))
+
+
 @admin_bp.route('/users/<int:user_id>/cs-access', methods=['GET', 'POST'])
 @login_required
 @admin_required

@@ -11,44 +11,63 @@
     <p class="admin-sub">Quote requests from the travel-insurance form. The quote itself is priced
       and sold on our partner's site, so this is our only record of who asked.</p>
 
+    {# The three status filters are tabs, not three separate buttons: one of them is always on
+       and picking one replaces the list. A segmented control says that; loose chips did not. #}
     <div class="filter-row">
-      <a class="btn-sm-outline {{ 'active' if not status }}" href="{{ url_for(endpoint) }}">All ({{ counts.all }})</a>
-      <a class="btn-sm-outline {{ 'active' if status == 'quoted' }}" href="{{ url_for(endpoint, status='quoted') }}">Quoted ({{ counts.quoted }})</a>
-      <a class="btn-sm-outline {{ 'active' if status == 'failed' }}" href="{{ url_for(endpoint, status='failed') }}">Failed ({{ counts.failed }})</a>
+      <div class="seg" role="tablist">
+        <a class="seg-item {{ 'active' if not status }}" role="tab" href="{{ url_for(endpoint) }}">
+          All <span class="seg-n">{{ counts.all }}</span></a>
+        <a class="seg-item {{ 'active' if status == 'quoted' }}{{ ' empty' if not counts.quoted }}" role="tab"
+           href="{{ url_for(endpoint, status='quoted') }}">
+          Quoted <span class="seg-n">{{ counts.quoted }}</span></a>
+        <a class="seg-item {{ 'active' if status == 'failed' }}{{ ' empty' if not counts.failed }}" role="tab"
+           href="{{ url_for(endpoint, status='failed') }}">
+          Failed <span class="seg-n">{{ counts.failed }}</span></a>
+      </div>
       <form method="get" class="inline-search">
         {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
         <input type="search" name="q" value="{{ q }}" placeholder="Search name, e-mail or phone">
-        <button class="btn-sm" type="submit">Search</button>
+        <button class="btn btn-primary btn-sm" type="submit"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+        {% if q %}<a class="btn-sm" href="{{ url_for(endpoint, status=status) }}">Clear</a>{% endif %}
       </form>
     </div>
 
-    <table class="admin-table">
+    <div class="admin-panel">
+    <div class="table-wrap">
+      {# stack-mobile: the six columns do not fit a phone, and a table that scrolls sideways
+         inside a card hides half of every lead. #}
+      <table class="admin-table stack-mobile">
       <thead>
         <tr><th>When</th><th>Who</th><th>Cover</th><th>Travellers</th><th>Dates</th><th>Status</th></tr>
       </thead>
       <tbody>
         {% for iq in quotes %}
         <tr>
-          <td>{{ iq.created_at|istd('%d %b %Y') }}<br><small>{{ iq.created_at|ist('%H:%M') }}</small></td>
-          <td>
+          <td data-label="When">{{ iq.created_at|istd('%d %b %Y') }}<br><small>{{ iq.created_at|ist('%H:%M') }}</small></td>
+          <td data-label="Who">
             <b><a href="mailto:{{ iq.email }}">{{ iq.email }}</a></b><br>
             <small>{% if iq.name %}{{ iq.name }}{% if iq.phone %} · {% endif %}{% endif %}{{ iq.phone or '' }}</small>
             {% if iq.user %}<br><small>Signed in as {{ iq.user.username }}</small>{% endif %}
           </td>
-          <td>{{ {'visitors': 'Visitors Medical', 'health': 'Travel Medical', 'schengen': 'Schengen Visa'}.get(iq.insurance_type, iq.insurance_type) }}<br>
+          <td data-label="Cover">{{ {'visitors': 'Visitors Medical', 'health': 'Travel Medical', 'schengen': 'Schengen Visa'}.get(iq.insurance_type, iq.insurance_type) }}<br>
             <small>{{ iq.citizenship }}{% if iq.destination %} &rarr; {{ iq.destination }}{% endif %}</small></td>
-          <td>{{ iq.traveller_count }}<br><small>ages {{ iq.age_list|join(', ') }}</small></td>
-          <td><small>{{ iq.start_date.strftime('%d %b %Y') }}<br>{{ iq.end_date.strftime('%d %b %Y') }}</small></td>
-          <td>
+          <td data-label="Travellers">{{ iq.traveller_count }}<br><small>ages {{ iq.age_list|join(', ') }}</small></td>
+          <td data-label="Dates"><small>{{ iq.start_date.strftime('%d %b %Y') }}<br>{{ iq.end_date.strftime('%d %b %Y') }}</small></td>
+          <td data-label="Status">
             <span class="badge-pill {{ 'green' if iq.status == 'quoted' else 'yellow' }}">{{ iq.status|capitalize }}</span>
             {% if iq.quote_url %}<br><a class="btn-sm-outline" href="{{ iq.quote_url }}" target="_blank" rel="noopener">Open quote</a>{% endif %}
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="6">No insurance quote requests yet.</td></tr>
+        <tr><td colspan="6" class="admin-empty">
+          <i class="fa-regular fa-folder-open"></i>
+          {{ 'No leads match this filter.' if (status or q) else 'No insurance quote requests yet.' }}
+        </td></tr>
         {% endfor %}
       </tbody>
     </table>
+    </div>
+    </div>
     {% include 'admin/_pager.html' %}
   </main>
 </div>

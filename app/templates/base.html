@@ -89,6 +89,34 @@
     </ul>
 
     <div class="nav-right">
+      {# Site switcher. Only on a console page, and only when there is more than one product to
+         switch between -- the sidebar under it narrows to whatever is chosen. It is a view of the
+         same screens, not a second set of permissions: what somebody may open is decided by
+         cs_access and enforced on the request. #}
+      {# `site_sw`, not `sw`: a name set here is visible inside every child template's
+         block, and `sw` is what the notification-switches screen calls its own data. #}
+      {% set site_sw = PORTAL_SWITCHER() %}
+      {% if site_sw %}
+      <div class="site-sw" id="siteSw">
+        <button type="button" class="site-sw-btn" id="siteSwBtn"
+                aria-haspopup="listbox" aria-expanded="false" title="Which site to work on">
+          <i class="fa-solid fa-grip site-sw-grip"></i>
+          <span class="site-sw-cur">{{ site_sw.label }}</span>
+          <i class="fa-solid fa-chevron-down site-sw-caret"></i>
+        </button>
+        <div class="site-sw-menu" id="siteSwMenu" role="listbox" aria-label="Site">
+          <div class="site-sw-head">Show screens for</div>
+          {% for s in site_sw.sites %}
+          <a href="{{ s.url }}" role="option" aria-selected="{{ 'true' if s.key == site_sw.current else 'false' }}"
+             class="site-sw-item{{ ' on' if s.key == site_sw.current }}">
+            <i class="fa-solid {{ s.icon }}"></i><span>{{ s.label }}</span>
+            {% if s.key == site_sw.current %}<i class="fa-solid fa-check site-sw-tick"></i>{% endif %}
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
       {% if not is_staff %}
       {# Support. The help centre first, because most questions are answered there and it carries
          its own "Contact us" button; sending everyone straight to the form would bury CS in

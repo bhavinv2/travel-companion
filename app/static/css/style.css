@@ -3175,6 +3175,14 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 .admin-page .btn-outline-coral { color: var(--coral); border-color: var(--coral); }
 .admin-page .btn-outline-coral:hover { background: var(--coral); color: #fff; }
 
+/* A primary action at list size. On its own the combination comes out blank: .btn-sm's white
+   background is declared later in this file than .btn-primary's colour, and inside a console
+   .btn-primary's label is white -- white on white. It reads as "primary" wherever it is used, so
+   the fill is restored in both scopes rather than in the one screen that noticed. */
+.btn-primary.btn-sm { background: var(--coral); border-color: var(--coral); color: var(--navy); }
+.btn-primary.btn-sm:hover { background: var(--coral-dark); border-color: var(--coral-dark); color: var(--navy); }
+.admin-page .btn-primary.btn-sm, .admin-page .btn-primary.btn-sm:hover { color: #fff; }
+
 .phone-why { display: block; color: var(--muted); font-size: 12px; line-height: 1.4; margin: -2px 0 6px; }
 
 .btn.btn-danger { background: #b91c1c; border-color: #b91c1c; color: #fff; }
@@ -3323,7 +3331,7 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 .ins-rev-table td { vertical-align: top; }
 
 /* Insurance page: reassurance line inputs */
-.ins-assure-rows { display: grid; gap: 8px; max-width: 620px; }
+.ins-assure-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 10px; }
 .ins-assure-rows input { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
   font: inherit; font-size: 13.5px; }
 
@@ -3524,3 +3532,238 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 .admin-sidebar, .admin-sidebar nav, .admin-nav-items { scrollbar-color: rgba(255,255,255,.28) transparent; }
 .admin-sidebar::-webkit-scrollbar-thumb, .admin-sidebar nav::-webkit-scrollbar-thumb,
 .admin-nav-items::-webkit-scrollbar-thumb { background: rgba(255,255,255,.26); background-clip: content-box; }
+
+/* ---- Site switcher ------------------------------------------------------
+   One control for both consoles, in the header so it is in the same place on every screen.
+   Shaped like the language pill beside it: the header utilities should read as a set. */
+.site-sw { position: relative; }
+.site-sw-btn { display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.16); color: rgba(255,255,255,.9); font-size: 13px; font-weight: 700; padding: 7px 12px; border-radius: 999px; cursor: pointer; max-width: 230px; transition: background .15s, border-color .15s; }
+.site-sw-btn:hover { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.32); }
+.site-sw.open .site-sw-btn { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.4); }
+.site-sw-grip { color: #f0940a; font-size: 13px; }
+.site-sw-cur { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.site-sw-caret { font-size: 10px; opacity: .7; transition: transform .18s; }
+.site-sw.open .site-sw-caret { transform: rotate(180deg); }
+.site-sw-menu { position: absolute; top: calc(100% + 8px); right: 0; min-width: 244px; background: #fff; color: var(--text); border-radius: 12px; box-shadow: 0 22px 52px rgba(15,31,61,.28); padding: 8px; opacity: 0; visibility: hidden; transform: translateY(-6px); transition: opacity .16s, transform .16s, visibility .16s; z-index: 1001; }
+.site-sw.open .site-sw-menu { opacity: 1; visibility: visible; transform: none; }
+.site-sw-head { font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding: 6px 10px 8px; }
+.site-sw-item { display: flex; align-items: center; gap: 10px; padding: 10px 10px; border-radius: 9px; font-size: 14.5px; font-weight: 600; color: var(--text); text-decoration: none; }
+.site-sw-item i:first-child { width: 18px; text-align: center; color: var(--muted); }
+.site-sw-item:hover { background: var(--sand); }
+.site-sw-item.on { background: var(--coral-light); color: var(--coral-dark-text); }
+.site-sw-item.on i:first-child { color: var(--coral); }
+.site-sw-tick { margin-left: auto; font-size: 11px; color: var(--coral); }
+@media (max-width: 768px) { .site-sw-cur { display: none; } .site-sw-btn { padding: 7px 10px; gap: 5px; } }
+
+/* ---- CS agents & access -------------------------------------------------
+   A card per agent rather than another wide table: the useful information is "how much of the
+   console can this person reach", which reads better as four small counts than as a row. */
+.csa-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; margin-top: 18px; }
+.csa-card { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.csa-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.csa-who { display: flex; gap: 11px; align-items: center; min-width: 0; }
+.csa-avatar { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--sand); color: var(--coral); flex: none; }
+.csa-who b { display: block; font-size: 15.5px; }
+.csa-who small { display: block; color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
+.csa-badge { flex: none; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; border-radius: 999px; padding: 4px 10px; white-space: nowrap; }
+.csa-badge.full { background: #e7f7f4; color: #0b7a5f; border: 1px solid #b9e6da; }
+.csa-badge.limited { background: var(--coral-light); color: var(--coral-dark-text); border: 1px solid #f2e2c6; }
+.csa-sites { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.csa-site { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: 7px 9px; }
+.csa-site i { width: 14px; text-align: center; }
+.csa-site b { margin-left: auto; color: var(--text); font-size: 12px; }
+.csa-site.none { opacity: .55; }
+.csa-site.has i { color: var(--coral); }
+.csa-card footer { display: flex; gap: 8px; align-items: center; margin-top: auto; }
+
+/* ==========================================================================
+   Admin screens: the shared kit
+   --------------------------------------------------------------------------
+   The insurance and Sahayak screens were written against class names that were
+   never given any rules -- .admin-sub, .admin-note, .filter-row, .inline-search,
+   .hc-form, .hc-h2, .hc-lbl, .hc-actions -- so they rendered with the browser's
+   own defaults: 12px search boxes, loose outline chips for what are really tabs,
+   full-bleed text, and form controls that did not match anything else in the
+   panel.
+
+   The kit is defined here rather than per screen because the four of them show
+   the same three shapes: a list with filters, a settings form, and a table you
+   type into. One vocabulary means the next screen inherits the design instead
+   of inventing a fifth one.
+   ========================================================================== */
+
+/* --- page furniture ------------------------------------------------------ */
+.admin-main > h1 + .admin-sub { margin-top: -10px; }
+.admin-sub { max-width: 820px; font-size: 14px; line-height: 1.65; color: var(--muted); margin: 0 0 18px; }
+.admin-sub a { color: var(--coral); font-weight: 600; }
+.admin-sub strong, .admin-sub b { color: var(--text); }
+
+/* Said once, at the top, about the state of the screen -- not a warning. */
+.admin-note { display: flex; gap: 10px; align-items: flex-start; max-width: 820px;
+  background: var(--coral-light); border: 1px solid #cfe4fa; border-left: 4px solid var(--coral);
+  border-radius: 12px; padding: 11px 14px; font-size: 13.5px; line-height: 1.55;
+  color: var(--text); margin: 0 0 20px; }
+.admin-note i { color: var(--coral); margin-top: 3px; flex: none; }
+
+.admin-count { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+.admin-count b { color: var(--text); font-weight: 700; }
+
+/* --- filters and search --------------------------------------------------
+   The status filters are tabs: exactly one is on, and picking one replaces the
+   list. Loose outline buttons said "four separate actions" instead, so they are
+   a segmented control -- one track, one lit segment, the count in the pill. */
+.filter-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin: 0 0 16px; }
+
+.seg { display: inline-flex; flex-wrap: wrap; background: #e9f1fb; border: 1px solid var(--border);
+  border-radius: 12px; padding: 3px; gap: 2px; max-width: 100%; }
+.seg-item { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 9px;
+  font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; text-decoration: none;
+  transition: background .15s, color .15s, box-shadow .15s; }
+.seg-item:hover { color: var(--coral); background: rgba(255,255,255,.6); }
+.seg-item.active { background: #fff; color: var(--coral); box-shadow: 0 1px 3px rgba(15,35,64,.13); }
+.seg-item:focus-visible { outline: 3px solid rgba(47,128,237,.35); outline-offset: -2px; }
+.seg-n { font-size: 11px; font-weight: 800; line-height: 1; padding: 4px 7px; min-width: 21px;
+  text-align: center; border-radius: 999px; background: rgba(15,35,64,.09); color: var(--muted); }
+.seg-item.active .seg-n { background: var(--coral); color: #fff; }
+.seg-item.empty .seg-n { opacity: .45; }
+
+.inline-search { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.inline-search input[type=search], .inline-search input[type=text] {
+  border: 1.5px solid var(--border); border-radius: 999px; padding: 9px 16px; font-size: 13.5px;
+  background: #fbfdff; color: var(--text); min-width: 250px; }
+.inline-search input::placeholder { color: #8ba3c0; }
+.inline-search input[type=search]:focus, .inline-search input[type=text]:focus {
+  border-color: var(--coral); outline: none; background: #fff;
+  box-shadow: 0 0 0 3px rgba(47,128,237,.16); }
+.inline-search select { border: 1.5px solid var(--border); border-radius: 999px; padding: 9px 14px;
+  font-size: 13.5px; background: #fbfdff; color: var(--text); max-width: 230px; }
+.inline-search .ss { flex: 0 0 auto; min-width: 170px; max-width: 230px; }
+
+/* --- a list in a panel ---------------------------------------------------
+   The rows used to run edge to edge against the page background, so the table
+   had no edges of its own and the pager floated under nothing. */
+.admin-panel { background: #fff; border: 1px solid var(--border); border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(15,35,64,.05); overflow: hidden; margin-bottom: 20px; }
+.admin-panel > .table-wrap { border-radius: inherit; }
+.admin-panel .admin-table { margin: 0; }
+.admin-panel .admin-table th { background: #f7fbff; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.admin-panel .admin-table td { padding: 13px 16px; }
+.admin-panel .admin-table tbody tr:last-child td { border-bottom: none; }
+.admin-panel .admin-empty { padding: 34px 16px; text-align: center; color: var(--muted); font-size: 14px; }
+.admin-panel .admin-empty i { display: block; font-size: 26px; color: #c3d8ef; margin-bottom: 10px; }
+
+/* --- settings forms ------------------------------------------------------ */
+.hc-form { max-width: 1000px; display: grid; gap: 18px; }
+.hc-sec { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px;
+  box-shadow: 0 1px 2px rgba(15,35,64,.05); }
+.hc-h2 { display: flex; align-items: center; gap: 9px; font-family: var(--font-head); font-size: 17px;
+  font-weight: 800; color: var(--text); margin: 0 0 5px; }
+.hc-h2 i { color: var(--coral); font-size: 15px; }
+.hc-hint { font-size: 13px; line-height: 1.6; color: var(--muted); margin: 0 0 16px; max-width: 760px; }
+.hc-hint a { color: var(--coral); font-weight: 600; }
+.hc-hint b, .hc-hint strong { color: var(--text); }
+.hc-lbl { display: block; font-size: 11.5px; font-weight: 800; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+.hc-field { margin-bottom: 16px; }
+.hc-field:last-child { margin-bottom: 0; }
+.hc-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+
+.hc-form input[type=text], .hc-form input[type=email], .hc-form input[type=url],
+.hc-form input[type=number], .hc-form textarea {
+  width: 100%; border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 13px;
+  font: inherit; font-size: 14px; background: #fbfdff; color: var(--text);
+  transition: border-color .15s, box-shadow .15s, background .15s; }
+.hc-form input::placeholder, .hc-form textarea::placeholder { color: #8ba3c0; }
+.hc-form input:focus, .hc-form textarea:focus { border-color: var(--coral); outline: none;
+  background: #fff; box-shadow: 0 0 0 3px rgba(47,128,237,.16); }
+.hc-form input[readonly] { background: #eff5fb; color: var(--muted); cursor: not-allowed; }
+.hc-form textarea { resize: vertical; min-height: 66px; line-height: 1.5; }
+
+/* Stays in view while you work down a long form, so Save is never a scroll away. */
+.hc-actions { position: sticky; bottom: 14px; z-index: 3; display: flex; align-items: center;
+  gap: 12px; flex-wrap: wrap; padding: 13px 18px; background: #fff;
+  border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 6px 20px rgba(15,35,64,.13); }
+.hc-actions .hc-note { margin-left: auto; font-size: 12.5px; color: var(--muted); max-width: 440px; }
+/* Room to scroll the last field clear of the bar, which otherwise sits on top of it for good. */
+.hc-form { padding-bottom: 8px; }
+.admin-main:has(.hc-actions) { padding-bottom: 96px; }
+
+/* --- tables you type into ------------------------------------------------
+   Seven inputs across a row left the quote column narrower than the sentence
+   it holds and the whole thing unreadable under 1200px. A row is a card: the
+   long fields get the width, the short ones sit together, and the row still
+   posts one value per field name in order, which is what the server reads. */
+.ed-rows { display: grid; gap: 12px; }
+.ed-row { position: relative; border: 1px solid var(--border); border-radius: 14px;
+  padding: 14px 52px 14px 14px; background: #fbfdff; }
+.ed-row:focus-within { border-color: #a9cdf5; background: #fff; }
+.ed-grid { display: grid; gap: 12px; }
+.ed-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.ed-cols.narrow { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
+.ed-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 12px; }
+.ed-num { max-width: 150px; }
+.ed-del { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 9px;
+  display: grid; place-items: center; border: 1px solid var(--border); background: #fff;
+  color: #9fb4cd; cursor: pointer; transition: all .15s; }
+.ed-del:hover { border-color: #f3b9b6; background: #fdecec; color: #c0392b; }
+.ed-del:focus-visible { outline: 3px solid rgba(220,38,38,.3); outline-offset: 2px; }
+.ed-empty { border: 1px dashed var(--border); border-radius: 14px; padding: 26px; text-align: center;
+  color: var(--muted); font-size: 13.5px; }
+
+/* --- boxes you tick ------------------------------------------------------
+   The browser's own checkbox is 13px, square-cornered and grey whatever the
+   panel around it looks like. These are the same shape as the inputs above
+   them, big enough to hit, and they say clearly which state they are in. */
+.admin-page input[type=checkbox], .admin-page input[type=radio] {
+  appearance: none; -webkit-appearance: none; width: 18px; height: 18px; margin: 0;
+  border: 1.5px solid #b9d2ee; border-radius: 5px; background: #fff; flex: none;
+  display: inline-grid; place-content: center; cursor: pointer; vertical-align: -3px;
+  transition: background .12s, border-color .12s, box-shadow .12s; }
+.admin-page input[type=radio] { border-radius: 50%; }
+.admin-page input[type=checkbox]:hover, .admin-page input[type=radio]:hover { border-color: var(--coral); }
+.admin-page input[type=checkbox]::before { content: ""; width: 10px; height: 10px; transform: scale(0);
+  transition: transform .12s ease-out; box-shadow: inset 1em 1em #fff;
+  clip-path: polygon(14% 45%, 0 62%, 40% 100%, 100% 22%, 84% 6%, 38% 66%); }
+.admin-page input[type=radio]::before { content: ""; width: 8px; height: 8px; border-radius: 50%;
+  transform: scale(0); transition: transform .12s ease-out; box-shadow: inset 1em 1em #fff; }
+.admin-page input[type=checkbox]:checked, .admin-page input[type=radio]:checked {
+  background: var(--coral); border-color: var(--coral); }
+.admin-page input[type=checkbox]:checked::before, .admin-page input[type=radio]:checked::before { transform: scale(1); }
+.admin-page input[type=checkbox]:focus-visible, .admin-page input[type=radio]:focus-visible {
+  outline: 3px solid rgba(47,128,237,.32); outline-offset: 2px; }
+.admin-page input[type=checkbox]:disabled, .admin-page input[type=radio]:disabled {
+  background: #eef4fb; border-color: #dbe7f5; cursor: not-allowed; }
+/* These two draw their own control and hide the real box; the rules above must not undo that. */
+.admin-page .tick-check input[type=checkbox] { display: none; }
+.admin-page .multi-dropdown input[type=checkbox] { width: 16px; height: 16px; }
+
+/* The quiet half of a pair of actions -- Cancel next to Save. It had no rules at all, so it
+   rendered as bare text beside a solid button and read as a caption rather than a way out. */
+.btn-light { display: inline-flex; align-items: center; gap: 8px; border: 1.5px solid var(--border);
+  background: #fff; color: var(--muted); border-radius: 999px; padding: 10px 20px; font-size: 14px;
+  font-weight: 700; cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
+.btn-light:hover { border-color: var(--coral); color: var(--coral); background: var(--coral-light); }
+.btn-light:focus-visible { outline: 3px solid rgba(47,128,237,.3); outline-offset: 2px; }
+
+/* A ticked row should be readable as ticked without hunting for the box. */
+.csa-screen { border-radius: 9px; transition: background .12s; }
+.csa-screen:hover { background: var(--bg); }
+.csa-screen:has(input:checked) { background: var(--coral-light); }
+.csa-screen:has(input:checked) span { font-weight: 600; }
+.csa-mode:has(input:checked) { border-color: var(--coral); background: var(--coral-light); }
+
+@media (max-width: 720px) {
+  .filter-row { gap: 10px; }
+  .inline-search { margin-left: 0; width: 100%; }
+  .inline-search input[type=search], .inline-search input[type=text] { flex: 1 1 auto; min-width: 0; }
+  .seg { width: 100%; }
+  .seg-item { flex: 1 1 auto; justify-content: center; padding: 8px 10px; }
+  .hc-sec { padding: 16px; }
+  .ed-row { padding: 12px 12px 12px 12px; }
+  .ed-pair { grid-template-columns: 1fr; }
+  /* A stacked table is already a list of cards; the panel around it would draw a second box. */
+  .admin-panel:has(.stack-mobile) { background: none; border: 0; box-shadow: none; }
+  .admin-panel .stack-mobile td { padding: 2px 0; }
+  .ed-del { position: static; width: 100%; height: 36px; margin-top: 10px; }
+}

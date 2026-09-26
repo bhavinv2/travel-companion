@@ -71,6 +71,7 @@ SECTIONS = [
         'icon': 'fa-gear',
         'items': [
             _item('users', 'admin.users', 'Users', 'fa-users'),
+            _item('cs_agents', 'admin.cs_agents', 'CS agents & access', 'fa-user-lock'),
             _item('options', 'admin.options_page', 'Options & dropdowns', 'fa-sliders'),
             _item('messages', 'admin.messages_page', 'Messages & e-mails', 'fa-envelope-open-text'),
             _item('notiflog', 'admin.notification_log', 'Notifications', 'fa-bell'),
@@ -114,6 +115,34 @@ def section_for(active, args=None):
         if any(i['key'] == key for i in section['items']):
             return section['key']
     return SECTIONS[0]['key']
+
+
+# Screens reached from another screen rather than from the menu. They have no line of their own,
+# but the header switcher still has to say which product you are in -- without this it falls back
+# to "All screens", which reads as though the menu were showing everything.
+SIDE_SCREENS = {
+    'admin.cs_screen_access': 'site',
+    'admin.new_user': 'site',
+    'admin.translations_list': 'site',
+    'admin.feedback': 'companion',
+    'admin.contact_messages': 'companion',
+}
+
+# endpoint -> section, so a control that renders before the sidebar (the header switcher) can
+# still tell where it is. Built once.
+_SECTION_BY_ENDPOINT = {i['endpoint']: sec['key'] for sec in SECTIONS for i in sec['items']}
+_SECTION_BY_ENDPOINT.update(SIDE_SCREENS)
+
+
+def section_for_endpoint(endpoint, args=None):
+    """Which tab an endpoint belongs to. The enquiry inbox is one endpoint in two tabs, so the
+    query string settles it -- same rule as current_key."""
+    if endpoint == 'admin.voices':
+        args = args or {}
+        if (args.get('tab') or 'contact') == 'contact' and args.get('topic') == 'insurance':
+            return 'insurance'
+        return 'companion'
+    return _SECTION_BY_ENDPOINT.get(endpoint or '')
 
 
 def is_dashboard(active):

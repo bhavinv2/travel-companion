@@ -6,6 +6,7 @@ testimonials and colour themes to find it. The tabs pick a product; the list sho
 screens.
 """
 import os
+import re
 import sys
 
 import pytest
@@ -60,6 +61,20 @@ def test_the_dashboard_is_not_filed_under_one_product(app):
     assert 'dashboard' not in in_tabs
 
 
+ITEM = re.compile(r'<a href="([^"]+)"[^>]*class="site-sw-item(?: (on))?"[^>]*>'
+                  r'\s*<i[^>]*></i><span>([^<]+)</span>')
+
+
+def choices(html):
+    """(url, current, label) for each entry in the header's site switcher.
+
+    It lives in the header rather than the sidebar so that both consoles carry the same control in
+    the same place, and so it survives the rail being collapsed.
+    """
+    chunk = html.split('site-sw-menu', 1)[1]
+    return [(url, bool(on), label) for url, on, label in ITEM.findall(chunk)]
+
+
 def test_the_sidebar_shows_only_the_current_product(client, db, admin_user):
     login(client, 'admin@test.com')
     html = client.get('/admin/insurance-page').data.decode()
@@ -70,19 +85,33 @@ def test_the_sidebar_shows_only_the_current_product(client, db, admin_user):
     for elsewhere in ('Colour themes', 'Options &amp; dropdowns', 'Bookings', 'Listings'):
         assert elsewhere not in nav, elsewhere
 
-    # all four tabs are always offered, so switching never needs a trip via the dashboard
-    tabs = html.split('admin-tabs', 1)[1].split('admin-nav-items', 1)[0]
-    for label in ('Travel Companion', 'Travel Insurance', 'Sahayak', 'Site'):
-        assert label in tabs, label
+    # all four are always offered, so switching never needs a trip via the dashboard
+    labels = [c[2] for c in choices(html)]
+    assert labels == ['Travel Companion', 'Travel Insurance', 'Sahayak', 'Site']
 
 
-def test_a_tab_links_to_that_products_first_screen(client, db, admin_user):
+def test_the_switcher_says_which_product_you_are_on(client, db, admin_user):
+    """A control offering four choices and marking none of them current asks you to remember
+    where you are."""
+    login(client, 'admin@test.com')
+    html = client.get('/admin/insurance-page').data.decode()
+    assert '<span class="site-sw-cur">Travel Insurance</span>' in html
+    assert [c[2] for c in choices(html) if c[1]] == ['Travel Insurance']
+
+
+def test_switching_lands_on_that_products_first_screen(client, db, admin_user):
     """Switching has to go somewhere useful rather than to a menu that asks you to choose again."""
     login(client, 'admin@test.com')
-    html = client.get('/admin/themes').data.decode()
-    tabs = html.split('admin-tabs', 1)[1].split('admin-nav-items', 1)[0]
-    assert '/admin/listings' in tabs
-    assert '/admin/sahayak' in tabs
+    urls = dict((label, url) for url, _, label in choices(client.get('/admin/themes').data.decode()))
+    assert urls['Travel Companion'].endswith('/admin/listings')
+    assert urls['Sahayak'].endswith('/admin/sahayak')
+
+
+def test_the_switcher_is_not_offered_to_people_without_the_panel(client, db, user):
+    """It is a view of the admin menu. Rendering it for a traveller would advertise screens the
+    next click refuses."""
+    login(client, 'bob@test.com')
+    assert 'site-sw-menu' not in client.get('/').data.decode()
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{# The CS team and what each of them can reach. Separate from Users on purpose: that table is
+   about everybody with an account, this is about the handful of people who work the console.
+
+   The counts come from the route, not from filtering `cs_access` here: what an agent can open and
+   what was written into their list are not the same thing (the scraper stays shut unless it was
+   granted), and a card that printed 5/5 for a screen nobody can reach would be worse than no
+   number at all. #}
+{% block title %}CS agents &amp; access &ndash; NRI Parent Service{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+  {% with active='cs_agents' %}{% include 'admin/_sidebar.html' %}{% endwith %}
+
+  <main class="admin-main">
+    <h1>CS agents &amp; access</h1>
+    <p class="muted" style="max-width:740px">
+      Which console screens each agent can open. An agent with no limits set can reach everything
+      except the scraper, which stays closed until somebody grants it &mdash; that is what every
+      account starts with. Access is enforced on the address as well as the menu, so a screen
+      somebody has not been given is closed to them either way.
+      {% if not rows %}<br/><br/>Nobody holds the CS role yet &mdash; give somebody the role under
+      <a href="{{ url_for('admin.users') }}">Users</a> and they will appear here.{% endif %}
+    </p>
+
+    {% if rows %}
+    <div class="csa-grid">
+      {% for r in rows %}
+      <article class="csa-card">
+        <header>
+          <span class="csa-who">
+            <span class="csa-avatar"><i class="fa-solid fa-headset"></i></span>
+            <span>
+              <b>{{ r.agent.username }}</b>
+              <small>{{ r.agent.email }}</small>
+            </span>
+          </span>
+          <span class="csa-badge {{ 'limited' if r.limited else 'full' }}"
+                title="{{ r.open }} of {{ total_screens }} screens">
+            {{ 'No limits' if not r.limited else (r.open ~ ' of ' ~ total_screens) }}
+          </span>
+        </header>
+
+        <div class="csa-sites">
+          {% for s in r.sites %}
+            <span class="csa-site {{ 'has' if s.got else 'none' }}"
+                  title="{{ s.label }} &mdash; {{ s.names }}">
+              <i class="fa-solid {{ s.icon }}"></i>
+              {{ s.label }}
+              <b>{{ s.got }}/{{ s.total }}</b>
+            </span>
+          {% endfor %}
+        </div>
+
+        <footer>
+          <a class="btn btn-primary btn-sm" href="{{ url_for('admin.cs_screen_access', user_id=r.agent.id) }}">
+            <i class="fa-solid fa-sliders"></i> Change access
+          </a>
+          <a class="btn-sm" href="{{ url_for('admin.users', q=r.agent.email) }}">Account</a>
+        </footer>
+      </article>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}
