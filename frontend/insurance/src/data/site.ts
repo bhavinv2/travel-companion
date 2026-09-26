@@ -1,9 +1,11 @@
 /* Everything the server decides, in one place.
  *
  * The Flask page renders a <script> that sets window.__INSURANCE__ before the bundle loads, so
- * testimonials, questions and the enquiry endpoint come from the admin screens rather than from
- * arrays baked into this build. Running `npm run dev` there is nothing to inject, so every
- * accessor falls back to what the component shipped with and the page still works standalone.
+ * reviews, questions and the enquiry endpoint come from the admin screens rather than from
+ * arrays baked into this build. Running `npm run dev` there is nothing to inject, and the
+ * sections that carry published content -- the reviews and the FAQ -- simply do not render.
+ * That is the same thing they do in production when nobody has filled them in, which is the
+ * point: there is no second version of this page that says things no screen controls.
  */
 
 export interface SiteReview {
@@ -14,6 +16,8 @@ export interface SiteReview {
   cc?: string;
   tag?: string;
   photo?: string;
+  /** 1-5, as the reviewer gave it */
+  rating?: number;
 }
 
 export interface SiteFaq {
@@ -34,8 +38,10 @@ export interface SitePhone {
 export interface SiteData {
   /** false when the page is embedded in the site's own header and footer */
   chrome?: boolean;
+  /** approved reviews for this product; an empty list means the section does not render */
   reviews?: SiteReview[];
-  reviewsAreSamples?: boolean;
+  /** the public reviews page, filtered to this product, for "leave your own" */
+  reviewsUrl?: string;
   faqs?: SiteFaq[];
   /** absolute, already carries the app's URL prefix */
   enquiryUrl?: string;
@@ -67,11 +73,6 @@ declare global {
 const data: SiteData = (typeof window !== 'undefined' && window.__INSURANCE__) || {};
 
 export const site = data;
-
-/** Server list when there is one, otherwise whatever the component ships with. */
-export function fromServer<T>(given: T[] | undefined, fallback: T[]): T[] {
-  return given && given.length ? given : fallback;
-}
 
 /** The page is embedded unless it explicitly says otherwise (dev server, standalone build). */
 export const showChrome = data.chrome !== false;

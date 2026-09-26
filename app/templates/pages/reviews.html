@@ -1,14 +1,24 @@
 {% extends 'base.html' %}
-{% block title %}Reviews – NRI Parent Service{% endblock %}
+{% block title %}{{ site_label }} reviews – NRI Parent Service{% endblock %}
 {% block content %}
 <div class="static-page cd-consult-page">
   <div class="static-hero navy">
-    <h1>What travellers say</h1>
+    <h1>{{ 'What travellers say' if site == 'companion' else 'What buyers say about ' ~ site_label|lower }}</h1>
     {% if review_stats.credible %}
     <p>★ {{ review_stats.avg }} average from {{ review_stats.count }} review{{ '' if review_stats.count == 1 else 's' }}</p>
     {% else %}
-    <p>Real reviews from real journeys — here's what our first travellers are saying.</p>
+    <p>Real reviews from real journeys — here's what our first {{ 'travellers' if site == 'companion' else 'customers' }} are saying.</p>
     {% endif %}
+  </div>
+
+  {# Two products, two sets of reviews. A review about travel insurance tells somebody looking
+     for a flight companion nothing, so they are not pooled -- and the tabs make that visible
+     rather than leaving the page looking emptier than it is. #}
+  <div class="rv-tabs">
+    {% for key, label in sites %}
+    <a class="rv-tab{{ ' on' if key == site }}"
+       href="{{ url_for('main.reviews', site=key if key != 'companion' else None) }}">{{ label }}</a>
+    {% endfor %}
   </div>
 
   <div class="static-content" style="max-width:1080px">
@@ -26,15 +36,19 @@
         </figure>
         {% endfor %}
       {% else %}
-        <p class="lead">No reviews yet — <a href="{{ url_for('auth.register') }}">be one of the first</a> to travel with a companion.</p>
+        <p class="lead">No {{ site_label|lower }} reviews yet —
+          {% if current_user.is_authenticated %}<a href="#leave-review">be the first to leave one</a>.
+          {% else %}<a href="{{ url_for('auth.register') }}">be one of the first</a> to leave one.{% endif %}</p>
       {% endif %}
     </div>
 
     <div class="consult" id="leave-review" style="margin-top:44px">
       <div class="consult-side">
         <div class="ck">Your voice matters</div>
-        <h2>Leave a review</h2>
-        <p>Travelled with a companion, or had our team help you? Tell the next family what to expect.</p>
+        <h2>Leave a {{ site_label|lower }} review</h2>
+        <p>{{ 'Travelled with a companion, or had our team help you? Tell the next family what to expect.'
+              if site == 'companion'
+              else 'Bought cover through us, or had us help with a claim? Tell the next family what to expect.' }}</p>
         <ul>
           <li><i class="fa-solid fa-check"></i> Shown here once approved</li>
           <li><i class="fa-solid fa-check"></i> Helps other Desi families decide</li>
@@ -42,7 +56,9 @@
       </div>
       <div class="consult-form">
         {% if current_user.is_authenticated %}
-        <form id="reviewForm" class="review-form">
+        {# The product this review is about travels with it, so it lands on the page the
+           reviewer came from rather than in the companion list. #}
+        <form id="reviewForm" class="review-form" data-site="{{ site }}">
           <div class="star-rating" id="starRating">
             {% for i in range(1, 6) %}
             <i class="fa-regular fa-star" data-val="{{ i }}" title="{{ i }} star{{ 's' if i > 1 }}"></i>

@@ -14,15 +14,9 @@
       <a class="btn btn-outline-coral" href="{{ public_url('insurance.landing') }}" target="_blank" rel="noopener">
         <i class="fa-solid fa-arrow-up-right-from-square"></i> View the page</a>
     </div>
-    <p class="admin-sub">What the public travel-insurance page shows. The questions on it come from
-      <a href="{{ url_for('admin.help_center_page') }}">Help &amp; FAQ</a> — add them under the
-      <strong>{{ faq_category }}</strong> category.</p>
-
-    {% if using_samples %}
-    <p class="admin-note"><i class="fa-solid fa-circle-info"></i>
-      <span>The page is showing three sample testimonials, and says so on the page itself. Saving a
-      real one here replaces all three.</span></p>
-    {% endif %}
+    <p class="admin-sub">What the public travel-insurance page says about the business. Its
+      reviews and its questions are managed elsewhere and linked below, so there is one place to
+      approve a review and one place to write an answer.</p>
 
     <form method="POST" class="hc-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -84,103 +78,31 @@
       </section>
 
       <section class="hc-sec">
-        <h2 class="hc-h2"><i class="fa-solid fa-quote-left"></i> Testimonials</h2>
-        <p class="hc-hint">Shown in &ldquo;What Travellers Say&rdquo;. A row needs a quote and a name
-          to be kept; anything blank is dropped on save. Leave the photo empty for the drawn avatar
-          the design ships with.</p>
+        <h2 class="hc-h2"><i class="fa-solid fa-star"></i> Reviews</h2>
+        <p class="hc-hint">Reviews on this page are written by people who used the service and
+          published once somebody approves them &mdash; the same queue as every other review.
+          There is nothing to type here: approve them under
+          <a href="{{ url_for('admin.voices', tab='feedback', site='insurance') }}">Feedback</a>,
+          and the section disappears from the page while none are approved.</p>
+        <a class="btn-sm" href="{{ url_for('admin.voices', tab='feedback', site='insurance') }}">
+          <i class="fa-solid fa-star"></i> Open the review queue</a>
+      </section>
 
-        <div class="ed-rows" id="revRows">
-          {% for r in reviews %}
-          <div class="ed-row">
-            <input type="hidden" name="id" value="{{ r.id }}"/>
-            <div class="ed-grid">
-              <div>
-                <label class="hc-lbl">What they said</label>
-                <textarea name="quote" rows="3" placeholder="The quote took a few minutes and the plan terms were easy to follow.">{{ r.quote }}</textarea>
-              </div>
-              <div class="ed-cols">
-                <div>
-                  <label class="hc-lbl">Name</label>
-                  <input type="text" name="name" value="{{ r.name }}" placeholder="S. Krishnan"/>
-                </div>
-                <div>
-                  <label class="hc-lbl">Place</label>
-                  <input type="text" name="place" value="{{ r.place }}" placeholder="Canada"/>
-                </div>
-                <div>
-                  <label class="hc-lbl">Country code</label>
-                  <input type="text" name="cc" value="{{ r.cc }}" maxlength="3" placeholder="CA"/>
-                </div>
-                <div>
-                  <label class="hc-lbl">Tag</label>
-                  <input type="text" name="tag" value="{{ r.tag }}" placeholder="Parents visiting children"/>
-                </div>
-                <div>
-                  <label class="hc-lbl">Photo URL</label>
-                  <input type="url" name="photo" value="{{ r.photo }}" placeholder="optional"/>
-                </div>
-              </div>
-            </div>
-            <button type="button" class="ed-del row-del" title="Remove this testimonial"
-                    aria-label="Remove this testimonial"><i class="fa-solid fa-trash-can"></i></button>
-          </div>
-          {% endfor %}
-        </div>
-        <p class="ed-empty" id="revEmpty" {{ 'hidden' if reviews }}>No testimonials yet. The page
-          falls back to the three samples until you add one.</p>
-
-        <div style="margin-top:14px">
-          <button type="button" class="btn-sm" id="addRev"><i class="fa-solid fa-plus"></i> Add testimonial</button>
-        </div>
+      <section class="hc-sec">
+        <h2 class="hc-h2"><i class="fa-solid fa-circle-question"></i> Questions</h2>
+        <p class="hc-hint">The page&rsquo;s FAQ accordion, and the structured data search engines
+          read, both come from
+          <a href="{{ url_for('admin.help_center_page', site='insurance') }}">Travel Insurance &rarr; Help &amp; FAQ</a>.
+          Delete them all and the section goes with them.</p>
+        <a class="btn-sm" href="{{ url_for('admin.help_center_page', site='insurance') }}">
+          <i class="fa-solid fa-circle-question"></i> Edit the questions</a>
       </section>
 
       <div class="hc-actions">
         <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save page content</button>
-        <span class="hc-note">Everything above is saved together, including the sections you did not touch.</span>
+        <span class="hc-note">The three boxes above are saved together. Reviews and questions are not affected.</span>
       </div>
     </form>
   </main>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-(function () {
-  const body = document.getElementById('revRows');
-  const empty = document.getElementById('revEmpty');
-  const lbl = (t) => '<label class="hc-lbl">' + t + '</label>';
-
-  function sync() { empty.hidden = body.children.length > 0; }
-
-  document.getElementById('addRev').addEventListener('click', () => {
-    const row = document.createElement('div');
-    row.className = 'ed-row';
-    // Field order matters more than layout: the server reads each name as a parallel list, so a
-    // row has to contribute exactly one value per name, in row order.
-    row.innerHTML = '<input type="hidden" name="id" value=""/>'
-      + '<div class="ed-grid">'
-      +   '<div>' + lbl('What they said')
-      +     '<textarea name="quote" rows="3" placeholder="What they said"></textarea></div>'
-      +   '<div class="ed-cols">'
-      +     '<div>' + lbl('Name') + '<input type="text" name="name" placeholder="S. Krishnan"/></div>'
-      +     '<div>' + lbl('Place') + '<input type="text" name="place" placeholder="Canada"/></div>'
-      +     '<div>' + lbl('Country code') + '<input type="text" name="cc" maxlength="3" placeholder="CA"/></div>'
-      +     '<div>' + lbl('Tag') + '<input type="text" name="tag" placeholder="Parents visiting children"/></div>'
-      +     '<div>' + lbl('Photo URL') + '<input type="url" name="photo" placeholder="optional"/></div>'
-      +   '</div>'
-      + '</div>'
-      + '<button type="button" class="ed-del row-del" title="Remove this testimonial"'
-      + ' aria-label="Remove this testimonial"><i class="fa-solid fa-trash-can"></i></button>';
-    body.appendChild(row);
-    sync();
-    row.querySelector('textarea').focus();
-  });
-
-  // Removing a row only stages it: nothing changes on the page until Save.
-  body.addEventListener('click', (e) => {
-    const b = e.target.closest('.row-del');
-    if (b) { b.closest('.ed-row').remove(); sync(); }
-  });
-})();
-</script>
 {% endblock %}

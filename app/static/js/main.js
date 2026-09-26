@@ -2065,10 +2065,14 @@ if (document.querySelector('.star-rating i')) paintStars(0, false);
 
 document.getElementById('reviewForm')?.addEventListener('submit', async (e) => {
   e.preventDefault();
+  const form = e.currentTarget;
   const rating = document.getElementById('ratingValue').value;
   const comment = document.getElementById('reviewComment').value.trim();
   if (!rating || rating === '0') return showToast('Please select a star rating.', 'danger');
-  const res = await apiFetch('/api/feedback', { method: 'POST', body: JSON.stringify({ rating: +rating, comment }) });
+  // Which product this review is about. The form says so because the page knows: the reviewer
+  // arrived from one of them and should not have to tell us which.
+  const site = form.dataset.site || 'companion';
+  const res = await apiFetch('/api/feedback', { method: 'POST', body: JSON.stringify({ rating: +rating, comment, site }) });
   const data = await res.json();
   if (data.success) {
     showToast(data.message, 'success');

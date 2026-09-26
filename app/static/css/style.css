@@ -3738,6 +3738,15 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 .admin-page .tick-check input[type=checkbox] { display: none; }
 .admin-page .multi-dropdown input[type=checkbox] { width: 16px; height: 16px; }
 
+/* Reviews are kept per product, so the public page needs a way to say which set is on screen
+   and to reach the other. Two tabs, not a dropdown: there are two, and both are worth seeing. */
+.rv-tabs { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin: -18px auto 26px; }
+.rv-tab { padding: 9px 20px; border-radius: 999px; border: 1.5px solid var(--border); background: #fff;
+  color: var(--muted); font-size: 14px; font-weight: 700; text-decoration: none; transition: all .15s; }
+.rv-tab:hover { border-color: var(--coral); color: var(--coral); }
+.rv-tab.on { background: var(--coral); border-color: var(--coral); color: var(--navy); }
+.rv-tab:focus-visible { outline: 3px solid rgba(245,166,35,.4); outline-offset: 2px; }
+
 /* The quiet half of a pair of actions -- Cancel next to Save. It had no rules at all, so it
    rendered as bare text beside a solid button and read as a caption rather than a way out. */
 .btn-light { display: inline-flex; align-items: center; gap: 8px; border: 1.5px solid var(--border);

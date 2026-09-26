@@ -5,9 +5,10 @@ Flask template. The server hands it everything that is not marketing copy as win
 before the bundle runs, so these tests read that payload rather than the DOM -- rendering is the
 bundle's job and is checked in a browser, but what the server decides is checked here.
 
-What matters and is protected below: testimonials come from the admin screen, questions from the
-same Help & FAQ screen the rest of the site uses, the quote goes through our own endpoint so the
-lead is recorded, and an enquiry lands in the one inbox CS already works from.
+What matters and is protected below: reviews are approved Feedback rows written about this
+product, questions come from this product's own Help & FAQ screen, neither has anything to fall
+back on, the quote goes through our own endpoint so the lead is recorded, and an enquiry lands in
+the one inbox CS already works from.
 """
 import json
 import re
@@ -21,17 +22,34 @@ from app.models import ContactMessage, InsuranceQuote
 from app.services import help_center, insurance_page
 
 
+CATEGORY = [{'key': 'travel_insurance', 'title': 'Travel insurance',
+             'icon': 'fa-shield-halved', 'blurb': 'Cover and claims'}]
+
+
 @pytest.fixture()
 def insurance_faq(app, db):
-    """One FAQ filed under the insurance category, the way the admin screen would save it."""
-    cats = help_center.categories() + [{'key': insurance_page.FAQ_CATEGORY, 'title': 'Travel insurance',
-                                        'icon': 'fa-shield-halved', 'blurb': 'Cover and claims'}]
-    faqs = help_center.faqs() + [
-        {'id': 'ti-visitor', 'category': insurance_page.FAQ_CATEGORY,
-         'question': 'What is visitor insurance?',
-         'answer': 'Travel medical cover for people visiting another country.'}]
-    help_center.save(cats, faqs)
-    return faqs
+    """One question filed under Travel Insurance, the way its admin screen would save it."""
+    help_center.save(CATEGORY, [{'id': 'ti-visitor', 'category': 'travel_insurance',
+                                 'question': 'What is visitor insurance?',
+                                 'answer': 'Travel medical cover for people visiting another country.'}],
+                     site='insurance')
+
+
+@pytest.fixture()
+def no_insurance_faqs(app, db):
+    """Every insurance question deleted. The section has nothing to fall back on, which is the
+    whole point of it having no fallback."""
+    help_center.save(CATEGORY, [], site='insurance')
+
+
+def approve_review(email, comment, site='insurance', rating=5):
+    """A review, written and approved, the way the public form and the admin queue leave it."""
+    from app.models import Feedback, User
+    u = User.query.filter_by(email=email).one()
+    fb = Feedback(user_id=u.id, rating=rating, comment=comment, site=site, is_approved=True)
+    _db.session.add(fb)
+    _db.session.commit()
+    return fb
 
 
 # ---------------------------------------------------------------------------
@@ -78,24 +96,47 @@ def test_questions_come_from_the_admin_help_centre(client, db, insurance_faq):
 
 
 def test_only_the_insurance_questions_appear(client, db, insurance_faq):
-    """The help centre holds every FAQ on the site; this page gets its own category."""
+    """The help centre holds every question on the site; this page gets its own product's."""
     data, _ = injected(client)
     sent = {f['question'] for f in data['faqs']}
-    other = [f for f in help_center.faqs() if f['category'] != insurance_page.FAQ_CATEGORY]
-    assert other, 'fixture should leave some non-insurance FAQs'
+    assert sent == {'What is visitor insurance?'}
+    other = help_center.faqs('companion')
+    assert other, 'the companion app should still have its own questions'
     assert other[0]['question'] not in sent
 
 
+def test_the_questions_have_nothing_to_fall_back_on(client, db, no_insurance_faqs):
+    """There used to be ten answers inside the bundle, shown whenever the category was empty --
+    text on a live page that appeared on no screen anybody could edit. Delete the questions and
+    the section goes, rather than being quietly refilled."""
+    data, html = injected(client)
+    assert data['faqs'] == []
+    # ...and the schema says the same thing, because a FAQPage promising answers the page does
+    # not show is exactly what structured-data penalties are for
+    blob = re.search(r'application/ld[+]json">(.*?)</script>', html, re.S)
+    types = {node['@type'] for node in json.loads(blob.group(1))['@graph']}
+    assert 'FAQPage' not in types
+
+
+def test_the_shipped_questions_are_editable_rather_than_baked_in(client, db):
+    """A fresh install still answers the ten common questions -- but from the admin screen, where
+    they can be reworded or removed, not from a list inside the page."""
+    keys = {f['question'] for f in help_center.faqs('insurance')}
+    assert 'What is travel insurance?' in keys
+    data, _ = injected(client)
+    assert {f['question'] for f in data['faqs']} == keys
+
+
 def test_the_public_never_sees_invented_customers(client, db, cs_user):
-    """Three made-up testimonials on an insurance page cost more trust than no section at all,
-    so until real ones are entered none are sent to the bundle."""
+    """The page shipped with three made-up testimonials, which on an insurance page costs more
+    trust than an absent section does. Nothing is sent until a real review is approved -- not to
+    the public, and not to staff either."""
     data, _ = injected(client)
     assert data['reviews'] == []
 
-    # staff still get the samples, so the section can be previewed before it is filled
     login(client, 'cs@test.com')
     data, _ = injected(client)
-    assert len(data['reviews']) == 3 and data['reviewsAreSamples'] is True
+    assert data['reviews'] == []
 
 
 def test_contact_details_come_from_settings(client, db):
@@ -161,15 +202,54 @@ def test_the_react_source_lives_in_this_repo(db):
     assert os.path.isdir(os.path.join(root, 'public', 'photos'))
 
 
-def test_saved_testimonials_are_shown_to_everyone(client, db):
-    insurance_page.save_reviews([
-        {'quote': 'Cover sorted in ten minutes.', 'name': 'K. Rao', 'place': 'United States',
-         'cc': 'us', 'tag': 'Parents visiting children', 'photo': ''}])
+def test_an_approved_review_is_published(client, db, user):
+    approve_review('bob@test.com', 'Cover sorted in ten minutes.', rating=4)
     data, _ = injected(client)
     assert len(data['reviews']) == 1
-    assert data['reviews'][0]['name'] == 'K. Rao'
-    assert data['reviews'][0]['cc'] == 'US'            # upper-cased on save
-    assert data['reviewsAreSamples'] is False
+    assert data['reviews'][0]['quote'] == 'Cover sorted in ten minutes.'
+    assert data['reviews'][0]['name'] == 'bob'
+    assert data['reviews'][0]['rating'] == 4           # the stars they gave, not five
+
+
+def test_a_review_waiting_for_approval_is_not_published(client, db, user):
+    from app.models import Feedback, User
+    u = User.query.filter_by(email='bob@test.com').one()
+    _db.session.add(Feedback(user_id=u.id, rating=5, comment='Nobody has read this yet.',
+                             site='insurance', is_approved=False))
+    _db.session.commit()
+    assert injected(client)[0]['reviews'] == []
+
+
+def test_a_companion_review_stays_on_the_companion_pages(client, db, user):
+    """Somebody who flew with a companion has said nothing about insurance, and the other way
+    round. The column is what keeps each review on the page it answers for."""
+    approve_review('bob@test.com', 'My mother was never alone.', site='companion')
+    assert injected(client)[0]['reviews'] == []
+
+    assert 'My mother was never alone.' in client.get('/reviews').data.decode()
+    assert 'My mother was never alone.' not in client.get('/reviews?site=insurance').data.decode()
+
+
+def test_a_rating_with_no_words_is_not_published(client, db, user):
+    """Five stars and an empty box tells a reader nothing on a page like this one."""
+    approve_review('bob@test.com', '   ')
+    assert injected(client)[0]['reviews'] == []
+
+
+def test_a_reviewer_who_hid_their_photo_keeps_it_hidden(client, db, user):
+    """show_photo is their answer to "may my picture be shown". A review is a more public place
+    than the profile they set it on, not a less public one."""
+    from app.models import User
+    u = User.query.filter_by(email='bob@test.com').one()
+    u.photo_url, u.show_photo = 'https://example.com/bob.jpg', False
+    _db.session.commit()
+    approve_review('bob@test.com', 'Quick and clear.')
+    assert injected(client)[0]['reviews'][0]['photo'] == ''
+
+    u.show_photo = True
+    _db.session.commit()
+    assert injected(client)[0]['reviews'][0]['photo'] == 'https://example.com/bob.jpg'
+
 
 
 # ---------------------------------------------------------------------------
@@ -297,28 +377,35 @@ def test_the_leads_list_is_not_public(client, db, user):
 
 
 # ---------------------------------------------------------------------------
-# The admin screen behind the testimonials
+# The admin screen behind the page's own claims
 # ---------------------------------------------------------------------------
 
-def test_admin_saves_testimonials_and_drops_the_blanks(client, db, admin_user):
+def test_the_page_screen_saves_the_claims_about_the_business(client, db, admin_user):
     login(client, 'admin@test.com')
     assert client.get('/admin/insurance-page').status_code == 200
 
-    r = client.post('/admin/insurance-page', data={
-        'id': ['', '', ''],
-        'quote': ['Cover sorted in ten minutes.', '', 'A second real one'],
-        'name': ['K. Rao', '', 'M. Iyer'], 'place': ['United States', '', 'Australia'],
-        'cc': ['us', '', 'au'], 'tag': ['Parents', '', 'Family trip'], 'photo': ['', '', ''],
+    client.post('/admin/insurance-page', data={
+        'price_from': 'Plans from $1.20 a day',
+        'assurance': ['Policy documents by e-mail within minutes', '', 'No medical exam'],
+        'support_email': 'cover@example.com', 'availability': 'Every day',
     }, follow_redirects=True)
-    assert r.status_code == 200 and 'Saved 2 testimonials' in r.data.decode()
-
-    saved = insurance_page.reviews()
-    assert [s['name'] for s in saved] == ['K. Rao', 'M. Iyer']
-    assert all(s['id'] for s in saved), 'every row needs a stable id'
-    assert not insurance_page.is_using_samples()
+    assert insurance_page.price_from() == 'Plans from $1.20 a day'
+    assert insurance_page.assurances() == ['Policy documents by e-mail within minutes', 'No medical exam']
+    assert insurance_page.support_email() == 'cover@example.com'
 
 
-def test_the_testimonial_screen_is_admin_only(client, db, cs_user):
+def test_the_page_screen_no_longer_holds_reviews(client, db, admin_user):
+    """They were a list staff typed, seeded with three invented customers. Moderating a review is
+    one job in one queue now, whichever page it was left on -- so this screen points at that queue
+    rather than offering a second way to publish one."""
+    login(client, 'admin@test.com')
+    html = client.get('/admin/insurance-page').data.decode()
+    assert 'name="quote"' not in html and 'Add testimonial' not in html
+    assert 'tab=feedback' in html and 'site=insurance' in html
+    assert not hasattr(insurance_page, 'save_reviews')
+
+
+def test_the_page_screen_is_admin_only(client, db, cs_user):
     login(client, 'cs@test.com')
     assert client.get('/admin/insurance-page').status_code in (302, 403)
 

@@ -58,7 +58,20 @@
     {% endif %}
 
     {% elif tab == 'feedback' %}
-    <p class="muted small vc-note">Approved reviews appear on the public home page. Rejecting deletes the review.</p>
+    {# One queue, filtered by the product the review was written about. Approving is the only
+       thing that puts a review on a public page, and which page depends on this column. #}
+    <div class="cm-filters">
+      <a class="btn-sm-outline {{ 'active' if not site }}" href="{{ url_for('admin.voices', tab='feedback') }}">
+        All ({{ site_counts.values()|sum }})</a>
+      {% for k in REVIEW_SITES %}
+      <a class="btn-sm-outline {{ 'active' if site == k }}"
+         href="{{ url_for('admin.voices', tab='feedback', site=k) }}">
+        {{ REVIEW_SITE_LABELS[k] }} ({{ site_counts[k] }})</a>
+      {% endfor %}
+    </div>
+    <p class="muted small vc-note">An approved review appears on the page it was written about
+      &mdash; {{ 'the home page and the reviews page' if not site else REVIEW_SITE_LABELS[site] }}.
+      Rejecting deletes it.</p>
 
     {{ vt.feedback_table(feedbacks) }}
 
@@ -66,7 +79,7 @@
     <div class="pagination">
       {% for p in range(1, f_pages + 1) %}
       <a class="page {{ 'current' if p == f_page }}"
-         href="{{ url_for('admin.voices', tab='feedback', page=p) }}">{{ p }}</a>
+         href="{{ url_for('admin.voices', tab='feedback', site=site or None, page=p) }}">{{ p }}</a>
       {% endfor %}
     </div>
     {% endif %}

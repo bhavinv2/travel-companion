@@ -5,9 +5,12 @@ templates/insurance/landing.html. Everything on it that is not marketing copy co
 places staff already manage, injected as window.__INSURANCE__ so the bundle never has to fetch
 it separately:
 
-  * testimonials  -> services/insurance_page.py  (Admin -> Insurance page)
-  * FAQs          -> services/help_center.py, the 'travel_insurance' category
-                     (Admin -> Help & FAQ, the same screen the rest of the site uses)
+  * reviews       -> Feedback rows with site='insurance', once an admin approves them
+                     (Admin -> Travel Insurance -> Feedback). The same pipeline the companion
+                     app uses: somebody who bought cover writes one, a human reads it, it
+                     appears. Nothing on the page is a testimonial we wrote.
+  * FAQs          -> services/help_center.py, the travel-insurance questions
+                     (Admin -> Travel Insurance -> Help & FAQ)
   * enquiries     -> ContactMessage with topic='insurance', so they land in the CS and admin
                      inboxes next to every other enquiry rather than in a second system
 """
@@ -17,7 +20,7 @@ from flask import Blueprint, current_app, jsonify, redirect, render_template, re
 from flask_login import current_user
 
 from app import db
-from app.models import ActivityEvent, ContactMessage
+from app.models import ActivityEvent, ContactMessage, Feedback
 from app.services import help_center, insurance_countries, insurance_page, settings, urls
 from app.services.ratelimit import rate_limit
 
@@ -29,15 +32,14 @@ EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 def _faqs():
     """The insurance questions, in admin order, as {question, answer}.
 
-    Falls back to the default set in insurance_page when nothing has been filed under the
-    category. The fallback is resolved here rather than inside the bundle so that the page and
-    its JSON-LD always declare the same questions -- schema that promises an answer the page does
-    not show is the kind of thing search engines penalise.
+    What the admin screen says and nothing else. There used to be a fallback list here for when
+    nothing had been filed under the category, which meant the page could show answers that
+    appeared on no screen anybody could edit. Those answers are shipped defaults in the help
+    centre now, so they are visible and editable in Admin -> Travel Insurance -> Help & FAQ; if
+    somebody deletes them all, the section goes away rather than being quietly refilled.
     """
-    rows = [f for f in help_center.faqs() if f.get('category') == insurance_page.FAQ_CATEGORY]
-    if rows:
-        return [{'question': f['question'], 'answer': f['answer']} for f in rows]
-    return [{'question': q, 'answer': a} for q, a in insurance_page.DEFAULT_FAQS]
+    return [{'question': f['question'], 'answer': f['answer']}
+            for f in help_center.faqs('insurance')]
 
 
 def _structured_data(faqs, phones, canonical):
@@ -62,7 +64,7 @@ def _structured_data(faqs, phones, canonical):
             'areaServed': 'IN' if p['label'] == 'India' else 'US',
             'availableLanguage': ['en', 'hi'],
         } for p in phones]
-    return {
+    graph = {
         '@context': 'https://schema.org',
         '@graph': [
             org,
@@ -83,16 +85,50 @@ def _structured_data(faqs, phones, canonical):
                                 'covering emergency medical treatment, hospitalisation, '
                                 'evacuation and trip disruption.'),
             },
-            {
-                '@type': 'FAQPage',
-                'mainEntity': [{
-                    '@type': 'Question',
-                    'name': f['question'],
-                    'acceptedAnswer': {'@type': 'Answer', 'text': f['answer']},
-                } for f in faqs],
-            },
         ],
     }
+    if faqs:
+        # Declared only when the page actually answers something. An empty FAQPage is a promise
+        # of answers that are not there, which is exactly what structured-data penalties are for.
+        graph['@graph'].append({
+            '@type': 'FAQPage',
+            'mainEntity': [{
+                '@type': 'Question',
+                'name': f['question'],
+                'acceptedAnswer': {'@type': 'Answer', 'text': f['answer']},
+            } for f in faqs],
+        })
+    return graph
+
+
+def _reviews():
+    """Approved travel-insurance reviews, newest first, shaped the way the bundle reads them.
+
+    Real people who left a review on this product, passed by a human first -- the same pipeline
+    and the same moderation queue the companion app has always used. The page showed three
+    invented customers before this, which is worse than showing none: an insurance page trades
+    on being believed.
+    """
+    rows = (Feedback.query.filter_by(is_approved=True, site='insurance')
+            .order_by(Feedback.created_at.desc()).limit(12).all())
+    out = []
+    for fb in rows:
+        user = fb.user
+        # show_photo is the reviewer's own answer to "may my picture be shown". A review is a
+        # more public place than the profile they set it on, so it is honoured here rather than
+        # treated as being about one screen; the bundle draws an avatar when there is no photo.
+        photo = (user.photo_url or '') if (user and user.show_photo) else ''
+        out.append({
+            'id': str(fb.id),
+            'quote': (fb.comment or '').strip(),
+            'name': (user.username if user else 'A traveller'),
+            'place': '',                 # we do not ask a reviewer where they are
+            'rating': fb.rating,
+            'photo': photo,
+            'tag': '',
+        })
+    # A star rating with no words says nothing on a page like this one.
+    return [r for r in out if r['quote']]
 
 
 def _canonical():
@@ -107,11 +143,6 @@ def _canonical():
 
 @insurance_bp.route('/travel-insurance')
 def landing():
-    # Sample testimonials are shown to staff so the section can be previewed, and withheld from
-    # the public: three invented customers on an insurance page cost more trust than an absent
-    # section does. Real ones are entered in Admin -> Insurance page.
-    samples = insurance_page.is_using_samples()
-    staff = current_user.is_authenticated and (current_user.is_admin or current_user.is_cs)
     # Both teams, each labelled, so the page can offer a caller the number in their own country
     # instead of one number and a long-distance charge. Unset numbers are left out rather than
     # shown: the rule everywhere else on the site is never to publish a line nobody answers.
@@ -120,9 +151,13 @@ def landing():
               if wa.get(key)]
     faqs = _faqs()
     canonical = _canonical()
+    # Reviews and questions are both lists that may legitimately be empty, and both sections
+    # disappear when they are. An empty section is honest; a filled one that nobody wrote is not.
     return render_template('insurance/landing.html',
-                           reviews=[] if (samples and not staff) else insurance_page.reviews(),
-                           reviews_are_samples=samples,
+                           reviews=_reviews(),
+                           # the reviews page lives inside the app, so url_for's prefix is
+                           # the right one here -- it is not one of the alias front doors
+                           reviews_url=url_for('main.reviews', site='insurance'),
                            faqs=faqs,
                            countries={name: code for code, name in insurance_countries.ALL},
                            whatsapp_number=phones[0]['digits'] if phones else '',

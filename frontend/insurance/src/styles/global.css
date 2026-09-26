@@ -614,6 +614,10 @@ section[id]{scroll-margin-top:84px}
   border-top:1px solid rgba(1,16,56,.08)}
 .rev-av{flex:0 0 auto;width:52px;height:52px;border-radius:50%;padding:3px;display:block}
 .rev-av img{display:block;width:100%;height:100%;border-radius:50%;object-fit:cover}
+/* no picture, no stock portrait: their initial on the card's own colour */
+.rev-initial{display:grid;place-items:center;width:100%;height:100%;border-radius:50%;background:#fff;color:var(--ink);font-weight:800;font-size:19px;letter-spacing:.01em}
+/* one or two reviews should not sit in the corner of an empty three-column grid */
+.rev-grid.few{grid-template-columns:repeat(auto-fit,minmax(0,320px));justify-content:center}
 .rev-who b{display:block;font-size:15.5px;font-weight:700;color:var(--navy);line-height:1.25}
 .rev-who span{display:block;font-size:13.5px;color:var(--slate);margin-top:1px}
 .rev-tag{align-self:flex-start;margin-top:16px;border-radius:999px;padding:6px 14px;

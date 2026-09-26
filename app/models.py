@@ -676,16 +676,34 @@ class Blog(db.Model):
         return text[:length].rstrip() + '...' if len(text) > length else text
 
 
+# Which product a review is about. The same three the help centre and the admin panel use, and
+# the same idea as ContactMessage.topic -- one queue, one column saying what it is about.
+REVIEW_SITES = ('companion', 'insurance', 'sahayak')
+REVIEW_SITE_LABELS = {'companion': 'Travel companion', 'insurance': 'Travel insurance',
+                      'sahayak': 'Sahayak'}
+
+
 class Feedback(db.Model):
+    """A review left by a signed-in traveller, published once an admin approves it.
+
+    `site` is where it was written, and therefore where it appears. Nothing decides that for the
+    reviewer: a review about travel insurance is worth reading on the insurance page and tells
+    somebody looking for a flight companion nothing at all.
+    """
     __tablename__ = 'feedbacks'
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     rating = db.Column(db.Integer, nullable=False)  # 1-5
     comment = db.Column(db.Text)
+    site = db.Column(db.String(20), default='companion', nullable=False, index=True)
     is_approved = db.Column(db.Boolean, default=False)
     is_featured = db.Column(db.Boolean, default=False)   # hand-picked for the public home page
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def site_label(self):
+        return REVIEW_SITE_LABELS.get(self.site or 'companion', self.site)
 
 
 CONTACT_STATUSES = ('new', 'in_progress', 'closed')

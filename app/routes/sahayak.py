@@ -23,7 +23,12 @@ PHONE_RE = re.compile(r'[0-9]')
 
 
 def _faqs():
-    return [f for f in help_center.faqs() if f.get('category') == sahayak.FAQ_CATEGORY]
+    """Every question filed under Sahayak, from Admin -> Sahayak -> Help & FAQ.
+
+    By site rather than by one category key: an admin who adds a second Sahayak category expects
+    its questions on this page too, and filtering by a single key would quietly drop them.
+    """
+    return help_center.faqs('sahayak')
 
 
 def _canonical():

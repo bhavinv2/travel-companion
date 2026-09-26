@@ -1,48 +1,32 @@
 import Icon from './Icon';
 import SideDecor from './SideDecor';
 import { useReveal } from '../hooks/useReveal';
-import { photo, site } from '../data/site';
+import { site } from '../data/site';
 
-const REVIEWS = [
-  {
-    tone: 'amber', tag: 'Easy quote process',
-    quote: 'The quote took a few minutes and the plan terms were easy to follow.',
-    name: 'S. Krishnan', place: 'Canada', avatar: photo('avatar-1.jpg'),
-  },
-  {
-    tone: 'blue', tag: '24/7 support',
-    quote: 'Having one number to call while abroad made the whole trip calmer.',
-    name: 'R. Fernandes', place: 'United Kingdom', avatar: photo('avatar-2.jpg'),
-  },
-  {
-    tone: 'green', tag: 'Digital claims',
-    quote: 'I uploaded my documents from my phone and could track every step.',
-    name: 'A. Menon', place: 'Singapore', avatar: photo('avatar-3.jpg'),
-  },
-];
-
-/** The colour rotation the shipped three use, continued for however many are saved. */
+/** The colour rotation the design uses, continued for however many reviews are published. */
 const TONES = ['amber', 'blue', 'green'];
 
 export default function Reviews() {
   const reveal = useReveal<HTMLDivElement>();
 
-  // Testimonials are entered in Admin -> Insurance page. Unlike the FAQs there is no falling back
-  // to the shipped three once the server has spoken: they are invented, and three invented
-  // customers on an insurance page costs more trust than no section at all. The server sends the
-  // samples to staff only, so the section can still be previewed before it is filled.
-  const injected = Array.isArray(site.reviews);
-  const reviews = injected
-    ? site.reviews!.map((r, i) => ({
-        tone: TONES[i % TONES.length],
-        tag: r.tag || '',
-        quote: r.quote,
-        name: r.name,
-        place: r.place || '',
-        avatar: r.photo || photo(`avatar-${(i % 3) + 1}.jpg`),
-      }))
-    : REVIEWS;
-  const areSamples = injected ? !!site.reviewsAreSamples : true;
+  // Reviews are written by people who used the service and published once an admin approves
+  // them -- the same pipeline the rest of the site uses. There is deliberately nothing to fall
+  // back to: this component used to ship three invented customers, and three invented customers
+  // on an insurance page cost more trust than an absent section does. No reviews, no section.
+  const reviews = (site.reviews || []).map((r, i) => ({
+    key: r.id || String(i),
+    tone: TONES[i % TONES.length],
+    tag: r.tag || '',
+    quote: r.quote,
+    name: r.name,
+    place: r.place || '',
+    rating: Math.min(Math.max(r.rating || 5, 1), 5),
+    // Their own picture or their initial -- never a stock portrait. This used to fall back to
+    // one of three photos from the design, which next to a real name and a real review reads as
+    // a photograph of the person who wrote it.
+    photo: r.photo || '',
+    initial: (r.name || '?').trim().charAt(0).toUpperCase() || '?',
+  }));
 
   if (!reviews.length) return null;
 
@@ -63,30 +47,35 @@ export default function Reviews() {
           <p className="lead" style={{ marginTop: 12, maxWidth: 520 }}>
             What families tell us after insuring a trip with our team.
           </p>
-          {areSamples && (
+          {site.reviewsUrl && (
             <p className="tiny" style={{ marginTop: 10 }}>
-              Sample reviews &middot; add real ones in Admin &rarr; Insurance page
+              <a href={site.reviewsUrl}>Read them all, or leave your own</a>
             </p>
           )}
         </div>
-        <div className="rev-grid">
+        {/* few reviews should sit in the middle rather than hugging the left edge of a
+            three-column grid that is mostly empty */}
+        <div className={`rev-grid${reviews.length < 3 ? ' few' : ''}`}>
           {reviews.map((r) => (
-            <figure className={`rev t-${r.tone}`} key={r.name}>
+            <figure className={`rev t-${r.tone}`} key={r.key}>
               <span className="rev-mark" aria-hidden="true">&rdquo;</span>
-              <span className="stars" aria-label="5 out of 5 stars">
-                {Array.from({ length: 5 }, (_, i) => <Icon key={i} name="i-star" className="star" />)}
+              {/* the rating they actually gave, not five painted on every card */}
+              <span className="stars" aria-label={`${r.rating} out of 5 stars`}>
+                {Array.from({ length: r.rating }, (_, i) => <Icon key={i} name="i-star" className="star" />)}
               </span>
               <blockquote>{r.quote}</blockquote>
               <figcaption>
                 <span className="rev-av">
-                  <img src={r.avatar} alt="" width={46} height={46} loading="lazy" decoding="async" />
+                  {r.photo
+                    ? <img src={r.photo} alt="" width={46} height={46} loading="lazy" decoding="async" />
+                    : <span className="rev-initial" aria-hidden="true">{r.initial}</span>}
                 </span>
                 <span className="rev-who">
                   <b>{r.name}</b>
                   <span>{r.place}</span>
                 </span>
               </figcaption>
-              <span className="rev-tag">{r.tag}</span>
+              {r.tag && <span className="rev-tag">{r.tag}</span>}
             </figure>
           ))}
         </div>

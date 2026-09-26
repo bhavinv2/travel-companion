@@ -1,15 +1,7 @@
 import { useState } from 'react';
 import Icon from './Icon';
 import { useReveal } from '../hooks/useReveal';
-import { fromServer, site } from '../data/site';
-
-const FAQS = [
-  ['What is travel insurance?', 'A policy that can help cover eligible costs from unexpected events on a trip, such as medical emergencies, delays or lost baggage.'],
-  ['What does travel insurance cover?', 'It varies by plan. Common benefits include emergency medical expenses, evacuation, trip interruption and baggage. Always check the policy wording.'],
-  ['Is travel insurance mandatory?', 'For some destinations and visa types, yes, for example many Schengen visa applications. Check official sources for your trip.'],
-  ['What is visitor insurance?', 'Travel medical cover for people visiting another country, such as parents staying with family abroad or tourists.'],
-  ['Can I buy travel insurance online?', 'Yes. Get a quote, compare 65+ A-rated plans and buy online. Your policy documents are sent digitally.'],
-] as const;
+import { site } from '../data/site';
 
 type Pair = readonly [string, string];
 
@@ -28,14 +20,15 @@ export default function FAQ() {
   const reveal = useReveal<HTMLDivElement>();
   const [openIndex, setOpenIndex] = useState(-1);
 
-  // Managed on the ordinary Admin -> Help & FAQ screen, under the travel-insurance category.
-  // Falling back to the shipped set when none are entered is deliberate: these five answers are
-  // generic and correct, and an empty FAQ section helps nobody.
-  const faqs = fromServer(
-    site.faqs?.map((f) => [f.question, f.answer] as Pair),
-    FAQS as unknown as Pair[],
-  );
+  // Admin -> Travel Insurance -> Help & FAQ, and nowhere else. This component used to fall back
+  // to five answers baked into the build, which meant the page could show text that appeared on
+  // no screen anybody could edit. Those answers are shipped defaults in the help centre now --
+  // visible, editable, deletable. Delete them all and the section goes, which is the honest
+  // outcome: the server's JSON-LD drops its FAQPage in the same breath.
+  const faqs: Pair[] = (site.faqs || []).map((f) => [f.question, f.answer] as Pair);
   const columns = columnsOf(faqs);
+
+  if (!faqs.length) return null;
 
   return (
     <section className="sec faq-sec" id="faq">

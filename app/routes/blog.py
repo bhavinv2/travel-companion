@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
 from flask_login import login_required, current_user
 from app import db
-from app.models import Blog, Feedback
+from app.models import Blog, Feedback, REVIEW_SITES
 
 blog_bp = Blueprint('blog', __name__)
 
@@ -30,9 +30,18 @@ def blog_post(slug):
 @blog_bp.route('/api/feedback', methods=['POST'])
 @login_required
 def submit_feedback():
+    """A review, filed against the product it was written about.
+
+    `site` comes from the form the reviewer used, and an unknown value is treated as the
+    companion app rather than rejected: the worst case is a review on the wrong page, and losing
+    somebody's words to a validation error is worse than that.
+    """
     data = request.get_json() or {}
     rating = data.get('rating')
     comment = data.get('comment', '').strip()
+    site = (data.get('site') or '').strip().lower()
+    if site not in REVIEW_SITES:
+        site = 'companion'
 
     if not rating or not (1 <= int(rating) <= 5):
         return jsonify({'error': 'Rating 1-5 required'}), 400
@@ -41,6 +50,7 @@ def submit_feedback():
         user_id=current_user.id,
         rating=int(rating),
         comment=comment,
+        site=site,
         is_approved=False,
     )
     try:

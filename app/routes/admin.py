@@ -393,34 +393,31 @@ def insurance_quotes():
 @login_required
 @admin_required
 def insurance_page_content():
-    """Testimonials shown on /travel-insurance.
+    """What the /travel-insurance page says, apart from its reviews and its questions.
 
     Kept with the rest of the admin-managed content (one JSON blob in app_settings) rather than
-    a table of its own: these are marketing copy, not user submissions, and an edit has to show
-    on the page without a migration. The FAQs on that page are the ordinary Help & FAQ screen,
-    so there is only one place to learn.
+    a table of its own: these are claims about the business, not user submissions, and an edit
+    has to show on the page without a migration.
+
+    Reviews are not here. They used to be -- a table staff typed testimonials into, seeded with
+    three invented customers -- and they are now the same approved-review pipeline the rest of
+    the site uses, under Feedback. One place to moderate a review, whichever page it was left on.
     """
     from app.models import ActivityEvent
     from app.services import insurance_page
     from app.services import settings as settings_service
 
     if request.method == 'POST':
-        cols = {f: request.form.getlist(f) for f in ('id',) + insurance_page.FIELDS}
-        n = max((len(v) for v in cols.values()), default=0)
-        rows = [{f: (cols[f][i] if i < len(cols[f]) else '') for f in cols} for i in range(n)]
-        saved = insurance_page.save_reviews(rows, actor=current_user)
         insurance_page.save_page(request.form.get('price_from'),
                                  request.form.getlist('assurance'), actor=current_user,
                                  support_email_text=request.form.get('support_email'),
                                  availability_text=request.form.get('availability'))
-        ActivityEvent.log('insurance_reviews_saved', actor=current_user, count=len(saved))
+        ActivityEvent.log('insurance_page_saved', actor=current_user)
         db.session.commit()
-        flash('Saved %d testimonial%s.' % (len(saved), '' if len(saved) == 1 else 's'), 'success')
+        flash('Insurance page content saved.', 'success')
         return redirect(url_for('admin.insurance_page_content'))
 
     return render_template('admin/insurance_page.html',
-                           reviews=insurance_page.reviews(),
-                           using_samples=insurance_page.is_using_samples(),
                            price_from=insurance_page.price_from(),
                            assurances=insurance_page.assurances(),
                            suggestions=insurance_page.ASSURANCE_SUGGESTIONS,
@@ -428,8 +425,7 @@ def insurance_page_content():
                            support_email=insurance_page.support_email(),
                            availability=insurance_page.availability(),
                            default_support_email=current_app.config.get('SUPPORT_EMAIL', ''),
-                           whatsapp=settings_service.whatsapp_numbers(),
-                           faq_category=insurance_page.FAQ_CATEGORY)
+                           whatsapp=settings_service.whatsapp_numbers())
 
 
 @admin_bp.route('/sahayak')
@@ -505,7 +501,7 @@ def voices():
     """Everything users send us, in one place: enquiries from the Contact form and the
     reviews they leave. Mirrors the two tabs on the public "Talk to us" widget."""
     from app.models import (ContactMessage, MatchReport, CONTACT_STATUSES, CONTACT_STATUS_LABELS,
-                            CONTACT_TOPICS, CONTACT_TOPIC_LABELS)
+                            CONTACT_TOPICS, CONTACT_TOPIC_LABELS, REVIEW_SITES, REVIEW_SITE_LABELS)
     tab = request.args.get('tab') or 'contact'
     if tab == 'reviews':          # older links used this name
         tab = 'feedback'
@@ -533,12 +529,21 @@ def voices():
     messages = cq.offset((c_page - 1) * per_page).limit(per_page).all()
     counts = {s: ContactMessage.query.filter_by(status=s).count() for s in CONTACT_STATUSES}
 
-    fq = Feedback.query.order_by(Feedback.created_at.desc())
+    # Reviews are filed against the product they were written about, so the queue filters the
+    # same way the enquiry inbox does. The pending count stays across all of them: it is the
+    # badge saying somebody is waiting, and hiding two thirds of it behind a filter would mean
+    # an insurance review sat unread while the tab said there was nothing to do.
+    site = request.args.get('site') or ''
+    fq = Feedback.query
+    if site in REVIEW_SITES:
+        fq = fq.filter(Feedback.site == site)
+    fq = fq.order_by(Feedback.created_at.desc())
     f_total = fq.count()
     f_pages = max((f_total + per_page - 1) // per_page, 1)
     f_page = min(page, f_pages) if tab == 'feedback' else 1
     feedbacks = fq.offset((f_page - 1) * per_page).limit(per_page).all()
     pending = Feedback.query.filter_by(is_approved=False).count()
+    site_counts = {k: Feedback.query.filter_by(site=k).count() for k in REVIEW_SITES}
 
     r_status = request.args.get('rstatus') or 'open'
     if r_status not in ('open', 'resolved', 'all'):
@@ -557,7 +562,8 @@ def voices():
                            messages=messages, c_total=c_total, c_page=c_page, c_pages=c_pages,
                            counts=counts, status=status, q=q,
                            feedbacks=feedbacks, f_total=f_total, f_page=f_page, f_pages=f_pages,
-                           pending=pending,
+                           pending=pending, site=site, site_counts=site_counts,
+                           REVIEW_SITES=REVIEW_SITES, REVIEW_SITE_LABELS=REVIEW_SITE_LABELS,
                            reports=reports, r_total=r_total, r_page=r_page, r_pages=r_pages,
                            r_status=r_status, reports_open=reports_open,
                            CONTACT_STATUSES=CONTACT_STATUSES, CONTACT_STATUS_LABELS=CONTACT_STATUS_LABELS, CONTACT_TOPICS=CONTACT_TOPICS,
@@ -658,8 +664,13 @@ def themes_page():
 @login_required
 @admin_required
 def help_center_page():
-    """Categories and FAQs for the public /help page. Saved together so a FAQ can never
-    reference a category that the same submit deleted."""
+    """Categories and FAQs for one product. Saved together so a FAQ can never reference a
+    category that the same submit deleted.
+
+    One screen, three products: `site` picks which set is on screen, and the save only touches
+    that set. Splitting it into three templates would have meant three copies of a form that is
+    entirely about the shape of the data, not about which product it belongs to.
+    """
     from app.services import help_center
     from app.models import ActivityEvent
 
@@ -669,30 +680,41 @@ def help_center_page():
         n = max((len(v) for v in cols.values()), default=0)
         return [{f: (cols[f][i] if i < len(cols[f]) else '') for f in fields} for i in range(n)]
 
+    # From the form on a POST, so a save cannot be redirected at another product by a stale
+    # query string; from the URL otherwise.
+    site = help_center.clean_site(request.form.get('site') if request.method == 'POST'
+                                  else request.args.get('site'))
+    label = help_center.SITE_LABELS[site]
+    here = url_for('admin.help_center_page', site=site if site != help_center.DEFAULT_SITE else None)
+
     if request.method == 'POST':
         if request.form.get('action') == 'reset':
-            help_center.reset(current_user)
-            ActivityEvent.log('help_center_reset', actor=current_user)
+            help_center.reset(current_user, site=site)
+            ActivityEvent.log('help_center_reset', actor=current_user, site=site)
             db.session.commit()
-            flash('Help centre restored to the shipped questions.', 'success')
-            return redirect(url_for('admin.help_center_page'))
+            flash('%s questions restored to the ones we ship.' % label, 'success')
+            return redirect(here)
 
         cats = _rows('cat', ('key', 'title', 'icon', 'blurb'))
         fqs = _rows('faq', ('id', 'category', 'question', 'answer'))
-        ok, errors = help_center.save(cats, fqs, current_user)
+        ok, errors = help_center.save(cats, fqs, current_user, site=site)
         if ok:
-            ActivityEvent.log('help_center_saved', actor=current_user,
-                              categories=len(help_center.categories()), faqs=len(help_center.faqs()))
+            ActivityEvent.log('help_center_saved', actor=current_user, site=site,
+                              categories=len(help_center.categories(site)),
+                              faqs=len(help_center.faqs(site)))
             db.session.commit()
-            flash('Help centre saved — the public page is already showing it.', 'success')
-            return redirect(url_for('admin.help_center_page'))
+            flash('%s questions saved — the public page is already showing them.' % label, 'success')
+            return redirect(here)
         for e in errors:
             flash(e, 'danger')
 
-    return render_template('admin/help.html', active='help',
-                           categories=help_center.categories(), faqs=help_center.faqs(),
+    # the sidebar has one line per product, so `active` has to say which one
+    active = 'help' if site == help_center.DEFAULT_SITE else 'help_%s' % site
+    return render_template('admin/help.html', active=active, site=site, site_label=label,
+                           sites=help_center.SITES,
+                           categories=help_center.categories(site), faqs=help_center.faqs(site),
                            icons=help_center.ICON_CHOICES,
-                           customised=help_center.is_customised())
+                           customised=help_center.is_customised(site))
 
 
 @admin_bp.route('/options')

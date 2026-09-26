@@ -1,17 +1,31 @@
 {% extends 'base.html' %}
-{% block title %}Help &amp; FAQ – Admin{% endblock %}
+{% block title %}{{ site_label }} questions – Admin{% endblock %}
 {% block content %}
+{# One screen per product. `active` comes from the route so the sidebar lights the line that was
+   clicked, and the hidden `site` field goes with the save: the query string can be stale, the
+   form cannot, and this value decides which product's questions get replaced. #}
 <div class="admin-page">
-  {% with active='help' %}{% include 'admin/_sidebar.html' %}{% endwith %}
+  {% include 'admin/_sidebar.html' %}
   <main class="admin-main">
-    <h1><i class="fa-solid fa-circle-question"></i> Help &amp; FAQ</h1>
-    <p class="opt-intro">Categories and questions for the public
-      <a href="{{ url_for('main.help_page') }}" target="_blank">Help page</a>. Saving publishes straight away.
+    <h1><i class="fa-solid fa-circle-question"></i> Help &amp; FAQ &mdash; {{ site_label }}</h1>
+    <p class="opt-intro">Categories and questions shown on
+      {% if site == 'insurance' %}<a href="{{ public_url('insurance.landing') }}#faq" target="_blank" rel="noopener">the travel-insurance page</a>{%
+      elif site == 'sahayak' %}<a href="{{ public_url('sahayak.landing') }}#faq" target="_blank" rel="noopener">the Sahayak page</a>{%
+      else %}<a href="{{ url_for('main.help_page') }}" target="_blank">the Help page</a>{% endif %}.
+      Saving publishes straight away, and touches this product only.
       {% if customised %}<span class="chip chip-open">customised</span>{% else %}<span class="chip">shipped defaults</span>{% endif %}
     </p>
 
+    {% if site != 'companion' %}
+    <p class="admin-note"><i class="fa-solid fa-circle-info"></i>
+      <span>{{ site_label }} has its own questions. The ones under
+        <a href="{{ url_for('admin.help_center_page') }}">Travel Companion</a> are not shown on
+        {{ 'that page' if site == 'insurance' else 'the Sahayak page' }}, and these are not shown on the Help page.</span></p>
+    {% endif %}
+
     <form method="post" id="helpForm">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <input type="hidden" name="site" value="{{ site }}"/>
 
       <!-- 1. categories -->
       <section class="admin-card">
@@ -61,10 +75,11 @@
             <button type="submit" class="btn btn-primary hc-side-btn">
               <i class="fa-solid fa-floppy-disk"></i> Save
             </button>
-            <p class="muted small hc-side-note">Save publishes every category and question, not just this one.</p>
+            <p class="muted small hc-side-note">Save publishes every {{ site_label }} category and
+              question, not just the one on screen. The other products are left alone.</p>
             <button type="submit" name="action" value="reset" class="hc-reset"
-                    onclick="return confirm('Discard your version and restore the shipped questions?')">
-              Reset to defaults
+                    onclick="return confirm('Discard your version of the {{ site_label }} questions and restore the ones we ship?')">
+              Reset {{ site_label }} to defaults
             </button>
           </aside>
 

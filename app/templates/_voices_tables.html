@@ -60,7 +60,7 @@
     <tr>
       {# No "Decided by": a Feedback row records no approver, and a column that is
          always a dash is noise rather than structure. #}
-      <th>When</th><th>From</th><th>Rating</th><th>Review</th>
+      <th>When</th><th>From</th><th>About</th><th>Rating</th><th>Review</th>
       <th>Status</th><th>Home page</th><th>Move to</th>
     </tr>
   </thead>
@@ -70,6 +70,7 @@
       <td class="nowrap">{{ fb.created_at|ist('%d %b %Y<br/>%H:%M')|safe if fb.created_at }}</td>
       <td><strong>{{ fb.user.username if fb.user else 'A traveller' }}</strong>
         {% if fb.user %}<br/><a href="mailto:{{ fb.user.email }}">{{ fb.user.email }}</a>{% endif %}</td>
+      <td class="nowrap"><span class="badge-pill {{ 'green' if fb.site == 'insurance' else 'yellow' if fb.site == 'sahayak' }}">{{ fb.site_label }}</span></td>
       <td class="nowrap vc-stars" aria-label="{{ fb.rating }} out of 5">
         {%- for i in range(fb.rating) %}★{% endfor -%}
         {%- for i in range(5 - fb.rating) %}<span class="vc-star-off">★</span>{% endfor -%}
@@ -94,7 +95,7 @@
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="7" class="muted" style="text-align:center;padding:30px">No feedback yet.</td></tr>
+    <tr><td colspan="8" class="muted" style="text-align:center;padding:30px">No reviews here yet.</td></tr>
   {% endfor %}
   </tbody>
 </table>

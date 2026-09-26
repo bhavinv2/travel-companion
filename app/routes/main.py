@@ -146,14 +146,18 @@ def _landing_structured_data(landing_faqs, review_stats):
     return {'@context': 'https://schema.org', '@graph': graph}
 
 
-def _review_stats():
+def _review_stats(site='companion'):
     """Honest rating summary computed straight from SQL. Below a handful of reviews, a specific
     average reads as invented, so callers show generic praise instead until there is enough
-    real signal."""
+    real signal.
+
+    Per product: an average pooled from flight companions and insurance buyers would describe
+    neither, and the page it appears on is about one of them.
+    """
     from sqlalchemy import func
     from app import db
     count, avg = db.session.query(func.count(Feedback.id), func.avg(Feedback.rating)) \
-        .filter(Feedback.is_approved.is_(True)).one()
+        .filter(Feedback.is_approved.is_(True), Feedback.site == site).one()
     return {'avg': round(avg, 1) if avg is not None else None, 'count': count or 0,
             'credible': (count or 0) >= 3}
 
@@ -161,10 +165,11 @@ def _review_stats():
 @main_bp.route('/')
 def index():
     # Featured reviews (hand-picked by CS/admin) show on the public face — now the landing.
-    approved_feedback = (Feedback.query.filter_by(is_approved=True, is_featured=True)
+    approved_feedback = (Feedback.query.filter_by(is_approved=True, is_featured=True, site='companion')
                          .order_by(Feedback.created_at.desc()).limit(6).all())
     if not approved_feedback:   # nothing hand-picked yet: the newest approved keep the section alive
-        approved_feedback = Feedback.query.filter_by(is_approved=True).order_by(Feedback.created_at.desc()).limit(6).all()
+        approved_feedback = (Feedback.query.filter_by(is_approved=True, site='companion')
+                             .order_by(Feedback.created_at.desc()).limit(6).all())
     review_stats = _review_stats()
     # The public marketing landing is the face of the app; the functional home (post form +
     # Desis on Move) is for signed-in travellers only. Admins can force a preview.
@@ -271,10 +276,22 @@ def how_it_works():
 def reviews():
     """Public reviews page: every approved review (not just the hand-picked few featured on the
     landing), and — for signed-in travellers — the same "leave a review" form as the home page.
-    This is what the landing's "Read all reviews" and the app footer's "Reviews" link point to."""
-    feedbacks = (Feedback.query.filter_by(is_approved=True)
+    This is what the landing's "Read all reviews" and the app footer's "Reviews" link point to.
+
+    `?site=` says which product is being reviewed. The travel-insurance page sends people here
+    with it set, so what somebody writes lands back on the page they came from rather than
+    among the flight-companion reviews.
+    """
+    from app.models import REVIEW_SITES, REVIEW_SITE_LABELS
+    site = (request.args.get('site') or 'companion').strip().lower()
+    if site not in REVIEW_SITES:
+        site = 'companion'
+    feedbacks = (Feedback.query.filter_by(is_approved=True, site=site)
                 .order_by(Feedback.created_at.desc()).limit(60).all())
-    return render_template('pages/reviews.html', feedbacks=feedbacks, review_stats=_review_stats())
+    return render_template('pages/reviews.html', feedbacks=feedbacks,
+                           review_stats=_review_stats(site), site=site,
+                           site_label=REVIEW_SITE_LABELS[site],
+                           sites=[(k, REVIEW_SITE_LABELS[k]) for k in REVIEW_SITES if k != 'sahayak'])
 
 
 @main_bp.route('/robots.txt')
@@ -608,9 +625,14 @@ def api_insurance_quote():
 
 @main_bp.route('/help')
 def help_page():
-    """Topic index. Each category links to its own page rather than filtering in place."""
+    """Topic index. Each category links to its own page rather than filtering in place.
+
+    The companion app's questions only: travel insurance and Sahayak have their own pages and
+    their own questions, and mixing all three here would answer about a service the reader did
+    not come for.
+    """
     from app.services import help_center
-    grouped = help_center.grouped()
+    grouped = help_center.grouped(help_center.DEFAULT_SITE)
     # flat index so the topic page can search every answer and link straight to its page
     index = [{'q': f['question'], 'a': f['answer'], 'id': f['id'], 'cat': cat['title'],
               'url': url_for('main.help_category', category=cat['key'])}
@@ -624,7 +646,7 @@ def help_category(category):
     """One category's questions, with a way back to the index."""
     from flask import abort
     from app.services import help_center
-    grouped = help_center.grouped()
+    grouped = help_center.grouped(help_center.DEFAULT_SITE)
     match = next(((c, items) for c, items in grouped if c['key'] == category), None)
     if match is None:
         abort(404)

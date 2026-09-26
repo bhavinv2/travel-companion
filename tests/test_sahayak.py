@@ -45,17 +45,19 @@ def test_the_page_follows_the_admin_catalogue(client, db):
     assert 'Blood draw (phlebotomy)' not in html        # the defaults are gone once it is edited
 
 
-def test_questions_come_from_the_shared_help_centre(client, db):
-    cats = help_center.categories() + [{'key': sahayak.FAQ_CATEGORY, 'title': 'Sahayak',
-                                        'icon': 'fa-house-medical', 'blurb': 'Home visits'}]
-    faqs = help_center.faqs() + [{'id': 'sk1', 'category': sahayak.FAQ_CATEGORY,
-                                  'question': 'Can I book for my parents from abroad?',
-                                  'answer': 'Yes. You book and we call them to confirm.'}]
-    help_center.save(cats, faqs)
+def test_questions_come_from_this_products_help_screen(client, db):
+    """Sahayak has its own questions and its own screen. They used to be a category inside the
+    companion app's list, which is why nobody could find where to write one."""
+    help_center.save([{'key': sahayak.FAQ_CATEGORY, 'title': 'Sahayak',
+                       'icon': 'fa-house-medical', 'blurb': 'Home visits'}],
+                     [{'id': 'sk1', 'category': sahayak.FAQ_CATEGORY,
+                       'question': 'Can I book for my parents from abroad?',
+                       'answer': 'Yes. You book and we call them to confirm.'}],
+                     site='sahayak')
     html = client.get('/sahayak').data.decode()
     assert 'Can I book for my parents from abroad?' in html
-    other = [f for f in help_center.faqs() if f['category'] != sahayak.FAQ_CATEGORY]
-    assert other[0]['question'] not in html            # only this page's category
+    other = help_center.faqs('companion')
+    assert other and other[0]['question'] not in html      # only this product's questions
 
 
 # ---------------------------------------------------------------------------

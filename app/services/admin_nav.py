@@ -18,8 +18,10 @@ Two judgements worth stating, because they are the ones most likely to be wrong 
 
   * The Dashboard is not in any tab. It reports across all three, so burying it under one would
     be a lie about what it shows.
-  * Help & FAQ sits under Travel Companion even though the insurance page reads its own category
-    from it. It is one screen with one URL, and listing it twice would suggest there are two.
+  * Help & FAQ appears under all three, because there are now three sets of questions: one
+    screen, one URL, a `site` in the query string, and a save that touches only what is on it.
+    It used to be a single list under Travel Companion that the other two pages read a category
+    out of -- which is why nobody could find where the insurance questions were edited.
 """
 
 
@@ -54,6 +56,8 @@ SECTIONS = [
             _item('voices_insurance', 'admin.voices', 'Enquiries', 'fa-envelope',
                   tab='contact', topic='insurance'),
             _item('insurance_page', 'admin.insurance_page_content', 'Page content', 'fa-quote-left'),
+            _item('help_insurance', 'admin.help_center_page', 'Help & FAQ', 'fa-circle-question',
+                  site='insurance'),
         ],
     },
     {
@@ -63,6 +67,8 @@ SECTIONS = [
         'items': [
             _item('sahayak', 'admin.sahayak_bookings', 'Bookings', 'fa-house-medical'),
             _item('sahayak_services', 'admin.sahayak_services', 'Services & prices', 'fa-list-check'),
+            _item('help_sahayak', 'admin.help_center_page', 'Help & FAQ', 'fa-circle-question',
+                  site='sahayak'),
         ],
     },
     {
@@ -135,13 +141,17 @@ _SECTION_BY_ENDPOINT.update(SIDE_SCREENS)
 
 
 def section_for_endpoint(endpoint, args=None):
-    """Which tab an endpoint belongs to. The enquiry inbox is one endpoint in two tabs, so the
-    query string settles it -- same rule as current_key."""
+    """Which tab an endpoint belongs to. Two screens answer for more than one product -- the
+    enquiry inbox and the help centre -- so for those the query string settles it, the same rule
+    current_key follows."""
+    args = args or {}
     if endpoint == 'admin.voices':
-        args = args or {}
         if (args.get('tab') or 'contact') == 'contact' and args.get('topic') == 'insurance':
             return 'insurance'
         return 'companion'
+    if endpoint == 'admin.help_center_page':
+        site = args.get('site')
+        return site if site in ('insurance', 'sahayak') else 'companion'
     return _SECTION_BY_ENDPOINT.get(endpoint or '')
 
 

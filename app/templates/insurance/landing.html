@@ -6,11 +6,13 @@
    hands it everything the server decides.
 
    Nothing on the page is hard-coded copy any more:
-     * testimonials -> Admin -> Insurance page
-     * questions    -> Admin -> Help & FAQ, the travel-insurance category
-     * enquiries    -> the same ContactMessage inbox CS already works from
-   The bundle falls back to the arrays it shipped with only when nothing is injected, which is
-   how `npm run dev` keeps working standalone. #}
+     * reviews   -> approved Feedback rows for this product (Admin -> Travel Insurance ->
+                    Feedback), written by people who used it
+     * questions -> Admin -> Travel Insurance -> Help & FAQ
+     * enquiries -> the same ContactMessage inbox CS already works from
+   Neither list has a fallback. Both sections are gone from the page when their list is empty,
+   which is also what `npm run dev` shows standalone -- there is no second version of this page
+   saying things no screen controls. #}
 {% block title %}Travel Insurance for Every Journey – NRI Parent Service{% endblock %}
 
 {# This page is its own product, so the brand line names it. Everywhere else it reads
@@ -46,7 +48,7 @@
   window.__INSURANCE__ = {{ {
     'chrome': false,
     'reviews': reviews,
-    'reviewsAreSamples': reviews_are_samples,
+    'reviewsUrl': reviews_url,
     'faqs': faqs,
     'enquiryUrl': url_for('insurance.enquiry'),
     'csrfToken': csrf_token(),
