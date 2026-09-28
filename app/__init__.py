@@ -148,6 +148,11 @@ def create_app(test_config=None):
     # Private uploads (ticket attachments etc.) live OUTSIDE /static and are served via an authorised route.
     app.config['PRIVATE_UPLOAD_FOLDER'] = os.environ.get('PRIVATE_UPLOAD_FOLDER', 'instance/private_uploads')
     app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('MAX_CONTENT_LENGTH', 16777216))
+    # Flask-WTF's default is 3600s: a CS agent who opens "New post", takes a call and submits an
+    # hour later loses the whole form. The token is still tied to the signed session cookie, so
+    # letting it live as long as the session does not weaken CSRF protection.
+    _csrf_limit = os.environ.get('WTF_CSRF_TIME_LIMIT')
+    app.config['WTF_CSRF_TIME_LIMIT'] = int(_csrf_limit) if _csrf_limit else None
 
     # Site / Phase 2 settings
     app.config['SITE_URL'] = os.environ.get('SITE_URL', 'https://connectingdesis.com').rstrip('/')
@@ -282,6 +287,22 @@ def create_app(test_config=None):
         # their own landing page, unless that is the very thing they cannot open
         home = 'cs.home' if cs_access.can_open(current_user, 'home') else 'main.index'
         return redirect(url_for(home))
+
+    from flask_wtf.csrf import CSRFError
+
+    @app.errorhandler(CSRFError)
+    def _csrf_error(e):
+        """Send the user back to the form with a message instead of a bare 400 page."""
+        from flask import flash, jsonify, redirect, request
+
+        if request.is_json or request.accept_mimetypes.best == 'application/json':
+            return jsonify(error='Your session expired. Please reload the page and try again.'), 400
+        flash('Your session expired before the form was sent. Please fill it in again and submit.',
+              'warning')
+        back = request.referrer
+        if not back or not back.startswith(request.host_url):
+            back = request.url
+        return redirect(back)
 
     @app.url_defaults
     def _static_cache_bust(endpoint, values):
