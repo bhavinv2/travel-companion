@@ -152,7 +152,7 @@ def create_app(test_config=None):
     # hour later loses the whole form. The token is still tied to the signed session cookie, so
     # letting it live as long as the session does not weaken CSRF protection.
     _csrf_limit = os.environ.get('WTF_CSRF_TIME_LIMIT')
-    app.config['WTF_CSRF_TIME_LIMIT'] = int(_csrf_limit) if _csrf_limit else None
+    app.config['WTF_CSRF_TIME_LIMIT'] = int(_csrf_limit) if _csrf_limit and _csrf_limit.isdigit() else None
 
     # Site / Phase 2 settings
     app.config['SITE_URL'] = os.environ.get('SITE_URL', 'https://connectingdesis.com').rstrip('/')
