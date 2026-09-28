@@ -295,7 +295,9 @@ def create_app(test_config=None):
         """Send the user back to the form with a message instead of a bare 400 page."""
         from flask import flash, jsonify, redirect, request
 
-        if request.is_json or request.accept_mimetypes.best == 'application/json':
+         if (request.is_json or 'X-CSRFToken' in request.headers
+                or request.path.startswith('/api/')
+                or request.accept_mimetypes.best == 'application/json'):
             return jsonify(error='Your session expired. Please reload the page and try again.'), 400
         flash('Your session expired before the form was sent. Please fill it in again and submit.',
               'warning')
