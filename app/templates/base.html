@@ -11,6 +11,36 @@
      page that opens with a form is usually the field labels. Each page that has something better
      to say overrides the block. #}
   <meta name="description" content="{% block meta_description %}NRI Parent Service connects Indian parents travelling abroad with verified companions on the same flight, and arranges the travel cover for the trip.{% endblock %}"/>
+  {# Open Graph / Twitter Card: what WhatsApp, Facebook and X show when somebody shares a link.
+
+     Title and description are the page's OWN blocks, so a preview can never end up describing a
+     different page from the one it opens.
+
+     The image is per page and is passed in as `share_image` -- an absolute URL, and a SMALL
+     file. WhatsApp's preview fetcher skips images past roughly 300KB, which is why pointing
+     this at a full-size hero is a tag that quietly does nothing: the shared crops in
+     static/img/share are 1200x630 and around 160KB, which is the size the one working preview
+     on this site already had. A page with no share image says so by sending a small card rather
+     than a large one with a hole in it. #}
+  {% set _share = share_image|default('') %}
+  <meta property="og:type" content="website"/>
+  <meta property="og:site_name" content="NRI Parent Service"/>
+  <meta property="og:title" content="{{ self.title()|striptags|trim }}"/>
+  <meta property="og:description" content="{{ self.meta_description()|striptags|trim }}"/>
+  <meta property="og:url" content="{{ canonical_url|default(request.base_url) }}"/>
+  <meta property="og:locale" content="en_US"/>
+  {% if _share %}
+  <meta property="og:image" content="{{ _share }}"/>
+  <meta property="og:image:secure_url" content="{{ _share }}"/>
+  <meta property="og:image:type" content="image/jpeg"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:image:alt" content="{{ share_image_alt|default(self.title()|striptags|trim) }}"/>
+  {% endif %}
+  <meta name="twitter:card" content="{{ 'summary_large_image' if _share else 'summary' }}"/>
+  <meta name="twitter:title" content="{{ self.title()|striptags|trim }}"/>
+  <meta name="twitter:description" content="{{ self.meta_description()|striptags|trim }}"/>
+  {% if _share %}<meta name="twitter:image" content="{{ _share }}"/>{% endif %}
   {% block extra_head %}{% endblock %}
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo-icon.png') }}"/>
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/logo-icon.png') }}"/>

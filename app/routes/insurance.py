@@ -195,7 +195,16 @@ def landing():
                            ads_conversions=ads.conversions(),
                            # the page's own title and description, so what the schema claims and
                            # what the page says are one decision rather than two
-                           page_title=PAGE_NAME, page_description=PAGE_DESCRIPTION)
+                           page_title=PAGE_NAME, page_description=PAGE_DESCRIPTION,
+                           # the link preview on WhatsApp and the rest. A 1200x630 crop of the
+                           # hero rather than the hero itself: the full file is 341KB, past the
+                           # size WhatsApp's fetcher will take, and a skipped image is why this
+                           # page previewed as a bare logo.
+                           share_image=url_for('static',
+                                               filename='img/share/travel-insurance.jpg',
+                                               _external=True),
+                           share_image_alt=('Senior Indian couple with their suitcases at the '
+                                            'departure gate at sunset'))
 
 
 @insurance_bp.route('/travel-insurances')
