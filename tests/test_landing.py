@@ -42,7 +42,7 @@ def test_admin_landing_settings_save_and_inject(client, db, admin_user):
     assert ls['contact_email'] == 'x@y.com' and ls['contact_email_enabled'] is True
     assert ls['colors']['amber'] == '#123456'
     # the colour is injected into the logged-out landing
-    client.get('/auth/logout')
+    client.post('/auth/logout')
     assert '--amber:#123456' in client.get('/').data.decode()
 
 
@@ -81,12 +81,12 @@ def test_whatsapp_buttons_follow_the_configured_numbers(client, db, admin_user, 
     login(client, 'bob@test.com')
     html = client.get('/').data.decode()
     assert 'data-wa-open' in html and html.count('id="waChooser"') == 1
-    client.get('/auth/logout')
+    client.post('/auth/logout')
     # admins set the numbers from the Landing page screen; clearing hides everything again
     login(client, 'admin@test.com')
     client.post('/admin/landing', data={'contact_email': '', 'whatsapp_in': '', 'whatsapp_us': ''})
     assert settings.landing_settings()['whatsapp_in'] == '' and settings.landing_settings()['whatsapp_us'] == ''
-    client.get('/auth/logout')
+    client.post('/auth/logout')
     assert 'class="wa-btn' not in client.get('/').data.decode()
 
 

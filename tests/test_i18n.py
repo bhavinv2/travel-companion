@@ -84,7 +84,7 @@ def test_header_selector_uses_configured_languages(client, admin_user):
     r = client.post('/admin/options/site_languages',
                     json={'items': [{'code': 'hi', 'label': 'हिंदी', 'mode': 'babel'}]})
     assert not r.get_json().get('error')
-    client.get('/auth/logout')                      # the selector is on traveller pages
+    client.post('/auth/logout')                     # the selector is on traveller pages
     html = client.get(I18N_PAGE).data.decode('utf-8')
     assert 'value="hi"' in html and 'data-mode="babel"' in html
     assert 'value="ta"' not in html                 # removed from the configured list

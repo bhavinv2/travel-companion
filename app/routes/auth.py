@@ -39,13 +39,13 @@ from app.routes.main import staff_home  # noqa: E402
 
 
 def _safe_next(target):
-    """Only allow relative redirects on this site (prevents open redirects)."""
-    if not target:
-        return None
-    p = urlparse(target)
-    if p.scheme or p.netloc or not target.startswith('/') or target.startswith('//'):
-        return None
-    return target
+    """Only allow relative redirects on this site (prevents open redirects).
+
+    The rule lives in services/urls now, because the consoles need the same one: they were
+    redirecting to whatever a form field said, and the form field is on a page anybody can reach.
+    """
+    from app.services.urls import safe_next
+    return safe_next(target)
 
 
 # ---------------------------------------------------------------------------
@@ -490,9 +490,16 @@ def choose_portal():
     return render_template('auth/choose_portal.html', levels=levels)
 
 
-@auth_bp.route('/logout')
+@auth_bp.route('/logout', methods=['POST'])
 @login_required
 def logout():
+    """POST, with the CSRF token every other form carries.
+
+    It was a plain link. Any page anywhere -- an <img> tag in an e-mail, a link in a forum post --
+    could sign somebody out of this site without them doing anything, and on a shared machine
+    that is a way to push somebody onto a login form that is not ours. A GET should not change
+    state; this one changed the most visible state there is.
+    """
     logout_user()
     session.pop('view', None)
     flash('You have been logged out.', 'info')

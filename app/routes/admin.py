@@ -3,6 +3,7 @@ import os
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user, login_user
 from app import db, mail
+from app.services import urls
 from app.models import User, CompanionRequest, Feedback, Blog, Notification, AppSetting, USER_ROLES
 from flask_mail import Message as MailMessage
 from datetime import datetime, timedelta
@@ -589,7 +590,8 @@ def voice_status(mid):
     ActivityEvent.log('contact_message_updated', actor=current_user, contact_id=m.id, status=status)
     db.session.commit()
     flash(f'Marked as {status.replace("_", " ")}.', 'success')
-    return redirect(request.form.get('next') or url_for('admin.voices', tab='contact'))
+    return redirect(urls.safe_next(request.form.get('next'))
+                    or url_for('admin.voices', tab='contact'))
 
 
 @admin_bp.route('/contact')
@@ -1357,7 +1359,7 @@ def notification_log():
         'admin/notifications_log.html', rows=rows, page=page, pages=pages, total=total, f=f,
         categories=[(c, notiflog.CATEGORY_LABELS[c]) for c in notiflog.CATEGORY_ORDER],
         groups=notiflog.SEND_GROUPS, cat_for_type=notiflog.CATEGORY_FOR_TYPE,
-        cat_labels=notiflog.CATEGORY_LABELS, base='/admin/notification-log', can_delete=True)
+        cat_labels=notiflog.CATEGORY_LABELS, base=url_for('admin.notification_log'), can_delete=True)
 
 
 @admin_bp.route('/notification-log/send', methods=['POST'])

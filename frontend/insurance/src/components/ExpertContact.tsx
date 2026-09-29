@@ -4,6 +4,7 @@ import SideDecor from './SideDecor';
 import { PhoneCombo, DestinationCombo } from './CountryCombo';
 import { useReveal } from '../hooks/useReveal';
 import { photo, site } from '../data/site';
+import { track } from '../utils/track';
 
 // Fallbacks only: the served page injects whatever staff set in the admin screens.
 const WHATSAPP_NUMBER = '918019111360';
@@ -52,6 +53,7 @@ export default function ExpertContact() {
 
     // A WhatsApp link somebody never clicks leaves no trace of the enquiry. Record it in the inbox
     // CS already works from first, hand off second; a failed POST must not block the hand-off.
+    track('expert_form');
     if (site.enquiryUrl) {
       try {
         await fetch(site.enquiryUrl, {
@@ -168,7 +170,8 @@ export default function ExpertContact() {
               <div className="cpop-pic">
                 <img src={photo('whatsapp-expert.jpg')} alt="Our travel insurance expert, ready to chat on WhatsApp" width={582} height={326} loading="lazy" decoding="async" />
               </div>
-              <a className="cpop-wa" href={waUrl} target="_blank" rel="noopener noreferrer">
+              <a className="cpop-wa" href={waUrl} target="_blank" rel="noopener noreferrer"
+                 onClick={() => track('whatsapp')}>
                 <Icon name="i-whatsapp" className="ico-solid" style={{ width: 22, height: 22 }} />
                 Chat with Us on WhatsApp
                 <Icon name="i-arrow" className="ico w sm" />

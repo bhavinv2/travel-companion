@@ -16,6 +16,7 @@
  */
 import { SCHENGEN } from '../data/countries';
 import { site } from '../data/site';
+import { track } from './track';
 
 export type PlanKind = 'visitors' | 'health' | 'schengen';
 
@@ -87,7 +88,14 @@ export async function requestQuote(req: QuoteRequest): Promise<QuoteResult> {
       body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => null);
-    if (data && data.success && data.url) return { url: data.url as string };
+    if (data && data.success && data.url) {
+      // Here rather than at the two forms that call this: the hero search and the Get a Free
+      // Quote modal are the same conversion, and counting it once at the point the partner
+      // actually priced the trip means neither a validation error nor a future third caller can
+      // drift from the other.
+      track('quote');
+      return { url: data.url as string };
+    }
     return { error: (data && data.error) || GENERIC };
   } catch {
     return { error: GENERIC };

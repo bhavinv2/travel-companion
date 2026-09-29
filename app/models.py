@@ -755,6 +755,31 @@ class ContactMessage(db.Model):
         }
 
 
+class ContactReply(db.Model):
+    """What we wrote back, kept beside the enquiry it answers.
+
+    Reply used to be a mailto: link, so the answer lived in whoever clicked it's own mailbox and
+    the console showed an enquiry with nothing beside it. `delivered` records whether the mail
+    provider took it -- a reply that failed to send is still worth showing, and worth being able
+    to see failed.
+    """
+    __tablename__ = 'contact_replies'
+
+    id = db.Column(db.Integer, primary_key=True)
+    message_id = db.Column(db.Integer, db.ForeignKey('contact_messages.id', ondelete='CASCADE'),
+                           nullable=False, index=True)
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    body = db.Column(db.Text, nullable=False)
+    delivered = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    message = db.relationship('ContactMessage',
+                              backref=db.backref('replies', lazy='selectin',
+                                                 cascade='all, delete-orphan',
+                                                 order_by='ContactReply.created_at'))
+    author = db.relationship('User', foreign_keys=[author_id])
+
+
 class InsuranceQuote(db.Model):
     """A travel-insurance quote request from the public form.
 

@@ -1165,6 +1165,46 @@ tr.row-edited > td:first-child { box-shadow: inset 3px 0 0 var(--coral); }
 .dd-menu { padding-top: 6px; }
 .dd-menu a i { width: 18px; text-align: center; color: var(--muted); }
 .dd-menu a:hover i, .dd-menu a.danger i { color: inherit; }
+/* Replying to an enquiry, in the console rather than in somebody's own mailbox. */
+.vc-reply-ov { position: fixed; inset: 0; z-index: 9998; background: rgba(15,35,64,.5);
+  display: grid; place-items: center; padding: 20px; }
+.vc-reply-ov[hidden] { display: none; }
+.vc-reply { background: #fff; border-radius: 16px; width: min(600px, 100%); max-height: 90vh;
+  overflow: auto; box-shadow: 0 30px 70px rgba(1,16,56,.3); }
+.vc-reply header { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.vc-reply header h3 { font-size: 17px; font-weight: 800; margin: 0; }
+.vc-reply-x { border: 0; background: none; font-size: 18px; color: var(--muted); cursor: pointer;
+  padding: 4px 8px; border-radius: 8px; }
+.vc-reply-x:hover { background: var(--bg); color: var(--text); }
+.vc-reply form { padding: 18px 20px 20px; }
+.vc-reply-to { display: block; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+.vc-reply-to b { color: var(--text); }
+.vc-reply textarea { width: 100%; border: 1.5px solid var(--border); border-radius: 10px;
+  padding: 12px 14px; font: inherit; font-size: 14px; line-height: 1.55; background: #fbfdff;
+  resize: vertical; }
+.vc-reply textarea:focus { border-color: var(--coral); outline: none; background: #fff;
+  box-shadow: 0 0 0 3px rgba(47,128,237,.16); }
+.vc-reply-act { display: flex; gap: 10px; align-items: center; margin-top: 14px; }
+
+/* a reply already sent, shown under the message it answers */
+.cm-reply { margin-top: 8px; padding: 8px 10px; border-left: 3px solid var(--coral);
+  background: var(--coral-light); border-radius: 0 8px 8px 0; font-size: 12.5px; line-height: 1.5; }
+.cm-reply b { display: block; color: var(--text); font-size: 11.5px; margin-bottom: 3px; }
+.cm-reply b i { margin-right: 5px; }
+.cm-reply span { display: block; color: var(--muted); white-space: pre-wrap; }
+.cm-reply em { display: block; color: #b91c1c; font-style: normal; font-weight: 700; font-size: 11px; }
+.cm-reply.failed { border-left-color: #dc2626; background: #fdecec; }
+
+/* Logout is a form now -- a GET link could be triggered by any page that gets this browser to
+   fetch a URL -- so its button has to read as the menu row it replaced. */
+.menu-logout { margin: 0; }
+.menu-logout button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 16px;
+  font: inherit; font-size: 14px; color: #dc2626; background: none; border: 0; cursor: pointer;
+  text-align: left; transition: background .15s; }
+.menu-logout button:hover { background: var(--bg); }
+.menu-logout button i { width: 18px; text-align: center; color: inherit; }
+.menu-logout button:focus-visible { outline: 3px solid rgba(220,38,38,.3); outline-offset: -3px; }
 
 /* ==== Trip cards: boarding-pass redesign (My Trips / Desis on Move / All Trips / dashboard) ==== */
 .trip-card { padding: 0; border: 1px solid #e3ecf7; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; }
@@ -1967,7 +2007,10 @@ input[type="date"] { cursor: pointer; }
 .cm-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .cm-actions input[type=text] { flex: 1 1 220px; min-width: 0; border: 1px solid var(--border);
   border-radius: 9px; padding: 8px 11px; font-size: 13px; font-family: inherit; }
-.cm-cell { max-width: 460px; white-space: pre-wrap; font-size: 13.5px; }
+/* The message is what an agent is on this screen to read, and it was the narrowest column
+   in the table -- narrower than Phone -- because eight columns shared the width and only
+   this one was allowed to wrap. It gets a floor now; the table scrolls instead. */
+.cm-cell { min-width: 320px; max-width: 460px; white-space: pre-wrap; font-size: 13.5px; }
 .nowrap { white-space: nowrap; }
 
 /* ---- home page "Talk to us": contact / review tabs --------------------------- */

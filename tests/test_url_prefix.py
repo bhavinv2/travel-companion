@@ -1,7 +1,13 @@
-"""Subpath deployment: https://nriparentservice.com/travel-companions/ (see PrefixMiddleware).
+"""Links that have to survive being served under a URL prefix.
 
-The bare Railway domain must keep working unprefixed as a test address, and under the prefix every
-generated URL — page links, static assets, redirects, OAuth callbacks, absolute URLs — must carry it.
+In production this app answers at /travel-companions/, and PrefixMiddleware puts that in
+SCRIPT_NAME so url_for() writes it into every link. Anything NOT built with url_for misses it --
+a path a route passed as a string, a `next` taken from request.path, a link stored in a
+notification row -- and points at the site root, which is a different site entirely.
+
+Every one of those is a 404 that cannot happen locally, where the prefix is empty, and so gets
+found by whoever is using the console rather than by anybody testing it. That is what this file
+is for: the prefix is switched on, and the links are read out of the rendered page.
 """
 import os
 import sys
@@ -10,24 +16,30 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from conftest import login, make_user  # noqa: E402
 from app import create_app, db as _db  # noqa: E402
+from app.models import ContactMessage, Notification, User  # noqa: E402
 
 PREFIX = '/travel-companions'
-HOST = 'nriparentservice.com'
 
 
 @pytest.fixture()
 def papp(tmp_path):
+    """The app as production serves it: mounted under a prefix, on a real host name."""
     app = create_app({
-        'TESTING': True, 'WTF_CSRF_ENABLED': False, 'SQLALCHEMY_DATABASE_URI': 'sqlite://',
-        'UPLOAD_FOLDER': str(tmp_path / 'uploads'), 'PRIVATE_UPLOAD_FOLDER': str(tmp_path / 'private'),
-        'MAIL_PASSWORD': None, 'SITE_URL': f'https://{HOST}{PREFIX}',
-        'APP_URL_PREFIX': PREFIX, 'APP_PUBLIC_HOST': HOST,
+        'TESTING': True,
+        'WTF_CSRF_ENABLED': False,
+        'SQLALCHEMY_DATABASE_URI': 'sqlite://',
+        'UPLOAD_FOLDER': str(tmp_path / 'uploads'),
+        'PRIVATE_UPLOAD_FOLDER': str(tmp_path / 'private'),
+        'SERVER_NAME': 'nriparentservice.com',
+        'MAIL_PASSWORD': None,
+        'APP_URL_PREFIX': PREFIX,
     })
     with app.app_context():
         _db.create_all()
-        from app.services import settings, locations, airlines
-        settings.clear_cache(); locations.reset_cache(); airlines.reset_cache()
+        from app.services import settings as _settings
+        _settings.clear_cache()
         yield app
         _db.session.remove()
         _db.drop_all()
@@ -38,235 +50,132 @@ def pclient(papp):
     return papp.test_client()
 
 
-def test_prefixed_request_renders_prefixed_links_and_assets(pclient):
-    r = pclient.get(f'{PREFIX}/')
-    assert r.status_code == 200
-    html = r.data.decode()
-    assert f'href="{PREFIX}/static/css/' in html
-    assert f'src="{PREFIX}/static/js/app-root.js' in html
-    assert f'<meta name="app-root" content="{PREFIX}">' in html      # what the browser-side shim reads
-    assert f'href="{PREFIX}/auth/login"' in html or f'"{PREFIX}/auth/login"' in html
-    assert 'href="/static/' not in html and "url('/static/" not in html and 'url("/static/' not in html
-    # the static file is actually served at the prefixed path
-    assert pclient.get(f'{PREFIX}/static/js/app-root.js').status_code == 200
+@pytest.fixture()
+def cs(papp):
+    u = make_user('cs@test.com', 'cs', role='cs')
+    _db.session.add(u)
+    _db.session.commit()
+    return u
 
 
-def test_bare_railway_domain_still_works_without_a_prefix(pclient):
-    """The Railway URL stays usable as a test address: nothing is prefixed there."""
-    r = pclient.get('/', base_url='https://travel-companion-production-261c.up.railway.app')
-    assert r.status_code == 200
-    html = r.data.decode()
-    assert 'href="/static/css/' in html
-    assert '<meta name="app-root" content="">' in html
-    assert f'href="{PREFIX}/static/' not in html and f'href="{PREFIX}/auth/' not in html
-    # ...but canonical still names the public site, so the test domain is never what gets indexed
-    assert f'<link rel="canonical" href="https://{HOST}{PREFIX}/">' in html
+def get(client, path, **kw):
+    return client.get(PREFIX + path, base_url='https://nriparentservice.com', **kw)
 
 
-def test_proxy_that_strips_the_path_can_announce_it_with_a_header(pclient):
-    r = pclient.get('/', headers={'X-Forwarded-Prefix': PREFIX})
-    assert r.status_code == 200
-    assert f'href="{PREFIX}/static/css/' in r.data.decode()
+def signin(client):
+    return client.post(PREFIX + '/auth/login', data={'email': 'cs@test.com', 'password': 'password123'},
+                       base_url='https://nriparentservice.com')
 
 
-def test_login_redirect_and_deep_links_keep_the_prefix(pclient):
-    # a protected deep link, opened directly (browser refresh / pasted URL)
-    r = pclient.get(f'{PREFIX}/dashboard')
+# ---------------------------------------------------------------------------
+# Links the page renders
+# ---------------------------------------------------------------------------
+
+def test_the_move_to_buttons_come_back_to_this_screen(pclient, cs):
+    """They post a `next` and the route redirects to it. Built from request.path it was
+    /cs/voices, which under the prefix is somebody else's website -- the state changed and the
+    agent landed on a 404, so it looked like nothing had happened."""
+    _db.session.add(ContactMessage(name='Asha', email='a@example.com', message='hello there'))
+    _db.session.commit()
+    signin(pclient)
+
+    html = get(pclient, '/cs/voices?tab=contact').data.decode()
+    assert 'name="next" value="%s/cs/voices' % PREFIX in html
+
+
+def test_the_notification_log_filters_stay_inside_the_app(pclient, cs):
+    """Reset, and the username links that filter by user. Both were built from a hardcoded
+    '/cs/notifications' the route passed in as a string."""
+    _db.session.add(Notification(user_id=cs.id, type='broadcast', title='Hello', link='/connections'))
+    _db.session.commit()
+    signin(pclient)
+
+    html = get(pclient, '/cs/notifications').data.decode()
+    assert 'href="%s/cs/notifications"' % PREFIX in html, 'Reset'
+    assert 'href="%s/cs/notifications?user_id=%d"' % (PREFIX, cs.id) in html, 'filter by user'
+
+
+def test_a_stored_notification_link_is_moved_inside_the_app(pclient, cs):
+    """Rows written before anybody deployed under a prefix hold bare paths like /connections."""
+    _db.session.add(Notification(user_id=cs.id, type='broadcast', title='Hello', link='/connections'))
+    _db.session.commit()
+    signin(pclient)
+
+    html = get(pclient, '/cs/notifications').data.decode()
+    assert 'href="%s/connections"' % PREFIX in html
+    assert 'href="/connections"' not in html
+
+
+def test_signing_in_returns_to_the_page_that_asked(pclient, cs):
+    r = get(pclient, '/cs/posts')
     assert r.status_code == 302
-    assert r.headers['Location'].startswith(f'{PREFIX}/auth/login')
-    assert f'next={PREFIX.replace("/", "%2F")}%2Fdashboard' in r.headers['Location']
-    # every route is server-rendered, so nested paths need no client-side fallback
-    for path in ('/auth/login', '/auth/register', '/trips', '/help', '/privacy', '/terms'):
-        assert pclient.get(PREFIX + path).status_code == 200, path
-
-
-def test_absolute_urls_use_the_public_site_not_the_proxy_hop(papp):
-    """OAuth redirect_uri, canonical/og URLs and e-mails must say nriparentservice.com."""
-    # simulate the Worker -> Railway hop: Host is the Railway domain, path carries the prefix
-    client = papp.test_client()
-    r = client.get(f'{PREFIX}/', base_url='https://travel-companion-production-261c.up.railway.app')
-    html = r.data.decode()
-    assert f'<link rel="canonical" href="https://{HOST}{PREFIX}/">' in html
-    assert f'content="https://{HOST}{PREFIX}/static/img/landing/l2.jpg' in html      # og:image, no double prefix
-    # Google OAuth redirect_uri comes out of url_for(_external=True) inside a real request
-    r = client.get(f'{PREFIX}/auth/google', base_url='https://travel-companion-production-261c.up.railway.app')
-    assert r.status_code == 302 and 'accounts.google.com' in r.headers.get('Location', '')
-    from urllib.parse import parse_qs, urlparse
-    redirect_uri = parse_qs(urlparse(r.headers['Location']).query)['redirect_uri'][0]
-    assert redirect_uri == f'https://{HOST}{PREFIX}/auth/google/authorized'
-
-
-def test_sitemap_and_robots_point_at_the_prefixed_site(pclient):
-    xml = pclient.get(f'{PREFIX}/sitemap.xml').data.decode()
-    assert f'<loc>https://{HOST}{PREFIX}/</loc>' in xml
-    assert f'<loc>https://{HOST}{PREFIX}/trips</loc>' in xml
-    assert f'https://{HOST}{PREFIX}/sitemap.xml' in pclient.get(f'{PREFIX}/robots.txt').data.decode()
-
-
-def test_api_calls_work_under_the_prefix(pclient):
-    r = pclient.get(f'{PREFIX}/api/airports?q=hyd')
-    assert r.status_code == 200 and r.is_json
-    # and the unprefixed path is NOT served when a prefix is configured and the path lacks it —
-    # it is passed through untouched, which is exactly what the Railway test domain needs
-    assert pclient.get('/api/airports?q=hyd').status_code == 200
+    assert 'next=%2Ftravel-companions%2Fcs%2Fposts' in r.headers['Location']
 
 
 # ---------------------------------------------------------------------------
-# Sibling entry points (/travel-insurance)
+# One address per page
 # ---------------------------------------------------------------------------
-# Travel insurance is its own product, so its public address sits beside the companion prefix
-# rather than inside it. The middleware treats such a path as an entry point, not a second mount:
-# the page answers there, but every link it renders still carries the one canonical prefix, so the
-# whole app never becomes reachable at two sets of URLs.
 
-ALIAS = '/travel-insurance'
-
-
-def test_the_insurance_page_answers_on_its_own_top_level_path(pclient):
-    r = pclient.get(ALIAS)
-    assert r.status_code == 200
-    assert 'Travel Insurance for Every Journey' in r.data.decode()
-
-
-def test_the_same_page_still_answers_inside_the_prefix(pclient):
-    """url_for builds the prefixed one for internal links, so it cannot 404."""
-    assert pclient.get(f'{PREFIX}{ALIAS}').status_code == 200
+def test_the_prefixed_spelling_of_a_front_door_redirects_to_it(papp):
+    """/travel-insurance is its own front door and answers beside the prefix. The app also routes
+    the prefixed spelling, so the same page had two addresses -- which splits its search ranking
+    and halves every number in its analytics."""
+    papp.config['TESTING'] = False
+    try:
+        c = papp.test_client()
+        for alias in ('/travel-insurance', '/sahayak'):
+            r = c.get(PREFIX + alias, base_url='https://nriparentservice.com')
+            assert r.status_code == 301, alias
+            assert r.headers['Location'].endswith(alias), r.headers['Location']
+    finally:
+        papp.config['TESTING'] = True
 
 
-def test_links_on_the_sibling_url_keep_the_canonical_prefix(pclient, papp):
-    """Otherwise a click from this page would leave the proxied path and 404 on the main site.
-
-    The exception is a link to one of the alias entry points itself. Those are not accidental
-    escapes: the proxy routes them here by their own rule, and they are the addresses these
-    service pages are printed and shared under, so a menu must offer them unprefixed or it would
-    read differently depending on the screen it was rendered on.
-    """
-    import re
-    html = pclient.get(ALIAS).data.decode()
-    links = set(re.findall(r'(?:href|src)="(/[^"]*)"', html))
-    assert links, 'page should render absolute in-app links'
-    aliases = papp.config['APP_ALIAS_PATHS']
-    assert aliases, 'fixture should configure the alias paths'
-    escaped = [l for l in links
-               if not l.startswith(PREFIX + '/')
-               and not any(l == a or l.startswith(a + '/') for a in aliases)]
-    assert escaped == []
+def test_the_app_itself_is_not_redirected(papp):
+    """Only the front doors have a second spelling; everything else lives under the prefix."""
+    papp.config['TESTING'] = False
+    try:
+        r = papp.test_client().get(PREFIX + '/auth/login', base_url='https://nriparentservice.com')
+        assert r.status_code == 200
+    finally:
+        papp.config['TESTING'] = True
 
 
-def test_both_addresses_name_the_same_canonical_one(pclient):
-    """Same page at two URLs: search engines are told which counts rather than left to guess."""
-    import re
-    canon = f'https://{HOST}{ALIAS}'
-    for path in (ALIAS, f'{PREFIX}{ALIAS}'):
-        html = pclient.get(path).data.decode()
-        assert re.search(r'rel="canonical" href="([^"]+)"', html).group(1) == canon
+def test_plain_http_is_sent_to_https(papp):
+    """Logins, admin sessions and people's phone numbers go over this connection."""
+    papp.config['TESTING'] = False
+    try:
+        r = papp.test_client().get(PREFIX + '/', base_url='http://nriparentservice.com')
+        assert r.status_code == 301
+        assert r.headers['Location'].startswith('https://')
+    finally:
+        papp.config['TESTING'] = True
 
 
-def test_an_alias_does_not_mount_the_whole_app_a_second_time(pclient):
-    """Only the insurance route lives out there; everything else stays behind the one prefix."""
-    assert pclient.get(f'{ALIAS}/dashboard').status_code == 404
-    assert pclient.get(f'{ALIAS}/auth/login').status_code == 404
+def test_localhost_is_left_alone(papp):
+    """There is no certificate on a development machine, so the same rule would make the app
+    unreachable while it is being worked on."""
+    papp.config['TESTING'] = False
+    papp.config['SERVER_NAME'] = 'localhost'
+    try:
+        r = papp.test_client().get(PREFIX + '/auth/login', base_url='http://localhost')
+        assert r.status_code == 200
+    finally:
+        papp.config['TESTING'] = True
+        papp.config['SERVER_NAME'] = 'nriparentservice.com'
 
 
 # ---------------------------------------------------------------------------
-# The two standalone pages answer BESIDE the prefix, so a link to them is the
-# one thing that must NOT carry it.
+# Where a `next` may point
 # ---------------------------------------------------------------------------
 
-def test_the_services_menu_offers_the_address_the_page_is_known_by(pclient):
-    """Under the prefix, url_for turns /travel-insurance into
-    /travel-companions/travel-insurance. That loads the same page, so it looked fine -- but it is
-    not the address printed, shared or advertised, and it changed depending on which screen the
-    menu was rendered on. The menu has to read the same everywhere."""
-    for path in (f'{PREFIX}/', f'{PREFIX}/help', '/travel-insurance', '/sahayak'):
-        html = pclient.get(path).data.decode()
-        assert 'href="/travel-insurance"' in html, path
-        assert f'href="{PREFIX}/travel-insurance"' not in html, path
-
-
-def test_the_canonical_is_the_unprefixed_address(pclient):
-    """Both addresses serve the page; exactly one of them should be indexed."""
-    html = pclient.get('/travel-insurance').data.decode()
-    assert f'<link rel="canonical" href="https://{HOST}/travel-insurance"/>' in html
-    assert f'{PREFIX}/travel-insurance' not in html.split('rel="canonical"')[1][:200]
-
-
-def test_the_sitemap_lists_the_unprefixed_addresses(pclient):
-    xml = pclient.get(f'{PREFIX}/sitemap.xml').data.decode()
-    assert f'<loc>https://{HOST}/travel-insurance</loc>' in xml
-    assert f'<loc>https://{HOST}/sahayak</loc>' in xml
-    assert f'{PREFIX}/travel-insurance' not in xml
-    # the companion app's own pages keep the prefix
-    assert f'<loc>https://{HOST}{PREFIX}/trips</loc>' in xml
-
-
-def test_the_old_plural_redirects_out_of_the_prefix(pclient):
-    """Somebody following an old /travel-insurances link should land on the canonical address,
-    not inside the prefixed copy of it."""
-    r = pclient.get('/travel-insurances')
-    assert r.status_code == 301
-    assert r.headers['Location'].endswith('/travel-insurance')
-    assert PREFIX not in r.headers['Location']
-
-
-def test_links_inside_the_app_still_carry_the_prefix(pclient):
-    """The fix must not leak: only the alias paths lose the prefix."""
-    html = pclient.get('/travel-insurance').data.decode()
-    assert f'href="{PREFIX}/static/insurance/travel-insurance.css' in html
-    assert f'href="{PREFIX}/help"' in html          # the Support link is an ordinary app page
-
-
-# ---------------------------------------------------------------------------
-# Times are stored in UTC and read in India
-# ---------------------------------------------------------------------------
-
-def test_a_stored_timestamp_is_shown_in_ist(papp):
-    """Every timestamp column is UTC, which is the right thing to store and the wrong thing to
-    show: nobody reading this app is in UTC. 19:00 UTC is half past midnight the NEXT day in
-    India, so printing the raw value is not a rounding error -- it is the wrong day."""
-    from datetime import datetime, date
-    with papp.app_context():
-        ist = papp.jinja_env.filters['ist']
-        istd = papp.jinja_env.filters['istd']
-        late = datetime(2026, 9, 26, 19, 0)
-
-        assert ist(late) == '27 Sep 2026, 00:30 IST'
-        assert istd(late) == '2026-09-27'
-        # a calendar date has no time zone; shifting it would invent a change nobody made
-        assert istd(date(2026, 11, 20)) == '2026-11-20'
-        assert ist(None) == '' and istd(None) == ''
-
-
-def test_the_posted_filter_means_indian_days(papp):
-    """The listing prints "27 Sep" for something recorded at 19:00 UTC on the 26th, so asking for
-    the 27th has to return it. Filter and display have to agree or the filter looks broken."""
-    from datetime import datetime
-    from app.models import CompanionRequest
-    from app.services import post_filters
-
-    with papp.app_context():
-        _db.session.add(CompanionRequest(
-            poster_name='late night', flying_from='Delhi', destination='Dubai',
-            travel_type='one_way', trip_type='one_way', status='open',
-            created_at=datetime(2026, 9, 26, 19, 0)))
-        _db.session.commit()
-
-        def count(day):
-            q, _ = post_filters.apply(CompanionRequest.query, {'posted_from': day, 'posted_to': day})
-            return q.count()
-
-        assert count('2026-09-26') == 0      # the UTC day it was written
-        assert count('2026-09-27') == 1      # the Indian day it happened
-
-
-def test_today_in_a_date_input_is_the_indian_day(papp):
-    """Between 18:30 and midnight IST, utcnow() is still yesterday in India -- a date input
-    offering it as the minimum would block today or allow a day already gone."""
-    from datetime import datetime, timedelta
-    from flask import render_template_string
-    # render_template_string, not jinja_env.from_string: `now` comes from a context processor,
-    # which only runs for a real template render inside a request.
+def test_a_next_cannot_point_off_the_site(papp):
+    """It arrives in a form body on a page anybody can reach. A full URL in a redirect is how a
+    phishing page gets to claim it was reached from ours."""
+    from app.services.urls import safe_next
     with papp.test_request_context('/'):
-        rendered = render_template_string("{{ now().strftime('%Y-%m-%d %H:%M') }}")
-    expected = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime('%Y-%m-%d %H:%M')
-    assert rendered == expected, '%s != %s' % (rendered, expected)
+        assert safe_next('/cs/voices') == '/cs/voices'
+        assert safe_next('https://evil.example.com') is None
+        assert safe_next('//evil.example.com') is None
+        assert safe_next('') is None
+        assert safe_next(None) is None

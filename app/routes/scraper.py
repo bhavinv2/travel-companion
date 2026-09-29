@@ -8,6 +8,7 @@ from flask import (Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 
 from app import db
+from app.services import urls
 from app.models import (ScrapeRecipe, ScrapeRun, ScrapeRow, ActivityEvent, TRIP_SOURCES,
                         SCRAPE_ROW_STATUSES, SCRAPE_RUN_STATUSES)
 from app.routes.admin import admin_required
@@ -271,7 +272,7 @@ def mapping(recipe_id):
         rec.default_source = request.form.get('default_source') if request.form.get('default_source') in TRIP_SOURCES else rec.default_source
         db.session.commit()
         flash('Mapping saved.', 'success')
-        nxt = request.form.get('next')
+        nxt = urls.safe_next(request.form.get('next'))
         return redirect(nxt if nxt and nxt.startswith('/') else url_for('scraper.recipe_runs', recipe_id=rec.id))
     mapping_now = scraper.merge_mapping(rec.field_mapping, columns)
     sample_row = rec.rows.order_by(ScrapeRow.id.desc()).first()
@@ -365,7 +366,7 @@ def toggle_recipe(recipe_id):
             pass
     db.session.commit()
     flash('Recipe updated.', 'success')
-    return redirect(request.form.get('next') or url_for('scraper.recipes'))
+    return redirect(urls.safe_next(request.form.get('next')) or url_for('scraper.recipes'))
 
 
 @scraper_bp.route('/recipes/<int:recipe_id>/delete', methods=['POST'])
@@ -434,7 +435,8 @@ def cancel_run(run_id):
         flash('Cancellation requested — the job stops after the current item.', 'info')
     if _wants_json():
         return jsonify({'success': True, 'status': run.status})
-    return redirect(request.form.get('next') or url_for('scraper.run_detail', run_id=run.id)
+    return redirect(urls.safe_next(request.form.get('next'))
+                    or url_for('scraper.run_detail', run_id=run.id)
                     if run.kind == 'run' else url_for('scraper.recipes'))
 
 

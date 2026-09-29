@@ -45,7 +45,7 @@
     </div>
 
     {{ vt.contact_table(messages, 'admin.voice_status',
-                        CONTACT_STATUSES, CONTACT_STATUS_LABELS, request.full_path,
+                        CONTACT_STATUSES, CONTACT_STATUS_LABELS, here(),
                         topic_labels=CONTACT_TOPIC_LABELS) }}
 
     {% if c_pages > 1 %}

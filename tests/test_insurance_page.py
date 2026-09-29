@@ -435,9 +435,11 @@ def test_the_page_describes_itself_to_search_engines(client, db):
     html = client.get('/travel-insurance').data.decode()
     m = re.search(r'<meta name="description" content="([^"]+)"', html)
     assert m, 'no meta description'
-    assert 'compare 65+' in m.group(1).lower()
+    assert 'travel insurance' in m.group(1).lower()
     # and it is this page's own, not the site-wide default
-    assert 'companion' not in m.group(1).lower()
+    assert 'find a travel companion' not in m.group(1).lower()
+    # ...and the same words the WebPage node uses, so the schema describes this page
+    assert m.group(1) in html.split('application/ld+json', 1)[1]
 
 
 def test_the_structured_data_declares_the_questions_the_page_shows(client, db, insurance_faq):
@@ -447,7 +449,7 @@ def test_the_structured_data_declares_the_questions_the_page_shows(client, db, i
     blob = re.search(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
     assert blob, 'no JSON-LD'
     graph = {n['@type']: n for n in json.loads(blob.group(1))['@graph']}
-    assert set(graph) == {'Organization', 'WebPage', 'Service', 'FAQPage'}
+    assert set(graph) == {'Organization', 'WebSite', 'WebPage', 'Service', 'FAQPage'}
 
     shown = {f['question'] for f in injected(client)[0]['faqs']}
     declared = {q['name'] for q in graph['FAQPage']['mainEntity']}
@@ -765,14 +767,30 @@ def test_signing_in_is_reachable_on_a_phone(client, db):
     assert _enclosing_media(text, '.btn-outline-nav { display: none; }') == '@media (max-width: 768px)'
 
 
-def test_the_hero_line_clears_the_chip_on_a_phone(db):
-    """"Worry-free travel for you & your loved ones." is handwriting with long descenders sitting
-    2px above a pill; on a phone the two collided and it read as if it were behind the chip."""
+def test_the_hero_line_clears_the_chip(db):
+    """"Worry-free travel for you & your loved ones." is handwriting with long descenders, set at
+    -2deg, so its ink reaches well below the line box the layout reserves for it. At 2px it
+    overlapped the chip under it by 8px at every desktop width, and on a phone it read as if it
+    were behind the pill.
+
+    The gap is what matters, so that is what is asserted. This used to pin one exact declaration,
+    which meant the desktop rule -- the one actually overlapping -- was never checked at all, and
+    changing the phone value by 4px failed a test about something else.
+    """
     import os
+    import re
     css = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                        'frontend', 'insurance', 'src', 'styles', 'global.css')
     text = open(css, encoding='utf-8').read()
-    assert '.hero-script{text-align:right;font-size:19px;line-height:1.32;margin:0 0 16px}' in text
+
+    gaps = []
+    for rule in re.findall(r'\.hero-script\{([^}]*)\}', text):
+        m = re.search(r'margin(?:-bottom)?\s*:\s*([^;]+)', rule)
+        assert m, 'every .hero-script rule has to say what the gap is: %r' % rule
+        gaps.append(int(re.findall(r'(\d+)px', m.group(1))[-1]))
+
+    assert len(gaps) >= 2, 'the desktop rule and at least one phone rule should both set it'
+    assert min(gaps) >= 14, 'not enough room for the descenders: %r' % gaps
 
 
 def test_the_whatsapp_button_is_out_of_the_way_on_a_phone(db):

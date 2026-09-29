@@ -26,6 +26,16 @@
       <td class="cm-cell">
         {{ m.message }}
         {% if m.cs_notes %}<div class="cm-notes-sm"><i class="fa-solid fa-note-sticky"></i> {{ m.cs_notes }}</div>{% endif %}
+        {# what was actually said back, so the next agent to open this can tell it was handled #}
+        {% for r in (m.replies or []) %}
+        <div class="cm-reply{{ ' failed' if not r.delivered }}">
+          <b><i class="fa-solid fa-reply"></i>
+            {{ r.author.username if r.author else 'CS' }} &middot;
+            {{ r.created_at|ist('%d %b, %H:%M') if r.created_at }}</b>
+          {% if not r.delivered %}<em>not sent &mdash; the mail provider refused it</em>{% endif %}
+          <span>{{ r.body }}</span>
+        </div>
+        {% endfor %}
       </td>
       <td><span class="cm-status cm-status-{{ m.status }}">{{ labels[m.status] }}</span></td>
       <td class="nowrap">{{ m.handled_by.username if m.handled_by else '—' }}</td>
@@ -36,9 +46,12 @@
           {% if with_notes %}
           <input type="text" name="cs_notes" value="{{ m.cs_notes or '' }}"
                  class="vc-note-in" placeholder="Internal note"/>
-          <a class="btn-sm-outline" href="mailto:{{ m.email }}?subject=Re:%20your%20message%20to%20Connecting%20Desis">
+          {# a composer, not mailto:. A mail client is not configured on every machine, and a
+             reply sent from somebody's own mailbox leaves this screen looking unanswered. #}
+          <button type="button" class="btn-sm-outline vc-reply-open"
+                  data-mid="{{ m.id }}" data-to="{{ m.email }}" data-name="{{ m.name }}">
             <i class="fa-solid fa-reply"></i> Reply
-          </a>
+          </button>
           {% endif %}
           {% for s in statuses if s != m.status %}
           <button type="submit" name="status" value="{{ s }}" class="btn-sm-outline">{{ labels[s] }}</button>
@@ -51,6 +64,59 @@
   {% endfor %}
   </tbody>
 </table>
+
+{% if with_notes %}
+{# One dialog for the whole table: it is the same form whichever row opened it, and a copy per
+   row would put a hidden form behind every message on the page. #}
+<div class="vc-reply-ov" id="vcReplyOv" hidden>
+  <div class="vc-reply" role="dialog" aria-modal="true" aria-labelledby="vcReplyTitle">
+    <header>
+      <h3 id="vcReplyTitle">Reply to <span id="vcReplyWho">this enquiry</span></h3>
+      <button type="button" class="vc-reply-x" id="vcReplyX" aria-label="Close">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </header>
+    <form method="post" id="vcReplyForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <input type="hidden" name="next" value="{{ next_url }}"/>
+      <label class="vc-reply-to">To <b id="vcReplyTo"></b></label>
+      <textarea name="body" id="vcReplyBody" rows="8" required minlength="10"
+                placeholder="Write the reply they will receive by e-mail."></textarea>
+      <p class="muted small">Sent from the support address, and kept on this enquiry so the next
+        agent can see it was answered.</p>
+      <div class="vc-reply-act">
+        <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-paper-plane"></i> Send reply</button>
+        <button type="button" class="btn-sm" id="vcReplyCancel">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+(function () {
+  var ov = document.getElementById('vcReplyOv');
+  if (!ov || ov.dataset.wired) return;
+  ov.dataset.wired = '1';
+  var form = document.getElementById('vcReplyForm');
+  var body = document.getElementById('vcReplyBody');
+
+  function close() { ov.hidden = true; }
+  document.addEventListener('click', function (e) {
+    var open = e.target.closest('.vc-reply-open');
+    if (open) {
+      form.action = appUrl('/cs/contact/' + open.dataset.mid + '/reply');
+      document.getElementById('vcReplyTo').textContent = open.dataset.to;
+      document.getElementById('vcReplyWho').textContent = open.dataset.name || 'this enquiry';
+      body.value = '';
+      ov.hidden = false;
+      body.focus();
+      return;
+    }
+    if (e.target.closest('#vcReplyX') || e.target.closest('#vcReplyCancel') || e.target === ov) close();
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !ov.hidden) close(); });
+})();
+</script>
+{% endif %}
 {% endmacro %}
 
 

@@ -1532,13 +1532,17 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>
         <span id="langCur">EN</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M6 9l6 6 6-6"/></svg>
-        <div class="lang-menu" id="langMenu" role="menu">
-          <button data-l="EN">English <span>en</span></button><button data-l="हि">हिंदी <span>hi</span></button>
-          <button data-l="తె">తెలుగు <span>te</span></button><button data-l="த">தமிழ் <span>ta</span></button>
-          <button data-l="ગુ">ગુજરાતી <span>gu</span></button><button data-l="ಕ">ಕನ್ನಡ <span>kn</span></button>
-          <button data-l="മ">മലയാളം <span>ml</span></button><button data-l="म">मराठी <span>mr</span></button>
-          <button data-l="ਪੰ">ਪੰਜਾਬੀ <span>pa</span></button><button data-l="বা">বাংলা <span>bn</span></button>
-          <button data-l="اردو">اردو <span>ur</span></button>
+        {# translate="no": Google Translate rewrites text nodes, and this menu's text is
+           language names and language codes. Translated, "தமிழ்" stops being how a Tamil
+           reader recognises their own language, and the code "ta" becomes "टा" -- which is
+           exactly what used to get written into the googtrans cookie. #}
+        <div class="lang-menu notranslate" id="langMenu" role="menu" translate="no">
+          <button data-lang="en" data-l="EN">English <span>en</span></button><button data-lang="hi" data-l="हि">हिंदी <span>hi</span></button>
+          <button data-lang="te" data-l="తె">తెలుగు <span>te</span></button><button data-lang="ta" data-l="த">தமிழ் <span>ta</span></button>
+          <button data-lang="gu" data-l="ગુ">ગુજરાતી <span>gu</span></button><button data-lang="kn" data-l="ಕ">ಕನ್ನಡ <span>kn</span></button>
+          <button data-lang="ml" data-l="മ">മലയാളം <span>ml</span></button><button data-lang="mr" data-l="म">मराठी <span>mr</span></button>
+          <button data-lang="pa" data-l="ਪੰ">ਪੰਜਾਬੀ <span>pa</span></button><button data-lang="bn" data-l="বা">বাংলা <span>bn</span></button>
+          <button data-lang="ur" data-l="اردو">اردو <span>ur</span></button>
         </div>
       </div>
       <button class="btn btn-outline" data-open="signin">Sign In</button>
@@ -2349,14 +2353,21 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
   function clearGoogtrans(){ const h=location.hostname, parts=h.split('.'), ds=['',h,'.'+h];
     for(let i=0;i<parts.length-1;i++){ ds.push(parts.slice(i).join('.')); ds.push('.'+parts.slice(i).join('.')); }
     ds.forEach(d=>{ let c='googtrans=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'; if(d) c+='; domain='+d; document.cookie=c; }); }
+  // A language code, or nothing. Two letters with an optional region -- never whatever the
+  // button happens to say, which after one switch is translated text.
+  const LANG_RE = /^[a-z]{2}(-[A-Za-z]{2,8})?$/;
   async function setSiteLang(lang){
+    if(!LANG_RE.test(lang||'')) return;
     try{ await fetch('/api/language',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify({lang})}); }catch(e){}
     clearGoogtrans(); if(lang&&lang!=='en') document.cookie='googtrans=/en/'+lang+'; path=/'; location.reload();
   }
   // Language dropdown
   const langBtn=$('#langBtn'), langMenu=$('#langMenu');
   langBtn.addEventListener('click',e=>{ if(e.target.closest('.lang-menu')) return; langMenu.classList.toggle('open'); langBtn.setAttribute('aria-expanded',langMenu.classList.contains('open')); });
-  $$('#langMenu button').forEach(b=>b.addEventListener('click',e=>{ e.stopPropagation(); const code=((b.querySelector('span')||{}).textContent||'en').trim(); setSiteLang(code); }));
+  // data-lang, not the button's text. Google Translate rewrites text nodes, so after switching
+  // to Hindi the "ta" inside the Tamil button reads "टा" -- and that is what went into the
+  // cookie, which Google then could not parse, which is why the page came back in English.
+  $$('#langMenu button').forEach(b=>b.addEventListener('click',e=>{ e.stopPropagation(); setSiteLang((b.dataset.lang||'').trim()); }));
   document.addEventListener('click',e=>{ if(!e.target.closest('#langBtn')) langMenu.classList.remove('open'); });
   // Services dropdown (the rest of the NRI Parent Service group)
   const navSvc=$('#navSvc'), navSvcBtn=$('#navSvcBtn');

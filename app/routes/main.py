@@ -910,7 +910,11 @@ def set_language():
     """Persist the visitor's language choice: a cookie for everyone, the profile column when signed in."""
     data = request.get_json(silent=True) or {}
     lang = str(data.get('lang') or 'en').split('-')[0].lower()[:8]
-    if not lang.isalpha() or not 2 <= len(lang) <= 3:
+    # ASCII as well as alphabetic. This check already held when the landing page started sending
+    # transliterated codes -- it coerced them to English, which is why the page came back in
+    # English -- but it held by accident, on a combining mark not counting as a letter. The
+    # googtrans cookie the browser sets alongside this never passed through here at all.
+    if not lang.isascii() or not lang.isalpha() or not 2 <= len(lang) <= 3:
         lang = 'en'
     if current_user.is_authenticated:
         from app import db

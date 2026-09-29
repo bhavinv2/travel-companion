@@ -24,10 +24,10 @@ def test_seed_demo_content_fills_every_content_screen(app, client, db):
     assert client.get('/cs/').status_code == 200
     voices = client.get('/cs/voices?tab=feedback')
     assert voices.status_code == 200 and b'Found a companion for my mother' in voices.data
-    client.get('/auth/logout')
+    client.post('/auth/logout')
     assert login(client, 'user@connectingdesis.com', 'User#Desis2026').status_code == 302
     assert client.get('/dashboard').status_code == 200
-    client.get('/auth/logout')
+    client.post('/auth/logout')
 
     # idempotent: a second run adds nothing
     before = (Blog.query.count(), Feedback.query.count(), ContactMessage.query.count(),
@@ -57,7 +57,7 @@ def test_seed_demo_match_creates_matched_users(app, client, db):
         assert login(client, email, 'Demo#Desis2026').status_code == 302
         page = client.get('/dashboard')
         assert page.status_code == 200 and b'Your matches' in page.data and b'score-tab' in page.data
-        client.get('/auth/logout')
+        client.post('/auth/logout')
     # idempotent: running again neither duplicates users/posts nor the match
     r = app.test_cli_runner().invoke(args=['seed-demo-match'])
     assert r.exit_code == 0, r.output
@@ -94,7 +94,7 @@ def test_seed_demo_user6_covers_all_trip_types_with_five_matches(app, client, db
     assert login(client, 'user6@connectingdesis.com', 'Demo#Desis2026').status_code == 302
     page = client.get('/dashboard')
     assert page.status_code == 200 and b'Your matches' in page.data
-    client.get('/auth/logout')
+    client.post('/auth/logout')
     # idempotent: a second run adds no users, posts or matches
     before = (User.query.count(), CompanionRequest.query.count(), Match.query.count())
     r = app.test_cli_runner().invoke(args=['seed-demo-user6'])

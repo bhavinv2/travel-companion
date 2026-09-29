@@ -55,9 +55,15 @@ class PrefixMiddleware:
         prefix = header or self.prefix
         path = environ.get('PATH_INFO', '') or '/'
         active = False
+        # Which door this request came in by. Two of them land on byte-identical WSGI environs --
+        # /travel-companions/travel-insurance and /travel-insurance both end up with PATH_INFO
+        # '/travel-insurance' and SCRIPT_NAME '/travel-companions' -- so the app cannot tell them
+        # apart afterwards, and one of them has to redirect to the other.
+        environ['app.entry'] = 'root'
         if prefix and (path == prefix or path.startswith(prefix + '/')):
             environ['SCRIPT_NAME'] = (environ.get('SCRIPT_NAME') or '') + prefix
             environ['PATH_INFO'] = path[len(prefix):] or '/'
+            environ['app.entry'] = 'prefix'
             active = True
         elif any(path == a or path.startswith(a + '/') for a in self.aliases):
             # An alias is an ENTRY POINT, not a second mount: SCRIPT_NAME still says
@@ -65,6 +71,7 @@ class PrefixMiddleware:
             # one canonical prefix, and the app is not reachable twice at two sets of URLs.
             # PATH_INFO is left alone because /travel-insurance is a real route in this app.
             environ['SCRIPT_NAME'] = (environ.get('SCRIPT_NAME') or '') + prefix
+            environ['app.entry'] = 'alias'
             active = True
         elif header:
             environ['SCRIPT_NAME'] = (environ.get('SCRIPT_NAME') or '') + header
@@ -267,6 +274,56 @@ def create_app(test_config=None):
             return value.strftime(fmt)
         return (value + IST).strftime(fmt)
 
+    # Whether to send http traffic to https. On by default in production; a deployment that
+    # genuinely terminates TLS somewhere we cannot see can turn it off rather than loop.
+    app.config['FORCE_HTTPS'] = _env_bool('FORCE_HTTPS', is_production)
+
+    @app.before_request
+    def _one_address_over_https():
+        """Two rules about the address bar, both of which only ever bite in production.
+
+        https: the site handles logins, admin sessions and people's phone numbers. Railway
+        terminates TLS and ProxyFix reads X-Forwarded-Proto, so request.is_secure is the truth
+        about the original hop. Localhost is exempt because there is no certificate there.
+
+        One address per page: /travel-insurance answers beside the prefix as its own front door,
+        and the prefixed spelling of it answers too, because the app really does route that path.
+        Two addresses for one page splits its search ranking and makes every analytics number
+        half of itself. The bare one is canonical -- it is what the canonical tag, the sitemap and
+        every printed link already say -- so the prefixed one redirects to it, permanently.
+        """
+        from flask import redirect, request
+
+        if app.config.get('TESTING'):
+            return None
+        host = (request.host or '').split(':')[0].lower()
+        local = host in ('localhost', '127.0.0.1', '0.0.0.0', '[::1]')
+
+        if app.config['FORCE_HTTPS'] and not request.is_secure and not local:
+            return redirect(request.url.replace('http://', 'https://', 1), code=301)
+
+        if request.environ.get('app.entry') == 'prefix' and request.method in ('GET', 'HEAD'):
+            aliases = app.config.get('APP_ALIAS_PATHS') or []
+            path = request.path
+            for alias in aliases:
+                alias = '/' + alias.strip('/')
+                if path == alias or path.startswith(alias + '/'):
+                    target = path + (('?' + request.query_string.decode('latin-1'))
+                                     if request.query_string else '')
+                    return redirect(target, code=301)
+        return None
+
+    @app.after_request
+    def _hsts(response):
+        """Tell the browser not to try http again. Only on a connection that is already secure --
+        sending it over http would be advice nobody should take from an unauthenticated hop."""
+        from flask import request
+
+        if request.is_secure and app.config.get('FORCE_HTTPS') and not app.config.get('TESTING'):
+            response.headers.setdefault('Strict-Transport-Security',
+                                        'max-age=31536000; includeSubDomains')
+        return response
+
     @app.before_request
     def _cs_screen_guard():
         """Stop a restricted agent opening a screen they were not given.
@@ -453,6 +510,10 @@ def create_app(test_config=None):
             # For linking TO /travel-insurance or /sahayak: those answer beside the app's prefix,
             # so url_for would offer the in-prefix address instead of the one they are known by.
             'public_url': urls.public_url,
+            # for the paths Python did not build with url_for -- a stored notification
+            # link, a `base` passed as a string -- and for "where am I" in a next field
+            'app_url': urls.app_url,
+            'here': urls.here,
             'NRI_SOCIAL': nri_services.SOCIAL,
             'WHATSAPP': _settings.whatsapp_numbers,
             'INSURANCE_PARTNER_NAME': nri_services.INSURANCE_PARTNER_NAME,

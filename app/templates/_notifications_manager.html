@@ -2,7 +2,9 @@
    Params:
      rows        - the Notification rows on this page
      page, pages, total
-     base        - action URL prefix, e.g. '/admin/notification-log' or '/cs/notifications'
+     base        - action URL prefix, e.g. '/admin/notification-log' or '/cs/notifications'.
+                   Always rendered through app_url(): under a URL prefix a bare path points at
+                   whatever else is hosted at the site root, which is a 404 nobody sees locally
      can_delete  - show the per-row delete action (admin only)
      f           - dict of current filter values (q, category, status, user, from, to)
      categories  - list of (value, label) for the category dropdown
@@ -12,7 +14,7 @@
 {% macro notifications_manager(rows, page, pages, total, base, can_delete, f, categories, groups, cat_for_type, cat_labels) %}
 <section class="nm-send">
   <h2><i class="fa-solid fa-paper-plane"></i> Send a notification</h2>
-  <form id="nmSendForm" class="nm-send-grid" data-base="{{ base }}">
+  <form id="nmSendForm" class="nm-send-grid" data-base="{{ app_url(base) }}">
     <label class="nm-field nm-wide">
       <span>Title</span>
       <input type="text" name="title" maxlength="255" placeholder="e.g. Your trip has a new match" required/>
@@ -57,7 +59,7 @@
   <label class="nm-date">From <input type="date" name="from" value="{{ f.from }}"/></label>
   <label class="nm-date">To <input type="date" name="to" value="{{ f.to }}"/></label>
   <button type="submit" class="btn btn-primary">Filter</button>
-  <a href="{{ base }}" class="btn-sm">Reset</a>
+  <a href="{{ app_url(base) }}" class="btn-sm">Reset</a>
 </form>
 <p class="muted">{{ total }} notification{{ '' if total == 1 else 's' }}</p>
 
@@ -71,7 +73,7 @@
     <tr id="nm-{{ n.id }}" class="{{ 'nm-unread' if not n.is_read }}">
       <td data-label="User">
         {% if u %}
-          <a href="{{ base }}?user_id={{ u.id }}" title="Show only this user's notifications">{{ u.username }}</a>
+          <a href="{{ app_url(base) }}?user_id={{ u.id }}" title="Show only this user's notifications">{{ u.username }}</a>
           <br/><small class="muted">{{ u.email }}</small>
         {% else %}<span class="muted">#{{ n.user_id }}</span>{% endif %}
       </td>
@@ -80,7 +82,8 @@
       <td data-label="Notification">
         <strong>{{ n.title or '—' }}</strong>
         {% if n.body %}<br/><small class="muted">{{ n.body[:140] }}{{ '…' if n.body|length > 140 }}</small>{% endif %}
-        {% if n.link %}<br/><a class="nm-link" href="{{ n.link }}"><i class="fa-solid fa-arrow-up-right-from-square"></i> {{ n.link }}</a>{% endif %}
+        {# stored years before anybody deployed under a prefix, so they are bare paths #}
+        {% if n.link %}<br/><a class="nm-link" href="{{ app_url(n.link) }}"><i class="fa-solid fa-arrow-up-right-from-square"></i> {{ n.link }}</a>{% endif %}
       </td>
       <td data-label="Status">
         <span class="nm-status {{ 'is-unread' if not n.is_read else 'is-read' }}">{{ 'Unread' if not n.is_read else 'Read' }}</span>
@@ -109,7 +112,7 @@
 {% macro notifications_manager_js(base, can_delete) %}
 <script>
 (function () {
-  const BASE = '{{ base }}';
+  const BASE = '{{ app_url(base) }}';
   const sform = document.getElementById('nmSendForm');
   sform?.addEventListener('submit', async (e) => {
     e.preventDefault();

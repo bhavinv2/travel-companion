@@ -8,6 +8,7 @@ from flask_login import login_required, current_user
 from sqlalchemy import func, or_
 
 from app import db
+from app.services import urls
 from app.models import (
     CompanionRequest, ContactPoint, ClaimToken, ActivityEvent, Notification, User,
     TRIP_STATUSES, TRIP_SOURCES, CS_TRIP_SOURCES, TRIP_SOURCE_LABELS, TRIP_ROLES, TRIP_ROLE_LABELS,
@@ -31,7 +32,9 @@ def cs_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not current_user.is_authenticated:
-            return redirect(url_for('auth.login', next=request.path))
+            # here(), not request.path: under a URL prefix the latter sends them
+            # back to a path outside the app after they sign in
+            return redirect(url_for('auth.login', next=urls.here()))
         if not current_user.is_cs:
             flash('The CS console is for customer-service staff only.', 'danger')
             return redirect(url_for('main.index'))
@@ -421,6 +424,54 @@ def feedback_action(fid, action):
     return jsonify({'success': True})
 
 
+@cs_bp.route('/contact/<int:mid>/reply', methods=['POST'])
+@login_required
+@cs_required
+def contact_reply(mid):
+    """Answer an enquiry from the console, and keep what was said.
+
+    Reply used to be a mailto: link. On a machine with no mail client it did nothing, and when it
+    did work the answer went out of somebody's personal mailbox -- so the next agent to open the
+    enquiry could not tell whether it had been handled, by whom, or what was said.
+
+    The reply is stored whether or not the mail provider takes it. An agent needs to see what was
+    written even when it failed to send, and needs to be told that it failed rather than left to
+    assume it went.
+    """
+    from app.models import ContactMessage, ContactReply
+    from app.services import mailer
+
+    m = ContactMessage.query.get_or_404(mid)
+    body = (request.form.get('body') or '').strip()[:5000]
+    back = urls.safe_next(request.form.get('next')) or url_for('cs.voices', tab='contact')
+    if len(body) < 10:
+        flash('Write a little more before sending.', 'danger')
+        return redirect(back)
+
+    subject = 'Re: your message to NRI Parent Service'
+    # force=True: this is a direct answer to something they wrote to us, not marketing, and the
+    # category switches exist to stop us mailing people who did not ask to hear from us.
+    delivered = bool(mailer.send(subject, [m.email], body,
+                                 reply_to=current_app.config.get('SUPPORT_EMAIL'),
+                                 category='account', force=True))
+
+    db.session.add(ContactReply(message_id=m.id, author_id=current_user.id,
+                                body=body, delivered=delivered))
+    # Answering it is what "in progress" means; closing it stays a decision somebody makes.
+    if m.status == 'new':
+        m.set_status('in_progress', by=current_user)
+    ActivityEvent.log('contact_message_replied', actor=current_user, contact_id=m.id,
+                      delivered=delivered)
+    db.session.commit()
+
+    if delivered:
+        flash('Reply sent to %s.' % m.email, 'success')
+    else:
+        flash('Reply saved, but the mail provider would not take it. Check the address and the '
+              'mail settings — nothing was sent.', 'warning')
+    return redirect(back)
+
+
 @cs_bp.route('/contact/<int:mid>/status', methods=['POST'])
 @login_required
 @cs_required
@@ -438,7 +489,7 @@ def contact_status(mid):
     ActivityEvent.log('contact_message_updated', actor=current_user, contact_id=m.id, status=status)
     db.session.commit()
     flash(f'Marked as {status.replace("_", " ")}.', 'success')
-    return redirect(request.form.get('next') or url_for('cs.contact_messages'))
+    return redirect(urls.safe_next(request.form.get('next')) or url_for('cs.voices', tab='contact'))
 
 
 # ---------------------------------------------------------------------------
@@ -1078,7 +1129,8 @@ def close_post(trip_id):
     matching.dismiss_matches_for_closed_trip(trip)
     db.session.commit()
     flash(f'Post closed ({CLOSED_REASON_LABELS[reason]}).', 'success')
-    return redirect(request.form.get('next') or url_for('cs.post_detail', trip_id=trip.id))
+    return redirect(urls.safe_next(request.form.get('next'))
+                    or url_for('cs.post_detail', trip_id=trip.id))
 
 
 @cs_bp.route('/posts/<int:trip_id>/reopen', methods=['POST'])
@@ -1091,7 +1143,8 @@ def reopen_post(trip_id):
     db.session.commit()
     matching.compute_matches_for(trip, include_unconfirmed=True, actor=current_user)
     flash('Post reopened.', 'success')
-    return redirect(request.form.get('next') or url_for('cs.post_detail', trip_id=trip.id))
+    return redirect(urls.safe_next(request.form.get('next'))
+                    or url_for('cs.post_detail', trip_id=trip.id))
 
 
 @cs_bp.route('/posts/<int:trip_id>/publish', methods=['POST'])
@@ -1171,7 +1224,7 @@ def notifications():
         'cs/notifications.html', rows=rows, page=page, pages=pages, total=total, f=f,
         categories=[(c, notiflog.CATEGORY_LABELS[c]) for c in notiflog.CATEGORY_ORDER],
         groups=notiflog.SEND_GROUPS, cat_for_type=notiflog.CATEGORY_FOR_TYPE,
-        cat_labels=notiflog.CATEGORY_LABELS, base='/cs/notifications', can_delete=False)
+        cat_labels=notiflog.CATEGORY_LABELS, base=url_for('cs.notifications'), can_delete=False)
 
 
 @cs_bp.route('/notifications/send', methods=['POST'])

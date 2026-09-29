@@ -123,7 +123,7 @@
               {% if current_user.is_authenticated %}
                 <button type="button" class="btn-sm" onclick="requestChat({{ other.id }})">Send a connection request</button>
               {% else %}
-                <a class="btn-sm" href="{{ url_for('auth.login', next=request.path) }}">Log in to chat</a>
+                <a class="btn-sm" href="{{ url_for('auth.login', next=here()) }}">Log in to chat</a>
               {% endif %}
             </div>
           {% endif %}

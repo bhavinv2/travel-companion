@@ -98,15 +98,15 @@
             <div class="cmx-actions">
               {% if m.status != 'dismissed' and m.status != 'connected' %}
                 <form method="POST" action="{{ url_for('matches.cs_notify', match_id=m.id) }}" style="display:inline">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ request.path }}#match-{{ m.id }}"/>
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ here() }}#match-{{ m.id }}"/>
                   <button class="btn btn-primary" {% if not r.can_notify %}disabled title="Both sides must be reachable and public"{% endif %}><i class="fa-solid fa-paper-plane"></i> Notify both</button>
                 </form>
                 <form method="POST" action="{{ url_for('matches.cs_connected', match_id=m.id) }}" style="display:inline">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ request.path }}#match-{{ m.id }}"/>
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ here() }}#match-{{ m.id }}"/>
                   <button class="btn-sm green"><i class="fa-solid fa-handshake"></i> Mark connected</button>
                 </form>
                 <form method="POST" action="{{ url_for('matches.cs_dismiss', match_id=m.id) }}" class="inline-form" style="display:inline-flex">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ request.path }}"/>
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ here() }}"/>
                   <select name="reason">{% for d in DISMISS_REASONS if d not in ('post_changed','post_closed','not_suitable_by_party') %}<option value="{{ d }}">{{ d|replace('_',' ') }}</option>{% endfor %}</select>
                   <button class="btn-sm danger"><i class="fa-solid fa-xmark"></i> Dismiss</button>
                 </form>

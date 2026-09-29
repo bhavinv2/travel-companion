@@ -24,7 +24,8 @@
            href="{{ url_for(endpoint, status='failed') }}">
           Failed <span class="seg-n">{{ counts.failed }}</span></a>
       </div>
-      <form method="get" class="inline-search">
+      {# filters as you type; the button and a plain submit still work without JavaScript #}
+      <form method="get" class="inline-search" data-live-search="#leadResults">
         {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
         <input type="search" name="q" value="{{ q }}" placeholder="Search name, e-mail or phone">
         <button class="btn btn-primary btn-sm" type="submit"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
@@ -32,7 +33,7 @@
       </form>
     </div>
 
-    <div class="admin-panel">
+    <div class="admin-panel" id="leadResults">
     <div class="table-wrap">
       {# stack-mobile: the six columns do not fit a phone, and a table that scrolls sideways
          inside a card hides half of every lead. #}

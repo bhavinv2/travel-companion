@@ -136,7 +136,10 @@
           <span class="lang-cur" id="langCur">{{ _cur.label if _cur else 'EN' }}</span>
           <i class="fa-solid fa-chevron-down lang-caret"></i>
         </button>
-        <div class="lang-menu" id="langMenu" role="listbox" aria-label="Site language">
+        {# translate="no": this menu is language names and language codes, and a translated
+           language menu cannot be read by the person looking for their own language in it. It
+           also keeps Google Translate away from the codes the switcher reads. #}
+        <div class="lang-menu notranslate" id="langMenu" role="listbox" aria-label="Site language" translate="no">
           <div class="lang-menu-head"><i class="fa-solid fa-globe"></i> Choose language</div>
           <div class="lang-menu-list">
           {% for l in OPT.SITE_LANGUAGES %}
@@ -221,7 +224,12 @@
               <a href="{{ url_for('main.connections_page') }}"><i class="fa-solid fa-handshake"></i> {{ _('My Connections') }}</a>
               <a href="{{ url_for('main.notification_settings') }}"><i class="fa-solid fa-bell"></i> {{ _('Notification settings') }}</a>
             {% endif %}
-              <a href="{{ url_for('auth.logout') }}" class="danger"><i class="fa-solid fa-right-from-bracket"></i> {{ _('Logout') }}</a>
+              {# a form, not a link: signing somebody out is a state change, and a GET one can
+                 be triggered by any page that can make this browser fetch a URL #}
+              <form method="post" action="{{ url_for('auth.logout') }}" class="menu-logout">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="danger"><i class="fa-solid fa-right-from-bracket"></i> {{ _('Logout') }}</button>
+              </form>
             </div>
           </div>
         </div>
@@ -240,7 +248,7 @@
     <span>{{ _('Please confirm your e-mail address') }} <strong>{{ current_user.email }}</strong> {{ _('so we can notify you about matches.') }}</span>
     <form method="POST" action="{{ url_for('auth.resend_verification') }}" style="display:inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-      <input type="hidden" name="next" value="{{ request.path }}"/>
+      <input type="hidden" name="next" value="{{ here() }}"/>
       <button class="btn-sm">{{ _('Resend link') }}</button>
     </form>
   </div>
@@ -355,7 +363,11 @@
         });
       });
     }
+    // Only a real language code ever reaches the cookie. The landing page used to read this
+    // out of the button's text, which Google Translate had already rewritten.
+    var LANG_RE = /^[a-z]{2}(-[A-Za-z]{2,8})?$/;
     async function setSiteLang(lang) {
+      if (!LANG_RE.test(lang || '')) return;
       try {
         await fetch('/api/language', {
           method: 'POST',
@@ -402,6 +414,7 @@
   <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" defer></script>
   <script src="{{ url_for('static', filename='js/searchselect.js') }}"></script>
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/livesearch.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/insurance.js') }}"></script>
   <script src="{{ url_for('static', filename='js/contact-modal.js') }}"></script>
   {% block extra_js %}{% endblock %}

@@ -81,7 +81,9 @@ def login(client, email, password='password123'):
 
 
 def logout(client):
-    return client.get('/auth/logout')
+    """POST, because signing out changes state and a GET one can be triggered by any page that
+    gets the browser to fetch a URL. CSRF is off in tests, so no token is needed here."""
+    return client.post('/auth/logout')
 
 
 TRIP_JSON = {

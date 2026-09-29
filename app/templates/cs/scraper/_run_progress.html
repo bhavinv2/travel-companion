@@ -16,7 +16,7 @@
   <p class="urgent" data-run-error style="{{ '' if run.error else 'display:none' }}">{{ run.error or '' }}</p>
   <form method="POST" action="{{ url_for('scraper.cancel_run', run_id=run.id) }}" data-run-cancel style="{{ 'display:none' if run.done }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-    <input type="hidden" name="next" value="{{ request.path }}"/>
+    <input type="hidden" name="next" value="{{ here() }}"/>
     <button class="btn-sm danger"><i class="fa-solid fa-stop"></i> Cancel</button>
   </form>
 </div>

@@ -294,7 +294,8 @@ def cs_match_queue():
 
 
 def _back(default):
-    return request.form.get('next') or default
+    from app.services import urls
+    return urls.safe_next(request.form.get('next')) or default
 
 
 @matches_bp.route('/cs/matches/<int:match_id>/notify', methods=['POST'])

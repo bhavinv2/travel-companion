@@ -8,7 +8,7 @@
       <h1>Run #{{ run.id }} <small class="muted">{{ recipe.name }}</small></h1>
       <div>
         <a class="btn-sm" href="{{ url_for('scraper.recipe_runs', recipe_id=recipe.id) }}"><i class="fa-solid fa-arrow-left"></i> Runs</a>
-        <a class="btn-sm" href="{{ url_for('scraper.mapping', recipe_id=recipe.id, next=request.path) }}"><i class="fa-solid fa-arrows-left-right"></i> Mapping</a>
+        <a class="btn-sm" href="{{ url_for('scraper.mapping', recipe_id=recipe.id, next=here()) }}"><i class="fa-solid fa-arrows-left-right"></i> Mapping</a>
       </div>
     </div>
 

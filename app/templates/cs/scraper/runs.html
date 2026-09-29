@@ -32,7 +32,7 @@
       </form>
       <form method="POST" action="{{ url_for('scraper.toggle_recipe', recipe_id=recipe.id) }}" class="inline-form" style="margin-top:10px">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-        <input type="hidden" name="next" value="{{ request.path }}"/>
+        <input type="hidden" name="next" value="{{ here() }}"/>
         <input type="hidden" name="what" value="schedule"/>
         <span class="muted">Scheduled runs (via the jobs endpoint):</span>
         <input type="number" name="every_hours" min="1" value="{{ recipe.schedule_every_hours or 24 }}" style="width:90px"/> <span class="muted">hours</span>
@@ -40,7 +40,7 @@
         {% if recipe.schedule_enabled %}<span class="chip chip-open">on</span>{% endif %}
       </form>
       <form method="POST" action="{{ url_for('scraper.toggle_recipe', recipe_id=recipe.id) }}" class="inline-form" style="margin-top:10px">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ request.path }}"/><input type="hidden" name="what" value="active"/>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ here() }}"/><input type="hidden" name="what" value="active"/>
         <button class="btn-sm">{{ 'Deactivate recipe' if recipe.is_active else 'Activate recipe' }}</button>
       </form>
     </div>

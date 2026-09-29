@@ -13,6 +13,8 @@ it separately:
                      (Admin -> Travel Insurance -> Help & FAQ)
   * enquiries     -> ContactMessage with topic='insurance', so they land in the CS and admin
                      inboxes next to every other enquiry rather than in a second system
+  * conversions   -> services/ads.py, which decides whether this request carries the Google Ads
+                     tag at all and what the four conversion actions are called
 """
 import re
 
@@ -21,7 +23,8 @@ from flask_login import current_user
 
 from app import db
 from app.models import ActivityEvent, ContactMessage, Feedback
-from app.services import help_center, insurance_countries, insurance_page, settings, urls
+from app.services import (ads, help_center, insurance_countries, insurance_page, org,
+                          settings, urls)
 from app.services.ratelimit import rate_limit
 
 insurance_bp = Blueprint('insurance', __name__)
@@ -42,63 +45,79 @@ def _faqs():
             for f in help_center.faqs('insurance')]
 
 
+# What the page says it is. These are the words search results show, so the page's own title
+# and meta description are built from them too -- schema that describes a different page from
+# the one it sits on is the thing that gets discounted.
+PAGE_NAME = 'Buy Travel Insurance Online | Visitors Insurance for USA | NRI Parent Service'
+PAGE_HEADLINE = 'Buy Travel & Visitor Insurance Online for USA'
+PAGE_DESCRIPTION = ('Buy travel insurance online for parents, relatives and visitors travelling '
+                    'to the USA. Compare travel and visitor insurance plans with expert guidance '
+                    'from NRI Parent Service.')
+SERVICE_DESCRIPTION = ('Travel and visitor insurance solutions for parents, relatives, families, '
+                       'tourists, students, business travelers and NRIs travelling to the USA.')
+AUDIENCE = ['NRIs', 'Parents', 'Tourists', 'International Students', 'Business Travelers',
+            'Senior Travelers']
+
+
 def _structured_data(faqs, phones, canonical):
     """What the page says, in the form a search engine reads.
 
+    One block, one graph, joined by @id: the Organization here is the same entity the rest of the
+    site names, and the WebPage hangs off the WebSite rather than floating on its own. A second
+    <script> would have meant two Organizations with two identities, two WebPages for one URL and
+    two FAQPages -- which is not extra coverage, it is a page that cannot say who it belongs to.
+
     Only things the page actually shows go in here. The questions are the rendered ones, the
-    numbers are the published ones, and there is no aggregateRating: we have no verified reviews,
-    and inventing one is both dishonest and a manual penalty waiting to happen.
+    numbers are the published ones, and there is no aggregateRating: reviews come from the
+    approved queue and inventing an average is both dishonest and a manual penalty waiting.
     """
-    site = current_app.config.get('SITE_URL', '').rstrip('/') or request.host_url.rstrip('/')
-    org = {
-        '@type': 'Organization',
-        'name': 'NRI Parent Service',
-        'url': site,
-        'email': current_app.config.get('SUPPORT_EMAIL', ''),
-    }
-    if phones:
-        org['contactPoint'] = [{
-            '@type': 'ContactPoint',
-            'contactType': 'customer service',
-            'telephone': '+' + p['digits'],
-            'areaServed': 'IN' if p['label'] == 'India' else 'US',
-            'availableLanguage': ['en', 'hi'],
-        } for p in phones]
-    graph = {
-        '@context': 'https://schema.org',
-        '@graph': [
-            org,
-            {
-                '@type': 'WebPage',
-                '@id': canonical,
-                'url': canonical,
-                'name': 'Travel Insurance for Every Journey',
-                'isPartOf': {'@type': 'WebSite', 'name': 'NRI Parent Service', 'url': site},
-            },
-            {
-                '@type': 'Service',
-                'name': 'Travel and visitor insurance',
-                'serviceType': 'Travel insurance comparison and purchase',
-                'provider': org,
-                'areaServed': 'Worldwide',
-                'description': ('Quote and compare 65+ A-rated travel and visitor insurance plans '
-                                'covering emergency medical treatment, hospitalisation, '
-                                'evacuation and trip disruption.'),
-            },
-        ],
-    }
+    ids = org.identity()
+    org_ref = {'@id': ids['org_id']}
+    service_id = canonical + '#service'
+
+    graph = [
+        org.organization(phones),
+        org.website(),
+        {
+            '@type': 'WebPage',
+            '@id': canonical + '#webpage',
+            'url': canonical,
+            'name': PAGE_NAME,
+            'headline': PAGE_HEADLINE,
+            'description': PAGE_DESCRIPTION,
+            'isPartOf': {'@id': ids['website_id']},
+            'about': {'@id': service_id},
+            'publisher': org_ref,
+            'inLanguage': 'en-US',
+        },
+        {
+            '@type': 'Service',
+            '@id': service_id,
+            'name': 'Travel Insurance',
+            'serviceType': 'Travel and Visitor Insurance',
+            'description': SERVICE_DESCRIPTION,
+            'provider': org_ref,
+            'url': canonical,
+            'areaServed': [{'@type': 'Country', 'name': 'United States'},
+                           {'@type': 'Country', 'name': 'India'}],
+            'audience': {'@type': 'Audience', 'audienceType': AUDIENCE},
+        },
+    ]
     if faqs:
-        # Declared only when the page actually answers something. An empty FAQPage is a promise
-        # of answers that are not there, which is exactly what structured-data penalties are for.
-        graph['@graph'].append({
+        # Generated from the questions the page renders, never a list of its own. A FAQPage
+        # promising answers the page does not show is exactly what the penalties are for -- and
+        # it is why these are edited in Admin -> Travel Insurance -> Help & FAQ and read back
+        # from there, rather than written twice.
+        graph.append({
             '@type': 'FAQPage',
+            '@id': canonical + '#faq',
             'mainEntity': [{
                 '@type': 'Question',
                 'name': f['question'],
                 'acceptedAnswer': {'@type': 'Answer', 'text': f['answer']},
             } for f in faqs],
         })
-    return graph
+    return {'@context': 'https://schema.org', '@graph': graph}
 
 
 def _reviews():
@@ -170,7 +189,13 @@ def landing():
                            support_email=insurance_page.support_email(),
                            availability=insurance_page.availability(),
                            structured_data=_structured_data(faqs, phones, canonical),
-                           canonical_url=canonical)
+                           canonical_url=canonical,
+                           # empty on localhost and in tests, which removes the tag entirely
+                           ads_account=ads.account_id() if ads.enabled() else '',
+                           ads_conversions=ads.conversions(),
+                           # the page's own title and description, so what the schema claims and
+                           # what the page says are one decision rather than two
+                           page_title=PAGE_NAME, page_description=PAGE_DESCRIPTION)
 
 
 @insurance_bp.route('/travel-insurances')

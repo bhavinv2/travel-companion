@@ -30,7 +30,8 @@
     </div>
 
     {% if tab == 'contact' %}
-    <form method="get" class="cm-filters">
+    {# filters as you type; the button and a plain submit still work without JavaScript #}
+    <form method="get" class="cm-filters" data-live-search="#voiceResults">
       <input type="hidden" name="tab" value="contact"/>
       <input type="search" name="q" value="{{ filters.q }}" placeholder="Search name, e-mail, phone or message…"/>
       {# one inbox for both services; which one an enquiry is about is a filter, not a screen #}
@@ -51,8 +52,10 @@
     </form>
 
     {# CS keeps the internal note and the Reply link -- the extra columns an agent works with. #}
+    <div id="voiceResults">
+    <div class="table-wrap">
     {{ vt.contact_table(items, 'cs.contact_status',
-                        CONTACT_STATUSES, CONTACT_STATUS_LABELS, request.full_path, with_notes=True,
+                        CONTACT_STATUSES, CONTACT_STATUS_LABELS, here(), with_notes=True,
                         topic_labels=CONTACT_TOPIC_LABELS) }}
 
     {% if pages > 1 %}
@@ -63,6 +66,8 @@
       {% endfor %}
     </div>
     {% endif %}
+    </div>
+    </div>
 
     {% elif tab == 'feedback' %}
     <p class="muted small vc-note"><strong>Approve</strong> accepts a review; the <strong>&#9733; Feature</strong> toggle hand-picks which approved reviews appear on the public home page (up to 6, newest first &mdash; until you feature any, the newest approved ones show). Rejecting deletes the review.</p>
