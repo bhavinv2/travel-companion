@@ -4,7 +4,7 @@ import secrets
 from urllib.parse import urlparse, urlencode
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, session, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from app import db
+from app import db, wants_json
 from app.models import User, ContactPoint, ActivityEvent
 from app.services.storage import save_public_image
 from app.services import mailer, tokens
@@ -442,7 +442,9 @@ def login():
         return redirect(staff_home(current_user))
 
     next_page = _safe_next(request.args.get('next'))
-    if next_page:
+    # Belt and braces on the same bug: the session is shared with every background request the
+    # page makes, so only something that is actually being navigated to gets remembered in it.
+    if next_page and not wants_json(request):
         session['next'] = next_page
 
     if request.method == 'POST':

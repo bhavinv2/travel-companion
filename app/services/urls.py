@@ -95,4 +95,12 @@ def safe_next(value):
     parsed = urlparse(value)
     if parsed.scheme or parsed.netloc:
         return None
+    # Somewhere to land, not something to call. An API path here means a background fetch got
+    # itself recorded as the destination, which is how signing in ended up at a JSON endpoint.
+    path = parsed.path
+    root = (request.script_root or '').rstrip('/')
+    if root and path.startswith(root):
+        path = path[len(root):] or '/'
+    if path.startswith('/api/') or path.startswith('/static/'):
+        return None
     return value

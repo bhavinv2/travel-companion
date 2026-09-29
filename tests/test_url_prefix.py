@@ -107,9 +107,15 @@ def test_a_stored_notification_link_is_moved_inside_the_app(pclient, cs):
 
 
 def test_signing_in_returns_to_the_page_that_asked(pclient, cs):
+    """The destination, not how it happens to be escaped -- a slash is legal in a query value,
+    and which of the two spellings you get depends on who built the redirect."""
+    from urllib.parse import parse_qs, urlparse
+
     r = get(pclient, '/cs/posts')
     assert r.status_code == 302
-    assert 'next=%2Ftravel-companions%2Fcs%2Fposts' in r.headers['Location']
+    where = urlparse(r.headers['Location'])
+    assert where.path == PREFIX + '/auth/login'
+    assert parse_qs(where.query)['next'] == [PREFIX + '/cs/posts']
 
 
 # ---------------------------------------------------------------------------

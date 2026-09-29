@@ -82,6 +82,25 @@ class PrefixMiddleware:
         return self.wsgi_app(environ, start_response)
 
 
+def wants_json(request):
+    """Whether this request came from a script rather than from somebody navigating.
+
+    Used to decide what an error looks like. Sec-Fetch-Mode is the reliable modern signal and
+    every browser that matters sends it; the rest are for older clients and for our own fetch()
+    calls, which set X-Requested-With.
+    """
+    if request.path.startswith('/api/') or '/api/' in request.path:
+        return True
+    if request.is_json or request.accept_mimetypes.best == 'application/json':
+        return True
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return True
+    if 'X-CSRFToken' in request.headers:
+        return True
+    mode = request.headers.get('Sec-Fetch-Mode')
+    return bool(mode) and mode != 'navigate'
+
+
 def _env_bool(name, default):
     """Boolean env var that accepts True/true/1/yes/on (Railway dashboards store lowercase 'true')."""
     v = os.environ.get(name)
@@ -236,6 +255,25 @@ def create_app(test_config=None):
     login_manager.login_view = 'auth.login'
     login_manager.login_message_category = 'info'
 
+    @login_manager.unauthorized_handler
+    def _unauthorized():
+        """What an unauthenticated request gets.
+
+        A page gets the login screen, as before. A fetch() gets 401 and a JSON body, because the
+        alternative does real damage: Flask-Login answers with a redirect to auth.login?next=
+        <that URL>, the login view writes that into session['next'], and the next sign-in obeys
+        it. Every page polls /api/unread-count, so signing in with Google landed people on a
+        JSON endpoint -- set by a background poll they never saw.
+        """
+        from flask import flash, jsonify, redirect, request, url_for
+
+        if wants_json(request):
+            return jsonify(error='Please sign in.', authenticated=False), 401
+        flash('Please sign in to continue.', 'info')
+        # here(), so the prefix survives; no `next` at all for a non-navigation
+        from app.services.urls import here
+        return redirect(url_for('auth.login', next=here()))
+
     IST = timedelta(hours=5, minutes=30)
     app.config['IST_OFFSET'] = IST
 
@@ -353,9 +391,7 @@ def create_app(test_config=None):
         from flask import flash, jsonify, redirect, request
 
         # fetch() calls send the token as a header; a redirect would hand them an HTML page with 200
-        if (request.is_json or 'X-CSRFToken' in request.headers
-                or request.path.startswith('/api/')
-                or request.accept_mimetypes.best == 'application/json'):
+        if wants_json(request):
             return jsonify(error='Your session expired. Please reload the page and try again.'), 400
         flash('Your session expired before the form was sent. Please fill it in again and submit.',
               'warning')
@@ -495,7 +531,7 @@ def create_app(test_config=None):
                                 GENDERS, PREF_GENDERS)
         from app import options
         from app.services import (admin_nav, cs_access, insurance_countries, nri_services,
-                                   portals, urls)
+                                  portals, products, urls)
         from app.services import settings as _settings
         return {
             # Templates use this for "today" in date inputs. Between 18:30 and 00:00 IST,
@@ -513,6 +549,8 @@ def create_app(test_config=None):
             # for the paths Python did not build with url_for -- a stored notification
             # link, a `base` passed as a string -- and for "where am I" in a next field
             'app_url': urls.app_url,
+            # the public product switcher under the logo
+            'PRODUCTS': products,
             'here': urls.here,
             'NRI_SOCIAL': nri_services.SOCIAL,
             'WHATSAPP': _settings.whatsapp_numbers,

@@ -68,7 +68,7 @@ textarea, input, select, button { font-family: inherit; }
 .logo-text strong { color: var(--coral); }
 .logo-stack { display: flex; flex-direction: column; gap: 0; line-height: 1.15; }
 .logo-sub { display: block; font-size: 10.5px; font-weight: 600; color: var(--coral); letter-spacing: 0.02em; margin-top: 1px; }
-@media (max-width: 900px) { .logo-sub { display: none; } }
+@media (max-width: 900px) { .nav-logo .logo-sub { display: none; } }
 .nav-links { display: flex; gap: 4px; margin: 0 auto; }
 .nav-links a { color: rgba(255,255,255,0.8); padding: 8px 12px; border-radius: 6px; font-size: 14px; font-weight: 500; transition: all 0.2s; white-space: nowrap; }
 .nav-links a:hover, .nav-links a.active { color: white; background: rgba(255,255,255,0.12); }
@@ -678,15 +678,23 @@ label .opt { text-transform: none; letter-spacing: 0; font-weight: 500; font-siz
   .admin-sidebar { display: none; }
   .admin-stats { grid-template-columns: repeat(2, 1fr); }
 }
-@media (max-width: 768px) {
+/* The header keeps its drawer until the full menu genuinely fits.
+
+   It used to switch to the desktop layout at 769px, but the desktop header is about 1140px
+   wide -- logo, seven links, Sign In, Sign Up, Support and the language picker. Between the
+   two, the right-hand group ran off the screen: measured 293px past the edge at 820px and
+   99px at 1024px, and .navbar clips it, so on a tablet Sign In was not merely awkward, it
+   was not there to press. Below this width the links live in the drawer and Sign In / Sign
+   Up stay on the bar, which is what a tablet has room for. */
+@media (max-width: 1140px) {
   .nav-links { display: none; }
   .hamburger { display: flex; }
   /* Main menu as a polished drop panel: icon + label rows, big tap targets, a dimmed backdrop
      behind it, and the "Join" item as a coral button. (Was a bare, cramped text list.) */
-  .nav-links.open { display: flex; flex-direction: column; position: fixed; top: 64px; left: 0; right: 0;
+  .nav-links.open { display: flex; flex-direction: column; position: fixed; top: 68px; left: 0; right: 0;
     background: var(--navy); padding: 10px 12px 16px; gap: 2px; z-index: 999;
     box-shadow: 0 26px 44px rgba(6,17,34,.45); border-top: 1px solid rgba(255,255,255,0.08);
-    max-height: calc(100vh - 64px); overflow-y: auto; animation: navDrop .18s ease; }
+    max-height: calc(100vh - 68px); overflow-y: auto; animation: navDrop .18s ease; }
   .nav-links.open a { display: flex; align-items: center; gap: 13px; padding: 14px 14px;
     border-radius: 12px; font-size: 15.5px; font-weight: 600; color: rgba(255,255,255,0.82); white-space: normal; }
   .nav-links.open a i { display: inline-flex; width: 20px; justify-content: center; color: var(--coral); font-size: 15px; }
@@ -694,7 +702,10 @@ label .opt { text-transform: none; letter-spacing: 0; font-weight: 500; font-siz
   .nav-links.open .highlight-link { justify-content: center; background: var(--coral); color: #fff; margin-top: 8px; }
   .nav-links.open .highlight-link:hover { background: var(--coral-dark); }
   .nav-links.open .highlight-link i { color: #fff; }
-  body.nav-open::before { content: ''; position: fixed; inset: 64px 0 0 0; background: rgba(6,17,34,.45); z-index: 998; }
+  body.nav-open::before { content: ''; position: fixed; inset: 68px 0 0 0; background: rgba(6,17,34,.45); z-index: 998; }
+}
+
+@media (max-width: 768px) {
   .slide-content { padding: 40px 5%; }
   .slide-bg-image { opacity: 0.25; }
   .slide-fade-overlay { background: linear-gradient(to right, #f0f4f8 50%, rgba(240,244,248,0.9) 75%, rgba(240,244,248,0.6) 100%); }
@@ -706,6 +717,16 @@ label .opt { text-transform: none; letter-spacing: 0; font-weight: 500; font-siz
   .form-row-2 { grid-template-columns: 1fr; }
   .chat-window { width: calc(100vw - 48px); right: 24px; }
 }
+/* Sign In leaves the bar only when the bar genuinely cannot hold it.
+   On a 390px phone the row needs 459px once the logo, Support, language, Sign In and the burger
+   are laid out, and the overflow pushed the BURGER off screen -- taking the whole menu, and with
+   it the only route to signing up, out of reach. That is a phone problem: a 768px tablet has
+   nearly 300px to spare, and hiding the button there was the reason signing in from a tablet
+   meant hunting through a menu. */
+@media (max-width: 600px) {
+  .btn-outline-nav { display: none; }
+}
+
 @media (max-width: 480px) {
   .action-bar { flex-direction: column; }
   .action-btns { width: 100%; }
@@ -955,10 +976,6 @@ html, body { overflow-x: clip; }  /* clip (not hidden): hidden turns body into a
   /* Icon only, same as the language pill: the headset is the recognisable part. */
   .nav-support-tx { display: none; }
   .nav-support { padding: 7px 10px; gap: 0; }
-  /* The navbar needs 459px on a 390px phone once the logo, Support, language, Sign In and the
-     burger are laid out, and the overflow pushed the BURGER off screen -- taking the whole menu,
-     and with it the only route to signing up, out of reach. Sign In moves into that menu. */
-  .btn-outline-nav { display: none; }
   .user-btn { padding: 6px 8px; }
   .btn-outline-nav, .btn-primary-nav { width: auto; padding: 8px 12px; font-size: 13px; }
   .search-section { padding: 16px 4% 32px; }
@@ -3780,6 +3797,53 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 /* These two draw their own control and hide the real box; the rules above must not undo that. */
 .admin-page .tick-check input[type=checkbox] { display: none; }
 .admin-page .multi-dropdown input[type=checkbox] { width: 16px; height: 16px; }
+
+/* The product switcher under the logo.
+   Travel Companion, Travel Insurance and Sahayak are separate products sharing a header. The
+   only route between them used to be a "Services" item inside the main menu -- which on a phone
+   is behind the burger, so from the insurance page there was no visible way back at all. The
+   logo stays a link home; the line under it names the product and opens. 38px is the logo image
+   and 10px the gap it sits after, so the label lines up with the brand name above it. */
+.nav-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; }
+.svc-sw { position: relative; margin-left: 48px; }
+.svc-sw-btn { display: inline-flex; align-items: center; gap: 5px; background: none; border: 0;
+  padding: 1px 4px 1px 0; margin: 0; cursor: pointer; border-radius: 6px; color: inherit; }
+.svc-sw-btn:hover .logo-sub, .svc-sw.open .logo-sub { color: #fff; }
+.svc-sw-btn:focus-visible { outline: 2px solid rgba(255,255,255,.6); outline-offset: 2px; }
+.svc-sw-caret { font-size: 8px; color: var(--coral); transition: transform .15s; }
+.svc-sw.open .svc-sw-caret { transform: rotate(180deg); }
+
+.svc-sw-menu { display: none; position: absolute; top: calc(100% + 8px); left: -4px; z-index: 1001;
+  min-width: 268px; background: #fff; border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 22px 48px rgba(1,16,56,.22); padding: 6px; }
+.svc-sw.open .svc-sw-menu { display: block; }
+.svc-sw-head { font-size: 10.5px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--muted); padding: 9px 10px 5px; }
+.svc-sw-item { display: flex; align-items: center; gap: 11px; padding: 9px 10px; border-radius: 10px;
+  color: var(--text); text-decoration: none; }
+.svc-sw-item:hover { background: var(--bg); }
+.svc-sw-item > i:first-child { width: 18px; text-align: center; color: var(--coral); font-size: 14px; }
+.svc-sw-item span { display: flex; flex-direction: column; min-width: 0; }
+.svc-sw-item b { font-size: 14px; font-weight: 700; line-height: 1.25; }
+.svc-sw-item small { font-size: 11.5px; color: var(--muted); }
+.svc-sw-item.on { background: var(--coral-light); }
+.svc-sw-item.on b { color: var(--coral-dark-text); }
+.svc-sw-item.sm { padding: 7px 10px; }
+.svc-sw-item.sm > i:first-child { color: var(--muted); font-size: 11px; }
+.svc-sw-item.sm b { font-size: 13px; font-weight: 600; }
+.svc-sw-tick { margin-left: auto; color: var(--coral); font-size: 12px; }
+
+@media (max-width: 900px) {
+  /* the one place the product name matters most: it is the only thing on a phone that says
+     which of the three you are looking at */
+  .svc-sw .logo-sub { display: block; font-size: 10px; }
+  .svc-sw { margin-left: 48px; }
+  .svc-sw-menu { min-width: min(280px, calc(100vw - 32px)); }
+}
+@media (max-width: 420px) {
+  .svc-sw { margin-left: 44px; }
+  .svc-sw-menu { position: fixed; left: 12px; right: 12px; top: 62px; min-width: 0; }
+}
 
 /* Reviews are kept per product, so the public page needs a way to say which set is on screen
    and to reach the other. Two tabs, not a dropdown: there are two, and both are worth seeing. */

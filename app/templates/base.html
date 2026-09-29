@@ -60,15 +60,48 @@
 
   <!-- NAVBAR -->
   <nav class="navbar" id="navbar">
-    <a href="{{ staff_home(current_user) if is_staff else url_for('main.index') }}" class="nav-logo">
-      <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt="NRI Parent Service" class="logo-img"/>
-      <span class="logo-stack">
-        <span class="logo-text">NRI <strong>Parent</strong> Service{% if is_staff %} <small class="staff-tag">{{ 'Admin' if current_user.is_admin else 'CS' }}</small>{% endif %}</span>
-        {# A page that is its own product says so here -- /travel-insurance overrides it. Everywhere
-           else this is the group's line. #}
-        <small class="logo-sub">{% block logo_sub %}Connecting Desis{% endblock %}</small>
-      </span>
-    </a>
+    {# Brand, then the product. The logo itself stays a plain link home -- that is the one thing
+       everybody already knows how to do with a logo, and a menu that swallowed it would take it
+       away. The line underneath is the switcher: it says which product you are in, and opens to
+       let you leave it. Staff pages keep the plain line; the console has its own switcher. #}
+    <div class="nav-brand">
+      <a href="{{ staff_home(current_user) if is_staff else url_for('main.index') }}" class="nav-logo">
+        <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt="NRI Parent Service" class="logo-img"/>
+        <span class="logo-stack">
+          <span class="logo-text">NRI <strong>Parent</strong> Service{% if is_staff %} <small class="staff-tag">{{ 'Admin' if current_user.is_admin else 'CS' }}</small>{% endif %}</span>
+          {% if is_staff %}<small class="logo-sub">{% block logo_sub %}Connecting Desis{% endblock %}</small>{% endif %}
+        </span>
+      </a>
+      {% if not is_staff %}
+      {% set _here = PRODUCTS.current_label() %}
+      <div class="svc-sw" id="svcSw">
+        <button type="button" class="svc-sw-btn" id="svcSwBtn" aria-haspopup="menu"
+                aria-expanded="false" title="Switch service">
+          <span class="logo-sub">{{ _here }}</span>
+          <i class="fa-solid fa-chevron-down svc-sw-caret" aria-hidden="true"></i>
+        </button>
+        <div class="svc-sw-menu" id="svcSwMenu" role="menu" aria-label="Our services">
+          <div class="svc-sw-head">{{ _('Switch service') }}</div>
+          {% for s in PRODUCTS.menu() %}
+          <a class="svc-sw-item{{ ' on' if s.current }}" role="menuitem" href="{{ s.url }}">
+            <i class="fa-solid {{ s.icon }}"></i>
+            <span><b>{{ s.label }}</b><small>{{ s.blurb }}</small></span>
+            {% if s.current %}<i class="fa-solid fa-check svc-sw-tick" aria-hidden="true"></i>{% endif %}
+          </a>
+          {% endfor %}
+          {% set _more = PRODUCTS.extras() %}
+          {% if _more %}
+          <div class="svc-sw-head">{{ _('More from NRI Parent Service') }}</div>
+          {% for label, href in _more %}
+          <a class="svc-sw-item sm" role="menuitem" href="{{ href }}" target="_blank" rel="noopener">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i><span><b>{{ label }}</b></span>
+          </a>
+          {% endfor %}
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
 
     <ul class="nav-links" id="navLinks">
       {% if is_staff %}
@@ -112,8 +145,11 @@
       {% else %}
         {# Both of these live in the menu on phones, where the navbar has no room for them --
            see the .nav-signin rule. Sign In is in .nav-right on wider screens. #}
-        <li><a href="{{ url_for('auth.login') }}" class="nav-signin"><i class="fa-solid fa-right-to-bracket"></i> {{ _('Sign In') }}</a></li>
-        <li><a href="{{ url_for('auth.register') }}" class="highlight-link"><i class="fa-solid fa-user-plus"></i> {{ _('Join Desi Travellers') }}</a></li>
+        {# next=here(): signing in should put you back on the page you were reading. Without it
+           somebody who signs in from the travel-insurance page is dropped on the companion home,
+           which reads as having been sent to a different product. #}
+        <li><a href="{{ url_for('auth.login', next=here()) }}" class="nav-signin"><i class="fa-solid fa-right-to-bracket"></i> {{ _('Sign In') }}</a></li>
+        <li><a href="{{ url_for('auth.register', next=here()) }}" class="highlight-link"><i class="fa-solid fa-user-plus"></i> {{ _('Join Desi Travellers') }}</a></li>
       {% endif %}
       {% endif %}
     </ul>
@@ -264,8 +300,8 @@
           </div>
         </div>
       {% else %}
-        <a href="{{ url_for('auth.login') }}" class="btn-outline-nav">{{ _('Sign In') }}</a>
-        <a href="{{ url_for('auth.register') }}" class="btn-primary-nav">{{ _('Sign Up') }}</a>
+        <a href="{{ url_for('auth.login', next=here()) }}" class="btn-outline-nav">{{ _('Sign In') }}</a>
+        <a href="{{ url_for('auth.register', next=here()) }}" class="btn-primary-nav">{{ _('Sign Up') }}</a>
       {% endif %}
 
       <button class="hamburger" id="hamburger"><i class="fa-solid fa-bars"></i></button>

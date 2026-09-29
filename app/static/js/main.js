@@ -2270,6 +2270,9 @@ async function pollUnread() {
   if (!IS_LOGGED_IN) return;
   try {
     const res = await apiFetch('/api/unread-count');
+    // 401 once the session has expired underneath an open tab. Stop polling rather than
+    // redrawing the badges from an error body every few seconds.
+    if (!res.ok) return;
     const data = await res.json();
     const msgBadge = document.getElementById('unreadBadge');
     const chatBadge = document.getElementById('chatBadge');
@@ -3358,5 +3361,31 @@ function wireBulkSelect(headId, rowSelector, onChange) {
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
     document.getElementById('siteSw')?.classList.remove('open');
+  });
+})();
+
+/* The product switcher under the logo. Delegated, because the header is rendered on every page
+   and this file is loaded once. */
+(function () {
+  document.addEventListener('click', function (e) {
+    var sw = document.getElementById('svcSw');
+    if (!sw) return;
+    var btn = e.target.closest('#svcSwBtn');
+    if (btn) {
+      e.preventDefault();
+      var open = sw.classList.toggle('open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      return;
+    }
+    if (!e.target.closest('#svcSwMenu')) {
+      sw.classList.remove('open');
+      var b = document.getElementById('svcSwBtn');
+      if (b) b.setAttribute('aria-expanded', 'false');
+    }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var sw = document.getElementById('svcSw');
+    if (sw) sw.classList.remove('open');
   });
 })();

@@ -411,10 +411,30 @@ def test_the_page_screen_is_admin_only(client, db, cs_user):
 
 
 def test_the_brand_line_names_this_product(client, db):
-    """On its own page the logo reads "Travel Insurance"; everywhere else it is the group line.
-    Getting this wrong would tell a visitor they had wandered off the page they came for."""
-    assert 'logo-sub">Travel Insurance<' in client.get('/travel-insurance').data.decode()
-    assert 'logo-sub">Connecting Desis<' in client.get('/help').data.decode()
+    """The line under the logo says which of the three products you are on. Getting it wrong
+    would tell a visitor they had wandered off the page they came for.
+
+    It is the switcher's label now rather than a static tagline, so it names the product on
+    every page instead of only this one -- and it opens, which is the only visible way between
+    the products on a phone.
+    """
+    ins = client.get('/travel-insurance').data.decode()
+    assert 'logo-sub">Travel Insurance<' in ins
+    assert 'id="svcSwBtn"' in ins
+
+    app_page = client.get('/help').data.decode()
+    assert 'logo-sub">Travel Companion<' in app_page
+
+
+def test_the_switcher_offers_the_other_products(client, db):
+    """From the insurance page there was no visible route back to the companion app on a phone:
+    the Services menu is inside the burger."""
+    html = client.get('/travel-insurance').data.decode()
+    menu = html.split('id="svcSwMenu"', 1)[1].split('</div>', 1)[0] + html.split('id="svcSwMenu"', 1)[1][:2000]
+    for product in ('Travel Companion', 'Sahayak'):
+        assert product in menu, product
+    # and the one you are on is marked rather than offered as a destination
+    assert 'svc-sw-item on' in html
 
 
 def test_support_still_works_without_javascript(client, db):
@@ -763,8 +783,12 @@ def test_signing_in_is_reachable_on_a_phone(client, db):
     assert 'class="nav-signin"' in html
     # ...shown only where the navbar cannot carry it
     assert '.nav-links .highlight-link, .nav-links .nav-signin { display: none; }' in text
-    # and the navbar drops the button at phone widths
-    assert _enclosing_media(text, '.btn-outline-nav { display: none; }') == '@media (max-width: 768px)'
+    # The button leaves the bar at phone widths only. It used to go at 768px, which took it away
+    # from tablets that have nearly 300px to spare -- so signing in from a tablet meant hunting
+    # through a menu, and the desktop header it was making room for did not fit there either.
+    assert _enclosing_media(text, '.btn-outline-nav { display: none; }') == '@media (max-width: 600px)'
+    # and the drawer stays until the full header genuinely fits
+    assert _enclosing_media(text, '.hamburger { display: flex; }') == '@media (max-width: 1140px)'
 
 
 def test_the_hero_line_clears_the_chip(db):
