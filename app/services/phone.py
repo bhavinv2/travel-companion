@@ -183,7 +183,12 @@ def label(iso):
 
 
 def flag(iso):
-    """The country's flag, from its two letters. Returns '' where the font has no glyph."""
+    """The country's flag, from its two letters. '' when they are not two letters.
+
+    A regional-indicator pair, which is what the glyph is made of. Windows has no flag font and
+    draws the two letters instead, so this is for places where that still reads -- never beside
+    text that already names the country.
+    """
     iso = (iso or '').upper()
     if len(iso) != 2 or not iso.isalpha():
         return ''

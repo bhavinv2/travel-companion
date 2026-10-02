@@ -114,3 +114,48 @@ def test_whatsapp_number_needs_enough_digits_to_count(client, db, admin_user):
     settings.set_landing_settings({'whatsapp_in': '+91', 'whatsapp_us': ''}, admin_user)
     assert settings.whatsapp_numbers() == {'in': None, 'us': None}
     assert 'class="wa-btn' not in client.get('/').data.decode()
+
+
+# ---------------------------------------------------------------------------
+# One way to ask for help
+# ---------------------------------------------------------------------------
+
+def test_header_support_opens_the_same_popup_as_the_help_card(client, db):
+    """Support in the header used to be a plain link to the help centre while "Contact Us" in
+    the "Here when you need us" section opened the popup -- two different answers to the same
+    question, from the same page."""
+    html = client.get('/').data.decode()
+    header = html.split('class="hdr-right"', 1)[1].split('</div>', 1)[0]
+    assert 'data-open-contact' in header
+    # and the popup it opens is actually on the page
+    assert 'id="contactModal"' in html and 'id="contactModalForm"' in html
+
+
+def test_support_in_the_drawer_opens_it_too(client, db):
+    """Below 1080px the header hides Support and the drawer carries it, so the phone copy has
+    to behave the same way as the desktop one."""
+    html = client.get('/').data.decode()
+    drawer = html.split('id="mobileDrawer"', 1)[1].split('</nav>', 1)[0]
+    assert 'data-open-contact' in drawer
+
+
+def test_support_is_still_a_real_link_without_javascript(client, db):
+    """The popup is an enhancement. Both copies keep an href, or a blocked bundle leaves
+    somebody with no way to reach us at all."""
+    html = client.get('/').data.decode()
+    assert html.count('data-open-contact href="/help"') == 2          # the header and the drawer
+    assert client.get('/help').status_code == 200
+
+
+def test_the_popup_prints_the_published_support_address(client, db, admin_user):
+    """It was typed into the markup twice, so changing it on the admin screen moved it
+    everywhere on the site except inside the popup."""
+    from app.services import offices
+    offices.save_emails([{'label': 'General', 'address': 'hello@nriparentservice.com',
+                          'sites': []}], admin_user)
+    html = client.get('/').data.decode()
+    # bounded by the popup's own last element, or the slice runs on into the page's support
+    # band, which is a different thing reading a different setting
+    modal = html.split('id="contactModal"', 1)[1].split('class="reassure"', 1)[0]
+    assert modal.count('mailto:hello@nriparentservice.com') == 2    # the side link and the button
+    assert 'support@connectingdesis.com' not in modal

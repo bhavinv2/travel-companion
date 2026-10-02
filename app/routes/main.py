@@ -465,8 +465,13 @@ def contact_us():
         for e in errors:
             flash(e, 'danger')
 
+    # spelled out, because "4 countries, one team" reads like a spreadsheet. Derived from the
+    # offices, so clearing one takes the heading's number down with it.
+    words = ('no', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight')
+    n = len(offices.countries())
     return render_template('pages/contact_us.html', form=form,
                            offices=offices.all_offices(),
+                           country_word=words[n] if n < len(words) else str(n),
                            # per-site: a number can be published on some pages and not others
                            helplines=offices.helplines('contact'),
                            whatsapp_digits=offices.whatsapp('contact'),

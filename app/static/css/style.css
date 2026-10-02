@@ -3906,102 +3906,233 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 
 /* ==========================================================================
    /contact-us -- the group's contact page.
-   Its own front door, so it carries a bit more presence than an inner screen:
-   a navy band at the top with the ways to reach us as tappable cards, the form
-   and the helpline side by side, then the offices. Tokens and buttons are the
-   site's own, so it reads as the same product rather than a second site.
+
+   Its own front door, so it carries more presence than an inner screen: a pale
+   sky band with the artwork in it, the form and the ways to reach us side by
+   side, the offices as photo cards, then a closing band. Tokens and buttons are
+   the site's own, so it reads as the same product rather than a second site.
+
+   Artwork is in static/img/contact/ as WebP with alpha (see services/offices
+   ARTWORK). Every one of them is decoration: the page says everything it has to
+   say with images off, which is why they all carry an empty alt.
    ========================================================================== */
-.cu { background: #fff; }
+.cu { background: #fff; --cu-sky: #EAF2FE; --cu-sky-2: #F6FAFF; --cu-cream: #FFF8EC; }
 .cu .wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
 .cu-kick { display: inline-block; font-size: 11.5px; font-weight: 800; letter-spacing: .12em;
   text-transform: uppercase; color: var(--coral); margin-bottom: 10px; }
+.cu img { max-width: 100%; height: auto; }
 
-.cu-hero { background: var(--navy); color: #fff; padding: 58px 0 54px; }
-.cu-hero h1 { font-family: var(--font-head); font-size: clamp(30px, 4vw, 44px); font-weight: 800;
-  color: #fff; line-height: 1.12; margin: 0 0 14px; }
-.cu-lead { font-size: 16px; line-height: 1.65; max-width: 620px; color: rgba(255,255,255,.76); margin: 0; }
-.cu-hero-acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 12px; margin-top: 30px; }
-.cu-act { display: flex; align-items: center; gap: 13px; padding: 14px 16px; border-radius: 14px;
-  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); color: #fff;
-  transition: background .15s, border-color .15s, transform .15s; }
-.cu-act:hover { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.34);
-  transform: translateY(-1px); color: #fff; }
-.cu-act i { font-size: 17px; color: var(--coral); width: 22px; text-align: center; flex: none; }
-.cu-act.wa i { color: #25D366; }
-.cu-act span { display: flex; flex-direction: column; min-width: 0; }
-.cu-act small { font-size: 11px; color: rgba(255,255,255,.6); letter-spacing: .03em; }
-.cu-act b { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+/* ----- hero ----- */
+.cu-hero { position: relative; overflow: hidden; padding: 46px 0 0;
+  background: linear-gradient(170deg, var(--cu-sky-2) 0%, var(--cu-sky) 100%); }
+/* The map and the dots sit behind everything and must never take a click. */
+.cu-hero-map, .cu-hero-dots { position: absolute; pointer-events: none; user-select: none; }
+.cu-hero-map { top: 10px; right: 2%; width: min(560px, 48%); opacity: .5; }
+.cu-hero-dots { left: 2%; bottom: 96px; width: 150px; opacity: .55; }
+/* The photograph is taken out of the flow and pinned to the bottom-right of the band, so the
+   words and the badges both run beside it and it can bleed off the bottom edge. In a grid row
+   it could only be as tall as that row, which left it floating above the badges. */
+.cu-hero .wrap { position: relative; }
+.cu-hero-grid { padding-right: 42%; }
+.cu-hero-tx { padding-bottom: 18px; }
+.cu-hero h1 { font-family: var(--font-head); font-size: clamp(32px, 4.6vw, 52px); font-weight: 800;
+  color: var(--navy); line-height: 1.08; margin: 0 0 14px; letter-spacing: -.01em; }
+.cu-lead { font-size: 16px; line-height: 1.7; max-width: 560px; color: var(--muted); margin: 0; }
+/* Bleeds off the bottom of the band, which is what stops it reading as a pasted cut-out. */
+.cu-hero-art { position: absolute; right: 20px; bottom: 0; width: min(440px, 40%); }
+.cu-hero-art img { display: block; width: 100%; margin-bottom: -1px; }
 
-.cu-main { padding: 54px 0; background: var(--bg); }
+/* Four across, inside the left of the band: the photograph occupies the right 44% and the
+   badges have to stop before it rather than run underneath. */
+.cu-badges { position: relative; list-style: none; margin: 0; padding: 0 42% 30px 0;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
+.cu-badges li { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.cu-badges img { width: 34px; height: 34px; flex: none;
+  filter: drop-shadow(0 4px 12px rgba(15,35,64,.13)); }
+.cu-badges span { display: flex; flex-direction: column; min-width: 0; }
+.cu-badges b { font-size: 12px; font-weight: 800; color: var(--navy); line-height: 1.25; }
+.cu-badges small { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+
+/* ----- the form and the channels ----- */
+.cu-main { padding: 46px 0 54px; background: var(--bg); }
 .cu-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 24px; align-items: start; }
-.cu-form-card { background: #fff; border: 1px solid var(--border); border-radius: 18px;
-  padding: clamp(20px, 3vw, 32px); box-shadow: 0 1px 2px rgba(15,35,64,.05); }
-.cu-form-card h2 { font-family: var(--font-head); font-size: 23px; font-weight: 800; margin: 0 0 6px; }
-.cu-sub { font-size: 14px; color: var(--muted); margin: 0 0 22px; }
+.cu-form-card { background: #fff; border: 1px solid var(--border); border-radius: 20px;
+  padding: clamp(20px, 3vw, 34px); box-shadow: 0 2px 18px rgba(15,35,64,.05); }
+.cu-form-card h2 { font-family: var(--font-head); font-size: 25px; font-weight: 800; margin: 0 0 6px; }
+.cu-sub { font-size: 14px; color: var(--muted); margin: 0 0 24px; }
 .cu-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
 .cu-f { margin-bottom: 16px; }
 .cu-f label { display: block; font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 7px; }
 .cu-f .req { color: #dc2626; }
-.cu-f input, .cu-f select, .cu-f textarea { width: 100%; border: 1.5px solid var(--border);
-  border-radius: 11px; padding: 12px 14px; font: inherit; font-size: 15px; background: #fbfdff;
-  color: var(--text); transition: border-color .15s, box-shadow .15s, background .15s; }
-.cu-f textarea { resize: vertical; line-height: 1.55; }
-.cu-f input:focus, .cu-f select:focus, .cu-f textarea:focus { border-color: var(--coral);
+
+/* A field and the glyph that labels it. The glyph is positioned over the control rather than
+   drawn as a background image, so it inherits colour and scales with the text. */
+.cu-ip { position: relative; }
+.cu-ip > i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+  font-size: 14px; color: #97a3b8; pointer-events: none; }
+.cu-ip-area > i { top: 16px; transform: none; }
+.cu-ip input, .cu-ip select, .cu-ip textarea { width: 100%; border: 1.5px solid var(--border);
+  border-radius: 12px; padding: 12px 14px 12px 40px; font: inherit; font-size: 15px;
+  background: #fbfdff; color: var(--text);
+  transition: border-color .15s, box-shadow .15s, background .15s; }
+.cu-ip select { appearance: none; padding-right: 34px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235B6579' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center; background-size: 15px; }
+.cu-ip textarea { resize: vertical; line-height: 1.55; }
+.cu-ip input:focus, .cu-ip select:focus, .cu-ip textarea:focus { border-color: var(--coral);
   outline: none; background: #fff; box-shadow: 0 0 0 3px rgba(245,166,35,.18); }
-.cu-foot { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+.cu-ip input:focus ~ i, .cu-ip select:focus ~ i { color: var(--coral); }
+
+/* The shared phone field (templates/_phone_field.html) dressed to match the fields above it.
+   Styled from here rather than changed there: every other form on the site uses that macro. */
+.cu .pf { margin-bottom: 16px; }
+.cu .pf > label { display: block; font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 7px; }
+.cu .pf > label .muted { font-weight: 500; color: var(--muted); }
+.cu .pf-row { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 10px; }
+.cu .pf-cc, .cu .pf-num { border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 10px;
+  font: inherit; font-size: 15px; background: #fbfdff; color: var(--text); min-width: 0;
+  transition: border-color .15s, box-shadow .15s, background .15s; }
+.cu .pf-num { padding-left: 38px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2397a3b8' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: left 13px center; background-size: 15px; }
+.cu .pf-cc:focus, .cu .pf-num:focus { border-color: var(--coral); outline: none; background-color: #fff;
+  box-shadow: 0 0 0 3px rgba(245,166,35,.18); }
+
+/* The contact-method pills. The radio itself stays in the page for the keyboard and for
+   assistive technology; the label is what is painted. */
+.cu .ct-pills { display: flex; flex-wrap: wrap; gap: 10px; }
+.cu .ct-pills label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  border: 1.5px solid var(--border); border-radius: 12px; padding: 10px 16px; font-size: 14px;
+  font-weight: 600; color: var(--text); background: #fff;
+  transition: border-color .15s, background .15s, box-shadow .15s; }
+.cu .ct-pills label:hover { border-color: #e2c48f; }
+.cu .ct-pills input { accent-color: var(--coral); margin: 0; }
+.cu .ct-pills i { font-size: 15px; color: var(--muted); }
+.cu .ct-pills .fa-whatsapp { color: #25D366; }
+.cu .ct-pills label:has(input:checked) { border-color: var(--coral); background: var(--cu-cream);
+  box-shadow: 0 0 0 3px rgba(245,166,35,.14); }
+.cu .ct-pills label:has(input:focus-visible) { outline: 2px solid var(--navy); outline-offset: 2px; }
+
+.cu-foot { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+.cu-foot .btn-ghost { border: 1.5px solid var(--border); color: var(--text); background: #fff; }
+.cu-foot .btn-ghost:hover { border-color: #25D366; color: #128C4B; }
+.cu-foot .btn-ghost .fa-whatsapp { color: #25D366; }
 .cu-reassure { font-size: 12.5px; color: var(--muted); margin: 16px 0 0; }
 .cu-reassure i { color: var(--coral); margin-right: 5px; }
 
-.cu-side { display: grid; gap: 16px; }
-.cu-side-card { background: #fff; border: 1px solid var(--border); border-radius: 18px; padding: 22px; }
-.cu-side-card h3 { font-size: 15px; font-weight: 800; margin: 0 0 14px; display: flex;
-  align-items: center; gap: 9px; }
-.cu-side-card h3 i { color: var(--coral); }
-.cu-side-card.quiet { background: var(--sand, #fff8ec); }
-.cu-side-card.quiet p { font-size: 13.5px; color: var(--muted); line-height: 1.6; margin: 0 0 14px; }
-.cu-line { display: flex; flex-direction: column; gap: 1px; padding: 11px 0;
-  border-bottom: 1px solid var(--border); color: var(--text); }
-.cu-line:last-of-type { border-bottom: 0; padding-bottom: 0; }
-.cu-line small { font-size: 11.5px; color: var(--muted); }
-.cu-line b { font-size: 15.5px; font-weight: 700; overflow-wrap: anywhere; }
-.cu-line:hover b { color: var(--coral); }
+/* ----- "Talk to our team" ----- */
+.cu-side { display: grid; gap: 18px; }
+.cu-side-card { background: var(--cu-sky); border: 1px solid #DCE8FA; border-radius: 20px; padding: 24px; }
+.cu-side-card h3 { font-family: var(--font-head); font-size: 20px; font-weight: 800; margin: 0 0 4px; color: var(--navy); }
+.cu-side-sub { font-size: 13.5px; color: var(--muted); margin: 0 0 16px; }
+.cu-chan { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.cu-chan li { display: flex; align-items: center; gap: 12px; background: #fff; border-radius: 14px;
+  padding: 11px 12px; min-width: 0; }
+.cu-chan-ic { width: 36px; height: 36px; flex: none; border-radius: 50%; }
+.cu-chan-emoji { display: grid; place-items: center; background: #fff; font-size: 19px;
+  box-shadow: 0 1px 4px rgba(15,35,64,.14); }
+.cu-chan-tx { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.cu-chan-tx small { font-size: 12px; color: var(--muted); }
+.cu-chan-tx b { font-size: 14.5px; font-weight: 700; color: var(--navy); overflow-wrap: anywhere; }
+.cu-chan-btn { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 13px;
+  font-weight: 700; color: var(--navy); background: #fff; border: 1.5px solid #D7E3F7;
+  border-radius: 999px; padding: 7px 14px; transition: border-color .15s, background .15s, color .15s; }
+.cu-chan-btn:hover { border-color: var(--coral); background: var(--cu-cream); color: var(--navy); }
+.cu-chan-btn i { font-size: 12px; color: var(--coral); }
 
-.cu-offices { padding: 58px 0; }
-.cu-head { text-align: center; max-width: 620px; margin: 0 auto 32px; }
-.cu-head h2 { font-family: var(--font-head); font-size: clamp(24px, 3vw, 32px); font-weight: 800; margin: 0 0 10px; }
+/* ----- "Looking for an answer now?" ----- */
+.cu-help-card { position: relative; overflow: hidden; background: var(--cu-cream);
+  border: 1px solid #F3E2C4; border-radius: 20px; padding: 20px 22px 0;
+  display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 1fr); gap: 14px; align-items: end; }
+.cu-help-blob { position: absolute; z-index: 0; left: -24px; bottom: -16px; width: 160px;
+  opacity: .55; pointer-events: none; }
+.cu-help-pic { position: relative; z-index: 1; align-self: end; }
+.cu-help-pic img { display: block; width: 100%; margin-bottom: -1px; }
+.cu-help-tx { position: relative; z-index: 1; padding-bottom: 22px; }
+.cu-help-tx h3 { font-family: var(--font-head); font-size: 19px; font-weight: 800; color: var(--navy);
+  margin: 0 0 8px; line-height: 1.25; }
+.cu-help-tx p { font-size: 13.5px; color: var(--muted); line-height: 1.6; margin: 0 0 16px; }
+.cu-help-tx .btn { font-size: 13.5px; padding: 9px 18px; background: #fff; }
+
+/* ----- the offices ----- */
+.cu-offices { padding: 60px 0; background: linear-gradient(180deg, #FFFDF9 0%, var(--cu-cream) 100%); }
+.cu-head { text-align: center; max-width: 640px; margin: 0 auto 34px; }
+.cu-head h2 { font-family: var(--font-head); font-size: clamp(25px, 3.2vw, 35px); font-weight: 800; margin: 0 0 10px; }
 .cu-head .cu-lead { color: var(--muted); margin: 0 auto; }
-/* 300px, not 250: at 250 the five cards land 4 + 1 and the last country sits alone on a
-   row of its own. At 300 they fall 3 + 2, which reads as a set. */
-.cu-office-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
-.cu-office { position: relative; background: #fff; border: 1px solid var(--border);
-  border-radius: 16px; padding: 22px; transition: border-color .15s, box-shadow .15s; }
-.cu-office:hover { border-color: #f0d8ae; box-shadow: 0 10px 28px rgba(15,35,64,.07); }
-.cu-office.hq { border-color: var(--coral); background: var(--sand, #fff8ec); }
+/* Centred flex, not a grid of equal columns: there are five offices in four countries, and
+   auto-fit lands them 4 + 1 with the last one stranded on a row of its own. At this basis they
+   fall 3 + 2 and centre, which reads as a set. */
+.cu-office-grid { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; }
+.cu-office { position: relative; flex: 1 1 290px; max-width: 340px; display: flex; flex-direction: column;
+  background: #fff; border: 1px solid var(--border); border-radius: 18px; overflow: hidden;
+  transition: border-color .15s, box-shadow .15s, transform .15s; }
+.cu-office:hover { border-color: #f0d8ae; box-shadow: 0 14px 34px rgba(15,35,64,.09);
+  transform: translateY(-2px); }
+.cu-office.hq { border-color: var(--coral); }
+.cu-office-pic { height: 132px; background: #EDF3FD; overflow: hidden; }
+.cu-office-pic img { display: block; width: 100%; height: 100%; object-fit: contain;
+  object-position: center bottom; }
+.cu-office-bd { position: relative; padding: 26px 20px 22px; flex: 1; }
+/* Straddles the join between the photograph and the card body, which is what ties the two
+   halves together instead of leaving a photo with a caption under it. */
+.cu-office-flag { position: absolute; top: -20px; left: 20px; width: 40px; height: 40px;
+  border-radius: 50%; background: #fff; display: grid; place-items: center;
+  box-shadow: 0 3px 10px rgba(15,35,64,.18); }
+.cu-office-flag img { width: 36px; height: 36px; border-radius: 50%; }
+.cu-office-flag span { font-size: 20px; line-height: 1; }
+.cu-office h3 { font-size: 16.5px; font-weight: 800; margin: 0 0 9px; display: flex;
+  align-items: center; gap: 8px; flex-wrap: wrap; }
 .cu-flag { display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .09em;
-  color: var(--coral); background: rgba(245,166,35,.14); border-radius: 6px; padding: 3px 8px;
-  margin-bottom: 12px; }
-.cu-office h3 { font-size: 16px; font-weight: 800; margin: 0 0 9px; }
+  color: var(--coral); background: rgba(245,166,35,.14); border-radius: 6px; padding: 3px 8px; }
 .cu-office address { font-style: normal; font-size: 13.5px; line-height: 1.75; color: var(--muted); }
-.cu-tag { position: absolute; top: 18px; right: 18px; font-size: 10.5px; font-weight: 800;
-  text-transform: uppercase; letter-spacing: .06em; color: var(--navy); }
+.cu-tag { position: absolute; top: 12px; right: 12px; font-size: 10px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .06em; color: #fff; background: var(--coral);
+  border-radius: 999px; padding: 4px 10px; }
 
-.cu-band { background: var(--navy); color: #fff; padding: 52px 0; text-align: center; }
-.cu-band h2 { font-family: var(--font-head); font-size: clamp(22px, 3vw, 31px); font-weight: 800;
-  color: #fff; margin: 0 auto 10px; max-width: 760px; line-height: 1.25; }
-.cu-band p { color: rgba(255,255,255,.72); font-size: 16px; margin: 0 0 24px; }
-.cu-band-acts { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+/* ----- closing band ----- */
+.cu-band { position: relative; overflow: hidden; background: var(--navy); color: #fff;
+  padding: 46px 0; }
+.cu-band-art { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+  width: min(1100px, 100%); opacity: .13; pointer-events: none; }
+.cu-band-in { position: relative; display: flex; align-items: center; justify-content: space-between;
+  gap: 26px; flex-wrap: wrap; }
+.cu-band h2 { font-family: var(--font-head); font-size: clamp(21px, 2.6vw, 29px); font-weight: 800;
+  color: #fff; margin: 0 0 8px; max-width: 560px; line-height: 1.3; }
+.cu-band p { color: rgba(255,255,255,.72); font-size: 15.5px; margin: 0; }
+.cu-band-acts { display: flex; gap: 12px; flex-wrap: wrap; }
 .cu-band .btn-outline-coral { color: #fff; border-color: rgba(255,255,255,.55); }
 .cu-band .btn-outline-coral:hover { background: #fff; color: var(--navy); border-color: #fff; }
 
-@media (max-width: 900px) {
+@media (max-width: 980px) {
   .cu-grid { grid-template-columns: 1fr; }
-  .cu-hero { padding: 40px 0 38px; }
-  .cu-main, .cu-offices { padding: 36px 0; }
+  .cu-hero-map { width: 58%; opacity: .34; }
+  .cu-badges b { font-size: 12px; }
+  .cu-badges small { font-size: 11px; }
+}
+@media (max-width: 760px) {
+  .cu-hero { padding-top: 34px; }
+  /* The photograph goes under the words rather than beside them -- at this width a 44% column
+     leaves the heading three words to a line. */
+  .cu-hero-grid { padding-right: 0; }
+  .cu-hero-art { position: static; width: auto; margin-top: 10px; }
+  .cu-hero-art img { max-width: 360px; margin: 0 auto -1px; }
+  .cu-hero-dots { display: none; }
+  .cu-badges { padding: 0 0 24px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .cu-main, .cu-offices { padding: 34px 0; }
+  .cu-band-in { flex-direction: column; align-items: flex-start; }
 }
 @media (max-width: 520px) {
-  .cu-hero-acts { grid-template-columns: 1fr; }
+  .cu .pf-row { grid-template-columns: 96px minmax(0, 1fr); }
+  .cu-badges { grid-template-columns: 1fr 1fr; }
   .cu-foot .btn { width: 100%; justify-content: center; }
+  .cu-office { max-width: none; }
+  .cu-band-acts .btn { width: 100%; justify-content: center; }
+  .cu-chan li { flex-wrap: wrap; }
+  .cu-chan-tx b { font-size: 13.5px; }
+  .cu-chan-btn { flex: 1 0 100%; justify-content: center; margin-top: 4px; padding: 9px 14px; }
+  .cu-help-card { grid-template-columns: 1fr; padding: 22px; }
+  .cu-help-pic { display: none; }
+  .cu-help-tx { padding-bottom: 0; }
 }
 
 /* ===== /promotion : read-only activity figures for the promotion team ===== */

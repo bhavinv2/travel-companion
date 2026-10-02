@@ -2,6 +2,9 @@
    home help strip, etc.). Styles: static/css/contact-modal.css; behaviour: static/js/contact-modal.js.
    Open it from any element carrying data-open-contact. #}
 {% from '_whatsapp.html' import wa_button with context %}
+{# The address staff publish on Admin -> Landing page, for the page this popup is on. It was
+   typed in twice below, so changing it on the admin screen moved it everywhere except here. #}
+{% set mail = CONTACT_EMAIL(WA_SITE()) or SUPPORT_EMAIL %}
 <!-- ================= CONTACT US MODAL ("Customer help" consult layout) ================= -->
 <div class="modal" id="contactModal">
   <div class="dlg dlg-wide">
@@ -20,7 +23,7 @@
           &mdash; most questions are answered there.</p>
         <div class="side-contact">
           <div class="side-wa">{{ wa_button() }}</div>
-          <a href="mailto:support@connectingdesis.com"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span>support@connectingdesis.com</a>
+          <a href="mailto:{{ mail }}"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span>{{ mail }}</a>
         </div>
       </div>
       <form class="consult-form" id="contactModalForm" novalidate>
@@ -51,7 +54,7 @@
         <div class="f"><label for="cm-msg">Your message</label><textarea id="cm-msg" required placeholder="Tell us a little about your situation…"></textarea></div>
         <div class="consult-foot">
           <button class="btn btn-amber btn-lg" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>&nbsp;Request a call back</button>
-          <a class="btn btn-ghost btn-lg" href="mailto:support@connectingdesis.com">Email support</a>
+          <a class="btn btn-ghost btn-lg" href="mailto:{{ mail }}">Email support</a>
         </div>
         <div class="reassure">🔒 Your details are used only to respond to this request.</div>
       </form>

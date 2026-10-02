@@ -16,6 +16,27 @@ def _env(name, default=''):
     return (os.environ.get(name, default) or '').strip()
 
 
+# The artwork each office is shown with, by key: a photograph of the place and a round flag.
+# It lives beside the addresses rather than in the template because adding an office should be
+# one edit, not two in two files -- and because an office with no photograph of its own has to
+# fall back to something, which is a decision about the office, not about the markup.
+#
+# Files are in static/img/contact/ as WebP. '' means "there is no picture of this one": the page
+# draws the generic skyline instead, and the emoji flag in place of the round one.
+ARTWORK = {
+    'hq':        {'photo': 'landmark-usa',              'flag': 'flag-usa'},
+    'telangana': {'photo': 'landmark-india-telangana',  'flag': 'flag-india'},
+    'andhra':    {'photo': 'landmark-india-andhra',     'flag': 'flag-india'},
+    'australia': {'photo': 'landmark-australia',        'flag': 'flag-australia'},
+    'uk':        {'photo': '',                          'flag': ''},
+}
+FALLBACK_PHOTO = 'landmarks-silhouette'
+
+# Round flag artwork we have, by ISO. Short on purpose: a country without one falls back to the
+# emoji flag, so publishing a number for anywhere in the world needs no new file.
+FLAGS = {'IN': 'flag-india', 'US': 'flag-usa', 'CA': 'flag-canada', 'AU': 'flag-australia'}
+
+
 # key, the heading, and the lines as they should be printed. The first is the head office.
 def all_offices():
     rows = [
@@ -37,8 +58,25 @@ def all_offices():
          'street': _env('OFFICE_UK_STREET', '1 Welford Mews'),
          'lines': ['London SE6 2FB', 'United Kingdom']},
     ]
+    for o in rows:
+        art = ARTWORK.get(o['key'], {})
+        o['photo'] = art.get('photo') or FALLBACK_PHOTO
+        o['flag'] = art.get('flag') or ''
     # a heading with no address under it is worse than one fewer card
     return [o for o in rows if o['street']]
+
+
+def countries():
+    """The distinct countries the offices are in -- what "four countries, one team" counts.
+
+    Derived rather than written down: an office removed by clearing its street should take the
+    heading's number with it, not leave the page claiming a country it no longer has.
+    """
+    seen = []
+    for o in all_offices():
+        if o['country'] not in seen:
+            seen.append(o['country'])
+    return seen
 
 
 def headquarters():
@@ -83,6 +121,8 @@ def _clean_row(row):
         'digits': e164.lstrip('+'),
         'whatsapp': bool(row.get('whatsapp')),
         'sites': sites,
+        # '' where we have no round flag for the country; the page draws the emoji instead
+        'flag': FLAGS.get(iso, ''),
     }
 
 

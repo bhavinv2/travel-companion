@@ -171,3 +171,69 @@ def test_a_number_can_be_shown_on_one_page_only(app, db):
     ])
     assert [n['label'] for n in offices.numbers('contact')] == ['India', 'Canada']
     assert [n['label'] for n in offices.numbers('insurance')] == ['India']
+
+
+# ---------------------------------------------------------------------------
+# The artwork
+# ---------------------------------------------------------------------------
+
+ART_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       'app', 'static', 'img', 'contact')
+
+
+def test_every_picture_the_page_asks_for_exists(client, db):
+    """A misspelt filename is invisible in the markup and invisible in a template assertion --
+    it is only a hole on the page. These are rendered from services/offices, so a new office
+    naming a file nobody added fails here instead of in production."""
+    import re
+    html = client.get('/contact-us').data.decode()
+    names = set(re.findall(r'/static/img/contact/([a-z0-9-]+)\.webp', html))
+    assert names, 'the page should be using the artwork'
+    missing = [n for n in sorted(names) if not os.path.exists(os.path.join(ART_DIR, n + '.webp'))]
+    assert missing == [], missing
+
+
+def test_an_office_with_no_photograph_of_its_own_still_gets_one(client, db):
+    """There is no picture of the UK office. A card with an empty frame is worse than a card
+    with the generic skyline in it."""
+    uk = [o for o in offices.all_offices() if o['key'] == 'uk'][0]
+    assert uk['photo'] == offices.FALLBACK_PHOTO
+    assert uk['flag'] == '', 'no round flag for GB; the page falls back to the emoji'
+    assert offices.FALLBACK_PHOTO in client.get('/contact-us').data.decode()
+
+
+def test_the_pictures_are_decoration_and_say_so(client, db):
+    """Every fact on this page is text. An alt on the Charminar would be read out to somebody
+    on a screen reader in the middle of an address."""
+    import re
+    html = client.get('/contact-us').data.decode()
+    tags = re.findall(r'<img[^>]*/static/img/contact/[^>]*>', html)
+    assert len(tags) >= 14, 'the page should be drawing the artwork'
+    for tag in tags:
+        assert 'alt=""' in tag and 'aria-hidden="true"' in tag, tag
+
+
+def test_the_heading_counts_the_countries_it_shows(client, db, monkeypatch):
+    """"Four countries, one team" over three cards is the kind of thing nobody notices for a
+    year. Clearing an office has to take the number down with it."""
+    assert 'Four countries, one team' in client.get('/contact-us').data.decode()
+    monkeypatch.setenv('OFFICE_AU_STREET', '')
+    monkeypatch.setenv('OFFICE_UK_STREET', '')
+    html = client.get('/contact-us').data.decode()
+    assert 'Two countries, one team' in html
+    # the lead is wrapped across source lines, so compare on collapsed whitespace
+    flat = ' '.join(html.lower().split())
+    assert 'we work across two countries' in flat
+
+
+def test_a_published_number_brings_its_flag(app, db):
+    """The flag beside a helpline is looked up, not written down, so Canada arrived with one."""
+    offices.save_numbers([
+        {'label': 'Canada', 'iso': 'CA', 'number': '+1 (647) 770-2288', 'whatsapp': False,
+         'sites': []},
+        {'label': 'Nepal', 'iso': 'NP', 'number': '+977 9801 234567', 'whatsapp': False,
+         'sites': []},
+    ])
+    rows = {n['label']: n for n in offices.numbers()}
+    assert rows['Canada']['flag'] == 'flag-canada'
+    assert rows['Nepal']['flag'] == '', 'no artwork for it; the page draws the emoji instead'

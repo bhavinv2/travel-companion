@@ -19,14 +19,18 @@
   <label for="{{ fid }}">{{ label }}{% if required %} <span class="req">*</span>{% else %}
     <small class="muted">(optional)</small>{% endif %}</label>
   {% endif %}
+  {# No flag emoji in the options. Windows has no glyph for a regional-indicator pair and
+     draws the two letters instead, so "IN IN +91" is what a Windows visitor actually read.
+     Flags belong where they are the only signal -- the WhatsApp chooser, the contact page --
+     not beside a label that already names the country. #}
   <div class="pf-row">
     <select class="pf-cc" name="{{ name }}_cc" aria-label="Country dialling code">
       {% for c in popular %}
-      <option value="{{ c.iso }}" data-dial="{{ c.dial }}"{{ ' selected' if c.iso == chosen }}>{{ PHONE.flag(c.iso) }} {{ c.iso }} +{{ c.dial }}</option>
+      <option value="{{ c.iso }}" data-dial="{{ c.dial }}"{{ ' selected' if c.iso == chosen }}>{{ c.iso }} +{{ c.dial }}</option>
       {% endfor %}
       <option disabled>──────────</option>
       {% for c in rest %}
-      <option value="{{ c.iso }}" data-dial="{{ c.dial }}"{{ ' selected' if c.iso == chosen }}>{{ PHONE.flag(c.iso) }} {{ c.name }} +{{ c.dial }}</option>
+      <option value="{{ c.iso }}" data-dial="{{ c.dial }}"{{ ' selected' if c.iso == chosen }}>{{ c.name }} +{{ c.dial }}</option>
       {% endfor %}
     </select>
     <input class="pf-num" id="{{ fid }}" name="{{ name }}" type="tel" inputmode="tel"

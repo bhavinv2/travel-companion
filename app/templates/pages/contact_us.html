@@ -8,7 +8,11 @@
    addresses here, the numbers in the footer and the postal address in the structured data are
    one set of values rather than three copies that drift. The form is the same one the help
    popup uses (services/contact_form), so an enquiry reaches CS looking the same whichever way
-   somebody sent it. #}
+   somebody sent it.
+
+   Nothing here is a list of countries typed into the markup: the helplines, the offices and
+   their flags are all rendered from what is published, so adding Canada on the admin screen
+   adds a row to the card and nobody has to come back to this file. #}
 {% block title %}Contact Us | NRI Parent Service{% endblock %}
 {% block meta_description %}Talk to NRI Parent Service about care, travel and insurance for your parents in India. Offices in the USA, India, Australia and the UK, a 24/7 helpline, and a reply within one working day.{% endblock %}
 
@@ -16,34 +20,40 @@
 <link rel="canonical" href="{{ canonical_url }}"/>
 {% endblock %}
 
+{% macro art(name, cls='', alt='') -%}
+<img class="{{ cls }}" src="{{ url_for('static', filename='img/contact/' ~ name ~ '.webp') }}"
+     alt="{{ alt }}"{{ ' aria-hidden="true"'|safe if not alt }} loading="lazy" decoding="async"/>
+{%- endmacro %}
+
 {% block content %}
+{# icon per contact method, so the pills read at a glance. CONTACT_FORM.VIA owns the list; a
+   method with no icon here still renders, just without one. #}
+{% set via_icon = {'WhatsApp': 'fa-brands fa-whatsapp', 'Phone call': 'fa-solid fa-phone',
+                   'Email': 'fa-solid fa-envelope'} %}
 <div class="cu">
 
   <!-- ===== hero ===== -->
   <section class="cu-hero">
+    {{ art('world-map-flight', 'cu-hero-map') }}
+    {{ art('dots-pattern', 'cu-hero-dots') }}
     <div class="wrap">
-      <span class="cu-kick">Global presence</span>
-      <h1>Contact our team</h1>
-      <p class="cu-lead">Wherever you are, somebody here can help. Our teams work across four
-        countries so there is always someone awake to answer a question about your parents.</p>
-      <div class="cu-hero-acts">
-        {% for ph in helplines %}
-        <a class="cu-act" href="tel:+{{ ph.digits }}">
-          <i class="fa-solid fa-phone"></i>
-          <span><small>{{ ph.label }}</small><b>{{ ph.display }}</b></span>
-        </a>
-        {% endfor %}
-        {% if whatsapp_digits %}
-        <a class="cu-act wa" href="{{ wa_link }}" target="_blank" rel="noopener">
-          <i class="fa-brands fa-whatsapp"></i>
-          <span><small>Chat now</small><b>WhatsApp us</b></span>
-        </a>
-        {% endif %}
-        <a class="cu-act" href="mailto:{{ contact_email }}">
-          <i class="fa-solid fa-envelope"></i>
-          <span><small>E-mail</small><b>{{ contact_email }}</b></span>
-        </a>
+      <div class="cu-hero-grid">
+        <div class="cu-hero-tx">
+          <span class="cu-kick">Get in touch</span>
+          <h1>Contact Our Team</h1>
+          <p class="cu-lead">Wherever you are, our team is here to help. We work across
+            {{ country_word|lower }} countries so there's always someone available to answer your
+            questions about your parents' travel.</p>
+        </div>
+        {# a photograph, not information: the page reads the same with images off #}
+        <div class="cu-hero-art">{{ art('hero-parents') }}</div>
       </div>
+      <ul class="cu-badges">
+        <li>{{ art('icon-phone') }}<span><b>Quick Response</b><small>Across time zones</small></span></li>
+        <li>{{ art('icon-team') }}<span><b>Dedicated Team</b><small>in {{ country_word|lower }} countries</small></span></li>
+        <li>{{ art('icon-headset') }}<span><b>Personal Support</b><small>From real people</small></span></li>
+        <li>{{ art('icon-trust') }}<span><b>Care You Can Trust</b><small>Always one call away</small></span></li>
+      </ul>
     </div>
   </section>
 
@@ -59,15 +69,19 @@
           <div class="cu-row">
             <div class="cu-f">
               <label for="cuName">Your name <span class="req">*</span></label>
-              <input type="text" id="cuName" name="name" required maxlength="120"
-                     value="{{ form.name or (current_user.full_name if current_user.is_authenticated else '') }}"
-                     placeholder="Priya Sharma" autocomplete="name"/>
+              <div class="cu-ip"><i class="fa-regular fa-user"></i>
+                <input type="text" id="cuName" name="name" required maxlength="120"
+                       value="{{ form.name or (current_user.full_name if current_user.is_authenticated else '') }}"
+                       placeholder="Priya Sharma" autocomplete="name"/>
+              </div>
             </div>
             <div class="cu-f">
               <label for="cuEmail">E-mail <span class="req">*</span></label>
-              <input type="email" id="cuEmail" name="email" required maxlength="255"
-                     value="{{ form.email or (current_user.email if current_user.is_authenticated else '') }}"
-                     placeholder="you@example.com" autocomplete="email"/>
+              <div class="cu-ip"><i class="fa-regular fa-envelope"></i>
+                <input type="email" id="cuEmail" name="email" required maxlength="255"
+                       value="{{ form.email or (current_user.email if current_user.is_authenticated else '') }}"
+                       placeholder="you@example.com" autocomplete="email"/>
+              </div>
             </div>
           </div>
           <div class="cu-row">
@@ -75,50 +89,61 @@
                            iso=form.phone_cc or '', id='cuPhone') }}
             <div class="cu-f">
               <label for="cuTopic">What is it about?</label>
-              <select id="cuTopic" name="topic">
-                {% for t in CONTACT_FORM.TOPICS %}
-                <option{{ ' selected' if form.topic == t }}>{{ t }}</option>
-                {% endfor %}
-              </select>
+              <div class="cu-ip"><i class="fa-solid fa-tag"></i>
+                <select id="cuTopic" name="topic">
+                  {% for t in CONTACT_FORM.TOPICS %}
+                  <option{{ ' selected' if form.topic == t }}>{{ t }}</option>
+                  {% endfor %}
+                </select>
+              </div>
             </div>
           </div>
           <div class="cu-f">
             <label>How should we reach you?</label>
             <div class="ct-pills">
               {% for v in CONTACT_FORM.VIA %}
-              <label><input type="radio" name="via" value="{{ v }}"
-                            {{ 'checked' if form.via == v or (not form.via and loop.first) }}>{{ v }}</label>
+              <label>
+                <input type="radio" name="via" value="{{ v }}"
+                       {{ 'checked' if form.via == v or (not form.via and loop.first) }}>
+                {% if via_icon.get(v) %}<i class="{{ via_icon[v] }}"></i>{% endif %}{{ v }}
+              </label>
               {% endfor %}
             </div>
           </div>
           <div class="cu-row">
             <div class="cu-f">
               <label for="cuTime">Best time to call</label>
-              <select id="cuTime" name="time">
-                {% for t in CONTACT_FORM.TIMES %}<option{{ ' selected' if form.time == t }}>{{ t }}</option>{% endfor %}
-              </select>
+              <div class="cu-ip"><i class="fa-regular fa-clock"></i>
+                <select id="cuTime" name="time">
+                  {% for t in CONTACT_FORM.TIMES %}<option{{ ' selected' if form.time == t }}>{{ t }}</option>{% endfor %}
+                </select>
+              </div>
             </div>
             <div class="cu-f">
               <label for="cuZone">Your time zone</label>
-              <select id="cuZone" name="zone">
-                {% for z in CONTACT_FORM.ZONES %}<option{{ ' selected' if form.zone == z }}>{{ z }}</option>{% endfor %}
-              </select>
+              <div class="cu-ip"><i class="fa-solid fa-globe"></i>
+                <select id="cuZone" name="zone">
+                  {% for z in CONTACT_FORM.ZONES %}<option{{ ' selected' if form.zone == z }}>{{ z }}</option>{% endfor %}
+                </select>
+              </div>
             </div>
           </div>
           <div class="cu-f">
             <label for="cuMessage">Your message <span class="req">*</span></label>
-            <textarea id="cuMessage" name="message" rows="6" required maxlength="4000"
-                      placeholder="Tell us a little about your situation.">{{ form.message or '' }}</textarea>
+            <div class="cu-ip cu-ip-area"><i class="fa-regular fa-comment-dots"></i>
+              <textarea id="cuMessage" name="message" rows="5" required maxlength="4000"
+                        placeholder="Tell us a little about your situation.">{{ form.message or '' }}</textarea>
+            </div>
           </div>
           <div class="cu-foot">
             <button type="submit" class="btn btn-primary btn-lg">
-              <i class="fa-solid fa-paper-plane"></i> Request a call back
+              <i class="fa-solid fa-paper-plane"></i> Send Message
             </button>
             {% if whatsapp_digits %}
             {# carries whatever has been typed into the form, so nothing is said twice #}
-            <a class="btn btn-outline-coral btn-lg" id="cuWaSend" href="{{ wa_link }}"
+            <a class="btn btn-ghost btn-lg" id="cuWaSend" href="{{ wa_link }}"
                data-wa-base="https://wa.me/{{ whatsapp_digits }}"
-               target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Or message us now</a>
+               target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Send on WhatsApp</a>
             {% endif %}
           </div>
           <p class="cu-reassure"><i class="fa-solid fa-lock"></i> Your details are used only to
@@ -128,16 +153,42 @@
 
       <aside class="cu-side">
         <div class="cu-side-card">
-          <h3><i class="fa-solid fa-headset"></i> 24/7 helpline</h3>
-          {% for ph in helplines %}
-          <a class="cu-line" href="tel:+{{ ph.digits }}"><small>{{ ph.label }}</small><b>{{ ph.display }}</b></a>
-          {% endfor %}
-          <a class="cu-line" href="mailto:{{ contact_email }}"><small>E-mail</small><b>{{ contact_email }}</b></a>
+          <h3>Talk to our team</h3>
+          <p class="cu-side-sub">Reach out directly via your preferred channel.</p>
+          <ul class="cu-chan">
+            {% for ph in helplines %}
+            <li>
+              {% if ph.flag %}{{ art(ph.flag, 'cu-chan-ic') }}
+              {% else %}<span class="cu-chan-ic cu-chan-emoji">{{ PHONE.flag(ph.iso) }}</span>{% endif %}
+              <span class="cu-chan-tx"><small>{{ ph.label }}</small><b>{{ ph.display }}</b></span>
+              <a class="cu-chan-btn" href="tel:+{{ ph.digits }}"><i class="fa-solid fa-phone"></i> Call</a>
+            </li>
+            {% endfor %}
+            {% if contact_email %}
+            <li>
+              {{ art('icon-email', 'cu-chan-ic') }}
+              <span class="cu-chan-tx"><small>Email</small><b>{{ contact_email }}</b></span>
+              <a class="cu-chan-btn" href="mailto:{{ contact_email }}"><i class="fa-regular fa-envelope"></i> Email</a>
+            </li>
+            {% endif %}
+            {% if whatsapp_digits %}
+            <li>
+              {{ art('icon-whatsapp', 'cu-chan-ic') }}
+              <span class="cu-chan-tx"><small>Chat on WhatsApp</small><b>Get quick answers</b></span>
+              <a class="cu-chan-btn" href="{{ wa_link }}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Chat</a>
+            </li>
+            {% endif %}
+          </ul>
         </div>
-        <div class="cu-side-card quiet">
-          <h3><i class="fa-solid fa-circle-question"></i> Looking for an answer now?</h3>
-          <p>Most questions are already answered in the help centre.</p>
-          <a class="btn-sm" href="{{ url_for('main.help_page') }}">Browse the help centre</a>
+
+        <div class="cu-help-card">
+          {{ art('bubble-shapes', 'cu-help-blob') }}
+          <div class="cu-help-pic">{{ art('support-agent') }}</div>
+          <div class="cu-help-tx">
+            <h3>Looking for an answer now?</h3>
+            <p>Most questions are already answered in the help centre.</p>
+            <a class="btn btn-outline-coral" href="{{ url_for('main.help_page') }}">Browse Help Centre</a>
+          </div>
         </div>
       </aside>
     </div>
@@ -147,21 +198,26 @@
   <section class="cu-offices">
     <div class="wrap">
       <div class="cu-head">
-        <span class="cu-kick">Our offices</span>
-        <h2>Four countries, one team</h2>
+        <span class="cu-kick">Our global presence</span>
+        <h2>{{ country_word }} countries, one team</h2>
         <p class="cu-lead">Registered addresses for correspondence. For anything urgent, the
           helpline above reaches us faster than the post.</p>
       </div>
       <div class="cu-office-grid">
         {% for o in offices %}
         <article class="cu-office{{ ' hq' if o.key == 'hq' }}">
-          <span class="cu-flag">{{ o.cc }}</span>
-          <h3>{{ o.label }}</h3>
-          <address>
-            {{ o.street }}<br/>
-            {% for line in o.lines %}{{ line }}{% if not loop.last %}<br/>{% endif %}{% endfor %}
-          </address>
           {% if o.key == 'hq' %}<span class="cu-tag">Head office</span>{% endif %}
+          <div class="cu-office-pic">{{ art(o.photo) }}</div>
+          <div class="cu-office-bd">
+            <span class="cu-office-flag">
+              {% if o.flag %}{{ art(o.flag) }}{% else %}<span>{{ PHONE.flag(o.cc) }}</span>{% endif %}
+            </span>
+            <h3>{{ o.label }} <span class="cu-flag">{{ o.cc }}</span></h3>
+            <address>
+              {{ o.street }}<br/>
+              {% for line in o.lines %}{{ line }}{% if not loop.last %}<br/>{% endif %}{% endfor %}
+            </address>
+          </div>
         </article>
         {% endfor %}
       </div>
@@ -170,13 +226,16 @@
 
   <!-- ===== closing band ===== -->
   <section class="cu-band">
-    <div class="wrap">
-      <h2>Give your parents the care they deserve, even from miles away</h2>
-      <p>We are one call away.</p>
+    {{ art('landmarks-silhouette', 'cu-band-art') }}
+    <div class="wrap cu-band-in">
+      <div class="cu-band-tx">
+        <h2>Give your parents the care they deserve, even from miles away.</h2>
+        <p>We are one call away.</p>
+      </div>
       <div class="cu-band-acts">
         {% if whatsapp_digits %}
         <a class="btn btn-primary btn-lg" href="{{ wa_link }}" target="_blank" rel="noopener">
-          <i class="fa-brands fa-whatsapp"></i> WhatsApp us</a>
+          <i class="fa-brands fa-whatsapp"></i> Chat on WhatsApp</a>
         {% endif %}
         {% if helplines %}
         <a class="btn btn-outline-coral btn-lg" href="tel:+{{ helplines[0].digits }}">
@@ -190,7 +249,7 @@
 
 {% block extra_js %}
 <script>
-/* "Or message us now" should carry what they have already written, so nobody has to say it
+/* "Send on WhatsApp" should carry what they have already written, so nobody has to say it
    twice. Rebuilt on every change rather than on click: a tap on a link opens the new tab
    immediately, and an href edited in the click handler can be read before it is updated. */
 (function () {

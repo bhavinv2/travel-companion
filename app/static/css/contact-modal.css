@@ -16,6 +16,10 @@
 #contactModal .consult-side ul{list-style:none;margin:22px 0 0;padding:0;display:grid;gap:10px}
 #contactModal .consult-side li{display:flex;gap:10px;align-items:center;font-size:14px}
 #contactModal .consult-side li svg{width:20px;height:20px;padding:3px;border-radius:50%;background:var(--amber);color:var(--navy);flex:none}
+/* Sits between the tick list and the contact buttons. With no margin of its own it ran on
+   from the last tick and read as a fourth point that had lost its tick. */
+#contactModal .consult-side p.side-help{margin-top:18px;font-size:13.5px;color:#9FB2D4}
+#contactModal .side-help a{color:#fff;text-decoration:underline;text-underline-offset:3px}
 #contactModal .side-contact{margin-top:28px;display:grid;gap:10px}
 #contactModal .side-wa{margin-bottom:4px}
 #contactModal .side-wa .wa-btn{width:100%;justify-content:center;color:#063B1E;font-size:14px}

@@ -562,6 +562,10 @@ def create_app(test_config=None):
             # which product this page belongs to, so the footer's one chooser shows the numbers
             # for the page it is on rather than every number on the site
             'WA_SITE': offices.current_site,
+            # the published support address for a page, from the same admin screen as the
+            # numbers. '' when none is published, so a caller can fall back rather than print
+            # a mailbox nobody is watching.
+            'CONTACT_EMAIL': offices.email,
             'here': urls.here,
             'NRI_SOCIAL': nri_services.SOCIAL,
             'WHATSAPP': _settings.whatsapp_numbers,
