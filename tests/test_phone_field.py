@@ -59,10 +59,22 @@ def test_the_country_is_chosen_not_guessed(app):
 
 
 def test_the_picker_offers_the_common_ones_first(app):
+    """US at the top, and selected before anybody chooses: the parents are in India, the person
+    filling the form in usually is not."""
     popular, rest = phone.choices()
-    assert [c['iso'] for c in popular][:3] == ['IN', 'US', 'CA']
+    assert [c['iso'] for c in popular][:3] == ['US', 'IN', 'CA']
+    assert phone.DEFAULT_ISO == 'US'
     assert len(popular) + len(rest) == len(phone.BY_ISO)
     assert all(c['dial'].isdigit() for c in rest)
+
+
+def test_the_field_opens_on_that_country(client, db):
+    """The default is what the markup actually marks selected, not just a constant."""
+    import re
+    html = client.get('/contact-us').data.decode()
+    block = html.split('name="phone_cc"', 1)[1].split('</select>', 1)[0]
+    chosen = re.findall(r'value="([A-Z]{2})"[^>]*selected', block)
+    assert chosen == [phone.DEFAULT_ISO]
 
 
 # ---------------------------------------------------------------------------
@@ -117,3 +129,45 @@ def test_a_number_from_another_country_survives_the_form(app, db, client):
         'name': 'Ravi', 'email': 'r@example.com', 'message': 'Please ring me back.',
         'phone': '416 555 0199', 'phone_cc': 'CA'})
     assert ContactMessage.query.one().phone == '+14165550199'
+
+
+# ---------------------------------------------------------------------------
+# How a stored number is written down
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize('e164,shown', [
+    ('+19179005094', '+1 (917) 900-5094'),
+    ('+16477702288', '+1 (647) 770-2288'),      # the same shape, so the same spelling
+    ('+918019111360', '+91 80191 11360'),
+    ('+971501234567', '+971 50 123 4567'),
+])
+def test_a_number_is_written_the_way_its_country_writes_it(e164, shown):
+    assert phone.pretty(e164) == shown
+
+
+def test_a_country_we_are_unsure_of_keeps_what_staff_typed():
+    """A London landline groups 20 7946 0958 and a mobile 7700 900123; guessing one rule for
+    both prints something no British reader recognises."""
+    assert phone.pretty('+442079460958', '+44 20 7946 0958') == '+44 20 7946 0958'
+    assert phone.pretty('+61412345678', '0412 345 678') == '0412 345 678'
+    # with nothing to fall back on it is at least dialable
+    assert phone.pretty('+442079460958') == '+442079460958'
+
+
+def test_nothing_in_nothing_out():
+    assert phone.pretty('', 'as typed') == 'as typed'
+
+
+def test_the_contact_page_lists_them_all_the_same_way(client, db, admin_user):
+    """Two people entering the same shape of number differently is what made two US-format
+    lines sit under each other looking like one of them was wrong."""
+    from app.services import offices
+    offices.save_numbers([
+        {'label': 'USA', 'iso': 'US', 'number': '+1 917 900 5094', 'whatsapp': False, 'sites': []},
+        {'label': 'Canada', 'iso': 'CA', 'number': '6477702288', 'whatsapp': False, 'sites': []},
+    ], admin_user)
+    shown = [n['display'] for n in offices.numbers()]
+    assert shown == ['+1 (917) 900-5094', '+1 (647) 770-2288']
+    html = client.get('/contact-us').data.decode()
+    for line in shown:
+        assert line in html, line

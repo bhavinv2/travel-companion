@@ -116,7 +116,10 @@ def _clean_row(row):
         'label': (row.get('label') or phone_svc.BY_ISO[iso]['name']).strip()[:40],
         'iso': iso,
         'number': raw,
-        'display': raw,
+        # derived, not as typed: two people entering the same shape of number differently is
+        # what made "+1 (647) 770-2288" and "+1 917 900 5094" sit under each other on the
+        # contact page looking like one of them was wrong
+        'display': phone_svc.pretty(e164, raw),
         'e164': e164,
         'digits': e164.lstrip('+'),
         'whatsapp': bool(row.get('whatsapp')),
@@ -176,6 +179,22 @@ def numbers(site=None):
     if not site:
         return rows
     return [r for r in rows if not r['sites'] or site in r['sites']]
+
+
+def primary(site=None):
+    """The one number to print where there is room for one. {} when none is published.
+
+    The country in phone.DEFAULT_ISO, because that is where most of the people reading this are
+    -- the parents are in India, the person ringing about them usually is not. Falls back to the
+    first published line, so an install that does not publish a US number still gets a button.
+    One definition for "our main number", shared with what the forms open on.
+    """
+    from app.services import phone as phone_svc
+    rows = numbers(site)
+    for r in rows:
+        if r['iso'] == phone_svc.DEFAULT_ISO:
+            return r
+    return rows[0] if rows else {}
 
 
 def save_numbers(rows, actor=None):

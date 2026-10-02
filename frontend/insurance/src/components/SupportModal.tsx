@@ -34,7 +34,8 @@ export default function SupportModal() {
   const [error, setError] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [dial, setDial] = useState('+91');
+  // +1: the parents are in India, the person filling this in usually is not
+  const [dial, setDial] = useState('+1');
   const [tel, setTel] = useState('');
   const [topic, setTopic] = useState(TOPICS[0]);
   const [via, setVia] = useState<(typeof VIA)[number]>('WhatsApp');

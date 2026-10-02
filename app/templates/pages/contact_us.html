@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% from '_phone_field.html' import phone_field with context %}
+{% from '_flag.html' import flag with context %}
 {# The group's contact page, and its own front door at /contact-us -- the address printed on
    cards and in ads, beside the app's prefix rather than inside it, the same way the travel
    insurance and Sahayak pages answer.
@@ -85,14 +86,16 @@
             </div>
           </div>
           <div class="cu-row">
+            {# required: this form offers a call back and a WhatsApp reply, and neither is
+               possible without a number #}
             {{ phone_field(value=form.phone or ((current_user.phone or '') if current_user.is_authenticated else ''),
-                           iso=form.phone_cc or '', id='cuPhone') }}
+                           iso=form.phone_cc or '', id='cuPhone', required=true) }}
             <div class="cu-f">
               <label for="cuTopic">What is it about?</label>
               <div class="cu-ip"><i class="fa-solid fa-tag"></i>
                 <select id="cuTopic" name="topic">
                   {% for t in CONTACT_FORM.TOPICS %}
-                  <option{{ ' selected' if form.topic == t }}>{{ t }}</option>
+                  <option{{ ' selected' if (form.topic or CONTACT_FORM.DEFAULT_TOPIC) == t }}>{{ t }}</option>
                   {% endfor %}
                 </select>
               </div>
@@ -123,7 +126,7 @@
               <label for="cuZone">Your time zone</label>
               <div class="cu-ip"><i class="fa-solid fa-globe"></i>
                 <select id="cuZone" name="zone">
-                  {% for z in CONTACT_FORM.ZONES %}<option{{ ' selected' if form.zone == z }}>{{ z }}</option>{% endfor %}
+                  {% for z in CONTACT_FORM.ZONES %}<option{{ ' selected' if (form.zone or CONTACT_FORM.DEFAULT_ZONE) == z }}>{{ z }}</option>{% endfor %}
                 </select>
               </div>
             </div>
@@ -158,8 +161,7 @@
           <ul class="cu-chan">
             {% for ph in helplines %}
             <li>
-              {% if ph.flag %}{{ art(ph.flag, 'cu-chan-ic') }}
-              {% else %}<span class="cu-chan-ic cu-chan-emoji">{{ PHONE.flag(ph.iso) }}</span>{% endif %}
+              {{ flag(ph.flag, ph.iso, 'cu-chan-ic') }}
               <span class="cu-chan-tx"><small>{{ ph.label }}</small><b>{{ ph.display }}</b></span>
               <a class="cu-chan-btn" href="tel:+{{ ph.digits }}"><i class="fa-solid fa-phone"></i> Call</a>
             </li>
@@ -209,9 +211,7 @@
           {% if o.key == 'hq' %}<span class="cu-tag">Head office</span>{% endif %}
           <div class="cu-office-pic">{{ art(o.photo) }}</div>
           <div class="cu-office-bd">
-            <span class="cu-office-flag">
-              {% if o.flag %}{{ art(o.flag) }}{% else %}<span>{{ PHONE.flag(o.cc) }}</span>{% endif %}
-            </span>
+            <span class="cu-office-flag">{{ flag(o.flag, o.cc) }}</span>
             <h3>{{ o.label }} <span class="cu-flag">{{ o.cc }}</span></h3>
             <address>
               {{ o.street }}<br/>
@@ -237,9 +237,9 @@
         <a class="btn btn-primary btn-lg" href="{{ wa_link }}" target="_blank" rel="noopener">
           <i class="fa-brands fa-whatsapp"></i> Chat on WhatsApp</a>
         {% endif %}
-        {% if helplines %}
-        <a class="btn btn-outline-coral btn-lg" href="tel:+{{ helplines[0].digits }}">
-          <i class="fa-solid fa-phone"></i> Call {{ helplines[0].display }}</a>
+        {% if primary_line %}
+        <a class="btn btn-outline-coral btn-lg" href="tel:+{{ primary_line.digits }}">
+          <i class="fa-solid fa-phone"></i> Call {{ primary_line.display }}</a>
         {% endif %}
       </div>
     </div>

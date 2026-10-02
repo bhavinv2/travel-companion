@@ -1,0 +1,18 @@
+{# A country's flag, drawn the same way everywhere it appears.
+
+   The emoji used to be it. Windows has no flag font and draws a regional-indicator pair as its
+   two letters, so a Windows visitor saw "IN" in a box where everybody else saw a flag -- which
+   is fine as a label and useless as a picture. Where we have artwork, use the artwork.
+
+   `file` is the stem from services/offices (FLAGS for a published number, ARTWORK for an
+   office); '' means there is none for that country, and the emoji is the fallback rather than
+   an empty box. services/offices decides which countries have one, so adding a flag is a file
+   and a line there, not a change here. #}
+{% macro flag(file, iso='', cls='') %}
+{%- if file -%}
+<img class="{{ cls }}" src="{{ url_for('static', filename='img/flags/' ~ file ~ '.webp') }}"
+     alt="" aria-hidden="true" width="36" height="36" loading="lazy" decoding="async"/>
+{%- else -%}
+<span class="{{ cls }} flag-txt" aria-hidden="true">{{ PHONE.flag(iso) }}</span>
+{%- endif -%}
+{% endmacro %}

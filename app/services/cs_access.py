@@ -179,6 +179,26 @@ def summary_for(user):
     return out
 
 
+def recipients(*screen_keys, limit=20):
+    """Active staff who should hear about something on one of `screen_keys`.
+
+    This grants screens, so it has to gate the notifications about them as well. A notification
+    is an instruction to go and look: sending "New contact message" to an agent whose console
+    has no User voices screen is an instruction they cannot follow -- the link 403s -- and every
+    one of them buries the ones they can act on. The restriction was invisible here, so an agent
+    narrowed to the Sahayak queue was still told about every insurance lead and every report.
+
+    Admins are never restricted, so they always appear. An agent with no limits set is
+    unrestricted too, which is still the default and still everybody today.
+    """
+    from app.models import User
+    staff = (User.query
+             .filter(User.role.in_(['cs', 'admin']), User.is_active.is_(True))
+             .order_by(User.id).all())
+    out = [u for u in staff if any(can_open(u, k) for k in screen_keys)]
+    return out[:limit] if limit else out
+
+
 def clean(keys):
     """What to store from a form: known keys only, in declaration order so the column reads the
     way the screen does."""

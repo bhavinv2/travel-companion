@@ -1,35 +1,65 @@
 {% extends 'base.html' %}
-{# The promotion dashboard: counts and published reviews, per product, read-only.
+{# The promotion dashboard: counts, trends and published reviews, per product, read-only.
 
-   Deliberately short of detail. Whoever is promoting the service needs to know how much is
-   happening and what people are saying; they do not need the people themselves, so no name,
-   e-mail or phone number from an enquiry appears here. The reviews that do are ones somebody
-   already approved for publication. #}
+   Deliberately short of PEOPLE. Whoever is promoting the service needs to know how much is
+   happening, which way it is going and what people are saying; they do not need the people
+   themselves, so no name, e-mail or phone number from an enquiry appears anywhere here. Every
+   figure is an aggregate and every review shown is one somebody already approved for
+   publication.
+
+   Read-only is a property of the page, not a flag: there is no form, no button that posts and
+   no route behind it that writes. #}
 {% block title %}Promotion dashboard | NRI Parent Service{% endblock %}
 {% block meta_description %}Read-only activity figures for NRI Parent Service.{% endblock %}
 
-{% block content %}
-<div class="promo">
-  <div class="wrap">
-    <header class="promo-head">
-      <span class="cu-kick">Promotion</span>
-      <h1>How things are going</h1>
-      <p class="promo-lead">Everything below is read-only, and counts the last
-        {{ data.window_days }} days alongside the all-time total. Nothing here identifies anyone
-        who wrote in &mdash; the reviews shown are the ones already published on the site.</p>
-    </header>
+{% macro art(name, cls='') -%}
+<img class="{{ cls }}" src="{{ url_for('static', filename='img/contact/' ~ name ~ '.webp') }}"
+     alt="" aria-hidden="true" loading="lazy" decoding="async"/>
+{%- endmacro %}
 
-    <!-- what each product has produced -->
-    <section class="promo-tiles">
+{% macro bar(pct, cls='') -%}
+<span class="pm-bar {{ cls }}"><span style="width:{{ pct }}%"></span></span>
+{%- endmacro %}
+
+{% block content %}
+<div class="pm">
+
+  <!-- ===== hero ===== -->
+  <section class="pm-hero">
+    {{ art('world-map-flight', 'pm-hero-map') }}
+    {{ art('dots-pattern', 'pm-hero-dots') }}
+    <div class="wrap">
+      <div class="pm-hero-tx">
+        <span class="pm-kick">Promotion</span>
+        <h1>How things are going</h1>
+        <p class="pm-lead">Everything below is read-only and counts the last
+          {{ data.window_days }} days alongside the all-time total. Nothing here identifies
+          anyone who wrote in &mdash; the reviews shown are the ones already published on the
+          site.</p>
+      </div>
+      {# the same photograph the contact page opens with, so the two read as one site #}
+      <div class="pm-hero-art">{{ art('hero-parents') }}</div>
+      <ul class="pm-reach">
+        {% for r in data.reach %}
+        <li><b>{{ r.value }}</b><span>{{ r.label }}</span></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+
+  <div class="wrap pm-body">
+
+    <!-- ===== what each product has produced ===== -->
+    <section class="pm-tiles">
       {% for d in data.demand %}
-      <article class="promo-tile">
+      <article class="pm-tile">
         <small>{{ d.site }}</small>
         <b>{{ '{:,}'.format(d.total) }}</b>
         <span>{{ d.label }}</span>
         <em>+{{ d.recent }} in {{ data.window_days }} days</em>
       </article>
       {% endfor %}
-      <article class="promo-tile accent">
+      <article class="pm-tile accent">
         <small>All services</small>
         <b>{{ '{:,}'.format(data.enquiries.total) }}</b>
         <span>Enquiries received</span>
@@ -37,11 +67,42 @@
       </article>
     </section>
 
-    <div class="promo-grid">
-      <!-- enquiries -->
-      <section class="promo-card">
+    <!-- ===== the direction, not just the total ===== -->
+    <section class="pm-card">
+      <div class="pm-card-head">
+        <h2>The last {{ data.months }} months</h2>
+        <ul class="pm-legend">
+          {% for s in data.trend.series %}
+          <li class="k-{{ s.key }}">{{ s.label }} <b>{{ s.total }}</b></li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="pm-chart" role="img"
+           aria-label="Monthly totals for {{ data.trend.series|map(attribute='label')|join(', ') }}">
+        {% for month in data.trend.months %}
+        {# the month's position, kept before the inner loop shadows loop.index0 #}
+        {% set mi = loop.index0 %}
+        <div class="pm-month">
+          <div class="pm-bars">
+            {% for s in data.trend.series %}
+            {# title, so a figure is one hover away without a tooltip library #}
+            <span class="pm-col k-{{ s.key }}" title="{{ s.label }}: {{ s.counts[mi] }} in {{ month }}"
+                  style="height:{{ (100 * s.counts[mi] / data.trend.max)|round|int }}%"></span>
+            {% endfor %}
+          </div>
+          <small>{{ month }}</small>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="pm-note">Bars are to scale against the busiest month shown
+        ({{ data.trend.max }}). Hover a bar for its figure.</p>
+    </section>
+
+    <div class="pm-grid">
+      <!-- ===== enquiries ===== -->
+      <section class="pm-card">
         <h2>Enquiries by service</h2>
-        <table class="promo-table">
+        <table class="pm-table">
           <thead><tr><th>Service</th><th>All time</th><th>Last {{ data.window_days }} days</th></tr></thead>
           <tbody>
             {% for r in data.enquiries.rows %}
@@ -52,11 +113,11 @@
         </table>
       </section>
 
-      <!-- reviews -->
-      <section class="promo-card">
+      <!-- ===== reviews ===== -->
+      <section class="pm-card">
         <h2>Reviews by service</h2>
-        <table class="promo-table">
-          <thead><tr><th>Service</th><th>Published</th><th>Rating</th><th>Awaiting review</th></tr></thead>
+        <table class="pm-table">
+          <thead><tr><th>Service</th><th>Published</th><th>Rating</th><th>Awaiting</th></tr></thead>
           <tbody>
             {% for r in data.reviews.rows %}
             <tr>
@@ -69,19 +130,79 @@
           </tbody>
           <tfoot><tr><td>Total</td><td><b>{{ data.reviews.total }}</b></td><td colspan="2"></td></tr></tfoot>
         </table>
-        <p class="promo-note">A rating is shown once a service has at least three published
+        <p class="pm-note">A rating is shown once a service has at least three published
           reviews. Below that a specific average reads as invented.</p>
       </section>
     </div>
 
-    <!-- what people actually said -->
-    <section class="promo-card">
+    <div class="pm-grid">
+      <!-- ===== where people are actually going ===== -->
+      <section class="pm-card">
+        <h2>Most requested routes</h2>
+        {% if data.routes %}
+        <ul class="pm-rank">
+          {% for r in data.routes %}
+          <li>
+            <span class="pm-rank-n">{{ loop.index }}</span>
+            <span class="pm-rank-tx">{{ r.route }}</span>
+            {{ bar(100 * r.count / data.routes[0].count, 'k-companion') }}
+            <b>{{ r.count }}</b>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="muted">No trips with both cities recorded yet.</p>
+        {% endif %}
+      </section>
+
+      <!-- ===== and what cover they ask about ===== -->
+      <section class="pm-card">
+        <h2>Insurance destinations asked about</h2>
+        {% if data.destinations %}
+        <ul class="pm-rank">
+          {% for d in data.destinations %}
+          <li>
+            <span class="pm-rank-n">{{ loop.index }}</span>
+            <span class="pm-rank-tx">{{ d.label }}</span>
+            {{ bar(100 * d.count / data.destinations[0].count, 'k-insurance') }}
+            <b>{{ d.count }}</b>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="muted">No quote requests with a destination yet.</p>
+        {% endif %}
+      </section>
+    </div>
+
+    <!-- ===== the shape of the praise ===== -->
+    <section class="pm-card">
+      <h2>How people rate us</h2>
+      {% if data.ratings.total %}
+      <ul class="pm-stars-list">
+        {% for r in data.ratings.rows %}
+        <li>
+          <span class="pm-stars-n">{{ r.stars }} &#9733;</span>
+          {{ bar(r.pct, 'k-star') }}
+          <b>{{ r.count }}</b><small>{{ r.pct }}%</small>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="pm-note">{{ data.ratings.total }} published review{{ '' if data.ratings.total == 1 else 's' }},
+        across every service.</p>
+      {% else %}
+      <p class="muted">No published reviews yet.</p>
+      {% endif %}
+    </section>
+
+    <!-- ===== what people actually said ===== -->
+    <section class="pm-card">
       <h2>Published reviews you can quote</h2>
       {% if data.quotable %}
-      <div class="promo-quotes">
+      <div class="pm-quotes">
         {% for q in data.quotable %}
-        <figure class="promo-quote">
-          <span class="promo-stars" aria-label="{{ q.rating }} out of 5">
+        <figure class="pm-quote">
+          <span class="pm-q-stars" aria-label="{{ q.rating }} out of 5">
             {%- for i in range(q.rating) %}&#9733;{% endfor -%}
           </span>
           <blockquote>{{ q.text }}</blockquote>
@@ -94,6 +215,22 @@
       <p class="muted">No published reviews yet. They appear here once somebody approves one.</p>
       {% endif %}
     </section>
+
+    <!-- ===== the addresses to send people to ===== -->
+    <section class="pm-card pm-links-card">
+      {{ art('airplane-flight-path', 'pm-links-art') }}
+      <h2>Pages to send people to</h2>
+      <p class="pm-note">The public address of each service, so a post or a video description
+        points somewhere that works.</p>
+      <ul class="pm-links">
+        {% for l in data.links %}
+        <li><a href="{{ l.url }}"><b>{{ l.label }}</b><span>{{ l.url }}</span></a></li>
+        {% endfor %}
+      </ul>
+    </section>
+
+    <p class="pm-foot">This dashboard only reads. There is nothing on it that changes anything,
+      and nothing on it that names a customer.</p>
   </div>
 </div>
 {% endblock %}

@@ -25,6 +25,27 @@
       </div>
     </div>
 
+    {# What the promotion team's dashboard is showing. A link rather than a copy of the page:
+       that one is read-only by construction and this is not the place to duplicate it. #}
+    <div class="admin-card">
+      <div class="ad-promo-head">
+        <h2>Promotion</h2>
+        <a class="btn-sm" href="{{ url_for('main.promo_dashboard') }}">
+          Open the dashboard <i class="fa-solid fa-arrow-right"></i></a>
+      </div>
+      <p class="ad-promo-note">Read-only activity figures, per service, with published reviews
+        to quote. No enquirer is named on it.</p>
+      <div class="ad-promo-row">
+        {% for d in promo_demand %}
+        <div class="ad-promo-fig">
+          <b>{{ '{:,}'.format(d.total) }}</b>
+          <span>{{ d.label }}</span>
+          <em>+{{ d.recent }} in {{ promo_window }}d</em>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
     <div class="admin-card">
       <h2>Broadcast Notification</h2>
       <input type="text" id="broadcastTitle" placeholder="Title" class="admin-input"/>

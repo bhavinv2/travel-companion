@@ -37,6 +37,9 @@
       // assembled here, which is exactly why the page version never had them.
       const payload = {
         name: $('#cm-name').value, email: $('#cm-email').value, phone: $('#cm-phone').value,
+        // the country the visitor picked; the server normalises the pair into E.164, so what
+        // reaches CS is dialable rather than nine digits with no code
+        phone_cc: (f.querySelector('[name=phone_cc]') || {}).value || '',
         message: $('#cm-msg').value, topic: $('#cm-topic').value,
         via: (f.querySelector('[name=cm-via]:checked') || {}).value || '',
         language: $('#cm-lang').value, time: $('#cm-time').value, zone: $('#cm-tz').value,

@@ -89,9 +89,15 @@ SECTIONS = [
     },
 ]
 
-# Shown above the tabs, because it reports on all of them.
+# Shown above the tabs, because they report on all of them.
 DASHBOARD = {'key': 'dashboard', 'endpoint': 'admin.dashboard', 'label': 'Dashboard',
              'icon': 'fa-gauge', 'args': {}}
+# The promotion team's read-only view. Here rather than under a product for the same reason as
+# the dashboard: it counts all three. Admins reach it from the menu; the influencer role reaches
+# it from the account menu in base.html, having no admin panel to find it in.
+PROMOTION = {'key': 'promotion', 'endpoint': 'main.promo_dashboard', 'label': 'Promotion',
+             'icon': 'fa-chart-line', 'args': {}}
+TOP = [DASHBOARD, PROMOTION]
 
 # Screens reached from another one rather than from the menu.
 ALIASES = {'feedback': 'voices_feedback'}

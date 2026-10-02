@@ -157,11 +157,13 @@ COUNTRIES = [
 ]
 
 # Most of our visitors are in these. They sit at the top of the picker; the rest follow in
-# alphabetical order.
-POPULAR = ['IN', 'US', 'CA', 'GB', 'AU', 'AE', 'SG', 'NZ']
+# alphabetical order. US first because that is where most of the people filling these in are --
+# the parents are in India, the person asking about them usually is not.
+POPULAR = ['US', 'IN', 'CA', 'GB', 'AU', 'AE', 'SG', 'NZ']
 
 BY_ISO = {iso: {'iso': iso, 'name': name, 'dial': dial} for iso, name, dial in COUNTRIES}
-DEFAULT_ISO = 'IN'
+# What a form offers before anybody chooses, and how a number typed with no code is read.
+DEFAULT_ISO = 'US'
 
 # A national number is 4-14 digits; with the code, E.164 allows at most 15.
 _DIGITS = re.compile(r'[^0-9]')
@@ -193,6 +195,36 @@ def flag(iso):
     if len(iso) != 2 or not iso.isalpha():
         return ''
     return ''.join(chr(0x1F1E6 + ord(ch) - ord('A')) for ch in iso)
+
+
+# How a number is written down, by dialling code. Deliberately short: a grouping guessed at
+# for a country reads worse than leaving what somebody typed, so anything not here keeps its
+# own spelling.
+_GROUPS = {
+    '1': lambda n: '+1 (%s) %s-%s' % (n[:3], n[3:6], n[6:]) if len(n) == 10 else '',
+    '91': lambda n: '+91 %s %s' % (n[:5], n[5:]) if len(n) == 10 else '',
+    '971': lambda n: '+971 %s %s %s' % (n[:2], n[2:5], n[5:]) if len(n) == 9 else '',
+}
+
+
+def pretty(e164, fallback=''):
+    """A stored number as that country writes it, or `fallback` when we do not know it.
+
+    +1 (647) 770-2288 and +1 917 900 5094 are the same shape typed by two different people, and
+    on a page that lists them one under the other that reads as a mistake. The display is
+    derived from E.164 so every number is spelled the same way whoever entered it; the few
+    countries whose convention is not in _GROUPS keep exactly what staff typed.
+    """
+    d = _DIGITS.sub('', e164 or '')
+    if not d:
+        return fallback
+    for code in sorted(_GROUPS, key=len, reverse=True):
+        if d.startswith(code):
+            out = _GROUPS[code](d[len(code):])
+            if out:
+                return out
+            break
+    return fallback or '+' + d
 
 
 def normalise(number, iso=DEFAULT_ISO):

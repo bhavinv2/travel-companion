@@ -29,8 +29,11 @@
 .wa-opt{position:relative;display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid #E6E1D8;border-radius:14px;background:#fff;text-decoration:none;color:inherit;margin-bottom:8px;transition:border-color .15s,background .15s}
 .wa-opt:hover{border-color:#25D366;background:#F0FBF4}
 .wa-opt.is-likely{border-color:#25D366;background:#F0FBF4;box-shadow:0 0 0 3px rgba(37,211,102,.18)}
-.wa-flag{flex:none;width:36px;height:24px;border-radius:4px;overflow:hidden;box-shadow:0 0 0 1px rgba(0,0,0,.08)}
+/* The artwork is round, so the frame is too. img and span share the box: _flag.html renders
+   one or the other depending on whether that country has a picture. */
+.wa-flag{flex:none;width:32px;height:32px;border-radius:50%;overflow:hidden;object-fit:cover;box-shadow:0 0 0 1px rgba(0,0,0,.08)}
 .wa-flag svg{display:block;width:100%;height:100%}
+span.wa-flag{display:grid;place-items:center;background:#fff;font-size:13px;font-weight:800;letter-spacing:.04em;color:#5B6579}
 .wa-opt-tx{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
 .wa-opt-tx b{font-size:15px;color:#1B2438}
 .wa-opt-tx small{font-size:12.5px;color:#5B6579}

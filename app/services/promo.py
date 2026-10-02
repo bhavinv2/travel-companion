@@ -109,5 +109,137 @@ def demand():
 
 
 def snapshot():
-    return {'window_days': WINDOW_DAYS, 'enquiries': enquiries(), 'reviews': reviews(),
-            'demand': demand(), 'quotable': quotable()}
+    return {'window_days': WINDOW_DAYS, 'months': MONTHS,
+            'enquiries': enquiries(), 'reviews': reviews(),
+            'demand': demand(), 'quotable': quotable(),
+            'trend': trend(), 'routes': top_routes(), 'destinations': top_destinations(),
+            'ratings': rating_spread(), 'reach': reach(), 'links': links()}
+
+
+# ---------------------------------------------------------------------------
+# The detail: what is actually being asked for, and where
+#
+# All of it aggregate. Every query below groups or counts -- none of them select a name, an
+# e-mail or a phone number, which is the whole rule this module exists to keep.
+# ---------------------------------------------------------------------------
+
+MONTHS = 6
+
+
+def _month_key(dt):
+    return (dt.year, dt.month)
+
+
+def _month_labels(n=MONTHS):
+    """The last n months, oldest first, as (key, 'Mon YY')."""
+    today = datetime.utcnow()
+    out = []
+    y, m = today.year, today.month
+    for _ in range(n):
+        out.append((y, m))
+        m -= 1
+        if m == 0:
+            y, m = y - 1, 12
+    out.reverse()
+    names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    return [((y, m), '%s %02d' % (names[m - 1], y % 100)) for y, m in out]
+
+
+def _by_month(column, model, keys):
+    """Counts per month for one model, bucketed in Python.
+
+    Not in SQL: date_trunc is Postgres and strftime is SQLite, and a dashboard is no place to
+    maintain two. Only the timestamp column is selected, and only for the window shown.
+    """
+    first = datetime(keys[0][0], keys[0][1], 1)
+    rows = db.session.query(column).filter(column >= first).all()
+    counts = {}
+    for (dt,) in rows:
+        if dt:
+            counts[_month_key(dt)] = counts.get(_month_key(dt), 0) + 1
+    return [counts.get(k, 0) for k in keys]
+
+
+def trend(months=MONTHS):
+    """Month by month, so the page shows a direction and not just a total.
+
+    `max` rides along because the bars are drawn as percentages of it and working that out in
+    the template means three passes over the same list.
+    """
+    labelled = _month_labels(months)
+    keys = [k for k, _ in labelled]
+    # 'counts', not 'values': dot access in Jinja prefers an attribute, and every dict has a
+    # .values method, so {{ s.values }} hands the template the method instead of the list.
+    series = [
+        {'label': 'Trips posted', 'key': 'companion',
+         'counts': _by_month(CompanionRequest.created_at, CompanionRequest, keys)},
+        {'label': 'Insurance quotes', 'key': 'insurance',
+         'counts': _by_month(InsuranceQuote.created_at, InsuranceQuote, keys)},
+        {'label': 'Enquiries', 'key': 'contact',
+         'counts': _by_month(ContactMessage.created_at, ContactMessage, keys)},
+    ]
+    for s in series:
+        s['total'] = sum(s['counts'])
+    peak = max([max(s['counts']) for s in series] + [1])
+    return {'months': [lbl for _, lbl in labelled], 'series': series, 'max': peak}
+
+
+def top_routes(limit=6):
+    """Where people are actually flying, by city pair. A route is not a person."""
+    rows = (db.session.query(CompanionRequest.origin_city, CompanionRequest.dest_city,
+                             func.count(CompanionRequest.id))
+            .filter(CompanionRequest.origin_city.isnot(None),
+                    CompanionRequest.dest_city.isnot(None))
+            .group_by(CompanionRequest.origin_city, CompanionRequest.dest_city)
+            .order_by(func.count(CompanionRequest.id).desc())
+            .limit(limit).all())
+    return [{'route': '%s to %s' % (a, b), 'count': n} for a, b, n in rows if a and b]
+
+
+def top_destinations(limit=6):
+    """Which countries the insurance questions are about, by name rather than ISO-3."""
+    from app.services import insurance_countries
+    names = {code: name for code, name in insurance_countries.ALL}
+    rows = (db.session.query(InsuranceQuote.destination, func.count(InsuranceQuote.id))
+            .filter(InsuranceQuote.destination.isnot(None))
+            .group_by(InsuranceQuote.destination)
+            .order_by(func.count(InsuranceQuote.id).desc())
+            .limit(limit).all())
+    return [{'label': names.get(code, code), 'count': n} for code, n in rows if code]
+
+
+def rating_spread():
+    """Five down to one, with the share each takes. The shape of the praise, not just its mean."""
+    counts = _counts(Feedback.rating, Feedback, Feedback.is_approved.is_(True))
+    total = sum(counts.values()) or 0
+    return {'total': total,
+            'rows': [{'stars': s, 'count': counts.get(s, 0),
+                      'pct': round(100.0 * counts.get(s, 0) / total) if total else 0}
+                     for s in (5, 4, 3, 2, 1)]}
+
+
+def reach():
+    """Facts about the business that are true and quotable, read from where they are defined."""
+    from app import options
+    from app.services import offices
+    return [
+        {'label': 'Countries we have an office in', 'value': len(offices.countries())},
+        {'label': 'Support lines published', 'value': len(offices.numbers())},
+        {'label': 'Languages the site runs in', 'value': len(options.SITE_LANGUAGES)},
+        {'label': 'Products', 'value': len(SITES)},
+    ]
+
+
+def links():
+    """The public addresses, so whoever is promoting them does not have to remember which is
+    which. urls.public_url, because insurance and the contact page answer beside the app's
+    prefix rather than inside it."""
+    from app.services import urls
+    return [
+        {'label': 'Travel Companion', 'url': urls.public_url('main.index')},
+        {'label': 'Travel Insurance', 'url': urls.public_url('insurance.landing')},
+        {'label': 'Sahayak', 'url': urls.public_url('sahayak.landing')},
+        {'label': 'Contact us', 'url': urls.public_url('main.contact_us')},
+        {'label': 'Reviews', 'url': urls.public_url('main.reviews')},
+    ]

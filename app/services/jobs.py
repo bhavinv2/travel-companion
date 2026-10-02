@@ -41,8 +41,13 @@ def run_escalation(now=None):
         ActivityEvent.log('escalated', p.trip, match_id=m.id, hours=hours, channel=p.channel)
         # Tell the CS agent who created either post (if any); the match queue catches the rest.
         other = m.other_trip(p.trip_id)
-        from app.services import notify
+        from app.services import cs_access, notify
+        from app.models import User
         for cs_id in {p.trip.created_by_id, other.created_by_id, m.cs_owner_id} - {None}:
+            # the follow-up is done on the match queue; an agent without it cannot do anything
+            # with this but see a link that will not open
+            if not cs_access.can_open(db.session.get(User, cs_id), 'matches'):
+                continue
             notify.push(
                 cs_id, 'cs_escalation',
                 title=f'No response on match #{m.id}',

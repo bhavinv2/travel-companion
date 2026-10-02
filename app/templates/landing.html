@@ -88,16 +88,26 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 
 /* ===== Header (matches supplied reference) ===== */
 .hdr{background:var(--navy);position:sticky;top:0;z-index:50;box-shadow:0 1px 0 rgba(255,255,255,.06)}
-.hdr .wrap{display:flex;align-items:center;justify-content:space-between;height:66px}
-.logo{display:flex;align-items:center;gap:0;color:#fff;font-weight:700;font-size:17px;letter-spacing:-.01em}
+/* 68px, a 38px mark and 16px type: the same numbers as .navbar in style.css, which every
+   other page's header uses. This page draws its own (no Font Awesome, no app shell), so the
+   two drifted -- and the brand visibly jumped moving between here and the insurance page. */
+/* Edge-anchored like .navbar in style.css, not centred on this page's 1360px content column.
+   The two disagreed by 216px at 1920: the brand sat at x=312 here and x=96 on every other
+   page, so it jumped sideways whenever somebody moved between them. 5% down to 768 and 4%
+   below, which is exactly what .navbar does. */
+.hdr .wrap{display:flex;align-items:center;justify-content:space-between;height:68px;max-width:none;padding:0 5%}
+.logo{display:flex;align-items:center;gap:0;color:#fff;font-weight:700;font-size:16px;letter-spacing:-.01em}
 .logo-stack{display:flex;flex-direction:column;gap:1px;line-height:1.15;white-space:nowrap}
 .logo-stack small{font-size:10.5px;font-weight:600;color:var(--amber);letter-spacing:.01em}
 /* Product switcher. The label is the product you are on; it stays visible on a phone, because
    it is the only thing that says which of the three you are looking at. */
-.brandsw{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0}
-/* under the NAME, not under the logo block: the mark is taller than the name beside it,
-   which left 16px of its overhang between the two lines */
-.svcsw{position:relative;margin-left:42px;margin-top:-13px}
+/* The mark is out of the flow and centred on the whole brand, so it sits level with the middle
+   of the two lines rather than with the first one. One padding -- the mark plus its gap --
+   clears it and lines both lines up; see the same note in style.css for the header this
+   mirrors. 28px + 7px under 420px, which is what the mark shrinks to there. */
+.brandsw{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:1px;flex:none;justify-content:center;min-height:38px;padding-left:48px;white-space:nowrap}
+.brandsw .logo img{position:absolute;left:0;top:50%;transform:translateY(-50%);margin-right:0}
+.svcsw{position:relative}
 .svcsw-btn{display:inline-flex;align-items:center;gap:5px;background:none;border:0;padding:0 4px 0 0;cursor:pointer;color:inherit;line-height:1.35}
 .svcsw-btn small{font-size:10.5px;font-weight:700;color:var(--amber);letter-spacing:.01em;transition:color .15s}
 /* white while it is open, the same signal the other header gives */
@@ -121,9 +131,8 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .svcsw-ico{width:17px;height:17px;flex:none;color:var(--amber)}
 .svcsw-item.sm .svcsw-ico{width:14px;height:14px;color:#6b7d95}
 .svcsw-tick{margin-left:auto;width:15px;height:15px;flex:none;color:var(--amber)}
-@media(max-width:560px){.svcsw{margin-left:35px;margin-top:-12px}
-  .svcsw-menu{position:fixed;left:12px;right:12px;top:60px;min-width:0}}
-.logo img{width:32px;height:32px;margin-right:10px;object-fit:contain}
+@media(max-width:560px){.svcsw-menu{position:fixed;left:12px;right:12px;top:60px;min-width:0}}
+.logo img{width:38px;height:38px;object-fit:contain}
 .logo b{color:var(--sky);font-weight:700}
 .nav{display:flex;gap:34px;white-space:nowrap;font-weight:600;font-size:15px;color:#DCE4F2}
 .nav a{position:relative;padding-bottom:4px}
@@ -156,16 +165,22 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .lang-menu button span{color:var(--muted);font-size:12px}
 .hdr .btn{padding:10px 22px;font-size:14px}
 .burger{display:none;width:40px;height:40px;color:#fff}
-@media(max-width:1120px){.nav{gap:22px;font-size:14px}.hdr .btn{padding:9px 16px}.hdr-right{gap:8px}}   /* full nav still fits on small laptops / tablets landscape */
-@media(max-width:1080px){.nav,.hdr .btn-outline{display:none}.burger{display:grid;place-items:center}.hdr .wrap{padding:0 14px}.hdr-right{gap:8px}.lang{padding:7px 10px}.logo{font-size:16px}.hdr .btn{padding:9px 16px}}
+/* The full nav still fits on small laptops, but only once it tightens. 1300, not 1120: the
+   brand is two lines and no longer shrinks (the mark is centred on both, so squeezing it
+   wrapped the product name into the menu), which costs about 90px -- and between 1100 and
+   1300 that was enough to push Sign Up off the right edge. */
+@media(max-width:1300px){.nav{gap:22px;font-size:14px}.hdr .btn{padding:9px 16px}.hdr-right{gap:8px}}
+@media(max-width:1200px){.nav,.hdr .btn-outline{display:none}.burger{display:grid;place-items:center}.hdr-right{gap:8px}.lang{padding:7px 10px}.logo{font-size:16px}.hdr .btn{padding:9px 16px}}
+@media(max-width:768px){.hdr .wrap{padding:0 4%}}
 /* Phones: the brand must always read "NRI Parent Service" — shrink it, never drop "Parent". */
-@media(max-width:420px){.logo{font-size:14px;letter-spacing:-.02em}.logo img{width:28px;height:28px;margin-right:7px}.lang span#langCur{display:none}.lang{padding:8px}.hdr .btn{padding:8px 11px;font-size:13px}.hdr-right{gap:6px}}
-/* The header runs out of room before the drawer does; Support is in the drawer from 1080px down. */
-@media(max-width:1080px){.hdr-support{display:none}}
+@media(max-width:420px){.logo{font-size:14px;letter-spacing:-.02em}.lang span#langCur{display:none}.lang{padding:8px}.hdr .btn{padding:8px 11px;font-size:13px}.hdr-right{gap:6px}}
+/* The header runs out of room before the drawer does; Support is in the drawer from 1200px
+   down -- the same width the burger appears at, so it is never hidden with nowhere to go. */
+@media(max-width:1200px){.hdr-support{display:none}}
 /* Mobile nav drawer: a dropdown panel under the header, opened by the burger. Desktop nav
-   (.nav, inline) stays as-is; this only ever shows ≤920px. */
+   (.nav, inline) stays as-is; this only ever shows ≤1200px. */
 .mobile-drawer{display:none}
-@media(max-width:1080px){
+@media(max-width:1200px){
   .mobile-drawer{display:none;flex-direction:column;gap:2px;background:var(--navy);border-top:1px solid rgba(255,255,255,.1);padding:10px 5%}
   .mobile-drawer.open{display:flex}
   .mobile-drawer a{color:#DCE4F2;font-weight:600;font-size:15px;padding:13px 6px;border-bottom:1px solid rgba(255,255,255,.08)}

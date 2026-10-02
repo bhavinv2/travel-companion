@@ -385,14 +385,21 @@ def privacy():
     return render_template('pages/privacy.html')
 
 
-def _validate_contact(form):
-    """Shared by the /contact page and the home-page widget. Returns a list of errors."""
+def _validate_contact(form, need_phone=False):
+    """Shared by every form that asks to be contacted. Returns a list of errors.
+
+    `need_phone` where the form is the full "talk to us" one -- the contact page and the help
+    popup both offer a call back and a WhatsApp reply, and neither is possible without a
+    number. The small in-app widget does not ask for one, so it does not demand one.
+    """
     from app.routes.auth import EMAIL_RE
     errors = []
     if not form['name']:
         errors.append('Please tell us your name.')
     if not EMAIL_RE.match(form['email'] or ''):
         errors.append('Please enter an e-mail address we can reply to.')
+    if need_phone and not form['phone']:
+        errors.append('Please give us a number we can call or message you on.')
     if form['phone'] and not re.fullmatch(r'[\d\s()+-]{7,20}', form['phone']):
         errors.append('That phone number does not look right - digits, spaces, + and - only.')
     if len(form['message']) < 10:
@@ -400,27 +407,32 @@ def _validate_contact(form):
     return errors
 
 
-def _save_contact(form, topic='companion'):
+def _save_contact(form, topic=None):
     """Store the enquiry and let the CS team know. Returns the ContactMessage.
 
-    `topic` is which part of the business it is about, so the one inbox can be filtered: the
-    group contact page sends 'general', the insurance page sends 'insurance', and the widgets
-    inside the companion app keep the default.
+    `topic` is which part of the business it is about, so the one inbox can be filtered. Passed
+    in where the page already knows (the insurance page sends 'insurance'); otherwise taken from
+    the service the visitor picked on the form, which is what the "What is it about?" list is
+    for. A widget inside the companion app that never asks keeps the default.
     """
     from app import db
-    from app.models import ContactMessage, ActivityEvent, User, CONTACT_TOPICS
-    from app.services import notify
+    from app.models import ContactMessage, ActivityEvent, CONTACT_TOPICS
+    from app.services import cs_access, notify
     msg = ContactMessage(
         name=form['name'][:120], email=form['email'].lower()[:255],
         phone=form['phone'][:30] or None, message=form['message'][:4000],
-        topic=topic if topic in CONTACT_TOPICS else 'companion',
+        # the caller's bucket, else the service the visitor picked, else the companion app
+        # -- which is where a widget inside it belongs when nothing was asked
+        topic=next((t for t in (topic, form.get('topic')) if t in CONTACT_TOPICS), 'companion'),
         user_id=current_user.id if current_user.is_authenticated else None)
     db.session.add(msg)
     db.session.flush()
     ActivityEvent.log('contact_message_received',
                       actor=(current_user if current_user.is_authenticated else None),
                       contact_id=msg.id, email=msg.email)
-    for agent in User.query.filter(User.role.in_(['cs', 'admin']), User.is_active.is_(True)).limit(20).all():
+    # Only the agents whose console has the screen this lands on. One that does not would be
+    # told to go and look at a page they cannot open.
+    for agent in cs_access.recipients('voices'):
         notify.push(agent.id, 'cs_escalation', title='New contact message',
                     body=f'{msg.name} <{msg.email}>: {msg.message[:90]}', link='/cs/contact')
     db.session.commit()
@@ -436,7 +448,9 @@ def _contact_fields(src):
     from app.services import contact_form
     fields = contact_form.clean(src)
     return {'name': fields['name'], 'email': fields['email'], 'phone': fields['phone'],
-            'message': contact_form.compose(fields)}
+            'message': contact_form.compose(fields),
+            # '' when nothing was picked, so the caller's own default still decides
+            'topic': contact_form.route(fields['topic'], default='')}
 
 
 @main_bp.route('/contact-us', methods=['GET', 'POST'])
@@ -457,9 +471,11 @@ def contact_us():
     if request.method == 'POST':
         # the raw choices for redrawing the form, the composed version for saving
         form = cf.clean(request.form)
-        errors = _validate_contact(form)
+        errors = _validate_contact(form, need_phone=True)
         if not errors:
-            msg = _save_contact(_contact_fields(request.form), topic='general')
+            # the service they picked, so the enquiry is filed where CS filters for it
+            # rather than landing in general whatever the form said
+            msg = _save_contact(_contact_fields(request.form), topic=cf.route(form['topic']))
             flash('Thanks \u2014 we have your message and will reply to ' + msg.email + '.', 'success')
             return redirect(urls.public_url('main.contact_us'))
         for e in errors:
@@ -474,6 +490,8 @@ def contact_us():
                            country_word=words[n] if n < len(words) else str(n),
                            # per-site: a number can be published on some pages and not others
                            helplines=offices.helplines('contact'),
+                           # the one to print where there is room for one button
+                           primary_line=offices.primary('contact'),
                            whatsapp_digits=offices.whatsapp('contact'),
                            # opens with a first line already written
                            wa_link=offices.wa_link('contact'),
@@ -525,7 +543,7 @@ def api_landing_contact():
     admin has enabled it, also e-mail the configured address. That e-mail is the only mail toggle
     the admin controls here — nothing else."""
     form = _contact_fields(request.get_json(silent=True) or request.form)
-    errors = _validate_contact(form)
+    errors = _validate_contact(form, need_phone=True)
     if errors:
         return jsonify({'success': False, 'error': ' '.join(errors)}), 400
     msg = _save_contact(form)

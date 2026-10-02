@@ -64,7 +64,13 @@ def dashboard():
     }
     recent_users = User.query.order_by(User.created_at.desc()).limit(10).all()
     recent_trips = CompanionRequest.query.order_by(CompanionRequest.created_at.desc()).limit(10).all()
-    return render_template('admin/dashboard.html', stats=stats, recent_users=recent_users, recent_trips=recent_trips)
+    # The same figures the promotion team sees, so an admin does not have to open their
+    # dashboard to know what is on it -- six counts, read from services/promo rather than
+    # recomputed here, or the two screens would start disagreeing.
+    from app.services import promo
+    return render_template('admin/dashboard.html', stats=stats, recent_users=recent_users,
+                           recent_trips=recent_trips, promo_demand=promo.demand(),
+                           promo_window=promo.WINDOW_DAYS)
 
 
 @admin_bp.route('/users')

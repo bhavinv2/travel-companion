@@ -17,13 +17,15 @@
     <i class="fa-solid fa-bars"></i>
   </button>
 
-  {# Above the tabs on purpose: it reports across all three products, so filing it under one
-     would misdescribe what it shows. #}
+  {# Above the tabs on purpose: these report across all three products, so filing either
+     under one would misdescribe what it shows. #}
   <nav class="admin-nav-top">
-    <a href="{{ url_for(nav.DASHBOARD.endpoint) }}" title="{{ nav.DASHBOARD.label }}"
-       class="{{ 'active' if nav.is_dashboard(active) }}">
-      <i class="fa-solid {{ nav.DASHBOARD.icon }}"></i> <span>{{ nav.DASHBOARD.label }}</span>
+    {% for top in nav.TOP %}
+    <a href="{{ url_for(top.endpoint) }}" title="{{ top.label }}"
+       class="{{ 'active' if top.key == active }}">
+      <i class="fa-solid {{ top.icon }}"></i> <span>{{ top.label }}</span>
     </a>
+    {% endfor %}
   </nav>
 
   {# The product tabs used to live here. They are in the header now -- one switcher for both

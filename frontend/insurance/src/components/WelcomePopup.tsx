@@ -13,7 +13,8 @@ export default function WelcomePopup() {
   const [name, setName] = useState('');
   const [country, setCountry] = useState('India');
   const [countryInvalid, setCountryInvalid] = useState(false);
-  const [dial, setDial] = useState('+91');
+  // +1: the parents are in India, the person filling this in usually is not
+  const [dial, setDial] = useState('+1');
   const [tel, setTel] = useState('');
   const [email, setEmail] = useState('');
   const [travel, setTravel] = useState('Canada');

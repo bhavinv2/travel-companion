@@ -146,3 +146,84 @@ def test_an_average_needs_enough_reviews_behind_it(client, db, influencer, user)
     _db.session.commit()
     rows = {r['key']: r for r in promo.reviews()['rows']}
     assert rows['companion']['avg'] is not None
+
+
+# ---------------------------------------------------------------------------
+# The detail it grew
+# ---------------------------------------------------------------------------
+
+def test_the_trend_covers_the_months_it_claims(app, db):
+    from app.services import promo
+    t = promo.trend()
+    assert len(t['months']) == promo.MONTHS
+    for s in t['series']:
+        assert len(s['counts']) == promo.MONTHS, s['label']
+        assert s['total'] == sum(s['counts'])
+    assert t['max'] >= 1, 'never zero; the bars divide by it'
+
+
+def test_the_series_key_is_not_a_dict_method(app, db):
+    """It was 'values', and {{ s.values }} in Jinja hands back dict.values rather than the list
+    -- the chart rendered as a crash on the first page load."""
+    from app.services import promo
+    assert all('counts' in s and 'values' not in s for s in promo.trend()['series'])
+
+
+def test_the_detail_is_aggregate_only(client, db, influencer, some_activity):
+    """Routes and destinations are counts of places, not of people. Nothing in the new sections
+    may reintroduce a name or an address."""
+    login(client, influencer.email)
+    html = client.get(PAGE).data.decode()
+    for section in ('Most requested routes', 'Insurance destinations asked about',
+                    'How people rate us', 'The last'):
+        assert section in html, section
+    for leaked in ('asha@example.com', 'ravi@example.com', 'meena@example.com',
+                   '>Asha<', '>Ravi<', '>Meena<'):
+        assert leaked.lower() not in html.lower(), leaked
+
+
+def test_the_rating_spread_adds_up(app, db):
+    from app.services import promo
+    spread = promo.rating_spread()
+    assert [r['stars'] for r in spread['rows']] == [5, 4, 3, 2, 1]
+    assert sum(r['count'] for r in spread['rows']) == spread['total']
+
+
+def test_an_empty_install_still_renders(client, db, influencer):
+    """No trips, no quotes, no reviews. Every section has to say so rather than divide by zero."""
+    login(client, influencer.email)
+    r = client.get(PAGE)
+    assert r.status_code == 200
+    assert 'No trips with both cities recorded yet.' in r.data.decode()
+
+
+def test_the_links_are_the_public_ones(app, db):
+    """A video description pointing at the prefixed URL of a page that answers beside it is a
+    404 for whoever follows it."""
+    from app.services import promo
+    with app.test_request_context('/'):
+        urls = {l['label']: l['url'] for l in promo.links()}
+    assert urls['Travel Insurance'] == '/travel-insurance'
+    assert urls['Contact us'] == '/contact-us'
+
+
+# ---------------------------------------------------------------------------
+# And where an admin finds it
+# ---------------------------------------------------------------------------
+
+def test_the_admin_menu_offers_it(client, db, admin_user):
+    login(client, admin_user.email)
+    html = client.get('/admin/', follow_redirects=True).data.decode()
+    top = html.split('class="admin-nav-top"', 1)[1].split('</nav>', 1)[0]
+    assert '/promotion' in top, 'it reports on all three products, like the dashboard'
+
+
+def test_the_admin_dashboard_shows_the_same_figures(client, db, admin_user):
+    """A link, not a second copy: the figures come from services/promo so the two screens
+    cannot start disagreeing."""
+    from app.services import promo
+    login(client, admin_user.email)
+    html = client.get('/admin/', follow_redirects=True).data.decode()
+    assert 'Open the dashboard' in html
+    for d in promo.demand():
+        assert d['label'] in html, d['label']

@@ -274,12 +274,11 @@ def record_report(party, reason, actor=None):
     other = m.other_trip(party.trip_id)
     body = f'Match #{m.id} ({other.route_display}) was reported: {reason[:120]}'
     link = f'/cs/notifications'
-    staff = User.query.filter(User.is_active.is_(True),
-                              or_(User.role.in_(['cs', 'admin']), User.is_admin.is_(True))).all()
-    notified = set()
-    for u in staff:
-        if u.id in notified:
-            continue
+    # Whoever can act on it: the report lands on User voices, and the agent who created the
+    # other post is sent to that post's matches instead -- so anybody holding either screen
+    # hears about it, and each one gets the link their console will actually open.
+    from app.services import cs_access
+    for u in cs_access.recipients('voices', 'matches', limit=0):
+        own = other.created_by_id == u.id and cs_access.can_open(u, 'matches')
         notify.push(u.id, 'cs_escalation', title='Match reported', body=body,
-                    link=(f'/cs/posts/{other.id}/matches' if other.created_by_id == u.id else '/cs/voices?tab=report'))
-        notified.add(u.id)
+                    link=(f'/cs/posts/{other.id}/matches' if own else '/cs/voices?tab=report'))

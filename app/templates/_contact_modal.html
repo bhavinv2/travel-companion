@@ -2,6 +2,7 @@
    home help strip, etc.). Styles: static/css/contact-modal.css; behaviour: static/js/contact-modal.js.
    Open it from any element carrying data-open-contact. #}
 {% from '_whatsapp.html' import wa_button with context %}
+{% from '_phone_field.html' import phone_field with context %}
 {# The address staff publish on Admin -> Landing page, for the page this popup is on. It was
    typed in twice below, so changing it on the admin screen moved it everywhere except here. #}
 {% set mail = CONTACT_EMAIL(WA_SITE()) or SUPPORT_EMAIL %}
@@ -29,7 +30,10 @@
       <form class="consult-form" id="contactModalForm" novalidate>
         <div class="row">
           <div class="f"><label for="cm-name">Full name</label><input id="cm-name" required placeholder="Anitha Reddy" autocomplete="name"></div>
-          <div class="f"><label for="cm-phone">Phone / WhatsApp</label><input id="cm-phone" type="tel" placeholder="+1 or +91 …" autocomplete="tel"></div>
+          {# the shared field, like every other form on the site: a country beside the number
+             rather than a hint asking for one. Without it a number typed here was read as
+             whatever services/phone defaults to, and a visitor had no way to say otherwise. #}
+          {{ phone_field(id='cm-phone', label='Phone / WhatsApp', required=true) }}
         </div>
         <div class="row">
           <div class="f"><label for="cm-email">Email</label><input id="cm-email" type="email" required placeholder="you@example.com" autocomplete="email"></div>
@@ -38,7 +42,7 @@
         {# The options come from services/contact_form so this popup and the /contact page
            cannot drift apart again. #}
         <div class="f"><label for="cm-topic">How can we help?</label>
-          <select id="cm-topic">{% for t in CONTACT_FORM.TOPICS %}<option>{{ t }}</option>{% endfor %}</select>
+          <select id="cm-topic">{% for t in CONTACT_FORM.TOPICS %}<option{{ ' selected' if t == CONTACT_FORM.DEFAULT_TOPIC }}>{{ t }}</option>{% endfor %}</select>
         </div>
         <div class="f"><label>How should we contact you?</label>
           <div class="pills">
@@ -49,7 +53,7 @@
         </div>
         <div class="row">
           <div class="f"><label for="cm-time">Best time to reach you</label><select id="cm-time">{% for t in CONTACT_FORM.TIMES %}<option>{{ t }}</option>{% endfor %}</select></div>
-          <div class="f"><label for="cm-tz">Your time zone</label><select id="cm-tz">{% for z in CONTACT_FORM.ZONES %}<option>{{ z }}</option>{% endfor %}</select></div>
+          <div class="f"><label for="cm-tz">Your time zone</label><select id="cm-tz">{% for z in CONTACT_FORM.ZONES %}<option{{ ' selected' if z == CONTACT_FORM.DEFAULT_ZONE }}>{{ z }}</option>{% endfor %}</select></div>
         </div>
         <div class="f"><label for="cm-msg">Your message</label><textarea id="cm-msg" required placeholder="Tell us a little about your situation…"></textarea></div>
         <div class="consult-foot">

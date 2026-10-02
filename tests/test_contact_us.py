@@ -84,6 +84,7 @@ def test_an_invented_choice_is_not_stored(client, db):
     """The choices are rendered from a list, so anything else did not come from the form."""
     client.post('/contact-us', data={
         'name': 'Asha', 'email': 'a@example.com', 'message': 'A long enough message.',
+        'phone': '917 900 5094', 'phone_cc': 'US',
         'topic': '<script>alert(1)</script>', 'via': 'Carrier pigeon'})
     msg = ContactMessage.query.one()
     assert 'script' not in msg.message
@@ -177,8 +178,11 @@ def test_a_number_can_be_shown_on_one_page_only(app, db):
 # The artwork
 # ---------------------------------------------------------------------------
 
-ART_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                       'app', 'static', 'img', 'contact')
+STATIC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                      'app', 'static')
+# contact/ is this page's own artwork; flags/ is shared with the WhatsApp chooser, which is on
+# every page of the site.
+ART_RE = r'/static/img/((?:contact|flags)/[a-z0-9-]+\.webp)'
 
 
 def test_every_picture_the_page_asks_for_exists(client, db):
@@ -187,10 +191,43 @@ def test_every_picture_the_page_asks_for_exists(client, db):
     naming a file nobody added fails here instead of in production."""
     import re
     html = client.get('/contact-us').data.decode()
-    names = set(re.findall(r'/static/img/contact/([a-z0-9-]+)\.webp', html))
+    names = set(re.findall(ART_RE, html))
     assert names, 'the page should be using the artwork'
-    missing = [n for n in sorted(names) if not os.path.exists(os.path.join(ART_DIR, n + '.webp'))]
+    missing = [n for n in sorted(names)
+               if not os.path.exists(os.path.join(STATIC, 'img', *n.split('/')))]
     assert missing == [], missing
+
+
+def test_the_chooser_everywhere_else_uses_the_same_flags(client, db, admin_user):
+    """"Which team would you like to reach?" drew the emoji, which on Windows is the country's
+    two letters in a box -- the one platform where a picture was most needed."""
+    import re
+    offices.save_numbers([
+        {'label': 'India', 'iso': 'IN', 'number': '+91 80191 11360', 'whatsapp': True, 'sites': []},
+        {'label': 'Canada', 'iso': 'CA', 'number': '+1 (647) 770-2288', 'whatsapp': False,
+         'sites': []},
+    ], admin_user)
+    html = client.get('/').data.decode()
+    chooser = html.split('id="waChooser"', 1)[1].split('</div>', 1)[0] + \
+        html.split('id="waChooser"', 1)[1][:3000]
+    for name in ('flags/flag-india.webp', 'flags/flag-canada.webp'):
+        assert name in chooser, name
+    missing = [n for n in set(re.findall(ART_RE, html))
+               if not os.path.exists(os.path.join(STATIC, 'img', *n.split('/')))]
+    assert missing == [], missing
+
+
+def test_a_country_with_no_artwork_still_gets_a_marker(client, db, admin_user):
+    """An empty circle says nothing. The two letters at least name the country."""
+    offices.save_numbers([
+        {'label': 'Nepal', 'iso': 'NP', 'number': '+977 9801 234567', 'whatsapp': True,
+         'sites': []},
+        {'label': 'India', 'iso': 'IN', 'number': '+91 80191 11360', 'whatsapp': False,
+         'sites': []},
+    ], admin_user)
+    html = client.get('/').data.decode()
+    assert 'flags/flag-nepal.webp' not in html
+    assert 'class="wa-flag flag-txt"' in html
 
 
 def test_an_office_with_no_photograph_of_its_own_still_gets_one(client, db):
@@ -207,7 +244,7 @@ def test_the_pictures_are_decoration_and_say_so(client, db):
     on a screen reader in the middle of an address."""
     import re
     html = client.get('/contact-us').data.decode()
-    tags = re.findall(r'<img[^>]*/static/img/contact/[^>]*>', html)
+    tags = re.findall(r'<img[^>]*/static/img/(?:contact|flags)/[^>]*>', html)
     assert len(tags) >= 14, 'the page should be drawing the artwork'
     for tag in tags:
         assert 'alt=""' in tag and 'aria-hidden="true"' in tag, tag
@@ -237,3 +274,103 @@ def test_a_published_number_brings_its_flag(app, db):
     rows = {n['label']: n for n in offices.numbers()}
     assert rows['Canada']['flag'] == 'flag-canada'
     assert rows['Nepal']['flag'] == '', 'no artwork for it; the page draws the emoji instead'
+
+
+# ---------------------------------------------------------------------------
+# "What is it about?" -- five services, and the answer files the enquiry
+# ---------------------------------------------------------------------------
+
+def test_the_list_is_short_and_about_services(client, db):
+    """It was seven rows, five of them questions within the companion service, so somebody
+    after insurance read past four irrelevant ones to find it."""
+    assert len(contact_form.TOPICS) <= 5
+    assert 'Travel companion' in contact_form.TOPICS
+    assert 'Travel insurance' in contact_form.TOPICS
+    html = client.get('/contact-us').data.decode()
+    chosen = html.split('id="cuTopic"', 1)[1].split('</select>', 1)[0]
+    assert chosen.count('<option') == len(contact_form.TOPICS)
+
+
+def test_what_they_pick_decides_which_inbox_it_lands_in(client, db):
+    """The choice used to be a line of text in the message body and nothing else -- every
+    enquiry from this page was filed as 'general' whatever it said, so the CS console's
+    insurance filter never showed any of them."""
+    for topic, bucket in (('Travel insurance', 'insurance'),
+                          ('Travel companion', 'companion'),
+                          ('Sahayak - a nurse visit at home', 'general'),
+                          ('Something else', 'general')):
+        ContactMessage.query.delete()
+        client.post('/contact-us', data={
+            'name': 'Asha', 'email': 'asha@example.com', 'topic': topic,
+            'phone': '917 900 5094', 'phone_cc': 'US',
+            'message': 'Please tell me more about this.'}, follow_redirects=True)
+        msg = ContactMessage.query.one()
+        assert msg.topic == bucket, topic
+        assert 'Topic: %s' % topic in msg.message, 'and it still reads in the body'
+
+
+def test_an_unanswered_dropdown_is_a_general_enquiry(client, db):
+    client.post('/contact-us', data={'name': 'Asha', 'email': 'asha@example.com',
+                                     'phone': '917 900 5094', 'phone_cc': 'US',
+                                     'message': 'Please tell me more about this.'},
+                follow_redirects=True)
+    assert ContactMessage.query.one().topic == 'general'
+
+
+def test_a_widget_inside_the_app_still_defaults_to_companion(client, db):
+    """The home-page widget never asks which service; it is inside the companion app, so that
+    is what it is about."""
+    client.post('/api/contact', json={'name': 'Asha', 'email': 'asha@example.com',
+                                      'message': 'Please tell me more about this.'})
+    assert ContactMessage.query.one().topic == 'companion'
+
+
+def test_the_popup_routes_the_same_way(client, db):
+    """One form, one behaviour, wherever it was opened from."""
+    client.post('/api/landing-contact', json={
+        'name': 'Asha', 'email': 'asha@example.com', 'topic': 'Travel insurance',
+        'phone': '917 900 5094', 'phone_cc': 'US',
+        'message': 'Please tell me more about this.'})
+    assert ContactMessage.query.one().topic == 'insurance'
+
+
+def test_the_form_insists_on_a_number(client, db):
+    """It offers a call back and a WhatsApp reply. Neither is possible without one, and an
+    enquiry CS cannot answer the way the visitor asked is worse than one they never sent."""
+    r = client.post('/contact-us', data={'name': 'Asha', 'email': 'asha@example.com',
+                                         'message': 'Please tell me more about this.'})
+    assert r.status_code == 200, 'it should redraw, not save'
+    assert ContactMessage.query.count() == 0
+    assert 'number we can call' in r.data.decode()
+
+
+def test_the_popup_insists_on_one_too(client, db):
+    r = client.post('/api/landing-contact', json={
+        'name': 'Asha', 'email': 'asha@example.com', 'message': 'Please tell me more.'})
+    assert r.status_code == 400
+    assert ContactMessage.query.count() == 0
+
+
+def test_the_in_app_widget_does_not(client, db):
+    """It never asks for a number, so it cannot demand one."""
+    r = client.post('/api/contact', json={'name': 'Asha', 'email': 'asha@example.com',
+                                          'message': 'Please tell me more about this.'})
+    assert r.get_json()['success']
+
+
+def test_the_form_opens_on_what_most_people_write_in_about(client, db):
+    from app.services import contact_form as cf
+    html = client.get('/contact-us').data.decode()
+    topic = html.split('id="cuTopic"', 1)[1].split('</select>', 1)[0]
+    assert '<option selected>%s<' % cf.DEFAULT_TOPIC in topic
+    zone = html.split('id="cuZone"', 1)[1].split('</select>', 1)[0]
+    assert '<option selected>%s<' % cf.DEFAULT_ZONE in zone
+
+
+def test_one_button_where_there_is_room_for_one(client, db):
+    """The closing band has space for a single number. It used to print whichever was saved
+    first; it prints the country the rest of the forms open on."""
+    from app.services import offices, phone
+    assert offices.primary('contact')['iso'] == phone.DEFAULT_ISO
+    assert 'Call %s' % offices.primary('contact')['display'] in \
+        client.get('/contact-us').data.decode()

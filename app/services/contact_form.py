@@ -12,15 +12,45 @@ phone, not things anything queries or filters on, and a column nobody filters on
 spent on nothing.
 """
 
+# Which service it is about -- not which question it is.
+#
+# This was seven options, most of them tasks within one service ("Help posting my trip", "A
+# question about an existing match", "Privacy and how my details are used"). A visitor who
+# wants insurance had to read past four companion questions to find it, and the one thing the
+# list never said was which part of the business to send it to. Five, by service, with one row
+# for people who already have something open and one for everything else.
+#
+# Each maps to a bucket in models.CONTACT_TOPICS, so what somebody picks now files the enquiry
+# in the CS inbox instead of only appearing as a line of text in the message body.
 TOPICS = [
-    'Understanding how the service works',
-    'Finding a companion for my parents',
-    'Help posting my trip',
-    'A question about an existing match',
-    'Privacy and how my details are used',
     'Travel insurance',
+    'Travel companion',
+    'Sahayak - a nurse visit at home',
+    'An existing booking or request',
     'Something else',
 ]
+
+# What a form opens on. Named rather than "whatever is first", so the order of the list and the
+# thing most people are writing in about stay two separate decisions.
+DEFAULT_TOPIC = 'Travel insurance'
+
+# label -> models.CONTACT_TOPICS. Anything not named here is a general enquiry, which is also
+# what an unanswered dropdown means.
+TOPIC_ROUTES = {
+    'Travel companion': 'companion',
+    'Travel insurance': 'insurance',
+}
+DEFAULT_ROUTE = 'general'
+
+
+def route(topic, default=DEFAULT_ROUTE):
+    """The inbox bucket for a chosen topic.
+
+    Sahayak and "an existing booking" land in general for now: CONTACT_TOPICS has no bucket of
+    its own for either, and inventing one here would file enquiries under a filter the CS
+    console does not offer.
+    """
+    return TOPIC_ROUTES.get((topic or '').strip(), default)
 
 VIA = ['WhatsApp', 'Phone call', 'Email']
 
@@ -28,6 +58,10 @@ TIMES = ['Morning (9 - 12)', 'Afternoon (12 - 4)', 'Evening (4 - 8)', 'Any time'
 
 ZONES = ['India (IST)', 'US Eastern', 'US Central', 'US Pacific', 'UK',
          'Canada Eastern', 'Australia Eastern', 'Gulf (GST)', 'Other']
+
+# The same country the phone field opens on. A form that offers +1 and then assumes the caller
+# is on IST is asking them to correct it twice.
+DEFAULT_ZONE = 'US Eastern'
 
 # What the visitor typed, and what they chose. Only the first four are required; the rest make a
 # call-back possible instead of a guess.

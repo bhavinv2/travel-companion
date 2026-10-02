@@ -16,14 +16,18 @@ def test_landing_contact_saves_and_only_emails_when_enabled(client, db, admin_us
     mailer.OUTBOX.clear()
     long_msg = 'Please help me with my parents flight, this is a long enough message.'
     # default: not enabled -> stored as a CS message, no landing e-mail
-    r = client.post('/api/landing-contact', json={'name': 'Asha', 'email': 'asha@x.com', 'phone': '', 'message': long_msg})
+    r = client.post('/api/landing-contact', json={'name': 'Asha', 'email': 'asha@x.com',
+                                                  'phone': '917 900 5094', 'phone_cc': 'US',
+                                                  'message': long_msg})
     assert r.get_json()['success'] and ContactMessage.query.filter_by(email='asha@x.com').count() == 1
     assert not any('asha' in ' '.join(m['recipients']).lower() for m in mailer.OUTBOX)
 
     # enable + configure -> the configured address is e-mailed
     settings.set_landing_settings({'contact_email_enabled': True, 'contact_email': 'team@desis.com'}, admin_user)
     mailer.OUTBOX.clear()
-    r = client.post('/api/landing-contact', json={'name': 'Bala', 'email': 'bala@x.com', 'phone': '', 'message': long_msg})
+    r = client.post('/api/landing-contact', json={'name': 'Bala', 'email': 'bala@x.com',
+                                                  'phone': '917 900 5094', 'phone_cc': 'US',
+                                                  'message': long_msg})
     assert r.get_json()['success']
     assert any('team@desis.com' in m['recipients'] for m in mailer.OUTBOX)
 

@@ -3816,13 +3816,18 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
    is behind the burger, so from the insurance page there was no visible way back at all. The
    logo stays a link home; the line under it names the product and opens. 38px is the logo image
    and 10px the gap it sits after, so the label lines up with the brand name above it. */
-.nav-brand { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
-/* The switcher sits under the brand NAME, not under the logo block.
-   .nav-logo is as tall as the 38px mark while the name inside it is 18px, so stacking below it
-   left 19px of the image's overhang between the two lines -- they read as two separate things
-   rather than one block. The pull-up closes that; 48px clears the mark and lines the label up
-   with the first letter of the name. */
-.svc-sw { position: relative; margin-left: 48px; margin-top: -14px; }
+/* The mark is taken out of the flow and centred on the WHOLE brand, so it sits level with the
+   middle of the two lines beside it rather than level with the first one.
+   In flow it was a 38px item inside the link next to an 18px name, which centred it on the name
+   and left its overhang hanging between the two lines -- closing that gap needed a negative
+   margin on the switcher and a matching indent at every breakpoint, three numbers that had to
+   agree. One padding, the width of the mark plus its gap, does both jobs: it clears the mark
+   and lines both lines up with each other.
+   min-height keeps the row as tall as the mark now that the mark no longer props it open. */
+.nav-brand { position: relative; display: flex; flex-direction: column; align-items: flex-start;
+  justify-content: center; min-width: 0; min-height: 38px; padding-left: 48px; }
+.nav-brand .logo-img { position: absolute; left: 0; top: 50%; transform: translateY(-50%); }
+.svc-sw { position: relative; }
 .svc-sw-btn { display: inline-flex; align-items: center; gap: 5px; background: none; border: 0;
   padding: 0 4px 0 0; margin: 0; cursor: pointer; border-radius: 6px; color: inherit;
   line-height: 1.35; }
@@ -3857,11 +3862,9 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
   /* the one place the product name matters most: it is the only thing on a phone that says
      which of the three you are looking at */
   .svc-sw .logo-sub { display: block; font-size: 10px; }
-  .svc-sw { margin-left: 48px; margin-top: -15px; }
   .svc-sw-menu { min-width: min(280px, calc(100vw - 32px)); }
 }
 @media (max-width: 420px) {
-  .svc-sw { margin-left: 48px; }   /* the mark is 38px wide with a 10px gap after it */
   .svc-sw-menu { position: fixed; left: 12px; right: 12px; top: 62px; min-width: 0; }
 }
 
@@ -3983,6 +3986,22 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
   outline: none; background: #fff; box-shadow: 0 0 0 3px rgba(245,166,35,.18); }
 .cu-ip input:focus ~ i, .cu-ip select:focus ~ i { color: var(--coral); }
 
+/* Every <select> on the site is replaced by the searchable widget in js/searchselect.js: the
+   native one is kept but hidden, and .ss-btn is what a visitor actually sees. So the rules
+   above never reached the control -- the boxes next to each other were a 50px input and a 40px
+   button with a different border, radius and type size. These are the ones that land. */
+.cu-form-card .ss { display: block; }
+.cu-form-card .ss-btn { min-height: 50px; border: 1.5px solid var(--border); border-radius: 12px;
+  padding: 12px 14px; font-size: 15px; background: #fbfdff; color: var(--text); }
+.cu-ip .ss-btn { padding-left: 40px; }           /* clear of the leading glyph */
+.cu-form-card .ss-btn:hover { border-color: #e2c48f; }
+.cu-form-card .ss.is-open .ss-btn,
+.cu-form-card .ss-btn:focus-visible { border-color: var(--coral); outline: none;
+  background: #fff; box-shadow: 0 0 0 3px rgba(245,166,35,.18); }
+.cu-form-card .ss-caret { color: var(--muted); }
+/* The glyph sits over the control, so it must not swallow the click that opens it. */
+.cu-ip > i { z-index: 1; }
+
 /* The shared phone field (templates/_phone_field.html) dressed to match the fields above it.
    Styled from here rather than changed there: every other form on the site uses that macro. */
 .cu .pf { margin-bottom: 16px; }
@@ -3991,7 +4010,10 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 .cu .pf-row { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 10px; }
 .cu .pf-cc, .cu .pf-num { border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 10px;
   font: inherit; font-size: 15px; background: #fbfdff; color: var(--text); min-width: 0;
+  min-height: 50px;
   transition: border-color .15s, box-shadow .15s, background .15s; }
+/* and the same again for the widget that replaces the country <select> */
+.cu .pf-row .ss-btn { padding: 12px 10px; gap: 4px; }
 .cu .pf-num { padding-left: 38px;
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2397a3b8' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: left 13px center; background-size: 15px; }
@@ -4028,9 +4050,11 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 .cu-chan { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .cu-chan li { display: flex; align-items: center; gap: 12px; background: #fff; border-radius: 14px;
   padding: 11px 12px; min-width: 0; }
-.cu-chan-ic { width: 36px; height: 36px; flex: none; border-radius: 50%; }
-.cu-chan-emoji { display: grid; place-items: center; background: #fff; font-size: 19px;
-  box-shadow: 0 1px 4px rgba(15,35,64,.14); }
+.cu-chan-ic { width: 36px; height: 36px; flex: none; border-radius: 50%; object-fit: cover; }
+/* _flag.html draws a span instead of an img for a country with no artwork; same box, so the
+   rows stay aligned whichever one it is. */
+span.cu-chan-ic, .cu-office-flag .flag-txt { display: grid; place-items: center; background: #fff;
+  font-size: 13px; font-weight: 800; letter-spacing: .04em; color: var(--muted); }
 .cu-chan-tx { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .cu-chan-tx small { font-size: 12px; color: var(--muted); }
 .cu-chan-tx b { font-size: 14.5px; font-weight: 700; color: var(--navy); overflow-wrap: anywhere; }
@@ -4078,8 +4102,8 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 .cu-office-flag { position: absolute; top: -20px; left: 20px; width: 40px; height: 40px;
   border-radius: 50%; background: #fff; display: grid; place-items: center;
   box-shadow: 0 3px 10px rgba(15,35,64,.18); }
-.cu-office-flag img { width: 36px; height: 36px; border-radius: 50%; }
-.cu-office-flag span { font-size: 20px; line-height: 1; }
+.cu-office-flag img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
+.cu-office-flag .flag-txt { width: 36px; height: 36px; border-radius: 50%; }
 .cu-office h3 { font-size: 16.5px; font-weight: 800; margin: 0 0 9px; display: flex;
   align-items: center; gap: 8px; flex-wrap: wrap; }
 .cu-flag { display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .09em;
@@ -4135,40 +4159,167 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
   .cu-help-tx { padding-bottom: 0; }
 }
 
-/* ===== /promotion : read-only activity figures for the promotion team ===== */
-.promo { background: var(--bg); padding: 40px 0 64px; min-height: 60vh; }
-.promo .wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
-.promo-head { max-width: 720px; margin-bottom: 26px; }
-.promo-head h1 { font-family: var(--font-head); font-size: clamp(26px, 3.4vw, 36px); font-weight: 800; margin: 0 0 10px; }
-.promo-lead { font-size: 14.5px; line-height: 1.65; color: var(--muted); margin: 0; }
+/* The promotion summary on the admin dashboard -- a link to the real thing, not a copy. */
+.ad-promo-head { display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  flex-wrap: wrap; }
+.ad-promo-head h2 { margin: 0; }
+.ad-promo-note { font-size: 13px; color: var(--muted); margin: 8px 0 16px; }
+.ad-promo-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.ad-promo-fig { background: #fbfdff; border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px 16px; }
+.ad-promo-fig b { display: block; font-family: var(--font-head); font-size: 24px; font-weight: 800;
+  line-height: 1; color: var(--navy); }
+.ad-promo-fig span { display: block; font-size: 12.5px; color: var(--muted); margin-top: 5px; }
+.ad-promo-fig em { display: block; font-style: normal; font-size: 11.5px; font-weight: 700;
+  color: #16a34a; margin-top: 7px; }
 
-.promo-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 22px; }
-.promo-tile { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px; }
-.promo-tile small { display: block; font-size: 11px; font-weight: 800; letter-spacing: .07em;
+/* ==========================================================================
+   /promotion -- read-only activity figures for whoever is promoting the service.
+
+   Dressed like /contact-us on purpose: same pale sky band, same artwork, same
+   card and table language, so the two read as one site rather than a marketing
+   page and an internal report. Everything on it is an aggregate; see the
+   template and services/promo for why there are no names on it.
+   ========================================================================== */
+.pm { background: var(--bg); --pm-sky: #EAF2FE; --pm-sky-2: #F6FAFF; --pm-cream: #FFF8EC;
+  --pm-companion: #2F80ED; --pm-insurance: #16A34A; --pm-contact: var(--coral); }
+.pm .wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+.pm img { max-width: 100%; height: auto; }
+.pm-kick { display: inline-block; font-size: 11.5px; font-weight: 800; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--coral); margin-bottom: 10px; }
+
+/* ----- hero ----- */
+.pm-hero { position: relative; overflow: hidden; padding: 44px 0 0;
+  background: linear-gradient(170deg, var(--pm-sky-2) 0%, var(--pm-sky) 100%); }
+.pm-hero .wrap { position: relative; }
+.pm-hero-map, .pm-hero-dots { position: absolute; pointer-events: none; user-select: none; }
+.pm-hero-map { top: 10px; right: 2%; width: min(520px, 46%); opacity: .45; }
+.pm-hero-dots { left: 2%; bottom: 90px; width: 140px; opacity: .5; }
+.pm-hero-tx { position: relative; padding-right: 42%; }
+.pm-hero h1 { font-family: var(--font-head); font-size: clamp(28px, 4vw, 44px); font-weight: 800;
+  color: var(--navy); line-height: 1.1; margin: 0 0 12px; letter-spacing: -.01em; }
+.pm-lead { font-size: 15.5px; line-height: 1.7; max-width: 560px; color: var(--muted); margin: 0; }
+/* Same photograph as the contact page, pinned to the bottom of the band so it bleeds off it. */
+.pm-hero-art { position: absolute; right: 20px; bottom: 0; width: min(400px, 38%); }
+.pm-hero-art img { display: block; width: 100%; margin-bottom: -1px; }
+
+.pm-reach { position: relative; list-style: none; margin: 26px 0 0; padding: 0 42% 26px 0;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.pm-reach li { display: flex; flex-direction: column; min-width: 0; }
+.pm-reach b { font-family: var(--font-head); font-size: 26px; font-weight: 800; color: var(--navy);
+  line-height: 1; }
+.pm-reach span { font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.35; }
+
+.pm-body { padding: 34px 0 60px; display: grid; gap: 18px; }
+
+/* ----- the headline tiles ----- */
+.pm-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+.pm-tile { background: #fff; border: 1px solid var(--border); border-radius: 18px; padding: 20px 22px;
+  box-shadow: 0 2px 14px rgba(15,35,64,.04); }
+.pm-tile small { display: block; font-size: 11px; font-weight: 800; letter-spacing: .07em;
   text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
-.promo-tile b { display: block; font-family: var(--font-head); font-size: 30px; font-weight: 800; line-height: 1; color: var(--text); }
-.promo-tile span { display: block; font-size: 13.5px; color: var(--muted); margin-top: 5px; }
-.promo-tile em { display: block; font-style: normal; font-size: 12px; font-weight: 700; color: #16a34a; margin-top: 8px; }
-.promo-tile.accent { background: var(--sand, #fff8ec); border-color: var(--coral); }
+.pm-tile b { display: block; font-family: var(--font-head); font-size: 34px; font-weight: 800;
+  line-height: 1; color: var(--navy); }
+.pm-tile span { display: block; font-size: 13.5px; color: var(--muted); margin-top: 6px; }
+.pm-tile em { display: block; font-style: normal; font-size: 12px; font-weight: 700; color: #16a34a;
+  margin-top: 10px; }
+.pm-tile.accent { background: var(--pm-cream); border-color: #F3E2C4; }
 
-.promo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-bottom: 16px; }
-.promo-card { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 16px; }
-.promo-card h2 { font-size: 17px; font-weight: 800; margin: 0 0 16px; }
-.promo-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.promo-table th { text-align: left; font-size: 11px; font-weight: 800; letter-spacing: .06em;
-  text-transform: uppercase; color: var(--muted); padding: 0 10px 9px 0; border-bottom: 1px solid var(--border); }
-.promo-table td { padding: 11px 10px 11px 0; border-bottom: 1px solid var(--border); }
-.promo-table tbody tr:last-child td { border-bottom: 0; }
-.promo-table tfoot td { padding-top: 12px; border-top: 2px solid var(--border); border-bottom: 0; font-weight: 700; }
-.promo-table th:not(:first-child), .promo-table td:not(:first-child) { text-align: right; width: 1%; white-space: nowrap; }
-.promo-note { font-size: 12.5px; color: var(--muted); margin: 14px 0 0; line-height: 1.55; }
+/* ----- cards and tables ----- */
+.pm-card { position: relative; background: #fff; border: 1px solid var(--border);
+  border-radius: 18px; padding: 22px 24px; box-shadow: 0 2px 14px rgba(15,35,64,.04); }
+.pm-card h2 { font-family: var(--font-head); font-size: 19px; font-weight: 800; margin: 0 0 16px;
+  color: var(--navy); }
+.pm-card-head { display: flex; align-items: baseline; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; }
+.pm-card-head h2 { margin-bottom: 12px; }
+.pm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 18px; }
+.pm-note { font-size: 12.5px; color: var(--muted); margin: 14px 0 0; line-height: 1.6; }
+.pm-foot { font-size: 12.5px; color: var(--muted); text-align: center; margin: 8px 0 0; }
 
-.promo-quotes { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
-.promo-quote { margin: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; }
-.promo-stars { color: var(--coral); font-size: 14px; letter-spacing: 1px; }
-.promo-quote blockquote { margin: 8px 0 10px; font-size: 14.5px; line-height: 1.6; color: var(--text); }
-.promo-quote figcaption { font-size: 12px; color: var(--muted); }
-@media (max-width: 700px) { .promo-grid { grid-template-columns: 1fr; } }
+.pm-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.pm-table th { text-align: left; font-size: 11px; font-weight: 800; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted); padding: 0 0 10px; }
+.pm-table td { padding: 10px 0; border-top: 1px solid var(--border); color: var(--text); }
+.pm-table th + th, .pm-table td + td { text-align: right; width: 1%; white-space: nowrap;
+  padding-left: 16px; }
+.pm-table tfoot td { border-top: 2px solid var(--border); font-weight: 700; }
+
+/* ----- the six-month chart -----
+   Flex columns with percentage heights: three series and six months do not need a charting
+   library, and one would be 70KB to draw eighteen rectangles. */
+.pm-legend { list-style: none; display: flex; flex-wrap: wrap; gap: 14px; margin: 0; padding: 0; }
+.pm-legend li { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.pm-legend li::before { content: ''; width: 10px; height: 10px; border-radius: 3px;
+  background: var(--k, var(--muted)); }
+.pm-legend b { color: var(--navy); }
+.k-companion { --k: var(--pm-companion); }
+.k-insurance { --k: var(--pm-insurance); }
+.k-contact   { --k: var(--pm-contact); }
+.k-star      { --k: var(--coral); }
+
+.pm-chart { display: flex; align-items: flex-end; gap: 10px; height: 190px; margin-top: 6px;
+  padding-top: 8px; }
+.pm-month { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  height: 100%; min-width: 0; }
+.pm-bars { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center;
+  gap: 4px; }
+/* min-height so a month with one of something is still a visible mark rather than nothing. */
+.pm-col { flex: 1 1 0; max-width: 20px; min-height: 3px; border-radius: 4px 4px 0 0;
+  background: var(--k, var(--muted)); transition: filter .15s; }
+.pm-col:hover { filter: brightness(1.15); }
+.pm-month small { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+/* ----- ranked lists ----- */
+.pm-bar { display: block; height: 7px; border-radius: 99px; background: #EEF2F8; overflow: hidden; }
+.pm-bar > span { display: block; height: 100%; border-radius: 99px; background: var(--k, var(--coral)); }
+.pm-rank, .pm-stars-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.pm-rank li { display: grid; grid-template-columns: 22px minmax(0, 1fr) 90px 34px; gap: 10px;
+  align-items: center; font-size: 14px; }
+.pm-rank-n { font-size: 11px; font-weight: 800; color: var(--muted); text-align: center; }
+.pm-rank-tx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.pm-rank b, .pm-stars-list b { text-align: right; font-weight: 700; color: var(--navy); }
+.pm-stars-list li { display: grid; grid-template-columns: 46px minmax(0, 1fr) 34px 44px; gap: 10px;
+  align-items: center; font-size: 14px; }
+.pm-stars-n { font-size: 12.5px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.pm-stars-list small { font-size: 12px; color: var(--muted); text-align: right; }
+
+/* ----- the quotes ----- */
+.pm-quotes { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.pm-quote { margin: 0; background: var(--pm-cream); border: 1px solid #F3E2C4; border-radius: 16px;
+  padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; }
+.pm-q-stars { color: var(--coral); font-size: 14px; letter-spacing: 2px; }
+.pm-quote blockquote { margin: 0; font-size: 14.5px; line-height: 1.65; color: var(--text); }
+.pm-quote figcaption { font-size: 12px; color: var(--muted); margin-top: auto; }
+
+/* ----- the links ----- */
+.pm-links-card { overflow: hidden; }
+.pm-links-art { position: absolute; right: -10px; top: 14px; width: 150px; opacity: .3;
+  pointer-events: none; }
+.pm-links { list-style: none; margin: 16px 0 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+.pm-links a { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px;
+  border: 1px solid var(--border); border-radius: 12px; background: #fbfdff; min-width: 0;
+  transition: border-color .15s, background .15s; }
+.pm-links a:hover { border-color: var(--coral); background: var(--pm-cream); }
+.pm-links b { font-size: 14px; color: var(--navy); }
+.pm-links span { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+
+@media (max-width: 860px) {
+  .pm-hero-tx, .pm-reach { padding-right: 0; }
+  .pm-hero-art { position: static; width: auto; margin-top: 12px; }
+  .pm-hero-art img { max-width: 320px; margin: 0 auto -1px; }
+  .pm-hero-dots { display: none; }
+  .pm-reach { grid-template-columns: 1fr 1fr; gap: 14px; }
+}
+@media (max-width: 520px) {
+  .pm-chart { height: 150px; gap: 6px; }
+  .pm-month small { font-size: 10px; }
+  .pm-rank li { grid-template-columns: 18px minmax(0, 1fr) 30px; }
+  /* the bar is the first thing to go: the figure beside it says the same thing in less room */
+  .pm-rank .pm-bar { display: none; }
+  .pm-tile b { font-size: 28px; }
+}
 
 /* ===== the shared phone field (templates/_phone_field.html) ===== */
 .pf { margin-bottom: 16px; }

@@ -159,3 +159,50 @@ def test_the_screen_is_offered_for_agents_only(client, db, admin_user, agent, ot
 
     traveller = User.query.filter_by(email='alice@test.com').one()
     assert '/admin/users/%d/cs-access' % traveller.id not in html
+
+
+# ---------------------------------------------------------------------------
+# And the notifications about those screens
+# ---------------------------------------------------------------------------
+
+def test_an_agent_is_only_told_about_screens_they_have(client, db, admin_user):
+    """A notification is an instruction to go and look. Every agent used to get every one of
+    them, including the ones whose link 403s for them."""
+    from app.models import User, Notification
+    from app import db as _db
+
+    narrow = User(username='sahayak_only', email='sk@test.com', role='cs', is_active=True)
+    narrow.set_password('x')
+    narrow.cs_access = ['home', 'sahayak']
+    wide = User(username='voices_agent', email='va@test.com', role='cs', is_active=True)
+    wide.set_password('x')
+    wide.cs_access = ['home', 'voices']
+    _db.session.add_all([narrow, wide])
+    _db.session.commit()
+
+    client.post('/contact-us', data={
+        'name': 'Asha', 'email': 'asha@example.com', 'phone': '917 900 5094',
+        'phone_cc': 'US', 'message': 'Please call me back about this.'}, follow_redirects=True)
+
+    told = {n.user_id for n in Notification.query.filter_by(type='cs_escalation').all()}
+    assert wide.id in told, 'the agent who answers these should hear about it'
+    assert narrow.id not in told, 'the Sahayak desk should not'
+    assert admin_user.id in told, 'admins are never restricted'
+
+
+def test_an_agent_with_no_limits_set_hears_everything(client, db, cs_user):
+    """Null means unrestricted, which is still the default and still everybody today."""
+    from app.models import Notification
+    assert cs_user.cs_access is None
+    client.post('/contact-us', data={
+        'name': 'Asha', 'email': 'asha@example.com', 'phone': '917 900 5094',
+        'phone_cc': 'US', 'message': 'Please call me back about this.'}, follow_redirects=True)
+    assert Notification.query.filter_by(user_id=cs_user.id, type='cs_escalation').count() == 1
+
+
+def test_recipients_is_the_one_place_that_decides(app, db, cs_user):
+    from app.services import cs_access
+    assert cs_user in cs_access.recipients('voices')
+    cs_user.cs_access = ['home']
+    assert cs_user not in cs_access.recipients('voices')
+    assert cs_user in cs_access.recipients('home', 'voices'), 'any one of them is enough'

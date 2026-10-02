@@ -7,13 +7,14 @@
      none        -> nothing is rendered; we never show a number nobody answers
 
    It used to be exactly two, India and USA, named in the markup -- so adding Canada meant
-   editing this file as well as the settings. The list is iterated now, and the flag is drawn
-   from the country's two letters rather than hand-drawn per country.
+   editing this file as well as the settings. The list is iterated now, and the flag comes from
+   _flag.html, which knows what artwork exists and falls back to the emoji for the rest.
 
    The visitor always chooses. Our audience is cross-border: where somebody IS does not say who
    they want to talk to.
 
    Styles: static/css/whatsapp.css. Behaviour: static/js/whatsapp.js (loaded by the footer). #}
+{% from '_flag.html' import flag with context %}
 
 {% macro wa_icon() %}<svg class="wa-ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2a9.9 9.9 0 0 0-8.44 15.1L2 22l5.05-1.55A9.9 9.9 0 1 0 12.04 2zm0 18.1a8.2 8.2 0 0 1-4.2-1.15l-.3-.18-3 .92.95-2.9-.2-.3a8.2 8.2 0 1 1 6.75 3.6zm4.5-6.15c-.25-.12-1.46-.72-1.69-.8-.23-.08-.39-.12-.56.12-.16.25-.64.8-.78.97-.14.16-.29.18-.54.06a6.7 6.7 0 0 1-3.32-2.9c-.25-.43.25-.4.72-1.33.08-.16.04-.3-.02-.43-.06-.12-.56-1.35-.77-1.85-.2-.48-.41-.42-.56-.43h-.48a.92.92 0 0 0-.67.31 2.8 2.8 0 0 0-.87 2.08c0 1.23.9 2.42 1.02 2.58.12.16 1.76 2.69 4.27 3.77 1.58.68 2.2.74 2.99.62.48-.07 1.46-.6 1.67-1.18.2-.58.2-1.07.14-1.18-.06-.1-.22-.16-.47-.28z"/></svg>{% endmacro %}
 
@@ -43,7 +44,7 @@
   <p>They all reply on WhatsApp &mdash; pick whichever suits your hours.</p>
   {% for r in rows %}
   <a class="wa-opt" data-region="{{ r.iso|lower }}" href="https://wa.me/{{ r.digits }}?text={{ opener }}" target="_blank" rel="noopener">
-    <span class="wa-flag wa-flag-tx" aria-hidden="true">{{ PHONE.flag(r.iso) }}</span>
+    {{ flag(r.flag, r.iso, 'wa-flag') }}
     <span class="wa-opt-tx"><b>{{ r.label }}</b><small>{{ r.display }}</small></span>
     <span class="wa-likely">Likely you</span>
   </a>
