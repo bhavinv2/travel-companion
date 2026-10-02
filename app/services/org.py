@@ -38,10 +38,20 @@ def identity():
 
 
 def address():
-    """The postal address, or None. All of it or none of it: a PostalAddress missing its street
-    or its country is worse than no address, because it still claims to be one."""
+    """The head office, as schema.org wants it.
+
+    Read from services/offices, which is also what the contact page prints -- so the address a
+    search engine is told and the address a visitor reads cannot drift apart.
+
+    All of it or none of it: a PostalAddress missing its street or its country is worse than no
+    address, because it still claims to be one.
+    """
+    from app.services import offices
+    hq = offices.headquarters()
+    if not hq:
+        return None
     parts = {
-        'streetAddress': _env('ORG_STREET', '2512 Carpenter Rd'),
+        'streetAddress': hq['street'],
         'addressLocality': _env('ORG_CITY', 'Ann Arbor'),
         'addressRegion': _env('ORG_REGION', 'Michigan'),
         'postalCode': _env('ORG_POSTCODE', '48108'),

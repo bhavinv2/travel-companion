@@ -82,19 +82,21 @@
         </button>
         <div class="svc-sw-menu" id="svcSwMenu" role="menu" aria-label="Our services">
           <div class="svc-sw-head">{{ _('Switch service') }}</div>
-          {% for s in PRODUCTS.menu() %}
-          <a class="svc-sw-item{{ ' on' if s.current }}" role="menuitem" href="{{ s.url }}">
-            <i class="fa-solid {{ s.icon }}"></i>
-            <span><b>{{ s.label }}</b><small>{{ s.blurb }}</small></span>
-            {% if s.current %}<i class="fa-solid fa-check svc-sw-tick" aria-hidden="true"></i>{% endif %}
+          {% for sv in PRODUCTS.menu() %}
+          <a class="svc-sw-item{{ ' on' if sv.current }}" role="menuitem" href="{{ sv.url }}">
+            <svg class="svc-sw-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="{{ sv.icon }}"/></svg>
+            <span><b>{{ sv.label }}</b><small>{{ sv.blurb }}</small></span>
+            {% if sv.current %}<svg class="svc-sw-tick" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="{{ PRODUCTS.TICK }}"/></svg>{% endif %}
           </a>
           {% endfor %}
           {% set _more = PRODUCTS.extras() %}
           {% if _more %}
-          <div class="svc-sw-head">{{ _('More from NRI Parent Service') }}</div>
+          <div class="svc-sw-head">More from NRI Parent Service</div>
           {% for label, href in _more %}
           <a class="svc-sw-item sm" role="menuitem" href="{{ href }}" target="_blank" rel="noopener">
-            <i class="fa-solid fa-arrow-up-right-from-square"></i><span><b>{{ label }}</b></span>
+            <svg class="svc-sw-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ PRODUCTS.EXTERNAL }}"/></svg>
+            <span><b>{{ label }}</b></span>
           </a>
           {% endfor %}
           {% endif %}
@@ -290,6 +292,9 @@
               <a href="{{ url_for('main.connections_page') }}"><i class="fa-solid fa-handshake"></i> {{ _('My Connections') }}</a>
               <a href="{{ url_for('main.notification_settings') }}"><i class="fa-solid fa-bell"></i> {{ _('Notification settings') }}</a>
             {% endif %}
+            {% if current_user.is_influencer or current_user.is_admin %}
+              <a href="{{ url_for('main.promo_dashboard') }}"><i class="fa-solid fa-chart-line"></i> {{ _('Promotion dashboard') }}</a>
+            {% endif %}
               {# a form, not a link: signing somebody out is a state change, and a GET one can
                  be triggered by any page that can make this browser fetch a URL #}
               <form method="post" action="{{ url_for('auth.logout') }}" class="menu-logout">
@@ -481,6 +486,17 @@
   <script src="{{ url_for('static', filename='js/searchselect.js') }}"></script>
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   <script src="{{ url_for('static', filename='js/livesearch.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/phone-field.js') }}" defer></script>
+  {# The help popup, on every page that uses this shell, so the header's Support pill and every
+     "Contact us" link open the same thing. A page that brings its own -- the travel-insurance
+     bundle has one in React -- overrides the block to empty so there are not two. #}
+  {% block contact_modal %}
+  {% if not is_staff %}
+    {% include '_contact_modal.html' %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/contact-modal.css') }}"/>
+    <script src="{{ url_for('static', filename='js/contact-modal.js') }}" defer></script>
+  {% endif %}
+  {% endblock %}
   <script src="{{ url_for('static', filename='js/insurance.js') }}"></script>
   <script src="{{ url_for('static', filename='js/contact-modal.js') }}"></script>
   {% block extra_js %}{% endblock %}

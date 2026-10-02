@@ -1265,21 +1265,45 @@ def _notify_all_blog(post):
 def landing_page():
     """Landing-page controls: the contact e-mail (with its own enable toggle — the only mail
     switch here) and the brand colour palette that restyles the public landing."""
-    from app.services import settings as app_settings
+    from app.services import offices, settings as app_settings
     from app.models import ActivityEvent
     if request.method == 'POST':
         data = {
             'contact_email': request.form.get('contact_email', ''),
             'contact_email_enabled': request.form.get('contact_email_enabled') == 'on',
-            'whatsapp_in': request.form.get('whatsapp_in', ''),
-            'whatsapp_us': request.form.get('whatsapp_us', ''),
             'colors': {k: request.form.get('color_' + k, '') for k in app_settings.LANDING_COLOR_DEFAULTS},
         }
         app_settings.set_landing_settings(data, current_user)
+
+        # The numbers are their own list now, so adding a country is a row rather than a code
+        # change. Parallel arrays, the way the other row editors in this panel post.
+        labels = request.form.getlist('num_label')
+        isos = request.form.getlist('num_iso')
+        nums = request.form.getlist('num_number')
+        wa = set(request.form.getlist('num_whatsapp'))
+        rows = []
+        for i, number in enumerate(nums):
+            sites = [key for key, _ in offices.SITES
+                     if request.form.get('num_sites_%d_%s' % (i, key))]
+            rows.append({'label': labels[i] if i < len(labels) else '',
+                         'iso': isos[i] if i < len(isos) else '',
+                         'number': number, 'whatsapp': str(i) in wa, 'sites': sites})
+        offices.save_numbers(rows, current_user)
+
+        mail_labels = request.form.getlist('mail_label')
+        mail_rows = []
+        for i, address in enumerate(request.form.getlist('mail_address')):
+            sites = [key for key, _ in offices.SITES
+                     if request.form.get('mail_sites_%d_%s' % (i, key))]
+            mail_rows.append({'label': mail_labels[i] if i < len(mail_labels) else '',
+                              'address': address, 'sites': sites})
+        offices.save_emails(mail_rows, current_user)
         ActivityEvent.log('landing_settings_changed', actor=current_user)
         flash('Landing page settings saved.', 'success')
         return redirect(url_for('admin.landing_page'))
     return render_template('admin/landing.html', ls=app_settings.landing_settings(),
+                           numbers=offices.numbers(), emails=offices.emails(),
+                           site_choices=offices.SITES,
                            color_defaults=app_settings.LANDING_COLOR_DEFAULTS,
                            color_labels=app_settings.LANDING_COLOR_LABELS)
 

@@ -51,6 +51,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Caveat:wght@500;600;700&display=swap" rel="stylesheet"/>
 {% endblock %}
 
+{# This page's Support pill opens the popup inside the React bundle, so it must not also get
+   the shared one: two popups on one button is worse than either. #}
+{% block contact_modal %}{% endblock %}
+
 {% block content %}
 {# Server data first, so it is set before the bundle runs.
 
@@ -81,6 +85,7 @@
     'priceFrom': price_from,
     'assurances': assurances,
     'conversions': ads_conversions,
+    'dialCodes': dial_codes,
   } | tojson }};
 </script>
 <div id="root"></div>

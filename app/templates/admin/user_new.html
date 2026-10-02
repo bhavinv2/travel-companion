@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_phone_field.html' import phone_field with context %}
 {% block title %}Add account – Admin{% endblock %}
 {% block content %}
 <div class="admin-page">
@@ -15,7 +16,7 @@
       <div class="form-row">
         <div class="field-group"><label>First name</label><input type="text" name="first_name" value="{{ form.get('first_name', '') }}"/></div>
         <div class="field-group"><label>Last name</label><input type="text" name="last_name" value="{{ form.get('last_name', '') }}"/></div>
-        <div class="field-group"><label>Phone</label><input type="text" name="phone" value="{{ form.get('phone', '') }}"/></div>
+        <div class="field-group">{{ phone_field(label='Phone', value=form.get('phone', '')) }}</div>
       </div>
       <div class="form-row">
         <div class="field-group"><label>Password <span class="optional">(blank = generate)</span></label><input type="text" name="password" value="" autocomplete="off" placeholder="min. 8 characters"/></div>

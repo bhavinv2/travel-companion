@@ -57,36 +57,55 @@ def test_admin_landing_requires_admin(client, db, user):
 
 
 def test_whatsapp_buttons_follow_the_configured_numbers(client, db, admin_user, user):
-    """None -> no button anywhere. One -> direct wa.me links. Both -> one button + a team chooser.
-    Never a placeholder number."""
+    """None -> no button anywhere. One -> direct wa.me links. Several -> one button and a team
+    chooser listing every published number. Never a placeholder.
+
+    The numbers used to be two fixed fields, India and USA, so a third country meant editing the
+    markup. They are a list an admin adds to now, which is what this walks.
+    """
+    from app.services import offices
+
+    offices.save_numbers([], admin_user)
     html = client.get('/').data.decode()
     assert 'id="suModal"' in html and 'id="suContactBtn"' in html and 'mailto:' in html
     assert 'class="wa-btn' not in html and 'wa.me/' not in html and 'id="waChooser"' not in html
 
     # one number: every placement is a plain link straight to it, no chooser
-    settings.set_landing_settings({'whatsapp_in': '+91 98765 43210', 'whatsapp_us': ''}, admin_user)
+    offices.save_numbers([{'label': 'India', 'iso': 'IN', 'number': '+91 98765 43210',
+                           'whatsapp': True, 'sites': []}], admin_user)
     html = client.get('/').data.decode()
-    assert html.count('href="https://wa.me/919876543210"') == 4      # float, sign-up, contact modal, footer
+    # the number, plus the opener every link now carries
+    assert html.count('href="https://wa.me/919876543210?text=') == 4   # float, sign-up, contact modal, footer
     assert 'data-wa-open' not in html and 'id="waChooser"' not in html
 
-    # both numbers: the placements become chooser buttons and exactly one chooser is on the page
-    settings.set_landing_settings({'whatsapp_us': '+1 917 555 0100'}, admin_user)
+    # two: the placements become chooser buttons and exactly one chooser is on the page
+    offices.save_numbers([
+        {'label': 'India', 'iso': 'IN', 'number': '+91 98765 43210', 'whatsapp': True, 'sites': []},
+        {'label': 'USA', 'iso': 'US', 'number': '+1 917 555 0100', 'whatsapp': False, 'sites': []},
+    ], admin_user)
     html = client.get('/').data.decode()
     assert html.count('data-wa-open') == 4
     assert html.count('id="waChooser"') == 1
     assert 'https://wa.me/919876543210' in html and 'https://wa.me/19175550100' in html
-    assert 'India team' in html and 'USA team' in html
+    assert 'India' in html and 'USA' in html
+
+    # ...and a third country is a row, not a code change
+    offices.save_numbers([
+        {'label': 'India', 'iso': 'IN', 'number': '+91 98765 43210', 'whatsapp': True, 'sites': []},
+        {'label': 'USA', 'iso': 'US', 'number': '+1 917 555 0100', 'whatsapp': False, 'sites': []},
+        {'label': 'Canada', 'iso': 'CA', 'number': '+1 416 555 0199', 'whatsapp': False, 'sites': []},
+    ], admin_user)
+    html = client.get('/').data.decode()
+    assert 'https://wa.me/14165550199' in html and 'Canada' in html
 
     # the footer is shared, so a signed-in traveller's home gets the same button and chooser
     login(client, 'bob@test.com')
     html = client.get('/').data.decode()
     assert 'data-wa-open' in html and html.count('id="waChooser"') == 1
     client.post('/auth/logout')
-    # admins set the numbers from the Landing page screen; clearing hides everything again
-    login(client, 'admin@test.com')
-    client.post('/admin/landing', data={'contact_email': '', 'whatsapp_in': '', 'whatsapp_us': ''})
-    assert settings.landing_settings()['whatsapp_in'] == '' and settings.landing_settings()['whatsapp_us'] == ''
-    client.post('/auth/logout')
+
+    # clearing the list hides every button again
+    offices.save_numbers([], admin_user)
     assert 'class="wa-btn' not in client.get('/').data.decode()
 
 

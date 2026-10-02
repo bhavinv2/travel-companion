@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_phone_field.html' import phone_field with context %}
 {# Sahayak home healthcare.
 
    A request desk, not a dispatch system: the form below creates a booking request that CS works
@@ -125,7 +126,7 @@
 
         <div class="sk-row">
           <div class="sk-f"><label for="sk-phone">Phone to call <span class="sk-req">required</span></label>
-            <input id="sk-phone" name="phone" type="tel" required placeholder="+91 90000 00000"></div>
+            {{ phone_field(name='phone', required=true, id='sk-phone', label='') }}</div>
           <div class="sk-f"><label for="sk-email">E-mail <span class="sk-opt">optional</span></label>
             <input id="sk-email" name="email" type="email" placeholder="you@example.com"></div>
         </div>

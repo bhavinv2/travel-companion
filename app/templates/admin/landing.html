@@ -34,15 +34,94 @@
           numbers set, visitors pick the India or USA team (the likely one is pre-selected from their time zone).
           With one, the button opens it directly. With none, the buttons are hidden &mdash; nothing is shown
           until a real number is here.</p>
-        <div class="lp-colors" style="max-width:640px">
-          <div class="field-group">
-            <label>India team (international format)</label>
-            <input type="tel" name="whatsapp_in" value="{{ ls.whatsapp_in }}" placeholder="+91 98765 43210"/>
+        {# A list, not two boxes. It used to be exactly India and USA, so a third country meant
+           a code change; now adding Canada is a row. A number that cannot be dialled is dropped
+           on save rather than published. #}
+        <div class="ed-rows" id="numRows">
+          {% for n in numbers %}
+          {# the row's own index: inside the site loop below, `loop` is the site's #}
+          {% set row = loop.index0 %}
+          <div class="ed-row" data-row="{{ row }}">
+            <div class="ed-grid">
+              <div class="ed-cols">
+                <div>
+                  <label class="hc-lbl">Shown as</label>
+                  <input type="text" name="num_label" value="{{ n.label }}" placeholder="India"/>
+                </div>
+                <div>
+                  <label class="hc-lbl">Country</label>
+                  <select name="num_iso">
+                    {% for c in PHONE.choices()[0] + PHONE.choices()[1] %}
+                    <option value="{{ c.iso }}"{{ ' selected' if c.iso == n.iso }}>{{ c.name }} +{{ c.dial }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <label class="hc-lbl">Number</label>
+                  <input type="tel" name="num_number" value="{{ n.number }}" placeholder="98765 43210"/>
+                </div>
+              </div>
+              <div>
+                <label class="hc-lbl">Show on</label>
+                <div class="ct-pills">
+                  {% for key, label in site_choices %}
+                  <label><input type="checkbox" name="num_sites_{{ row }}_{{ key }}"
+                                value="{{ key }}"{{ ' checked' if key in n.sites }}>{{ label }}</label>
+                  {% endfor %}
+                  <label><input type="checkbox" name="num_whatsapp" value="{{ row }}"
+                                {{ 'checked' if n.whatsapp }}>WhatsApp button</label>
+                </div>
+                <small class="muted">Tick nothing under &ldquo;Show on&rdquo; and it appears everywhere.</small>
+              </div>
+            </div>
+            <button type="button" class="ed-del row-del" title="Remove this number"
+                    aria-label="Remove this number"><i class="fa-solid fa-trash-can"></i></button>
           </div>
-          <div class="field-group">
-            <label>USA team (international format)</label>
-            <input type="tel" name="whatsapp_us" value="{{ ls.whatsapp_us }}" placeholder="+1 917 555 0100"/>
+          {% endfor %}
+        </div>
+        <p class="ed-empty" id="numEmpty" {{ 'hidden' if numbers }}>No numbers yet. Every WhatsApp
+          and call button on the site stays hidden until one is added.</p>
+        <div style="margin-top:14px">
+          <button type="button" class="btn-sm" id="addNum"><i class="fa-solid fa-plus"></i> Add a number</button>
+        </div>
+
+        <h3 class="hc-h2" style="margin-top:28px"><i class="fa-solid fa-envelope"></i> Support addresses</h3>
+        <p class="muted small">Shown wherever the site offers an e-mail. Same rule as the numbers:
+          tick nothing and it appears everywhere.</p>
+        <div class="ed-rows" id="mailRows">
+          {% for e in emails %}
+          {% set row = loop.index0 %}
+          <div class="ed-row" data-row="{{ row }}">
+            <div class="ed-grid">
+              <div class="ed-cols">
+                <div>
+                  <label class="hc-lbl">Shown as</label>
+                  <input type="text" name="mail_label" value="{{ e.label }}" placeholder="General"/>
+                </div>
+                <div style="grid-column: span 2">
+                  <label class="hc-lbl">Address</label>
+                  <input type="email" name="mail_address" value="{{ e.address }}" placeholder="info@example.com"/>
+                </div>
+              </div>
+              <div>
+                <label class="hc-lbl">Show on</label>
+                <div class="ct-pills">
+                  {% for key, label in site_choices %}
+                  <label><input type="checkbox" name="mail_sites_{{ row }}_{{ key }}"
+                                value="{{ key }}"{{ ' checked' if key in e.sites }}>{{ label }}</label>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+            <button type="button" class="ed-del row-del" title="Remove this address"
+                    aria-label="Remove this address"><i class="fa-solid fa-trash-can"></i></button>
           </div>
+          {% endfor %}
+        </div>
+        <p class="ed-empty" id="mailEmpty" {{ 'hidden' if emails }}>No address yet. Nothing on the
+          site offers an e-mail until one is added.</p>
+        <div style="margin-top:14px">
+          <button type="button" class="btn-sm" id="addMail"><i class="fa-solid fa-plus"></i> Add an address</button>
         </div>
       </section>
 
@@ -86,4 +165,95 @@
 .lp-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
 @media (max-width: 560px) { .lp-colors { grid-template-columns: 1fr; } }
 </style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var rows = document.getElementById('numRows');
+  var empty = document.getElementById('numEmpty');
+  var add = document.getElementById('addNum');
+  if (!rows || !add) return;
+  // the first row's markup is the template: one definition, so a new row can never drift from
+  // the ones already on screen
+  var blank = rows.querySelector('.ed-row');
+  var html = blank ? blank.outerHTML : '';
+
+  function sync() { if (empty) empty.hidden = rows.children.length > 0; }
+
+  /* The site checkboxes carry their row's index in the name, because that is the only way a
+     checkbox says which row it belongs to when the form posts parallel arrays. A cloned row
+     would otherwise reuse the first row's index and tick it instead of itself. */
+  function renumber() {
+    Array.prototype.forEach.call(rows.children, function (row, i) {
+      row.setAttribute('data-row', i);
+      row.querySelectorAll('input[name^="num_sites_"]').forEach(function (box) {
+        box.name = 'num_sites_' + i + '_' + box.value;
+      });
+      var wa = row.querySelector('input[name="num_whatsapp"]');
+      if (wa) wa.value = String(i);
+    });
+  }
+
+  add.addEventListener('click', function () {
+    if (!html) return;
+    var holder = document.createElement('div');
+    holder.innerHTML = html;
+    var row = holder.firstElementChild;
+    row.querySelectorAll('input[type=text], input[type=tel]').forEach(function (i) { i.value = ''; });
+    row.querySelectorAll('input[type=checkbox]').forEach(function (i) { i.checked = false; });
+    rows.appendChild(row);
+    renumber();
+    sync();
+    var first = row.querySelector('input');
+    if (first) first.focus();
+  });
+
+  rows.addEventListener('click', function (e) {
+    var del = e.target.closest('.row-del');
+    if (del) { del.closest('.ed-row').remove(); renumber(); sync(); }
+  });
+})();
+
+/* The addresses behave the same way. Same code, different prefix -- the row index has to end up
+   in the checkbox name either way, because that is how a checkbox says which row it is for. */
+(function () {
+  var rows = document.getElementById('mailRows');
+  var empty = document.getElementById('mailEmpty');
+  var add = document.getElementById('addMail');
+  if (!rows || !add) return;
+  var blank = rows.querySelector('.ed-row');
+  var html = blank ? blank.outerHTML : '';
+
+  function sync() { if (empty) empty.hidden = rows.children.length > 0; }
+
+  function renumber() {
+    Array.prototype.forEach.call(rows.children, function (row, i) {
+      row.setAttribute('data-row', i);
+      row.querySelectorAll('input[name^="mail_sites_"]').forEach(function (box) {
+        box.name = 'mail_sites_' + i + '_' + box.value;
+      });
+    });
+  }
+
+  add.addEventListener('click', function () {
+    if (!html) return;
+    var holder = document.createElement('div');
+    holder.innerHTML = html;
+    var row = holder.firstElementChild;
+    row.querySelectorAll('input[type=text], input[type=email]').forEach(function (i) { i.value = ''; });
+    row.querySelectorAll('input[type=checkbox]').forEach(function (i) { i.checked = false; });
+    rows.appendChild(row);
+    renumber();
+    sync();
+    var first = row.querySelector('input');
+    if (first) first.focus();
+  });
+
+  rows.addEventListener('click', function (e) {
+    var del = e.target.closest('.row-del');
+    if (del) { del.closest('.ed-row').remove(); renumber(); sync(); }
+  });
+})();
+</script>
 {% endblock %}

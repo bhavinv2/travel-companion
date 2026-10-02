@@ -111,6 +111,11 @@ def landing_settings() -> dict:
         # the buttons are not rendered at all, so we never show a number nobody answers.
         'whatsapp_in': (stored.get('whatsapp_in') or '').strip(),
         'whatsapp_us': (stored.get('whatsapp_us') or '').strip(),
+        # The two keys above were all there was, so adding a third country meant a code change.
+        # services/offices reads this list instead and falls back to them when it is unset, so
+        # an install that never opens the screen keeps the numbers it already had.
+        'contact_numbers': stored.get('contact_numbers'),
+        'contact_emails': stored.get('contact_emails'),
         'colors': colors,
     }
 

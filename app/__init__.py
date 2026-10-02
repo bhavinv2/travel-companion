@@ -117,7 +117,7 @@ def create_app(test_config=None):
     # Top-level paths this app answers on besides its prefix. They only ever reach us if the proxy
     # in front routes them here, so listing one costs nothing until that rule exists.
     app.config['APP_ALIAS_PATHS'] = [p for p in (
-        os.environ.get('APP_ALIAS_PATHS', '/travel-insurance,/sahayak').split(',')) if p.strip()]
+        os.environ.get('APP_ALIAS_PATHS', '/travel-insurance,/sahayak,/contact-us').split(',')) if p.strip()]
     if test_config:
         for k in ('APP_URL_PREFIX', 'APP_PUBLIC_HOST'):
             if k in test_config:
@@ -530,8 +530,8 @@ def create_app(test_config=None):
                                 TRIP_ROLES, TRIP_ROLE_LABELS, AGE_GROUPS, AGE_GROUP_LABELS,
                                 GENDERS, PREF_GENDERS)
         from app import options
-        from app.services import (admin_nav, cs_access, insurance_countries, nri_services,
-                                  portals, products, urls)
+        from app.services import (admin_nav, contact_form, cs_access, insurance_countries,
+                                  nri_services, offices, phone, portals, products, urls)
         from app.services import settings as _settings
         return {
             # Templates use this for "today" in date inputs. Between 18:30 and 00:00 IST,
@@ -551,6 +551,14 @@ def create_app(test_config=None):
             'app_url': urls.app_url,
             # the public product switcher under the logo
             'PRODUCTS': products,
+            # the one definition of what "contact us" asks for, shared by the popup and /contact
+            'CONTACT_FORM': contact_form,
+            # one dialling-code list and one validity rule, for every form that asks
+            'PHONE': phone,
+            # every published WhatsApp number, optionally for one page. A list, so a
+            # country can be added in the admin screen rather than in the markup.
+            'WA_NUMBERS': offices.numbers,
+            'WA_GREETING': offices.greeting,
             'here': urls.here,
             'NRI_SOCIAL': nri_services.SOCIAL,
             'WHATSAPP': _settings.whatsapp_numbers,

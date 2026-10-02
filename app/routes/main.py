@@ -294,6 +294,25 @@ def reviews():
                            sites=[(k, REVIEW_SITE_LABELS[k]) for k in REVIEW_SITES if k != 'sahayak'])
 
 
+@main_bp.route('/promotion')
+@login_required
+def promo_dashboard():
+    """Read-only activity figures, for whoever is promoting the service.
+
+    Open to the influencer role and to admins. Not to CS: this is not part of their job, and
+    every number on it is already visible to them in the consoles.
+
+    There is no POST and no action on the page. "Read-only as of now" is enforced by there being
+    nothing here that writes, rather than by a flag somebody could flip by accident.
+    """
+    from app.services import promo
+
+    if not (current_user.is_admin or current_user.is_influencer):
+        flash('That dashboard is for the promotion team.', 'warning')
+        return redirect(url_for('main.index'))
+    return render_template('pages/promo_dashboard.html', data=promo.snapshot())
+
+
 @main_bp.route('/robots.txt')
 def robots_txt():
     from flask import Response, current_app
@@ -328,6 +347,7 @@ def sitemap_xml():
         # would produce one that redirects.
         (public_absolute('insurance.landing'), 'weekly', '0.9', today),
         (public_absolute('sahayak.landing'), 'weekly', '0.8', today),
+        (public_absolute('main.contact_us'), 'monthly', '0.7', today),
         (f'{site}/blog', 'daily', '0.7', today),
         (f'{site}/reviews', 'daily', '0.6', today),
         (f'{site}/about', 'monthly', '0.5', today),
@@ -380,14 +400,20 @@ def _validate_contact(form):
     return errors
 
 
-def _save_contact(form):
-    """Store the enquiry and let the CS team know. Returns the ContactMessage."""
+def _save_contact(form, topic='companion'):
+    """Store the enquiry and let the CS team know. Returns the ContactMessage.
+
+    `topic` is which part of the business it is about, so the one inbox can be filtered: the
+    group contact page sends 'general', the insurance page sends 'insurance', and the widgets
+    inside the companion app keep the default.
+    """
     from app import db
-    from app.models import ContactMessage, ActivityEvent, User
+    from app.models import ContactMessage, ActivityEvent, User, CONTACT_TOPICS
     from app.services import notify
     msg = ContactMessage(
         name=form['name'][:120], email=form['email'].lower()[:255],
         phone=form['phone'][:30] or None, message=form['message'][:4000],
+        topic=topic if topic in CONTACT_TOPICS else 'companion',
         user_id=current_user.id if current_user.is_authenticated else None)
     db.session.add(msg)
     db.session.flush()
@@ -402,24 +428,76 @@ def _save_contact(form):
 
 
 def _contact_fields(src):
-    return {k: (src.get(k) or '').strip() for k in ('name', 'email', 'phone', 'message')}
+    """Both contact forms send the same thing now -- see services/contact_form.
+
+    The preferences are folded into the message here rather than in the browser, which is how
+    the popup used to do it and why the /contact page never carried them.
+    """
+    from app.services import contact_form
+    fields = contact_form.clean(src)
+    return {'name': fields['name'], 'email': fields['email'], 'phone': fields['phone'],
+            'message': contact_form.compose(fields)}
+
+
+@main_bp.route('/contact-us', methods=['GET', 'POST'])
+@rate_limit(6, 3600)
+def contact_us():
+    """The group's contact page, and its own front door at /contact-us.
+
+    It answers beside the app's prefix, like the travel-insurance and Sahayak pages, because it
+    is an address printed on cards and in ads rather than a screen inside the companion app.
+
+    Works signed-out on purpose: somebody who cannot log in is exactly the person who most needs
+    it. The form is the one the help popup uses, so an enquiry reaches CS looking the same
+    whichever way it was sent.
+    """
+    from app.services import contact_form as cf, offices, urls
+
+    form = {}
+    if request.method == 'POST':
+        # the raw choices for redrawing the form, the composed version for saving
+        form = cf.clean(request.form)
+        errors = _validate_contact(form)
+        if not errors:
+            msg = _save_contact(_contact_fields(request.form), topic='general')
+            flash('Thanks \u2014 we have your message and will reply to ' + msg.email + '.', 'success')
+            return redirect(urls.public_url('main.contact_us'))
+        for e in errors:
+            flash(e, 'danger')
+
+    return render_template('pages/contact_us.html', form=form,
+                           offices=offices.all_offices(),
+                           # per-site: a number can be published on some pages and not others
+                           helplines=offices.helplines('contact'),
+                           whatsapp_digits=offices.whatsapp('contact'),
+                           # opens with a first line already written
+                           wa_link=offices.wa_link('contact'),
+                           contact_email=offices.email('contact'),
+                           canonical_url=urls.public_absolute('main.contact_us'))
 
 
 @main_bp.route('/contact', methods=['GET', 'POST'])
 @rate_limit(6, 3600)
 def contact():
-    """Contact us. Works signed-out on purpose - someone who cannot log in most needs it."""
-    form = {}
+    """The address this page used to have.
+
+    One page, one address: /contact-us is the one printed and linked everywhere now, so this
+    sends people there rather than serving a second copy that would split its search ranking.
+    A POST is kept working -- an old form still open in somebody's tab should not lose what they
+    typed -- and lands on the new page afterwards.
+    """
+    from app.services import urls
+
     if request.method == 'POST':
         form = _contact_fields(request.form)
         errors = _validate_contact(form)
         if not errors:
             msg = _save_contact(form)
-            flash('Thanks - we have your message and will reply to ' + msg.email + '.', 'success')
-            return redirect(url_for('main.contact'))
-        for e in errors:
-            flash(e, 'danger')
-    return render_template('pages/contact.html', form=form)
+            flash('Thanks \u2014 we have your message and will reply to ' + msg.email + '.', 'success')
+        else:
+            for e in errors:
+                flash(e, 'danger')
+    return redirect(urls.public_url('main.contact_us'), code=301 if request.method == 'GET' else 302)
 
 
 @main_bp.route('/api/contact', methods=['POST'])

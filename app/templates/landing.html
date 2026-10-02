@@ -1,5 +1,6 @@
 {% from '_doodle.html' import sjt %}
 {% from '_insurance_form.html' import ins_quote_form with context %}
+{% from '_phone_field.html' import phone_field with context %}
 {% from '_whatsapp.html' import wa_button with context %}
 <!DOCTYPE html>
 <html lang="en">
@@ -95,21 +96,29 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
    it is the only thing that says which of the three you are looking at. */
 .brandsw{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0}
 .svcsw{position:relative;margin-left:46px}
-.svcsw-btn{display:inline-flex;align-items:center;gap:5px;background:none;border:0;padding:1px 4px 1px 0;cursor:pointer;color:inherit}
-.svcsw-btn small{font-size:10.5px;font-weight:700;color:var(--amber);letter-spacing:.01em}
+.svcsw-btn{display:inline-flex;align-items:center;gap:5px;background:none;border:0;padding:0 4px 0 0;cursor:pointer;color:inherit;line-height:1.35}
+.svcsw-btn small{font-size:10.5px;font-weight:700;color:var(--amber);letter-spacing:.01em;transition:color .15s}
+/* white while it is open, the same signal the other header gives */
+.svcsw-btn:hover small,.svcsw.open .svcsw-btn small{color:#fff}
+.svcsw.open .svcsw-btn svg{color:#fff}
 .svcsw-btn svg{width:11px;height:11px;color:var(--amber);transition:transform .15s}
 .svcsw.open .svcsw-btn svg{transform:rotate(180deg)}
-.svcsw-menu{display:none;position:absolute;top:calc(100% + 8px);left:-4px;z-index:1200;min-width:264px;
+.svcsw-menu{display:none;position:absolute;top:calc(100% + 2px);left:-6px;z-index:1200;width:272px;
   background:#fff;border:1px solid rgba(15,35,64,.12);border-radius:14px;box-shadow:0 22px 48px rgba(1,16,56,.22);padding:6px}
 .svcsw.open .svcsw-menu{display:block}
 .svcsw-head{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#6b7d95;padding:9px 10px 5px}
-.svcsw-item{display:flex;flex-direction:column;gap:1px;padding:9px 11px;border-radius:10px;text-decoration:none;color:#0f2340}
+.svcsw-item{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:10px;text-decoration:none;color:#0f2340}
 .svcsw-item:hover{background:#f4f7fb}
-.svcsw-item b{font-size:14px;font-weight:700}
+.svcsw-item span{display:flex;flex-direction:column;min-width:0}
+.svcsw-item b{font-size:14px;font-weight:700;line-height:1.25}
 .svcsw-item small{font-size:11.5px;color:#6b7d95}
 .svcsw-item.on{background:#fff6e6}
-.svcsw-item.sm{padding:7px 11px}
+.svcsw-item.on b{color:#9a6508}
+.svcsw-item.sm{padding:7px 10px}
 .svcsw-item.sm b{font-size:13px;font-weight:600}
+.svcsw-ico{width:17px;height:17px;flex:none;color:var(--amber)}
+.svcsw-item.sm .svcsw-ico{width:14px;height:14px;color:#6b7d95}
+.svcsw-tick{margin-left:auto;width:15px;height:15px;flex:none;color:var(--amber)}
 @media(max-width:560px){.svcsw{margin-left:42px}
   .svcsw-menu{position:fixed;left:12px;right:12px;top:60px;min-width:0}}
 .logo img{width:32px;height:32px;margin-right:10px;object-fit:contain}
@@ -1517,6 +1526,18 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
 {%- for var, val in landing_colors.items() %} --{{ var }}:{{ val }};{% endfor %}
 }</style>{% endif %}
 <script src="{{ url_for('static', filename='js/insurance.js') }}" defer></script>
+<style>
+.pf{margin-bottom:16px}
+.pf>label{display:block;font-size:13px;font-weight:700;margin-bottom:7px}
+.pf-row{display:flex;gap:8px;align-items:stretch}
+.pf-cc{flex:0 0 auto;width:132px;border:1.5px solid rgba(15,35,64,.18);border-radius:11px;padding:11px 8px;font:inherit;font-size:14px;background:#fff}
+.pf-num{flex:1 1 auto;min-width:0;border:1.5px solid rgba(15,35,64,.18);border-radius:11px;padding:11px 14px;font:inherit;font-size:15px;background:#fff}
+.pf-cc:focus,.pf-num:focus{border-color:var(--amber,#f0a01a);outline:none;box-shadow:0 0 0 3px rgba(240,160,26,.18)}
+.pf-err{display:block;font-size:12.5px;font-weight:600;color:#dc2626;margin-top:6px}
+.pf.is-bad .pf-num,.pf.is-bad .pf-cc{border-color:#dc2626;background:#fff6f6}
+@media(max-width:420px){.pf-cc{width:104px;font-size:13px;padding:11px 6px}}
+</style>
+<script src="{{ url_for('static', filename='js/phone-field.js') }}" defer></script>
 </head>
 <body>
 <!-- ================= HEADER ================= -->
@@ -1541,14 +1562,20 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
           <div class="svcsw-head">Switch service</div>
           {% for sv in PRODUCTS.menu() %}
           <a class="svcsw-item{{ ' on' if sv.current }}" role="menuitem" href="{{ sv.url }}">
-            <b>{{ sv.label }}</b><small>{{ sv.blurb }}</small>
+            <svg class="svcsw-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="{{ sv.icon }}"/></svg>
+            <span><b>{{ sv.label }}</b><small>{{ sv.blurb }}</small></span>
+            {% if sv.current %}<svg class="svcsw-tick" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="{{ PRODUCTS.TICK }}"/></svg>{% endif %}
           </a>
           {% endfor %}
           {% set _more = PRODUCTS.extras() %}
           {% if _more %}
           <div class="svcsw-head">More from NRI Parent Service</div>
           {% for label, href in _more %}
-          <a class="svcsw-item sm" role="menuitem" href="{{ href }}" target="_blank" rel="noopener"><b>{{ label }}</b></a>
+          <a class="svcsw-item sm" role="menuitem" href="{{ href }}" target="_blank" rel="noopener">
+            <svg class="svcsw-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ PRODUCTS.EXTERNAL }}"/></svg>
+            <span><b>{{ label }}</b></span>
+          </a>
           {% endfor %}
           {% endif %}
         </div>
@@ -2335,7 +2362,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
        on the form — same field and hint as the full sign-up page. #}
     <div class="f su-wa">
       <label for="sup-phone"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2a9.9 9.9 0 0 0-8.44 15.1L2 22l5.05-1.55A9.9 9.9 0 1 0 12.04 2zm0 18.1a8.2 8.2 0 0 1-4.2-1.15l-.3-.18-3 .92.95-2.9-.2-.3a8.2 8.2 0 1 1 6.75 3.6zm4.5-6.15c-.25-.12-1.46-.72-1.69-.8-.23-.08-.39-.12-.56.12-.16.25-.64.8-.78.97-.14.16-.29.18-.54.06a6.7 6.7 0 0 1-3.32-2.9c-.25-.43.25-.4.72-1.33.08-.16.04-.3-.02-.43-.06-.12-.56-1.35-.77-1.85-.2-.48-.41-.42-.56-.43h-.48a.92.92 0 0 0-.67.31 2.8 2.8 0 0 0-.87 2.08c0 1.23.9 2.42 1.02 2.58.12.16 1.76 2.69 4.27 3.77 1.58.68 2.2.74 2.99.62.48-.07 1.46-.6 1.67-1.18.2-.58.2-1.07.14-1.18-.06-.1-.22-.16-.47-.28z"/></svg> WhatsApp / phone number</label>
-      <input id="sup-phone" type="tel" name="phone" required autocomplete="tel" placeholder="+1 234 567 8900">
+      {{ phone_field(name='phone', required=true, id='sup-phone', label='') }}
       <span class="su-hint su-wa-hint"><b>Stay connected:</b> we'll WhatsApp you the moment we find a match.</span>
     </div>
     <label class="su-consent"><input type="checkbox" name="agree_terms" required><span>I agree to the <a href="{{ url_for('main.terms') }}" target="_blank">Terms of Use</a> and <a href="{{ url_for('main.privacy') }}" target="_blank">Privacy Policy</a></span></label>

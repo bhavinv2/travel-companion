@@ -62,6 +62,9 @@ export interface SiteData {
   priceFrom?: string;
   /** short reassurance lines shown with the quote button; empty by default, for the same reason */
   assurances?: string[];
+  /** the dialling codes, from services/phone.py. One list for the whole app: the server and
+   *  this bundle used to carry separate copies, which is how they drift. */
+  dialCodes?: { name: string; iso: string; dial: string }[];
   /** Google Ads conversion actions, already as 'AW-account/label'. Empty when tracking is off,
    *  which is what makes the dev server and the test suite silent. */
   conversions?: Record<string, string>;

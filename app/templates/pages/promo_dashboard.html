@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{# The promotion dashboard: counts and published reviews, per product, read-only.
+
+   Deliberately short of detail. Whoever is promoting the service needs to know how much is
+   happening and what people are saying; they do not need the people themselves, so no name,
+   e-mail or phone number from an enquiry appears here. The reviews that do are ones somebody
+   already approved for publication. #}
+{% block title %}Promotion dashboard | NRI Parent Service{% endblock %}
+{% block meta_description %}Read-only activity figures for NRI Parent Service.{% endblock %}
+
+{% block content %}
+<div class="promo">
+  <div class="wrap">
+    <header class="promo-head">
+      <span class="cu-kick">Promotion</span>
+      <h1>How things are going</h1>
+      <p class="promo-lead">Everything below is read-only, and counts the last
+        {{ data.window_days }} days alongside the all-time total. Nothing here identifies anyone
+        who wrote in &mdash; the reviews shown are the ones already published on the site.</p>
+    </header>
+
+    <!-- what each product has produced -->
+    <section class="promo-tiles">
+      {% for d in data.demand %}
+      <article class="promo-tile">
+        <small>{{ d.site }}</small>
+        <b>{{ '{:,}'.format(d.total) }}</b>
+        <span>{{ d.label }}</span>
+        <em>+{{ d.recent }} in {{ data.window_days }} days</em>
+      </article>
+      {% endfor %}
+      <article class="promo-tile accent">
+        <small>All services</small>
+        <b>{{ '{:,}'.format(data.enquiries.total) }}</b>
+        <span>Enquiries received</span>
+        <em>+{{ data.enquiries.recent }} in {{ data.window_days }} days</em>
+      </article>
+    </section>
+
+    <div class="promo-grid">
+      <!-- enquiries -->
+      <section class="promo-card">
+        <h2>Enquiries by service</h2>
+        <table class="promo-table">
+          <thead><tr><th>Service</th><th>All time</th><th>Last {{ data.window_days }} days</th></tr></thead>
+          <tbody>
+            {% for r in data.enquiries.rows %}
+            <tr><td>{{ r.label }}</td><td><b>{{ r.total }}</b></td><td>{{ r.recent }}</td></tr>
+            {% endfor %}
+          </tbody>
+          <tfoot><tr><td>Total</td><td><b>{{ data.enquiries.total }}</b></td><td>{{ data.enquiries.recent }}</td></tr></tfoot>
+        </table>
+      </section>
+
+      <!-- reviews -->
+      <section class="promo-card">
+        <h2>Reviews by service</h2>
+        <table class="promo-table">
+          <thead><tr><th>Service</th><th>Published</th><th>Rating</th><th>Awaiting review</th></tr></thead>
+          <tbody>
+            {% for r in data.reviews.rows %}
+            <tr>
+              <td>{{ r.label }}</td>
+              <td><b>{{ r.count }}</b></td>
+              <td>{% if r.avg %}{{ r.avg }} / 5{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+              <td>{{ r.pending or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot><tr><td>Total</td><td><b>{{ data.reviews.total }}</b></td><td colspan="2"></td></tr></tfoot>
+        </table>
+        <p class="promo-note">A rating is shown once a service has at least three published
+          reviews. Below that a specific average reads as invented.</p>
+      </section>
+    </div>
+
+    <!-- what people actually said -->
+    <section class="promo-card">
+      <h2>Published reviews you can quote</h2>
+      {% if data.quotable %}
+      <div class="promo-quotes">
+        {% for q in data.quotable %}
+        <figure class="promo-quote">
+          <span class="promo-stars" aria-label="{{ q.rating }} out of 5">
+            {%- for i in range(q.rating) %}&#9733;{% endfor -%}
+          </span>
+          <blockquote>{{ q.text }}</blockquote>
+          <figcaption>{{ q.who }} &middot; {{ q.site }}
+            {% if q.when %}&middot; {{ q.when|istd('%d %b %Y') }}{% endif %}</figcaption>
+        </figure>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="muted">No published reviews yet. They appear here once somebody approves one.</p>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

@@ -43,6 +43,11 @@ DEFAULT_USER_ROLES = [
     {'key': 'user', 'label': 'Traveller', 'level': 'user', 'builtin': True},
     {'key': 'cs', 'label': 'Customer service', 'level': 'cs', 'builtin': True},
     {'key': 'admin', 'label': 'Administrator', 'level': 'admin', 'builtin': True},
+    # Promotion, not support: traveller level on purpose. It opens one read-only dashboard of
+    # counts and published reviews and nothing else, so it must not carry CS access -- the CS
+    # console shows enquirers' names, e-mail addresses and phone numbers, which is not something
+    # somebody needs in order to make a video about how busy we are.
+    {'key': 'influencer', 'label': 'Influencer (read-only)', 'level': 'user', 'builtin': True},
 ]
 BUILTIN_ROLE_LEVELS = {r['key']: r['level'] for r in DEFAULT_USER_ROLES}
 

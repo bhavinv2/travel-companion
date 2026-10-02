@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_phone_field.html' import phone_field with context %}
 {% block title %}Contact us – NRI Parent Service{% endblock %}
 {% block content %}
 <div class="static-page cd-consult-page">
@@ -34,11 +35,46 @@
                  placeholder="you@example.com"/>
         </div>
       </div>
+      {{ phone_field(value=form.phone or ((current_user.phone or '') if current_user.is_authenticated else ''),
+                     iso=form.phone_cc or '', id='ctPhone') }}
+      {# The same preferences the popup collects, from the same lists, so an enquiry reaching CS
+         carries the same information whichever form somebody found. #}
       <div class="ct-field">
-        <label for="ctPhone">Phone / WhatsApp <small class="muted">(optional)</small></label>
-        <input type="tel" id="ctPhone" name="phone" maxlength="30"
-               value="{{ form.phone or ((current_user.phone or '') if current_user.is_authenticated else '') }}"
-               placeholder="+91 98480 00000"/>
+        <label for="ctTopic">How can we help?</label>
+        <select id="ctTopic" name="topic">
+          {% for t in CONTACT_FORM.TOPICS %}
+          <option{{ ' selected' if form.topic == t }}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="ct-field">
+        <label>How should we contact you?</label>
+        <div class="ct-pills">
+          {% for v in CONTACT_FORM.VIA %}
+          <label><input type="radio" name="via" value="{{ v }}"
+                        {{ 'checked' if form.via == v or (not form.via and loop.first) }}>{{ v }}</label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="ct-row">
+        <div class="ct-field">
+          <label for="ctTime">Best time to reach you</label>
+          <select id="ctTime" name="time">
+            {% for t in CONTACT_FORM.TIMES %}<option{{ ' selected' if form.time == t }}>{{ t }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="ct-field">
+          <label for="ctZone">Your time zone</label>
+          <select id="ctZone" name="zone">
+            {% for z in CONTACT_FORM.ZONES %}<option{{ ' selected' if form.zone == z }}>{{ z }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="ct-field">
+        <label for="ctLang">Preferred language</label>
+        <select id="ctLang" name="language">
+          {% for l in OPT.LANGUAGES %}<option{{ ' selected' if form.language == l }}>{{ l }}</option>{% endfor %}
+        </select>
       </div>
       <div class="ct-field">
         <label for="ctMessage">Message <span class="req">*</span></label>

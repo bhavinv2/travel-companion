@@ -17,15 +17,27 @@ from flask import request, url_for
 
 from app.services import urls
 
-# key, label, the endpoint that serves it, and an icon for the menu.
+# key, label, the endpoint that serves it, and the icon for the menu.
+#
+# The icon is an inline SVG path rather than a Font Awesome class because the two headers that
+# draw this menu do not load the same things: base.html has Font Awesome, the marketing landing
+# page does not, and adding a render-blocking CDN stylesheet to the busiest page on the site for
+# three glyphs is a poor trade. One path, drawn identically in both.
 PRODUCTS = [
     {'key': 'companion', 'label': 'Travel Companion', 'endpoint': 'main.index',
-     'icon': 'fa-plane-departure', 'blurb': 'Find a travel companion'},
+     'blurb': 'Find a travel companion',
+     'icon': 'M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L11 19v-5.5L21 16z'},
     {'key': 'insurance', 'label': 'Travel Insurance', 'endpoint': 'insurance.landing',
-     'icon': 'fa-shield-heart', 'blurb': 'Quote and compare cover'},
+     'blurb': 'Quote and compare cover',
+     'icon': 'M12 2 4 5.5v6c0 5 3.4 9.2 8 10.5 4.6-1.3 8-5.5 8-10.5v-6L12 2zm-1.2 13.3L7.5 12l1.4-1.4 1.9 1.9 4.3-4.3 1.4 1.4-5.7 5.7z'},
     {'key': 'sahayak', 'label': 'Sahayak', 'endpoint': 'sahayak.landing',
-     'icon': 'fa-house-medical', 'blurb': 'A nurse visit at home'},
+     'blurb': 'A nurse visit at home',
+     'icon': 'M12 3 2 11h3v10h6v-6h2v6h6V11h3L12 3zm1 7h2v2h-2v2h-2v-2H9v-2h2V8h2v2z'},
 ]
+
+# Drawn beside the product you are already on, and beside a link that leaves the site.
+TICK = 'M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z'
+EXTERNAL = 'M7 17 17 7M9 7h8v8'
 
 # Which blueprint belongs to which product. Everything not named here is the companion app,
 # which is what the rest of this codebase is.

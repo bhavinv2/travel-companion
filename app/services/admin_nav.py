@@ -76,6 +76,8 @@ SECTIONS = [
         'label': 'Site',
         'icon': 'fa-gear',
         'items': [
+            _item('voices_general', 'admin.voices', 'Contact us (all services)', 'fa-inbox',
+                  tab='contact', topic='general'),
             _item('users', 'admin.users', 'Users', 'fa-users'),
             _item('cs_agents', 'admin.cs_agents', 'CS agents & access', 'fa-user-lock'),
             _item('options', 'admin.options_page', 'Options & dropdowns', 'fa-sliders'),
@@ -109,7 +111,12 @@ def current_key(active, args=None):
             return 'voices_feedback'
         if tab == 'report':
             return 'voices_report'
-        return 'voices_insurance' if args.get('topic') == 'insurance' else 'voices_contact'
+        topic = args.get('topic')
+        if topic == 'insurance':
+            return 'voices_insurance'
+        if topic == 'general':
+            return 'voices_general'
+        return 'voices_contact'
     return ALIASES.get(active, active)
 
 
@@ -146,8 +153,11 @@ def section_for_endpoint(endpoint, args=None):
     current_key follows."""
     args = args or {}
     if endpoint == 'admin.voices':
-        if (args.get('tab') or 'contact') == 'contact' and args.get('topic') == 'insurance':
-            return 'insurance'
+        if (args.get('tab') or 'contact') == 'contact':
+            if args.get('topic') == 'insurance':
+                return 'insurance'
+            if args.get('topic') == 'general':
+                return 'site'
         return 'companion'
     if endpoint == 'admin.help_center_page':
         site = args.get('site')

@@ -158,6 +158,12 @@ class User(UserMixin, db.Model):
         return bool(self.is_admin) or self.role in ('cs', 'admin')
 
     @property
+    def is_influencer(self):
+        """Holds the promotion role. Checked by key rather than by level: it is deliberately a
+        traveller-level role, so a level test would match every signed-in visitor."""
+        return 'influencer' in (self.role_keys or [])
+
+    @property
     def is_traveller(self):
         """Holds a traveller-level role, i.e. may use the public/traveller screens."""
         return 'user' in self.role_levels
@@ -710,8 +716,9 @@ CONTACT_STATUSES = ('new', 'in_progress', 'closed')
 CONTACT_STATUS_LABELS = {'new': 'New', 'in_progress': 'In progress', 'closed': 'Closed'}
 # Which service the enquiry is about. One inbox, so CS never has to check two screens; the
 # topic is what lets them filter and see at a glance what they are answering.
-CONTACT_TOPICS = ('companion', 'insurance')
-CONTACT_TOPIC_LABELS = {'companion': 'Travel companion', 'insurance': 'Travel insurance'}
+CONTACT_TOPICS = ('companion', 'insurance', 'general')
+CONTACT_TOPIC_LABELS = {'companion': 'Travel companion', 'insurance': 'Travel insurance',
+                        'general': 'General enquiry'}
 
 
 class ContactMessage(db.Model):

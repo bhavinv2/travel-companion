@@ -4,7 +4,6 @@
 {% block title %}NRI Parent Service – Find Your Travel Companion{% endblock %}
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}"/>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contact-modal.css') }}"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600;1,700&family=Caveat:wght@600;700&display=swap" rel="stylesheet"/>
 {% endblock %}
 
@@ -579,7 +578,7 @@
 </div><!-- /.landing -->
 
 {% include '_trip_modals.html' %}
-{% include '_contact_modal.html' %}
+{# the popup comes from base.html now -- two copies would mean duplicate ids #}
 
 {% endblock %}
 

@@ -1,0 +1,221 @@
+{% extends 'base.html' %}
+{% from '_phone_field.html' import phone_field with context %}
+{# The group's contact page, and its own front door at /contact-us -- the address printed on
+   cards and in ads, beside the app's prefix rather than inside it, the same way the travel
+   insurance and Sahayak pages answer.
+
+   Everything on it that is a fact about the business comes from services/offices, so the
+   addresses here, the numbers in the footer and the postal address in the structured data are
+   one set of values rather than three copies that drift. The form is the same one the help
+   popup uses (services/contact_form), so an enquiry reaches CS looking the same whichever way
+   somebody sent it. #}
+{% block title %}Contact Us | NRI Parent Service{% endblock %}
+{% block meta_description %}Talk to NRI Parent Service about care, travel and insurance for your parents in India. Offices in the USA, India, Australia and the UK, a 24/7 helpline, and a reply within one working day.{% endblock %}
+
+{% block extra_css %}
+<link rel="canonical" href="{{ canonical_url }}"/>
+{% endblock %}
+
+{% block content %}
+<div class="cu">
+
+  <!-- ===== hero ===== -->
+  <section class="cu-hero">
+    <div class="wrap">
+      <span class="cu-kick">Global presence</span>
+      <h1>Contact our team</h1>
+      <p class="cu-lead">Wherever you are, somebody here can help. Our teams work across four
+        countries so there is always someone awake to answer a question about your parents.</p>
+      <div class="cu-hero-acts">
+        {% for ph in helplines %}
+        <a class="cu-act" href="tel:+{{ ph.digits }}">
+          <i class="fa-solid fa-phone"></i>
+          <span><small>{{ ph.label }}</small><b>{{ ph.display }}</b></span>
+        </a>
+        {% endfor %}
+        {% if whatsapp_digits %}
+        <a class="cu-act wa" href="{{ wa_link }}" target="_blank" rel="noopener">
+          <i class="fa-brands fa-whatsapp"></i>
+          <span><small>Chat now</small><b>WhatsApp us</b></span>
+        </a>
+        {% endif %}
+        <a class="cu-act" href="mailto:{{ contact_email }}">
+          <i class="fa-solid fa-envelope"></i>
+          <span><small>E-mail</small><b>{{ contact_email }}</b></span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== the form, and the ways to reach us beside it ===== -->
+  <section class="cu-main">
+    <div class="wrap cu-grid">
+      <div class="cu-form-card">
+        <h2>Send us a message</h2>
+        <p class="cu-sub">A real person reads every message and replies within one working day.</p>
+
+        <form method="post" class="cu-form" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <div class="cu-row">
+            <div class="cu-f">
+              <label for="cuName">Your name <span class="req">*</span></label>
+              <input type="text" id="cuName" name="name" required maxlength="120"
+                     value="{{ form.name or (current_user.full_name if current_user.is_authenticated else '') }}"
+                     placeholder="Priya Sharma" autocomplete="name"/>
+            </div>
+            <div class="cu-f">
+              <label for="cuEmail">E-mail <span class="req">*</span></label>
+              <input type="email" id="cuEmail" name="email" required maxlength="255"
+                     value="{{ form.email or (current_user.email if current_user.is_authenticated else '') }}"
+                     placeholder="you@example.com" autocomplete="email"/>
+            </div>
+          </div>
+          <div class="cu-row">
+            {{ phone_field(value=form.phone or ((current_user.phone or '') if current_user.is_authenticated else ''),
+                           iso=form.phone_cc or '', id='cuPhone') }}
+            <div class="cu-f">
+              <label for="cuTopic">What is it about?</label>
+              <select id="cuTopic" name="topic">
+                {% for t in CONTACT_FORM.TOPICS %}
+                <option{{ ' selected' if form.topic == t }}>{{ t }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="cu-f">
+            <label>How should we reach you?</label>
+            <div class="ct-pills">
+              {% for v in CONTACT_FORM.VIA %}
+              <label><input type="radio" name="via" value="{{ v }}"
+                            {{ 'checked' if form.via == v or (not form.via and loop.first) }}>{{ v }}</label>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="cu-row">
+            <div class="cu-f">
+              <label for="cuTime">Best time to call</label>
+              <select id="cuTime" name="time">
+                {% for t in CONTACT_FORM.TIMES %}<option{{ ' selected' if form.time == t }}>{{ t }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="cu-f">
+              <label for="cuZone">Your time zone</label>
+              <select id="cuZone" name="zone">
+                {% for z in CONTACT_FORM.ZONES %}<option{{ ' selected' if form.zone == z }}>{{ z }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="cu-f">
+            <label for="cuMessage">Your message <span class="req">*</span></label>
+            <textarea id="cuMessage" name="message" rows="6" required maxlength="4000"
+                      placeholder="Tell us a little about your situation.">{{ form.message or '' }}</textarea>
+          </div>
+          <div class="cu-foot">
+            <button type="submit" class="btn btn-primary btn-lg">
+              <i class="fa-solid fa-paper-plane"></i> Request a call back
+            </button>
+            {% if whatsapp_digits %}
+            {# carries whatever has been typed into the form, so nothing is said twice #}
+            <a class="btn btn-outline-coral btn-lg" id="cuWaSend" href="{{ wa_link }}"
+               data-wa-base="https://wa.me/{{ whatsapp_digits }}"
+               target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Or message us now</a>
+            {% endif %}
+          </div>
+          <p class="cu-reassure"><i class="fa-solid fa-lock"></i> Your details are used only to
+            answer this request. Please don't include passwords or payment details.</p>
+        </form>
+      </div>
+
+      <aside class="cu-side">
+        <div class="cu-side-card">
+          <h3><i class="fa-solid fa-headset"></i> 24/7 helpline</h3>
+          {% for ph in helplines %}
+          <a class="cu-line" href="tel:+{{ ph.digits }}"><small>{{ ph.label }}</small><b>{{ ph.display }}</b></a>
+          {% endfor %}
+          <a class="cu-line" href="mailto:{{ contact_email }}"><small>E-mail</small><b>{{ contact_email }}</b></a>
+        </div>
+        <div class="cu-side-card quiet">
+          <h3><i class="fa-solid fa-circle-question"></i> Looking for an answer now?</h3>
+          <p>Most questions are already answered in the help centre.</p>
+          <a class="btn-sm" href="{{ url_for('main.help_page') }}">Browse the help centre</a>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ===== where we are ===== -->
+  <section class="cu-offices">
+    <div class="wrap">
+      <div class="cu-head">
+        <span class="cu-kick">Our offices</span>
+        <h2>Four countries, one team</h2>
+        <p class="cu-lead">Registered addresses for correspondence. For anything urgent, the
+          helpline above reaches us faster than the post.</p>
+      </div>
+      <div class="cu-office-grid">
+        {% for o in offices %}
+        <article class="cu-office{{ ' hq' if o.key == 'hq' }}">
+          <span class="cu-flag">{{ o.cc }}</span>
+          <h3>{{ o.label }}</h3>
+          <address>
+            {{ o.street }}<br/>
+            {% for line in o.lines %}{{ line }}{% if not loop.last %}<br/>{% endif %}{% endfor %}
+          </address>
+          {% if o.key == 'hq' %}<span class="cu-tag">Head office</span>{% endif %}
+        </article>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== closing band ===== -->
+  <section class="cu-band">
+    <div class="wrap">
+      <h2>Give your parents the care they deserve, even from miles away</h2>
+      <p>We are one call away.</p>
+      <div class="cu-band-acts">
+        {% if whatsapp_digits %}
+        <a class="btn btn-primary btn-lg" href="{{ wa_link }}" target="_blank" rel="noopener">
+          <i class="fa-brands fa-whatsapp"></i> WhatsApp us</a>
+        {% endif %}
+        {% if helplines %}
+        <a class="btn btn-outline-coral btn-lg" href="tel:+{{ helplines[0].digits }}">
+          <i class="fa-solid fa-phone"></i> Call {{ helplines[0].display }}</a>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* "Or message us now" should carry what they have already written, so nobody has to say it
+   twice. Rebuilt on every change rather than on click: a tap on a link opens the new tab
+   immediately, and an href edited in the click handler can be read before it is updated. */
+(function () {
+  var link = document.getElementById('cuWaSend');
+  var form = link && link.closest('form');
+  if (!link || !form) return;
+  var base = link.getAttribute('data-wa-base');
+  var fallback = link.getAttribute('href');
+
+  function build() {
+    var get = function (n) { var el = form.querySelector('[name="' + n + '"]'); return el ? el.value.trim() : ''; };
+    var via = form.querySelector('[name="via"]:checked');
+    var lines = [];
+    if (get('name')) lines.push('Hi NRI Parent Service, this is ' + get('name') + '.');
+    else lines.push('Hi NRI Parent Service.');
+    if (get('topic')) lines.push('About: ' + get('topic'));
+    if (get('message')) lines.push('', get('message'));
+    if (get('email')) lines.push('', 'You can reach me at ' + get('email'));
+    if (via && via.value) lines.push('Preferred contact: ' + via.value);
+    link.href = base + '?text=' + encodeURIComponent(lines.join('\n'));
+  }
+
+  form.addEventListener('input', build);
+  form.addEventListener('change', build);
+  if (!base) link.href = fallback;
+})();
+</script>
+{% endblock %}

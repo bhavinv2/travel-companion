@@ -16,6 +16,8 @@
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg> Site available in {{ OPT.SITE_LANGUAGES|length }} languages — support replies in English</li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="14" height="14"><path d="M5 12l4 4 10-10"/></svg> Call, WhatsApp or email — your choice</li>
         </ul>
+        <p class="side-help"><a href="{{ url_for('main.help_page') }}">Browse the help centre</a>
+          &mdash; most questions are answered there.</p>
         <div class="side-contact">
           <div class="side-wa">{{ wa_button() }}</div>
           <a href="mailto:support@connectingdesis.com"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span>support@connectingdesis.com</a>
@@ -30,19 +32,21 @@
           <div class="f"><label for="cm-email">Email</label><input id="cm-email" type="email" required placeholder="you@example.com" autocomplete="email"></div>
           <div class="f"><label for="cm-lang">Preferred language</label><select id="cm-lang">{% for l in OPT.LANGUAGES %}<option>{{ l }}</option>{% endfor %}</select></div>
         </div>
+        {# The options come from services/contact_form so this popup and the /contact page
+           cannot drift apart again. #}
         <div class="f"><label for="cm-topic">How can we help?</label>
-          <select id="cm-topic"><option>Understanding how the service works</option><option>Finding a companion for my parents</option><option>Help posting my trip</option><option>A question about an existing match</option><option>Privacy and how my details are used</option><option>Travel insurance</option><option>Something else</option></select>
+          <select id="cm-topic">{% for t in CONTACT_FORM.TOPICS %}<option>{{ t }}</option>{% endfor %}</select>
         </div>
         <div class="f"><label>How should we contact you?</label>
           <div class="pills">
-            <label><input type="radio" name="cm-via" value="WhatsApp" checked>WhatsApp</label>
-            <label><input type="radio" name="cm-via" value="Phone call">Phone call</label>
-            <label><input type="radio" name="cm-via" value="Email">Email</label>
+            {% for v in CONTACT_FORM.VIA %}
+            <label><input type="radio" name="cm-via" value="{{ v }}"{{ ' checked' if loop.first }}>{{ v }}</label>
+            {% endfor %}
           </div>
         </div>
         <div class="row">
-          <div class="f"><label for="cm-time">Best time to reach you</label><select id="cm-time"><option>Morning (9 – 12)</option><option>Afternoon (12 – 4)</option><option>Evening (4 – 8)</option><option>Any time</option></select></div>
-          <div class="f"><label for="cm-tz">Your time zone</label><select id="cm-tz"><option>India (IST)</option><option>US Eastern</option><option>US Central</option><option>US Pacific</option><option>UK</option><option>Canada Eastern</option><option>Australia Eastern</option><option>Gulf (GST)</option><option>Other</option></select></div>
+          <div class="f"><label for="cm-time">Best time to reach you</label><select id="cm-time">{% for t in CONTACT_FORM.TIMES %}<option>{{ t }}</option>{% endfor %}</select></div>
+          <div class="f"><label for="cm-tz">Your time zone</label><select id="cm-tz">{% for z in CONTACT_FORM.ZONES %}<option>{{ z }}</option>{% endfor %}</select></div>
         </div>
         <div class="f"><label for="cm-msg">Your message</label><textarea id="cm-msg" required placeholder="Tell us a little about your situation…"></textarea></div>
         <div class="consult-foot">

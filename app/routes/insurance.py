@@ -24,7 +24,7 @@ from flask_login import current_user
 from app import db
 from app.models import ActivityEvent, ContactMessage, Feedback
 from app.services import (ads, help_center, insurance_countries, insurance_page, org,
-                          settings, urls)
+                          phone, settings, urls)
 from app.services.ratelimit import rate_limit
 
 insurance_bp = Blueprint('insurance', __name__)
@@ -193,6 +193,10 @@ def landing():
                            # empty on localhost and in tests, which removes the tag entirely
                            ads_account=ads.account_id() if ads.enabled() else '',
                            ads_conversions=ads.conversions(),
+                           # the same dialling codes the rest of the site validates against,
+                           # so the bundle's picker and services/phone cannot disagree
+                           dial_codes=[{'name': n, 'iso': i, 'dial': d}
+                                       for i, n, d in phone.COUNTRIES],
                            # the page's own title and description, so what the schema claims and
                            # what the page says are one decision rather than two
                            page_title=PAGE_NAME, page_description=PAGE_DESCRIPTION,

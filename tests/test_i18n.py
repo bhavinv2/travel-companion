@@ -13,7 +13,8 @@ def login(client, email, password='password123'):
 
 # '/' is the standalone marketing landing now (Google-translate based); the Babel-rendered
 # selector + translated strings live on the other base.html pages, so the i18n tests target one.
-I18N_PAGE = '/contact'
+# /contact is a permanent redirect to the page below now, so it renders no footer to read.
+I18N_PAGE = '/contact-us'
 
 
 def test_default_is_english(client):

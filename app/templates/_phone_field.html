@@ -1,0 +1,39 @@
+{# The phone field. One definition, used by every form on the site that asks for a number.
+
+   Two controls, not one: the country is chosen rather than guessed. A leading 0 means different
+   things in different countries, and a number typed without a code cannot be rung from abroad --
+   which is the whole point here, since the people filling these in are usually not in the same
+   country as the person they are asking about.
+
+   The server reads `<name>` and `<name>_cc` and normalises them with services/phone, so what is
+   stored is E.164 whatever anybody typed. The browser check is only there to say so early.
+#}
+{% macro phone_field(name='phone', value='', iso='', label='Phone / WhatsApp', required=false,
+                     id='', hint='', autocomplete='tel') %}
+{% set fid = id or ('pf-' ~ name) %}
+{% set chosen = (iso or PHONE.iso_for(value) or PHONE.DEFAULT_ISO)|upper %}
+{% set popular, rest = PHONE.choices() %}
+<div class="pf" data-phone-field>
+  {# label='' for a page that draws its own above the field (the sign-up form's has an icon) #}
+  {% if label %}
+  <label for="{{ fid }}">{{ label }}{% if required %} <span class="req">*</span>{% else %}
+    <small class="muted">(optional)</small>{% endif %}</label>
+  {% endif %}
+  <div class="pf-row">
+    <select class="pf-cc" name="{{ name }}_cc" aria-label="Country dialling code">
+      {% for c in popular %}
+      <option value="{{ c.iso }}" data-dial="{{ c.dial }}"{{ ' selected' if c.iso == chosen }}>{{ PHONE.flag(c.iso) }} {{ c.iso }} +{{ c.dial }}</option>
+      {% endfor %}
+      <option disabled>──────────</option>
+      {% for c in rest %}
+      <option value="{{ c.iso }}" data-dial="{{ c.dial }}"{{ ' selected' if c.iso == chosen }}>{{ PHONE.flag(c.iso) }} {{ c.name }} +{{ c.dial }}</option>
+      {% endfor %}
+    </select>
+    <input class="pf-num" id="{{ fid }}" name="{{ name }}" type="tel" inputmode="tel"
+           maxlength="24" autocomplete="{{ autocomplete }}"
+           value="{{ value or '' }}" placeholder="98480 00000"{{ ' required' if required }}/>
+  </div>
+  {% if hint %}<small class="pf-hint muted">{{ hint }}</small>{% endif %}
+  <small class="pf-err" hidden></small>
+</div>
+{% endmacro %}
