@@ -1,17 +1,22 @@
-/* Cloudflare Worker: serve this Flask app at three paths on nriparentservice.com
+/* Cloudflare Worker: serve this Flask app at four paths on nriparentservice.com
    while the rest of the site stays on WordPress.
 
      https://nriparentservice.com/travel-companions/*   the companion app (every screen)
      https://nriparentservice.com/travel-insurance       the insurance landing page
      https://nriparentservice.com/sahayak                the Sahayak booking page
+     https://nriparentservice.com/contact-us             the group contact page
 
    Routes to add (Workers & Pages -> this Worker -> Settings -> Domains & Routes):
 
      nriparentservice.com/travel-companions*
      nriparentservice.com/travel-insurance*
      nriparentservice.com/sahayak*
+     nriparentservice.com/contact-us*
 
-   No slash before the `*`, so each pattern also catches the bare path itself. Add the same three
+   A path with no route pattern never reaches this Worker at all -- it goes to WordPress. That
+   is the failure to look for first when a new page 404s in production but works on Railway.
+
+   No slash before the `*`, so each pattern also catches the bare path itself. Add the same set
    for www.nriparentservice.com if that hostname serves traffic too — a route matches one hostname.
 
    TWO DIFFERENT JOBS, and the difference matters:
@@ -33,14 +38,16 @@
      APP_URL_PREFIX  = /travel-companions
      APP_PUBLIC_HOST = nriparentservice.com
      SITE_URL        = https://nriparentservice.com/travel-companions
-     APP_ALIAS_PATHS = /travel-insurance,/sahayak     (also the built-in default)
+     APP_ALIAS_PATHS = /travel-insurance,/sahayak,/contact-us   (also the built-in default)
 */
 
 const ORIGIN = "travel-companion-production-261c.up.railway.app";
 const PREFIX = "/travel-companions";
 
-// Standalone pages beside the prefix. Keep in step with APP_ALIAS_PATHS on Railway.
-const ALIASES = ["/travel-insurance", "/sahayak"];
+// Standalone pages beside the prefix. Keep in step with APP_ALIAS_PATHS on Railway AND with
+// the route patterns above -- all three lists have to name the same paths, and nothing warns
+// when they drift.
+const ALIASES = ["/travel-insurance", "/sahayak", "/contact-us"];
 
 export default {
   async fetch(request) {

@@ -13,6 +13,7 @@ const AVAILABILITY = 'Across time zones, every day';
 const SUPPORT_PHONES = [
   { label: 'India', display: '+91 80191 11360', digits: '918019111360' },
   { label: 'USA', display: '+1 917 900 5094', digits: '19179005094' },
+  { label: 'Canada', display: '+1 (647) 770-2288', digits: '16477702288' },
 ];
 
 export default function ExpertContact() {

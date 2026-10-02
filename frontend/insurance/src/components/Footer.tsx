@@ -1,5 +1,14 @@
 import Icon from './Icon';
-import { asset } from '../data/site';
+import { asset, site } from '../data/site';
+
+/* The lines staff have published. Hard-coded here, this footer listed two countries and could
+   never list a third; the constants are the dev server's fallback and nothing else. */
+const SUPPORT_PHONES = [
+  { label: 'India', display: '+91 80191 11360', digits: '918019111360' },
+  { label: 'USA', display: '+1 917 900 5094', digits: '19179005094' },
+  { label: 'Canada', display: '+1 (647) 770-2288', digits: '16477702288' },
+];
+const SUPPORT_EMAIL = 'support@nriparentservice.com';
 
 /* The group's own profiles. This footer only renders standalone (npm run dev) -- served inside
    the site, base.html's footer draws these from nri_services.SOCIAL -- but four icons pointing at
@@ -66,9 +75,12 @@ export default function Footer() {
           </nav>
           <div id="support">
             <div className="fh">Support</div>
-            <a className="fl" href="tel:+918019111360"><Icon name="i-phone" className="ico h xs" />+91 80191 11360</a>
-            <a className="fl" href="tel:+19179005094"><Icon name="i-phone" className="ico h xs" />+1 917 900 5094</a>
-            <a className="fl" href="mailto:support@nriparentservice.com"><Icon name="i-mail" className="ico h xs" />support@nriparentservice.com</a>
+            {(site.supportPhones?.length ? site.supportPhones : SUPPORT_PHONES).map((p) => (
+              <a className="fl" key={p.digits} href={`tel:+${p.digits}`}>
+                <Icon name="i-phone" className="ico h xs" />{p.display}
+              </a>
+            ))}
+            <a className="fl" href={`mailto:${site.supportEmail || SUPPORT_EMAIL}`}><Icon name="i-mail" className="ico h xs" />{site.supportEmail || SUPPORT_EMAIL}</a>
             <span className="fl" style={{ cursor: 'default' }}><Icon name="i-clock" className="ico h xs" />Across time zones</span>
           </div>
         </div>

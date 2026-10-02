@@ -95,7 +95,9 @@ def organization(phones=()):
             '@type': 'ContactPoint',
             'contactType': 'customer service',
             'telephone': '+' + p['digits'],
-            'areaServed': 'IN' if p['label'] == 'India' else 'US',
+            # the team's own country, from the published row. Reading it off the label meant
+            # every line that was not India was announced as a US one.
+            'areaServed': (p.get('iso') or ('IN' if p.get('label') == 'India' else 'US')).upper(),
             'availableLanguage': ['en', 'hi', 'te'],
         } for p in phones]
     return node

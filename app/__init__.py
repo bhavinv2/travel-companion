@@ -559,6 +559,9 @@ def create_app(test_config=None):
             # country can be added in the admin screen rather than in the markup.
             'WA_NUMBERS': offices.numbers,
             'WA_GREETING': offices.greeting,
+            # which product this page belongs to, so the footer's one chooser shows the numbers
+            # for the page it is on rather than every number on the site
+            'WA_SITE': offices.current_site,
             'here': urls.here,
             'NRI_SOCIAL': nri_services.SOCIAL,
             'WHATSAPP': _settings.whatsapp_numbers,

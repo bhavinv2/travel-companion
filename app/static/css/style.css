@@ -3816,8 +3816,13 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
    is behind the burger, so from the insurance page there was no visible way back at all. The
    logo stays a link home; the line under it names the product and opens. 38px is the logo image
    and 10px the gap it sits after, so the label lines up with the brand name above it. */
-.nav-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; }
-.svc-sw { position: relative; margin-left: 48px; }
+.nav-brand { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+/* The switcher sits under the brand NAME, not under the logo block.
+   .nav-logo is as tall as the 38px mark while the name inside it is 18px, so stacking below it
+   left 19px of the image's overhang between the two lines -- they read as two separate things
+   rather than one block. The pull-up closes that; 48px clears the mark and lines the label up
+   with the first letter of the name. */
+.svc-sw { position: relative; margin-left: 48px; margin-top: -14px; }
 .svc-sw-btn { display: inline-flex; align-items: center; gap: 5px; background: none; border: 0;
   padding: 0 4px 0 0; margin: 0; cursor: pointer; border-radius: 6px; color: inherit;
   line-height: 1.35; }
@@ -3852,11 +3857,11 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
   /* the one place the product name matters most: it is the only thing on a phone that says
      which of the three you are looking at */
   .svc-sw .logo-sub { display: block; font-size: 10px; }
-  .svc-sw { margin-left: 48px; }
+  .svc-sw { margin-left: 48px; margin-top: -15px; }
   .svc-sw-menu { min-width: min(280px, calc(100vw - 32px)); }
 }
 @media (max-width: 420px) {
-  .svc-sw { margin-left: 44px; }
+  .svc-sw { margin-left: 48px; }   /* the mark is 38px wide with a 10px gap after it */
   .svc-sw-menu { position: fixed; left: 12px; right: 12px; top: 62px; min-width: 0; }
 }
 

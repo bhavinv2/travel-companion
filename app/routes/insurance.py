@@ -23,7 +23,7 @@ from flask_login import current_user
 
 from app import db
 from app.models import ActivityEvent, ContactMessage, Feedback
-from app.services import (ads, help_center, insurance_countries, insurance_page, org,
+from app.services import (ads, help_center, insurance_countries, insurance_page, offices, org,
                           phone, settings, urls)
 from app.services.ratelimit import rate_limit
 
@@ -162,12 +162,13 @@ def _canonical():
 
 @insurance_bp.route('/travel-insurance')
 def landing():
-    # Both teams, each labelled, so the page can offer a caller the number in their own country
-    # instead of one number and a long-distance charge. Unset numbers are left out rather than
-    # shown: the rule everywhere else on the site is never to publish a line nobody answers.
-    wa = (settings.whatsapp_numbers() or {})
-    phones = [dict(label=label, **wa[key]) for key, label in (('in', 'India'), ('us', 'USA'))
-              if wa.get(key)]
+    # Every line staff have published for this page, each labelled, so a caller is offered the
+    # number in their own country instead of one number and a long-distance charge. This used to
+    # read the two whatsapp_in / whatsapp_us fields directly, which meant a third country could
+    # be added on the admin screen and still never appear here. Unset numbers are left out
+    # rather than shown: the rule everywhere else on the site is never to publish a line nobody
+    # answers.
+    phones = offices.numbers('insurance')
     faqs = _faqs()
     canonical = _canonical()
     # Reviews and questions are both lists that may legitimately be empty, and both sections
@@ -179,7 +180,7 @@ def landing():
                            reviews_url=url_for('main.reviews', site='insurance'),
                            faqs=faqs,
                            countries={name: code for code, name in insurance_countries.ALL},
-                           whatsapp_number=phones[0]['digits'] if phones else '',
+                           whatsapp_number=offices.whatsapp('insurance'),
                            support_phones=phones,
                            # Claims about the business, blank until staff fill them in.
                            price_from=insurance_page.price_from(),

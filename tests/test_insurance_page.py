@@ -140,14 +140,17 @@ def test_the_public_never_sees_invented_customers(client, db, cs_user):
 
 
 def test_contact_details_come_from_settings(client, db):
-    """The bundle ships a hard-coded support address and two numbers; the server overrides them,
-    so the page can never advertise a mailbox or a line nobody is watching."""
+    """The bundle ships a hard-coded support address and a list of numbers; the server overrides
+    both, so the page can never advertise a mailbox or a line nobody is watching."""
     data, _ = injected(client)
     assert data['supportEmail'] == 'support@connectingdesis.com'
-    # Nothing is set in a fresh install, so nothing is published. The bundle then shows what it
-    # shipped with -- but the server never invents a number on the business's behalf.
-    assert data['supportPhones'] == []
-    assert data['whatsapp'] == ''
+    # The same list the footer, the contact page and the chooser print: services/offices decides
+    # what is published, and this page no longer keeps its own idea of it. On a fresh install
+    # that is the shipped list -- real lines that are answered -- rather than nothing here and
+    # three numbers everywhere else on the site.
+    from app.services import offices
+    assert [p['label'] for p in data['supportPhones']] ==         [r['label'] for r in offices.DEFAULT_NUMBERS]
+    assert data['whatsapp'] == '918019111360'
 
 
 def test_both_support_teams_are_published_with_their_country(client, db):

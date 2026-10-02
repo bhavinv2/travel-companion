@@ -1,6 +1,6 @@
 """Where this business actually is, and how to reach it.
 
-Five real addresses and two phone numbers that have to ring. They are configuration rather than
+Real addresses and phone numbers that have to ring. They are configuration rather than
 template text for the same reason the Organization schema is: the moment the same address is
 typed into a second page, the two start to disagree, and the one somebody corrects is never the
 one a visitor is reading. The structured data reads the head office from here too, so the
@@ -57,6 +57,8 @@ SITE_KEYS = [k for k, _ in SITES]
 DEFAULT_NUMBERS = [
     {'label': 'India', 'iso': 'IN', 'number': '+91 80191 11360', 'whatsapp': True, 'sites': []},
     {'label': 'USA', 'iso': 'US', 'number': '+1 917 900 5094', 'whatsapp': False, 'sites': []},
+    {'label': 'Canada', 'iso': 'CA', 'number': '+1 (647) 770-2288', 'whatsapp': False,
+     'sites': []},
 ]
 
 
@@ -98,6 +100,30 @@ def _stored():
         rows = [r for r in legacy if r['number'].strip()] or DEFAULT_NUMBERS
     out = [_clean_row(r) for r in rows]
     return [r for r in out if r]
+
+
+# The pages whose own site key is not simply their blueprint's product.
+_SITE_BY_ENDPOINT = {'main.contact_us': 'contact'}
+
+
+def current_site():
+    """Which page's list this request should show, so a number aimed at one product is not
+    offered on another.
+
+    The shared chooser is rendered once per page by the footer, which has no idea which product
+    it is sitting under; without this it asked for every number there is, and ticking a site on
+    the admin screen changed nothing outside the handful of places that passed one explicitly.
+    None outside a request -- there is no page to be on.
+    """
+    from flask import has_request_context, request
+    if not has_request_context():
+        return None
+    named = _SITE_BY_ENDPOINT.get(request.endpoint or '')
+    if named:
+        return named
+    from app.services import products
+    key = products.current_key()
+    return key if key in SITE_KEYS else None
 
 
 def numbers(site=None):

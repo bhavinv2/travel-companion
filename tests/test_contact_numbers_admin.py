@@ -147,3 +147,54 @@ def test_something_that_is_not_an_address_is_dropped(client, db, admin_user):
         {'label': 'Typo', 'address': 'not-an-address'},
     ])
     assert [e['address'] for e in offices.emails()] == ['info@nriparentservice.com']
+
+
+# ---------------------------------------------------------------------------
+# The number has to reach the pages, not just the store
+# ---------------------------------------------------------------------------
+
+CANADA = '+1 (647) 770-2288'
+
+
+def test_canada_ships_with_the_defaults(app, db):
+    """An install nobody has configured still offers the three lines that are answered."""
+    rows = offices.numbers()
+    assert [r['e164'] for r in rows] == ['+918019111360', '+19179005094', '+16477702288']
+
+
+def test_the_insurance_page_publishes_every_country(client, db):
+    """It used to read whatsapp_in / whatsapp_us directly, so a third country could be saved on
+    the admin screen and still never appear on the page that sells the policy."""
+    offices.save_numbers([
+        {'label': 'India', 'iso': 'IN', 'number': '+91 80191 11360', 'whatsapp': True,
+         'sites': []},
+        {'label': 'Canada', 'iso': 'CA', 'number': CANADA, 'whatsapp': False, 'sites': []},
+    ])
+    html = client.get('/travel-insurance').data.decode()
+    assert '16477702288' in html and 'Canada' in html
+
+
+def test_a_line_aimed_elsewhere_stays_off_the_insurance_page(client, db):
+    offices.save_numbers([
+        {'label': 'India', 'iso': 'IN', 'number': '+91 80191 11360', 'whatsapp': True,
+         'sites': []},
+        {'label': 'Canada', 'iso': 'CA', 'number': CANADA, 'whatsapp': False,
+         'sites': ['sahayak']},
+    ])
+    assert '16477702288' not in client.get('/travel-insurance').data.decode()
+
+
+def test_the_schema_names_the_country_that_answers(app, db):
+    """areaServed was 'IN' for India and 'US' for everything else, so a Canadian line was
+    announced to search engines as an American one."""
+    from app.services import org
+    rows = offices.numbers()
+    with app.test_request_context():
+        points = org.organization(rows)['contactPoint']
+    assert [p['areaServed'] for p in points] == ['IN', 'US', 'CA']
+
+
+def test_canada_reaches_the_contact_page_and_the_chooser(client, db):
+    for path in ('/contact-us', '/help'):
+        html = client.get(path).data.decode()
+        assert '16477702288' in html, path
