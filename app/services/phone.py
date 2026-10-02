@@ -206,6 +206,18 @@ _GROUPS = {
     '971': lambda n: '+971 %s %s %s' % (n[:2], n[2:5], n[5:]) if len(n) == 9 else '',
 }
 
+# The empty field's placeholder, for the countries whose shape we know. Fictional ranges on
+# purpose, so a placeholder is never mistaken for a number worth ringing. static/js/
+# phone-field.js carries the same three and swaps between them when the country changes; this
+# copy is only what the first paint shows, before any script has run.
+_EXAMPLES = {'1': '(555) 123-4567', '91': '98480 00000', '971': '50 123 4567'}
+
+
+def example(iso=None):
+    """What to put in an empty phone box for that country, or '' where the shape is unknown."""
+    c = BY_ISO.get((iso or DEFAULT_ISO).upper())
+    return _EXAMPLES.get(c['dial'], '') if c else ''
+
 
 def pretty(e164, fallback=''):
     """A stored number as that country writes it, or `fallback` when we do not know it.

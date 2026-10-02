@@ -354,11 +354,26 @@ function JourneyTraveller({ path, dur }) {
   );
 }
 
-/** Horizontally scrollable wave; mouse users can drag it, and the bar tracks scroll position. */
+// One node's worth of track. The nodes are laid out on this spacing below, and the auto-advance
+// and the arrows both move by it, so a step always lands on a step.
+const PATH_STEP = 400;
+const PATH_DWELL = 3400;   // how long each step holds before the track glides on
+const PATH_RESUME = 5000;  // how long a manual nudge keeps the timer out of the way afterwards
+
+/** Horizontally scrollable wave. It walks along on its own; a drag, the arrows, the pointer
+ *  resting on it and the pause button all take precedence over the timer. */
 function ThePath({ mode }) {
   const [ioRef, inView] = useInView();
   const barRef = useRef(null);
   const [dragging, setDragging] = useState(false);
+  const [playing, setPlaying] = useState(true);
+  // Honour the OS setting: where motion is unwelcome the track only ever moves when asked to.
+  const [canAuto] = useState(
+    () => !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches));
+  // The timer stands down while the pointer is over the track or mid-drag, and for a few seconds
+  // after any manual nudge, so it never fights the reader. Refs rather than state: the interval
+  // reads them live, and none of it should cause a render.
+  const held = useRef({ hover: false, drag: false, until: 0 });
 
   useEffect(() => {
     const el = ioRef.current;
@@ -374,6 +389,7 @@ function ThePath({ mode }) {
     const onDown = (e) => {
       if (e.pointerType !== 'mouse' || e.button !== 0) return;
       down = true; moved = false; sx = e.clientX; sl = el.scrollLeft;
+      held.current.drag = true;
     };
     const onMove = (e) => {
       if (!down) return;
@@ -384,8 +400,15 @@ function ThePath({ mode }) {
     const onUp = () => {
       if (!down) return;
       down = false;
+      held.current.drag = false;
+      held.current.until = Date.now() + PATH_RESUME;
       setDragging(false);
     };
+    // Touch scrolls the track natively, so there is no pointerdown to hang a hold off -- the
+    // scroll event is the only sign it happened.
+    const onTouch = () => { held.current.until = Date.now() + PATH_RESUME; };
+    const onEnter = () => { held.current.hover = true; };
+    const onLeave = () => { held.current.hover = false; };
     // Swallow the click that ends a drag so links inside the track don't fire.
     const onClick = (e) => {
       if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; }
@@ -398,6 +421,9 @@ function ThePath({ mode }) {
     el.addEventListener('click', onClick, true);
     el.addEventListener('dragstart', onDragStart);
     el.addEventListener('scroll', upd);
+    el.addEventListener('touchstart', onTouch, { passive: true });
+    el.addEventListener('pointerenter', onEnter);
+    el.addEventListener('pointerleave', onLeave);
     window.addEventListener('resize', upd);
     upd();
     return () => {
@@ -407,12 +433,57 @@ function ThePath({ mode }) {
       el.removeEventListener('click', onClick, true);
       el.removeEventListener('dragstart', onDragStart);
       el.removeEventListener('scroll', upd);
+      el.removeEventListener('touchstart', onTouch);
+      el.removeEventListener('pointerenter', onEnter);
+      el.removeEventListener('pointerleave', onLeave);
       window.removeEventListener('resize', upd);
     };
     // Re-measure when the mode changes: the track has no size while its mode is hidden.
   }, [ioRef, mode]);
 
-  const step = (dir) => ioRef.current?.scrollBy({ left: 400 * dir, behavior: 'smooth' });
+  // useInView's flag latches on first sight, which is right for the reveal animation and wrong
+  // here: the timer needs to know whether the track is on screen *now*, or it would walk through
+  // the whole journey while the reader is three sections further down -- and while the other mode
+  // is showing, since a hidden track never intersects.
+  const [onScreen, setOnScreen] = useState(false);
+  useEffect(() => {
+    const el = ioRef.current;
+    if (!el) return;
+    if (!('IntersectionObserver' in window)) { setOnScreen(true); return; }
+    const io = new IntersectionObserver((es) => setOnScreen(es.some((e) => e.isIntersecting)),
+      { threshold: 0.35 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [ioRef, mode]);
+
+  // Walk the track along a step at a time, then hold the last step for a double beat and glide
+  // back to the beginning.
+  useEffect(() => {
+    const el = ioRef.current;
+    if (!el || !canAuto || !playing || !onScreen) return;
+    let resting = false;
+    const id = setInterval(() => {
+      const h = held.current;
+      if (document.hidden || h.hover || h.drag || Date.now() < h.until) return;
+      const end = el.scrollWidth - el.clientWidth;
+      if (end < 1) return;                       // the whole wave fits: nothing to advance
+      if (el.scrollLeft >= end - 8) {
+        if (!resting) { resting = true; return; }
+        resting = false;
+        el.scrollTo({ left: 0, behavior: 'smooth' });
+        return;
+      }
+      // +1 so a drag that stopped exactly on a step still moves on to the next one
+      el.scrollTo({ left: Math.min(end, Math.ceil((el.scrollLeft + 1) / PATH_STEP) * PATH_STEP),
+        behavior: 'smooth' });
+    }, PATH_DWELL);
+    return () => clearInterval(id);
+  }, [ioRef, canAuto, playing, onScreen]);
+
+  const step = (dir) => {
+    held.current.until = Date.now() + PATH_RESUME;
+    ioRef.current?.scrollBy({ left: PATH_STEP * dir, behavior: 'smooth' });
+  };
 
   return (
     <section className="sec tight" id="path">
@@ -424,9 +495,23 @@ function ThePath({ mode }) {
           <p className="sub">From application to your first visit — every stage is clear, so you always know what happens after you apply.</p>
         </Reveal>
         <Reveal className="pp-bar-row">
-          <span className="pp-hint"><Icon name="hand" />Drag to explore the journey</span>
+          <span className="pp-hint">
+            <Icon name="hand" />
+            {canAuto
+              ? (playing ? 'Moves on its own — drag to explore' : 'Paused — drag to explore')
+              : 'Drag to explore the journey'}
+          </span>
           <div className="pp-prog" aria-hidden="true"><i ref={barRef}></i></div>
           <div className="rs-nav">
+            {/* Moving content that starts by itself needs a way to stop it that does not depend
+                on hovering -- the hover and drag holds alone leave a keyboard out in the cold. */}
+            {canAuto && (
+              <button type="button" className="rs-arr" aria-pressed={!playing}
+                aria-label={playing ? 'Pause the journey' : 'Play the journey'}
+                onClick={() => setPlaying((p) => !p)}>
+                <Icon name={playing ? 'pause' : 'play'} sw={2} />
+              </button>
+            )}
             <button type="button" className="rs-arr" aria-label="Previous steps" onClick={() => step(-1)}><Icon name="arrowLeft" sw={2} /></button>
             <button type="button" className="rs-arr" aria-label="Next steps" onClick={() => step(1)}><Icon name="arrow" sw={2} /></button>
           </div>
@@ -440,7 +525,7 @@ function ThePath({ mode }) {
             <JourneyTraveller path={PATH_D} dur={14} />
           </svg>
           {PATH.flatMap((p, i) => {
-            const x = 220 + i * 400;
+            const x = 220 + i * PATH_STEP;
             const low = i % 2 === 0; // node sits in a trough of the wave
             return [
               <div key={`n${i}`} className="pp-num" style={{ left: x + 40, top: low ? 58 : 145 }} aria-hidden="true">{i + 1}</div>,

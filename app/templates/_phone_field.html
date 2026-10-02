@@ -33,9 +33,12 @@
       <option value="{{ c.iso }}" data-dial="{{ c.dial }}"{{ ' selected' if c.iso == chosen }}>{{ c.name }} +{{ c.dial }}</option>
       {% endfor %}
     </select>
+    {# The placeholder shows the chosen country's shape. static/js/phone-field.js swaps it when
+       the country changes and spaces the digits the same way as they are typed; this is only
+       what the first paint shows. #}
     <input class="pf-num" id="{{ fid }}" name="{{ name }}" type="tel" inputmode="tel"
            maxlength="24" autocomplete="{{ autocomplete }}"
-           value="{{ value or '' }}" placeholder="98480 00000"{{ ' required' if required }}/>
+           value="{{ value or '' }}" placeholder="{{ PHONE.example(chosen) }}"{{ ' required' if required }}/>
   </div>
   {% if hint %}<small class="pf-hint muted">{{ hint }}</small>{% endif %}
   <small class="pf-err" hidden></small>

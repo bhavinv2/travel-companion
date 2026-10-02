@@ -74,6 +74,10 @@
       </a>
       {% if not is_staff %}
       {% set _here = PRODUCTS.current_label() %}
+      {# The line under the brand. The switcher says which product you are in; a product that
+         has more than one journey through it adds a second chip beside it, so the header
+         answers both "where am I" and "which half of it am I reading". #}
+      <div class="svc-row">
       <div class="svc-sw" id="svcSw">
         <button type="button" class="svc-sw-btn" id="svcSwBtn" aria-haspopup="menu"
                 aria-expanded="false" title="Switch service">
@@ -101,6 +105,8 @@
           {% endfor %}
           {% endif %}
         </div>
+      </div>
+      {% block brand_extra %}{% endblock %}
       </div>
       {% endif %}
     </div>

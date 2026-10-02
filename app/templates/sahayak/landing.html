@@ -9,6 +9,13 @@
 
    Source: frontend/sahayak. Build with `npm run build` there; the output in
    static/sahayak/ is committed (see that vite.config.js for why). #}
+{% block brand_extra %}
+{# Where the bundle hangs the journey switcher -- "Book a Sahayak" / "Join as a Sahayak".
+   Empty here on purpose: the bundle owns which journey is showing, so it renders the control
+   into this slot rather than the page keeping a second copy of that state in step. #}
+<div class="brand-chip" id="sahayakJourney"></div>
+{% endblock %}
+
 {% block title %}{{ page_title }}{% endblock %}
 {% block meta_description %}{{ page_description }}{% endblock %}
 

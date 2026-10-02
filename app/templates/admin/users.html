@@ -53,7 +53,8 @@
             {% if user.is_verified %}<i class="fa-solid fa-circle-check" style="color:#1E7F4F" title="E-mail verified"></i>
             {% else %}<i class="fa-regular fa-circle" style="color:#B9C6DE" title="E-mail not verified"></i>{% endif %}
             <br>
-            {% if user.phone %}<small><a href="tel:{{ user.phone }}">{{ user.phone }}</a></small>
+            {# href stays E.164 so it dials; only what is read is respaced #}
+            {% if user.phone %}<small><a href="tel:{{ user.phone }}">{{ PHONE.pretty(user.phone, user.phone) }}</a></small>
             {% else %}<small class="muted">no phone</small>{% endif %}
             {% if user.oauth_provider %}<br><small class="muted">via {{ user.oauth_provider|capitalize }}</small>{% endif %}
           </td>

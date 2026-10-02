@@ -62,7 +62,8 @@
             <td data-label="Patient"><strong>{{ b.patient_name }}</strong>
               {% if b.patient_age %}<br/><small class="muted">{{ b.patient_age }} years</small>{% endif %}</td>
             <td data-label="Contact" class="nowrap">
-              <a href="tel:{{ b.phone }}">{{ b.phone }}</a>
+              {# href stays E.164 so it dials; only what is read is respaced #}
+              <a href="tel:{{ b.phone }}">{{ PHONE.pretty(b.phone, b.phone) }}</a>
               {% if b.contact_name %}<br/><small class="muted">{{ b.contact_name }}</small>{% endif %}
               {% if b.email %}<br/><small class="muted">{{ b.email }}</small>{% endif %}</td>
             <td data-label="Where">{{ b.address }}

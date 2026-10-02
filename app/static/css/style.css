@@ -3827,6 +3827,19 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 .nav-brand { position: relative; display: flex; flex-direction: column; align-items: flex-start;
   justify-content: center; min-width: 0; min-height: 38px; padding-left: 48px; }
 .nav-brand .logo-img { position: absolute; left: 0; top: 50%; transform: translateY(-50%); }
+/* The brand's second line: the product switcher, and whatever the product adds beside it.
+   The divider is drawn by the mount, not the chip, so it never appears on its own while the
+   chip's own script is still loading. */
+.svc-row { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.svc-row > .brand-chip:not(:empty) { padding-left: 9px; border-left: 1px solid rgba(255,255,255,.22); }
+.svc-row .logo-sub { white-space: nowrap; }
+/* A chip may carry a long label and a short one; below a phone's width the long one wraps and
+   takes the header's height with it. */
+.svc-row .jn-short { display: none; }
+@media (max-width: 560px) {
+  .svc-row .jn-long { display: none; }
+  .svc-row .jn-short { display: inline; }
+}
 .svc-sw { position: relative; }
 .svc-sw-btn { display: inline-flex; align-items: center; gap: 5px; background: none; border: 0;
   padding: 0 4px 0 0; margin: 0; cursor: pointer; border-radius: 6px; color: inherit;
@@ -3847,6 +3860,12 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 .svc-sw-item { display: flex; align-items: center; gap: 11px; padding: 9px 10px; border-radius: 10px;
   color: var(--text); text-decoration: none; }
 .svc-sw-item:hover { background: var(--bg); }
+/* Switching product is a link; switching journey inside one is not, so that item is a button
+   and arrives with the browser's own border, background and centred text. Reset to match the
+   links it sits among. */
+button.svc-sw-item { width: 100%; border: 0; background: none; box-shadow: none; font: inherit;
+  text-align: left; cursor: pointer; }
+button.svc-sw-item.on { background: var(--coral-light); }
 .svc-sw-ico { width: 17px; height: 17px; flex: none; color: var(--coral); }
 .svc-sw-item.sm .svc-sw-ico { width: 14px; height: 14px; color: var(--muted); }
 .svc-sw-item span { display: flex; flex-direction: column; min-width: 0; }
@@ -4071,7 +4090,10 @@ span.cu-chan-ic, .cu-office-flag .flag-txt { display: grid; place-items: center;
   display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 1fr); gap: 14px; align-items: end; }
 .cu-help-blob { position: absolute; z-index: 0; left: -24px; bottom: -16px; width: 160px;
   opacity: .55; pointer-events: none; }
-.cu-help-pic { position: relative; z-index: 1; align-self: end; }
+/* Pulled out past the card's padding so the card's own edge does the cropping. Left in the
+   column she ended mid-shoulder with a strip of cream beside her, which reads as a mistake
+   rather than a crop; the extra width also brings her up to the height of the text. */
+.cu-help-pic { position: relative; z-index: 1; align-self: end; margin-left: -50px; }
 .cu-help-pic img { display: block; width: 100%; margin-bottom: -1px; }
 .cu-help-tx { position: relative; z-index: 1; padding-bottom: 22px; }
 .cu-help-tx h3 { font-family: var(--font-head); font-size: 19px; font-weight: 800; color: var(--navy);
@@ -4327,14 +4349,30 @@ span.cu-chan-ic, .cu-office-flag .flag-txt { display: grid; place-items: center;
 .pf > label { display: block; font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 7px; }
 .pf > label .req { color: #dc2626; }
 .pf-row { display: flex; gap: 8px; align-items: stretch; }
-.pf-cc { flex: 0 0 auto; width: 132px; border: 1.5px solid var(--border); border-radius: 11px;
-  padding: 11px 8px; font: inherit; font-size: 14px; background: #fbfdff; color: var(--text); }
-.pf-num { flex: 1 1 auto; min-width: 0; border: 1.5px solid var(--border); border-radius: 11px;
-  padding: 11px 14px; font: inherit; font-size: 15px; background: #fbfdff; color: var(--text); }
-.pf-cc:focus, .pf-num:focus { border-color: var(--coral); outline: none; background: #fff;
-  box-shadow: 0 0 0 3px rgba(245,166,35,.18); }
+/* Sized through .pf-row rather than on the class alone. This field is dropped into forms that
+   style their own inputs, and a rule like `.f input, .f select { width: 100% }` outranks a lone
+   `.pf-cc` -- which is how the sign-up popup ended up with a country select across the whole
+   row and the number squeezed out of it. Two classes beat a class and an element. */
+/* The width is given as a flex basis with `width: 100%` behind it, so the same rule serves the
+   flex row here and the grid one the contact page uses -- there the basis is ignored and the
+   control fills its track. */
+.pf-row .pf-cc { flex: 0 0 132px; width: 100%; border: 1.5px solid var(--border);
+  border-radius: 11px; padding: 11px 8px; font: inherit; font-size: 14px; background: #fbfdff;
+  color: var(--text); }
+.pf-row .pf-num { flex: 1 1 auto; width: auto; min-width: 0; border: 1.5px solid var(--border);
+  border-radius: 11px; padding: 11px 14px; font: inherit; font-size: 15px; background: #fbfdff;
+  color: var(--text); }
+/* Where the searchable dropdown has replaced the select it is the wrapper that the row
+   measures, since the native select it hides no longer takes any width. Width only -- how the
+   widget looks is left to whatever styles the form it is in. */
+.pf-row .ss { flex: 0 0 132px; width: 100%; }
+.pf-row .pf-cc:focus, .pf-row .pf-num:focus { border-color: var(--coral); outline: none;
+  background: #fff; box-shadow: 0 0 0 3px rgba(245,166,35,.18); }
 .pf-hint { display: block; font-size: 12px; margin-top: 6px; }
 .pf-err { display: block; font-size: 12.5px; font-weight: 600; color: #dc2626; margin-top: 6px; }
 .pf.is-bad .pf-num, .pf.is-bad .pf-cc { border-color: #dc2626; background: #fff6f6; }
 .pf.is-bad .pf-num:focus { box-shadow: 0 0 0 3px rgba(220,38,38,.18); }
-@media (max-width: 420px) { .pf-cc { width: 104px; font-size: 13px; padding: 11px 6px; } }
+@media (max-width: 420px) {
+  .pf-row .pf-cc, .pf-row .ss { flex-basis: 104px; }
+  .pf-row .pf-cc { font-size: 13px; padding: 11px 6px; }
+}

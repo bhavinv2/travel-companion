@@ -946,12 +946,9 @@ body.lock{overflow:hidden}
 /* where the switch lives: header (≥641), strip under header (≤640), mobile menu */
 .nav-switch{display:inline-flex}
 .mob-switch{display:none}
-/* Served inside the site's own header, the nav above is not drawn -- and the switch between
-   "book a Sahayak" and "join as a Sahayak" lived in it. Without this the whole join journey is
-   unreachable on a desktop: the strip was mobile-only because the nav carried it everywhere
-   else. Centred and capped so it reads as a banner rather than a full-width button. */
-.page.embedded .mob-switch{display:block;padding:12px 16px;background:#fff;border-bottom:1px solid var(--line)}
-.page.embedded .mob-switch .sw-cta{min-height:52px;max-width:520px;margin:0 auto}
+/* Embedded, the nav above is not drawn and neither is this strip: the switch between
+   "book a Sahayak" and "join as a Sahayak" is portalled into the site's own header instead,
+   beside the product switcher. See JourneySwitch in App.jsx. */
 .nav-panel .sw-cta{margin-top:16px}
 @media (max-width:1180px) and (min-width:961px){.links{gap:20px}.links a{font-size:14.5px}}
 @media (max-width:960px){.nav-switch{display:inline-flex;margin-left:auto}.nav-in{gap:12px}}

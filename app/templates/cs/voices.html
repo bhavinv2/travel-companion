@@ -1,5 +1,7 @@
 {% extends 'base.html' %}
-{% import '_voices_tables.html' as vt %}
+{# with context: the macros below use PHONE, which is a context processor rather than a
+   Jinja global, and a plain import cannot see it. #}
+{% import '_voices_tables.html' as vt with context %}
 {% block title %}User Voices – CS{% endblock %}
 {% block content %}
 <div class="admin-page">

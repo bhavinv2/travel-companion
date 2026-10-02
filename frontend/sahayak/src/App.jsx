@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Icon, { Underline } from './components/Icon.jsx';
 import { cx } from './components/ui.jsx';
 import NeedMode from './components/NeedMode.jsx';
@@ -11,10 +12,17 @@ import heroNeed from './assets/hero-need.jpg';
 import heroBecome from './assets/hero-become.jpg';
 import logoMark from './assets/logo-mark.png';
 
+// What each journey calls itself.
+const JOURNEY = {
+  need: { label: 'Book a Sahayak', short: 'Book', sub: 'Care for your parents',
+          icon: 'homeHeart' },
+  become: { label: 'Join as a Sahayak', short: 'Join', sub: 'For healthcare professionals',
+            icon: 'userPlus' },
+};
 // The switch button always advertises the *other* journey, in that journey's colour.
 const SWITCH = {
-  need: { to: 'become', label: 'Join as a Sahayak', sub: 'For healthcare professionals' },
-  become: { to: 'need', label: 'Book a Sahayak', sub: 'Care for your parents' },
+  need: { to: 'become', ...JOURNEY.become },
+  become: { to: 'need', ...JOURNEY.need },
 };
 
 function SwitchCta({ mode, onClick, className }) {
@@ -27,6 +35,62 @@ function SwitchCta({ mode, onClick, className }) {
       </span>
       <span className="sw-cta-arr"><Icon name="arrow" sw={2.2} /></span>
     </button>
+  );
+}
+
+/* The journey switcher as it appears in the site header, beside the product switcher.
+ *
+ * It borrows that switcher's classes rather than bringing its own, so the two chips on the
+ * brand's second line are the same control twice over -- same type, same caret, same menu --
+ * and a change to the header's look reaches both. Those classes live in the site stylesheet,
+ * which is loaded by the page this is portalled into, not by this bundle.
+ *
+ * Opening and closing is handled here instead of by the site's delegated handler, because
+ * that one is written for the single #svcSw in the header and a second switcher has to come
+ * with its own.
+ */
+function JourneySwitch({ mode, onPick }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef(null);
+  const here = JOURNEY[mode];
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (e) => { if (!box.current || !box.current.contains(e.target)) setOpen(false); };
+    const esc = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('click', away);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('click', away);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [open]);
+
+  return (
+    <div className={cx('svc-sw', open && 'open')} ref={box}>
+      <button type="button" className="svc-sw-btn" aria-haspopup="menu" aria-expanded={open}
+              title="Switch journey" onClick={() => setOpen((o) => !o)}>
+        {/* Two labels, one shown at a time by the stylesheet: on a narrow phone the full one
+            wraps and takes the header with it. */}
+        <span className="logo-sub">
+          <span className="jn-long">{here.label}</span>
+          <span className="jn-short">{here.short}</span>
+        </span>
+        <i className="fa-solid fa-chevron-down svc-sw-caret" aria-hidden="true"></i>
+      </button>
+      <div className="svc-sw-menu" role="menu" aria-label="Sahayak journeys">
+        <div className="svc-sw-head">Sahayak is for</div>
+        {['need', 'become'].map((m) => (
+          <button key={m} type="button" role="menuitem"
+                  className={cx('svc-sw-item', m === mode && 'on')}
+                  onClick={() => { setOpen(false); onPick(m); }}>
+            <Icon name={JOURNEY[m].icon} className="svc-sw-ico" sw={2} />
+            <span><b>{JOURNEY[m].label}</b><small>{JOURNEY[m].sub}</small></span>
+            {m === mode && <Icon name="check" className="svc-sw-tick" sw={3} />}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -202,14 +266,17 @@ export default function App() {
 
   /* Served inside the site's own header and footer (base.html), so the bundle must not draw
      a second set -- standalone (`npm run dev`) it still draws both, which is how the page is
-     worked on. The mode switch moves into the strip below, which is the only part of the nav
-     that is not duplicated. */
+     worked on. Embedded, the journey switcher goes into the site header instead, beside the
+     product switcher: it belongs in the chrome, not in a strip pushed under it. */
   const chrome = site.chrome !== false;
+  const [slot, setSlot] = useState(null);
+  useEffect(() => { setSlot(document.getElementById('sahayakJourney')); }, []);
 
   return (
     <div className={cx('page', mode, !chrome && 'embedded')} id="page" style={{ width: '100%', minHeight: '100%' }}>
       {chrome && <Nav mode={mode} onToggle={toggleMode} />}
-      <div className="mob-switch"><SwitchCta mode={mode} onClick={toggleMode} className="block" /></div>
+      {chrome && <div className="mob-switch"><SwitchCta mode={mode} onClick={toggleMode} className="block" /></div>}
+      {!chrome && slot && createPortal(<JourneySwitch mode={mode} onPick={switchTo} />, slot)}
       <Heroes openBook={openBook} onApply={onApply} />
       <NeedMode openBook={openBook} />
       <BecomeMode mode={mode} applyAs={applyAs} onApplyAs={(bg) => setApplyAs({ bg, nonce: Date.now() })} />

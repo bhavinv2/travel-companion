@@ -14,6 +14,8 @@ const ICONS = {
   heart: <path d={HEART} />,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
   arrowLeft: <path d="M19 12H5M11 6l-6 6 6 6" />,
+  pause: <path d="M9.5 5v14M14.5 5v14" />,
+  play: <path d="M8 5.5v13l11-6.5z" />,
   close: <path d="M6 6l12 12M18 6L6 18" />,
   check: <path d="M5 12l5 5 9-10" />,
   shield: (<><path d={SHIELD} /><path d="M9 12l2 2 4-4" /></>),

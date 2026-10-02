@@ -171,3 +171,42 @@ def test_the_contact_page_lists_them_all_the_same_way(client, db, admin_user):
     html = client.get('/contact-us').data.decode()
     for line in shown:
         assert line in html, line
+
+
+# The empty box
+# ---------------------------------------------------------------------------
+
+def test_the_empty_box_shows_that_country_s_shape():
+    """A US visitor met "98480 00000" -- an Indian mobile -- as the hint for their own number,
+    which is both wrong and the one place the field gets to teach the shape it wants."""
+    assert phone.example('US') == '(555) 123-4567'
+    assert phone.example('CA') == '(555) 123-4567'      # same dialling code, same shape
+    assert phone.example('IN') == '98480 00000'
+    assert phone.example() == phone.example(phone.DEFAULT_ISO)
+
+
+def test_no_example_is_offered_for_a_country_we_cannot_spell():
+    """Better an empty box than one suggesting a shape that country does not use."""
+    assert phone.example('DE') == ''
+    assert phone.example('ZZ') == ''
+
+
+def test_every_form_hints_with_the_country_it_has_selected(client, db):
+    """The placeholder is rendered server-side so the first paint is already right; the script
+    only takes over when the country changes."""
+    html = client.get('/auth/register').data.decode()
+    field = html.split('class="pf-num"', 1)[1]
+    assert 'placeholder="(555) 123-4567"' in field.split('/>', 1)[0]
+
+
+def test_staff_lists_spell_stored_numbers_the_same_way(client, db, admin_user):
+    """Numbers reach these tables as E.164 from the server, so without pretty() the console
+    showed "+19179005094" while the contact page showed "+1 (917) 900-5094"."""
+    from app.models import ContactMessage, db as _db
+    _db.session.add(ContactMessage(name='Asha', email='asha@example.com',
+                                   phone='+19179005094', message='Hello', topic='companion'))
+    _db.session.commit()
+    client.post('/auth/login', data={'email': admin_user.email, 'password': 'password123'},
+                follow_redirects=True)
+    html = client.get('/cs/voices').data.decode()
+    assert '+1 (917) 900-5094' in html

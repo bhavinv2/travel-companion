@@ -1547,12 +1547,16 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
 .pf{margin-bottom:16px}
 .pf>label{display:block;font-size:13px;font-weight:700;margin-bottom:7px}
 .pf-row{display:flex;gap:8px;align-items:stretch}
-.pf-cc{flex:0 0 auto;width:132px;border:1.5px solid rgba(15,35,64,.18);border-radius:11px;padding:11px 8px;font:inherit;font-size:14px;background:#fff}
-.pf-num{flex:1 1 auto;min-width:0;border:1.5px solid rgba(15,35,64,.18);border-radius:11px;padding:11px 14px;font:inherit;font-size:15px;background:#fff}
-.pf-cc:focus,.pf-num:focus{border-color:var(--amber,#f0a01a);outline:none;box-shadow:0 0 0 3px rgba(240,160,26,.18)}
+/* Sized through .pf-row, not on the class alone. This page also carries
+   `.f input,.f select,.f textarea{width:100%}`, and inside the sign-up popup the field sits in
+   a `.f`, where that rule outranks a lone `.pf-cc` -- the country select took the whole row and
+   squeezed the number out of it. Two classes beat a class and an element. */
+.pf-row .pf-cc{flex:0 0 auto;width:132px;border:1.5px solid rgba(15,35,64,.18);border-radius:11px;padding:11px 8px;font:inherit;font-size:14px;background:#fff}
+.pf-row .pf-num{flex:1 1 auto;width:auto;min-width:0;border:1.5px solid rgba(15,35,64,.18);border-radius:11px;padding:11px 14px;font:inherit;font-size:15px;background:#fff}
+.pf-row .pf-cc:focus,.pf-row .pf-num:focus{border-color:var(--amber,#f0a01a);outline:none;box-shadow:0 0 0 3px rgba(240,160,26,.18)}
 .pf-err{display:block;font-size:12.5px;font-weight:600;color:#dc2626;margin-top:6px}
 .pf.is-bad .pf-num,.pf.is-bad .pf-cc{border-color:#dc2626;background:#fff6f6}
-@media(max-width:420px){.pf-cc{width:104px;font-size:13px;padding:11px 6px}}
+@media(max-width:420px){.pf-row .pf-cc{width:104px;font-size:13px;padding:11px 6px}}
 </style>
 <script src="{{ url_for('static', filename='js/phone-field.js') }}" defer></script>
 </head>

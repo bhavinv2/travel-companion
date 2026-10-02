@@ -22,7 +22,9 @@
       {# which service the enquiry came from: the insurance page writes into this same inbox #}
       <td class="nowrap"><span class="cm-topic cm-topic-{{ m.topic or 'companion' }}">{{ topic_labels.get(m.topic, 'Travel companion') }}</span></td>
       <td><strong>{{ m.name }}</strong><br/><a href="mailto:{{ m.email }}">{{ m.email }}</a></td>
-      <td class="nowrap">{{ m.phone or '—' }}</td>
+      {# Spelled the way that country spells it. A column of numbers each written differently
+         reads as a column of mistakes. #}
+      <td class="nowrap">{% if m.phone %}<a href="tel:{{ m.phone }}">{{ PHONE.pretty(m.phone, m.phone) }}</a>{% else %}—{% endif %}</td>
       <td class="cm-cell">
         {{ m.message }}
         {% if m.cs_notes %}<div class="cm-notes-sm"><i class="fa-solid fa-note-sticky"></i> {{ m.cs_notes }}</div>{% endif %}

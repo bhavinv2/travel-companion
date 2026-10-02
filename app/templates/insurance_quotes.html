@@ -47,7 +47,7 @@
           <td data-label="When">{{ iq.created_at|istd('%d %b %Y') }}<br><small>{{ iq.created_at|ist('%H:%M') }}</small></td>
           <td data-label="Who">
             <b><a href="mailto:{{ iq.email }}">{{ iq.email }}</a></b><br>
-            <small>{% if iq.name %}{{ iq.name }}{% if iq.phone %} · {% endif %}{% endif %}{{ iq.phone or '' }}</small>
+            <small>{% if iq.name %}{{ iq.name }}{% if iq.phone %} · {% endif %}{% endif %}{{ PHONE.pretty(iq.phone, iq.phone) if iq.phone else '' }}</small>
             {% if iq.user %}<br><small>Signed in as {{ iq.user.username }}</small>{% endif %}
           </td>
           <td data-label="Cover">{{ {'visitors': 'Visitors Medical', 'health': 'Travel Medical', 'schengen': 'Schengen Visa'}.get(iq.insurance_type, iq.insurance_type) }}<br>
