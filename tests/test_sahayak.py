@@ -29,20 +29,49 @@ def book(client, **over):
 # The page
 # ---------------------------------------------------------------------------
 
-def test_the_page_lists_the_catalogue_with_prices(client, db):
-    r = client.get('/sahayak')
-    assert r.status_code == 200
-    html = r.data.decode()
-    assert html.count('sk-card') >= len(sahayak.services())
-    assert 'Blood draw (phlebotomy)' in html and '₹149' in html
+def injected(client):
+    """What the page hands the bundle. The catalogue is no longer rendered as HTML -- the page
+    is a React bundle now (frontend/sahayak), so what is worth asserting is the data it is
+    given, which is the same thing the markup used to be built from."""
+    import json
+    import re
+    html = client.get('/sahayak').data.decode()
+    m = re.search(r'window\.__SAHAYAK__ = (\{.*?\});', html, re.S)
+    assert m, 'the page should inject its data'
+    return json.loads(m.group(1)), html
+
+
+def test_the_page_hands_the_bundle_the_catalogue_with_prices(client, db):
+    data, html = injected(client)
+    assert '<div id="root">' in html, 'the bundle needs somewhere to mount'
+    assert [s['key'] for s in data['services']] == sahayak.keys()
+    by_name = {s['name']: s for s in data['services']}
+    assert by_name['Blood draw (phlebotomy)']['price'] == '149'
 
 
 def test_the_page_follows_the_admin_catalogue(client, db):
     sahayak.save([{'key': 'night_care', 'name': 'Overnight attendant', 'blurb': 'Someone stays the night.',
                    'price': '1200', 'duration': '10 hours', 'icon': 'fa-moon'}])
-    html = client.get('/sahayak').data.decode()
-    assert 'Overnight attendant' in html and '₹1200' in html
-    assert 'Blood draw (phlebotomy)' not in html        # the defaults are gone once it is edited
+    data, _ = injected(client)
+    assert [(s['name'], s['price']) for s in data['services']] == [('Overnight attendant', '1200')]
+
+
+def test_the_bundle_is_told_where_to_post(client, db):
+    """Both forms on the page reach our own endpoints: the API we read the catalogue from is
+    read-only, so a booking is still ours to store."""
+    data, _ = injected(client)
+    assert data['bookingUrl'].endswith('/api/sahayak-booking')
+    assert data['applyUrl'].endswith('/api/sahayak-apply')
+    assert data['csrfToken']
+
+
+def test_the_published_helplines_reach_it(client, db):
+    """The design shipped with [YOUR HELPLINE NUMBER] in the footer. It comes from the admin
+    screen like every other number on the site."""
+    from app.services import offices
+    data, _ = injected(client)
+    assert [p['digits'] for p in data['phones']] == [n['digits'] for n in offices.numbers('sahayak')]
+    assert data['supportEmail'] == offices.email('sahayak')
 
 
 def test_questions_come_from_this_products_help_screen(client, db):

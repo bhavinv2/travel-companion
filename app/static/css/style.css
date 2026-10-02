@@ -4028,7 +4028,8 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
   font-weight: 600; color: var(--text); background: #fff;
   transition: border-color .15s, background .15s, box-shadow .15s; }
 .cu .ct-pills label:hover { border-color: #e2c48f; }
-.cu .ct-pills input { accent-color: var(--coral); margin: 0; }
+.cu .ct-pills input { position: absolute; opacity: 0; width: 0; height: 0; margin: 0;
+  pointer-events: none; }
 .cu .ct-pills i { font-size: 15px; color: var(--muted); }
 .cu .ct-pills .fa-whatsapp { color: #25D366; }
 .cu .ct-pills label:has(input:checked) { border-color: var(--coral); background: var(--cu-cream);

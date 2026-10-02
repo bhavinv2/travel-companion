@@ -70,7 +70,26 @@ def _blob():
 
 
 def services():
-    """The catalogue, admin order. Falls back to the guide's twelve until somebody edits it."""
+    """The catalogue, in priority order: Preventia, then the admin screen, then the defaults.
+
+    Preventia360 owns the real catalogue and its pricing (services/preventia). It comes first
+    because a price edited there and not here is the kind of disagreement nobody notices until
+    a customer is quoted the wrong number -- and because it is the one list their own apps
+    render, so ours matching it is the point.
+
+    Anything an admin has saved here wins over the shipped defaults but not over Preventia; the
+    screen is the way to run without the API, not a way to override it. All three return the
+    same shape, so nothing downstream knows or cares which one answered.
+    """
+    from app.services import preventia
+
+    if preventia.enabled():
+        remote = preventia.service_categories()
+        # None is "we could not ask" and falls through to the local list; [] is an answer, and
+        # publishing nothing is a thing a catalogue is allowed to say.
+        if remote is not None:
+            return preventia.as_catalogue(remote)
+
     rows = _blob().get('services')
     if rows is None:
         return [dict(zip(FIELDS, row)) for row in DEFAULT_SERVICES]

@@ -38,11 +38,33 @@ def _canonical():
     return request.host_url.rstrip('/') + '/' + aliases[0].strip('/')
 
 
+PAGE_TITLE = 'Sahayak | Trusted home healthcare for your parents | NRI Parent Service'
+PAGE_DESCRIPTION = ('Book a trained, verified Sahayak to care for your parents at home in India '
+                    '-- health checks, lab work, hospital visits and more. Or join the Sahayak '
+                    'network as a healthcare professional.')
+
+
 @sahayak_bp.route('/sahayak')
 def landing():
+    """The public page. A React bundle (frontend/sahayak) over server-supplied content.
+
+    Everything the business owns is handed to it here rather than baked into the build: the
+    catalogue, the published helplines, the support address and the endpoints. services() is
+    the one seam to repoint when the catalogue API arrives.
+    """
+    from app.services import offices, urls
+
+    phones = [{'label': p['label'], 'display': p['display'], 'digits': p['digits']}
+              for p in offices.numbers('sahayak')]
     return render_template('sahayak/landing.html',
                            services=sahayak.services(),
                            faqs=_faqs(),
+                           phones=phones,
+                           support_email=offices.email('sahayak'),
+                           whatsapp_digits=offices.whatsapp('sahayak'),
+                           wa_link=offices.wa_link('sahayak'),
+                           contact_url=urls.public_url('main.contact_us'),
+                           page_title=PAGE_TITLE, page_description=PAGE_DESCRIPTION,
                            canonical_url=_canonical())
 
 
@@ -114,3 +136,61 @@ def book():
     db.session.commit()
     return jsonify({'success': True, 'booking_id': booking.id,
                     'message': 'Request received. Our team will call %s to confirm.' % phone}), 201
+
+
+# The fields the "Join as a Sahayak" form collects, in the order a reader wants them. Kept as a
+# list rather than columns of their own: this is an application to be read and phoned, not
+# something anything queries or filters on, and a table nobody filters is a migration spent on
+# nothing. When the Sahayak API arrives this is the one function to repoint.
+APPLY_FIELDS = [
+    ('full_name', 'Name'), ('age', 'Age'), ('mobile', 'Mobile'), ('whatsapp', 'WhatsApp'),
+    ('email', 'E-mail'), ('location', 'City / area / PIN'),
+    ('background', 'Background'), ('highest_qualification', 'Highest qualification'),
+    ('healthcare_qualification', 'Healthcare qualification'), ('certification', 'Certification'),
+    ('institution', 'Institution'), ('year', 'Year of completion'),
+    ('experience', 'Experience'), ('service_city', 'City they can serve'),
+    ('availability', 'Availability'), ('languages', 'Languages'), ('transport', 'Transport'),
+]
+
+
+@sahayak_bp.route('/api/sahayak-apply', methods=['POST'])
+@rate_limit(6, 3600)
+def apply():
+    """Take an application from a healthcare professional who wants to join.
+
+    It reaches CS as a contact message filed under Sahayak rather than a table of its own --
+    see APPLY_FIELDS. Documents are not accepted here: an upload needs storage, a size limit
+    and a scan, and the team asks for certificates on the confirming call anyway. The form says
+    so rather than pretending to take them.
+    """
+    from app.routes.main import _save_contact
+
+    data = request.get_json(silent=True) or request.form
+
+    def get(key, limit=300):
+        return (data.get(key) or '').strip()[:limit]
+
+    name = get('full_name', 120)
+    phone = get('mobile', 30)
+    email = get('email', 255).lower()
+
+    errors = []
+    if not name:
+        errors.append('Please tell us your name.')
+    if not phone or not PHONE_RE.search(phone):
+        errors.append('A phone number is required — the team calls to talk it through.')
+    if email and not EMAIL_RE.match(email):
+        errors.append('That e-mail address does not look right.')
+    if errors:
+        return jsonify({'success': False, 'error': ' '.join(errors)}), 400
+
+    lines = ['Sahayak application.', '']
+    lines += ['%s: %s' % (label, get(key)) for key, label in APPLY_FIELDS if get(key)]
+    msg = _save_contact({'name': name, 'email': email or 'no-email@nriparentservice.com',
+                         'phone': phone, 'message': '\n'.join(lines)}, topic='general')
+    ActivityEvent.log('sahayak_application',
+                      actor=current_user if current_user.is_authenticated else None,
+                      contact_id=msg.id)
+    db.session.commit()
+    return jsonify({'success': True,
+                    'message': 'Application received. Our team will call %s.' % phone}), 201
