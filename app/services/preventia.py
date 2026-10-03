@@ -120,6 +120,43 @@ def pricing(service_category_id, role=ROLE, zone=None):
     return _get('pricing', params)
 
 
+# A visit runs in this order. The API gives each section a stage rather than a position, and
+# sortOrder only orders within one, so the stages have to be put in sequence here.
+STAGE_ORDER = {'PRE': 0, 'PRE_DURING': 1, 'DURING': 2, 'POST_DURING': 3, 'POST': 4}
+
+
+def journey(service_category_id, role=ROLE):
+    """What the visit covers, step by step, as Preventia defines it for that category.
+
+    The same list the GIG sheet draws by hand, read from the source instead: each section is
+    one step, `required` is the sheet's MAD/OPT, and the booking step is dropped because it is
+    the form the family has already filled in by the time they are reading this.
+
+    None when the API could not be asked -- the caller keeps whatever it was showing.
+
+    Costs a request per category and the responses are large (a hundred and fifty fields for a
+    wellness screen), so this is never called while a page is being rendered: nine of them cold
+    is eleven seconds. It answers one service at a time, when somebody asks to see it.
+    """
+    data = gig_forms(service_category_id, role=role)
+    if not data:
+        return None
+    out = []
+    for s in data.get('sections') or []:
+        code = s.get('gigTypeCode') or ''
+        if code == 'BOOKING':
+            continue
+        out.append({
+            'key': code,
+            'title': s.get('gigTypeName') or code.replace('_', ' ').title(),
+            'text': s.get('displaySection') or '',
+            'optional': not s.get('required'),
+            'stage': s.get('stage') or '',
+        })
+    out.sort(key=lambda x: (STAGE_ORDER.get(x['stage'], 9), x['title']))
+    return out
+
+
 def gig_forms(service_category_id, role=ROLE, stage=None, locale='en'):
     """The dynamic PRE/DURING/POST field schema for a category.
 

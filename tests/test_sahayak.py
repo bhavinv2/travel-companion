@@ -368,3 +368,65 @@ def test_a_silent_api_falls_back_rather_than_emptying_the_page(app, monkeypatch)
     monkeypatch.setattr(preventia, 'service_categories', lambda role=preventia.ROLE: None)
     with app.app_context():
         assert len(sahayak.services()) == len(sahayak.DEFAULT_SERVICES)
+
+
+# The visit journey
+# ---------------------------------------------------------------------------
+
+# One section per stage, as GET /gig-forms returns them (trimmed to the fields we read).
+SECTIONS = {'sections': [
+    {'gigTypeCode': 'SAHAYAK_CHECKOUT', 'gigTypeName': 'Check-out', 'displaySection': 'Ops',
+     'stage': 'POST_DURING', 'required': True},
+    {'gigTypeCode': 'BOOKING', 'gigTypeName': 'Booking', 'displaySection': 'Booking',
+     'stage': 'PRE', 'required': True},
+    {'gigTypeCode': 'SAHAYAK_CHECKIN', 'gigTypeName': 'Check-in', 'displaySection': 'Ops',
+     'stage': 'PRE_DURING', 'required': True},
+    {'gigTypeCode': 'SAHAYAK_CUSTOMER_RATING', 'gigTypeName': 'Customer Rating',
+     'displaySection': 'Feedback', 'stage': 'POST', 'required': False},
+    {'gigTypeCode': 'WHATEVER_IS_NEXT', 'gigTypeName': 'Whatever Is Next',
+     'displaySection': 'New', 'stage': 'DURING', 'required': True},
+]}
+
+
+def test_the_visit_runs_in_the_order_it_happens(monkeypatch):
+    """The API gives each section a stage, not a position, so the stages have to be sequenced
+    here or check-out turns up before the Sahayak has arrived."""
+    monkeypatch.setattr(preventia, 'gig_forms', lambda *a, **k: SECTIONS)
+    steps = preventia.journey('any-id')
+    assert [s['key'] for s in steps] == [
+        'SAHAYAK_CHECKIN', 'WHATEVER_IS_NEXT', 'SAHAYAK_CHECKOUT', 'SAHAYAK_CUSTOMER_RATING']
+
+
+def test_the_booking_step_is_not_part_of_what_a_visit_covers(monkeypatch):
+    """By the time anybody reads this list they have already filled the booking form in."""
+    monkeypatch.setattr(preventia, 'gig_forms', lambda *a, **k: SECTIONS)
+    assert 'BOOKING' not in [s['key'] for s in preventia.journey('any-id')]
+
+
+def test_steps_are_renamed_for_the_person_reading_them(monkeypatch):
+    """Their names are written for the Sahayak doing the work. Which steps there are, and
+    whether each is optional, stays theirs."""
+    monkeypatch.setattr(preventia, 'gig_forms', lambda *a, **k: SECTIONS)
+    steps = sahayak.decorate_steps(preventia.journey('any-id'))
+    by_key = {s['key']: s for s in steps}
+    assert by_key['SAHAYAK_CHECKIN']['title'] == 'Sahayak arrives'
+    assert by_key['SAHAYAK_CUSTOMER_RATING']['optional'] is True
+    # a step we have no words for keeps theirs rather than vanishing
+    assert by_key['WHATEVER_IS_NEXT']['title'] == 'Whatever Is Next'
+
+
+def test_the_journey_endpoint_says_nothing_rather_than_guessing(client, db):
+    """Preventia is off in the tests, so there is no catalogue id to ask about. An empty list
+    means "we could not tell you" and the page keeps the steps it shipped with."""
+    r = client.get('/api/sahayak-journey?service=wellness_screen')
+    assert r.status_code == 200
+    assert r.get_json() == {'success': True, 'steps': []}
+    assert client.get('/api/sahayak-journey').get_json()['steps'] == []
+
+
+def test_the_page_never_waits_on_the_journey(client, db):
+    """Nine of those calls cold is eleven seconds. The page must not make any of them: the
+    bundle asks for one service at a time, when somebody opens it."""
+    html = client.get('/sahayak').data.decode()
+    assert 'journeyUrl' in html, 'the bundle needs the endpoint to call'
+    assert '"steps"' not in html, 'the journey must not be rendered into the page'

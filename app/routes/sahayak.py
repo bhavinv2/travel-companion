@@ -68,6 +68,27 @@ def landing():
                            canonical_url=_canonical())
 
 
+@sahayak_bp.route('/api/sahayak-journey')
+def journey():
+    """What one service's visit covers, from Preventia.
+
+    Asked for one service at a time, when a visitor opens it, rather than handed over with the
+    page: the upstream call is slow and its response is large, and nine of them cold is eleven
+    seconds of a landing page nobody is looking at yet.
+
+    An empty list means "we could not tell you" -- the page keeps the steps it shipped with
+    rather than claiming a visit covers nothing.
+    """
+    from app.services import preventia
+
+    key = (request.args.get('service') or '').strip()
+    svc = sahayak.by_key(key) if key else None
+    if not svc or not svc.get('remote_id') or not preventia.enabled():
+        return jsonify({'success': True, 'steps': []})
+    steps = sahayak.decorate_steps(preventia.journey(svc['remote_id']))
+    return jsonify({'success': True, 'steps': steps or []})
+
+
 @sahayak_bp.route('/api/sahayak-booking', methods=['POST'])
 @rate_limit(10, 3600)
 def book():

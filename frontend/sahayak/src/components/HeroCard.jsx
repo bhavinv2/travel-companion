@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
 import { ArrowButton, cx } from './ui.jsx';
-import { catalogue } from '../data/site.js';
-import { GIG_SERVICES } from '../data/services.js';
+import { catalogue, journeyFor } from '../data/site.js';
+import { GIG_SERVICES, gigFor } from '../data/services.js';
 
 // Quick-start card that overlaps the bottom of the hero (pattern from nriparentservice.com).
 //
@@ -114,7 +114,23 @@ export function NeedHeroCard({ openBook }) {
   const [city, setCity] = useState('');
   const [when, setWhen] = useState('');
   const t = list.find((x) => x.key === tab) || list[0];
+  const [steps, setSteps] = useState(null);
+  const key = t && t.key;
+  /* Preventia's own list of what the visit covers, fetched for the service being shown and
+     swapped in when it lands. Until then the card shows the steps the bundle shipped with, so
+     the card is never blank and never waits. */
+  useEffect(() => {
+    if (!key) return;
+    setSteps(journeyFor(key, (s) => setSteps(s)));
+  }, [key]);
   if (!t) return null;                 // a catalogue with nothing in it: draw no card at all
+  const gig = gigFor(t.key);
+  const covers = steps && steps.length
+    ? steps.map((s) => ({ name: s.title, optional: s.optional }))
+    : gig
+      ? gig.includes.map((x) => ({ name: x, optional: false }))
+        .concat(gig.optional.map((x) => ({ name: x, optional: true })))
+      : [];
 
   return (
     <div className="hq rise d5">
@@ -129,6 +145,20 @@ export function NeedHeroCard({ openBook }) {
               {t.price && t.duration && <span aria-hidden="true"> · </span>}
               {t.duration && <span>{t.duration}</span>}
             </p>
+          )}
+          {/* What the visit actually covers. The catalogue API names and prices a service but
+              says nothing about its contents; the steps come from the GIG sheet, which is the
+              only place they are written down. Optional ones are marked rather than hidden --
+              "if needed" is the honest answer and the alternative is a promise we have not
+              made. */}
+          {covers.length > 0 && (
+            <ul className="hq-inc">
+              {covers.map((c) => (
+                <li key={c.name} className={c.optional ? 'opt' : undefined}>
+                  {c.name}{c.optional && <small> if needed</small>}
+                </li>
+              ))}
+            </ul>
           )}
           <form
             className="hq-form"

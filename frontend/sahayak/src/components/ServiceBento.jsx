@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from './Icon.jsx';
 import { ArrowButton, cx } from './ui.jsx';
+import { journeyFor } from '../data/site.js';
 
 /*
  * "What a Sahayak helps with" — bento grid in the pattern of nriparentservice.com's
@@ -207,7 +208,13 @@ function CoverageModal({ service: s, onClose, openBook }) {
   const track = useRef(null);
   const bar = useRef(null);
   const [dragging, setDragging] = useState(false);
-  const steps = s.journey;
+  /* Preventia's own list of what this visit covers, fetched when the panel opens -- one
+     service, not all nine, because the upstream call is slow. Until it lands (or if it never
+     does) the steps the bundle shipped with are shown, which is the same list read from the
+     GIG sheet rather than from the API. */
+  const [remote, setRemote] = useState(null);
+  useEffect(() => { setRemote(journeyFor(s.key, setRemote)); }, [s.key]);
+  const steps = (remote && remote.length ? remote : s.journey) || [];
   const width = 220 + STEP_X * (steps.length - 1) + 260;
   const d = wavePath(steps.length);
   const required = steps.filter((x) => !x.optional).length;

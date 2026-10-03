@@ -101,6 +101,54 @@ REMOTE_COPY = {
 }
 
 
+# What to call each step of the visit, keyed by Preventia's gig type.
+#
+# The API decides WHICH steps a service has and whether each is required -- that is the part
+# that must stay theirs, so a step they add or make optional shows up here without a deploy.
+# What it is CALLED is ours: their names are operational ("Customer Digitization", "Verified
+# Signature", "Wellness Questionary"), written for the person doing the work, and this list is
+# read by a son in New Jersey deciding whether to book a visit for his mother.
+#
+# A code not listed keeps their name, so a new step appears rather than disappearing.
+STEP_COPY = {
+    'SAHAYAK_CHECKIN': ('Sahayak arrives', 'Time and place recorded when they get there.'),
+    'SAHAYAK_WELLNESS_QUESTIONARY': ('Wellness questionnaire',
+                                     'Health history, lifestyle, allergies and symptoms.'),
+    'SAHAYAK_VITALS_CAPTURE': ('Vitals', 'BP, pulse, SpO2, temperature, sugar, weight and BMI.'),
+    'SAHAYAK_BLOODWORK': ('Blood tests', 'Pre- or post-meal samples, as advised.'),
+    'SAHAYAK_URINE': ('Urine test', 'Collected and labelled during the visit.'),
+    'SAHAYAK_ECG': ('ECG', 'A reading taken at home on a portable device.'),
+    'SAHAYAK_CLINICAL_HISTORY': ('Clinical history',
+                                 'Complaints, past illness, surgery and family history.'),
+    'MEDICINES': ('Medicines review', 'Names, doses and schedule written down.'),
+    'SAHAYAK_HEALTH_RECORDS': ('Health records updated',
+                               'Prescriptions, reports and visit notes saved for you.'),
+    'SAHAYAK_CUSTOMER_DIGITIZATION': ('App set-up for your parents',
+                                      'Help using the app for bookings, records and payments.'),
+    'SAHAYAK_DROP_LOCATION': ('Taken to the appointment',
+                              'Accompanied to the hospital, clinic or chosen place.'),
+    'SAHAYAK_SAMPLE_SUBMISSION': ('Samples handed to the lab', 'With the time recorded.'),
+    'SAHAYAK_CHECKOUT': ('Visit closed', 'Summary of the visit shared with you.'),
+    'SAHAYAK_CUSTOMER_RATING': ('Your feedback', 'Rate the visit and tell us how it went.'),
+    'DOCTOR_SIGNATURE': ('Doctor sign-off', 'A doctor verifies and signs the record.'),
+}
+
+
+def decorate_steps(steps):
+    """Preventia's journey in words a family can read. None stays None: see journey()."""
+    if steps is None:
+        return None
+    out = []
+    for s in steps:
+        row = dict(s)
+        title, text = STEP_COPY.get(row.get('key') or '', (None, None))
+        if title:
+            row['title'] = title
+            row['text'] = text
+        out.append(row)
+    return out
+
+
 def decorate(rows):
     """Put our own words and icons on Preventia's catalogue, matched by their category code."""
     out = []

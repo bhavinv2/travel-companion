@@ -4,7 +4,7 @@ import Icon from './Icon.jsx';
 import { ArrowButton, Chips, Quote, Upload, cx } from './ui.jsx';
 import thumb from '../assets/hero-need.jpg';
 
-import { GIG_SERVICES, SERVICE_KEYS, serviceByKey } from '../data/services.js';
+import { GIG_SERVICES, SERVICE_KEYS, gigFor } from '../data/services.js';
 import { site, postJson } from '../data/site.js';
 
 /* The services the booking dropdown offers.
@@ -29,6 +29,8 @@ const EMPTY = {
   followUp: '', file: null, name: '', phone: '', frequency: '',
 };
 
+/* Keyed by the GIG sheet's own service names, which is what gigFor() hands back -- the
+   catalogue's keys are Preventia's category codes and do not match these. */
 const DROP_LABEL = {
   'Out-Patient Visit': 'Hospital or clinic to visit',
   'In-Patient Visit': 'Hospital for admission',
@@ -37,7 +39,7 @@ const DROP_LABEL = {
 };
 
 function validate(d) {
-  const svc = serviceByKey(d.svc);
+  const svc = gigFor(d.svc);
   return {
     who: !d.who,
     svc: !d.svc,
@@ -140,7 +142,7 @@ export default function BookingModal({ open, prefill, onClose }) {
   };
 
   const fld = (key, extra) => cx('fld', errors[key] && 'err', extra);
-  const svc = serviceByKey(data.svc);
+  const svc = gigFor(data.svc);
 
   return (
     <div className="bk-wrap" hidden={!open}>

@@ -172,3 +172,24 @@ GIG_SERVICES.forEach((g) => { g.journey = JOURNEYS[g.key]; });
 
 export const SERVICE_KEYS = GIG_SERVICES.map((s) => s.key);
 export const serviceByKey = (k) => GIG_SERVICES.find((s) => s.key === k);
+
+/* Preventia's category codes, matched back to the rows of the GIG sheet above.
+ *
+ * The API names the categories and prices them but carries nothing about what a visit
+ * actually covers -- that lives only in the sheet. Most codes line up once punctuation is
+ * flattened (OUT_PATIENT_VISIT -> out_patient_visit -> 'Out-Patient Visit'); two do not, so
+ * the match cannot be purely mechanical.
+ */
+const slug = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_+$/g, '');
+const SLUG_ALIASES = {
+  demo: 'demo_visit',
+  virtual_consult_support: 'virtual_consultation_support',
+};
+const BY_SLUG = {};
+GIG_SERVICES.forEach((s) => { BY_SLUG[slug(s.key)] = s; });
+
+/** The GIG-sheet entry for a catalogue key, or null if we have nothing for it. */
+export function gigFor(key) {
+  const k = slug(key);
+  return BY_SLUG[SLUG_ALIASES[k] || k] || null;
+}

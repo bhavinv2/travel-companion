@@ -50,6 +50,34 @@ export function catalogue(fallback = []) {
   }));
 }
 
+/* What a visit covers, per service, from Preventia -- asked for one service at a time.
+ *
+ * Not handed over with the page: the upstream call is slow and its response large, and nine of
+ * them cold is eleven seconds of a landing page nobody is looking at yet. So the page renders
+ * the steps the bundle shipped with (the GIG sheet, which is where Preventia's own list came
+ * from) and replaces them the moment the real ones arrive.
+ *
+ * Answers are kept for the life of the page: opening the same service twice should not ask
+ * twice. A failure is cached as "nothing", so a service whose steps cannot be fetched is not
+ * retried on every hover.
+ */
+const JOURNEYS = new Map();
+
+export function journeyFor(key, onReady) {
+  if (!key || !site.journeyUrl) return null;
+  if (JOURNEYS.has(key)) return JOURNEYS.get(key);
+  JOURNEYS.set(key, null);                       // in flight: do not ask again
+  fetch(site.journeyUrl + '?service=' + encodeURIComponent(key))
+    .then((r) => r.json())
+    .then((b) => {
+      const steps = (b && b.steps) || [];
+      JOURNEYS.set(key, steps.length ? steps : []);
+      if (steps.length && onReady) onReady(steps);
+    })
+    .catch(() => { JOURNEYS.set(key, []); });
+  return null;
+}
+
 /** POST JSON to one of our endpoints with the CSRF token the page was rendered with.
  *
  * Returns the parsed body on success and throws an Error carrying the server's message

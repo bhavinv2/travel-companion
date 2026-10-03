@@ -2,21 +2,41 @@ import { useState } from 'react';
 import Icon, { Underline } from './Icon.jsx';
 import MultiStepForm, { Field, Q } from './MultiStepForm.jsx';
 import { SERVICES } from './BookingModal.jsx';
-import { GIG_SERVICES } from '../data/services.js';
+import { GIG_SERVICES, gigFor } from '../data/services.js';
 import ServiceBento from './ServiceBento.jsx';
 import { ArrowButton, ArrowLink, Chips, Quote, Reveal, SectionHead, SideDecor, Tag, cx } from './ui.jsx';
 import { useInView } from '../hooks.js';
-import { site, postJson } from '../data/site.js';
+import { site, postJson, catalogue } from '../data/site.js';
 import meetImg from '../assets/meet-sahayak-family.jpg';
 import callImg from '../assets/hero-need.jpg';
 
-// Service cards come straight from the GIG sheet (see src/data/services.js).
-const SERVICE_CARDS = GIG_SERVICES;
+/* The cards are the catalogue -- Preventia's services, their names, their blurbs and their
+ * prices -- wearing the GIG sheet's photograph and colours, which the API does not carry. The
+ * steps on each card are the sheet's; the panel replaces them with Preventia's own the moment
+ * it opens one.
+ *
+ * Matched on the service key, so a category Preventia adds still gets a card: it just arrives
+ * without a photograph rather than not at all.
+ */
+const cards = () => catalogue(GIG_SERVICES).map((s) => {
+  const g = gigFor(s.key) || {};
+  return {
+    ...g,
+    key: s.key,
+    title: s.name || g.title,
+    text: s.blurb || g.text || '',
+    price: s.price,
+    duration: s.duration,
+    journey: g.journey || [],
+    includes: g.includes || [],
+    optional: g.optional || [],
+  };
+});
 
 // How it works: numbered steps on a dashed track (pattern from nriparentservice.com).
 const JOURNEY = [
   { icon: 'phoneForm', title: 'Tell Us What You Need', text: "Your parent's location, needs and the support required.", chip: 'Takes two minutes' },
-  { icon: 'searchPerson', title: 'Choose the Right Service', text: "Pick the help that matches your parent's situation.", chip: `${GIG_SERVICES.length} services to pick` },
+  { icon: 'searchPerson', title: 'Choose the Right Service', text: "Pick the help that matches your parent's situation.", chip: `${catalogue(GIG_SERVICES).length} services to pick` },
   { icon: 'personPlus', title: 'Get a Suitable Sahayak', text: 'We match a trained, verified professional near them.', chip: 'Background verified', tone: 'g' },
   { icon: 'calendarCheck', title: 'Confirm the Visit', text: 'Choose a date and time that suits your parents.', chip: 'Flexible scheduling' },
   { icon: 'logo', title: 'Receive Care & Updates', text: 'Your Sahayak provides the care and keeps you informed.', chip: 'Regular updates' },
@@ -99,7 +119,7 @@ function Services({ openBook }) {
           quote="Care that knocks on their door."
           sub="Real, everyday situations where a trained Sahayak steps in for your parents — so you never have to worry from a distance."
         />
-        <ServiceBento services={SERVICE_CARDS} openBook={openBook} />
+        <ServiceBento services={cards()} openBook={openBook} />
       </div>
     </section>
   );
