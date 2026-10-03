@@ -95,6 +95,12 @@ function JourneySwitch({ mode, onPick }) {
   );
 }
 
+/* How long the move takes. Slow on purpose: the point is to be watched, and the previous
+ * third of a second of shrink-and-blur read as a flicker rather than a transition. */
+const VEIL_GROW = 620;
+const VEIL_HOLD = 300;
+const VEIL_DRAIN = 700;
+
 /* The journey switch, pinned to the top-right of the hero.
  *
  * Portalled to <body> rather than rendered inside the page. The transition folds the whole
@@ -133,6 +139,26 @@ function HeroSwitch({ mode, onSwitch }) {
       <span className="sah-switch-arr" aria-hidden="true"><Icon name="arrow" sw={2.4} /></span>
     </button>,
     host);
+}
+
+/* The disc that carries you across. Grows out of the pressed control in the colour of the
+ * journey you are going to, says where you are going, then drains back into it. Portalled to
+ * <body> and pointer-events:none -- it is scenery, not a dialog.
+ */
+function Veil({ veil }) {
+  if (!veil || typeof document === 'undefined') return null;
+  const j = JOURNEY[veil.to];
+  return createPortal(
+    <div className={cx('jv', 'to-' + veil.to, veil.phase)} aria-hidden="true"
+         style={{ '--jx': veil.x + 'px', '--jy': veil.y + 'px', '--jr': veil.r + 'px' }}>
+      <span className="jv-ink"></span>
+      <span className="jv-tx">
+        <span className="jv-ico"><Icon name={j.icon} sw={1.8} /></span>
+        <b>{j.label}</b>
+        <small>{j.sub}</small>
+      </span>
+    </div>,
+    document.body);
 }
 
 const NAV_LINKS = {
@@ -305,11 +331,12 @@ export default function App() {
      The origin is measured from the control itself, so it is right whether the press came
      from the hero, the site header or the nav. */
   const [swap, setSwap] = useState('');
+  const [veil, setVeil] = useState(null);
   const timers = useRef([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   const switchTo = useCallback((m, origin) => {
-    if (m === mode) return;
+    if (m === mode || veil) return;        // one move at a time
     const page = document.getElementById('page');
     const still = window.matchMedia
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -318,35 +345,34 @@ export default function App() {
       scrollToId('top');
       return;
     }
-    // Where to fold into, in the page's own coordinates, and how far the opening circle has
-    // to travel to clear the furthest corner.
-    const aim = () => {
-      const b = origin.getBoundingClientRect();
-      const x = b.left + b.width / 2 + window.scrollX;
-      const y = b.top + b.height / 2 + window.scrollY;
-      page.style.setProperty('--ox', x + 'px');
-      page.style.setProperty('--oy', y + 'px');
-      page.style.setProperty('--or',
-        Math.ceil(Math.hypot(Math.max(x, page.offsetWidth - x),
-                             Math.max(y, page.offsetHeight - y))) + 'px');
-    };
-    aim();
+    /* The veil is fixed, so it works in screen coordinates and the control it grows out of
+       does not move under it -- every control that can start this is fixed or sticky. The
+       radius is the distance to the furthest corner of the viewport, so the disc always
+       covers whatever is behind it however near the edge the control sits. */
+    const b = origin.getBoundingClientRect();
+    const x = b.left + b.width / 2;
+    const y = b.top + b.height / 2;
+    setVeil({
+      to: m,
+      x,
+      y,
+      r: Math.ceil(Math.hypot(Math.max(x, window.innerWidth - x),
+                              Math.max(y, window.innerHeight - y))) + 40,
+      phase: 'grow',
+    });
     setSwap('out');
+    // Swap underneath while the colour is covering everything, then drain it away.
     timers.current.push(setTimeout(() => {
-      // Scroll first, then re-aim: every control that can start this is fixed or sticky, so
-      // its position on screen does not change, but at scroll 0 the page's coordinates and
-      // the screen's finally agree.
       window.scrollTo(0, 0);
-      aim();
-      // Both in one update. Setting the mode and waiting a frame for the class left the new
-      // journey mounted but still wearing the last frame of the fold -- invisible -- for as
-      // long as React took to render it, which was the better part of two hundred
-      // milliseconds of nothing on screen.
       setMode(m);
       setSwap('in');
-      timers.current.push(setTimeout(() => setSwap(''), 640));
-    }, 340));
-  }, [mode]);
+      setVeil((v) => (v ? { ...v, phase: 'drain' } : v));
+    }, VEIL_GROW + VEIL_HOLD));
+    timers.current.push(setTimeout(() => {
+      setVeil(null);
+      setSwap('');
+    }, VEIL_GROW + VEIL_HOLD + VEIL_DRAIN));
+  }, [mode, veil]);
 
   const toggleMode = (e) =>
     switchTo(mode === 'need' ? 'become' : 'need', e && e.currentTarget);
@@ -365,6 +391,7 @@ export default function App() {
       {chrome && <div className="mob-switch"><SwitchCta mode={mode} onClick={toggleMode} className="block" /></div>}
       {!chrome && slot && createPortal(<JourneySwitch mode={mode} onPick={switchTo} />, slot)}
       <HeroSwitch mode={mode} onSwitch={switchTo} />
+      <Veil veil={veil} />
       <Heroes openBook={openBook} onApply={onApply} />
       <NeedMode openBook={openBook} />
       <BecomeMode mode={mode} applyAs={applyAs} onApplyAs={(bg) => setApplyAs({ bg, nonce: Date.now() })} />

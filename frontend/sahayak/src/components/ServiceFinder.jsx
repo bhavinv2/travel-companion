@@ -326,10 +326,20 @@ export default function FinderModal({ mode, openBook }) {
     const forced = /[?&#]finder(=1)?(&|$)/.test(location.search + location.hash);
     if (seen && !forced) return undefined;
 
+    /* Open, not merely present. The booking dialog stays mounted so answers survive being
+       closed and reopened -- it hides with `hidden`, it does not unmount -- so testing for
+       the element itself was true from the moment the page loaded, and this popup retried
+       for ever and never appeared. offsetParent is null for anything hidden or display:none,
+       which is the cheap way to ask "is this actually on screen". */
+    const showing = (sel) => {
+      const el = document.querySelector(sel);
+      return !!el && el.offsetParent !== null;
+    };
     const busy = () => {
       const a = document.activeElement;
       return (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))
-        || !!document.querySelector('.bk-wrap, .cov-wrap')
+        || showing('.bk-wrap')
+        || showing('.cov-wrap')
         || document.body.classList.contains('lock');
     };
     const show = () => {
