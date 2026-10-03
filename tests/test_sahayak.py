@@ -12,7 +12,7 @@ import pytest
 from conftest import login, logout
 from app import db as _db
 from app.models import SahayakBooking, SAHAYAK_STATUSES
-from app.services import help_center, sahayak
+from app.services import help_center, preventia, sahayak
 
 GOOD = {'service': 'phlebotomy', 'patient_name': 'Lakshmi Rao', 'patient_age': '68',
         'phone': '+91 90000 00000', 'email': 'child@example.com',
@@ -297,3 +297,74 @@ def test_every_status_is_reachable_through_the_endpoint(client, db, cs_user):
                               'cancelled_reason': 'test'})
         assert r.status_code == 200, status
         assert _db.session.get(SahayakBooking, bid).status == status
+
+
+# What Preventia sends, and what the page makes of it
+# ---------------------------------------------------------------------------
+
+# Trimmed from a live GET /service-categories, keeping the fields the page reads.
+REMOTE_SAMPLE = [
+    {'id': '9a332a7d-1b81-3ccc-c996-25418794f59e', 'code': 'WELLNESS_SCREEN',
+     'providerType': 'SAHAYAK', 'name': 'Wellness Screen',
+     'description': 'Category code: SAHAYAK_WELLNESS',
+     'pricing': {'configured': True, 'currency': 'INR', 'baseFare': 250.0}},
+    {'id': '4531e2a5-431e-ad47-5e57-4727a83ed7a4', 'code': 'PHARMACY_DELIVERY',
+     'providerType': 'SAHAYAK', 'name': 'Pharmacy Delivery',
+     'description': 'Category code: SAHAYAK_PHARMACY_DELIVERY',
+     'pricing': {'configured': True, 'currency': 'INR', 'baseFare': 100.0}},
+    {'id': 'ffffffff-0000-0000-0000-000000000000', 'code': 'SOMETHING_NEW',
+     'providerType': 'SAHAYAK', 'name': 'Something New',
+     'description': 'Category code: SAHAYAK_NEW', 'pricing': {'configured': False}},
+]
+
+
+def test_their_names_and_prices_win():
+    """The whole reason the API comes first: a price edited there and not here is a customer
+    quoted the wrong number."""
+    rows = sahayak.decorate(preventia.as_catalogue(REMOTE_SAMPLE))
+    by_key = {r['key']: r for r in rows}
+    assert by_key['wellness_screen']['name'] == 'Wellness Screen'
+    assert by_key['wellness_screen']['price'] == '250'
+    assert by_key['pharmacy_delivery']['price'] == '100'
+    # and the id, so a booking can be tied back to their catalogue
+    assert by_key['wellness_screen']['remote_id'] == '9a332a7d-1b81-3ccc-c996-25418794f59e'
+
+
+def test_their_descriptions_never_reach_the_page():
+    """Every category's description comes back as its own internal code. Printed on a public
+    page that reads as a leak, so ours replaces it -- matched on their code, not on the name,
+    which is theirs to reword."""
+    rows = sahayak.decorate(preventia.as_catalogue(REMOTE_SAMPLE))
+    for r in rows:
+        assert 'Category code:' not in (r['blurb'] or ''), r['key']
+    by_key = {r['key']: r for r in rows}
+    assert by_key['wellness_screen']['blurb'].startswith('A full home check')
+    assert by_key['wellness_screen']['duration'] == '60–75 min'
+
+
+def test_a_category_we_have_no_words_for_still_appears():
+    """They can add one tomorrow. It should show up priced and bookable, just plainer -- not
+    vanish, and not carry their placeholder text."""
+    rows = sahayak.decorate(preventia.as_catalogue(REMOTE_SAMPLE))
+    new = [r for r in rows if r['key'] == 'something_new'][0]
+    assert new['name'] == 'Something New'
+    assert new['blurb'] == ''
+    assert new['price'] == ''        # pricing not configured: say nothing rather than invent
+
+
+def test_the_page_uses_the_remote_catalogue_when_it_answers(app, monkeypatch):
+    monkeypatch.setenv('PREVENTIA_API_URL', 'https://example.invalid/api/v1')
+    monkeypatch.setenv('PREVENTIA_API_KEY', 'pv_test_key')
+    monkeypatch.setattr(preventia, 'service_categories', lambda role=preventia.ROLE: REMOTE_SAMPLE)
+    with app.app_context():
+        names = [s['name'] for s in sahayak.services()]
+    assert names == ['Wellness Screen', 'Pharmacy Delivery', 'Something New']
+
+
+def test_a_silent_api_falls_back_rather_than_emptying_the_page(app, monkeypatch):
+    """None is "could not ask" and must not be read as "no services"."""
+    monkeypatch.setenv('PREVENTIA_API_URL', 'https://example.invalid/api/v1')
+    monkeypatch.setenv('PREVENTIA_API_KEY', 'pv_test_key')
+    monkeypatch.setattr(preventia, 'service_categories', lambda role=preventia.ROLE: None)
+    with app.app_context():
+        assert len(sahayak.services()) == len(sahayak.DEFAULT_SERVICES)

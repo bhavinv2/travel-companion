@@ -1,26 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import Icon from './Icon.jsx';
 import { ArrowButton, cx } from './ui.jsx';
+import { catalogue } from '../data/site.js';
+import { GIG_SERVICES } from '../data/services.js';
 
-// Tabbed quick-start card that overlaps the bottom of the hero (pattern from nriparentservice.com).
-// `svc` is the matching service in the booking popup (the GIG-sheet service list), so the
-// original tab names can stay while the popup still opens with the right service selected.
-const NEED_TABS = [
-  {
-    key: 'Health Checkup', svc: 'Vitals', title: 'Health Checkup', sub: 'BP, sugar & vitals at home',
-    heading: 'Health Checkups at Home',
-    text: 'A trained Sahayak visits your parents to check BP, sugar and vitals — and shares the update with you.',
-  },
-  {
-    key: 'Doctor Appointment', svc: 'Out-Patient Visit', title: 'Doctor Visit', sub: 'Before, during & after',
-    heading: 'Doctor Visit Assistance',
-    text: 'Your Sahayak accompanies your parents to appointments, takes notes and keeps you in the loop.',
-  },
-  {
-    key: 'Hospital Visit', svc: 'In-Patient Visit', title: 'Hospital Visit', sub: 'Visits & procedures',
-    heading: 'Hospital Assistance',
-    text: 'A trusted companion for hospital visits, procedures and follow-ups — so your parents are never alone.',
-  },
-];
+// Quick-start card that overlaps the bottom of the hero (pattern from nriparentservice.com).
+//
+// It used to carry three hand-written tabs whose names matched nothing the rest of the page
+// offered, which meant five of the real services had no route from the hero at all and the two
+// the visitor could see were named differently in the booking popup. The row is now one chip
+// per service in the catalogue, whatever that catalogue turns out to hold -- so when Preventia
+// is connected, the names, the descriptions and the prices here are theirs.
 
 const BECOME_TABS = [
   {
@@ -63,26 +53,88 @@ function Tabs({ tabs, active, onPick, label }) {
   );
 }
 
+/* One chip per service. The label travels with the chip wherever there is room: eight medical
+ * glyphs with nothing beside them is a guessing game, unlike the three on the companion page
+ * where the icons are unmistakable. Below a phone's width the unselected chips do collapse to
+ * the circle alone -- there is no room for eight labels and the selected one still reads -- and
+ * the icon keeps its accessible name either way. */
+function ServiceChips({ list, active, onPick }) {
+  const row = useRef(null);
+  /* Keep the chosen chip whole. The row scrolls, so picking one near the edge otherwise leaves
+     it half cut off, which reads as a broken layout rather than as more to see. Scrolls by the
+     least that makes it fit, so the row does not jump about on a wide screen where it already
+     did fit -- and runs again once the label has finished opening, because on a phone the chip
+     is still collapsed at the moment the click is handled and would measure far too narrow. */
+  useEffect(() => {
+    const fit = () => {
+      const box = row.current;
+      const el = box && box.querySelector('.hq-chip.on');
+      if (!box || !el) return;
+      const b = box.getBoundingClientRect();
+      const c = el.getBoundingClientRect();
+      if (c.left < b.left) box.scrollLeft -= b.left - c.left + 10;
+      else if (c.right > b.right) box.scrollLeft += c.right - b.right + 10;
+    };
+    fit();
+    const t = setTimeout(fit, 340);       // just past the label's 300ms open
+    return () => clearTimeout(t);
+  }, [active]);
+
+  return (
+    <div className="hq-tabbar">
+      <div className="hq-chips" role="tablist" aria-label="Choose a service" ref={row}>
+        {list.map((s) => (
+          <button
+            key={s.key}
+            type="button"
+            role="tab"
+            aria-selected={active === s.key}
+            title={s.name}
+            className={cx('hq-chip', active === s.key && 'on')}
+            onClick={() => onPick(s.key)}
+          >
+            <span className="hq-chip-ico" aria-hidden="true">
+              {/* The catalogue names a Font Awesome class, which the site's own header already
+                  loads. Standalone there is no Font Awesome, so fall back to a bundled glyph. */}
+              {s.icon ? <i className={'fa-solid ' + s.icon}></i> : <Icon name="stethoscope" sw={1.9} />}
+            </span>
+            <span className="hq-chip-tx">{s.name}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Families: pick a service, fill three quick fields, open the booking popup pre-filled. */
 export function NeedHeroCard({ openBook }) {
-  const [tab, setTab] = useState(NEED_TABS[0].key);
+  const list = catalogue(GIG_SERVICES);
+  const [tab, setTab] = useState(list[0] ? list[0].key : '');
   const [who, setWho] = useState('');
   const [city, setCity] = useState('');
   const [when, setWhen] = useState('');
-  const t = NEED_TABS.find((x) => x.key === tab);
+  const t = list.find((x) => x.key === tab) || list[0];
+  if (!t) return null;                 // a catalogue with nothing in it: draw no card at all
 
   return (
     <div className="hq rise d5">
       <div className="wrap hq-wrap">
-        <Tabs tabs={NEED_TABS} active={tab} onPick={setTab} label="Choose a service" />
+        <ServiceChips list={list} active={t.key} onPick={setTab} />
         <div className="hq-body" role="tabpanel">
-          <h3>{t.heading}</h3>
-          <p>{t.text}</p>
+          <h3>{t.name}</h3>
+          <p>{t.blurb}</p>
+          {(t.price || t.duration) && (
+            <p className="hq-meta">
+              {t.price && <b>&#8377;{t.price}</b>}
+              {t.price && t.duration && <span aria-hidden="true"> · </span>}
+              {t.duration && <span>{t.duration}</span>}
+            </p>
+          )}
           <form
             className="hq-form"
             onSubmit={(e) => {
               e.preventDefault();
-              openBook({ svc: t.svc, who, city, when });
+              openBook({ svc: t.key, who, city, when });
             }}
           >
             <div className="fld">

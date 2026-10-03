@@ -27,6 +27,29 @@ export const site = (typeof window !== 'undefined' && window.__SAHAYAK__) || {};
 /** A published support line, or '' when staff have not set one. Never invented. */
 export const helpline = () => (site.phones && site.phones[0]) || null;
 
+/** The service catalogue, as one list for the whole page.
+ *
+ * Until now the page carried two: this one, which the server fills from Preventia (falling back
+ * to the admin screen and then to shipped defaults), and the GIG_SERVICES array baked into the
+ * bundle. The hero, the bento grid and the apply dropdown read the baked one while the booking
+ * popup read this one, so the popup offered a different set of services from the section above
+ * it. Everything that lists services should call this.
+ *
+ * `fallback` is what to use when the server injected nothing -- running `npm run dev` there is
+ * no window.__SAHAYAK__ at all, and the page still has to render.
+ */
+export function catalogue(fallback = []) {
+  if (site.services && site.services.length) return site.services;
+  return fallback.map((g) => ({
+    key: g.key,
+    name: g.title || g.key,
+    blurb: g.blurb || g.text || '',
+    price: g.price || '',
+    duration: g.duration || '',
+    icon: g.icon || '',
+  }));
+}
+
 /** POST JSON to one of our endpoints with the CSRF token the page was rendered with.
  *
  * Returns the parsed body on success and throws an Error carrying the server's message

@@ -1085,6 +1085,23 @@ body.lock{overflow:hidden}
 .hq-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:14px;align-items:end;padding:20px;border-radius:20px;background:var(--pt)}
 .hq-form .fld input,.hq-form .fld select{background:#fff}
 .hq-form .btn{min-height:52px;white-space:nowrap}
+/* One chip per service, as many as the catalogue holds. A single scrolling row rather than a
+   wrapping one: a dozen services wrap to four rows, and a wall of chips above the form is not a
+   hero card. Scrolling keeps the card the same height whether the catalogue holds eight or
+   twenty, and the section below lists them all anyway. */
+.hq-chips{display:flex;gap:8px;padding:10px 10px 0;background:#fff;border-radius:28px 28px 0 0;width:min(980px,100%);overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+.hq-chips::-webkit-scrollbar{display:none}
+.hq-chip{flex:0 0 auto;scroll-snap-align:start}
+.hq-chip{display:inline-flex;align-items:center;gap:9px;min-height:52px;padding:6px 18px 6px 6px;border-radius:999px;border:1.5px solid var(--line);background:#fff;color:var(--ink);font-family:inherit;cursor:pointer;transition:background-color .25s,border-color .25s,color .25s,box-shadow .25s,padding .3s cubic-bezier(.22,.61,.36,1)}
+.hq-chip:hover{border-color:var(--p)}
+.hq-chip-ico{flex:none;display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--p-soft,#E8F5F2);color:var(--pd);font-size:15px}
+.hq-chip-ico svg{width:19px;height:19px}
+.hq-chip-tx{font-size:15px;font-weight:700;line-height:1.2;white-space:nowrap}
+.hq-chip.on{background:var(--pd);border-color:var(--pd);color:#fff;box-shadow:0 12px 24px -12px rgba(1,16,56,.6)}
+.hq-chip.on .hq-chip-ico{background:rgba(255,255,255,.18);color:#fff}
+.hq-chip:focus-visible{outline:3px solid rgba(15,157,140,.45);outline-offset:2px}
+.hq-meta{margin:-12px 0 18px;font-size:14.5px;color:var(--mut)}
+.hq-meta b{color:var(--ink);font-size:16px}
 .hn{padding-top:72px}
 
 @media (max-width:960px){
@@ -1115,6 +1132,18 @@ body.lock{overflow:hidden}
   .hq-tab{flex:0 0 auto;scroll-snap-align:start;min-height:50px;padding:7px 16px}
   .hq-tab b{font-size:14.5px;white-space:nowrap}
   .hq-tab small{font-size:11.5px;white-space:nowrap}
+  /* No room for a dozen labels, so the unselected chips collapse to their circle and the
+     chosen one opens -- the same treatment the companion page gives its three. The width
+     animates, so picking one looks like it opening rather than the row reflowing. */
+  .hq-chips{padding:8px 8px 0;border-radius:22px 22px 0 0;gap:7px;justify-content:flex-start}
+  .hq-chip{min-height:48px;padding:5px;gap:0}
+  .hq-chip.on{padding:5px 16px 5px 5px}
+  .hq-chip-ico{width:36px;height:36px}
+  .hq-chip-tx{max-width:0;opacity:0;margin-left:0;overflow:hidden;transition:max-width .3s cubic-bezier(.22,.61,.36,1),opacity .2s ease,margin-left .3s cubic-bezier(.22,.61,.36,1)}
+  .hq-chip.on .hq-chip-tx{max-width:16ch;opacity:1;margin-left:9px}
+}
+@media (prefers-reduced-motion:reduce){
+  .hq-chip,.hq-chip-tx{transition:none}
 }
 
 /* ================================================================

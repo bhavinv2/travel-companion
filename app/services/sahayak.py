@@ -62,6 +62,62 @@ DEFAULT_SERVICES = [
 ]
 
 
+# What to say about each of Preventia's categories, keyed by their code.
+#
+# Their catalogue is authoritative for the names, the prices and the ids, and we take all three
+# from it. It is not written for a public page, though: every category's `description` comes
+# back as its own internal code ("Category code: SAHAYAK_WELLNESS"), and the API carries no icon
+# or duration at all. Printing those would give a row of identical icons under nine lines of
+# jargon. So the blurb, the icon and the duration are ours, matched to their code; anything they
+# add that is not listed here still appears, just with a plain icon and their own description.
+REMOTE_COPY = {
+    'WELLNESS_SCREEN': (
+        'A full home check: history, vitals, blood and urine samples, and an ECG — written up '
+        'and shared with you.', 'fa-heart-pulse', '60–75 min'),
+    'LAB_WORK': (
+        'Samples collected at home and handed to the lab, with the submission time recorded.',
+        'fa-vial', '20–30 min'),
+    'VITALS': (
+        'Blood pressure, pulse, SpO2, temperature, sugar, breathing rate, weight and BMI.',
+        'fa-wave-square', '20–30 min'),
+    'OUT_PATIENT_VISIT': (
+        'Your parent is taken to the clinic, accompanied through the appointment, and brought '
+        'home.', 'fa-user-doctor', '2–4 hours'),
+    'IN_PATIENT_VISIT': (
+        'Company and practical help through a hospital stay, procedure or follow-up.',
+        'fa-hospital', '3–6 hours'),
+    'PHARMACY_DELIVERY': (
+        'Prescription medicines collected and delivered to your parents, with the doses '
+        'explained.', 'fa-pills', '45–60 min'),
+    'DEMO': (
+        'A short introductory visit so your parents can meet a Sahayak before booking anything '
+        'longer.', 'fa-handshake-angle', '30–45 min'),
+    'VIRTUAL_CONSULT_SUPPORT': (
+        'A Sahayak sits with your parents through an online consultation and handles the '
+        'technology.', 'fa-video', '45–60 min'),
+    'OTHER': (
+        'Something not on this list — tell us what your parents need and we will arrange it.',
+        'fa-notes-medical', 'Varies'),
+}
+
+
+def decorate(rows):
+    """Put our own words and icons on Preventia's catalogue, matched by their category code."""
+    out = []
+    for r in rows:
+        row = dict(r)
+        blurb, icon, duration = REMOTE_COPY.get((row.get('code') or '').upper(), (None,) * 3)
+        if blurb:
+            row['blurb'] = blurb
+            row['icon'] = icon
+            row['duration'] = duration
+        elif (row.get('blurb') or '').startswith('Category code:'):
+            # their placeholder, which is worse on the page than saying nothing
+            row['blurb'] = ''
+        out.append(row)
+    return out
+
+
 def _blob():
     try:
         return settings.get_setting(SETTING_KEY, {}) or {}
@@ -88,7 +144,7 @@ def services():
         # None is "we could not ask" and falls through to the local list; [] is an answer, and
         # publishing nothing is a thing a catalogue is allowed to say.
         if remote is not None:
-            return preventia.as_catalogue(remote)
+            return decorate(preventia.as_catalogue(remote))
 
     rows = _blob().get('services')
     if rows is None:

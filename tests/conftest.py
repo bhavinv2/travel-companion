@@ -9,6 +9,21 @@ from app import create_app, db as _db  # noqa: E402
 from app.models import User  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _no_live_preventia(monkeypatch):
+    """No test reaches Preventia360.
+
+    services/preventia reads its URL and key straight from the environment, and once a
+    developer puts real ones in .env every test that touches the Sahayak catalogue starts
+    calling a live third party: slow, offline-fragile, and asserting against a list somebody
+    else can edit. The suite used to pass only because nobody had credentials yet.
+
+    A test that wants the remote path sets these itself and stubs the transport.
+    """
+    monkeypatch.delenv('PREVENTIA_API_URL', raising=False)
+    monkeypatch.delenv('PREVENTIA_API_KEY', raising=False)
+
+
 @pytest.fixture()
 def app(tmp_path):
     app = create_app({

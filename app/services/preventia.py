@@ -210,6 +210,9 @@ def as_catalogue(categories):
             'price': ('%g' % float(base)) if base is not None else '',
             'duration': '',
             'icon': 'fa-user-nurse',
+            # their code, unchanged -- `key` is lowercased and truncated for our own use, so it
+            # is no good for matching anything back to their catalogue
+            'code': c.get('code') or '',
             # kept so a booking can be tied back to their catalogue, and so a zone-specific
             # pricing refresh has something to ask about
             'remote_id': c.get('id'),
