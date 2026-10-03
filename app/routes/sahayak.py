@@ -38,10 +38,12 @@ def _canonical():
     return request.host_url.rstrip('/') + '/' + aliases[0].strip('/')
 
 
-PAGE_TITLE = 'Sahayak | Trusted home healthcare for your parents | NRI Parent Service'
-PAGE_DESCRIPTION = ('Book a trained, verified Sahayak to care for your parents at home in India '
-                    '-- health checks, lab work, hospital visits and more. Or join the Sahayak '
-                    'network as a healthcare professional.')
+PAGE_TITLE = ('Sahayak | A health professional with your parents, every step | '
+              'NRI Parent Service')
+PAGE_DESCRIPTION = ('A trained health professional takes each step with your parents in India '
+                    '-- the health check, the lab work, the hospital appointment, the medicines '
+                    '-- and every step is recorded for you to read. Or join the Sahayak network '
+                    'as a health professional.')
 
 
 @sahayak_bp.route('/sahayak')

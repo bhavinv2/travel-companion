@@ -4,6 +4,7 @@ import MultiStepForm, { Field, Q } from './MultiStepForm.jsx';
 import { SERVICES } from './BookingModal.jsx';
 import { GIG_SERVICES, gigFor } from '../data/services.js';
 import ServiceBento from './ServiceBento.jsx';
+import ServiceFinder from './ServiceFinder.jsx';
 import { ArrowButton, ArrowLink, Chips, Quote, Reveal, SectionHead, SideDecor, Tag, cx } from './ui.jsx';
 import { useInView } from '../hooks.js';
 import { site, postJson, catalogue } from '../data/site.js';
@@ -37,10 +38,10 @@ const cards = () => catalogue(GIG_SERVICES).map((s) => {
 const JOURNEY = [
   { icon: 'phoneForm', title: 'Tell Us What You Need', text: "Your parent's location, needs and the support required.", chip: 'Takes two minutes' },
   { icon: 'searchPerson', title: 'Choose the Right Service', text: "Pick the help that matches your parent's situation.", chip: `${catalogue(GIG_SERVICES).length} services to pick` },
-  { icon: 'personPlus', title: 'Get a Suitable Sahayak', text: 'We match a trained, verified professional near them.', chip: 'Background verified', tone: 'g' },
+  { icon: 'personPlus', title: 'Matched With a Professional', text: 'A qualified health professional near them, checked and verified before they ever turn up.', chip: 'Background verified', tone: 'g' },
   { icon: 'calendarCheck', title: 'Confirm the Visit', text: 'Choose a date and time that suits your parents.', chip: 'Flexible scheduling' },
-  { icon: 'logo', title: 'Receive Care & Updates', text: 'Your Sahayak provides the care and keeps you informed.', chip: 'Regular updates' },
-  { icon: 'refresh', title: 'Stay Connected', text: 'Follow-up visits and ongoing support whenever needed.', chip: 'One-time or ongoing', tone: 'g' },
+  { icon: 'logo', title: 'The Visit, Step by Step', text: 'Your Sahayak works through each step and logs it as it is done.', chip: 'Regular updates' },
+  { icon: 'refresh', title: 'Everything Kept', text: 'Readings, prescriptions and notes stay on record, ready for the next visit or the next doctor.', chip: 'One-time or ongoing', tone: 'g' },
 ];
 
 function Hero({ openBook }) {
@@ -49,11 +50,13 @@ function Hero({ openBook }) {
       <div className="wrap hero-grid">
         <div>
           <Reveal as="h2" className="h-xl hn-h">
-            Trusted Healthcare Support for Your Parents, <em>Right at Home<Underline /></em>
+            A Health Professional With Your Parents, <em>Every Step<Underline /></em>
           </Reveal>
-          <Reveal><Quote>Because home is where they heal best.</Quote></Reveal>
+          <Reveal><Quote>Someone qualified, and a record you can read.</Quote></Reveal>
           <Reveal as="p" className="lead">
-            Book a trained Sahayak to support your parents with everyday healthcare needs, appointments, hospital visits, monitoring and more.
+            Book a trained health professional to take your parents through whatever the
+            health need is — the check, the test, the appointment, the hospital, the
+            medicines — with every step recorded as it is done.
           </Reveal>
           <Reveal className="ctas">
             <ArrowButton onClick={() => openBook()}>Book a Sahayak</ArrowButton>
@@ -114,10 +117,10 @@ function Services({ openBook }) {
     <section className="sec tight" id="services">
       <div className="wrap">
         <SectionHead
-          kick="What a Sahayak helps with"
-          title={<>Healthcare Support That <em>Comes to You</em></>}
-          quote="Care that knocks on their door."
-          sub="Real, everyday situations where a trained Sahayak steps in for your parents — so you never have to worry from a distance."
+          kick="What a Sahayak handles"
+          title={<>A Professional on <em>Every Step</em></>}
+          quote="Not a visit. Someone seeing it through."
+          sub="Each service below is run end to end by a trained health professional, and every step is recorded as it happens — so what your parents went through is something you can read, not something you have to ask about."
         />
         <ServiceBento services={cards()} openBook={openBook} />
       </div>
@@ -133,10 +136,10 @@ function Journey({ openBook }) {
         <SectionHead
           center
           kick="How it works"
-          title={<>Your Journey, <em>Made Simple</em></>}
-          quote="Six simple steps, from worry to relief."
+          title={<>From a Request to <em>a Record</em></>}
+          quote="Six steps, and you see every one of them."
           tone="h"
-          sub="From “I need care” to “care taken care of” — wherever in the world you are."
+          sub="You say what is needed, we send someone qualified, and everything from their arrival to the doctor’s sign-off reaches you — wherever in the world you are."
         />
         <ol ref={ref} className={cx('hw io-t', inView && 'in')}>
           {JOURNEY.map((s, i) => (
@@ -171,12 +174,13 @@ function MeetAndPrice({ openBook }) {
             <img src={meetImg} alt="A Sahayak sitting with an elderly couple at their dining table, going over their care plan on a tablet" />
           </div>
           <div className="mt-body">
-            <span className="kick">Your care partner</span>
+            <span className="kick">Who turns up</span>
             <h2 className="h2">Meet Your <em>Sahayak</em></h2>
-            <Quote>A familiar face they'll look forward to.</Quote>
+            <Quote>Qualified, verified, and the same face each time.</Quote>
             <p className="mt-lead">
-              Every Sahayak is background-checked and trained before their first visit, speaks your parents’ language
-              and knows how to respond calmly if something unexpected happens.
+              Every Sahayak is a qualified health professional — background-checked, trained on the service they are
+              sent for, and backed by a doctor who reviews and signs off the visit. They speak your parents’
+              language and know what to do when something is not routine.
             </p>
             <ul className="mt-chips" aria-label="What every Sahayak brings">
               <li>Background verified</li>
@@ -240,8 +244,8 @@ function MilesAway() {
           <Reveal className="ma-copy">
             <span className="kick">Always close</span>
             <h2 className="h2">You May Be Miles Away. <em>But You Can Still Be There.</em></h2>
-            <Quote tone="p">Distance can't measure love.</Quote>
-            <p className="sub">Being away shouldn't mean being disconnected from your family's care. Sahayak brings trusted healthcare support to their home.</p>
+            <Quote tone="p">Distance should not mean being in the dark.</Quote>
+            <p className="sub">Being far away should not mean finding out late. A professional handles it at their end, the app records each step, and you read what happened without having to press your parents for details.</p>
             <div className="ma-f">
               <div><b>Peace of mind</b><small>Know someone is there</small></div>
               <div><b>Stay connected</b><small>Keep informed</small></div>
@@ -310,7 +314,7 @@ function RequestForm() {
       short: 'Who', label: 'Who needs support',
       content: (
         <>
-          <Q title="Who needs support?" sub="Choose the person the Sahayak will be caring for." />
+          <Q title="Who needs support?" sub="Who the Sahayak will be assisting." />
           <Chips options={['Mother', 'Father', 'Both Parents', 'Other Family Member']} value={data.who} onChange={(v) => set('who', v)} />
         </>
       ),
@@ -319,7 +323,7 @@ function RequestForm() {
       short: 'Where', label: 'Location',
       content: (
         <>
-          <Q title="Where is the care needed?" sub="This helps us find a Sahayak close to your parent's home." />
+          <Q title="Where is it needed?" sub="So we can find a professional close to your parent's home." />
           <div className="fields">
             <Field id="n-city" label="City" name="city" placeholder="e.g. Hyderabad" {...f} />
             <Field id="n-area" label="Area" name="area" placeholder="Locality or neighbourhood" {...f} />
@@ -363,7 +367,7 @@ function RequestForm() {
       short: 'Contact', label: 'Contact details',
       content: (
         <>
-          <Q title="Your contact details" sub="So our care team can reach you about next steps." />
+          <Q title="Your contact details" sub="So our team can reach you about next steps." />
           <div className="fields">
             <Field id="n-name" label="Name" name="name" autoComplete="name" {...f} />
             <Field id="n-rel" label="Relationship" name="relationship" placeholder="e.g. Son, Daughter" {...f} />
@@ -429,8 +433,8 @@ function Request() {
       <div className="wrap">
         <SectionHead
           kick="Request care"
-          title={<>Tell Us How We Can Help <em>Your Parent</em></>}
-          quote="We're just a message away."
+          title={<>Tell Us What <em>Your Parent Needs</em></>}
+          quote="One message, and a professional is on it."
           tone="p"
           sub="A few quick questions, one at a time. It takes about two minutes."
         />
@@ -456,6 +460,9 @@ export default function NeedMode({ openBook }) {
       <main>
         <Hero openBook={openBook} />
         <Services openBook={openBook} />
+        {/* Straight after the nine cards: this is where somebody who has just scrolled them
+            and not recognised their own situation is standing. */}
+        <ServiceFinder openBook={openBook} />
         <Journey openBook={openBook} />
         <MeetAndPrice openBook={openBook} />
         <MilesAway />

@@ -31,7 +31,7 @@ PRODUCTS = [
      'blurb': 'Quote and compare cover',
      'icon': 'M12 2 4 5.5v6c0 5 3.4 9.2 8 10.5 4.6-1.3 8-5.5 8-10.5v-6L12 2zm-1.2 13.3L7.5 12l1.4-1.4 1.9 1.9 4.3-4.3 1.4 1.4-5.7 5.7z'},
     {'key': 'sahayak', 'label': 'Sahayak', 'endpoint': 'sahayak.landing',
-     'blurb': 'A nurse visit at home',
+     'blurb': 'A health professional at home',
      'icon': 'M12 3 2 11h3v10h6v-6h2v6h6V11h3L12 3zm1 7h2v2h-2v2h-2v-2H9v-2h2V8h2v2z'},
 ]
 

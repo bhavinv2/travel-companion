@@ -14,19 +14,19 @@ import { GIG_SERVICES, gigFor } from '../data/services.js';
 
 const BECOME_TABS = [
   {
+    key: 'Doctor', title: 'Doctors', sub: 'MBBS · BAMS · BHMS',
+    heading: 'Join as a Doctor',
+    text: 'Review what a visit found and sign off the record, so the family has an answer they can trust.',
+  },
+  {
     key: 'Nurse', title: 'Nurses & ANMs', sub: 'GNM · B.Sc · ANM',
     heading: 'Join as a Nurse or ANM',
-    text: 'Use your nursing skills to support families with home health checks, monitoring and care.',
+    text: 'Run the checks, take the readings, and know when something needs escalating.',
   },
   {
-    key: 'Phlebotomist', title: 'Phlebotomists', sub: 'Sample collection',
-    heading: 'Join as a Phlebotomist',
-    text: 'Collect samples at home and help families complete diagnostic tests without clinic queues.',
-  },
-  {
-    key: 'Care Coordinator', title: 'Care Coordinators', sub: 'Care planning',
-    heading: 'Join as a Care Coordinator',
-    text: 'Keep families informed and coordinate care between parents, their children and doctors.',
+    key: 'Health Assistant', title: 'Health Assistants', sub: 'Trained · Certified',
+    heading: 'Join as a Health Assistant',
+    text: 'Take a visit from start to finish and record each step as you go.',
   },
 ];
 
@@ -139,13 +139,10 @@ export function NeedHeroCard({ openBook }) {
         <div className="hq-body" role="tabpanel">
           <h3>{t.name}</h3>
           <p>{t.blurb}</p>
-          {(t.price || t.duration) && (
-            <p className="hq-meta">
-              {t.price && <b>&#8377;{t.price}</b>}
-              {t.price && t.duration && <span aria-hidden="true"> · </span>}
-              {t.duration && <span>{t.duration}</span>}
-            </p>
-          )}
+          {/* How long it takes, not what it costs. This card is the first thing on the page,
+              and leading a worried family with a price tag puts the wrong thing first -- the
+              figure is shown once they have chosen, in the finder's result and at booking. */}
+          {t.duration && <p className="hq-meta"><span>{t.duration}</span></p>}
           {/* What the visit actually covers. The catalogue API names and prices a service but
               says nothing about its contents; the steps come from the GIG sheet, which is the
               only place they are written down. Optional ones are marked rather than hidden --

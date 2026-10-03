@@ -14,9 +14,9 @@ import logoMark from './assets/logo-mark.png';
 
 // What each journey calls itself.
 const JOURNEY = {
-  need: { label: 'Book a Sahayak', short: 'Book', sub: 'Care for your parents',
+  need: { label: 'Book a Sahayak', short: 'Book', sub: 'A professional with your parents',
           icon: 'homeHeart' },
-  become: { label: 'Join as a Sahayak', short: 'Join', sub: 'For healthcare professionals',
+  become: { label: 'Join as a Sahayak', short: 'Join', sub: 'For health professionals',
             icon: 'userPlus' },
 };
 // The switch button always advertises the *other* journey, in that journey's colour.
@@ -155,7 +155,7 @@ function Footer({ mode, onSwitch }) {
               <img src={logoMark} alt="" width="200" height="161" />
               <BrandLockup className="ftr-logo-tx" />
             </a>
-            <p>Trusted, verified Sahayaks who care for your parents at home — so you can be there, even from miles away.</p>
+            <p>Qualified health professionals who take each step with your parents at home, and a record of it that reaches you — so you can be there, even from miles away.</p>
           </div>
           <div>
             <h4>For families</h4>
@@ -212,13 +212,13 @@ function Heroes({ openBook, onApply }) {
           <img className="bh-bg" src={heroNeed} alt="A Sahayak in uniform smiling with an elderly mother at her home" />
           <div className="wrap bh-in">
             <div className="bh-copy">
-              <div className="rise"><span className="hero-script">Your parents, our priority — even from miles away.</span></div>
-              <span className="eyebrow rise d1"><i></i>Sahayak · Trusted home healthcare</span>
+              <div className="rise"><span className="hero-script">Someone qualified beside them — even from miles away.</span></div>
+              <span className="eyebrow rise d1"><i></i>Sahayak · Professional health assistance</span>
               <h1 className="bh-h">
-                <span className="ln"><span className="l1">Healthcare,</span></span>
-                <span className="ln"><span className="l2"><span className="t">Right at</span> <span className="b">Home<Underline /></span><span className="dt">.</span></span></span>
+                <span className="ln"><span className="l1">Health Assistance,</span></span>
+                <span className="ln"><span className="l2"><span className="t">At Every</span> <span className="b">Step<Underline /></span><span className="dt">.</span></span></span>
               </h1>
-              <p className="lead rise d3">Trained and verified healthcare professionals come to you — for everyday health needs, monitoring, recovery and support.</p>
+              <p className="lead rise d3">A qualified health professional takes each step with your parents — the check, the test, the appointment, the medicines — and every step is logged as it happens, so you see it without having to ask.</p>
             </div>
           </div>
           <HeroBadge />
@@ -231,14 +231,14 @@ function Heroes({ openBook, onApply }) {
           <img className="bh-bg" src={heroBecome} alt="A smiling Sahayak in uniform carrying a care bag on her way to a home visit" />
           <div className="wrap bh-in">
             <div className="bh-copy">
-              <div className="rise"><span className="hero-script">Your skills. Their comfort. One visit at a time.</span></div>
-              <span className="eyebrow rise d1"><i></i>Sahayak · For healthcare professionals</span>
+              <div className="rise"><span className="hero-script">Your training, where it is actually needed.</span></div>
+              <span className="eyebrow rise d1"><i></i>Sahayak · For health professionals</span>
               <h1 className="bh-h">
-                <span className="ln"><span className="l1">Your Healthcare Skills</span></span>
-                <span className="ln"><span className="l1 l1b">Can Make a Difference</span></span>
+                <span className="ln"><span className="l1">Your Health Training</span></span>
+                <span className="ln"><span className="l1 l1b">Belongs Beside a Family</span></span>
                 <span className="ln"><span className="l2"><span className="t">at</span> <span className="b">Home<Underline /></span><span className="dt">.</span></span></span>
               </h1>
-              <p className="lead rise d3">Join Sahayak and provide trusted healthcare support in your community with flexible work, training and ongoing support.</p>
+              <p className="lead rise d3">Join Sahayak as a health professional. Take assignments you are qualified for, close to home, with the app guiding each step and a doctor reviewing the record.</p>
             </div>
           </div>
           <HeroBadge />

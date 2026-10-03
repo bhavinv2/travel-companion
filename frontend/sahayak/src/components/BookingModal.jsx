@@ -56,7 +56,8 @@ function validate(d) {
 
 /**
  * Quick-booking dialog. Stays mounted so answers survive closing and reopening.
- * `prefill` ({ svc, who, city, date }) is applied each time the dialog opens.
+ * `prefill` ({ svc, who, city, date, when, followUp }) is applied each time the dialog
+ * opens -- the hero card sends some of it, the service finder sends all of it.
  */
 export default function BookingModal({ open, prefill, onClose }) {
   const [data, setData] = useState(EMPTY);
@@ -86,6 +87,9 @@ export default function BookingModal({ open, prefill, onClose }) {
     if (prefill?.when) setData((d) => ({ ...d, frequency: prefill.when }));
     if (prefill?.who) setData((d) => ({ ...d, who: prefill.who }));
     if (prefill?.city) setData((d) => ({ ...d, city: prefill.city }));
+    // the finder asks whether a doctor already requested this, which answers the sheet's
+    // "is this a follow-up" without putting the question a second time
+    if (prefill?.followUp) setData((d) => ({ ...d, followUp: prefill.followUp }));
     document.body.classList.add('lock');
     const t = setTimeout(() => whoRef.current?.querySelector('.chip')?.focus(), 60);
     const onKey = (e) => e.key === 'Escape' && onClose();

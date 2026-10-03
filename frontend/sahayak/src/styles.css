@@ -1563,7 +1563,12 @@ body.lock{overflow:hidden}
 #roles .sec-h,#role .sec-h{margin-bottom:40px}
 
 /* role cards: white, coloured top rule + number, qualification chips, apply link */
-.rl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
+/* Flex, not grid: the list is seven roles and a 3-column grid leaves the seventh
+   stranded alone on the left of a third row, which reads as a card that failed to
+   load. Wrapping and centring puts the remainder in the middle, and max-width keeps a
+   lone card the same size as the rest instead of letting it stretch. */
+.rl{display:flex;flex-wrap:wrap;justify-content:center;gap:22px}
+.rl>*{flex:1 1 calc(33.333% - 15px);max-width:calc(33.333% - 15px);min-width:0}
 .rl-c{position:relative;display:flex;flex-direction:column;padding:30px 28px 26px;border-radius:22px;background:#fff;border:1px solid var(--line);
   box-shadow:0 14px 34px -24px rgba(1,16,56,.28);overflow:hidden;transition:transform .35s cubic-bezier(.2,.7,.2,1),box-shadow .35s,border-color .35s}
 .rl-c::before{content:'';position:absolute;left:0;right:0;top:0;height:5px;background:var(--c)}
@@ -1596,10 +1601,14 @@ body.lock{overflow:hidden}
 .dt-feat p{color:rgba(255,255,255,.82);max-width:760px;font-size:15.5px}
 .dt-badge{display:inline-block;margin-bottom:10px;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.14);color:#fff;font-size:12px;font-weight:700;letter-spacing:.04em}
 
-@media (max-width:1180px){.rl,.dt{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:1180px){.dt{grid-template-columns:repeat(2,minmax(0,1fr))}
+  /* .rl is a flex row, so it takes a basis rather than a column count */
+  .rl>*{flex-basis:calc(50% - 11px);max-width:calc(50% - 11px)}}
 @media (max-width:640px){
   #roles,#role{padding-top:48px!important;padding-bottom:56px}
-  .rl,.dt{grid-template-columns:1fr;gap:14px}
+  .dt{grid-template-columns:1fr;gap:14px}
+  .rl{gap:14px}
+  .rl>*{flex-basis:100%;max-width:100%}
   .rl-c{padding:24px 20px 20px}
   .dt-c{padding:20px 18px;gap:14px}
   .dt-n{font-size:28px}
@@ -1842,3 +1851,79 @@ body.lock{overflow:hidden}
 .jt-uniform{fill:var(--p)}
 .jt-tag.a{fill:#C9781A}.jt-tag.b{fill:#4F5BD5}.jt-tag.c{fill:#16A34A}
 .jt-txt{fill:#fff;font:700 11px 'Plus Jakarta Sans',sans-serif;letter-spacing:.02em}
+
+/* ================================================================
+   "Not sure which one" -- the service finder (components/ServiceFinder.jsx)
+   One question at a time in a single narrow card, in the shape of a short form rather than a
+   wall of choices: somebody who has got this far has already said they are not sure, and
+   making them read three questions' worth of options before answering any of them is the
+   opposite of help.
+   ================================================================ */
+.sf{max-width:660px;margin:34px auto 0;background:#fff;border:1px solid var(--line);border-radius:24px;box-shadow:0 30px 64px -40px rgba(1,16,56,.45);overflow:hidden}
+.sf-head{display:flex;align-items:center;gap:14px;padding:20px 28px;border-bottom:1px solid var(--line);background:#FBFCFE}
+.sf-head h3{margin:0;font-size:17px;font-weight:800;letter-spacing:-.01em;color:#011038}
+.sf-dots{display:flex;gap:6px;margin-left:auto}
+.sf-dots i{width:8px;height:8px;border-radius:50%;background:var(--line);transition:background-color .25s,width .25s}
+.sf-dots i.did{background:var(--p)}
+.sf-dots i.on{width:22px;border-radius:999px;background:var(--pd)}
+.sf-of{font-size:12.5px;font-weight:600;color:var(--mut);white-space:nowrap}
+
+.sf-body{padding:26px 28px 28px}
+.sf-q{margin:0 0 4px;font-size:19px;font-weight:800;letter-spacing:-.015em;color:#011038;line-height:1.3}
+.sf-note{margin:0 0 4px;font-size:13px;color:var(--mut)}
+.sf-rows{display:flex;flex-direction:column;gap:9px;margin-top:18px}
+.sf-rows.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+
+.sf-row{display:flex;align-items:flex-start;gap:12px;width:100%;padding:14px 16px;border-radius:14px;border:1.5px solid var(--line);background:#fff;color:var(--ink);font-family:inherit;text-align:left;cursor:pointer;transition:border-color .2s,background-color .2s,box-shadow .2s}
+.sf-row:hover{border-color:var(--p)}
+.sf-row.on{border-color:var(--pd);background:var(--p-soft,#E8F5F2);box-shadow:0 0 0 1px var(--pd) inset}
+.sf-row:focus-visible{outline:3px solid rgba(15,157,140,.45);outline-offset:2px}
+.sf-rtx{min-width:0}
+.sf-rtx b{display:block;font-size:14.5px;font-weight:700;line-height:1.35}
+.sf-rtx small{display:block;margin-top:3px;font-size:12.5px;color:var(--mut);line-height:1.45}
+.sf-row.on .sf-rtx small{color:#3C6F68}
+
+/* A ring for "pick one", a box for "pick any" -- the shape says which before anything is read. */
+.sf-mark{flex:none;display:grid;place-items:center;width:20px;height:20px;margin-top:1px;border:1.5px solid #C6D0DE;border-radius:50%;background:#fff;color:transparent;transition:border-color .2s,background-color .2s}
+.sf-mark.box{border-radius:6px}
+.sf-mark svg{width:12px;height:12px}
+.sf-row.on .sf-mark{border-color:var(--pd);background:var(--pd);color:#fff}
+.sf-row.on .sf-mark:not(.box)::after{content:'';width:8px;height:8px;border-radius:50%;background:#fff;position:absolute}
+.sf-mark:not(.box){position:relative}
+
+.sf-nav{display:flex;align-items:center;gap:14px;margin-top:22px}
+.sf-back{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:0;font:inherit;font-size:14px;font-weight:600;color:var(--mut);cursor:pointer}
+.sf-back:hover{color:var(--pd)}
+.sf-back svg{width:15px;height:15px}
+.sf-next{margin-left:auto;min-width:148px;min-height:46px;padding:0 26px;border:0;border-radius:999px;background:var(--pd);color:#fff;font:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .2s,transform .2s}
+.sf-next:hover:not(:disabled){transform:translateY(-1px)}
+.sf-next:disabled{opacity:.4;cursor:not-allowed}
+.sf-next:focus-visible{outline:3px solid rgba(15,157,140,.45);outline-offset:2px}
+
+.sf-res .sf-kick{display:inline-block;margin-bottom:10px;padding:5px 12px;border-radius:999px;background:var(--p-soft,#E8F5F2);color:var(--pd);font-size:11.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}
+.sf-res h4{margin:0 0 8px;font-size:25px;font-weight:800;letter-spacing:-.015em;color:#011038}
+.sf-blurb{margin:0 0 12px;font-size:14.5px;line-height:1.6;color:var(--mut)}
+.sf-meta{margin:0 0 18px;font-size:14.5px;color:var(--mut)}
+.sf-meta b{color:#011038;font-size:18px}
+.sf-why{list-style:none;margin:0 0 16px;padding:0;display:flex;flex-direction:column;gap:7px}
+.sf-why li{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600;color:#011038}
+.sf-why svg{flex:none;width:15px;height:15px;color:var(--pd)}
+.sf-gap{display:flex;align-items:flex-start;gap:9px;margin:0 0 18px;padding:11px 13px;border-radius:12px;background:#FFF6EC;color:#8A5212;font-size:13px;line-height:1.5}
+.sf-gap svg{flex:none;width:14px;height:14px;margin-top:2px}
+.sf-acts{display:flex;flex-wrap:wrap;align-items:center;gap:16px}
+.sf-again{border:0;background:none;padding:0;font:inherit;font-size:13.5px;font-weight:600;color:var(--mut);text-decoration:underline;cursor:pointer}
+.sf-alt{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;margin-top:20px;padding:13px 15px;border-radius:14px;border:1.5px dashed var(--line);background:none;color:var(--ink);font-family:inherit;font-size:13.5px;text-align:left;cursor:pointer;transition:border-color .2s,background-color .2s}
+.sf-alt:hover{border-color:var(--p);background:var(--p-soft,#E8F5F2)}
+.sf-alt svg{flex:none;width:16px;height:16px;color:var(--pd)}
+
+@media (max-width:640px){
+  .sf{margin-top:26px;border-radius:20px}
+  .sf-head{padding:16px 18px;gap:10px}
+  .sf-head h3{font-size:15.5px}
+  .sf-of{display:none}
+  .sf-body{padding:20px 18px 22px}
+  .sf-q{font-size:17px}
+  .sf-rows.two{grid-template-columns:1fr}
+  .sf-next{width:100%;margin-left:0}
+  .sf-nav{flex-wrap:wrap}
+}

@@ -13,26 +13,27 @@ import whyGrowth from '../assets/why-growth.jpg';
 
 // Who can become a Sahayak — accent colour, qualification chips and a one-line fit.
 const ROLES = [
-  { c: '#0F9D8C', title: 'Nurses & ANMs', bg: 'Nurse', cta: 'Apply as a Nurse / ANM', chips: ['GNM', 'B.Sc Nursing', 'ANM'], text: 'Registered nurses and auxiliary nurse midwives with hands-on patient care experience.' },
+  { c: '#1D7FC4', title: 'Doctors', bg: 'Doctor', cta: 'Apply as a Doctor', chips: ['MBBS', 'BAMS', 'BHMS'], text: 'Clinically qualified, reviewing what the visit found and signing off the record.' },
+  { c: '#0F9D8C', title: 'Nurses & ANMs', bg: 'Nurse', cta: 'Apply as a Nurse / ANM', chips: ['GNM', 'B.Sc Nursing', 'ANM'], text: 'Clinical training that covers the checks, the readings and knowing when something needs escalating.' },
   { c: '#D9771B', title: 'Phlebotomists', bg: 'Phlebotomist', cta: 'Apply as a Phlebotomist', chips: ['DMLT', 'Sample collection'], text: 'Trained in safe blood draws and collecting samples at home for lab tests.' },
   { c: '#D14B3A', title: 'Paramedics', bg: 'Paramedic', cta: 'Apply as a Paramedic', chips: ['Emergency care', 'BLS'], text: 'Experienced in emergency response, first aid and patient transfers.' },
-  { c: '#1D7FC4', title: 'Certified Health Workers', bg: 'Health Worker', cta: 'Apply as a Health Worker', chips: ['Community health', 'Certified'], text: 'Certified community and home health workers who support daily care.' },
-  { c: '#7250D6', title: 'Care Coordinators', bg: 'Care Coordinator', cta: 'Apply as a Care Coordinator', chips: ['Care planning', 'Family liaison'], text: 'Organised communicators who keep families, parents and doctors in sync.' },
-  { c: '#2E9A55', title: 'Other Healthcare Professionals', bg: 'Other', cta: 'Apply as a Professional', chips: ['Physiotherapy', 'Allied health'], text: 'Physiotherapists, dietitians and other allied health professionals.' },
+  { c: '#1D7FC4', title: 'Certified Health Assistants', bg: 'Health Worker', cta: 'Apply as a Health Assistant', chips: ['Community health', 'Certified'], text: 'Trained to run a visit end to end and record it accurately as they go.' },
+  { c: '#7250D6', title: 'Care Coordinators', bg: 'Care Coordinator', cta: 'Apply as a Care Coordinator', chips: ['Care planning', 'Family liaison'], text: 'The link between the parent, the doctor and the family abroad who is waiting to hear.' },
+  { c: '#2E9A55', title: 'Other Health Professionals', bg: 'Other', cta: 'Apply as a Professional', chips: ['Physiotherapy', 'Allied health'], text: 'Physiotherapists, dietitians and other allied health professionals.' },
 ];
 
 // What a Sahayak does — Care Coordination is the featured duty.
 const YOUR_ROLE = [
-  { title: 'Home Health Support', text: 'Assist families with basic healthcare needs at home.' },
-  { title: 'Vitals Monitoring', text: 'Support routine monitoring of basic health parameters.' },
-  { title: 'Doctor Visit Assistance', text: 'Accompany and assist parents during healthcare appointments.' },
-  { title: 'Hospital Support', text: 'Help families navigate hospital visits and care-related requirements.' },
-  { title: 'Sample Collection Support', text: 'Assist with approved diagnostic and sample collection services where applicable.' },
-  { title: 'Medication Assistance', text: 'Support medication routines according to the assigned care requirements.' },
+  { title: 'Health Assistance at Home', text: 'Run the service the family asked for, step by step, in their own home.' },
+  { title: 'Readings and Records', text: 'Take the readings, enter them as you go, and leave a record the doctor can act on.' },
+  { title: 'Appointments', text: 'Take the parent to the appointment, follow what is said, and bring the outcome back.' },
+  { title: 'Hospital Visits', text: 'Handle admission, procedure and discharge paperwork so the family does not have to from abroad.' },
+  { title: 'Samples and Tests', text: 'Collect approved samples, hand them to the lab, and log the handover.' },
+  { title: 'Medicines', text: 'Check what has been prescribed, what is being taken, and write down the difference.' },
 ];
 const FEATURED_DUTY = {
-  title: 'Care Coordination',
-  text: 'Help keep families informed and coordinate with the appropriate care team — the bridge between parents, their children and doctors.',
+  title: 'Keeping Everyone in the Loop',
+  text: 'The bridge between the parent, the doctor and the family abroad — so nobody is working from a version of events that is two days old.',
 };
 
 // Path steps alternate below (u) and above (d) the wave; x is the node's centre.
@@ -41,7 +42,7 @@ const PATH = [
   { icon: 'idCard', kicker: '02 · Verify', title: 'Submit Your Credentials', text: 'Provide your professional, identification and experience details for verification.', stat: 'Documents verified' },
   { icon: 'searchCheck', kicker: '03 · Get reviewed', title: 'Application Review', text: 'Our team reviews your information and assesses your suitability for the Sahayak network.', stat: 'Details reviewed' },
   { icon: 'grad', kicker: '04 · Learn & prepare', title: 'Complete Training', text: 'Get familiar with the Sahayak platform, service process, safety practices and role-specific requirements.', stat: 'Training & orientation' },
-  { icon: 'heart', kicker: '05 · Start providing care', title: 'Begin Your Sahayak Journey', text: 'Once approved and prepared, you can begin accepting suitable service opportunities.', stat: 'Profile activated' },
+  { icon: 'heart', kicker: '05 · Start taking work', title: 'Your First Assignment', text: 'Once approved and trained, you can start accepting the assignments you are qualified for.', stat: 'Profile activated' },
   { icon: 'trend', kicker: '06 · Keep growing', title: 'Learn, Support & Grow', text: 'Continue developing your skills through ongoing training, support and new opportunities.', stat: 'Ongoing' },
 ];
 
@@ -51,8 +52,8 @@ const PATH_D = 'M0 240 C110 240 110 340 220 340 C420 340 420 80 620 80 C820 80 8
 const WHY = [
   { img: whyFlexible, tag: 'Your schedule', pos: '24% 30%', title: 'Flexible Opportunities', text: 'Choose opportunities that fit your availability.', alt: 'A smiling Sahayak with her phone while an elderly man books an appointment in the app' },
   { img: whyTraining, tag: 'Learning', pos: '50% 35%', title: 'Training & Guidance', text: 'Get the knowledge and support needed for your role.', alt: 'A senior trainer showing the Sahayak app on a tablet to four trainee Sahayaks' },
-  { img: whyCommunity, tag: 'At home', pos: '50% 35%', title: 'Community-Based Care', text: 'Help people who need healthcare support in their own homes.', alt: 'A smiling Sahayak sharing tea with an elderly woman in her living room' },
-  { img: whyGrowth, tag: 'Career growth', pos: '55% 30%', title: 'Professional Development & Ongoing Support', text: 'Continue learning and build your healthcare experience. Get assistance throughout your Sahayak journey.', alt: 'A Sahayak taking an online healthcare course on her laptop, with her certificate of achievement beside her' },
+  { img: whyCommunity, tag: 'At home', pos: '50% 35%', title: 'Work in Your Own Area', text: 'Assignments near you, with people who need a professional rather than a stranger.', alt: 'A smiling Sahayak sharing tea with an elderly woman in her living room' },
+  { img: whyGrowth, tag: 'Career growth', pos: '55% 30%', title: 'Professional Development & Ongoing Support', text: 'Build a documented record of the work you have done, with support behind you the whole way.', alt: 'A Sahayak taking an online healthcare course on her laptop, with her certificate of achievement beside her' },
 ];
 
 function Hero() {
@@ -61,9 +62,9 @@ function Hero() {
     <section className="hero hn" id="join">
       <div className="wrap hero-grid">
         <div>
-          <Reveal as="h2" className="h-xl hn-h">Turn Your Healthcare Skills Into <em>Meaningful Care<Underline /></em></Reveal>
-          <Reveal><Quote>Every visit is a chance to heal.</Quote></Reveal>
-          <Reveal as="p" className="lead">Join the Sahayak network and use your healthcare experience to support families and older adults in your community.</Reveal>
+          <Reveal as="h2" className="h-xl hn-h">Put Your Training Where <em>It Is Needed<Underline /></em></Reveal>
+          <Reveal><Quote>Professional work, properly supported.</Quote></Reveal>
+          <Reveal as="p" className="lead">Join the Sahayak network as a health professional. Each assignment is matched to what you are qualified for, the app takes you through every step, and a doctor reviews the record.</Reveal>
           <Reveal className="ctas">
             <ArrowLink href="#apply">Become a Sahayak</ArrowLink>
             <a className="btn btn-o" href="#role">What You Can Do</a>
@@ -88,7 +89,7 @@ function Hero() {
                 </div>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 16 }}>Your Sahayak profile</div>
-                  <div style={{ marginTop: 6 }}><span className="rchip">Nurse · 3–5 yrs</span></div>
+                  <div style={{ marginTop: 6 }}><span className="rchip">Health professional · 3–5 yrs</span></div>
                 </div>
               </div>
               <div className="prog rise d4"><span className="ci ok"><Icon name="check" sw={3} /></span>Application submitted</div>
@@ -142,10 +143,10 @@ function Roles({ onApplyAs }) {
         <SectionHead
           center
           kick="Who can join"
-          title={<>Your Healthcare Experience <em>Can Make a Difference</em></>}
-          quote="Every skill has a home here."
+          title={<>Qualified People, <em>Where They Are Needed</em></>}
+          quote="Clinical training, used properly."
           tone="p"
-          sub="If you have relevant healthcare experience and want to provide community-based support, there’s a place for you in the Sahayak network."
+          sub="If you are clinically trained — or qualified in any part of health — there is a place for you. Every assignment is matched to what you are actually qualified to do, and nothing else."
         />
         <div className="rl">
           {ROLES.map((r, i) => (
@@ -175,9 +176,9 @@ function YourRole() {
         <SectionHead
           center
           kick="Your role"
-          title={<>What You Can Do <em>as a Sahayak</em></>}
-          quote="Small acts of care, big moments of comfort."
-          sub="Every assignment is matched to your qualifications and the family’s needs — so you always know exactly what’s expected."
+          title={<>What a Sahayak <em>Actually Does</em></>}
+          quote="Professional work, start to finish."
+          sub="Every assignment is matched to your qualifications, and the app walks you through each step of it — so you always know exactly what is expected and nothing is left to memory."
         />
         <div className="dt">
           {YOUR_ROLE.map((r, i) => (
@@ -578,8 +579,8 @@ function WhyJoin() {
         <SectionHead
           center
           kick="Why join"
-          title={<>More Than a Job. <em>A Chance to Make a Difference.</em></>}
-          quote="Work that warms hearts — including yours."
+          title={<>More Than a Job. <em>Work Worth Doing.</em></>}
+          quote="Your training, and a family that needs it."
           sub="Flexible work, real training and a team behind you — while you help families stay close to the care their parents need."
         />
         <Reveal className="band wp-car">
@@ -665,9 +666,9 @@ function ApplyForm({ applyAs }) {
       short: 'Background', label: 'Professional background',
       content: (
         <>
-          <Q title="Tell us about your healthcare experience" sub="What best describes your background?" />
+          <Q title="Tell us about your health background" sub="What best describes your training?" />
           <Chips
-            options={['Nurse', 'ANM', 'Paramedic', 'Phlebotomist', 'Health Worker', 'Care Coordinator', 'Other']}
+            options={['Doctor', 'Nurse', 'ANM', 'Paramedic', 'Phlebotomist', 'Health Assistant', 'Care Coordinator', 'Other']}
             value={data.background}
             onChange={(v) => set('background', v)}
           />
@@ -727,7 +728,7 @@ function ApplyForm({ applyAs }) {
       short: 'Availability', label: 'Availability',
       content: (
         <>
-          <Q title="When can you provide Sahayak services?" sub="Preferred work type" />
+          <Q title="When can you take assignments?" sub="Preferred work type" />
           <Chips options={['Full-time', 'Part-time', 'Flexible']} value={data.work} onChange={(v) => set('work', v)} />
           <p className="ql">Preferred service area</p>
           <div className="fields">
