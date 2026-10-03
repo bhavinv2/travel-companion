@@ -5,6 +5,7 @@ import { cx } from './components/ui.jsx';
 import NeedMode from './components/NeedMode.jsx';
 import BecomeMode from './components/BecomeMode.jsx';
 import BookingModal from './components/BookingModal.jsx';
+import FinderModal from './components/ServiceFinder.jsx';
 import { BecomeHeroCard, NeedHeroCard } from './components/HeroCard.jsx';
 import { scrollToId } from './hooks.js';
 import { site } from './data/site.js';
@@ -83,7 +84,7 @@ function JourneySwitch({ mode, onPick }) {
         {['need', 'become'].map((m) => (
           <button key={m} type="button" role="menuitem"
                   className={cx('svc-sw-item', m === mode && 'on')}
-                  onClick={() => { setOpen(false); onPick(m); }}>
+                  onClick={() => { setOpen(false); onPick(m, box.current); }}>
             <Icon name={JOURNEY[m].icon} className="svc-sw-ico" sw={2} />
             <span><b>{JOURNEY[m].label}</b><small>{JOURNEY[m].sub}</small></span>
             {m === mode && <Icon name="check" className="svc-sw-tick" sw={3} />}
@@ -92,6 +93,46 @@ function JourneySwitch({ mode, onPick }) {
       </div>
     </div>
   );
+}
+
+/* The journey switch, pinned to the top-right of the hero.
+ *
+ * Portalled to <body> rather than rendered inside the page. The transition folds the whole
+ * page into this control and opens the other one back out of it, which means the control
+ * cannot be part of what is folding -- and the animation needs one fixed point to aim at.
+ *
+ * It steps aside once the hero has scrolled past: from there the switcher in the site header
+ * is the one in view, and two of the same control on screen is one too many.
+ */
+function HeroSwitch({ mode, onSwitch }) {
+  const [host] = useState(() =>
+    (typeof document === 'undefined' ? null : document.createElement('div')));
+  const [past, setPast] = useState(false);
+
+  useEffect(() => {
+    if (!host) return undefined;
+    document.body.appendChild(host);
+    return () => { document.body.removeChild(host); };
+  }, [host]);
+
+  useEffect(() => {
+    const onScroll = () => setPast(window.scrollY > 420);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  if (!host) return null;
+  const s = SWITCH[mode];
+  return createPortal(
+    <button type="button" className={cx('sah-switch', mode, past && 'gone')}
+            title={'Switch to ' + s.label}
+            onClick={(e) => onSwitch(s.to, e.currentTarget)}>
+      <span className="sah-switch-ico" aria-hidden="true"><Icon name={s.icon} sw={2} /></span>
+      <span className="sah-switch-tx"><small>Switch to</small><b>{s.label}</b></span>
+      <span className="sah-switch-arr" aria-hidden="true"><Icon name="arrow" sw={2.4} /></span>
+    </button>,
+    host);
 }
 
 const NAV_LINKS = {
@@ -258,11 +299,57 @@ export default function App() {
   const openBook = useCallback((prefill = null) => setBooking({ open: true, prefill }), []);
   const closeBook = useCallback(() => setBooking((b) => ({ ...b, open: false })), []);
 
-  const switchTo = (m) => {
-    setMode(m);
-    scrollToId('top');
-  };
-  const toggleMode = () => switchTo(mode === 'need' ? 'become' : 'need');
+  /* Switching journeys folds the page into whichever control was pressed and opens the other
+     journey back out of the same point, so the two halves of the site feel like one thing
+     seen from two sides rather than two pages swapped behind your back.
+     The origin is measured from the control itself, so it is right whether the press came
+     from the hero, the site header or the nav. */
+  const [swap, setSwap] = useState('');
+  const timers = useRef([]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
+  const switchTo = useCallback((m, origin) => {
+    if (m === mode) return;
+    const page = document.getElementById('page');
+    const still = window.matchMedia
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!page || !origin || still) {        // no animation: just be where they asked to be
+      setMode(m);
+      scrollToId('top');
+      return;
+    }
+    // Where to fold into, in the page's own coordinates, and how far the opening circle has
+    // to travel to clear the furthest corner.
+    const aim = () => {
+      const b = origin.getBoundingClientRect();
+      const x = b.left + b.width / 2 + window.scrollX;
+      const y = b.top + b.height / 2 + window.scrollY;
+      page.style.setProperty('--ox', x + 'px');
+      page.style.setProperty('--oy', y + 'px');
+      page.style.setProperty('--or',
+        Math.ceil(Math.hypot(Math.max(x, page.offsetWidth - x),
+                             Math.max(y, page.offsetHeight - y))) + 'px');
+    };
+    aim();
+    setSwap('out');
+    timers.current.push(setTimeout(() => {
+      // Scroll first, then re-aim: every control that can start this is fixed or sticky, so
+      // its position on screen does not change, but at scroll 0 the page's coordinates and
+      // the screen's finally agree.
+      window.scrollTo(0, 0);
+      aim();
+      // Both in one update. Setting the mode and waiting a frame for the class left the new
+      // journey mounted but still wearing the last frame of the fold -- invisible -- for as
+      // long as React took to render it, which was the better part of two hundred
+      // milliseconds of nothing on screen.
+      setMode(m);
+      setSwap('in');
+      timers.current.push(setTimeout(() => setSwap(''), 640));
+    }, 340));
+  }, [mode]);
+
+  const toggleMode = (e) =>
+    switchTo(mode === 'need' ? 'become' : 'need', e && e.currentTarget);
 
   /* Served inside the site's own header and footer (base.html), so the bundle must not draw
      a second set -- standalone (`npm run dev`) it still draws both, which is how the page is
@@ -273,10 +360,11 @@ export default function App() {
   useEffect(() => { setSlot(document.getElementById('sahayakJourney')); }, []);
 
   return (
-    <div className={cx('page', mode, !chrome && 'embedded')} id="page" style={{ width: '100%', minHeight: '100%' }}>
+    <div className={cx('page', mode, !chrome && 'embedded', swap && 'swap-' + swap)} id="page" style={{ width: '100%', minHeight: '100%' }}>
       {chrome && <Nav mode={mode} onToggle={toggleMode} />}
       {chrome && <div className="mob-switch"><SwitchCta mode={mode} onClick={toggleMode} className="block" /></div>}
       {!chrome && slot && createPortal(<JourneySwitch mode={mode} onPick={switchTo} />, slot)}
+      <HeroSwitch mode={mode} onSwitch={switchTo} />
       <Heroes openBook={openBook} onApply={onApply} />
       <NeedMode openBook={openBook} />
       <BecomeMode mode={mode} applyAs={applyAs} onApplyAs={(bg) => setApplyAs({ bg, nonce: Date.now() })} />
@@ -290,6 +378,7 @@ export default function App() {
         />
       )}
       <BookingModal open={booking.open} prefill={booking.prefill} onClose={closeBook} />
+      <FinderModal mode={mode} openBook={openBook} />
     </div>
   );
 }

@@ -4,7 +4,6 @@ import MultiStepForm, { Field, Q } from './MultiStepForm.jsx';
 import { SERVICES } from './BookingModal.jsx';
 import { GIG_SERVICES, gigFor } from '../data/services.js';
 import ServiceBento from './ServiceBento.jsx';
-import ServiceFinder from './ServiceFinder.jsx';
 import { ArrowButton, ArrowLink, Chips, Quote, Reveal, SectionHead, SideDecor, Tag, cx } from './ui.jsx';
 import { useInView } from '../hooks.js';
 import { site, postJson, catalogue } from '../data/site.js';
@@ -460,9 +459,6 @@ export default function NeedMode({ openBook }) {
       <main>
         <Hero openBook={openBook} />
         <Services openBook={openBook} />
-        {/* Straight after the nine cards: this is where somebody who has just scrolled them
-            and not recognised their own situation is standing. */}
-        <ServiceFinder openBook={openBook} />
         <Journey openBook={openBook} />
         <MeetAndPrice openBook={openBook} />
         <MilesAway />

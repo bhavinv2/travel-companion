@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from './Icon.jsx';
-import { ArrowButton, Reveal, SectionHead, cx } from './ui.jsx';
-import { catalogue } from '../data/site.js';
+import { ArrowButton, cx } from './ui.jsx';
+import { catalogue, helpline, site } from '../data/site.js';
+import meetImg from '../assets/meet-sahayak-family.jpg';
 import { GIG_SERVICES } from '../data/services.js';
 import { INCLUDES, NEEDS } from '../data/needs.js';
 
@@ -158,7 +160,7 @@ function Choice({ item, chosen, multi, onPick }) {
 
 const EMPTY = { who: null, what: null, travel: null, often: null, ordered: null, needs: [] };
 
-export default function ServiceFinder({ openBook }) {
+function Wizard({ openBook, onBooked }) {
   const list = useMemo(() => catalogue(GIG_SERVICES), []);
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState(EMPTY);
@@ -180,28 +182,19 @@ export default function ServiceFinder({ openBook }) {
   }));
 
   // Everything they told us, carried into the booking rather than asked for twice.
-  const book = (svc) => openBook({
+  const book = (svc) => {
+    if (onBooked) onBooked();
+    return openBook({
     svc,
     who: answers.who || '',
     when: answers.often || '',
     followUp: answers.ordered === 'followup' ? 'Yes'
       : answers.ordered === 'none' || answers.ordered === 'script' ? 'No' : '',
-  });
+    });
+  };
 
   return (
-    <section className="sec tight" id="find">
-      <div className="wrap">
-        <SectionHead
-          center
-          kick="Not sure which one"
-          title={<>Tell Us What Is Going On, <em>We Will Work It Out</em></>}
-          quote="You describe it. We name it."
-          sub="A few questions about your parents’ situation, and we point at the service that
-               covers it — with what it includes and what it costs. Your answers carry straight
-               into the booking, so nothing is asked twice."
-        />
-
-        <Reveal className="sf">
+    <div className="sf">
           <div className="sf-head">
             <h3>{done ? 'Here is what fits' : 'Find the right service'}</h3>
             <div className="sf-dots" aria-hidden="true">
@@ -295,8 +288,144 @@ export default function ServiceFinder({ openBook }) {
               )}
             </div>
           )}
-        </Reveal>
-      </div>
-    </section>
+    </div>
   );
+}
+
+/* The popup it lives in.
+ *
+ * Shown ten seconds after somebody lands, once per browser session, and only on the families'
+ * journey -- a professional reading about joining does not need to be asked whose mother it
+ * is. It waits rather than interrupting: if a field is focused or another dialog is already
+ * open it tries again later instead of landing on top of what somebody is doing.
+ *
+ * Two panels, the second of which is always a person: nobody should have to finish a
+ * questionnaire to find a phone number.
+ */
+const SEEN = 'sahayak_finder_seen';
+const DELAY = 10000;
+const RETRY = 8000;
+
+export default function FinderModal({ mode, openBook }) {
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState('find');
+  const closeRef = useRef(null);
+  const timer = useRef();
+
+  const dismiss = () => {
+    setOpen(false);
+    try { sessionStorage.setItem(SEEN, '1'); } catch { /* private window */ }
+  };
+
+  useEffect(() => {
+    // Switching to the professionals' journey takes it away: somebody who has just said they
+    // are a nurse should not be left looking at "who needs support, my mother or my father".
+    if (mode !== 'need') { setOpen(false); return undefined; }
+    let seen = false;
+    try { seen = !!sessionStorage.getItem(SEEN); } catch { /* private window */ }
+    const forced = /[?&#]finder(=1)?(&|$)/.test(location.search + location.hash);
+    if (seen && !forced) return undefined;
+
+    const busy = () => {
+      const a = document.activeElement;
+      return (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))
+        || !!document.querySelector('.bk-wrap, .cov-wrap')
+        || document.body.classList.contains('lock');
+    };
+    const show = () => {
+      if (busy() && !forced) { timer.current = setTimeout(show, RETRY); return; }
+      setOpen(true);
+      try { sessionStorage.setItem(SEEN, '1'); } catch { /* private window */ }
+    };
+    timer.current = setTimeout(show, forced ? 500 : DELAY);
+    return () => clearTimeout(timer.current);
+  }, [mode]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') dismiss(); };
+    document.addEventListener('keydown', onKey);
+    document.body.classList.add('lock');
+    const t = setTimeout(() => closeRef.current && closeRef.current.focus(), 80);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.classList.remove('lock');
+      clearTimeout(t);
+    };
+  }, [open]);
+
+  if (!open) return null;
+  const phone = helpline();
+  return createPortal(
+    <div className="fm-wrap" role="dialog" aria-modal="true" aria-labelledby="fm-title">
+      <button type="button" className="fm-back" aria-label="Close" onClick={dismiss}></button>
+      <div className="fm">
+        <div className="fm-art" aria-hidden="true">
+          <img src={meetImg} alt="" />
+          <div className="fm-art-tx">
+            <b>Not sure what to ask for?</b>
+            <span>Most families are not. Tell us what is going on and we will name it.</span>
+          </div>
+        </div>
+
+        <div className="fm-main">
+          <button type="button" className="fm-x" aria-label="Close" ref={closeRef}
+                  onClick={dismiss}><Icon name="close" sw={2.2} /></button>
+          <h2 id="fm-title">Find the right service</h2>
+          <div className="fm-tabs" role="tablist">
+            <button type="button" role="tab" aria-selected={tab === 'find'}
+                    className={cx('fm-tab', tab === 'find' && 'on')}
+                    onClick={() => setTab('find')}>Answer a few questions</button>
+            <button type="button" role="tab" aria-selected={tab === 'talk'}
+                    className={cx('fm-tab', tab === 'talk' && 'on')}
+                    onClick={() => setTab('talk')}>Talk to us</button>
+          </div>
+
+          <div className="fm-panel">
+            {tab === 'find' ? (
+              <Wizard openBook={openBook} onBooked={dismiss} />
+            ) : (
+              <div className="fm-talk">
+                <p className="fm-talk-lead">
+                  <b>Would rather just ask somebody?</b>
+                  <span>A real person reads every message and replies within one working day.</span>
+                </p>
+                <div className="fm-ways">
+                  {phone && (
+                    <a className="fm-way" href={'tel:+' + phone.digits}>
+                      <span className="fm-way-i"><Icon name="phone" sw={1.9} /></span>
+                      <span><small>Call us</small><b>{phone.display}</b></span>
+                    </a>
+                  )}
+                  {site.waLink && (
+                    <a className="fm-way wa" href={site.waLink} target="_blank" rel="noopener">
+                      <span className="fm-way-i"><Icon name="chat" sw={1.9} /></span>
+                      <span><small>WhatsApp</small><b>Start a chat</b></span>
+                    </a>
+                  )}
+                  {site.supportEmail && (
+                    <a className="fm-way" href={'mailto:' + site.supportEmail}>
+                      <span className="fm-way-i"><Icon name="chatLines" sw={1.9} /></span>
+                      <span><small>Email</small><b>{site.supportEmail}</b></span>
+                    </a>
+                  )}
+                  {site.contactUrl && (
+                    <a className="fm-way" href={site.contactUrl}>
+                      <span className="fm-way-i"><Icon name="docLines" sw={1.9} /></span>
+                      <span><small>Write to us</small><b>Send a message</b></span>
+                    </a>
+                  )}
+                </div>
+                <button type="button" className="fm-switch" onClick={() => setTab('find')}>
+                  Or answer a few questions instead<Icon name="arrow" sw={2} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <button type="button" className="fm-later" onClick={dismiss}>Maybe later</button>
+        </div>
+      </div>
+    </div>,
+    document.body);
 }

@@ -8,12 +8,25 @@
 .ftr ul { list-style: none; display: grid; gap: 9px; padding: 0; margin: 0; }
 .ftr a { color: inherit; text-decoration: none; }
 .ftr a:hover { color: #fff; }
-.ftr .ftr-logo { display: inline-flex; align-items: center; gap: 8px; color: #fff; font-weight: 700;
-  font-size: 16px; margin-bottom: 12px; text-decoration: none; }
-.ftr .ftr-logo img { width: 28px; height: 28px; }
+/* The brand. The mark sits in a soft tile rather than loose on the navy: a 28px icon with no
+   ground under it reads as a stray glyph beside the words rather than a logo. */
+.ftr .ftr-logo { display: inline-flex; align-items: center; gap: 12px; color: #fff;
+  font-weight: 700; font-size: 16px; margin-bottom: 14px; text-decoration: none; }
+/* The name stays on one line: the brand column is narrow and "NRI Parent / Service" over two
+   lines reads as two things. */
+.ftr .ftr-logo-stack > span { white-space: nowrap; }
+.ftr .ftr-logo-mark { flex: none; display: grid; place-items: center; width: 44px; height: 44px;
+  border-radius: 13px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
+  transition: background-color .2s, border-color .2s; }
+.ftr .ftr-logo:hover .ftr-logo-mark { background: rgba(255,255,255,.12);
+  border-color: rgba(255,255,255,.22); }
+.ftr .ftr-logo img { width: 30px; height: 30px; }
 .ftr .ftr-logo b { color: #F5A623; }
-.ftr .ftr-logo-stack { display: flex; flex-direction: column; gap: 1px; line-height: 1.15; }
-.ftr .ftr-logo-stack small { font-size: 11px; font-weight: 600; color: #7FB6FF; }
+.ftr .ftr-logo-stack { display: flex; flex-direction: column; gap: 2px; line-height: 1.15; }
+/* Muted white rather than the old mid-blue, which sat badly on navy, and spaced out so it
+   reads as a tagline under the name instead of a second, competing line. */
+.ftr .ftr-logo-stack small { font-size: 10.5px; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; color: rgba(255,255,255,.5); }
 .ftr-brand-desc { color: rgba(255, 255, 255, .55); font-size: 13px; line-height: 1.6; }
 .ftr-bottom { border-top: 1px solid rgba(255, 255, 255, .1); padding-top: 18px; display: flex;
   justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 12.5px; color: rgba(255, 255, 255, .5); }
