@@ -15,10 +15,18 @@ import logoMark from './assets/logo-mark.png';
 
 // What each journey calls itself.
 const JOURNEY = {
-  need: { label: 'Book a Sahayak', short: 'Book', sub: 'A professional with your parents',
-          icon: 'homeHeart' },
-  become: { label: 'Join as a Sahayak', short: 'Join', sub: 'For health professionals',
-            icon: 'userPlus' },
+  need: {
+    label: 'Book a Sahayak', short: 'Book', sub: 'A professional with your parents',
+    icon: 'homeHeart', art: heroNeed,
+    say: 'A qualified health professional takes each step with your parents — the check, the '
+       + 'test, the appointment, the medicines — and every step is recorded for you to read.',
+  },
+  become: {
+    label: 'Join as a Sahayak', short: 'Join', sub: 'For health professionals',
+    icon: 'userPlus', art: heroBecome,
+    say: 'Take the assignments you are qualified for, close to home, with the app guiding '
+       + 'every step and a doctor reviewing the record you leave behind.',
+  },
 };
 // The switch button always advertises the *other* journey, in that journey's colour.
 const SWITCH = {
@@ -98,7 +106,7 @@ function JourneySwitch({ mode, onPick }) {
 /* How long the move takes. Slow on purpose: the point is to be watched, and the previous
  * third of a second of shrink-and-blur read as a flicker rather than a transition. */
 const VEIL_GROW = 620;
-const VEIL_HOLD = 300;
+const VEIL_HOLD = 1200;   // long enough to look at the picture and read the line under it
 const VEIL_DRAIN = 700;
 
 /* The journey switch, pinned to the top-right of the hero.
@@ -153,9 +161,13 @@ function Veil({ veil }) {
          style={{ '--jx': veil.x + 'px', '--jy': veil.y + 'px', '--jr': veil.r + 'px' }}>
       <span className="jv-ink"></span>
       <span className="jv-tx">
-        <span className="jv-ico"><Icon name={j.icon} sw={1.8} /></span>
+        <span className="jv-art">
+          <img src={j.art} alt="" />
+          <span className="jv-ico"><Icon name={j.icon} sw={1.9} /></span>
+        </span>
         <b>{j.label}</b>
         <small>{j.sub}</small>
+        <p>{j.say}</p>
       </span>
     </div>,
     document.body);
