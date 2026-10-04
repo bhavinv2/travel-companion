@@ -191,3 +191,118 @@ def test_the_same_route_counts_as_a_duplicate_only_inside_the_match_window(app, 
                                  from_date=date(2099, 12, 1) + timedelta(days=days))
     candidate.set_status('open')
     assert bool(duplicates.find(candidate, owner_id=user.id)) is expected
+
+
+# ---------------------------------------------------------------------------
+# "Check eligibility" -- the same question, asked before submitting
+# ---------------------------------------------------------------------------
+# The button exists because the answer used to arrive only after four steps of form filling.
+# What these pin down is that asking early and asking at the end are the SAME check: one
+# template, one duplicates.find, so the two can never give CS different answers about the same
+# post. And that asking is free -- nothing is stored, whatever state the form is in.
+
+def test_the_check_finds_what_the_submit_check_would_find(client, cs_user, db):
+    login(client, 'cs@test.com')
+    first = client.post('/cs/posts/new', data=CS_FORM)
+    tid = int(first.headers['Location'].rstrip('/').split('/')[-1])
+
+    r = client.post('/cs/posts/check-duplicates', data=CS_FORM)
+    html = r.data.decode()
+    assert r.status_code == 200
+    assert 'id="csDupModal"' in html and 'Post #%s' % tid in html
+    assert 'same traveller, route and date' in html
+    assert '/cs/posts/%s' % tid in html                  # and it can be opened
+
+
+def test_the_check_says_so_when_there_is_nothing(client, cs_user, db):
+    """A check that renders nothing when it finds nothing reads as a check that did not run."""
+    login(client, 'cs@test.com')
+    html = client.post('/cs/posts/check-duplicates', data=CS_FORM).data.decode()
+    assert 'Nothing like this yet' in html
+    assert 'dup-card' not in html
+
+
+def test_the_check_never_offers_to_post_anyway(client, cs_user, db):
+    """Nothing was submitted, so there is nothing to force through. Offering it would create a
+    post from a button whose whole promise is that it only looks."""
+    login(client, 'cs@test.com')
+    client.post('/cs/posts/new', data=CS_FORM)
+    html = client.post('/cs/posts/check-duplicates', data=CS_FORM).data.decode()
+    assert 'csDupPost' not in html
+    assert 'csDupBack' in html
+
+
+def test_checking_stores_nothing_however_often_it_is_asked(client, cs_user, db):
+    login(client, 'cs@test.com')
+    before = CompanionRequest.query.count()
+    for _ in range(3):
+        assert client.post('/cs/posts/check-duplicates', data=CS_FORM).status_code == 200
+    assert CompanionRequest.query.count() == before
+
+
+def test_a_half_filled_form_can_still_be_checked(client, cs_user, db):
+    """The button is wanted early, when most of the form is blank. Refusing to look until every
+    required field is in would make it useless exactly when it is reached for."""
+    login(client, 'cs@test.com')
+    r = client.post('/cs/posts/check-duplicates',
+                    data={'poster_name': 'Ravi Kumar', 'source': 'facebook'})
+    assert r.status_code == 200
+    assert 'csDupModal' in r.data.decode()
+
+
+def test_an_edited_post_is_not_a_duplicate_of_itself(client, cs_user, db):
+    """Checking from the edit form must not report the very post being edited."""
+    login(client, 'cs@test.com')
+    first = client.post('/cs/posts/new', data=CS_FORM)
+    tid = int(first.headers['Location'].rstrip('/').split('/')[-1])
+
+    html = client.post('/cs/posts/check-duplicates',
+                       data={**CS_FORM, 'trip_id': str(tid)}).data.decode()
+    assert 'Nothing like this yet' in html
+    assert 'Post #%s' % tid not in html
+
+
+def test_the_check_is_staff_only(client, user, db):
+    """It describes other people's posts, which is the thing the traveller form may never do."""
+    login(client, 'bob@test.com')
+    r = client.post('/cs/posts/check-duplicates', data=CS_FORM)
+    assert r.status_code in (302, 403)
+    assert 'dup-card' not in r.data.decode()
+
+
+def test_the_form_offers_the_button(client, cs_user, db):
+    login(client, 'cs@test.com')
+    html = client.get('/cs/posts/new').data.decode()
+    assert 'id="csCheckDup"' in html
+    assert '/cs/posts/check-duplicates' in html
+
+
+# ---------------------------------------------------------------------------
+# Where the fields sit
+# ---------------------------------------------------------------------------
+
+def test_the_point_of_contact_is_on_the_first_step(client, cs_user, db):
+    """It was on step four. How to reach the person belongs with where the post came from --
+    it is the first thing CS has in hand and the thing the rest of the form is useless without.
+    """
+    login(client, 'cs@test.com')
+    html = client.get('/cs/posts/new').data.decode()
+    step1 = html.split('data-step="1"', 1)[1].split('data-step="2"', 1)[0]
+    assert 'Point of contact' in step1
+    assert 'id="contactRows"' in step1
+    # directly under "Where it came from", and above who is travelling
+    assert step1.index('Where it came from') < step1.index('Point of contact') < step1.index('Who is travelling')
+
+    step4 = html.split('data-step="4"', 1)[1]
+    assert 'Point of contact' not in step4
+    assert 'Notes &amp; publish' in html, 'the step is no longer about contact, so nor is its name'
+
+
+def test_a_post_still_saves_its_contact_rows_from_the_new_step(client, cs_user, db):
+    """Moving a card between panels must not change what the form posts."""
+    login(client, 'cs@test.com')
+    r = client.post('/cs/posts/new', data=CS_FORM)
+    assert r.status_code == 302
+    trip = CompanionRequest.query.one()
+    assert sorted(cp.value for cp in trip.contact_points) == [
+        'https://facebook.com/ravi.k', 'ravi@example.com']

@@ -531,7 +531,8 @@ def create_app(test_config=None):
                                 GENDERS, PREF_GENDERS)
         from app import options
         from app.services import (admin_nav, contact_form, cs_access, insurance_countries,
-                                  nri_services, offices, phone, portals, products, urls)
+                                  nav_badges, nri_services, offices, phone, portals, products,
+                                  urls)
         from app.services import settings as _settings
         return {
             # Templates use this for "today" in date inputs. Between 18:30 and 00:00 IST,
@@ -541,6 +542,9 @@ def create_app(test_config=None):
             'INSURANCE_DESTINATIONS': insurance_countries,
             'ADMIN_NAV': admin_nav,
             'CS_ACCESS': cs_access,
+            # The function, not the counts: only a staff sidebar calls it, so a public page
+            # never runs the queries behind it.
+            'NAV_BADGES': nav_badges.unread,
             'PORTAL_SWITCHER': portals.switcher,
             'NRI_SERVICES': nri_services.resolved(),
             # For linking TO /travel-insurance or /sahayak: those answer beside the app's prefix,

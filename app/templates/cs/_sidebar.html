@@ -4,6 +4,8 @@
    guard that blocks the URL read from one list -- a link that is hidden is a link that is also
    refused, and neither can drift from the other. #}
 {% set sites = CS_ACCESS.sites_for(current_user) %}
+{# One line here covers all three voices tabs, so its badge carries all three. #}
+{% set waiting = NAV_BADGES() %}
 <aside class="admin-sidebar">
   <h3>CS Console</h3>
   <button type="button" class="rail-toggle" data-rail-toggle
@@ -14,8 +16,12 @@
     {% for site in sites %}
       {% if not loop.first %}<span class="cs-nav-head"><span>{{ site.label }}</span></span>{% endif %}
       {% for s in site['items'] %}
+      {% set n = waiting.get(s.key, 0) %}
       <a href="{{ url_for(s.endpoints[0]) }}" class="{{ 'active' if active == s.key }}"
-         title="{{ s.label }}"><i class="fa-solid {{ s.icon }}"></i> <span>{{ s.label }}</span></a>
+         title="{{ s.label }}{{ ' — %d waiting' % n if n }}">
+        <i class="fa-solid {{ s.icon }}"></i> <span>{{ s.label }}</span>
+        {% if n %}<span class="nav-badge" aria-label="{{ n }} not read">{{ n if n < 100 else '99+' }}</span>{% endif %}
+      </a>
       {% endfor %}
     {% endfor %}
   </nav>

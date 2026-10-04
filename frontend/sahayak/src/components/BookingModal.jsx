@@ -5,6 +5,7 @@ import { ArrowButton, Chips, Quote, Upload, cx } from './ui.jsx';
 import thumb from '../assets/hero-need.jpg';
 
 import { GIG_SERVICES, SERVICE_KEYS, gigFor } from '../data/services.js';
+import PhoneField from './PhoneField.jsx';
 import { site, postJson } from '../data/site.js';
 
 /* The services the booking dropdown offers.
@@ -26,7 +27,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 // meet-up location, drop location (service-dependent), follow-up, attached document — plus contact details.
 const EMPTY = {
   who: '', svc: '', date: '', time: '', address: '', city: '', pin: '', drop: '',
-  followUp: '', file: null, name: '', phone: '', frequency: '',
+  followUp: '', file: null, name: '', phone: '', dial: '+91', frequency: '',
 };
 
 /* Keyed by the GIG sheet's own service names, which is what gigFor() hands back -- the
@@ -50,7 +51,9 @@ function validate(d) {
     pin: !/^\d{6}$/.test(d.pin.trim()),
     drop: svc?.drop === 'required' && d.drop.trim().length < 3,
     name: !d.name.trim(),
-    phone: d.phone.replace(/\D/g, '').length < 10,
+    // Required, and long enough to ring: the team confirms every booking by phone,
+    // so a booking without a reachable number is a booking nobody can action.
+    phone: d.phone.replace(/\D/g, '').length < 6,
   };
 }
 
@@ -122,7 +125,7 @@ export default function BookingModal({ open, prefill, onClose }) {
         service: data.svc,
         patient_name: data.who,
         contact_name: data.name,
-        phone: data.phone,
+        phone: (data.dial + ' ' + data.phone).trim(),
         address: [data.address, data.city].filter(Boolean).join(', '),
         pincode: data.pin,
         when_type: 'scheduled',
@@ -233,11 +236,14 @@ export default function BookingModal({ open, prefill, onClose }) {
                   <input id="bk-name" name="name" autoComplete="name" value={data.name} onChange={(e) => set('name', e.target.value)} />
                   <span className="emsg">Please enter your name.</span>
                 </div>
-                <div className={fld('phone')}>
-                  <label htmlFor="bk-phone">Phone / WhatsApp <b>*</b></label>
-                  <input id="bk-phone" name="phone" type="tel" autoComplete="tel" placeholder="With country code" value={data.phone} onChange={(e) => set('phone', e.target.value)} />
-                  <span className="emsg">Enter a valid phone number.</span>
-                </div>
+                <PhoneField
+                  id="bk-phone"
+                  label="Phone / WhatsApp"
+                  required
+                  invalid={!!errors.phone}
+                  value={{ dial: data.dial, tel: data.phone }}
+                  onChange={(v) => setData((d) => ({ ...d, dial: v.dial, phone: v.tel }))}
+                />
               </div>
             </div>
             <div className="bk-foot">

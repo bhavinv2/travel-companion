@@ -2775,6 +2775,25 @@ body:has(.td-panel.is-sheet:not([hidden])) .chat-toggle { opacity: 0; pointer-ev
 .admin-page.is-rail .admin-sidebar nav { padding-top: 40px; }    /* keep icons clear of the pinned toggle */
 .admin-sidebar nav a i { flex: 0 0 auto; width: 18px; text-align: center; }
 
+/* How many rows on that screen nobody has opened yet. The menu named the screens but never
+   said which of them had anything in it, so the only way to learn that three enquiries had
+   arrived was to open the inbox -- four of them, now that it is split by product.
+   The figure while the rail is open; a bare dot once it collapses to icons, where there is no
+   room for a number and the only question left is whether there is anything in there. */
+.admin-sidebar nav a { position: relative; }
+.admin-sidebar nav a .nav-badge {
+  margin-left: auto; flex: 0 0 auto; min-width: 20px; height: 20px; padding: 0 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px; background: var(--coral); color: #fff;
+  font-size: 11px; font-weight: 700; line-height: 1;
+}
+.admin-page.is-rail .admin-sidebar nav a .nav-badge {
+  display: block;                        /* the rule above hides every span in the rail */
+  position: absolute; top: 7px; right: 12px; margin: 0;
+  min-width: 9px; width: 9px; height: 9px; padding: 0;
+  border-radius: 50%; font-size: 0; overflow: hidden;
+}
+
 /* Below the breakpoint the toggle becomes the dropdown menu button, pinned to the bar's right. */
 @media (max-width: 900px) {
   .rail-toggle { position: static; margin: 0 14px 0 auto; width: 38px; height: 38px; font-size: 15px; }
@@ -2783,6 +2802,12 @@ body:has(.td-panel.is-sheet:not([hidden])) .chat-toggle { opacity: 0; pointer-ev
   .admin-page.is-rail .admin-sidebar nav a { justify-content: flex-start; padding: 14px 18px; }
   .admin-page.is-rail .admin-sidebar nav a span { display: inline; }
   .admin-page.is-rail .admin-sidebar nav a i { font-size: 15px; }
+  /* the labels are back, so the count fits again */
+  .admin-page.is-rail .admin-sidebar nav a .nav-badge {
+    display: inline-flex;
+    position: static; margin-left: auto; min-width: 20px; width: auto; height: 20px;
+    padding: 0 6px; border-radius: 10px; font-size: 11px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .admin-page, .rail-toggle { transition: none; }
@@ -3266,6 +3291,10 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
   border: 1px solid var(--coral); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; }
 .dup-lead i { color: var(--coral-dark); font-size: 19px; margin-top: 2px; }
 .dup-lead p { margin: 0; color: var(--text); font-size: 14px; }
+/* The all-clear, which only "Check eligibility" can produce. Green, because amber here would
+   say "look at this" about an answer whose whole content is that there is nothing to look at. */
+.dup-lead.dup-lead-ok { background: #e7f7f1; border-color: #16a34a; }
+.dup-lead.dup-lead-ok i { color: #16a34a; }
 .dup-list { display: grid; gap: 12px; max-height: 46vh; overflow-y: auto; margin-bottom: 18px; }
 .dup-card { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--white); }
 .dup-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }

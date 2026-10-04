@@ -473,6 +473,7 @@ def sahayak_bookings():
                            services=sahayak_service.services(),
                            SAHAYAK_STATUSES=SAHAYAK_STATUSES,
                            SAHAYAK_STATUS_LABELS=SAHAYAK_STATUS_LABELS,
+                           leads=sahayak_service.lead_state([b.id for b in bookings]),
                            endpoint='admin.sahayak_bookings', action_base='cs',
                            sidebar='admin/_sidebar.html')
 

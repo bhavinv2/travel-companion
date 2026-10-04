@@ -238,3 +238,40 @@ def save(rows, actor=None):
     settings.set_setting(SETTING_KEY, blob, actor)
     settings.clear_cache()
     return blob['services']
+
+
+# ---------------------------------------------------------------------------
+# Did the copy reach Preventia?
+# ---------------------------------------------------------------------------
+
+def lead_state(booking_ids):
+    """{booking_id: {'ok': bool, 'submission_id': str|None}} for the rows on one page.
+
+    Read out of the activity log rather than a column on the booking: this is a record of an
+    attempt, not a property of the request, and it would be a migration to store what one query
+    already answers.
+
+    There is no GET at their end to ask what became of a lead, so "ok" means only that they
+    accepted it -- the queue says "sent", never "approved", because the second would be a claim
+    we cannot check. Bookings with no event at all are absent from the result: they predate the
+    integration, or it was switched off, and either way the honest display is nothing rather
+    than a red mark against a booking nobody tried to copy.
+    """
+    from app.models import ActivityEvent
+
+    ids = [i for i in (booking_ids or []) if i]
+    if not ids:
+        return {}
+    rows = (ActivityEvent.query
+            .filter(ActivityEvent.event.in_(('preventia_lead', 'preventia_lead_failed')))
+            .filter(ActivityEvent.meta['booking_id'].as_integer().in_(ids))
+            .order_by(ActivityEvent.created_at.asc(), ActivityEvent.id.asc())
+            .all())
+    out = {}
+    for ev in rows:
+        bid = (ev.meta or {}).get('booking_id')
+        if bid in ids:
+            # last attempt wins: a retry that succeeded should not read as a failure
+            out[bid] = {'ok': ev.event == 'preventia_lead',
+                        'submission_id': (ev.meta or {}).get('submission_id')}
+    return out

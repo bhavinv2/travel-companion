@@ -25,7 +25,7 @@ spent on nothing.
 TOPICS = [
     'Travel insurance',
     'Travel companion',
-    'Sahayak - a nurse visit at home',
+    'Sahayak - a health professional at home',
     'An existing booking or request',
     'Something else',
 ]
@@ -39,6 +39,7 @@ DEFAULT_TOPIC = 'Travel insurance'
 TOPIC_ROUTES = {
     'Travel companion': 'companion',
     'Travel insurance': 'insurance',
+    'Sahayak - a health professional at home': 'sahayak',
 }
 DEFAULT_ROUTE = 'general'
 
@@ -46,9 +47,9 @@ DEFAULT_ROUTE = 'general'
 def route(topic, default=DEFAULT_ROUTE):
     """The inbox bucket for a chosen topic.
 
-    Sahayak and "an existing booking" land in general for now: CONTACT_TOPICS has no bucket of
-    its own for either, and inventing one here would file enquiries under a filter the CS
-    console does not offer.
+    "An existing booking or request" still lands in general: it spans all three products, so
+    the only honest answer is the inbox that is not filtered by one. Everything else routes to
+    the product it names, which is what puts it on that product's screen in the console.
     """
     return TOPIC_ROUTES.get((topic or '').strip(), default)
 

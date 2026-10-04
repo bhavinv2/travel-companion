@@ -12,7 +12,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 from flask_login import current_user
 
 from app import db
-from app.models import ActivityEvent, SahayakBooking, SAHAYAK_WHEN
+from app.models import ActivityEvent, SahayakBooking, SAHAYAK_WHEN, SAHAYAK_WHEN_LABELS
 from app.services import help_center, sahayak
 from app.services.ratelimit import rate_limit
 
@@ -54,7 +54,7 @@ def landing():
     catalogue, the published helplines, the support address and the endpoints. services() is
     the one seam to repoint when the catalogue API arrives.
     """
-    from app.services import offices, urls
+    from app.services import offices, phone, urls
 
     phones = [{'label': p['label'], 'display': p['display'], 'digits': p['digits']}
               for p in offices.numbers('sahayak')]
@@ -65,6 +65,11 @@ def landing():
                            support_email=offices.email('sahayak'),
                            whatsapp_digits=offices.whatsapp('sahayak'),
                            wa_link=offices.wa_link('sahayak'),
+                           # the same dialling codes the rest of the site validates
+                           # against, so the bundle's picker and services/phone cannot
+                           # disagree -- as the insurance page already does
+                           dial_codes=[{'name': n, 'iso': i, 'dial': d}
+                                       for i, n, d in phone.COUNTRIES],
                            contact_url=urls.public_url('main.contact_us'),
                            page_title=PAGE_TITLE, page_description=PAGE_DESCRIPTION,
                            canonical_url=_canonical())
@@ -91,6 +96,40 @@ def journey():
     return jsonify({'success': True, 'steps': steps or []})
 
 
+def _push_lead(submission_type, full_name, phone, email, details, **event):
+    """Copy a request into Preventia's review queue. Returns their submissionId, or None.
+
+    Always called after our own commit, never instead of it. The booking or application is
+    already saved and the visitor is already owed an answer, so this is a copy: if it does not
+    get across, a row is missing at their end and nothing is missing at ours.
+
+    The outcome is written to the activity log either way. Without that, a lead that failed
+    would exist only in a log file nobody reads, and the first anyone would know is a Preventia
+    admin asking why their queue is empty.
+    """
+    from app.services import preventia
+
+    if not preventia.enabled():
+        return None
+    try:
+        submission_id = preventia.submit_lead(submission_type, full_name, phone,
+                                              email=email, details=details)
+        actor = current_user if current_user.is_authenticated else None
+        ActivityEvent.log('preventia_lead' if submission_id else 'preventia_lead_failed',
+                          actor=actor, kind=submission_type, submission_id=submission_id, **event)
+        db.session.commit()
+        return submission_id
+    except Exception:
+        # submit_lead already swallows every network and protocol failure, so reaching here
+        # means something unforeseen -- writing the audit row, most likely. The booking is
+        # committed and the visitor is owed an answer either way, so a bare except is the
+        # honest shape: there is no failure in copying a request that justifies a 500 on a
+        # form that worked.
+        current_app.logger.exception('preventia lead %s could not be recorded', submission_type)
+        db.session.rollback()
+        return None
+
+
 @sahayak_bp.route('/api/sahayak-booking', methods=['POST'])
 @rate_limit(10, 3600)
 def book():
@@ -98,7 +137,12 @@ def book():
 
     Signing in is not required: the person booking is often an NRI arranging care for a parent,
     and sometimes the parent themselves. Making them register first would lose the booking.
+
+    Stored here first, then copied to Preventia as a lead -- in that order, so the request
+    survives anything that happens to the copy. See _push_lead.
     """
+    from app.services import phone as phone_svc
+
     data = request.get_json(silent=True) or request.form
 
     def get(key, limit=200):
@@ -119,6 +163,16 @@ def book():
         errors.append('Tell us who the visit is for.')
     if not phone or not PHONE_RE.search(phone):
         errors.append('A phone number is required — the team calls to confirm.')
+    else:
+        # Stored the way every other number on the site is stored. The form sends the
+        # dialling code and the number separately joined by a space; without this the table
+        # would hold "+46 764498115" while the contact table holds "+46764498115", and a
+        # column of numbers in two shapes is a column nobody can scan.
+        e164, bad_phone = phone_svc.normalise(phone)
+        if bad_phone:
+            errors.append(bad_phone)
+        else:
+            phone = e164
     if email and not EMAIL_RE.match(email):
         errors.append('That e-mail address does not look right.')
     if not address:
@@ -157,14 +211,33 @@ def book():
     ActivityEvent.log('sahayak_booking', actor=current_user if current_user.is_authenticated else None,
                       booking_id=booking.id, service=service['key'], when=when_type)
     db.session.commit()
+
+    from app.services import preventia
+    _push_lead(preventia.BOOKING_REQUEST,
+               # who to ring, which is not always who the visit is for
+               booking.contact_name or booking.patient_name, booking.phone, booking.email,
+               {'service': service['name'], 'serviceCategoryId': service.get('remote_id'),
+                'patient': booking.patient_name, 'patientAge': booking.patient_age,
+                'pincode': booking.pincode, 'address': booking.address,
+                'landmark': booking.landmark, 'accessNotes': booking.access_notes,
+                'when': SAHAYAK_WHEN_LABELS.get(when_type, when_type),
+                'scheduledFor': scheduled_for.isoformat(' ') if scheduled_for else None,
+                'message': booking.notes,
+                'ourReference': 'sahayak_bookings#%d' % booking.id},
+               booking_id=booking.id)
+
     return jsonify({'success': True, 'booking_id': booking.id,
-                    'message': 'Request received. Our team will call %s to confirm.' % phone}), 201
+                    # read back spaced, the way the application reply and the console show it:
+                    # "+46764498115" is the one shape nobody can check at a glance
+                    'message': 'Request received. Our team will call %s to confirm.'
+                               % phone_svc.pretty(phone, phone)}), 201
 
 
 # The fields the "Join as a Sahayak" form collects, in the order a reader wants them. Kept as a
 # list rather than columns of their own: this is an application to be read and phoned, not
 # something anything queries or filters on, and a table nobody filters is a migration spent on
-# nothing. When the Sahayak API arrives this is the one function to repoint.
+# nothing. One list, read twice -- it composes the message CS opens, and it fills the `details`
+# of the lead Preventia's reviewer sees, so the two can never drift apart.
 APPLY_FIELDS = [
     ('full_name', 'Name'), ('age', 'Age'), ('mobile', 'Mobile'), ('whatsapp', 'WhatsApp'),
     ('email', 'E-mail'), ('location', 'City / area / PIN'),
@@ -182,16 +255,27 @@ def apply():
     """Take an application from a healthcare professional who wants to join.
 
     It reaches CS as a contact message filed under Sahayak rather than a table of its own --
-    see APPLY_FIELDS. Documents are not accepted here: an upload needs storage, a size limit
-    and a scan, and the team asks for certificates on the confirming call anyway. The form says
-    so rather than pretending to take them.
+    see APPLY_FIELDS -- and a copy goes to Preventia as a SAHAYAK_SIGNUP lead for their own
+    reviewer. Documents are not accepted here: an upload needs storage, a size limit and a
+    scan, and the team asks for certificates on the confirming call anyway. The form says so
+    rather than pretending to take them.
     """
     from app.routes.main import _save_contact
+    from app.services import phone as phone_svc
 
     data = request.get_json(silent=True) or request.form
 
     def get(key, limit=300):
         return (data.get(key) or '').strip()[:limit]
+
+    def shown(key):
+        """A field as it should read in the message CS opens. The two phone fields are spaced
+        the way the rest of the site spaces them, so whoever rings can see the country."""
+        raw = get(key)
+        if key in ('mobile', 'whatsapp') and raw:
+            e164, bad = phone_svc.normalise(raw)
+            return raw if bad else phone_svc.pretty(e164, raw)
+        return raw
 
     name = get('full_name', 120)
     phone = get('mobile', 30)
@@ -202,18 +286,33 @@ def apply():
         errors.append('Please tell us your name.')
     if not phone or not PHONE_RE.search(phone):
         errors.append('A phone number is required — the team calls to talk it through.')
+    else:
+        e164, bad_phone = phone_svc.normalise(phone)
+        if bad_phone:
+            errors.append(bad_phone)
+        else:
+            phone = e164
     if email and not EMAIL_RE.match(email):
         errors.append('That e-mail address does not look right.')
     if errors:
         return jsonify({'success': False, 'error': ' '.join(errors)}), 400
 
     lines = ['Sahayak application.', '']
-    lines += ['%s: %s' % (label, get(key)) for key, label in APPLY_FIELDS if get(key)]
+    lines += ['%s: %s' % (label, shown(key)) for key, label in APPLY_FIELDS if get(key)]
     msg = _save_contact({'name': name, 'email': email or 'no-email@nriparentservice.com',
-                         'phone': phone, 'message': '\n'.join(lines)}, topic='general')
+                         'phone': phone, 'message': '\n'.join(lines)}, topic='sahayak')
     ActivityEvent.log('sahayak_application',
                       actor=current_user if current_user.is_authenticated else None,
                       contact_id=msg.id)
     db.session.commit()
+
+    from app.services import preventia
+    _push_lead(preventia.SAHAYAK_SIGNUP, name, phone, email,
+               # the whole application: `details` is unstructured at their end and shown to the
+               # reviewing admin as it arrives, so it carries the same fields CS reads
+               dict([(key, shown(key)) for key, _ in APPLY_FIELDS if get(key)],
+                    ourReference='contact_messages#%d' % msg.id),
+               contact_id=msg.id)
     return jsonify({'success': True,
-                    'message': 'Application received. Our team will call %s.' % phone}), 201
+                    'message': 'Application received. Our team will call %s.'
+                               % phone_svc.pretty(phone, phone)}), 201

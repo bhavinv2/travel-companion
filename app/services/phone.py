@@ -219,13 +219,35 @@ def example(iso=None):
     return _EXAMPLES.get(c['dial'], '') if c else ''
 
 
+# Every dialling code we know, longest first, for splitting one off the front of a number.
+_CODES_BY_LEN = sorted({d for _, _, d in COUNTRIES}, key=len, reverse=True)
+
+
+def split_dial(e164):
+    """(dialling code, the rest) for a stored number, or ('', digits) if we cannot tell.
+
+    Codes overlap -- 1 is the USA and Canada, 7 is Russia and Kazakhstan -- so this cannot say
+    which country a number belongs to. It does not need to: the question here is only where
+    the code ends, and the longest match answers that.
+    """
+    d = _DIGITS.sub('', e164 or '')
+    for code in _CODES_BY_LEN:
+        if d.startswith(code) and len(d) > len(code):
+            return code, d[len(code):]
+    return '', d
+
+
 def pretty(e164, fallback=''):
-    """A stored number as that country writes it, or `fallback` when we do not know it.
+    """A stored number as that country writes it, spaced so the country code is findable.
 
     +1 (647) 770-2288 and +1 917 900 5094 are the same shape typed by two different people, and
     on a page that lists them one under the other that reads as a mistake. The display is
-    derived from E.164 so every number is spelled the same way whoever entered it; the few
-    countries whose convention is not in _GROUPS keep exactly what staff typed.
+    derived from E.164 so every number is spelled the same way whoever entered it.
+
+    A country whose grouping is not in _GROUPS still gets a space after its dialling code.
+    "+46764498115" is a Swedish mobile, but nothing in it says where the 46 stops -- somebody
+    reading a list of these cannot tell the country without counting digits against a table.
+    A number a human has already spaced is left exactly as they wrote it.
     """
     d = _DIGITS.sub('', e164 or '')
     if not d:
@@ -236,7 +258,10 @@ def pretty(e164, fallback=''):
             if out:
                 return out
             break
-    return fallback or '+' + d
+    if fallback and ' ' in fallback.strip():
+        return fallback
+    code, rest = split_dial(d)
+    return '+%s %s' % (code, rest) if code else '+' + d
 
 
 def normalise(number, iso=DEFAULT_ISO):

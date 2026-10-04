@@ -36,13 +36,15 @@
       <input type="hidden" name="legs" id="csLegsJson" value=""/>
       {# set by the possible-duplicate dialog below; blank on a first submit #}
       <input type="hidden" name="confirm_duplicate" id="csConfirmDup" value=""/>
+      {# so the check can leave this post out of its own answer #}
+      {% if trip and trip.id %}<input type="hidden" name="trip_id" value="{{ trip.id }}"/>{% endif %}
 
       <!-- step rail -->
       <ol class="cs-steps" id="csSteps">
         <li class="cs-step is-active" data-goto="1"><span class="cs-step-n">1</span> Source &amp; people</li>
         <li class="cs-step" data-goto="2"><span class="cs-step-n">2</span> Trip &amp; flights</li>
         <li class="cs-step" data-goto="3"><span class="cs-step-n">3</span> Needs &amp; match</li>
-        <li class="cs-step" data-goto="4"><span class="cs-step-n">4</span> Contact &amp; publish</li>
+        <li class="cs-step" data-goto="4"><span class="cs-step-n">4</span> Notes &amp; publish</li>
       </ol>
 
       <!-- STEP 1 -->
@@ -63,6 +65,12 @@
               <input type="text" name="source_url" value="{{ val('source_url') }}" placeholder="https://facebook.com/… or website URL"/>
             </div>
           </div>
+        </div>
+
+        <div class="cs-card">
+          <h2 class="cs-card-h"><i class="fa-solid fa-address-card"></i> Point of contact</h2>
+          <p class="muted">Tick <em>May share?</em> only if the person explicitly agreed we may pass this to a matched companion. Otherwise leave it unticked and send the claim link.</p>
+          {{ contact_rows_widget(contact_rows, per_row_consent=True) }}
         </div>
 
         <div class="cs-card">
@@ -225,12 +233,6 @@
       <!-- STEP 4 -->
       <section class="cs-panel" data-step="4">
         <div class="cs-card">
-          <h2 class="cs-card-h"><i class="fa-solid fa-address-card"></i> Point of contact</h2>
-          <p class="muted">Tick <em>May share?</em> only if the person explicitly agreed we may pass this to a matched companion. Otherwise leave it unticked and send the claim link.</p>
-          {{ contact_rows_widget(contact_rows, per_row_consent=True) }}
-        </div>
-
-        <div class="cs-card">
           <h2 class="cs-card-h"><i class="fa-solid fa-lock"></i> Internal &amp; publishing</h2>
           <div class="form-row">
             <div class="field-group wide"><label>CS notes <span class="optional">(never shown publicly)</span></label><textarea name="cs_notes" rows="2">{{ val('cs_notes') }}</textarea></div>
@@ -245,6 +247,10 @@
       <!-- nav -->
       <div class="cs-wizard-nav">
         <button type="button" class="btn btn-outline-coral" id="csBack" hidden><i class="fa-solid fa-arrow-left"></i> Back</button>
+        <button type="button" class="btn btn-ghost" id="csCheckDup"
+                data-url="{{ url_for('cs.check_duplicates') }}"
+                title="Is a post like this one already in the system?">
+          <i class="fa-solid fa-magnifying-glass"></i> Check eligibility</button>
         <span class="cs-wizard-spacer"></span>
         <button type="button" class="btn btn-primary" id="csNext">Next <i class="fa-solid fa-arrow-right"></i></button>
         <button type="submit" class="btn btn-primary" id="csSubmit" hidden><i class="fa-solid fa-floppy-disk"></i> {{ 'Create post' if is_new else 'Save changes' }}</button>
@@ -253,46 +259,13 @@
     </form>
 
     {% if duplicates %}
-    {# Nothing has been stored yet: these are live posts that look like the one being created.
-       CS decides -- "post it anyway" re-submits the same form with confirm_duplicate set. #}
-    <div class="modal-overlay dup-modal" id="csDupModal" style="display:flex">
-      <div class="modal-box">
-        <h2><i class="fa-solid fa-copy"></i> Possible duplicate{{ '' if duplicates|length == 1 else 's' }}</h2>
-        <div class="dup-lead">
-          <i class="fa-solid fa-circle-exclamation"></i>
-          <p>This post was <strong>not created</strong> yet. {{ 'A live post' if duplicates|length == 1 else '%s live posts' % duplicates|length }}
-             already {{ 'looks' if duplicates|length == 1 else 'look' }} like the same request. Check {{ 'it' if duplicates|length == 1 else 'them' }},
-             then either go back and edit, or post anyway.</p>
-        </div>
-        <div class="dup-list">
-          {% for d in duplicates %}
-          <div class="dup-card">
-            <div class="dup-card-top">
-              <span class="dup-route">{{ d.route or '—' }}</span>
-              <span class="dup-id">Post #{{ d.id }}</span>
-            </div>
-            <div class="dup-facts">
-              <span><b>Person</b> {{ d.person }}</span>
-              {% if d.departs %}<span><b>Departs</b> {{ d.departs }}</span>{% endif %}
-              {% if d.returns %}<span><b>Returns</b> {{ d.returns }}</span>{% endif %}
-              {% if d.flight %}<span><b>Flight</b> {{ d.flight }}</span>{% elif d.airline %}<span><b>Airline</b> {{ d.airline }}</span>{% endif %}
-              <span><b>Role</b> {{ d.role }}</span>
-              <span><b>Status</b> {{ d.status_label }}</span>
-              {% if d.source %}<span><b>Source</b> {{ d.source }}</span>{% endif %}
-            </div>
-            <div class="dup-why">{% for r in d.reasons %}<span>{{ r }}</span>{% endfor %}</div>
-            <a class="dup-open" href="{{ url_for('cs.post_detail', trip_id=d.id) }}" target="_blank" rel="noopener">
-              Open post #{{ d.id }} <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-          </div>
-          {% endfor %}
-        </div>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-outline-coral" id="csDupBack"><i class="fa-solid fa-pen"></i> Back to the form</button>
-          <button type="button" class="btn btn-primary" id="csDupPost"><i class="fa-solid fa-floppy-disk"></i> Post it anyway</button>
-        </div>
-      </div>
-    </div>
+    {# The create route found these when CS pressed Create; nothing was stored. The same
+       dialog is raised mid-form by "Check eligibility", which fetches this fragment from
+       cs.check_duplicates -- see _dup_modal.html. #}
+    {% set mode = 'submit' %}{% include 'cs/_dup_modal.html' with context %}
     {% endif %}
+    {# where the button drops the dialog it fetches #}
+    <div id="csDupSlot"></div>
   </main>
 </div>
 
@@ -454,6 +427,40 @@
     dupModal.style.display = 'none';
     submit.click();          // via the button, so the form's submit handler still runs
   });
+
+  // ---- "Check eligibility": the same question, asked early ---------------------
+  // The server renders the dialog and we drop it in, rather than building one here: a second
+  // copy of that markup would be a second thing to keep in step with the duplicate rules.
+  const checkBtn = document.getElementById('csCheckDup');
+  const dupSlot = document.getElementById('csDupSlot');
+  if (checkBtn && dupSlot) {
+    const csrf = document.querySelector('meta[name=csrf-token]');
+    checkBtn.addEventListener('click', async () => {
+      const label = checkBtn.innerHTML;
+      checkBtn.disabled = true;
+      checkBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking…';
+      try {
+        const body = new FormData(form);
+        body.delete('ticket_file');      // the check never reads it; do not upload it twice
+        const r = await fetch(checkBtn.dataset.url, {
+          method: 'POST', body,
+          headers: csrf ? { 'X-CSRFToken': csrf.content } : {},
+        });
+        if (!r.ok) throw new Error(r.status);
+        dupSlot.innerHTML = await r.text();
+        // The server-rendered dialog, if one is up, owns the ids; this one is found inside the
+        // slot so the two can never pick up each other's buttons.
+        dupSlot.querySelector('#csDupBack')?.addEventListener('click', () => {
+          dupSlot.innerHTML = '';
+        });
+      } catch (e) {
+        toast('Could not check just now — try again, or create the post and it is checked then.');
+      } finally {
+        checkBtn.disabled = false;
+        checkBtn.innerHTML = label;
+      }
+    });
+  }
 
   applyType();
   // Land on the last step when the dialog is up: "post it anyway" submits from there.

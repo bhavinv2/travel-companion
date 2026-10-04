@@ -71,7 +71,14 @@
               {% if b.pincode %}<br/><small class="muted">PIN {{ b.pincode }}</small>{% endif %}
               {% if b.access_notes %}<br/><small class="muted"><i class="fa-solid fa-key"></i> {{ b.access_notes }}</small>{% endif %}</td>
             <td data-label="Status"><span class="chip chip-{{ b.status }}">{{ SAHAYAK_STATUS_LABELS[b.status] }}</span>
-              {% if b.cancelled_reason %}<br/><small class="muted">{{ b.cancelled_reason }}</small>{% endif %}</td>
+              {% if b.cancelled_reason %}<br/><small class="muted">{{ b.cancelled_reason }}</small>{% endif %}
+              {# whether the copy reached Preventia's review queue. Absent for bookings taken
+                 before the integration, which is why nothing shows rather than a red mark. #}
+              {% set lead = (leads or {}).get(b.id) %}
+              {% if lead %}<br/><small class="muted" title="{{ lead.submission_id or 'no reference returned' }}">
+                {% if lead.ok %}<i class="fa-solid fa-paper-plane"></i> sent to Preventia
+                {% else %}<i class="fa-solid fa-triangle-exclamation"></i> not sent to Preventia{% endif %}
+              </small>{% endif %}</td>
             <td data-label="Sahayak">
               <input type="text" class="sk-assignee" data-id="{{ b.id }}" value="{{ b.assigned_to_name or '' }}"
                      placeholder="Name" aria-label="Sahayak assigned to booking {{ b.id }}">

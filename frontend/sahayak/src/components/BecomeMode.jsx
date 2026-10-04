@@ -6,6 +6,7 @@ import { ArrowLink, Chips, Quote, Reveal, SectionHead, SideDecor, Upload, cx } f
 import { useInView } from '../hooks.js';
 import { site, postJson } from '../data/site.js';
 import { GIG_SERVICES } from '../data/services.js';
+import PhoneField from './PhoneField.jsx';
 import whyFlexible from '../assets/why-flexible.jpg';
 import whyTraining from '../assets/why-training.jpg';
 import whyCommunity from '../assets/why-community.jpg';
@@ -653,8 +654,12 @@ function ApplyForm({ applyAs }) {
           <Q title="Let's get to know you" sub="Your basic details, so our team can reach you." />
           <div className="fields">
             <Field full id="b-name" label="Full Name" name="full_name" autoComplete="name" {...f} />
-            <Field id="b-mob" label="Mobile Number" name="mobile" type="tel" autoComplete="tel" {...f} />
-            <Field id="b-wa" label="WhatsApp Number" name="whatsapp" type="tel" {...f} />
+            <PhoneField id="b-mob" label="Mobile Number" required
+                        value={{ dial: f.data.mobile_cc || '+91', tel: f.data.mobile || '' }}
+                        onChange={(v) => { f.set('mobile_cc', v.dial); f.set('mobile', v.tel); }} />
+            <PhoneField id="b-wa" label="WhatsApp Number" hint="Leave blank if it is the same"
+                        value={{ dial: f.data.whatsapp_cc || '+91', tel: f.data.whatsapp || '' }}
+                        onChange={(v) => { f.set('whatsapp_cc', v.dial); f.set('whatsapp', v.tel); }} />
             <Field id="b-em" label="Email" name="email" type="email" autoComplete="email" {...f} />
             <Field id="b-age" label="Age" name="age" inputMode="numeric" {...f} />
             <Field full id="b-loc" label="City / Area / PIN Code" name="location" placeholder="e.g. Hyderabad, Kukatpally, 500072" {...f} />
@@ -769,6 +774,12 @@ function ApplyForm({ applyAs }) {
            so whoever rings knows to ask for it. */
         postJson(site.applyUrl, {
           ...data,
+          // the dialling code travels with the number, so what reaches CS can be rung
+          mobile: ((data.mobile_cc || '+91') + ' ' + (data.mobile || '')).trim(),
+          whatsapp: data.whatsapp
+            ? ((data.whatsapp_cc || '+91') + ' ' + data.whatsapp).trim() : '',
+          mobile_cc: undefined,
+          whatsapp_cc: undefined,
           services: (data.services || []).join(', '),
           availability: (data.availability || []).join(', '),
           files: undefined,

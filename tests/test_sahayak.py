@@ -99,7 +99,12 @@ def test_a_booking_is_stored_with_everything_needed_to_turn_up(client, db):
 
     b = SahayakBooking.query.one()
     assert (b.service_name, b.quoted_price) == ('Blood draw (phlebotomy)', '149')
-    assert (b.patient_name, b.patient_age, b.phone) == ('Lakshmi Rao', 68, '+91 90000 00000')
+    # Stored as E.164, not as typed: every other number on the site is stored that way, and a
+    # column holding two shapes of the same number is one nobody can scan. The spacing is put
+    # back when it is shown.
+    assert (b.patient_name, b.patient_age, b.phone) == ('Lakshmi Rao', 68, '+919000000000')
+    from app.services import phone as phone_svc
+    assert phone_svc.pretty(b.phone) == '+91 90000 00000'
     assert b.pincode == '110016' and b.access_notes == 'Ring twice'
     assert b.status == 'new' and b.when_display == 'As soon as possible'
 
@@ -430,3 +435,308 @@ def test_the_page_never_waits_on_the_journey(client, db):
     html = client.get('/sahayak').data.decode()
     assert 'journeyUrl' in html, 'the bundle needs the endpoint to call'
     assert '"steps"' not in html, 'the journey must not be rendered into the page'
+
+
+# ---------------------------------------------------------------------------
+# The copy that goes to Preventia (External API 2.8)
+# ---------------------------------------------------------------------------
+# Their write half is a review queue, not an account factory, and these tests hold that line.
+# 2.5/2.6 create a real account and e-mail it a password the moment they are called; these two
+# forms are public and anybody can POST to them, so what leaves here is a lead a human
+# approves. The other thing guarded below is that the copy is a copy: the request is already
+# committed to our tables before it is attempted, and every way it can fail leaves the visitor
+# with the same answer they would have had anyway.
+
+APPLY = {'full_name': 'Asha Menon', 'mobile': '+91 90000 00001',
+         'email': 'asha@example.com', 'experience': '6 years on a cardiology ward',
+         'healthcare_qualification': 'B.Sc Nursing', 'languages': 'Malayalam, English',
+         'service_city': 'Kochi'}
+
+
+class Reply:
+    """Just enough of a requests.Response for the client to unwrap."""
+
+    def __init__(self, status=200, body=None, text=None):
+        self.status_code = status
+        self._body = body
+        self.text = text if text is not None else ('{}' if body is None else 'x')
+
+    def json(self):
+        if self._body is None:
+            raise ValueError('not json')
+        return self._body
+
+
+@pytest.fixture
+def live(monkeypatch):
+    """Preventia switched on, with its POST captured instead of sent.
+
+    Returns the list of (url, json) the code tried to send, so a test can assert on the payload
+    without a network and without conftest's guard being weakened for anyone else.
+    """
+    monkeypatch.setenv('PREVENTIA_API_URL', 'https://example.invalid/api/v1')
+    monkeypatch.setenv('PREVENTIA_API_KEY', 'pv_test_key')
+    sent = []
+
+    def fake_post(url, json=None, **kw):
+        sent.append((url, json))
+        return Reply(200, {'success': True, 'data': {'submissionId': 'sub-1'}})
+
+    monkeypatch.setattr(preventia.requests, 'post', fake_post)
+    return sent
+
+
+def test_a_booking_is_copied_to_preventia_as_a_lead(client, db, live):
+    """Everything their reviewer needs to act on it, in the shape 2.8 asks for."""
+    assert book(client).status_code == 201
+    assert len(live) == 1
+    url, body = live[0]
+    assert url.endswith('/external/v1/submissions')
+    assert body['submissionType'] == 'BOOKING_REQUEST'
+    assert body['source'] == 'nriparentservice.com'
+    assert body['fullName'] == 'Lakshmi Rao'
+    # the dialling code travels in its own field, and only once
+    assert body['countryCode'] == '+91'
+    assert body['phone'] == '9000000000'
+    d = body['details']
+    assert d['patient'] == 'Lakshmi Rao' and d['pincode'] == '110016'
+    assert d['address'] == '12 Green Park, New Delhi'
+    assert d['when'] == 'As soon as possible'
+    # so a row in their queue can be matched to a row in ours by hand
+    booking = SahayakBooking.query.one()
+    assert d['ourReference'] == 'sahayak_bookings#%d' % booking.id
+
+
+def test_a_lead_carries_who_to_ring_not_only_who_the_visit_is_for(client, db, live):
+    """An NRI booking for a parent is the person who answers the phone."""
+    assert book(client, contact_name='Ravi Rao').status_code == 201
+    body = live[0][1]
+    assert body['fullName'] == 'Ravi Rao'
+    assert body['details']['patient'] == 'Lakshmi Rao'
+
+
+def test_an_application_is_copied_as_a_sahayak_signup(client, db, live):
+    """The same fields CS reads, so the two readers never see different applications."""
+    assert client.post('/api/sahayak-apply', json=APPLY).status_code == 201
+    url, body = live[0]
+    assert url.endswith('/external/v1/submissions')
+    assert body['submissionType'] == 'SAHAYAK_SIGNUP'
+    assert body['fullName'] == 'Asha Menon'
+    assert body['email'] == 'asha@example.com'
+    d = body['details']
+    assert d['experience'] == '6 years on a cardiology ward'
+    assert d['service_city'] == 'Kochi'
+    # the number reads the way the rest of the site writes numbers
+    assert d['mobile'] == '+91 90000 00001'
+    # and nothing empty: a reviewer reading six filled lines beats twenty with fourteen blank
+    assert '' not in d.values() and None not in d.values()
+
+
+def test_a_lead_never_asks_preventia_to_create_an_account(client, db, live):
+    """2.5/2.6 mint an account and e-mail a password on the spot. These forms are public and
+    unauthenticated, so a copy-pasted key must not be able to reach them from here."""
+    book(client)
+    client.post('/api/sahayak-apply', json=APPLY)
+    assert live, 'something should have been sent'
+    for url, _ in live:
+        assert '/onboard/' not in url
+
+
+def test_nothing_is_sent_when_preventia_is_switched_off(client, db, monkeypatch):
+    """The usual state on a developer's machine. A booking must work exactly the same."""
+    calls = []
+
+    def fake_post(*a, **k):
+        calls.append(a)
+        return Reply()
+
+    monkeypatch.setattr(preventia.requests, 'post', fake_post)
+    assert book(client).status_code == 201
+    assert SahayakBooking.query.count() == 1
+    assert calls == []
+
+
+@pytest.mark.parametrize('reply, why', [
+    # their real answer today: §2.8 is documented but not deployed on care360-api, and it comes
+    # back through the ordinary envelope rather than as a transport error
+    (Reply(404, {'success': False, 'errorCode': 'NOT_FOUND',
+                 'message': 'No route matched this request'}, 'x'), 'the route is not deployed'),
+    (Reply(404, text='<html>Not Found</html>'), 'a proxy answered instead of them'),
+    (Reply(403, text=''), 'the key was not accepted'),
+    (Reply(403, {'success': False, 'errorCode': 'ROLE_OUT_OF_SCOPE'}, 'x'), 'out of scope'),
+    (Reply(200, {'success': True, 'data': {}}), 'no submissionId came back'),
+])
+def test_a_booking_survives_every_way_the_copy_can_fail(client, db, monkeypatch, reply, why):
+    """The visitor is already owed an answer by the time this runs. Whatever Preventia says,
+    the booking is stored and the reply is the one they would have got anyway."""
+    monkeypatch.setenv('PREVENTIA_API_URL', 'https://example.invalid/api/v1')
+    monkeypatch.setenv('PREVENTIA_API_KEY', 'pv_test_key')
+    monkeypatch.setattr(preventia.requests, 'post', lambda *a, **k: reply)
+    r = book(client)
+    assert r.status_code == 201, why
+    assert r.get_json()['success'] is True
+    assert SahayakBooking.query.count() == 1, why
+
+
+def test_a_booking_survives_preventia_being_unreachable(client, db, monkeypatch):
+    import requests as _requests
+
+    monkeypatch.setenv('PREVENTIA_API_URL', 'https://example.invalid/api/v1')
+    monkeypatch.setenv('PREVENTIA_API_KEY', 'pv_test_key')
+
+    def boom(*a, **k):
+        raise _requests.ConnectionError('no route to host')
+
+    monkeypatch.setattr(preventia.requests, 'post', boom)
+    assert book(client).status_code == 201
+    assert SahayakBooking.query.count() == 1
+
+
+def test_a_lead_that_did_not_get_across_is_recorded(client, db, monkeypatch):
+    """Otherwise it exists only in a log file nobody reads, and the first anyone knows is a
+    Preventia admin asking why their queue is empty."""
+    from app.models import ActivityEvent
+
+    monkeypatch.setenv('PREVENTIA_API_URL', 'https://example.invalid/api/v1')
+    monkeypatch.setenv('PREVENTIA_API_KEY', 'pv_test_key')
+    monkeypatch.setattr(preventia.requests, 'post', lambda *a, **k: Reply(
+        404, {'success': False, 'errorCode': 'NOT_FOUND',
+              'message': 'No route matched this request'}, 'x'))
+    book(client)
+    ev = ActivityEvent.query.filter_by(event='preventia_lead_failed').one()
+    assert ev.meta['kind'] == 'BOOKING_REQUEST'
+    assert ev.meta['booking_id'] == SahayakBooking.query.one().id
+
+
+def test_a_lead_that_got_across_keeps_their_reference(client, db, live):
+    from app.models import ActivityEvent
+
+    book(client)
+    ev = ActivityEvent.query.filter_by(event='preventia_lead').one()
+    assert ev.meta['submission_id'] == 'sub-1'
+
+
+def test_a_number_we_cannot_split_is_sent_whole(db):
+    """Better an unsplit number their reviewer can still read than an invented country."""
+    # +999 is nobody's dialling code, so there is nothing to put in countryCode
+    assert preventia.lead_phone('+999 12345678') == ('', '+999 12345678')
+    assert preventia.lead_phone('') == ('', '')
+    assert preventia.lead_phone('+919000000001') == ('+91', '9000000001')
+
+
+def test_we_refuse_to_invent_a_submission_type(db):
+    """A typo here would be a 400 from their validator and a confusing log line. It is our bug,
+    so it is raised rather than swallowed like a network failure."""
+    with pytest.raises(ValueError):
+        preventia.submit_lead('NURSE_SIGNUP', 'Asha', '+919000000001')
+
+
+# ---------------------------------------------------------------------------
+# Sahayak has its own inbox slice now
+# ---------------------------------------------------------------------------
+
+def test_an_application_is_filed_under_sahayak(client, db):
+    """It used to land in the general inbox, which is why no Sahayak screen could show it."""
+    from app.models import ContactMessage
+
+    assert client.post('/api/sahayak-apply', json=APPLY).status_code == 201
+    assert ContactMessage.query.one().topic == 'sahayak'
+
+
+def test_the_admin_reads_sahayak_requests_on_its_own_screen(client, db, admin_user):
+    """The screen the travel companion and insurance sections already have."""
+    client.post('/api/sahayak-apply', json=APPLY)
+    login(client, admin_user.email)
+    html = client.get('/admin/voices?tab=contact&topic=sahayak').data.decode()
+    assert 'Asha Menon' in html
+    assert 'Sahayak application' in html
+
+
+def test_the_sahayak_screen_does_not_show_other_products_enquiries(client, db, admin_user):
+    from app.models import ContactMessage
+
+    _db.session.add(ContactMessage(name='Someone Else', email='e@example.com',
+                                   message='About a travel companion please', topic='companion'))
+    _db.session.commit()
+    client.post('/api/sahayak-apply', json=APPLY)
+    login(client, admin_user.email)
+    html = client.get('/admin/voices?tab=contact&topic=sahayak').data.decode()
+    assert 'Asha Menon' in html
+    assert 'Someone Else' not in html
+
+
+def test_the_queue_says_whether_the_copy_reached_preventia(client, db, admin_user, live):
+    """An integration nobody can see the state of is an integration nobody notices has stopped."""
+    book(client)
+    login(client, admin_user.email)
+    html = client.get('/admin/sahayak').data.decode()
+    assert 'sent to Preventia' in html
+    assert 'not sent to Preventia' not in html
+    # their reference is on the row for matching a queue by hand, not printed at full width
+    assert 'sub-1' in html
+
+
+def test_the_queue_flags_a_copy_that_did_not_get_across(client, db, admin_user, monkeypatch):
+    monkeypatch.setenv('PREVENTIA_API_URL', 'https://example.invalid/api/v1')
+    monkeypatch.setenv('PREVENTIA_API_KEY', 'pv_test_key')
+    monkeypatch.setattr(preventia.requests, 'post', lambda *a, **k: Reply(
+        404, {'success': False, 'errorCode': 'NOT_FOUND',
+              'message': 'No route matched this request'}, 'x'))
+    book(client)
+    login(client, admin_user.email)
+    assert 'not sent to Preventia' in client.get('/admin/sahayak').data.decode()
+
+
+def test_a_booking_nobody_tried_to_copy_is_not_marked_at_all(client, db, admin_user):
+    """Bookings taken before the integration, and every booking while it is switched off. A red
+    mark against those would be a lie about something that was never attempted."""
+    book(client)
+    login(client, admin_user.email)
+    html = client.get('/admin/sahayak').data.decode()
+    assert 'Preventia' not in html
+
+
+def test_the_cs_queue_says_the_same_thing(client, db, cs_user, live):
+    book(client)
+    login(client, cs_user.email)
+    assert 'sent to Preventia' in client.get('/cs/sahayak').data.decode()
+
+
+def test_the_queue_asks_about_its_own_page_only(client, db, admin_user, live):
+    """One query for the rows on screen, not one per row and not the whole log."""
+    book(client)
+    assert sahayak.lead_state([]) == {}
+    assert sahayak.lead_state([999999]) == {}
+    booking = SahayakBooking.query.one()
+    assert sahayak.lead_state([booking.id])[booking.id]['ok'] is True
+
+
+def test_an_unforeseen_failure_while_copying_still_leaves_a_booking(client, db, monkeypatch):
+    """submit_lead swallows the network; this covers everything after it. A form that worked
+    must not answer 500 because the audit row could not be written."""
+    from app.models import ActivityEvent
+
+    monkeypatch.setenv('PREVENTIA_API_URL', 'https://example.invalid/api/v1')
+    monkeypatch.setenv('PREVENTIA_API_KEY', 'pv_test_key')
+    monkeypatch.setattr(preventia, 'submit_lead', lambda *a, **k: 'sub-9')
+
+    real = ActivityEvent.log
+
+    def explode(event, *a, **kw):
+        if event.startswith('preventia_lead'):
+            raise RuntimeError('the audit table is on fire')
+        return real(event, *a, **kw)
+
+    monkeypatch.setattr(ActivityEvent, 'log', staticmethod(explode))
+    r = book(client)
+    assert r.status_code == 201
+    assert SahayakBooking.query.count() == 1
+
+
+def test_the_confirmation_reads_the_number_back_spaced(client, db):
+    """Stored as one E.164 string, shown with the country split off -- the same shape the
+    application reply and the console use. "+46764498115" is the one form nobody can check."""
+    r = book(client, phone='+46 764498115')
+    assert r.status_code == 201
+    assert '+46 764498115' in r.get_json()['message']
+    assert SahayakBooking.query.one().phone == '+46764498115'

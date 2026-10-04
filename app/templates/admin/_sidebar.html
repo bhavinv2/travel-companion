@@ -32,12 +32,19 @@
      consoles, in the same place on every screen, instead of a grid that only the admin panel
      had and that disappeared when the rail collapsed. #}
 
+  {# How many rows on each screen nobody has looked at. Asked for once, here, rather than per
+     line: NAV_BADGES is the function and this is the only call. #}
+  {% set waiting = NAV_BADGES() %}
   <nav class="admin-nav-items">
     {% for s in nav.SECTIONS if s.key == current %}
       {% for item in s['items'] %}
+      {% set n = waiting.get(item.key, 0) %}
       <a href="{{ url_for(item.endpoint, **item.args) }}"
-         class="{{ 'active' if item.key == here }}" title="{{ item.label }}">
+         class="{{ 'active' if item.key == here }}"
+         title="{{ item.label }}{{ ' — %d waiting' % n if n }}">
         <i class="fa-solid {{ item.icon }}"></i> <span>{{ item.label }}</span>
+        {# the count when the rail is open, a bare dot when it is collapsed to icons #}
+        {% if n %}<span class="nav-badge" aria-label="{{ n }} not read">{{ n if n < 100 else '99+' }}</span>{% endif %}
       </a>
       {% endfor %}
     {% endfor %}

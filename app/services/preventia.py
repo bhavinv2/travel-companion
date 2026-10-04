@@ -1,15 +1,16 @@
 """The Preventia360 External API (v1): the Sahayak catalogue, its pricing, and its gig forms.
 
-Read-only, and deliberately so at their end -- "bookings themselves still go through the regular
-app/backoffice flow". So this fetches what a visitor is shown and what it costs; the booking they
-make is still stored by us, in sahayak_bookings, and worked in the CS console. Nothing here
-writes to Preventia.
+Almost all read. "Bookings themselves still go through the regular app/backoffice flow", so what
+a visitor asks for is stored by us, in sahayak_bookings and contact_messages, and worked in the
+CS console. The one thing we send them is a lead (§2.8): a copy of a booking or an application,
+dropped in a queue an admin of theirs approves by hand. We stay the system of record.
 
-Three things the page needs, in the order it needs them:
+Four things, in the order the page needs them:
 
     service-categories  the catalogue, with each category's pricing embedded
     pricing             one category's rule again, for a zone-specific refresh
     gig-forms           the PRE/DURING/POST field schema, if we ever render their forms
+    submissions         outbound: a booking or an application, copied to their review queue
 
 Operational shape:
 
@@ -19,7 +20,9 @@ Operational shape:
     asking more often than that buys nothing and makes our page wait on their network.
   * Every call degrades to None rather than raising. A catalogue that cannot be fetched must not
     take down a page whose job is letting somebody arrange care for a parent -- the caller falls
-    back to the catalogue in services/sahayak.
+    back to the catalogue in services/sahayak. The same rule governs the outbound lead, for a
+    sharper reason: the request is already saved and the visitor is already owed an answer, so a
+    bad afternoon at their end must not turn into an error on a form that worked.
   * A bare 403 with no JSON body means the credential was not accepted; a 403 WITH a body is a
     business rejection like ROLE_OUT_OF_SCOPE. The two need different people to fix them, so
     they are logged differently.
@@ -96,6 +99,128 @@ def _get(path, params=None):
 
 def clear_cache():
     _cache.clear()
+
+
+# ---------------------------------------------------------------------------
+# Leads (§2.8) -- the only thing we send them
+# ---------------------------------------------------------------------------
+
+# Where a lead says it came from, so whoever reviews it in their portal knows which site
+# produced it rather than guessing from the phone number.
+SOURCE = 'nriparentservice.com'
+
+# A write, and somebody is waiting on the reply, so it gets a tighter budget than a read: the
+# booking is already saved by the time this runs, and a visitor must not sit watching a spinner
+# because Preventia is having a slow afternoon.
+LEAD_TIMEOUT = (3.05, 5)
+
+BOOKING_REQUEST = 'BOOKING_REQUEST'
+SAHAYAK_SIGNUP = 'SAHAYAK_SIGNUP'
+USER_SIGNUP = 'USER_SIGNUP'
+SUBMISSION_TYPES = (USER_SIGNUP, SAHAYAK_SIGNUP, BOOKING_REQUEST)
+
+
+def submit_lead(submission_type, full_name, phone, email=None, details=None, source=SOURCE):
+    """File one lead in Preventia's review queue. Returns their submissionId, or None.
+
+    This is §2.8, deliberately, and not the onboarding calls in §2.5/§2.6. Those create a real
+    account and e-mail it a temporary password the moment they are called; this inserts a row an
+    admin has to approve first. Our Sahayak page is a public form on the open internet, which is
+    exactly the case their own guide says to use a LEADS-scoped key for -- "so a compromised or
+    copy-pasted key can't mint accounts directly". A form anybody can POST to must not be able
+    to provision logins, and §2.5/§2.6 are not idempotent either: a visitor who double-taps
+    Submit would be issued two accounts and two password e-mails.
+
+    Fire-and-forget by their design -- there is no GET to ask what became of a lead -- so the
+    submissionId is recorded on our side purely so a row here can be matched to a row there by
+    hand. We remain the system of record: the booking or application is committed to our own
+    tables before this is called, and a failure here loses a copy, never the request itself.
+
+    `phone` is one of our stored E.164 numbers; it is split into their countryCode/phone pair
+    here. None covers every way this can not happen -- switched off, unreachable, rejected --
+    because the caller's response to all of them is the same, and none of them may affect what
+    the visitor is told.
+
+    As of 4 Oct 2026 this returns None on every call in production: §2.8 is in their integrator
+    document but not deployed on care360-api.preventia360.com, which answers
+
+        404 NOT_FOUND "No route matched this request"
+
+    while the read half (§2.1-§2.4) is live and serving. Nothing here needs changing when they
+    ship it -- the first successful call will start recording submission ids, and the Sahayak
+    queue in the console says per booking whether the copy got across. Worth checking with a
+    probe before assuming it is still down -- doc/probe_preventia_submissions.py asks in a way
+    that cannot create anything, by sending an invalid submissionType so their validator
+    rejects the payload before the queue is touched.
+    """
+    if submission_type not in SUBMISSION_TYPES:          # our bug, not theirs
+        raise ValueError('unknown submissionType %r' % (submission_type,))
+    if not enabled():
+        return None
+    if not (full_name or '').strip() or not (phone or '').strip():
+        # their required pair. Sending it anyway buys a 400 and a misleading log line.
+        log.warning('preventia lead %s skipped: a name and a phone number are required',
+                    submission_type)
+        return None
+
+    # `phone` arrives the way we store numbers -- one E.164 string. They want the dialling
+    # code in a field of its own, so it is taken apart here, once, rather than at each call
+    # site where one of them would eventually forget.
+    code, local = lead_phone(phone)
+    payload = {'submissionType': submission_type, 'source': source,
+               'fullName': full_name.strip(), 'phone': local}
+    if code:
+        payload['countryCode'] = code
+    if email:
+        payload['email'] = email.strip()
+    # `details` is unstructured at their end and shown to the reviewing admin as-is, so it
+    # carries everything the form collected. Blanks are dropped: an admin reading a lead is
+    # better served by six filled lines than by twenty with fourteen empty.
+    payload['details'] = {k: v for k, v in (details or {}).items() if v not in (None, '', [])}
+
+    url = '%s/external/v1/submissions' % base_url()
+    try:
+        r = requests.post(url, json=payload, timeout=LEAD_TIMEOUT,
+                          headers={'X-API-Key': api_key(), 'Accept': 'application/json'})
+    except requests.RequestException as exc:
+        log.warning('preventia lead %s unreachable: %s', submission_type, exc)
+        return None
+
+    if r.status_code == 403 and not (r.text or '').strip():
+        log.error('preventia lead %s: the API key was not accepted (403, empty body)',
+                  submission_type)
+        return None
+    try:
+        body = r.json()
+    except ValueError:
+        # a proxy or load balancer answering instead of them -- their own errors are JSON
+        log.error('preventia lead %s: %s with a non-JSON body', submission_type, r.status_code)
+        return None
+    if not body.get('success'):
+        # A backend that has not deployed §2.8 yet answers 404 NOT_FOUND "No route matched this
+        # request" through the ordinary envelope, so it arrives here rather than as a transport
+        # error. Which is the right place for it: a route that does not exist and a lead they
+        # refused both mean the copy did not land, and the caller treats them the same.
+        log.error('preventia lead %s: %s %s %s', submission_type, r.status_code,
+                  body.get('errorCode'), body.get('message'))
+        return None
+    return ((body.get('data') or {}).get('submissionId')) or None
+
+
+def lead_phone(e164):
+    """An E.164 number split the way §2.8 asks for it: ('+91', '9876512345').
+
+    They want the dialling code in its own field. We store one joined string, so it is taken
+    apart again here rather than at every call site. ('', number) when we cannot tell where the
+    code ends, which sends the whole thing as the number and no countryCode -- a reviewer can
+    still read it, which an invented code would not survive.
+    """
+    from app.services import phone as phone_svc
+
+    code, rest = phone_svc.split_dial(e164 or '')
+    if not code or not rest:
+        return '', (e164 or '').strip()
+    return '+' + code, rest
 
 
 def roles():

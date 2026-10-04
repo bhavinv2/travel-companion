@@ -1,0 +1,74 @@
+{# "Is this already in the system?" -- the answer, in a dialog.
+
+   Rendered two ways from one file, because the two must never disagree about what counts as a
+   duplicate or describe the same match differently:
+
+     mode='submit'  the create route found matches when CS pressed Create. Nothing was stored.
+                    The way forward is "post it anyway", which re-submits with confirm_duplicate.
+     mode='check'   CS pressed "Check eligibility" part-way through filling the form. Nothing
+                    was submitted at all, so there is nothing to force through -- the dialog
+                    just closes and they carry on. This mode also answers when there is nothing
+                    to report, which the submit path never needs to do.
+
+   Also the reason this is a file of its own: the check endpoint returns exactly this fragment,
+   so the dialog the button raises is the same markup, not a copy of it in JavaScript. #}
+{% set n = duplicates|length %}
+<div class="modal-overlay dup-modal" id="csDupModal" style="display:flex">
+  <div class="modal-box">
+    {% if not n %}
+    {# Only reachable from the button. A check that says nothing when it finds nothing reads as
+       a check that did not run, so it says so. #}
+    <h2><i class="fa-solid fa-circle-check"></i> Nothing like this yet</h2>
+    <div class="dup-lead dup-lead-ok">
+      <i class="fa-solid fa-circle-check"></i>
+      <p>No live post looks like this one — same route and dates, same flight, or the same phone
+         or e-mail. Carry on filling in the form; it is checked again when you create the post.</p>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-primary" id="csDupBack">Back to the form</button>
+    </div>
+    {% else %}
+    <h2><i class="fa-solid fa-copy"></i> Possible duplicate{{ '' if n == 1 else 's' }}</h2>
+    <div class="dup-lead">
+      <i class="fa-solid fa-circle-exclamation"></i>
+      {% if mode == 'check' %}
+      <p>{{ 'A live post' if n == 1 else '%s live posts' % n }}
+         already {{ 'looks' if n == 1 else 'look' }} like this one. Nothing has been submitted —
+         check {{ 'it' if n == 1 else 'them' }}, then carry on with this post or abandon it.</p>
+      {% else %}
+      <p>This post was <strong>not created</strong> yet. {{ 'A live post' if n == 1 else '%s live posts' % n }}
+         already {{ 'looks' if n == 1 else 'look' }} like the same request. Check {{ 'it' if n == 1 else 'them' }},
+         then either go back and edit, or post anyway.</p>
+      {% endif %}
+    </div>
+    <div class="dup-list">
+      {% for d in duplicates %}
+      <div class="dup-card">
+        <div class="dup-card-top">
+          <span class="dup-route">{{ d.route or '—' }}</span>
+          <span class="dup-id">Post #{{ d.id }}</span>
+        </div>
+        <div class="dup-facts">
+          <span><b>Person</b> {{ d.person }}</span>
+          {% if d.departs %}<span><b>Departs</b> {{ d.departs }}</span>{% endif %}
+          {% if d.returns %}<span><b>Returns</b> {{ d.returns }}</span>{% endif %}
+          {% if d.flight %}<span><b>Flight</b> {{ d.flight }}</span>{% elif d.airline %}<span><b>Airline</b> {{ d.airline }}</span>{% endif %}
+          <span><b>Role</b> {{ d.role }}</span>
+          <span><b>Status</b> {{ d.status_label }}</span>
+          {% if d.source %}<span><b>Source</b> {{ d.source }}</span>{% endif %}
+        </div>
+        <div class="dup-why">{% for r in d.reasons %}<span>{{ r }}</span>{% endfor %}</div>
+        <a class="dup-open" href="{{ url_for('cs.post_detail', trip_id=d.id) }}" target="_blank" rel="noopener">
+          Open post #{{ d.id }} <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-outline-coral" id="csDupBack"><i class="fa-solid fa-pen"></i> Back to the form</button>
+      {% if mode != 'check' %}
+      <button type="button" class="btn btn-primary" id="csDupPost"><i class="fa-solid fa-floppy-disk"></i> Post it anyway</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>

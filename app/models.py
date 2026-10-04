@@ -716,9 +716,9 @@ CONTACT_STATUSES = ('new', 'in_progress', 'closed')
 CONTACT_STATUS_LABELS = {'new': 'New', 'in_progress': 'In progress', 'closed': 'Closed'}
 # Which service the enquiry is about. One inbox, so CS never has to check two screens; the
 # topic is what lets them filter and see at a glance what they are answering.
-CONTACT_TOPICS = ('companion', 'insurance', 'general')
+CONTACT_TOPICS = ('companion', 'insurance', 'sahayak', 'general')
 CONTACT_TOPIC_LABELS = {'companion': 'Travel companion', 'insurance': 'Travel insurance',
-                        'general': 'General enquiry'}
+                        'sahayak': 'Sahayak', 'general': 'General enquiry'}
 
 
 class ContactMessage(db.Model):

@@ -6,6 +6,7 @@ from flask import (Blueprint, render_template, request, redirect, url_for, flash
                    current_app, abort)
 from flask_login import login_required, current_user
 from sqlalchemy import func, or_
+from werkzeug.datastructures import MultiDict
 
 from app import db
 from app.services import urls
@@ -222,6 +223,7 @@ def sahayak_bookings():
                            services=sahayak_service.services(),
                            SAHAYAK_STATUSES=SAHAYAK_STATUSES,
                            SAHAYAK_STATUS_LABELS=SAHAYAK_STATUS_LABELS,
+                           leads=sahayak_service.lead_state([b.id for b in bookings]),
                            endpoint='cs.sahayak_bookings', action_base='cs',
                            sidebar='cs/_sidebar.html')
 
@@ -767,6 +769,37 @@ def _replace_contact_points(trip, rows):
     for cp in list(trip.contact_points):
         if cp.id and cp.id not in keep_ids and id(cp) not in keep_ids:
             db.session.delete(cp)
+
+
+@cs_bp.route('/posts/check-duplicates', methods=['POST'])
+@login_required
+@cs_required
+def check_duplicates():
+    """"Have we got this one already?" -- asked from the form, before anything is stored.
+
+    The same duplicates.find the create path runs on submit, offered as a button so CS can ask
+    at any point instead of filling in four steps and being told at the end. It renders the same
+    dialog from the same template: a second opinion that disagreed with the one on submit would
+    be worse than no button at all.
+
+    Deliberately not validated. A half-filled form must still be able to answer "do we have this
+    already" -- the route, the dates, the flight and the contact rows are all the check reads,
+    and refusing to look because the age group is blank would make the button useless exactly
+    when it is wanted. Nothing is written either: the candidate is never added to the session,
+    and no file is accepted, so pressing it ten times costs ten reads and changes nothing.
+    """
+    trip = CompanionRequest(created_by_id=current_user.id, user_id=None)
+    # An editing form checks against everything except itself, which find() does by id.
+    raw_id = (request.form.get('trip_id') or '').strip()
+    if raw_id.isdigit():
+        trip.id = int(raw_id)
+    _apply_form(trip, request.form, MultiDict(), is_new=not raw_id.isdigit())
+    rows, _ = parse_contact_rows(request.form)
+    dups = duplicates.find(trip, contact_values=[r['value'] for r in rows])
+    # No expunge and no rollback: the candidate is never added to the session, so there is
+    # nothing pending to clear. Clearing anyway would detach current_user along with it, and
+    # the first thing this dialog printed about whoever is signed in would raise.
+    return render_template('cs/_dup_modal.html', duplicates=dups, mode='check')
 
 
 @cs_bp.route('/posts/new', methods=['GET', 'POST'])

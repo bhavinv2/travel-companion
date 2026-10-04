@@ -150,8 +150,9 @@ def test_a_country_we_are_unsure_of_keeps_what_staff_typed():
     both prints something no British reader recognises."""
     assert phone.pretty('+442079460958', '+44 20 7946 0958') == '+44 20 7946 0958'
     assert phone.pretty('+61412345678', '0412 345 678') == '0412 345 678'
-    # with nothing to fall back on it is at least dialable
-    assert phone.pretty('+442079460958') == '+442079460958'
+    # with nothing to fall back on, the dialling code is still split off -- a reader has to be
+    # able to see where +44 ends even when we cannot group the rest
+    assert phone.pretty('+442079460958') == '+44 2079460958'
 
 
 def test_nothing_in_nothing_out():
@@ -210,3 +211,51 @@ def test_staff_lists_spell_stored_numbers_the_same_way(client, db, admin_user):
                 follow_redirects=True)
     html = client.get('/cs/voices').data.decode()
     assert '+1 (917) 900-5094' in html
+
+
+# Finding the country code at a glance
+# ---------------------------------------------------------------------------
+
+def test_a_country_we_cannot_group_still_shows_where_its_code_ends():
+    """"+46764498115" is a Swedish mobile, but nothing in it says where the 46 stops. A column
+    of those cannot be scanned without counting digits against a table."""
+    assert phone.pretty('+46764498115') == '+46 764498115'
+    assert phone.pretty('+61412345678') == '+61 412345678'
+    assert phone.pretty('+442079460958') == '+44 2079460958'
+
+
+def test_the_countries_we_do_know_keep_their_own_spelling():
+    """The split is a floor, not a replacement: where there is a real convention it wins."""
+    assert phone.pretty('+19179005094') == '+1 (917) 900-5094'
+    assert phone.pretty('+919848000000') == '+91 98480 00000'
+    assert phone.pretty('+971501234567') == '+971 50 123 4567'
+
+
+def test_a_number_a_human_has_already_spaced_is_left_alone():
+    """Somebody who wrote it out knows their own country's grouping better than this does."""
+    assert phone.pretty('+442079460958', '+44 20 7946 0958') == '+44 20 7946 0958'
+    assert phone.pretty('+61412345678', '0412 345 678') == '0412 345 678'
+    # but a run of digits as the fallback is no better than no fallback
+    assert phone.pretty('+46764498115', '0764498115') == '+46 764498115'
+
+
+def test_where_the_code_ends_is_the_longest_match():
+    """Codes overlap -- 1 is the USA and Canada, 7 is Russia and Kazakhstan -- so this cannot
+    say which country it is, only where the code stops."""
+    assert phone.split_dial('+971501234567') == ('971', '501234567')   # not '97' or '9'
+    assert phone.split_dial('+19179005094') == ('1', '9179005094')
+    assert phone.split_dial('+999999') == ('', '999999')               # no such code
+
+
+def test_a_sahayak_booking_is_stored_the_same_way_every_other_number_is(client, db):
+    """The form sends the dialling code and the number joined by a space. Stored as typed, the
+    bookings table would hold a shape no other table uses."""
+    from app.models import SahayakBooking
+    r = client.post('/api/sahayak-booking', json={
+        'service': 'health_checkup', 'patient_name': 'Asha',
+        'phone': '+46 764498115', 'address': '12 Rose Lane', 'when_type': 'asap',
+    })
+    assert r.status_code == 201, r.get_json()
+    booking = SahayakBooking.query.get(r.get_json()['booking_id'])
+    assert booking.phone == '+46764498115'
+    assert phone.pretty(booking.phone) == '+46 764498115'

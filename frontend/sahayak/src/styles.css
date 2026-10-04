@@ -2097,3 +2097,35 @@ body.lock{overflow:hidden}
 @media (prefers-reduced-motion:reduce){
   .fm,.fm-back{animation:none}
 }
+
+/* ================================================================
+   Phone field with a dial-code picker (components/PhoneField.jsx)
+   The same control the travel-insurance page uses, so the two public pages ask for a number
+   the same way; the list behind it is services/phone.py, injected with the page.
+   ================================================================ */
+.ph-row{display:flex;gap:8px;align-items:stretch}
+.ph-num{flex:1 1 auto;min-width:0}
+.ph-hint{display:block;margin-top:5px;font-size:12px;color:var(--mut)}
+
+.itel{position:relative;flex:0 0 auto}
+.itel-btn{display:flex;align-items:center;gap:6px;height:100%;min-height:48px;padding:0 12px;border:1.5px solid var(--line);border-radius:12px;background:#F6F8FC;font-family:inherit;font-size:15px;color:var(--ink);cursor:pointer;transition:border-color .2s,background-color .2s}
+.itel-btn:hover{border-color:var(--p)}
+.itel-btn:focus-visible{outline:3px solid rgba(15,157,140,.4);outline-offset:2px}
+.itel-flag{font-size:17px;line-height:1}
+.itel-code{font-weight:700;white-space:nowrap}
+.itel-chev{width:13px;height:13px;transform:rotate(90deg);opacity:.5}
+.itel-pop{position:absolute;z-index:9020;top:calc(100% + 6px);left:0;width:278px;max-width:80vw;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 24px 54px rgba(1,16,56,.2);padding:10px}
+.itel-pop.up{top:auto;bottom:calc(100% + 6px)}
+.itel-search{width:100%;min-height:42px;border:1.5px solid var(--line);border-radius:10px;padding:0 12px;font-family:inherit;font-size:14px;color:var(--ink);outline:none;margin-bottom:8px}
+.itel-search:focus{border-color:var(--p)}
+.itel-list{list-style:none;margin:0;padding:0;max-height:232px;overflow-y:auto;overscroll-behavior:contain}
+.itel-list li{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;cursor:pointer;font-size:14px}
+.itel-list li:hover{background:var(--g)}
+.itel-list li.on{background:var(--p-soft,#E8F5F2)}
+.itel-list li.on .itel-nm{color:var(--pd);font-weight:700}
+.itel-list .itel-fl{font-size:16px}
+.itel-list .itel-nm{flex:1;min-width:0;color:var(--ink)}
+.itel-list .itel-dl{color:var(--mut);font-weight:600}
+.itel-none{justify-content:center;color:var(--mut);cursor:default}
+/* Inside the finder popup the field sits in a scroll area, so the picker has to sit above it */
+.fm .itel-pop{z-index:9030}

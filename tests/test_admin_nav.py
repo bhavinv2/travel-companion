@@ -165,3 +165,41 @@ def test_the_enquiry_inbox_really_filters_by_topic(client, db, admin_user):
     login(client, 'admin@test.com')
     html = client.get('/admin/voices?tab=contact&topic=insurance').data.decode()
     assert 'Ravi' in html and 'Asha' not in html
+
+
+def test_sahayak_requests_have_a_screen_of_their_own(app):
+    """Travel companion and insurance each had an enquiry screen in their section; Sahayak did
+    not, so an application filed under Sahayak was reachable only from the catch-all inbox."""
+    items = {i['key']: i for s in admin_nav.SECTIONS if s['key'] == 'sahayak' for i in s['items']}
+    assert 'voices_sahayak' in items
+    assert items['voices_sahayak']['args'] == {'tab': 'contact', 'topic': 'sahayak'}
+
+
+def test_the_sahayak_slice_of_the_inbox_lights_up_its_own_line(app):
+    """Four lines share the voices endpoint, so the query string is what tells them apart."""
+    assert admin_nav.current_key('voices', {'tab': 'contact', 'topic': 'sahayak'}) == 'voices_sahayak'
+    assert admin_nav.section_for('voices', {'tab': 'contact', 'topic': 'sahayak'}) == 'sahayak'
+    # and the other slices are unmoved
+    assert admin_nav.current_key('voices', {'tab': 'contact', 'topic': 'insurance'}) == 'voices_insurance'
+    assert admin_nav.current_key('voices', {'tab': 'contact', 'topic': 'general'}) == 'voices_general'
+    assert admin_nav.current_key('voices', {'tab': 'contact'}) == 'voices_contact'
+
+
+def test_the_header_switcher_knows_which_product_a_sahayak_enquiry_is(app):
+    """It renders before the sidebar, so it reads the endpoint and args rather than the key."""
+    f = admin_nav.section_for_endpoint
+    assert f('admin.voices', {'tab': 'contact', 'topic': 'sahayak'}) == 'sahayak'
+    assert f('admin.voices', {'tab': 'contact', 'topic': 'insurance'}) == 'insurance'
+    assert f('admin.voices', {'tab': 'feedback', 'topic': 'sahayak'}) == 'companion'
+
+
+def test_the_sahayak_tab_lists_its_new_screen(client, db, admin_user):
+    """The menu is where somebody looks for it, so the sidebar has to carry the line and not
+    only the routing table."""
+    login(client, 'admin@test.com')
+    nav = client.get('/admin/sahayak').data.decode().split('admin-nav-items', 1)[1]
+    assert 'Applications &amp; enquiries' in nav
+    assert 'Bookings' in nav
+    # still only this product's screens
+    for elsewhere in ('Listings', 'Quote leads', 'Colour themes'):
+        assert elsewhere not in nav, elsewhere

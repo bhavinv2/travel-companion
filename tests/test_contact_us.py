@@ -294,10 +294,14 @@ def test_the_list_is_short_and_about_services(client, db):
 def test_what_they_pick_decides_which_inbox_it_lands_in(client, db):
     """The choice used to be a line of text in the message body and nothing else -- every
     enquiry from this page was filed as 'general' whatever it said, so the CS console's
-    insurance filter never showed any of them."""
+    insurance filter never showed any of them.
+
+    Sahayak joined the three with a bucket of its own; "an existing booking" did not, because
+    it spans all three products and the only honest inbox for it is the unfiltered one."""
     for topic, bucket in (('Travel insurance', 'insurance'),
                           ('Travel companion', 'companion'),
-                          ('Sahayak - a nurse visit at home', 'general'),
+                          ('Sahayak - a health professional at home', 'sahayak'),
+                          ('An existing booking or request', 'general'),
                           ('Something else', 'general')):
         ContactMessage.query.delete()
         client.post('/contact-us', data={

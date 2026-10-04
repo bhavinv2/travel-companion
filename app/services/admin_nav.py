@@ -12,7 +12,8 @@ Contact messages and feedback were reachable before this but never named in the 
 three tabs inside one screen called "User voices", which tells you nothing about what is in it.
 They are listed here by what they are, and the enquiry list is split by topic -- a travel-cover
 enquiry belongs with the insurance screens, not filed under the companion app with everything
-else. One screen, one URL, different slices of it.
+else. One screen, one URL, different slices of it. Sahayak's slice holds two things that are
+read the same way: somebody applying to join the network, and somebody asking about a visit.
 
 Two judgements worth stating, because they are the ones most likely to be wrong for you:
 
@@ -66,6 +67,8 @@ SECTIONS = [
         'icon': 'fa-house-medical',
         'items': [
             _item('sahayak', 'admin.sahayak_bookings', 'Bookings', 'fa-house-medical'),
+            _item('voices_sahayak', 'admin.voices', 'Applications & enquiries', 'fa-user-plus',
+                  tab='contact', topic='sahayak'),
             _item('sahayak_services', 'admin.sahayak_services', 'Services & prices', 'fa-list-check'),
             _item('help_sahayak', 'admin.help_center_page', 'Help & FAQ', 'fa-circle-question',
                   site='sahayak'),
@@ -120,6 +123,8 @@ def current_key(active, args=None):
         topic = args.get('topic')
         if topic == 'insurance':
             return 'voices_insurance'
+        if topic == 'sahayak':
+            return 'voices_sahayak'
         if topic == 'general':
             return 'voices_general'
         return 'voices_contact'
@@ -162,6 +167,8 @@ def section_for_endpoint(endpoint, args=None):
         if (args.get('tab') or 'contact') == 'contact':
             if args.get('topic') == 'insurance':
                 return 'insurance'
+            if args.get('topic') == 'sahayak':
+                return 'sahayak'
             if args.get('topic') == 'general':
                 return 'site'
         return 'companion'
