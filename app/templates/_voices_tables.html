@@ -26,7 +26,7 @@
          reads as a column of mistakes. #}
       <td class="nowrap">{% if m.phone %}<a href="tel:{{ m.phone }}">{{ PHONE.pretty(m.phone, m.phone) }}</a>{% else %}—{% endif %}</td>
       <td class="cm-cell">
-        {{ m.message }}
+        <div class="cm-msg">{{ m.message }}</div>
         {% if m.cs_notes %}<div class="cm-notes-sm"><i class="fa-solid fa-note-sticky"></i> {{ m.cs_notes }}</div>{% endif %}
         {# what was actually said back, so the next agent to open this can tell it was handled #}
         {% for r in (m.replies or []) %}
@@ -143,7 +143,7 @@
         {%- for i in range(fb.rating) %}★{% endfor -%}
         {%- for i in range(5 - fb.rating) %}<span class="vc-star-off">★</span>{% endfor -%}
       </td>
-      <td class="cm-cell">{{ fb.comment }}</td>
+      <td class="cm-cell"><div class="cm-msg">{{ fb.comment }}</div></td>
       <td><span class="cm-status cm-status-{{ 'closed' if fb.is_approved else 'new' }}"
                 id="fb-badge-{{ fb.id }}">{{ 'Approved' if fb.is_approved else 'Pending' }}</span></td>
       <td class="nowrap">
@@ -194,7 +194,7 @@
         {% else %}<span class="muted">—</span>{% endif %}
       </td>
       <td class="cm-cell" data-label="Problem">
-        {{ r.reason or '(no reason given)' }}
+        <div class="cm-msg">{{ r.reason or '(no reason given)' }}</div>
         {% if r.cs_notes %}<div class="cm-notes-sm"><i class="fa-solid fa-note-sticky"></i> {{ r.cs_notes }}</div>{% endif %}
         {% if r.status == 'resolved' and r.resolved_by %}<div class="cm-notes-sm">Resolved by {{ r.resolved_by.username }}{% if r.resolved_at %} · {{ r.resolved_at|istd('%d %b') }}{% endif %}</div>{% endif %}
       </td>

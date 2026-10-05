@@ -180,3 +180,96 @@ def test_the_sent_notification_log_is_not_badged(client, db, admin_user):
     nav = sidebar(client, '/admin/notification-log')
     log_line = nav.split('Notifications', 1)[1].split('</a>', 1)[0]
     assert 'nav-badge' not in log_line
+
+
+# ---------------------------------------------------------------------------
+# The numbers on User Voices, and where the message starts
+# ---------------------------------------------------------------------------
+
+def _msg(topic, status='new', name='Asha', text='please call me'):
+    _db.session.add(ContactMessage(name=name, email='%s@example.com' % name.lower(),
+                                   topic=topic, status=status, message=text))
+    _db.session.commit()
+
+
+def _chips(html):
+    """{'New': 5, 'In progress': 1, ...} as the screen prints them."""
+    import re
+    return {m[0].strip(): int(m[1]) for m in re.findall(r'>([A-Za-z ]+) \((\d+)\)<', html)}
+
+
+def test_the_counts_describe_the_slice_on_screen(client, db, admin_user):
+    """They were totals for every topic, so filtering to one product left the chips saying six
+    new while five were under them. A number that disagrees with the list below it is wrong."""
+    _msg('companion', 'new')
+    _msg('companion', 'new', name='Bina')
+    _msg('companion', 'closed', name='Cara')
+    _msg('insurance', 'new', name='Dev')
+
+    login(client, 'admin@test.com')
+    html = client.get('/admin/voices?tab=contact&topic=companion').data.decode()
+    chips = _chips(html)
+    assert chips['New'] == 2 and chips['Closed'] == 1
+    assert chips['All'] == 3, 'the insurance one is not on this screen, so it is not in the count'
+
+    chips = _chips(client.get('/admin/voices?tab=contact&topic=insurance').data.decode())
+    assert chips['New'] == 1 and chips['All'] == 1
+
+
+def test_unfiltered_still_counts_everything(client, db, admin_user):
+    _msg('companion', 'new')
+    _msg('insurance', 'new', name='Dev')
+    login(client, 'admin@test.com')
+    assert _chips(client.get('/admin/voices?tab=contact').data.decode())['New'] == 2
+
+
+def test_a_search_narrows_the_counts_too(client, db, admin_user):
+    """The list is searched; counting past the search would describe rows nobody can see."""
+    _msg('companion', 'new', name='Asha', text='about a wheelchair at the gate')
+    _msg('companion', 'new', name='Bina', text='something else entirely')
+    login(client, 'admin@test.com')
+    chips = _chips(client.get('/admin/voices?tab=contact&q=wheelchair').data.decode())
+    assert chips['New'] == 1 and chips['All'] == 1
+
+
+def test_the_tab_badge_agrees_with_the_chip(client, db, admin_user):
+    """Two numbers for the same thing, a few pixels apart, must not differ."""
+    _msg('companion', 'new')
+    _msg('insurance', 'new', name='Dev')
+    login(client, 'admin@test.com')
+    html = client.get('/admin/voices?tab=contact&topic=companion').data.decode()
+    # the sidebar line is also called "Contact us", so scope to the tab row
+    tabs = html.split('hx-tabs', 1)[1]
+    tab = tabs.split('Contact us', 1)[1].split('</a>', 1)[0]
+    assert '<span class="vt-n">1</span>' in tab
+    assert _chips(html)['New'] == 1
+    # ...and the sidebar line for this product says the same
+    nav = sidebar(client, '/admin/voices?tab=contact&topic=companion')
+    assert '>1<' in nav.split('Contact us', 1)[1].split('</a>', 1)[0]
+
+
+def test_the_cs_console_counts_the_same_way(client, db, cs_user):
+    _msg('companion', 'new')
+    _msg('insurance', 'new', name='Dev')
+    login(client, 'cs@test.com')
+    chips = _chips(client.get('/cs/voices?tab=contact&topic=insurance').data.decode())
+    assert chips['New'] == 1 and chips['All'] == 1
+
+
+def test_the_message_starts_where_the_column_starts(client, db, admin_user):
+    """The cell preserves the sender's own line breaks, so the template's indentation was
+    printed with them -- every message began eight spaces in while its wrapped lines sat flush
+    left. The text now sits in its own element, tight against the tag."""
+    _msg('companion', text='First line.\nSecond line.')
+    login(client, 'admin@test.com')
+    html = client.get('/admin/voices?tab=contact').data.decode()
+    assert '<div class="cm-msg">First line.\nSecond line.</div>' in html, \
+        'no whitespace may sit between the tag and the text'
+
+
+def test_the_senders_own_line_breaks_survive(client, db, admin_user):
+    """Which is why the cell had pre-wrap in the first place. Moving it must not lose it."""
+    _msg('companion', text='Line one.\n\nLine three.')
+    login(client, 'admin@test.com')
+    html = client.get('/admin/voices?tab=contact').data.decode()
+    assert 'Line one.\n\nLine three.' in html

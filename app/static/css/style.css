@@ -2019,7 +2019,7 @@ input[type="date"] { cursor: pointer; }
 .cm-body { white-space: pre-wrap; font-size: 14.5px; line-height: 1.6; margin: 0 0 12px; }
 .cm-notes, .cm-notes-sm { background: var(--bg); border-radius: 9px; padding: 9px 12px;
   font-size: 13px; color: var(--muted); margin: 0 0 10px; }
-.cm-notes-sm { margin-top: 8px; font-size: 12px; }
+.cm-notes-sm { margin-top: 8px; font-size: 12px; white-space: pre-wrap; }
 .cm-handled { font-size: 12px; color: var(--muted); margin: 0 0 10px; }
 .cm-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .cm-actions input[type=text] { flex: 1 1 220px; min-width: 0; border: 1px solid var(--border);
@@ -2027,7 +2027,11 @@ input[type="date"] { cursor: pointer; }
 /* The message is what an agent is on this screen to read, and it was the narrowest column
    in the table -- narrower than Phone -- because eight columns shared the width and only
    this one was allowed to wrap. It gets a floor now; the table scrolls instead. */
-.cm-cell { min-width: 320px; max-width: 460px; white-space: pre-wrap; font-size: 13.5px; }
+/* pre-wrap belongs on the text, NOT on the cell. On the cell it also preserved the template's
+   own indentation, so every message began eight spaces in while its wrapped lines sat flush
+   left -- a column that looked mis-aligned because it was. */
+.cm-cell { min-width: 320px; max-width: 460px; font-size: 13.5px; }
+.cm-msg { white-space: pre-wrap; }
 .nowrap { white-space: nowrap; }
 
 /* ---- home page "Talk to us": contact / review tabs --------------------------- */

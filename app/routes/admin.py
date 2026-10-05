@@ -535,7 +535,22 @@ def voices():
     c_pages = max((c_total + per_page - 1) // per_page, 1)
     c_page = min(page, c_pages) if tab == 'contact' else 1
     messages = cq.offset((c_page - 1) * per_page).limit(per_page).all()
-    counts = {s: ContactMessage.query.filter_by(status=s).count() for s in CONTACT_STATUSES}
+    # Counted over the same slice the list below shows, not over the whole table. These are the
+    # numbers beside "New", "In progress" and "Closed", and they used to be totals for every
+    # topic and ignore the search -- so filtering to one product left the chips saying 6 new
+    # while five were on screen, and the only honest reading of a number that disagrees with
+    # what is under it is that one of them is wrong. `status` is deliberately NOT applied: the
+    # chips are the status switcher, and a chip counting only itself would read 0 on every one
+    # you are not standing on.
+    scoped = ContactMessage.query
+    if topic in CONTACT_TOPICS:
+        scoped = scoped.filter(ContactMessage.topic == topic)
+    if q:
+        from sqlalchemy import or_ as _or
+        scoped = scoped.filter(_or(ContactMessage.name.ilike(pat), ContactMessage.email.ilike(pat),
+                                   ContactMessage.phone.ilike(pat),
+                                   ContactMessage.message.ilike(pat)))
+    counts = {s: scoped.filter(ContactMessage.status == s).count() for s in CONTACT_STATUSES}
 
     # Reviews are filed against the product they were written about, so the queue filters the
     # same way the enquiry inbox does. The pending count stays across all of them: it is the
