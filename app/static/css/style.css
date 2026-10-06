@@ -4417,3 +4417,27 @@ span.cu-chan-ic, .cu-office-flag .flag-txt { display: grid; place-items: center;
   .pf-row .pf-cc, .pf-row .ss { flex-basis: 104px; }
   .pf-row .pf-cc { font-size: 13px; padding: 11px 6px; }
 }
+
+/* User Voices: rows nobody on staff has opened yet. Clicking one marks it read (read_js). */
+.vc-table tr.vc-unread { cursor: pointer; }
+.vc-table tr.vc-unread > td { background: #fff7f4; font-weight: 600; }
+.vc-table tr.vc-unread > td:first-child { box-shadow: inset 3px 0 0 var(--coral); }
+.vc-new-dot { display: inline-block; margin-bottom: 3px; padding: 1px 7px; border-radius: 999px;
+  background: var(--coral); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .04em; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .vc-table tr.vc-unread > td { background: rgba(255, 107, 74, .08); }
+}
+:root[data-theme="dark"] .vc-table tr.vc-unread > td { background: rgba(255, 107, 74, .08); }
+/* Match queue: matches nobody has opened yet (opening the post's matches page reads them) */
+.mq-table tr.mq-unread > td { background: #fff7f4; }
+.mq-table tr.mq-unread > td:first-child { box-shadow: inset 3px 0 0 var(--coral); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .mq-table tr.mq-unread > td { background: rgba(255, 107, 74, .08); }
+}
+:root[data-theme="dark"] .mq-table tr.mq-unread > td { background: rgba(255, 107, 74, .08); }
+
+/* a count at zero stays in the page (so it can come back live) but must not show */
+.nav-badge[hidden], .vt-n[hidden] { display: none !important; }
+/* User voices: the message column gives a little so every action stays on screen beside the menu */
+.vc-table .cm-cell { min-width: 280px; }
+.mq-group[data-unread] .mq-table tbody tr { cursor: pointer; }

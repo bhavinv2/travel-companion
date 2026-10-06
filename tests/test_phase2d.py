@@ -239,3 +239,37 @@ def test_sendgrid_provider(app, monkeypatch):
 def test_healthz(client):
     r = client.get('/healthz')
     assert r.status_code == 200 and r.get_json()['status'] == 'ok'
+
+
+def test_signing_in_successfully_does_not_use_up_the_limit(client, app, user):
+    """Agents in one office share an address. Ten of them signing in within five minutes is a
+    morning, not an attack -- only wrong passwords count."""
+    from conftest import logout
+    ratelimit.reset()
+    app.config['RATELIMIT_ENABLED'] = True
+    try:
+        for _ in range(12):
+            r = client.post('/auth/login', data={'email': 'bob@test.com', 'password': 'password123'})
+            assert r.status_code == 302
+            logout(client)
+    finally:
+        app.config['RATELIMIT_ENABLED'] = False
+        ratelimit.reset()
+
+
+def test_a_made_up_forwarded_address_does_not_reset_the_limit(client, app, user):
+    """The first X-Forwarded-For entry is whatever the client sends. Keying on it let a guesser
+    send a new one with every attempt and never be stopped. Our proxy appends the address it really
+    saw, so the header arrives as "<whatever the client wrote>, <real address>"."""
+    ratelimit.reset()
+    app.config['RATELIMIT_ENABLED'] = True
+    try:
+        for i in range(10):
+            client.post('/auth/login', data={'email': 'bob@test.com', 'password': 'wrong'},
+                        headers={'X-Forwarded-For': '10.9.0.%d, 203.0.113.7' % i})
+        r = client.post('/auth/login', data={'email': 'bob@test.com', 'password': 'wrong'},
+                        headers={'X-Forwarded-For': '10.9.1.1, 203.0.113.7'})
+        assert r.status_code == 429
+    finally:
+        app.config['RATELIMIT_ENABLED'] = False
+        ratelimit.reset()

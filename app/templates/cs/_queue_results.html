@@ -5,7 +5,8 @@
 
 {% for g in groups %}
 {% set t = g.trip %}
-<section class="mq-group">
+{% set _new = g.rows|selectattr('match.is_unread')|list|length %}
+<section class="mq-group" data-post="{{ t.id }}"{% if _new %} data-unread{% endif %}>
   <header class="mq-head">
     <div class="mq-who">
       <a class="person-link" href="{{ url_for('cs.post_detail', trip_id=t.id) }}"><strong>#{{ t.id }}</strong>
@@ -17,6 +18,7 @@
       <span class="mq-route">{{ t.route_display }}</span>
       <span class="muted">{{ t.from_date or 'no date' }}</span>
       <span class="mq-n">{{ g.rows|length }} waiting</span>
+      {% if _new %}<span class="vc-new-dot mq-new-n" title="Click any of its matches, or Open all, to mark them read">{{ _new }} new</span>{% endif %}
       <a class="btn-sm" href="{{ url_for('matches.cs_matches', trip_id=t.id) }}">Open all</a>
     </div>
   </header>
@@ -25,8 +27,8 @@
     <thead><tr><th>Match</th><th>Score</th><th>Waiting on</th><th>Other side</th><th>Status</th><th></th></tr></thead>
     <tbody>
     {% for r in g.rows %}{% set m = r.match %}{% set o = r.other %}
-      <tr>
-        <td data-label="Match"><strong>#{{ m.id }}</strong><br/>
+      <tr data-match="{{ m.id }}"{% if m.is_unread %} class="mq-unread"{% endif %}>
+        <td data-label="Match">{% if m.is_unread %}<span class="vc-new-dot" title="You have not opened this yet">New</span><br/>{% endif %}<strong>#{{ m.id }}</strong><br/>
           <small class="muted">{{ m.updated_at|ist('%d %b, %H:%M') if m.updated_at }}</small></td>
         <td data-label="Score">{{ m.score }}%</td>
         <td data-label="Waiting on">

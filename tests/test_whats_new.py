@@ -16,7 +16,7 @@ import pytest
 
 from conftest import login
 from app import db as _db
-from app.models import (CompanionRequest, ContactMessage, InsuranceQuote, Match,
+from app.models import (CompanionRequest, ContactMessage, InsuranceQuote, Match, MatchParty, StaffRead,
                         SahayakBooking, User)
 from app.services import whats_new
 
@@ -49,11 +49,16 @@ def post(created=None, status='open', by=None):
     return t
 
 
-def match(status='suggested', attention=True):
-    a, b = post(), post()
+def match(status='suggested', attention=True, a=None, b=None):
+    a, b = a or post(), b or post()
     m = Match(trip_a_id=a.id, trip_b_id=b.id, score=80, status=status,
               needs_cs_attention=attention)
     _db.session.add(m)
+    _db.session.flush()
+    # b has been reached, a is the side somebody still has to move along -- so the queue files
+    # the match under a alone, as it does for most real ones
+    _db.session.add_all([MatchParty(match_id=m.id, trip_id=a.id, token='a%d' % m.id, status='pending'),
+                         MatchParty(match_id=m.id, trip_id=b.id, token='b%d' % m.id, status='viewed')])
     _db.session.commit()
     return m
 
@@ -86,21 +91,29 @@ def by_email(email):
 def test_shared_queues_count_what_nobody_has_dealt_with(app, db, admin_user):
     enquiry('companion')
     enquiry('insurance')
-    enquiry('companion', status='closed')
+    closed = ContactMessage(name='Bina', email='b@example.com', topic='companion',
+                            status='closed', message='sorted, thanks')
+    _db.session.add(closed)
     booking('new')
     booking('assigned')
     match('suggested')
-    match('notified')
+    seen = match('suggested')
     match('suggested', attention=False)       # not in the CS queue at all
+    admin = by_email('admin@test.com')
+    # what this admin has opened; the other enquiries and the first match they have not
+    _db.session.flush()
+    _db.session.add_all([StaffRead(user_id=admin.id, kind='contact', item_id=closed.id),
+                         StaffRead(user_id=admin.id, kind='match', item_id=seen.id)])
+    _db.session.commit()
     with app.test_request_context():
-        n = counts(by_email('admin@test.com'))
+        n = counts(admin)
     assert n['contact'] == 2
     assert n['sahayak'] == 1
     assert n['matches'] == 1
 
 
 def test_sahayak_applications_count_as_contact_enquiries(app, db, admin_user):
-    """The contact icon opens the enquiry inbox filtered to new, which lists every topic -- a
+    """The contact icon opens the enquiry inbox filtered to unread, which lists every topic -- a
     Sahayak application included. Counting fewer than the list shows is the mismatch this whole
     widget exists to avoid."""
     enquiry('sahayak')
@@ -231,7 +244,7 @@ def test_an_admin_on_the_admin_panel_goes_to_admin_lists(app, db, admin_user):
         urls = {i['key']: i['url'] for i in whats_new.snapshot(by_email('admin@test.com'), 'admin')['items']}
     assert urls['insurance'].endswith('/admin/insurance-quotes')
     assert urls['sahayak'].endswith('/admin/sahayak?status=new')
-    assert '/admin/voices' in urls['contact'] and 'status=new' in urls['contact']
+    assert '/admin/voices' in urls['contact'] and 'unread=1' in urls['contact']
 
 
 def test_anybody_on_the_console_stays_in_the_console(app, db, admin_user, cs_user):
@@ -263,7 +276,7 @@ def test_it_floats_on_both_consoles(client, db, admin_user, cs_user, who, url):
 def test_every_icon_says_what_it_is_for(client, db, admin_user):
     login(client, 'admin@test.com')
     html = client.get('/admin/sahayak').data.decode()
-    for label in ('Insurance quote requests', 'Companion posts', 'Matches waiting',
+    for label in ('Insurance quote requests', 'Companion posts', 'Match queue',
                   'Sahayak bookings', 'Contact-us enquiries'):
         assert '<b>%s</b>' % label in html, label          # the hover label
         assert 'aria-label="%s:' % label in html, label     # and for a screen reader
@@ -321,3 +334,89 @@ def test_a_widget_that_cannot_be_built_leaves_the_page_alone(client, db, admin_u
     r = client.get('/admin/sahayak')
     assert r.status_code == 200
     assert 'id="whatsNew"' not in r.data.decode()
+
+
+
+# ---------------------------------------------------------------------------
+# The match queue counts posts nobody has opened
+# ---------------------------------------------------------------------------
+
+def test_the_match_icon_counts_posts_not_matches(app, db, admin_user):
+    """The queue is grouped by post, so two unopened matches on one post are one thing to open."""
+    a = post()
+    match(a=a)
+    match(a=a)
+    match()
+    with app.test_request_context():
+        assert counts(by_email('admin@test.com'))['matches'] == 2
+
+
+def test_opening_a_posts_matches_takes_it_off_the_count(client, app, db, cs_user):
+    a = post()
+    m1, m2 = match(a=a), match(a=a)
+    match()
+    login(client, 'cs@test.com')
+    assert client.get('/cs/posts/%d/matches' % a.id).status_code == 200
+    cs = by_email('cs@test.com')
+    assert {r.item_id for r in StaffRead.query.filter_by(user_id=cs.id, kind='match')} >= {m1.id, m2.id}
+    with app.test_request_context():
+        assert counts(by_email('cs@test.com'))['matches'] == 1
+
+
+def test_the_queue_can_show_only_unopened(client, db, cs_user):
+    fresh = match()
+    seen = match()
+    _db.session.add(StaffRead(user_id=cs_user.id, kind='match', item_id=seen.id))
+    _db.session.commit()
+    login(client, 'cs@test.com')
+    html = client.get('/cs/matches?unread=1').data.decode()
+    assert '#%d</strong><br/>' % fresh.id in html and '#%d</strong><br/>' % seen.id not in html
+    assert 'New</span>' in html
+
+
+def test_a_match_back_in_the_queue_is_new_again(client, app, db, cs_user):
+    """An escalation on a post the agent opened last week has to light the button up again."""
+    a = post()
+    m = match(a=a)
+    login(client, 'cs@test.com')
+    client.get('/cs/posts/%d/matches' % a.id)
+    m = Match.query.get(m.id)
+    m.needs_cs_attention = False
+    _db.session.commit()
+    m.needs_cs_attention = True          # the escalation job, a report, the bridge...
+    _db.session.commit()
+    assert StaffRead.query.filter_by(kind='match', item_id=m.id).count() == 0
+
+
+def test_the_minute_refresh_carries_the_menu_counts_too(client, db, cs_user):
+    """So a menu count rises when something arrives, not only falls when you read it."""
+    login(client, 'cs@test.com')
+    assert client.get('/cs/api/whats-new').get_json()['badges']['voices'] == 0
+    enquiry()
+    assert client.get('/cs/api/whats-new').get_json()['badges']['voices'] == 1
+
+
+def test_a_zero_count_stays_in_the_page_hidden(client, db, cs_user):
+    """It has to be there for the refresh to show it again when something arrives."""
+    login(client, 'cs@test.com')
+    html = client.get('/cs/voices?tab=contact').data.decode()
+    assert 'data-badge="voices" aria-label="0 not read" hidden' in html
+    assert 'data-badge="voices_inbox" hidden' in html
+
+
+def test_a_click_in_the_queue_reads_the_whole_post(client, app, db, cs_user):
+    """Any match row of a post marks all of the post's matches read -- Open all, without leaving
+    the queue. Only for the person who clicked."""
+    a = post()
+    m1, m2 = match(a=a), match(a=a)
+    other = match()
+    login(client, 'cs@test.com')
+    assert 'data-post="%d" data-unread' % a.id in client.get('/cs/matches').data.decode()
+    d = client.post('/cs/posts/%d/matches/read' % a.id).get_json()
+    assert sorted(d['match_ids']) == sorted([m1.id, m2.id])
+    assert d['badges']['matches'] == 1, 'the other post is still new'
+    html = client.get('/cs/matches').data.decode()
+    assert 'data-post="%d" data-unread' % a.id not in html
+    assert 'data-post="%d" data-unread' % other.trip_a_id in html
+    # a second click changes nothing
+    assert client.post('/cs/posts/%d/matches/read' % a.id).get_json()['match_ids'] == []

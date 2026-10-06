@@ -31,6 +31,11 @@
         <option value="">Any channel</option>
         {% for c, label in CHANNEL_LABELS.items() %}<option value="{{ c }}" {% if filters.channel == c %}selected{% endif %}>{{ label }}</option>{% endfor %}
       </select>
+      {# what the "what's new" button links to: posts with a match nobody has opened yet #}
+      <select name="unread">
+        <option value="">Opened or not</option>
+        <option value="1" {% if filters.unread %}selected{% endif %}>Not opened yet</option>
+      </select>
       <a href="{{ url_for('matches.cs_match_queue') }}" class="btn-sm">Reset</a>
     </form>
 
@@ -46,6 +51,41 @@
 liveSearch({
   form: 'mqFilters', input: 'mqSearch', clear: 'mqClear',
   spinner: 'mqSpin', results: 'mqResults',
+});
+
+/* A click on any match row of a post marks the whole post read, like Open all, without leaving the
+   queue. Delegated, because live search replaces the results. Links in the row still go where they
+   go; the "read" is sent with keepalive so it survives the navigation. */
+document.addEventListener('click', function (e) {
+  var row = e.target.closest('#mqResults .mq-group[data-unread] tbody tr');
+  if (!row) return;
+  var group = row.closest('.mq-group');
+  group.removeAttribute('data-unread');
+  fetch(appUrl('/cs/posts/' + group.dataset.post + '/matches/read'), {
+    method: 'POST', keepalive: true, credentials: 'same-origin',
+    headers: { 'X-CSRFToken': CSRF_TOKEN, 'Accept': 'application/json' }
+  })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d) { group.setAttribute('data-unread', ''); return; }
+      // the same match can sit under two posts: clear it wherever it is
+      (d.match_ids || []).forEach(function (id) {
+        document.querySelectorAll('#mqResults tr[data-match="' + id + '"]').forEach(function (tr) {
+          tr.classList.remove('mq-unread');
+          var dot = tr.querySelector('.vc-new-dot');
+          if (dot) { if (dot.nextElementSibling && dot.nextElementSibling.tagName === 'BR') dot.nextElementSibling.remove(); dot.remove(); }
+        });
+      });
+      document.querySelectorAll('#mqResults .mq-group').forEach(function (g) {
+        var left = g.querySelectorAll('tr.mq-unread').length;
+        var pill = g.querySelector('.mq-new-n');
+        if (pill) { if (left) pill.textContent = left + ' new'; else pill.remove(); }
+        if (!left) g.removeAttribute('data-unread');
+      });
+      if (window.paintStaffBadges) window.paintStaffBadges(d.badges);
+      if (window.WhatsNew) window.WhatsNew.refresh();
+    })
+    .catch(function () { group.setAttribute('data-unread', ''); });
 });
 </script>
 {% endblock %}

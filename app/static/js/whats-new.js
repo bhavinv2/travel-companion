@@ -8,6 +8,23 @@
  * tab you left. A tab in the background asks for nothing: a console left open over a weekend
  * should not hold a query a minute against the database for nobody.
  */
+/* Every count on a staff page that is keyed by a nav_badges key: the menu lines and the User voices
+   tabs. Global, because opening a row (_voices_tables.html read_js) paints with it too. A count at
+   zero stays in the page, hidden, so it can come back when something new arrives; the line's
+   tooltip is rewritten with it. */
+window.paintStaffBadges = function (badges) {
+  if (!badges) return;
+  document.querySelectorAll('[data-badge]').forEach(function (el) {
+    var n = badges[el.dataset.badge];
+    if (n === undefined) return;
+    el.hidden = !n;
+    el.textContent = n < 100 ? String(n) : '99+';
+    el.setAttribute('aria-label', n + ' not read');
+    var line = el.closest('a[data-title]');
+    if (line) line.title = line.dataset.title + (n ? ' — ' + n + ' waiting' : '');
+  });
+};
+
 (function () {
   'use strict';
   var root = document.getElementById('whatsNew');
@@ -15,15 +32,13 @@
   var fab = document.getElementById('wnFab');
   var dial = document.getElementById('wnDial');
   var EVERY = 60 * 1000;
-  var KEY = 'wn_open';                      // remembers "I keep it open" per browser, nothing more
   var lastTotal = +root.dataset.total || 0;
 
-  function remember(open) {
-    try { localStorage.setItem(KEY, open ? '1' : '0'); } catch (e) { /* private window: fine */ }
-  }
-  function remembered() {
-    try { return localStorage.getItem(KEY) === '1'; } catch (e) { return false; }
-  }
+  // It used to remember being open and reopen itself on every page. Open, it sits over the right
+  // edge of the page -- the status and Reply buttons on User voices -- and the setting was per
+  // browser, so the next person to sign in on a shared desk got it open too. It opens when asked
+  // now; this clears the old setting from browsers that still have it.
+  try { localStorage.removeItem('wn_open'); } catch (e) { /* private window: nothing stored */ }
 
   function setOpen(open, focusFirst) {
     root.classList.toggle('is-open', open);
@@ -40,27 +55,38 @@
     // from the keyboard, move into the dial so Tab goes through the five links next; a mouse
     // click leaves focus where it is
     setOpen(open, open && fab.matches(':focus-visible'));
-    remember(open);
   });
 
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && root.classList.contains('is-open')) {
       setOpen(false);
-      remember(false);
       fab.focus();
     }
   });
 
-  // A click anywhere else closes it -- but only for this visit; the remembered preference is for
-  // the next page, and somebody who clicked into a table to read it did not mean "never again".
+  // A click anywhere else closes it.
   document.addEventListener('click', function (e) {
     if (root.classList.contains('is-open') && !root.contains(e.target)) setOpen(false);
   });
+
+  // Small screens: the button sits over the list. Slide it away while scrolling down, bring it
+  // back when scrolling up or 900ms after scrolling stops (CSS .is-tucked, max-width 600px).
+  document.body.classList.add('has-wn');
+  var lastY = window.scrollY, settle = null;
+  window.addEventListener('scroll', function () {
+    var y = window.scrollY;
+    if (y > lastY + 4) root.classList.add('is-tucked');
+    else if (y < lastY - 4) root.classList.remove('is-tucked');
+    lastY = y;
+    clearTimeout(settle);
+    settle = setTimeout(function () { root.classList.remove('is-tucked'); }, 900);
+  }, { passive: true });
 
   function shown(n) { return n < 100 ? String(n) : '99+'; }
 
   function paint(data) {
     if (!data || !data.items) return;
+    window.paintStaffBadges(data.badges);
     data.items.forEach(function (it) {
       var a = root.querySelector('.wn-item[data-key="' + it.key + '"]');
       if (!a) return;                        // a list the server stopped offering: leave it be
@@ -103,7 +129,9 @@
   }
 
   setInterval(refresh, EVERY);
+  // for a page that has just changed one of the counts (opening a row on User voices) and should
+  // not leave the button a minute behind it
+  window.WhatsNew = { refresh: refresh };
   document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
 
-  if (remembered()) setOpen(true, false);
 })();
