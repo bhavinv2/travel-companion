@@ -253,6 +253,17 @@ def enquiry():
         errors.append('A valid e-mail address is required.')
     if not phone:
         errors.append('A phone number is required so we can reach you.')
+    else:
+        # Stored as E.164 like every other number on the site. All three popups send the
+        # dialling code joined on ("+1 917 900 5094"), so a leading + settles the country; a
+        # client that sends it separately can say so in phone_cc.
+        from app.services import phone as phone_svc
+        e164, bad_phone = phone_svc.normalise(
+            phone, (data.get('phone_cc') or '').strip().upper() or phone_svc.DEFAULT_ISO)
+        if bad_phone:
+            errors.append(bad_phone)
+        else:
+            phone = e164
     # Only the support form has a message box, and a two-word one tells CS nothing they can act
     # on. The lead forms have no box at all, so the rule would be meaningless for them.
     if support and len(written) < 10:

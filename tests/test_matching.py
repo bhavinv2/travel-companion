@@ -228,7 +228,8 @@ def test_manual_intro_text_only_includes_consented_contacts(app, db, user):
     m = matching.compute_matches_for(a)[0]
     text = bridge.intro_text(m, b)
     assert text.startswith('Hi Ravi,')
-    assert '+12145550100' in text and '(son)' in text
+    # spaced, so whoever reads the message can see the country code
+    assert '+1 (214) 555-0100' in text and '(son)' in text
     assert 'secret@test.com' not in text
     assert '/match/' in text
 

@@ -197,9 +197,9 @@ const ROWS = {
 };
 // consented contact points per trip id (values shown only to CS)
 const CONTACTS = {
-  {{ trip.id }}: [{% for cp in trip.contact_points if cp.consent_to_share and cp.type != 'inapp_chat' %}{ id: {{ cp.id }}, label: {{ (CONTACT_TYPE_LABELS[cp.type] ~ ': ' ~ cp.value ~ (' (' ~ cp.label ~ ')' if cp.label else ''))|tojson }} },{% endfor %}],
+  {{ trip.id }}: [{% for cp in trip.contact_points if cp.consent_to_share and cp.type != 'inapp_chat' %}{ id: {{ cp.id }}, label: {{ (CONTACT_TYPE_LABELS[cp.type] ~ ': ' ~ cp.display_value ~ (' (' ~ cp.label ~ ')' if cp.label else ''))|tojson }} },{% endfor %}],
   {% for r in rows %}
-  {{ r.other.id }}: [{% for cp in r.other_consented %}{ id: {{ cp.id }}, label: {{ (CONTACT_TYPE_LABELS[cp.type] ~ ': ' ~ cp.value ~ (' (' ~ cp.label ~ ')' if cp.label else ''))|tojson }} },{% endfor %}],
+  {{ r.other.id }}: [{% for cp in r.other_consented %}{ id: {{ cp.id }}, label: {{ (CONTACT_TYPE_LABELS[cp.type] ~ ': ' ~ cp.display_value ~ (' (' ~ cp.label ~ ')' if cp.label else ''))|tojson }} },{% endfor %}],
   {% endfor %}
 };
 let _intro = { matchId: null, forTripId: null, partyId: null };

@@ -82,13 +82,34 @@
 {%- endmacro %}
 
 {# Repeatable contact-point rows. Field names: contact_id[], contact_type[], contact_value[], contact_label[], contact_consent[] (value = row index) #}
+{# The country beside a phone number in a contact row. Every row carries one -- the server reads
+   contact_cc[] in step with contact_value[], so a row without it would shift every row after it
+   -- but it only SHOWS for a phone (static/js/main.js toggles .is-phone). Hidden, never
+   disabled: a disabled field is not submitted, which would break that alignment. #}
+{#  A NEW row starts on the site's default country, like every other phone field. An EXISTING
+    row starts on the country its stored number already says -- and if it says none (a legacy
+    "9175551234" saved before rows had a picker), on "Country?", which the server treats as "not
+    chosen" and leaves alone. Defaulting that to India would quietly turn a US number into
+    +91 the next time anybody re-saved the post. #}
+{% macro _contact_cc(value='', existing=false) -%}
+{% if existing %}{% set chosen = (PHONE.iso_for(value) if value else '') or '' %}
+{% else %}{% set chosen = PHONE.DEFAULT_ISO %}{% endif %}
+{% set popular, rest = PHONE.choices() %}
+<select name="contact_cc" class="cr-cc" aria-label="Country dialling code">
+  <option value=""{{ ' selected' if not chosen }}>Country?</option>
+  {% for c in popular %}<option value="{{ c.iso }}"{{ ' selected' if c.iso == chosen }}>{{ c.iso }} +{{ c.dial }}</option>{% endfor %}
+  <option disabled>──────────</option>
+  {% for c in rest %}<option value="{{ c.iso }}"{{ ' selected' if c.iso == chosen }}>{{ c.name }} +{{ c.dial }}</option>{% endfor %}
+</select>
+{%- endmacro %}
+
 {% macro contact_rows_widget(rows, per_row_consent=True) -%}
 <div class="contact-rows" id="contactRows" data-per-row-consent="{{ '1' if per_row_consent else '0' }}">
   <table class="contact-table">
     <thead><tr><th style="width:150px">Type</th><th>Value</th><th style="width:160px">Label <small>(optional)</small></th>{% if per_row_consent %}<th style="width:110px">May share?</th>{% endif %}<th style="width:36px"></th></tr></thead>
     <tbody id="contactRowsBody">
       {% for r in rows %}
-      <tr class="contact-row">
+      <tr class="contact-row{{ ' is-phone' if r.type in ('mobile', 'whatsapp') }}">
         <td data-label="Type">
           <input type="hidden" name="contact_id" value="{{ r.id or '' }}"/>
           <select name="contact_type">
@@ -96,7 +117,7 @@
             {% for ct in CONTACT_TYPES %}<option value="{{ ct }}" {% if r.type == ct %}selected{% endif %}>{{ CONTACT_TYPE_LABELS[ct] }}</option>{% endfor %}
           </select>
         </td>
-        <td data-label="Value"><input type="text" name="contact_value" value="{{ r.value if r.type != 'inapp_chat' else '' }}" placeholder="email, +1 555…, facebook.com/…"/></td>
+        <td data-label="Value"><div class="cr-val">{{ _contact_cc(r.value if r.type in ('mobile', 'whatsapp') else '', existing=r.value and r.type in ('mobile', 'whatsapp')) }}<input type="text" name="contact_value" value="{{ r.value if r.type != 'inapp_chat' else '' }}" placeholder="email, 98765 43210, facebook.com/…"/></div></td>
         <td data-label="Label (optional)"><input type="text" name="contact_label" value="{{ r.label or '' }}" placeholder="e.g. son's WhatsApp"/></td>
         {% if per_row_consent %}<td class="center" data-label="May share?"><input type="checkbox" name="contact_consent" value="{{ loop.index0 }}" {% if r.consent %}checked{% endif %}/></td>{% endif %}
         <td><button type="button" class="row-remove" onclick="removeContactRow(this)" title="Remove">&times;</button></td>
@@ -115,7 +136,7 @@
         {% for ct in CONTACT_TYPES %}<option value="{{ ct }}">{{ CONTACT_TYPE_LABELS[ct] }}</option>{% endfor %}
       </select>
     </td>
-    <td data-label="Value"><input type="text" name="contact_value" placeholder="email, +1 555…, facebook.com/…"/></td>
+    <td data-label="Value"><div class="cr-val">{{ _contact_cc() }}<input type="text" name="contact_value" placeholder="email, 98765 43210, facebook.com/…"/></div></td>
     <td data-label="Label (optional)"><input type="text" name="contact_label" placeholder="e.g. son's WhatsApp"/></td>
     {% if per_row_consent %}<td class="center" data-label="May share?"><input type="checkbox" name="contact_consent" value="__IDX__"/></td>{% endif %}
     <td><button type="button" class="row-remove" onclick="removeContactRow(this)" title="Remove">&times;</button></td>
@@ -140,6 +161,29 @@ function removeContactRow(btn) {
   btn.closest('tr').remove();
   _reindexContactRows();
 }
+// The country picker shows only for a phone. "Detect" decides from what is typed, with the same
+// rule the server uses (services/contacts.detect_type): 7-15 digits and nothing but digits,
+// spaces, brackets, dots, + and -.
+function _contactRowIsPhone(tr) {
+  const type = tr.querySelector('select[name="contact_type"]')?.value || 'auto';
+  if (type === 'mobile' || type === 'whatsapp') return true;
+  if (type !== 'auto') return false;
+  const v = (tr.querySelector('input[name="contact_value"]')?.value || '').trim();
+  const digits = v.replace(/\D/g, '');
+  return digits.length >= 7 && digits.length <= 15 && /^[\d\s().+-]+$/.test(v);
+}
+function _syncContactRow(tr) {
+  tr.classList.toggle('is-phone', _contactRowIsPhone(tr));
+}
+(function () {
+  const body = document.getElementById('contactRowsBody');
+  if (!body) return;
+  ['change', 'input'].forEach(ev => body.addEventListener(ev, e => {
+    const tr = e.target.closest('.contact-row');
+    if (tr) _syncContactRow(tr);
+  }));
+  body.querySelectorAll('.contact-row').forEach(_syncContactRow);
+})();
 if (!document.querySelector('#contactRowsBody .contact-row')) addContactRow();
 </script>
 {%- endmacro %}

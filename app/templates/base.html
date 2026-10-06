@@ -398,6 +398,9 @@
   <footer class="footer footer-staff">
     <div class="footer-bottom"><p>&copy; {{ now().year }} NRI Parent Service &middot; staff console</p></div>
   </footer>
+  {# What has come in across every product, bottom right -- where the public pages keep their
+     WhatsApp button, and free here because the chat bubble and help popup are public-only. #}
+  {% if current_user.is_authenticated %}{% include '_whats_new.html' %}{% endif %}
   {% else %}
     {% include '_footer.html' %}
   {% endif %}

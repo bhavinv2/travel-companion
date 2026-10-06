@@ -547,11 +547,11 @@ def api_landing_contact():
     if errors:
         return jsonify({'success': False, 'error': ' '.join(errors)}), 400
     msg = _save_contact(form)
-    from app.services import settings as _settings, mailer
+    from app.services import settings as _settings, mailer, phone as phone_svc
     ls = _settings.landing_settings()
     if ls['contact_email_enabled'] and ls['contact_email']:
         body = (f"New enquiry from the NRI Parent Service landing page.\n\n"
-                f"Name: {msg.name}\nEmail: {msg.email}\nPhone: {msg.phone or '—'}\n\n"
+                f"Name: {msg.name}\nEmail: {msg.email}\nPhone: {phone_svc.pretty(msg.phone, msg.phone) if msg.phone else '—'}\n\n"
                 f"Message:\n{msg.message}\n")
         mailer.send(f'Landing enquiry from {msg.name}', ls['contact_email'], body,
                     reply_to=msg.email, force=True)
@@ -662,9 +662,16 @@ def api_insurance_quote():
         return jsonify({'success': False, 'error': 'Please enter a valid email address.'}), 400
     if not phone:
         return jsonify({'success': False, 'error': 'Please enter a phone number.'}), 400
-    if not re.fullmatch(r'[\d\s()+-]{7,20}', phone):
-        return jsonify({'success': False,
-                        'error': 'That phone number does not look right — digits, spaces, + and - only.'}), 400
+    # Stored as E.164, the same as every other number on the site. This used to take the string
+    # as typed, so the quotes table held '+91 98765 43210', '+918331049806' and '18155085888'
+    # side by side -- the last with no + at all, so nothing said which country it was. The
+    # bundle sends the dialling code joined on ("+91 98765 43210"); `phone_cc` is honoured for a
+    # form that sends the country separately, and India is the fallback, as everywhere else.
+    from app.services import phone as phone_svc
+    phone, bad_phone = phone_svc.normalise(
+        phone, str(data.get('phone_cc', '') or '').strip().upper() or phone_svc.DEFAULT_ISO)
+    if bad_phone:
+        return jsonify({'success': False, 'error': bad_phone}), 400
 
     payload = {
         'travelerInfos': [{'age': a, 'dependentChild': False, 'tripCost': None, 'bdate': None} for a in ages],

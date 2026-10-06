@@ -72,7 +72,12 @@ def test_visitors_quote_sends_partner_params_and_stores_lead(client, db, partner
     q = InsuranceQuote.query.one()
     # the form asks for no name at all — email + phone are the lead
     assert (q.name, q.email, q.insurance_type, q.status) == (None, 'ramesh@example.com', 'visitors', 'quoted')
-    assert q.phone == '+91 98765 43210'
+    # stored as E.164 like every other number on the site -- it used to keep whatever was typed,
+    # which is how the table came to hold three shapes for the same kind of number -- and shown
+    # spaced, so the country code is findable
+    from app.services import phone as phone_svc
+    assert q.phone == '+919876543210'
+    assert phone_svc.pretty(q.phone) == '+91 98765 43210'
     assert q.travellers == [{'age': '65'}, {'age': '62'}]
     assert q.age_list == ['65', '62'] and q.traveller_count == 2
 

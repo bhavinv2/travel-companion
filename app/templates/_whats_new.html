@@ -1,0 +1,44 @@
+{# The floating "what's new" button, bottom right on every staff page. See services/whats_new.py
+   for what each count means; this file only draws it.
+
+   Drawn on the server with the counts already in, so the first paint is right and there is no
+   flash of zeros while a request goes out. static/js/whats-new.js then opens and closes the dial
+   and refreshes the numbers in place every minute -- it never builds the markup itself, so the
+   two cannot disagree about what an item looks like.
+
+   The console decides where each icon goes: an admin on the admin panel is taken to the admin
+   list, anybody on the CS console stays in the console. #}
+{% set _wn_console = 'admin' if request.path.startswith('/admin') else 'cs' %}
+{% set wn = WHATS_NEW(current_user, _wn_console) %}
+{% if wn['items'] %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/whats-new.css') }}"/>
+<div class="wn" id="whatsNew" data-url="{{ url_for('cs.whats_new_api', console=_wn_console) }}"
+     data-total="{{ wn['total'] }}">
+  {# a labelled group of plain links, not role="menu": a menu promises arrow-key navigation,
+     and these are just five links that Tab already walks through #}
+  <nav class="wn-dial" id="wnDial" aria-label="What's new" hidden>
+    {% for i in wn['items'] %}
+    <a class="wn-item wn-{{ i.key }}{{ ' is-zero' if not i.count }}" href="{{ i.url }}"
+       data-key="{{ i.key }}" style="--i: {{ loop.revindex0 }}"
+       aria-label="{{ i.label }}: {{ i.hint }}">
+      {# the words for the icon, shown on hover and keyboard focus -- and always while the dial
+         is open on a touch screen, which has no hover to reveal them #}
+      <span class="wn-tip"><b>{{ i.label }}</b><small class="wn-hint">{{ i.hint }}</small></span>
+      <span class="wn-ico">
+        <i class="fa-solid {{ i.icon }}" aria-hidden="true"></i>
+        <span class="wn-n"{{ ' hidden' if not i.count }}>{{ i.count if i.count < 100 else '99+' }}</span>
+      </span>
+    </a>
+    {% endfor %}
+  </nav>
+  <button type="button" class="wn-fab{{ ' has-new' if wn['total'] }}" id="wnFab"
+          aria-expanded="false" aria-controls="wnDial"
+          aria-label="What's new{{ ': %d waiting' % wn['total'] if wn['total'] }}">
+    <span class="wn-fab-tip" aria-hidden="true">What's new</span>
+    <i class="fa-solid fa-bell-concierge wn-fab-ico" aria-hidden="true"></i>
+    <i class="fa-solid fa-xmark wn-fab-x" aria-hidden="true"></i>
+    <span class="wn-total"{{ ' hidden' if not wn['total'] }}>{{ wn['total'] if wn['total'] < 100 else '99+' }}</span>
+  </button>
+</div>
+<script src="{{ url_for('static', filename='js/whats-new.js') }}" defer></script>
+{% endif %}

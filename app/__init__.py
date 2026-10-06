@@ -277,6 +277,12 @@ def create_app(test_config=None):
     IST = timedelta(hours=5, minutes=30)
     app.config['IST_OFFSET'] = IST
 
+    @app.template_filter('contact_display')
+    def _contact_display(value, ctype):
+        """{{ value|contact_display(type) }} -- see services/contacts.display."""
+        from app.services import contacts
+        return contacts.display(ctype, value)
+
     @app.template_filter('ist')
     def _ist(value, fmt='%d %b %Y, %H:%M'):
         """Render a stored UTC datetime in India Standard Time, labelled.
@@ -382,6 +388,30 @@ def create_app(test_config=None):
         # their own landing page, unless that is the very thing they cannot open
         home = 'cs.home' if cs_access.can_open(current_user, 'home') else 'main.index'
         return redirect(url_for(home))
+
+    @app.after_request
+    def _whats_new_seen(response):
+        """Move this person's "seen" mark on when they open a list the widget counts by time.
+
+        After the request rather than inside the four routes, so the rule lives in one place
+        (whats_new.SEEN_BY_ENDPOINT) and a fifth list is one line there. Only a successful GET:
+        a failed or redirected request has not shown anybody anything.
+        """
+        from flask import request
+        from flask_login import current_user
+        from app.services import whats_new
+
+        key = whats_new.SEEN_BY_ENDPOINT.get(request.endpoint or '')
+        if not key or request.method != 'GET' or response.status_code != 200:
+            return response
+        if not getattr(current_user, 'is_authenticated', False) or not current_user.is_cs:
+            return response
+        try:
+            whats_new.mark_seen(current_user, key)
+            db.session.commit()
+        except Exception:                          # noqa: BLE001 -- a mark is not worth a 500
+            db.session.rollback()
+        return response
 
     from flask_wtf.csrf import CSRFError
 
@@ -532,7 +562,7 @@ def create_app(test_config=None):
         from app import options
         from app.services import (admin_nav, contact_form, cs_access, insurance_countries,
                                   nav_badges, nri_services, offices, phone, portals, products,
-                                  urls)
+                                  urls, whats_new)
         from app.services import settings as _settings
         return {
             # Templates use this for "today" in date inputs. Between 18:30 and 00:00 IST,
@@ -545,6 +575,8 @@ def create_app(test_config=None):
             # The function, not the counts: only a staff sidebar calls it, so a public page
             # never runs the queries behind it.
             'NAV_BADGES': nav_badges.unread,
+            # the floating "what's new" button on staff pages; same reasoning as above
+            'WHATS_NEW': whats_new.safe_snapshot,
             'PORTAL_SWITCHER': portals.switcher,
             'NRI_SERVICES': nri_services.resolved(),
             # For linking TO /travel-insurance or /sahayak: those answer beside the app's prefix,

@@ -821,6 +821,12 @@ label .opt { text-transform: none; letter-spacing: 0; font-weight: 500; font-siz
 .contact-table td { padding: 4px 6px; vertical-align: middle; }
 .contact-table input[type=text], .contact-table select { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 14px; background: white; }
 .contact-table input[type=checkbox] { accent-color: var(--coral); width: 18px; height: 18px; }
+/* A phone row picks its country beside the number (cs/_macros.html _contact_cc). The picker is in
+   every row -- the server reads it in step with the values -- but shown only for a phone. */
+.contact-row .cr-val { display: flex; gap: 8px; align-items: center; }
+.contact-row .cr-val input[type=text] { flex: 1 1 auto; min-width: 0; }
+.contact-row .cr-cc { display: none; flex: 0 0 auto; width: auto; max-width: 150px; }
+.contact-row.is-phone .cr-cc { display: block; }
 .row-remove { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; line-height: 1; }
 .row-remove:hover { color: #dc2626; }
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -2788,7 +2794,9 @@ body:has(.td-panel.is-sheet:not([hidden])) .chat-toggle { opacity: 0; pointer-ev
 .admin-sidebar nav a .nav-badge {
   margin-left: auto; flex: 0 0 auto; min-width: 20px; height: 20px; padding: 0 6px;
   display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 10px; background: var(--coral); color: #fff;
+  /* a fixed red, not var(--coral): the staff colour themes remap --coral (to blue on the
+     default staff theme), which made the "red dot" that was asked for render blue */
+  border-radius: 10px; background: #e5484d; color: #fff;
   font-size: 11px; font-weight: 700; line-height: 1;
 }
 .admin-page.is-rail .admin-sidebar nav a .nav-badge {

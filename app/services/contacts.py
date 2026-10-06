@@ -25,17 +25,29 @@ def detect_type(value):
     return 'other'
 
 
-def normalize_value(ctype, value):
+def normalize_value(ctype, value, iso=None):
+    """The stored form of a contact value.
+
+    `iso` is the country somebody CHOSE beside a phone number (the contact rows have a picker
+    for it). With one, a phone is stored as E.164 like every other number on the site. Without
+    one -- the importer and the scraper, which have nobody to ask -- a national number is still
+    left as bare digits, because inventing a country would be worse than not knowing it.
+    """
     v = (value or '').strip()
     if ctype == 'email':
         return v.lower()
     if ctype in ('mobile', 'whatsapp'):
+        if iso:
+            from app.services import phone as phone_svc
+            e164, err = phone_svc.normalise(v, iso)
+            if e164 and not err:
+                return e164
         digits = re.sub(r'[^\d]', '', v)
         if v.startswith('+'):
             return '+' + digits
         if v.startswith('00'):
             return '+' + digits[2:]
-        # Leave national numbers as digits; we don't guess the country code.
+        # No country chosen and none typed: leave the digits; we don't guess the country code.
         return digits or v
     if ctype in ('facebook', 'instagram'):
         if ctype == 'instagram' and v.startswith('@'):
@@ -43,6 +55,22 @@ def normalize_value(ctype, value):
         if v and not v.lower().startswith('http'):
             return 'https://' + v
         return v
+    return v
+
+
+def display(ctype, value):
+    """A contact value as a person should read it.
+
+    A phone is spaced so its country code is findable ("+46 764498115", not "+46764498115").
+    Only one that carries its + is touched: a legacy row saved as bare national digits has no
+    country in it, and prettifying "9175551234" would read its first two digits as India -- shown
+    as stored, the not-knowing stays visible. An e-mail or a profile link is shown as stored.
+    Links (tel:, wa.me, mailto:) must keep using the raw value.
+    """
+    v = (value or '').strip()
+    if ctype in ('mobile', 'whatsapp') and v.startswith('+'):
+        from app.services import phone as phone_svc
+        return phone_svc.pretty(v, v)
     return v
 
 
@@ -80,6 +108,8 @@ def parse_contact_rows(form_or_json):
         types = form_or_json.getlist('contact_type')
         values = form_or_json.getlist('contact_value')
         labels = form_or_json.getlist('contact_label')
+        # the country picked beside each row's number; every row has one, used only by phones
+        countries = form_or_json.getlist('contact_cc')
         consents = set(form_or_json.getlist('contact_consent'))
         raw = []
         for i, t in enumerate(types):
@@ -87,6 +117,7 @@ def parse_contact_rows(form_or_json):
                 'type': t,
                 'value': values[i] if i < len(values) else '',
                 'label': labels[i] if i < len(labels) else '',
+                'cc': countries[i] if i < len(countries) else '',
                 'consent': str(i) in consents or 'all' in consents,
             })
     for r in raw:
@@ -106,7 +137,7 @@ def parse_contact_rows(form_or_json):
             continue
         rows.append({
             'type': ctype,
-            'value': normalize_value(ctype, value),
+            'value': normalize_value(ctype, value, (r.get('cc') or '').strip().upper() or None),
             'label': (r.get('label') or '').strip()[:100],
             'consent': bool(r.get('consent')),
         })

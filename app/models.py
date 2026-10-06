@@ -94,6 +94,10 @@ class User(UserMixin, db.Model):
     phone_verified = db.Column(db.Boolean, default=False)
     # Per-user notification preferences: {"muted": bool, "email": bool, "<category>": bool}
     notify_prefs = db.Column(db.JSON)
+    # Staff only: when this person last opened each "what's new" list, {list key: ISO time}.
+    # Only for the lists with no status of their own to say "somebody has looked" -- see
+    # services/whats_new.py. NULL means never looked.
+    seen_marks = db.Column(db.JSON)
     oauth_provider = db.Column(db.String(50))
     oauth_id = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -519,6 +523,19 @@ class ContactPoint(db.Model):
     added_by = db.Column(db.String(10), default='owner')  # owner / cs / import
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    @property
+    def display_value(self):
+        """The value as a person should read it.
+
+        A phone is spaced so its country code is findable ("+46 764498115", not "+46764498115").
+        Only one that carries its + is touched: a legacy row saved as bare national digits has
+        no country in it, and prettifying "9175551234" would read its first two digits as India.
+        Shown as stored, the not-knowing stays visible. Anything else -- an e-mail, a profile
+        link -- is shown exactly as stored. Links (tel:, wa.me) keep using .value.
+        """
+        from app.services import contacts
+        return contacts.display(self.type, self.value)
+
     def to_dict(self, reveal_value=False):
         d = {
             'id': self.id,
@@ -531,6 +548,8 @@ class ContactPoint(db.Model):
         }
         if reveal_value:
             d['value'] = self.value
+            # what a page should print; `value` stays raw for links and for editing
+            d['display'] = self.display_value
         return d
 
 

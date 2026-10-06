@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import Icon from './Icon';
 import { DestinationCombo } from './CountryCombo';
+import { DialSelect } from './CountrySelect';
 import SideDecor from './SideDecor';
 import FlightPath from './FlightPath';
 import { useReveal } from '../hooks/useReveal';
@@ -43,6 +44,10 @@ export default function InsuranceQuoteForm() {
   const [destinationInvalid, setDestinationInvalid] = useState(false);
   const [ages, setAges] = useState<string[]>(['', '']);
   const [email, setEmail] = useState('');
+  // The dialling code is chosen, not typed: this was one free-text box with a "+91 98765 43210"
+  // placeholder, so a number typed without a code reached the quotes table with nothing to say
+  // which country it was. Same control and same default as the "Get a Free Quote" modal.
+  const [dial, setDial] = useState('+91');
   const [phone, setPhone] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -100,7 +105,9 @@ export default function InsuranceQuoteForm() {
       plan: planFor(destination, presection),
       start: startValue,
       end: endValue,
-      citizenship, ages, email, phone,
+      citizenship, ages, email,
+      // joined the way the modal joins it; the server splits and normalises it to E.164
+      phone: phone.trim() ? `${dial} ${phone.trim()}` : '',
       destination: isMedical ? destination : undefined,
     });
     setBusy(false);
@@ -266,8 +273,11 @@ export default function InsuranceQuoteForm() {
             </p>
             <p className="fg">
               <label className="lbl" htmlFor="if-tel">Phone <span style={{ color: 'var(--blue)' }}>*</span></label>
-              <span className="iw"><Icon name="i-mobile" className="ico sm" />
-                <input className="inp" id="if-tel" type="tel" required placeholder="+91 98765 43210" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <span className="tel">
+                <DialSelect id="if-dial" value={dial} onChange={setDial} />
+                <span className="iw" style={{ flex: 1 }}><Icon name="i-mobile" className="ico sm" />
+                  <input className="inp" id="if-tel" type="tel" inputMode="tel" required placeholder="98765 43210" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                </span>
               </span>
             </p>
           </div>

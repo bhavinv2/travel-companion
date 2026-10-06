@@ -9,6 +9,7 @@ import { useInView } from '../hooks.js';
 import { site, postJson, catalogue } from '../data/site.js';
 import meetImg from '../assets/meet-sahayak-family.jpg';
 import callImg from '../assets/hero-need.jpg';
+import PhoneField from './PhoneField.jsx';
 
 /* The cards are the catalogue -- Preventia's services, their names, their blurbs and their
  * prices -- wearing the GIG sheet's photograph and colours, which the API does not carry. The
@@ -300,7 +301,8 @@ export function FormAside({ title, quote, text, items, callLabel, callValue, pho
 
 const REQUEST_EMPTY = {
   who: '', city: '', area: '', pin: '', what: [], when: '', details: '',
-  name: '', relationship: '', phone: '', whatsapp: '', email: '', contact_time: 'Morning (IST)',
+  name: '', relationship: '', phone: '', phone_cc: '+91', whatsapp: '', whatsapp_cc: '+91',
+  email: '', contact_time: 'Morning (IST)',
 };
 
 function RequestForm() {
@@ -370,8 +372,15 @@ function RequestForm() {
           <div className="fields">
             <Field id="n-name" label="Name" name="name" autoComplete="name" {...f} />
             <Field id="n-rel" label="Relationship" name="relationship" placeholder="e.g. Son, Daughter" {...f} />
-            <Field id="n-ph" label="Phone Number" name="phone" type="tel" autoComplete="tel" placeholder="With country code" {...f} />
-            <Field id="n-wa" label="WhatsApp Number" name="whatsapp" type="tel" placeholder="With country code" {...f} />
+            {/* The country is chosen, not typed: these were text boxes that said "With country
+                code" and left it to the family to remember it -- the same picker the join form
+                and the booking dialog use. */}
+            <PhoneField id="n-ph" label="Phone Number" required
+                        value={{ dial: data.phone_cc, tel: data.phone }}
+                        onChange={(v) => { set('phone_cc', v.dial); set('phone', v.tel); }} />
+            <PhoneField id="n-wa" label="WhatsApp Number" hint="Leave blank if it is the same"
+                        value={{ dial: data.whatsapp_cc, tel: data.whatsapp }}
+                        onChange={(v) => { set('whatsapp_cc', v.dial); set('whatsapp', v.tel); }} />
             <Field id="n-em" label="Email" name="email" type="email" autoComplete="email" {...f} />
             <Field as="select" id="n-time" label="Preferred Contact Time" name="contact_time" {...f}>
               <option>Morning (IST)</option><option>Afternoon (IST)</option><option>Evening (IST)</option><option>Any time</option>
@@ -395,7 +404,8 @@ function RequestForm() {
           service: data.what[0] || (site.services?.[0]?.key ?? ''),
           patient_name: data.who,
           contact_name: data.name,
-          phone: data.phone,
+          // the dialling code travels with the number; the server stores it as E.164
+          phone: data.phone.trim() ? `${data.phone_cc} ${data.phone.trim()}` : '',
           email: data.email,
           address: [data.area, data.city].filter(Boolean).join(', '),
           pincode: data.pin,
@@ -404,7 +414,7 @@ function RequestForm() {
             data.what.length > 1 && `Also asked about: ${data.what.slice(1).join(', ')}`,
             data.when && `When: ${data.when}`,
             data.relationship && `Relationship: ${data.relationship}`,
-            data.whatsapp && `WhatsApp: ${data.whatsapp}`,
+            data.whatsapp.trim() && `WhatsApp: ${data.whatsapp_cc} ${data.whatsapp.trim()}`,
             data.contact_time && `Best time to call: ${data.contact_time}`,
             data.details && `\n${data.details}`,
           ].filter(Boolean).join('\n'),

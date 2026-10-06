@@ -109,14 +109,18 @@
 
       const email = q('.ins-email').value.trim();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail('Please enter a valid email address.', q('.ins-email'));
-      const phone = q('.ins-phone').value.trim();
-      if (!phone) return fail('Please enter a phone number.', q('.ins-phone'));
-      if (!/^[\d\s()+-]{7,20}$/.test(phone)) return fail('That phone number does not look right — digits, spaces, + and - only.', q('.ins-phone'));
+      // the shared phone field: the number, and the country picked beside it (an ISO code the
+      // server turns into the dialling prefix when it stores the number as E.164)
+      const phoneEl = q('.ins-contact .pf-num');
+      const phone = phoneEl.value.trim();
+      const phoneCc = (q('.ins-contact .pf-cc') || {}).value || '';
+      if (!phone) return fail('Please enter a phone number.', phoneEl);
+      if (!/^[\d\s()+-]{7,20}$/.test(phone)) return fail('That phone number does not look right — digits, spaces, + and - only.', phoneEl);
 
       const insType = selectedType(form);
       const body = {
         start_date: start, end_date: end, travellers, citizenship: q('.ins-cit').value,
-        insurance_type: insType, email, phone,
+        insurance_type: insType, email, phone, phone_cc: phoneCc,
       };
       if (NEEDS_DESTINATION[insType]) body.destination = q('.ins-dest').value;
 

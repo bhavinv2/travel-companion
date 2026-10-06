@@ -136,7 +136,8 @@ def intro_text(match, for_trip, contact_point_ids=None):
         lines.append("")
         lines.append("They agreed we may share these details with you:")
         for cp in consented:
-            lines.append(f"  - {CONTACT_TYPE_LABELS.get(cp.type, cp.type)}: {cp.value}" + (f" ({cp.label})" if cp.label else ""))
+            # spaced, so whoever reads it can see the country -- WhatsApp still links a spaced number
+            lines.append(f"  - {CONTACT_TYPE_LABELS.get(cp.type, cp.type)}: {cp.display_value}" + (f" ({cp.label})" if cp.label else ""))
     elif other.user_id:
         lines += ["", "They prefer to be contacted through NRI Parent Service chat — use the link below."]
     lines += ["", f"See their request, other matches and how to get in touch: {contact_page_url(party)}", "",

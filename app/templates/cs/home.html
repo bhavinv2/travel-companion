@@ -89,7 +89,7 @@
         <h3 class="sub">Same contact on several posts</h3>
         {% for g in dup_contact_groups %}
           <div class="dup-group">
-            <span class="ci ci-ok"><i class="{{ CONTACT_TYPE_ICONS.get(g.type) }}"></i></span> <code>{{ g.value }}</code> &rarr;
+            <span class="ci ci-ok"><i class="{{ CONTACT_TYPE_ICONS.get(g.type) }}"></i></span> <code>{{ g.value|contact_display(g.type) }}</code> &rarr;
             {% for t in g.trips %}<a href="{{ url_for('cs.post_detail', trip_id=t.id) }}">#{{ t.id }} {{ t.route_display }} ({{ t.from_date or '—' }})</a>{% if not loop.last %}, {% endif %}{% endfor %}
           </div>
         {% endfor %}

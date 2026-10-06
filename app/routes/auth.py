@@ -357,13 +357,6 @@ def register():
         first_name = request.form.get('first_name', '').strip()[:100]
         last_name = request.form.get('last_name', '').strip()[:100]
         phone = request.form.get('phone', '').strip()
-        # the country comes from the picker beside the box; the number is stored dialable
-        from app.services import phone as phone_svc
-        _e164, _perr = phone_svc.normalise(phone, request.form.get('phone_cc') or phone_svc.DEFAULT_ISO)
-        if phone and _perr:
-            errors.append(_perr)
-        elif _e164:
-            phone = _e164[:30]
         dob_str = request.form.get('dob', '')
         marketing_consent = request.form.get('marketing_consent') == 'on'
         show_photo = request.form.get('show_photo') == 'on'
@@ -378,6 +371,17 @@ def register():
             errors.append('First name is required.')
         if not phone:
             errors.append('A WhatsApp / phone number is required so we can reach you about matches.')
+        else:
+            # The country comes from the picker beside the box; the number is stored dialable.
+            # Checked here, after the error list exists: this used to run above `errors = []`, so a
+            # mistyped number raised UnboundLocalError and the sign-up page answered 500.
+            from app.services import phone as phone_svc
+            e164, perr = phone_svc.normalise(
+                phone, request.form.get('phone_cc') or phone_svc.DEFAULT_ISO)
+            if perr:
+                errors.append(perr)
+            else:
+                phone = e164[:30]
         if not agreed:
             errors.append('Please accept the Terms of Use and Privacy Policy.')
         if User.query.filter_by(email=email).first():

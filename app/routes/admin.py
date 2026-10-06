@@ -238,6 +238,14 @@ def new_user():
             errors.append('E-mail already registered.')
         if username and User.query.filter(db.func.lower(User.username) == username.lower()).first():
             errors.append('Username already taken.')
+        # The form draws the country picker (phone_field), so read it: this stored the box as
+        # typed and ignored the country, which is how a number reached the users table with no
+        # code in it. Optional here -- staff accounts do not all have one.
+        from app.services import phone as phone_svc
+        new_phone, phone_err = phone_svc.normalise(
+            (form.get('phone') or '').strip(), form.get('phone_cc') or phone_svc.DEFAULT_ISO)
+        if phone_err:
+            errors.append(phone_err)
         if errors:
             for e in errors:
                 flash(e, 'danger')
@@ -246,7 +254,7 @@ def new_user():
         if not password:
             password = generated = secrets.token_urlsafe(9)
         user = User(email=email, username=username, first_name=(form.get('first_name') or '').strip() or None,
-                    last_name=(form.get('last_name') or '').strip() or None, phone=(form.get('phone') or '').strip() or None,
+                    last_name=(form.get('last_name') or '').strip() or None, phone=new_phone or None,
                     is_verified=True)
         user.set_password(password)
         user.set_roles(keys)

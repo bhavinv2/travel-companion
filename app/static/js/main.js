@@ -1027,7 +1027,9 @@ function collectContactRows(container) {
     const type = tr.querySelector('select[name="contact_type"]')?.value || 'auto';
     const value = tr.querySelector('input[name="contact_value"]')?.value.trim() || '';
     const label = tr.querySelector('input[name="contact_label"]')?.value.trim() || '';
-    if (value || type === 'inapp_chat') rows.push({ type, value, label });
+    // the country picked beside a phone number; the server stores the phone as E.164 with it
+    const cc = tr.querySelector('select[name="contact_cc"]')?.value || '';
+    if (value || type === 'inapp_chat') rows.push({ type, value, label, cc });
   });
   return rows;
 }

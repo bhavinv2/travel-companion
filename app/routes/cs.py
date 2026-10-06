@@ -785,6 +785,20 @@ def _replace_contact_points(trip, rows):
             db.session.delete(cp)
 
 
+@cs_bp.route('/api/whats-new')
+@login_required
+@cs_required
+def whats_new_api():
+    """The floating "what's new" counts, refreshed by static/js/whats-new.js once a minute.
+
+    Deliberately claimed by no screen in cs_access, so every member of staff can reach it; what
+    they are shown is filtered inside services/whats_new by the screens they can actually open.
+    """
+    from app.services import whats_new
+    console = 'admin' if request.args.get('console') == 'admin' else 'cs'
+    return jsonify(whats_new.snapshot(current_user, console))
+
+
 @cs_bp.route('/posts/check-duplicates', methods=['POST'])
 @login_required
 @cs_required

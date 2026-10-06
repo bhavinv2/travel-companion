@@ -109,8 +109,8 @@
               <li><i class="{{ CONTACT_TYPE_ICONS.get(cp.type) }}"></i> <strong>{{ CONTACT_TYPE_LABELS.get(cp.type, cp.type) }}</strong>
                 {% if cp.type in ('facebook','instagram') or cp.value.startswith('http') %}<a href="{{ cp.value }}" target="_blank" rel="noopener noreferrer">{{ cp.value }}</a>
                 {% elif cp.type == 'email' %}<a href="mailto:{{ cp.value }}">{{ cp.value }}</a>
-                {% elif cp.type == 'whatsapp' %}<a href="https://wa.me/{{ cp.value|replace('+','') }}" target="_blank" rel="noopener">{{ cp.value }}</a>
-                {% else %}<a href="tel:{{ cp.value }}">{{ cp.value }}</a>{% endif %}
+                {% elif cp.type == 'whatsapp' %}<a href="https://wa.me/{{ cp.value|replace('+','') }}" target="_blank" rel="noopener">{{ cp.display_value }}</a>
+                {% else %}<a href="tel:{{ cp.value }}">{{ cp.display_value }}</a>{% endif %}
                 {% if cp.label %}<small class="muted">({{ cp.label }})</small>{% endif %}
                 <button type="button" class="btn-sm" data-copy="{{ cp.value }}" onclick="copyValue(this)" title="Copy"><i class="fa-solid fa-copy"></i></button>
               </li>

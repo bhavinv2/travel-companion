@@ -1,0 +1,153 @@
+/* The floating "what's new" button on staff pages -- markup in templates/_whats_new.html.
+
+   Bottom right, where the public pages keep their WhatsApp button: the place people already look
+   for "something wants my attention". Staff pages have nothing else there (the chat bubble and the
+   help popup are both public-only), and it sits below every modal and toast, so a dialog always
+   covers it rather than the other way round.
+
+   Counts are a fixed red, not var(--coral): the staff colour themes remap --coral (to blue, on the
+   default staff theme), and a count is a warning -- it should look the same whatever an admin
+   picked for buttons. */
+
+.wn {
+  --wn-red: #e5484d;
+  --wn-navy: #0f1f3d;
+  position: fixed; right: 22px; bottom: 22px; z-index: 950;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 12px;
+  font-family: inherit;
+  pointer-events: none;                 /* only the controls catch clicks, not the empty column */
+}
+.wn > * { pointer-events: auto; }
+
+/* ---- the main button ---------------------------------------------------- */
+.wn-fab {
+  position: relative; display: grid; place-items: center;
+  width: 58px; height: 58px; border-radius: 50%; border: 0; cursor: pointer;
+  color: #fff; font-size: 22px;
+  background: radial-gradient(120% 120% at 30% 20%, #2c4a7a 0%, var(--wn-navy) 62%);
+  box-shadow: 0 10px 26px rgba(15, 31, 61, .32), 0 2px 6px rgba(15, 31, 61, .2);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.wn-fab:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15, 31, 61, .36); }
+.wn-fab:focus-visible { outline: 3px solid #7fb6ff; outline-offset: 3px; }
+.wn-fab-ico, .wn-fab-x { grid-area: 1 / 1; transition: transform .22s ease, opacity .18s ease; }
+.wn-fab-x { opacity: 0; transform: rotate(-90deg) scale(.6); }
+.wn.is-open .wn-fab-ico { opacity: 0; transform: rotate(90deg) scale(.6); }
+.wn.is-open .wn-fab-x { opacity: 1; transform: none; }
+
+.wn-total {
+  position: absolute; top: -3px; right: -3px;
+  min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--wn-red); color: #fff; font-size: 11.5px; font-weight: 800; line-height: 1;
+  border: 2px solid #fff; box-shadow: 0 2px 6px rgba(229, 72, 77, .45);
+}
+.wn-total[hidden], .wn-n[hidden] { display: none; }
+
+/* A soft ring while anything is waiting, so the button reads as "something here" from across the
+   screen without anyone having to read a number. */
+.wn-fab.has-new::after {
+  content: ""; position: absolute; inset: -4px; border-radius: 50%;
+  border: 2px solid var(--wn-red); opacity: 0;
+  animation: wn-ring 2.4s ease-out infinite;
+}
+@keyframes wn-ring {
+  0% { transform: scale(.9); opacity: .55; }
+  70%, 100% { transform: scale(1.28); opacity: 0; }
+}
+/* the number went up while you were on the page */
+.wn-fab.wn-bump { animation: wn-bump .6s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes wn-bump { 0% { transform: scale(1); } 35% { transform: scale(1.14); } 100% { transform: scale(1); } }
+
+/* the name of the button, on hover, when the dial is closed */
+.wn-fab-tip {
+  position: absolute; right: calc(100% + 12px); top: 50%; transform: translate(6px, -50%);
+  white-space: nowrap; padding: 7px 12px; border-radius: 9px;
+  background: var(--wn-navy); color: #fff; font-size: 12.5px; font-weight: 700;
+  opacity: 0; pointer-events: none; transition: opacity .15s ease, transform .15s ease;
+}
+.wn-fab:hover .wn-fab-tip, .wn-fab:focus-visible .wn-fab-tip { opacity: 1; transform: translate(0, -50%); }
+.wn.is-open .wn-fab-tip { display: none; }
+
+/* ---- the dial ----------------------------------------------------------- */
+.wn-dial { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.wn-dial[hidden] { display: none; }
+
+.wn-item {
+  display: flex; align-items: center; justify-content: flex-end; gap: 12px;
+  text-decoration: none; color: inherit;
+  animation: wn-in .26s cubic-bezier(.2, .9, .3, 1.2) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+@keyframes wn-in { from { opacity: 0; transform: translateY(10px) scale(.85); } to { opacity: 1; transform: none; } }
+
+.wn-ico {
+  --wn-c: #1f6feb;
+  position: relative; display: grid; place-items: center; flex: none;
+  width: 48px; height: 48px; border-radius: 50%;
+  background: #fff; color: var(--wn-c); font-size: 18px;
+  border: 2px solid color-mix(in srgb, var(--wn-c) 26%, #fff);
+  box-shadow: 0 6px 16px rgba(15, 31, 61, .16);
+  transition: transform .15s ease, box-shadow .15s ease, background .15s ease, color .15s ease;
+}
+.wn-item:hover .wn-ico, .wn-item:focus-visible .wn-ico {
+  transform: scale(1.08); background: var(--wn-c); color: #fff;
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--wn-c) 40%, transparent);
+}
+.wn-item:focus-visible { outline: none; }
+.wn-item:focus-visible .wn-ico { outline: 3px solid #7fb6ff; outline-offset: 2px; }
+
+/* one colour per list, so the eye learns the dial after a day without reading the labels */
+.wn-insurance .wn-ico { --wn-c: #0f9d7a; }
+.wn-posts     .wn-ico { --wn-c: #1f6feb; }
+.wn-matches   .wn-ico { --wn-c: #7c4dff; }
+.wn-sahayak   .wn-ico { --wn-c: #d6336c; }
+.wn-contact   .wn-ico { --wn-c: #e8890c; }
+
+.wn-n {
+  position: absolute; top: -5px; right: -6px;
+  min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--wn-red); color: #fff; font-size: 11px; font-weight: 800; line-height: 1;
+  border: 2px solid #fff;
+}
+
+/* nothing waiting: still there, so the dial never rearranges itself, but quiet */
+.wn-item.is-zero .wn-ico { color: #9aa3b2; border-color: #e6e9ef; box-shadow: 0 3px 8px rgba(15, 31, 61, .08); }
+.wn-item.is-zero:hover .wn-ico, .wn-item.is-zero:focus-visible .wn-ico { background: #6b7385; color: #fff; }
+
+/* ---- what each icon is for ---------------------------------------------- */
+.wn-tip {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+  padding: 7px 12px; border-radius: 10px; white-space: nowrap;
+  background: var(--wn-navy); color: #fff; box-shadow: 0 8px 20px rgba(15, 31, 61, .25);
+  opacity: 0; transform: translateX(8px); pointer-events: none;
+  transition: opacity .15s ease, transform .15s ease;
+}
+.wn-tip b { font-size: 13px; font-weight: 700; }
+.wn-tip small { font-size: 11.5px; color: rgba(255, 255, 255, .72); }
+.wn-item:not(.is-zero) .wn-tip small { color: #ffb4b6; }
+.wn-item:hover .wn-tip, .wn-item:focus-visible .wn-tip { opacity: 1; transform: none; }
+
+/* A touch screen has no hover, so the labels would never appear: show them whenever the dial is
+   open. Also on a long press of the main button nothing changes -- tapping it is the way in. */
+@media (hover: none) {
+  .wn.is-open .wn-tip { opacity: 1; transform: none; }
+  .wn-fab-tip { display: none; }
+}
+
+/* ---- small screens ------------------------------------------------------ */
+@media (max-width: 600px) {
+  .wn { right: 14px; bottom: 14px; gap: 10px; }
+  .wn-fab { width: 52px; height: 52px; font-size: 20px; }
+  .wn-ico { width: 44px; height: 44px; font-size: 16px; }
+  .wn-tip b { font-size: 12.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wn-item, .wn-fab.wn-bump { animation: none; }
+  .wn-fab.has-new::after { animation: none; opacity: .5; transform: none; }
+  .wn-fab, .wn-ico, .wn-tip, .wn-fab-ico, .wn-fab-x, .wn-fab-tip { transition: none; }
+}
+
+@media print { .wn { display: none; } }

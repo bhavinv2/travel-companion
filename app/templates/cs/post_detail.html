@@ -117,13 +117,14 @@
               {%- if cp.type == 'inapp_chat' %}<code>in-app chat</code>
               {%- else %}
               <span class="cp-val">
-                <code>{{ cp.value }}</code>
+                {# spaced so the country code is findable; the copy button keeps the raw value #}
+                <code>{{ cp.display_value }}</code>
                 {# The value goes in a data attribute, not an inline onclick: a contact
                    value can contain quotes, and tojson inside a double-quoted attribute
                    closes it early and breaks every script on the page. #}
                 <button type="button" class="cp-copy" data-copy="{{ cp.value }}"
                         title="Copy {{ CONTACT_TYPE_LABELS.get(cp.type, cp.type)|lower }}"
-                        aria-label="Copy {{ cp.value }}">
+                        aria-label="Copy {{ cp.display_value }}">
                   <i class="fa-regular fa-copy"></i>
                 </button>
               </span>
