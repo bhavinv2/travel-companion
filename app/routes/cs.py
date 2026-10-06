@@ -318,6 +318,9 @@ def voices():
         query = query.filter(ContactMessage.topic == topic)
     if status in CONTACT_STATUSES:
         query = query.filter(ContactMessage.status == status)
+    unread = request.args.get('unread') == '1'
+    if unread:
+        query = query.filter(ContactMessage.unread_by(current_user))
     if q:
         pat = f'%{q}%'
         query = query.filter(or_(ContactMessage.name.ilike(pat), ContactMessage.email.ilike(pat),
@@ -366,7 +369,7 @@ def voices():
 
     return render_template('cs/voices.html', tab=tab,
                            items=items, total=total, page=c_page, pages=c_pages,
-                           counts=counts, filters={'status': status, 'q': q},
+                           counts=counts, filters={'status': status, 'q': q, 'unread': unread},
                            feedbacks=feedbacks, f_total=f_total, f_page=f_page, f_pages=f_pages,
                            pending=pending,
                            reports=reports, r_total=r_total, r_page=r_page, r_pages=r_pages,
@@ -383,6 +386,8 @@ def report_action(report_id, action):
     """Resolve / reopen a reported match (CS + admin). Delete is admin-only."""
     from app.models import MatchReport
     report = MatchReport.query.get_or_404(report_id)
+    if action != 'delete':
+        report.mark_read(by=current_user)
     if action == 'resolve':
         report.resolve(by=current_user)
         # if this was the last open report on the match, clear the queue flag
@@ -413,6 +418,32 @@ def contact_messages():
     return redirect(url_for('cs.voices', tab='contact', **request.args.to_dict()))
 
 
+VOICE_KINDS = {'contact': 'ContactMessage', 'feedback': 'Feedback', 'report': 'MatchReport'}
+
+
+@cs_bp.route('/voices/read/<kind>/<int:item_id>', methods=['POST'])
+@login_required
+@cs_required
+def voice_read(kind, item_id):
+    """Somebody opened a row on User voices: it is no longer unread for the team.
+
+    Answers with the fresh counts so the page can move every number that depends on it -- the
+    menu badge, the tab chip and the floating button -- without a reload. Both consoles call
+    this; the admin panel's voices screen is the same table.
+    """
+    import app.models as models
+    from app.services import nav_badges
+
+    name = VOICE_KINDS.get(kind)
+    if not name:
+        return jsonify({'error': 'Unknown kind'}), 404
+    item = getattr(models, name).query.get_or_404(item_id)
+    if item.mark_read(by=current_user):
+        db.session.commit()
+    nav_badges.forget()                  # counted before the write would be one too many
+    return jsonify({'success': True, 'badges': nav_badges.unread()})
+
+
 @cs_bp.route('/voices/feedback/<int:fid>/<action>', methods=['POST'])
 @login_required
 @cs_required
@@ -420,6 +451,7 @@ def feedback_action(fid, action):
     """Approve a review (it goes live on the home page) or reject it (deleted)."""
     from app.models import Feedback
     fb = Feedback.query.get_or_404(fid)
+    fb.mark_read(by=current_user)
     if action == 'feature':
         if not fb.is_approved:
             return jsonify({'error': 'Approve the review first'}), 400
@@ -473,6 +505,7 @@ def contact_reply(mid):
 
     db.session.add(ContactReply(message_id=m.id, author_id=current_user.id,
                                 body=body, delivered=delivered))
+    m.mark_read(by=current_user)
     # Answering it is what "in progress" means; closing it stays a decision somebody makes.
     if m.status == 'new':
         m.set_status('in_progress', by=current_user)
@@ -499,6 +532,7 @@ def contact_status(mid):
         flash('Unknown status.', 'danger')
         return redirect(url_for('cs.contact_messages'))
     m.set_status(status, by=current_user)
+    m.mark_read(by=current_user)
     note = (request.form.get('cs_notes') or '').strip()[:2000]
     if note:
         m.cs_notes = note
@@ -794,9 +828,13 @@ def whats_new_api():
     Deliberately claimed by no screen in cs_access, so every member of staff can reach it; what
     they are shown is filtered inside services/whats_new by the screens they can actually open.
     """
-    from app.services import whats_new
+    from app.services import nav_badges, whats_new
     console = 'admin' if request.args.get('console') == 'admin' else 'cs'
-    return jsonify(whats_new.snapshot(current_user, console))
+    data = whats_new.snapshot(current_user, console)
+    # the menu and tab counts ride along, so they rise when something arrives as well as fall when
+    # you read it -- otherwise the button says 16 and the menu beside it still says 15
+    data['badges'] = nav_badges.unread(current_user)
+    return jsonify(data)
 
 
 @cs_bp.route('/posts/check-duplicates', methods=['POST'])

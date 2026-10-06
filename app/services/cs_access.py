@@ -35,7 +35,7 @@ SCREENS = [
      'endpoints': ['cs.metrics']},
     {'key': 'voices', 'label': 'User voices', 'icon': 'fa-comment-dots', 'site': 'console',
      'endpoints': ['cs.voices', 'cs.contact_messages', 'cs.contact_status',
-                   'cs.feedback_action', 'cs.report_action']},
+                   'cs.feedback_action', 'cs.report_action', 'cs.voice_read']},
 
     # --- travel companion
     {'key': 'posts', 'label': 'All posts', 'icon': 'fa-list', 'site': 'companion',
@@ -46,7 +46,7 @@ SCREENS = [
      'endpoints': ['matches.cs_match_queue', 'matches.cs_matches', 'matches.cs_notify',
                    'matches.cs_dismiss', 'matches.cs_connected', 'matches.cs_mark_sent',
                    'matches.cs_intro_text', 'matches.trip_matches', 'matches.api_notify',
-                   'matches.api_dismiss']},
+                   'matches.api_dismiss', 'matches.cs_read_post']},
     {'key': 'new', 'label': 'New post', 'icon': 'fa-plus', 'site': 'companion',
      'endpoints': ['cs.new_post']},
     {'key': 'import', 'label': 'Import', 'icon': 'fa-file-import', 'site': 'companion',

@@ -40,11 +40,11 @@
       {% for item in s['items'] %}
       {% set n = waiting.get(item.key, 0) %}
       <a href="{{ url_for(item.endpoint, **item.args) }}"
-         class="{{ 'active' if item.key == here }}"
+         class="{{ 'active' if item.key == here }}" data-title="{{ item.label }}"
          title="{{ item.label }}{{ ' — %d waiting' % n if n }}">
         <i class="fa-solid {{ item.icon }}"></i> <span>{{ item.label }}</span>
         {# the count when the rail is open, a bare dot when it is collapsed to icons #}
-        {% if n %}<span class="nav-badge" aria-label="{{ n }} not read">{{ n if n < 100 else '99+' }}</span>{% endif %}
+        <span class="nav-badge" data-badge="{{ item.key }}" aria-label="{{ n }} not read"{{ ' hidden' if not n }}>{{ n if n < 100 else '99+' }}</span>
       </a>
       {% endfor %}
     {% endfor %}

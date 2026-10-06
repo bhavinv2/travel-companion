@@ -5,18 +5,20 @@ menu you are already looking at, and the menu shows one product at a time. Someb
 Sahayak queue could not see that three insurance quote requests had arrived without switching
 tabs to go and look. This is the one place that answers across all of them at once.
 
-Five lists, and the definition of "new" is different for each because the data is:
+Seven lists, and the definition of "new" is different for each because the data is:
 
   insurance  quote requests     no staff-facing status at all -- `status` only records whether
                                  the partner priced it -- so new means "since you last opened the
                                  quotes list", per person
   posts      companion posts    no "somebody looked at this" state either; same rule, and a post
                                  you created yourself is never new to you
-  matches    matches waiting    the match queue's own definition -- needs_cs_attention, not
-                                 dismissed -- narrowed to 'suggested', the ones nobody has acted on
+  matches    match queue        posts in the queue with a match you have not opened yet --
+                                 opening the post's matches page reads them (nav_badges)
   sahayak    Sahayak bookings   status 'new', i.e. not yet assigned
-  contact    contact enquiries  status 'new', every topic -- Sahayak applications included, since
-                                 that is the list the link opens and the count must match it
+  contact    contact enquiries  not opened by you yet, every topic -- Sahayak applications
+                                 included, since that is the list the link opens
+  feedback   reviews            not opened by you yet
+  report     match reports      not opened by you yet
 
 Where a status says "unhandled", that status is the answer, and it is the same number for every
 member of staff: it is a shared queue. Where nothing does, the answer is personal, kept in
@@ -40,19 +42,27 @@ ITEMS = [
     {'key': 'posts', 'label': 'Companion posts', 'icon': 'fa-plane-departure',
      'screen': 'posts', 'seen': True,
      'admin': ('admin.listings', {}), 'cs': ('cs.posts', {})},
-    {'key': 'matches', 'label': 'Matches waiting', 'icon': 'fa-handshake',
+    {'key': 'matches', 'label': 'Match queue', 'icon': 'fa-handshake',
      'screen': 'matches',
      # there is no admin match screen; admins use the console's, which they can always open
-     'admin': ('matches.cs_match_queue', {'status': 'suggested'}),
-     'cs': ('matches.cs_match_queue', {'status': 'suggested'})},
+     'admin': ('matches.cs_match_queue', {'unread': 1}),
+     'cs': ('matches.cs_match_queue', {'unread': 1})},
     {'key': 'sahayak', 'label': 'Sahayak bookings', 'icon': 'fa-house-medical',
      'screen': 'sahayak',
      'admin': ('admin.sahayak_bookings', {'status': 'new'}),
      'cs': ('cs.sahayak_bookings', {'status': 'new'})},
     {'key': 'contact', 'label': 'Contact-us enquiries', 'icon': 'fa-envelope',
      'screen': 'voices',
-     'admin': ('admin.voices', {'tab': 'contact', 'status': 'new'}),
-     'cs': ('cs.voices', {'tab': 'contact', 'status': 'new'})},
+     'admin': ('admin.voices', {'tab': 'contact', 'unread': 1}),
+     'cs': ('cs.voices', {'tab': 'contact', 'unread': 1})},
+    {'key': 'feedback', 'label': 'Reviews', 'icon': 'fa-star',
+     'screen': 'voices',
+     'admin': ('admin.voices', {'tab': 'feedback'}),
+     'cs': ('cs.voices', {'tab': 'feedback'})},
+    {'key': 'report', 'label': 'Match reports', 'icon': 'fa-flag',
+     'screen': 'voices',
+     'admin': ('admin.voices', {'tab': 'report', 'rstatus': 'all'}),
+     'cs': ('cs.voices', {'tab': 'report', 'rstatus': 'all'})},
 ]
 _BY_KEY = {i['key']: i for i in ITEMS}
 
@@ -78,7 +88,7 @@ def _since(user, key, now):
 
 
 def _count(item, user, now):
-    from app.models import CompanionRequest, ContactMessage, InsuranceQuote, Match, SahayakBooking
+    from app.models import CompanionRequest, InsuranceQuote, SahayakBooking
 
     key = item['key']
     if key == 'insurance':
@@ -94,12 +104,16 @@ def _count(item, user, now):
                          | (CompanionRequest.created_by_id != user.id))
         return q.count()
     if key == 'matches':
-        return Match.query.filter(Match.needs_cs_attention.is_(True),
-                                  Match.status == 'suggested').count()
+        from app.services import nav_badges
+        return nav_badges.unread(user).get('matches', 0)
     if key == 'sahayak':
         return SahayakBooking.query.filter_by(status='new').count()
-    if key == 'contact':
-        return ContactMessage.query.filter_by(status='new').count()
+    # The three User voices lists count what nobody has opened yet (models.ReadMark), the same
+    # figures as the sidebar badges, so the button and the menu cannot disagree.
+    if key in ('contact', 'feedback', 'report'):
+        from app.services import nav_badges
+        return nav_badges.unread(user).get({'contact': 'voices_inbox', 'feedback': 'voices_feedback',
+                                        'report': 'voices_report'}[key], 0)
     return 0
 
 
@@ -111,7 +125,11 @@ def _hint(item, n):
         return 'nothing new' if item.get('seen') else 'nothing waiting'
     if item.get('seen'):
         return '%d new since you last looked' % n
-    return '%d waiting' % n if item['key'] != 'contact' else '%d not opened yet' % n
+    if item['key'] == 'matches':
+        return '%d post%s with unopened matches' % (n, '' if n == 1 else 's')
+    if item['key'] in ('contact', 'feedback', 'report'):
+        return '%d not opened yet' % n
+    return '%d waiting' % n
 
 
 def snapshot(user, console='cs'):

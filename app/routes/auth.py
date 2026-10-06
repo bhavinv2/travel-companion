@@ -443,8 +443,18 @@ def register():
     return render_template('auth/register.html', form=None)
 
 
+def _failed_login(response):
+    """A sign-in that did not get anybody in. Success is a redirect, or {"success": true} for the
+    modal; a wrong password re-renders the form (200) or answers 400."""
+    if response.status_code in (301, 302, 303):
+        return False
+    if response.is_json:
+        return not (response.get_json(silent=True) or {}).get('success')
+    return True
+
+
 @auth_bp.route('/login', methods=['GET', 'POST'])
-@rate_limit(10, 300)
+@rate_limit(10, 300, counts=_failed_login)
 def login():
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     if current_user.is_authenticated:

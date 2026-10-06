@@ -202,6 +202,19 @@ def _match_rows(trip, ms):
     return rows
 
 
+def _read_post_matches(trip, user):
+    """Mark every match on `trip` read for `user`; the ids that were new to them.
+
+    Every match on the post, settled or not: one that comes back into the queue later is made new
+    again for everybody anyway (models._back_in_the_queue_is_new_again).
+    """
+    opened = [m.id for m in Match.query.filter((Match.trip_a_id == trip.id) | (Match.trip_b_id == trip.id)).all()
+              if m.mark_read(by=user)]
+    if opened:
+        db.session.commit()
+    return opened
+
+
 @matches_bp.route('/cs/posts/<int:trip_id>/matches')
 @login_required
 @cs_required
@@ -209,6 +222,10 @@ def cs_matches(trip_id):
     trip = CompanionRequest.query.get_or_404(trip_id)
     matching.compute_matches_for(trip, include_unconfirmed=True, actor=current_user)
     ms = matching.ranked_matches_for(trip, include_unconfirmed=True)
+    # Opening a post's matches is what "read" means for the match queue: every queued match on
+    # this post is on this page now, so this person's queue badge and "what's new" button stop
+    # counting the post. Only theirs -- a colleague who has not opened it still sees it as new.
+    _read_post_matches(trip, current_user)
     dismissed = Match.query.filter(((Match.trip_a_id == trip.id) | (Match.trip_b_id == trip.id)),
                                    Match.status == 'dismissed').order_by(Match.updated_at.desc()).limit(10).all()
     from app.routes.cs import _leg_data
@@ -216,6 +233,21 @@ def cs_matches(trip_id):
                            leg_data=_leg_data(trip),
                            channel_me=bridge.channel_for(trip)[0], CHANNEL_LABELS=CHANNEL_LABELS,
                            DISMISS_REASONS=DISMISS_REASONS, PARTY_CHANNELS=PARTY_CHANNELS, **_choices())
+
+
+@matches_bp.route('/cs/posts/<int:trip_id>/matches/read', methods=['POST'])
+@login_required
+@cs_required
+def cs_read_post(trip_id):
+    """A click on any match row of a post in the queue: the post's matches are read, the same as
+    Open all, without leaving the queue. Answers with the match ids that changed -- a match waiting
+    on both sides is listed under both posts and loses its New tag in both places -- and the fresh
+    counts for the menu and the "what's new" button."""
+    from app.services import nav_badges
+    trip = CompanionRequest.query.get_or_404(trip_id)
+    opened = _read_post_matches(trip, current_user)
+    nav_badges.forget()
+    return jsonify({'success': True, 'match_ids': opened, 'badges': nav_badges.unread(current_user)})
 
 
 @matches_bp.route('/cs/matches')
@@ -261,15 +293,17 @@ def cs_match_queue():
             ))
         query = query.filter(_or(_side(Match.trip_a), _side(Match.trip_b)))
 
+    unread = request.args.get('unread') == '1'
+    if unread:
+        query = query.filter(Match.unread_by(current_user))
+
     ms = query.order_by(Match.updated_at.desc()).all()
 
     # A match is in this queue because one side is stuck. Group under that side; if both
     # are stuck the match appears under each, because both need a person to act.
     groups = {}
     for m in ms:
-        waiting = [t for t in (m.trip_a, m.trip_b)
-                   if (m.party_for(t.id) is None or m.party_for(t.id).status == 'pending')]
-        for t in (waiting or [m.trip_a]):
+        for t in m.waiting_trips():
             party = m.party_for(t.id)
             if channel and (party.channel if party else 'none') != channel:
                 continue
@@ -288,7 +322,8 @@ def cs_match_queue():
     template = 'cs/_queue_results.html' if request.args.get('partial') else 'cs/match_queue.html'
     return render_template(template, groups=shown, page=page, pages=pages,
                            total=total_groups, total_matches=total_matches,
-                           filters=dict(q=q, status=status, trip_type=trip_type, channel=channel),
+                           filters=dict(q=q, status=status, trip_type=trip_type, channel=channel,
+                                        unread=unread),
                            MATCH_STATUSES=['suggested', 'notified', 'viewed', 'connected'],
                            CHANNEL_LABELS=CHANNEL_LABELS, **_choices())
 

@@ -103,6 +103,8 @@
 .wn-matches   .wn-ico { --wn-c: #7c4dff; }
 .wn-sahayak   .wn-ico { --wn-c: #d6336c; }
 .wn-contact   .wn-ico { --wn-c: #e8890c; }
+.wn-feedback  .wn-ico { --wn-c: #c99a06; }
+.wn-report    .wn-ico { --wn-c: #dc2626; }
 
 .wn-n {
   position: absolute; top: -5px; right: -6px;
@@ -142,12 +144,20 @@
   .wn-fab { width: 52px; height: 52px; font-size: 20px; }
   .wn-ico { width: 44px; height: 44px; font-size: 16px; }
   .wn-tip b { font-size: 12.5px; }
+  /* out of the way while you scroll down a list; back when you stop or scroll up (whats-new.js) */
+  .wn { transition: transform .22s ease, opacity .22s ease; }
+  .wn.is-tucked:not(.is-open) { transform: translateY(90px); opacity: 0; }
+  .wn.is-tucked:not(.is-open) > * { pointer-events: none; }
 }
+
+/* Room under the last row of every staff page, so scrolling to the end always brings it clear of
+   the button instead of leaving it underneath for good. */
+.has-wn .admin-main { padding-bottom: 96px; }
 
 @media (prefers-reduced-motion: reduce) {
   .wn-item, .wn-fab.wn-bump { animation: none; }
   .wn-fab.has-new::after { animation: none; opacity: .5; transform: none; }
-  .wn-fab, .wn-ico, .wn-tip, .wn-fab-ico, .wn-fab-x, .wn-fab-tip { transition: none; }
+  .wn, .wn-fab, .wn-ico, .wn-tip, .wn-fab-ico, .wn-fab-x, .wn-fab-tip { transition: none; }
 }
 
 @media print { .wn { display: none; } }

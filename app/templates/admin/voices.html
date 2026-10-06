@@ -16,17 +16,20 @@
       <a class="hx-tab {{ 'active' if tab == 'contact' }}" role="tab"
          href="{{ url_for('admin.voices', tab='contact') }}">
         <i class="fa-solid fa-envelope"></i> Contact us
-        {% if counts['new'] %}<span class="vt-n">{{ counts['new'] }}</span>{% endif %}
+        {# filtered to one product, the same number as that product's menu line #}
+        {% set _ib = {'companion': 'voices_contact', 'insurance': 'voices_insurance',
+                      'sahayak': 'voices_sahayak', 'general': 'voices_general'}.get(topic, 'voices_inbox') %}
+        <span class="vt-n" data-badge="{{ _ib }}"{{ ' hidden' if not NAV_BADGES().get(_ib) }}>{{ NAV_BADGES().get(_ib, 0) }}</span>
       </a>
       <a class="hx-tab {{ 'active' if tab == 'feedback' }}" role="tab"
          href="{{ url_for('admin.voices', tab='feedback') }}">
         <i class="fa-solid fa-star"></i> Feedback
-        {% if pending %}<span class="vt-n">{{ pending }}</span>{% endif %}
+        <span class="vt-n" data-badge="voices_feedback"{{ ' hidden' if not NAV_BADGES().get('voices_feedback') }}>{{ NAV_BADGES().get('voices_feedback', 0) }}</span>
       </a>
       <a class="hx-tab {{ 'active' if tab == 'report' }}" role="tab"
          href="{{ url_for('admin.voices', tab='report') }}">
         <i class="fa-solid fa-flag"></i> Reports
-        {% if reports_open %}<span class="vt-n vt-n-alert">{{ reports_open }}</span>{% endif %}
+        <span class="vt-n vt-n-alert" data-badge="voices_report"{{ ' hidden' if not NAV_BADGES().get('voices_report') }}>{{ NAV_BADGES().get('voices_report', 0) }}</span>
       </a>
     </div>
 
@@ -36,6 +39,7 @@
       {% for s in CONTACT_STATUSES %}
       <a class="btn-sm-outline {{ 'active' if status == s }}" href="{{ url_for('admin.voices', tab='contact', status=s) }}">{{ CONTACT_STATUS_LABELS[s] }} ({{ counts[s] }})</a>
       {% endfor %}
+      <a class="btn-sm-outline {{ 'active' if unread }}" href="{{ url_for('admin.voices', tab='contact', status=status or None, topic=topic or None, unread=None if unread else 1) }}">Unread only</a>
       {# one inbox for both services; which one an enquiry is about is a filter, not a screen #}
       <span class="cm-filter-sep"></span>
       <a class="btn-sm-outline {{ 'active' if not topic }}" href="{{ url_for('admin.voices', tab='contact', status=status) }}">Both services</a>
@@ -54,7 +58,7 @@
     <div class="pagination">
       {% for p in range(1, c_pages + 1) %}
       <a class="page {{ 'current' if p == c_page }}"
-         href="{{ url_for('admin.voices', tab='contact', status=status, topic=topic, page=p) }}">{{ p }}</a>
+         href="{{ url_for('admin.voices', tab='contact', status=status, topic=topic, q=q or None, unread=1 if unread else None, page=p) }}">{{ p }}</a>
       {% endfor %}
     </div>
     {% endif %}
@@ -111,6 +115,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ vt.read_js() }}
 {{ vt.feedback_js('/admin/feedback/__ID__/__ACTION__') }}
 {{ vt.report_js('/cs/reports/__ID__/__ACTION__') }}
 {% endblock %}

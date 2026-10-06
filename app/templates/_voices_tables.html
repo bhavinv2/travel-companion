@@ -11,20 +11,22 @@
 <table class="admin-table vc-table">
   <thead>
     <tr>
-      <th>When</th><th>About</th><th>From</th><th>Phone</th><th>Message</th>
+      <th>When</th><th>About</th><th>From</th><th>Message</th>
       <th>Status</th><th>Handled by</th><th>Move to</th>
     </tr>
   </thead>
   <tbody>
   {% for m in messages %}
-    <tr>
-      <td class="nowrap">{{ m.created_at|ist('%d %b %Y<br/>%H:%M')|safe if m.created_at }}</td>
+    <tr{% if m.is_unread %} class="vc-unread" data-read="contact/{{ m.id }}"{% endif %}>
+      <td class="nowrap">{% if m.is_unread %}<span class="vc-new-dot" title="You have not opened this yet">New</span><br/>{% endif %}{{ m.created_at|ist('%d %b %Y<br/>%H:%M')|safe if m.created_at }}</td>
       {# which service the enquiry came from: the insurance page writes into this same inbox #}
       <td class="nowrap"><span class="cm-topic cm-topic-{{ m.topic or 'companion' }}">{{ topic_labels.get(m.topic, 'Travel companion') }}</span></td>
-      <td><strong>{{ m.name }}</strong><br/><a href="mailto:{{ m.email }}">{{ m.email }}</a></td>
-      {# Spelled the way that country spells it. A column of numbers each written differently
-         reads as a column of mistakes. #}
-      <td class="nowrap">{% if m.phone %}<a href="tel:{{ m.phone }}">{{ PHONE.pretty(m.phone, m.phone) }}</a>{% else %}—{% endif %}</td>
+      {# The phone sits under the e-mail rather than in a column of its own: eight columns did not
+         fit beside the console menu at 1366px, and the status buttons were the ones pushed off. #}
+      <td><strong>{{ m.name }}</strong><br/><a href="mailto:{{ m.email }}">{{ m.email }}</a>
+        {#- Spelled the way that country spells it. A column of numbers each written differently
+            reads as a column of mistakes. #}
+        {% if m.phone %}<br/><a class="nowrap" href="tel:{{ m.phone }}">{{ PHONE.pretty(m.phone, m.phone) }}</a>{% endif %}</td>
       <td class="cm-cell">
         <div class="cm-msg">{{ m.message }}</div>
         {% if m.cs_notes %}<div class="cm-notes-sm"><i class="fa-solid fa-note-sticky"></i> {{ m.cs_notes }}</div>{% endif %}
@@ -134,8 +136,8 @@
   </thead>
   <tbody>
   {% for fb in feedbacks %}
-    <tr id="fb-{{ fb.id }}">
-      <td class="nowrap">{{ fb.created_at|ist('%d %b %Y<br/>%H:%M')|safe if fb.created_at }}</td>
+    <tr id="fb-{{ fb.id }}"{% if fb.is_unread %} class="vc-unread" data-read="feedback/{{ fb.id }}"{% endif %}>
+      <td class="nowrap">{% if fb.is_unread %}<span class="vc-new-dot" title="You have not opened this yet">New</span><br/>{% endif %}{{ fb.created_at|ist('%d %b %Y<br/>%H:%M')|safe if fb.created_at }}</td>
       <td><strong>{{ fb.user.username if fb.user else 'A traveller' }}</strong>
         {% if fb.user %}<br/><a href="mailto:{{ fb.user.email }}">{{ fb.user.email }}</a>{% endif %}</td>
       <td class="nowrap"><span class="badge-pill {{ 'green' if fb.site == 'insurance' else 'yellow' if fb.site == 'sahayak' }}">{{ fb.site_label }}</span></td>
@@ -178,8 +180,9 @@
   <tbody>
   {% for r in reports %}
     {% set m = r.match %}
-    <tr id="rp-{{ r.id }}" class="{{ 'rp-open' if r.status == 'open' }}">
-      <td class="nowrap" data-label="When">{{ r.created_at|ist('%d %b %Y<br/>%H:%M')|safe if r.created_at }}</td>
+    <tr id="rp-{{ r.id }}" class="{{ 'rp-open' if r.status == 'open' }}{{ ' vc-unread' if r.is_unread }}"
+        {%- if r.is_unread %} data-read="report/{{ r.id }}"{% endif %}>
+      <td class="nowrap" data-label="When">{% if r.is_unread %}<span class="vc-new-dot" title="You have not opened this yet">New</span><br/>{% endif %}{{ r.created_at|ist('%d %b %Y<br/>%H:%M')|safe if r.created_at }}</td>
       <td data-label="Reporter">
         {% if r.reporter %}<strong>{{ r.reporter.username }}</strong><br/><a href="mailto:{{ r.reporter.email }}">{{ r.reporter.email }}</a>
         {% else %}<span class="muted">Guest / not signed in</span>{% endif %}
@@ -242,6 +245,42 @@ function rpAct(id, action, btn) {
       if (btn) { setTimeout(() => location.reload(), 600); }   // re-filter the open/resolved view
     });
 }
+</script>
+{% endmacro %}
+
+
+{% macro read_js() %}
+<script>
+/* Opening a row is what "read" means: the first click anywhere on an unread row tells the server,
+   and every number that counts unread rows -- the menu badge, the tab chip, the floating button
+   -- moves at once instead of on the next page load. Status buttons mark it read on the server
+   too, so a click that navigates away before this answers still counts. */
+(function () {
+  if (window.__vcReadWired) return;
+  window.__vcReadWired = true;
+
+  function paint(badges) {
+    if (window.paintStaffBadges) window.paintStaffBadges(badges);   // static/js/whats-new.js
+    if (window.WhatsNew) window.WhatsNew.refresh();
+  }
+
+  document.addEventListener('click', function (e) {
+    var row = e.target.closest('tr[data-read]');
+    if (!row) return;
+    var path = row.dataset.read;
+    row.removeAttribute('data-read');
+    row.classList.remove('vc-unread');
+    var dot = row.querySelector('.vc-new-dot');
+    if (dot) { if (dot.nextElementSibling && dot.nextElementSibling.tagName === 'BR') dot.nextElementSibling.remove(); dot.remove(); }
+    fetch(appUrl('/cs/voices/read/' + path), {
+      method: 'POST', keepalive: true, credentials: 'same-origin',
+      headers: { 'X-CSRFToken': CSRF_TOKEN, 'Accept': 'application/json' }
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && d.badges) paint(d.badges); })
+      .catch(function () { /* the next page load shows the true count */ });
+  });
+})();
 </script>
 {% endmacro %}
 

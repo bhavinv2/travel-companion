@@ -17,17 +17,20 @@
       <a class="hx-tab {{ 'active' if tab == 'contact' }}" role="tab"
          href="{{ url_for('cs.voices', tab='contact') }}">
         <i class="fa-solid fa-envelope"></i> Contact us
-        {% if counts['new'] %}<span class="vt-n">{{ counts['new'] }}</span>{% endif %}
+        {# filtered to one product, the same number as that product's menu line #}
+        {% set _ib = {'companion': 'voices_contact', 'insurance': 'voices_insurance',
+                      'sahayak': 'voices_sahayak', 'general': 'voices_general'}.get(topic, 'voices_inbox') %}
+        <span class="vt-n" data-badge="{{ _ib }}"{{ ' hidden' if not NAV_BADGES().get(_ib) }}>{{ NAV_BADGES().get(_ib, 0) }}</span>
       </a>
       <a class="hx-tab {{ 'active' if tab == 'feedback' }}" role="tab"
          href="{{ url_for('cs.voices', tab='feedback') }}">
         <i class="fa-solid fa-star"></i> Feedback
-        {% if pending %}<span class="vt-n">{{ pending }}</span>{% endif %}
+        <span class="vt-n" data-badge="voices_feedback"{{ ' hidden' if not NAV_BADGES().get('voices_feedback') }}>{{ NAV_BADGES().get('voices_feedback', 0) }}</span>
       </a>
       <a class="hx-tab {{ 'active' if tab == 'report' }}" role="tab"
          href="{{ url_for('cs.voices', tab='report') }}">
         <i class="fa-solid fa-flag"></i> Reports
-        {% if reports_open %}<span class="vt-n vt-n-alert">{{ reports_open }}</span>{% endif %}
+        <span class="vt-n vt-n-alert" data-badge="voices_report"{{ ' hidden' if not NAV_BADGES().get('voices_report') }}>{{ NAV_BADGES().get('voices_report', 0) }}</span>
       </a>
     </div>
 
@@ -35,6 +38,7 @@
     {# filters as you type; the button and a plain submit still work without JavaScript #}
     <form method="get" class="cm-filters" data-live-search="#voiceResults">
       <input type="hidden" name="tab" value="contact"/>
+      {% if filters.unread %}<input type="hidden" name="unread" value="1"/>{% endif %}
       <input type="search" name="q" value="{{ filters.q }}" placeholder="Search name, e-mail, phone or message…"/>
       {# one inbox for both services; which one an enquiry is about is a filter, not a screen #}
       <select name="topic" onchange="this.form.submit()">
@@ -50,6 +54,9 @@
         {% endfor %}
       </select>
       <button type="submit" class="btn-sm-outline"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+      <a class="btn-sm-outline {{ 'active' if filters.unread }}"
+         href="{{ url_for('cs.voices', tab='contact', topic=topic or None, status=filters.status or None, q=filters.q or None, unread=None if filters.unread else 1) }}">
+        <i class="fa-solid fa-envelope"></i> Unread only</a>
       <span class="muted" style="font-size:13px">{{ total }} message{{ '' if total == 1 else 's' }}</span>
     </form>
 
@@ -64,7 +71,7 @@
     <div class="pagination">
       {% for p in range(1, pages + 1) %}
       <a class="page {{ 'current' if p == page }}"
-         href="{{ url_for('cs.voices', tab='contact', page=p, status=filters.status, q=filters.q) }}">{{ p }}</a>
+         href="{{ url_for('cs.voices', tab='contact', page=p, status=filters.status, q=filters.q, unread=1 if filters.unread else None) }}">{{ p }}</a>
       {% endfor %}
     </div>
     {% endif %}
@@ -113,6 +120,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ vt.read_js() }}
 {{ vt.feedback_js('/cs/voices/feedback/__ID__/__ACTION__') }}
 {{ vt.report_js('/cs/reports/__ID__/__ACTION__') }}
 {% endblock %}

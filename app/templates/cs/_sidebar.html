@@ -18,9 +18,9 @@
       {% for s in site['items'] %}
       {% set n = waiting.get(s.key, 0) %}
       <a href="{{ url_for(s.endpoints[0]) }}" class="{{ 'active' if active == s.key }}"
-         title="{{ s.label }}{{ ' — %d waiting' % n if n }}">
+         data-title="{{ s.label }}" title="{{ s.label }}{{ ' — %d waiting' % n if n }}">
         <i class="fa-solid {{ s.icon }}"></i> <span>{{ s.label }}</span>
-        {% if n %}<span class="nav-badge" aria-label="{{ n }} not read">{{ n if n < 100 else '99+' }}</span>{% endif %}
+        <span class="nav-badge" data-badge="{{ s.key }}" aria-label="{{ n }} not read"{{ ' hidden' if not n }}>{{ n if n < 100 else '99+' }}</span>
       </a>
       {% endfor %}
     {% endfor %}

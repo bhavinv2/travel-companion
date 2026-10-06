@@ -533,6 +533,9 @@ def voices():
         cq = cq.filter(ContactMessage.topic == topic)
     if status in CONTACT_STATUSES:
         cq = cq.filter(ContactMessage.status == status)
+    unread = request.args.get('unread') == '1'
+    if unread:
+        cq = cq.filter(ContactMessage.unread_by(current_user))
     if q:
         from sqlalchemy import or_
         pat = f'%{q}%'
@@ -591,7 +594,7 @@ def voices():
 
     return render_template('admin/voices.html', tab=tab,
                            messages=messages, c_total=c_total, c_page=c_page, c_pages=c_pages,
-                           counts=counts, status=status, q=q,
+                           counts=counts, status=status, q=q, unread=unread,
                            feedbacks=feedbacks, f_total=f_total, f_page=f_page, f_pages=f_pages,
                            pending=pending, site=site, site_counts=site_counts,
                            REVIEW_SITES=REVIEW_SITES, REVIEW_SITE_LABELS=REVIEW_SITE_LABELS,
@@ -614,6 +617,7 @@ def voice_status(mid):
         flash('Unknown status.', 'danger')
         return redirect(url_for('admin.voices', tab='contact'))
     m.set_status(status, by=current_user)
+    m.mark_read(by=current_user)
     note = (request.form.get('cs_notes') or '').strip()[:2000]
     if note != (m.cs_notes or ''):
         m.cs_notes = note or None
@@ -1195,6 +1199,7 @@ def feedback():
 def approve_feedback(fid):
     fb = Feedback.query.get_or_404(fid)
     fb.is_approved = True
+    fb.mark_read(by=current_user)
     db.session.commit()
     return jsonify({'success': True})
 
@@ -1204,7 +1209,9 @@ def approve_feedback(fid):
 @admin_required
 def feature_feedback(fid):
     fb = Feedback.query.get_or_404(fid)
+    fb.mark_read(by=current_user)
     if not fb.is_approved:
+        db.session.commit()
         return jsonify({'error': 'Approve the review first'}), 400
     fb.is_featured = not bool(fb.is_featured)
     db.session.commit()

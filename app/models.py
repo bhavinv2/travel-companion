@@ -708,7 +708,106 @@ REVIEW_SITE_LABELS = {'companion': 'Travel companion', 'insurance': 'Travel insu
                       'sahayak': 'Sahayak'}
 
 
-class Feedback(db.Model):
+class StaffRead(db.Model):
+    """One member of staff has opened one row of one staff list.
+
+    Per person, not per row: an agent who joins today has read nothing, whatever colleagues have
+    opened, and one agent reading an enquiry must not take it off another's count. Rows never
+    change once written; the first opening is the one recorded.
+    """
+    __tablename__ = 'staff_reads'
+    __table_args__ = (db.UniqueConstraint('user_id', 'kind', 'item_id', name='uq_staff_reads'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'),
+                        nullable=False, index=True)
+    kind = db.Column(db.String(10), nullable=False)       # ReadMark.READ_KIND of the row's model
+    item_id = db.Column(db.Integer, nullable=False)
+    read_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+def request_cache(name):
+    """A dict that lives exactly as long as the current request -- on the request itself, not on
+    `g`, which belongs to the app context and can outlive a request (it does under the test
+    client). Outside a request, a fresh dict each time: nothing is cached."""
+    from flask import has_request_context, request
+    if not has_request_context():
+        return {}
+    return request.environ.setdefault('app.cache.' + name, {})
+
+
+def _read_ids(user, kind):
+    """The ids of `kind` this person has opened. Once per request: a table of fifty rows asks
+    fifty times."""
+    cache = request_cache('staff_reads')
+    key = (user.id, kind)
+    if key not in cache:
+        cache[key] = {r.item_id for r in StaffRead.query.filter_by(user_id=user.id, kind=kind)}
+    return cache[key]
+
+
+class ReadMark:
+    """Whether the person looking has opened this row yet -- the numbers on the staff menus.
+
+    Status says whether somebody has *acted*; this says whether *you* have *looked*. They are
+    different questions: a badge that only drops when the work is finished never moves while you
+    read down the list. And it is personal (StaffRead): what a colleague opened is still new to
+    you, so a new agent starts with every open item unread.
+
+    Settled work is never unread, for anybody: a closed enquiry, a resolved report, an approved
+    review, a match that has left the queue. Otherwise an agent who joins next year starts with
+    the whole history lit up, and a badge of four hundred is a badge nobody reads.
+    """
+    READ_KIND = None
+
+    @classmethod
+    def settled(cls):
+        """A filter: rows whose work is finished. Each model says what that means for it."""
+        return db.false()
+
+    def is_settled(self):
+        return False
+
+    @classmethod
+    def unread_by(cls, user):
+        """A filter: open rows `user` has not opened. Every open one, for nobody signed in."""
+        open_rows = ~cls.settled()
+        if not getattr(user, 'is_authenticated', False):
+            return open_rows
+        return db.and_(open_rows, ~db.session.query(StaffRead.id).filter(
+            StaffRead.user_id == user.id, StaffRead.kind == cls.READ_KIND,
+            StaffRead.item_id == cls.id).exists())
+
+    @property
+    def is_unread(self):
+        """For the person signed in -- this is what templates ask."""
+        from flask_login import current_user
+        if not getattr(current_user, 'is_authenticated', False) or self.is_settled():
+            return False
+        return self.id not in _read_ids(current_user, self.READ_KIND)
+
+    def mark_read(self, by=None):
+        """Record that `by` opened this. Returns True if it was new to them."""
+        if not getattr(by, 'id', None) or self.id is None:
+            return False
+        ids = _read_ids(by, self.READ_KIND)
+        if self.id in ids:
+            return False
+        ids.add(self.id)
+        # In a savepoint: clicking a status button on an unread row sends the row's "read" and
+        # the form at the same moment, and whichever lands second must not fail the request over
+        # a mark the first one has just written.
+        from sqlalchemy.exc import IntegrityError
+        try:
+            with db.session.begin_nested():
+                db.session.add(StaffRead(user_id=by.id, kind=self.READ_KIND, item_id=self.id))
+        except IntegrityError:
+            return False
+        return True
+
+
+
+class Feedback(ReadMark, db.Model):
     """A review left by a signed-in traveller, published once an admin approves it.
 
     `site` is where it was written, and therefore where it appears. Nothing decides that for the
@@ -717,6 +816,14 @@ class Feedback(db.Model):
     """
     __tablename__ = 'feedbacks'
 
+    READ_KIND = 'feedback'
+
+    @classmethod
+    def settled(cls):
+        return cls.is_approved.is_(True)          # decided: it is live on the site
+
+    def is_settled(self):
+        return bool(self.is_approved)
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     rating = db.Column(db.Integer, nullable=False)  # 1-5
@@ -740,7 +847,7 @@ CONTACT_TOPIC_LABELS = {'companion': 'Travel companion', 'insurance': 'Travel in
                         'sahayak': 'Sahayak', 'general': 'General enquiry'}
 
 
-class ContactMessage(db.Model):
+class ContactMessage(ReadMark, db.Model):
     """A "Contact us" enquiry from the public form. Visible to CS and admins.
 
     user_id is nullable because the form deliberately works signed-out — someone who cannot
@@ -748,6 +855,14 @@ class ContactMessage(db.Model):
     """
     __tablename__ = 'contact_messages'
 
+    READ_KIND = 'contact'
+
+    @classmethod
+    def settled(cls):
+        return cls.status == 'closed'             # 'in_progress' is still open work
+
+    def is_settled(self):
+        return self.status == 'closed'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
     name = db.Column(db.String(120), nullable=False)
@@ -772,6 +887,7 @@ class ContactMessage(db.Model):
         else:
             self.handled_by_id = by.id if by else None
             self.handled_at = datetime.utcnow()
+            self.mark_read(by=by)        # nobody moves an enquiry on without having read it
 
     def to_dict(self):
         return {
@@ -996,7 +1112,7 @@ CHANNEL_LABELS = {
 }
 
 
-class Match(db.Model):
+class Match(ReadMark, db.Model):
     """A scored pairing of two posts on one specific leg each.
 
     trip_a_id < trip_b_id so a pair is stored once, and leg_a/leg_b say which segment of
@@ -1008,6 +1124,15 @@ class Match(db.Model):
     __table_args__ = (db.UniqueConstraint('trip_a_id', 'trip_b_id', 'leg_a_id', 'leg_b_id',
                                           name='uq_matches_pair'),)
 
+    READ_KIND = 'match'
+
+    @classmethod
+    def settled(cls):
+        # out of the CS queue: nobody needs to act on it
+        return db.or_(cls.needs_cs_attention.isnot(True), cls.status == 'dismissed')
+
+    def is_settled(self):
+        return not self.needs_cs_attention or self.status == 'dismissed'
     id = db.Column(db.Integer, primary_key=True)
     trip_a_id = db.Column(db.Integer, db.ForeignKey('companion_requests.id'), nullable=False, index=True)
     trip_b_id = db.Column(db.Integer, db.ForeignKey('companion_requests.id'), nullable=False, index=True)
@@ -1047,6 +1172,13 @@ class Match(db.Model):
 
     def party_for(self, trip_id):
         return next((p for p in self.parties if p.trip_id == trip_id), None)
+
+    def waiting_trips(self):
+        """The side(s) of this match a person has to move along -- the post the CS match queue
+        files it under. Both, if both are stuck; trip_a if neither is, so it is never lost."""
+        waiting = [t for t in (self.trip_a, self.trip_b)
+                   if (self.party_for(t.id) is None or self.party_for(t.id).status == 'pending')]
+        return waiting or [self.trip_a]
 
     def involves_user(self, user_id):
         return user_id is not None and user_id in (self.trip_a.user_id, self.trip_b.user_id)
@@ -1126,7 +1258,7 @@ class MatchParty(db.Model):
 REPORT_STATUSES = ('open', 'resolved')
 
 
-class MatchReport(db.Model):
+class MatchReport(ReadMark, db.Model):
     """A problem a traveller flagged about a match from the /match/<token> contact page.
 
     Reports used to leave only an ActivityEvent + the match's needs_cs_attention flag, so the
@@ -1135,6 +1267,14 @@ class MatchReport(db.Model):
     """
     __tablename__ = 'match_reports'
 
+    READ_KIND = 'report'
+
+    @classmethod
+    def settled(cls):
+        return cls.status == 'resolved'
+
+    def is_settled(self):
+        return self.status == 'resolved'
     id = db.Column(db.Integer, primary_key=True)
     match_id = db.Column(db.Integer, db.ForeignKey('matches.id', ondelete='CASCADE'), index=True)
     party_id = db.Column(db.Integer, db.ForeignKey('match_parties.id', ondelete='SET NULL'), nullable=True)
@@ -1434,3 +1574,33 @@ class SavedFilter(db.Model):
 
     def __repr__(self):
         return '<SavedFilter %r of user %s>' % (self.name, self.owner_id)
+
+
+@db.event.listens_for(db.session, 'before_flush')
+def _back_in_the_queue_is_new_again(session, flush_context, instances):
+    """A match that comes back into the CS queue, or a report that is reopened, is new again for
+    everybody -- including whoever opened it the first time. Otherwise an escalation lands on a
+    post the agent read last week and no badge ever says so.
+
+    Watched here rather than at each place that sets the flag: there are half a dozen (the bridge,
+    the escalation job, reports, the CLI), and the next one would be forgotten.
+    """
+    back = {'match': set(), 'report': set()}
+    for obj in session.dirty:
+        if isinstance(obj, Match) and obj.id is not None:
+            hist = db.inspect(obj).attrs.needs_cs_attention.history
+            if hist.added and hist.added[0] and not any(hist.deleted):
+                back['match'].add(obj.id)
+        elif isinstance(obj, MatchReport) and obj.id is not None:
+            hist = db.inspect(obj).attrs.status.history
+            if hist.added and hist.added[0] == 'open' and 'open' not in hist.deleted:
+                back['report'].add(obj.id)
+    for kind, ids in back.items():
+        if ids:
+            # core, not the ORM: a query here would try to flush the flush it is part of
+            session.connection().execute(StaffRead.__table__.delete().where(
+                StaffRead.kind == kind, StaffRead.item_id.in_(ids)))
+            # and out of this request's copy of who has read what (_read_ids)
+            for (_, k), seen in request_cache('staff_reads').items():
+                if k == kind:
+                    seen.difference_update(ids)
