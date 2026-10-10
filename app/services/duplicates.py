@@ -124,8 +124,10 @@ def find(trip, contact_values=(), owner_id=None, limit=6):
     values = [v for v in contact_values if v]
     values += [cp.value for cp in trip.contact_points if cp.value and cp.type != 'inapp_chat']
     if values:
+        from app.services.contacts import same_contact
         ids = {cp.trip_id for cp in ContactPoint.query.filter(
-            ContactPoint.value.in_(values), ContactPoint.trip_id.isnot(None)).all() if cp.trip_id}
+            same_contact(ContactPoint.value, values), ContactPoint.trip_id.isnot(None)).all()
+            if cp.trip_id}
         ids.discard(trip.id)
         if ids:
             for t in _others(trip).filter(CompanionRequest.id.in_(ids)).all():

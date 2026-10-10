@@ -9,7 +9,7 @@
    The console decides where each icon goes: an admin on the admin panel is taken to the admin
    list, anybody on the CS console stays in the console. #}
 {% set _wn_console = 'admin' if request.path.startswith('/admin') else 'cs' %}
-{% set wn = WHATS_NEW(current_user, _wn_console) %}
+{% set wn = WHATS_NEW(current_user, _wn_console, request.endpoint) %}
 {% if wn['items'] %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/whats-new.css') }}"/>
 <div class="wn" id="whatsNew" data-url="{{ url_for('cs.whats_new_api', console=_wn_console) }}"

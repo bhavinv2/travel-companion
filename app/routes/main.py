@@ -400,7 +400,11 @@ def _validate_contact(form, need_phone=False):
         errors.append('Please enter an e-mail address we can reply to.')
     if need_phone and not form['phone']:
         errors.append('Please give us a number we can call or message you on.')
-    if form['phone'] and not re.fullmatch(r'[\d\s()+-]{7,20}', form['phone']):
+    if form.get('phone_error'):
+        # services/phone could not make it dialable with the country they picked: say why in
+        # its own words, rather than storing what was typed
+        errors.append(form['phone_error'])
+    elif form['phone'] and not re.fullmatch(r'[\d\s()+-]{7,20}', form['phone']):
         errors.append('That phone number does not look right - digits, spaces, + and - only.')
     if len(form['message']) < 10:
         errors.append('Please write a little more so we can help (at least 10 characters).')
@@ -448,6 +452,8 @@ def _contact_fields(src):
     from app.services import contact_form
     fields = contact_form.clean(src)
     return {'name': fields['name'], 'email': fields['email'], 'phone': fields['phone'],
+            # carried through so _validate_contact can refuse a number it could not normalise
+            'phone_error': fields.get('phone_error'),
             'message': contact_form.compose(fields),
             # '' when nothing was picked, so the caller's own default still decides
             'topic': contact_form.route(fields['topic'], default='')}
@@ -534,6 +540,26 @@ def api_contact():
     msg = _save_contact(form)
     return jsonify({'success': True,
                     'message': f'Thanks — we have your message and will reply to {msg.email}.'})
+
+
+@main_bp.route('/api/newsletter', methods=['POST'])
+@rate_limit(6, 3600)
+def api_newsletter():
+    """The footer's "get travel updates" box: an e-mail address and nothing else.
+
+    It used to borrow /api/landing-contact, the call-back form, which requires a phone number --
+    so every footer sign-up came back "Please give us a number we can call or message you on"
+    and nobody was ever added. Stored the way it always meant to be, as a message in the general
+    inbox, without asking for a number the box never had.
+    """
+    from app.routes.auth import EMAIL_RE
+    src = request.get_json(silent=True) or request.form
+    email = (src.get('email') or '').strip().lower()[:255]
+    if not EMAIL_RE.match(email):
+        return jsonify({'success': False, 'error': 'Please enter a valid e-mail address.'}), 400
+    _save_contact({'name': 'Newsletter subscriber', 'email': email, 'phone': '',
+                   'message': 'Newsletter signup request from the footer.'}, topic='general')
+    return jsonify({'success': True}), 201
 
 
 @main_bp.route('/api/landing-contact', methods=['POST'])

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Icon from './Icon';
 import SideDecor from './SideDecor';
 import { PhoneCombo, DestinationCombo } from './CountryCombo';
+import { spokenNumber } from '../utils/phone';
 import { useReveal } from '../hooks/useReveal';
 import { photo, site } from '../data/site';
 import { track } from '../utils/track';
@@ -12,7 +13,7 @@ const SUPPORT_EMAIL = 'support@nriparentservice.com';
 const AVAILABILITY = 'Across time zones, every day';
 const SUPPORT_PHONES = [
   { label: 'India', display: '+91 80191 11360', digits: '918019111360' },
-  { label: 'USA', display: '+1 917 900 5094', digits: '19179005094' },
+  { label: 'USA', display: '+1 (917) 900-5094', digits: '19179005094' },
   { label: 'Canada', display: '+1 (647) 770-2288', digits: '16477702288' },
 ];
 
@@ -22,6 +23,8 @@ export default function ExpertContact() {
   const [email, setEmail] = useState('');
   // +1: the parents are in India, the person filling this in usually is not
   const [dial, setDial] = useState('+1');
+  // the country itself, not just its code: +1 alone cannot say US or Canada
+  const [iso, setIso] = useState('US');
   const [tel, setTel] = useState('');
   const [dest, setDest] = useState('');
   const [destInvalid, setDestInvalid] = useState(false);
@@ -47,7 +50,7 @@ export default function ExpertContact() {
       'Hello! I would like to discuss travel insurance with an expert.', '',
       `Name: ${name}`,
       `Email: ${email}`,
-      `Mobile: ${dial} ${tel}`,
+      `Mobile: ${spokenNumber(dial, tel)}`,
       `Destination: ${dest}`,
     ];
     const number = (site.whatsapp || WHATSAPP_NUMBER).replace(/[^0-9]/g, '');
@@ -64,7 +67,8 @@ export default function ExpertContact() {
             'Content-Type': 'application/json',
             ...(site.csrfToken ? { 'X-CSRFToken': site.csrfToken } : {}),
           },
-          body: JSON.stringify({ name, email, phone: `${dial} ${tel}`, destination: dest }),
+          // the number and its country apart; the server normalises the pair to E.164
+          body: JSON.stringify({ name, email, phone: tel.trim(), phone_cc: iso, destination: dest }),
         });
       } catch {
         /* the WhatsApp hand-off below still works */
@@ -145,7 +149,7 @@ export default function ExpertContact() {
               <input className="xinp" id="x-mail" type="email" placeholder="you@gmail.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
               <label className="xlbl" htmlFor="x-tel">Mobile number</label>
               <div className="xtel">
-                <PhoneCombo dial={dial} onChange={(c) => setDial(`+${c.dial}`)} />
+                <PhoneCombo dial={dial} iso={iso} onChange={(c) => { setDial(`+${c.dial}`); setIso(c.iso); }} />
                 <input className="xinp" id="x-tel" type="tel" inputMode="tel" placeholder="00000 00000" required value={tel} onChange={(e) => setTel(e.target.value)} />
               </div>
               <label className="xlbl">Destination</label>

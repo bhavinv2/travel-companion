@@ -3,6 +3,7 @@ import Icon from './Icon.jsx';
 import { ArrowButton, cx } from './ui.jsx';
 import { catalogue, journeyFor } from '../data/site.js';
 import { GIG_SERVICES, gigFor } from '../data/services.js';
+import { NURSING } from '../data/nursing.js';
 
 // Quick-start card that overlaps the bottom of the hero (pattern from nriparentservice.com).
 //
@@ -12,23 +13,13 @@ import { GIG_SERVICES, gigFor } from '../data/services.js';
 // per service in the catalogue, whatever that catalogue turns out to hold -- so when Preventia
 // is connected, the names, the descriptions and the prices here are theirs.
 
-const BECOME_TABS = [
-  {
-    key: 'Doctor', title: 'Doctors', sub: 'MBBS · BAMS · BHMS',
-    heading: 'Join as a Doctor',
-    text: 'Review what a visit found and sign off the record, so the family has an answer they can trust.',
-  },
-  {
-    key: 'Nurse', title: 'Nurses & ANMs', sub: 'GNM · B.Sc · ANM',
-    heading: 'Join as a Nurse or ANM',
-    text: 'Run the checks, take the readings, and know when something needs escalating.',
-  },
-  {
-    key: 'Health Assistant', title: 'Health Assistants', sub: 'Trained · Certified',
-    heading: 'Join as a Health Assistant',
-    text: 'Take a visit from start to finish and record each step as you go.',
-  },
-];
+// One tab per qualification Sahayak recruits -- the same three the rest of the page offers.
+const BECOME_TABS = NURSING.map((q) => ({
+  key: q.key, title: q.key, sub: q.length,
+  text: q.text,
+  full: q.full,
+  reg: q.reg,
+}));
 
 function Tabs({ tabs, active, onPick, label }) {
   // The bar carries the white tab background and the curved join into the card below.
@@ -137,12 +128,20 @@ export function NeedHeroCard({ openBook }) {
       <div className="wrap hq-wrap">
         <ServiceChips list={list} active={t.key} onPick={setTab} />
         <div className="hq-body" role="tabpanel">
-          <h3>{t.name}</h3>
+          {/* How long it takes, not what it costs, and up beside the name where it is seen: it
+              used to sit as a line of grey text under the description, which nobody noticed.
+              This card is the first thing on the page, and leading a worried family with a price
+              tag puts the wrong thing first -- the figure is shown once they have chosen. */}
+          <div className="hq-head">
+            <h3>{t.name}</h3>
+            {t.duration && (
+              <span className="hq-dur" title="How long the visit usually takes">
+                <span className="hq-dur-ic"><Icon name="clock" sw={2.2} /></span>
+                <span className="hq-dur-tx"><small>Visit takes</small><b>{t.duration}</b></span>
+              </span>
+            )}
+          </div>
           <p>{t.blurb}</p>
-          {/* How long it takes, not what it costs. This card is the first thing on the page,
-              and leading a worried family with a price tag puts the wrong thing first -- the
-              figure is shown once they have chosen, in the finder's result and at booking. */}
-          {t.duration && <p className="hq-meta"><span>{t.duration}</span></p>}
           {/* What the visit actually covers. The catalogue API names and prices a service but
               says nothing about its contents; the steps come from the GIG sheet, which is the
               only place they are written down. Optional ones are marked rather than hidden --
@@ -203,7 +202,13 @@ export function BecomeHeroCard({ onApply }) {
       <div className="wrap hq-wrap">
         <Tabs tabs={BECOME_TABS} active={tab} onPick={setTab} label="Choose your role" />
         <div className="hq-body" role="tabpanel">
-          <h3>{t.heading}</h3>
+          <div className="hq-head">
+            <h3>{t.full}</h3>
+            <span className="hq-dur hq-reg">
+              <span className="hq-dur-ic"><Icon name="shield" sw={2.2} /></span>
+              <span className="hq-dur-tx"><small>Registered as</small><b>{t.reg}</b></span>
+            </span>
+          </div>
           <p>{t.text}</p>
           <form
             className="hq-form"

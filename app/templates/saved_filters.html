@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'admin/_hard_delete.html' import del_btn %}
 {# Housekeeping for saved views. Built to be read, not decoded: every filter states in plain
    English what it will show, and the ones that move with the date say so, because that is the
    single thing about this feature somebody has to understand to trust it. #}
@@ -115,10 +116,10 @@
   {% if shared %}
   <section class="sv-sec">
     <h2>Shared by the team</h2>
-    <p class="sv-sub">You can open these. Only the person who made one can change it.</p>
+    <p class="sv-sub">You can open these. Only the person who made one can change it.{{ ' As an admin you can also delete them.' if current_user.is_admin }}</p>
     <ul class="sv-list">
       {% for f in shared %}
-      <li class="sv-item">
+      <li class="sv-item" data-hd-row="saved_filter-{{ f.id }}">
         <span class="sv-item-main">
           <span class="sv-item-name">
             {% if f.rolls_forward %}<i class="fa-solid fa-rotate sv-roll" title="Moves with the date"></i>{% endif %}
@@ -131,6 +132,9 @@
         <span class="sv-item-acts">
           <a class="btn btn-primary btn-sm"
              href="{{ url_for('saved.open_filter', filter_id=f.id, **{'from': listing}) }}">Open</a>
+          {# an admin tidies up after the team -- including views left by someone whose account is gone #}
+          {% if current_user.is_admin %}{{ del_btn('saved_filter', f.id, 'the saved view "' ~ f.name ~ '"',
+              detail='It disappears for everyone on the team.') }}{% endif %}
         </span>
       </li>
       {% endfor %}

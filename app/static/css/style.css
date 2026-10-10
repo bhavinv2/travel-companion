@@ -821,12 +821,24 @@ label .opt { text-transform: none; letter-spacing: 0; font-weight: 500; font-siz
 .contact-table td { padding: 4px 6px; vertical-align: middle; }
 .contact-table input[type=text], .contact-table select { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 14px; background: white; }
 .contact-table input[type=checkbox] { accent-color: var(--coral); width: 18px; height: 18px; }
-/* A phone row picks its country beside the number (cs/_macros.html _contact_cc). The picker is in
+/* A phone row picks its country beside the number (cs/_macros.html contact_cc_select). The picker is in
    every row -- the server reads it in step with the values -- but shown only for a phone. */
 .contact-row .cr-val { display: flex; gap: 8px; align-items: center; }
 .contact-row .cr-val input[type=text] { flex: 1 1 auto; min-width: 0; }
-.contact-row .cr-cc { display: none; flex: 0 0 auto; width: auto; max-width: 150px; }
+/* an explicit width: left to "auto" inside the flex row it collapsed to "U..." */
+.contact-row .cr-cc { display: none; flex: 0 0 124px; width: 124px; max-width: none; }
 .contact-row.is-phone .cr-cc { display: block; }
+/* the same picker in the scraper's row editor (static/js/scraper.js renderRowModal) */
+.row-cc { display: flex; gap: 8px; align-items: center; }
+.row-cc input { flex: 1 1 auto; min-width: 0; }
+.row-cc .cr-cc { display: none; flex: 0 0 124px; width: 124px; max-width: none; }
+.row-cc.is-phone .cr-cc { display: block; }
+/* static/js/searchselect.js swaps a long <select> for a searchable control: it hides the native
+   one and puts its own .ss box where it stood. That box is what is seen and what takes up room,
+   so the width and the phone-only rule apply to it too -- sized on the select alone, the picker
+   collapsed to "U..." and stayed on screen beside an e-mail. */
+.contact-row .cr-val > .ss, .row-cc > .ss { display: none; flex: 0 0 132px; width: 132px; }
+.contact-row.is-phone .cr-val > .ss, .row-cc.is-phone > .ss { display: block; }
 .row-remove { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; line-height: 1; }
 .row-remove:hover { color: #dc2626; }
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -3288,6 +3300,18 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
 .bulk-select-bar { display: flex; align-items: center; gap: 12px; background: #fdeaea; border: 1px solid #f5c9c6; border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px; color: #8a2721; }
 .bulk-select-bar strong { color: #b91c1c; }
 .bulk-select-bar .btn-sm { margin-left: auto; }
+/* admin hard delete (templates/admin/_hard_delete.html): the pick column and the trash button
+   sit in tables built for other buttons, so they take those tables' sizes */
+.hd-check, .hd-all { width: 16px; height: 16px; cursor: pointer; vertical-align: middle; }
+table.admin-table th.hd-pick, table.admin-table td.hd-pick { width: 18px; padding-right: 0; }
+/* User Voices: the checkbox rides in the When cell, ahead of the date */
+.vc-table .vc-pick { display: inline-block; margin-right: 8px; vertical-align: top; }
+.vc-table th .hd-all { margin-right: 6px; }
+.vc-table .vc-act .hd-del { padding: 5px 10px; font-size: 11.5px; }
+/* an actions cell that gained a trash wraps it under the other buttons rather than pushing the
+   table wider than the screen, where it would be cut off */
+td.row-actions.hd-wrap { white-space: normal; }
+td.row-actions.hd-wrap > * { margin-bottom: 4px; }
 
 /* Faint "safer journeys together" illustration behind the signed-in post form (bottom-right,
    sits under the content thanks to z-index:-1 inside the section's own stacking context). */

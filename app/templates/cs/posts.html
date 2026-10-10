@@ -65,6 +65,7 @@ document.addEventListener('click', async (e) => {
   btn.setAttribute('aria-expanded', 'true');
   const row = document.createElement('tr');
   row.className = 'tree-row';
+  row.dataset.hdAlso = 'post-' + btn.dataset.trip;      // deleting the post closes its tree
   row.innerHTML = `<td colspan="${tr.children.length}"><div class="pt-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Computing matches&hellip;</div></td>`;
   tr.after(row);
   try {
@@ -74,6 +75,16 @@ document.addEventListener('click', async (e) => {
     row.querySelector('td').innerHTML = '<span class="muted">Could not load — try again.</span>';
   }
 });
+
+{# a possible duplicate can be deleted from where it is found -- by an admin; an agent's page
+   does not carry the button at all #}
+{% if current_user.is_admin %}
+const dupDelete = x => `<button type="button" class="btn-sm danger hd-del" data-hd-kind="post" data-hd-id="${x.id}"
+    data-hd-what="post #${x.id}, ${esc(x.route)}" data-hd-tier="type" title="Delete permanently"
+    aria-label="Delete post #${x.id} permanently"><i class="fa-solid fa-trash-can"></i></button>`;
+{% else %}
+const dupDelete = () => '';
+{% endif %}
 
 function buildTree(d) {
   const matches = d.matches.map(x => `
@@ -90,13 +101,14 @@ function buildTree(d) {
       <a class="btn-sm" href="${x.other.link}">Open</a>
     </div>`).join('') || '<p class="muted">No live matches yet.</p>';
   const dups = d.duplicates.map(x => `
-    <div class="pt-item">
+    <div class="pt-item" data-hd-row="post-${x.id}">
       <span class="pt-dupic"><i class="fa-solid fa-clone"></i></span>
       <div class="pt-main">
         <a href="${x.link}"><strong>#${x.id}</strong> ${esc(x.person)}</a> &middot; ${esc(x.route)} &middot; departs ${esc(x.departs)}
         <div class="pt-crit">${x.reasons.map(r => `<span class="why">${esc(r)}</span>`).join('')} <span class="st">${esc(x.status)}</span></div>
       </div>
       <a class="btn-sm" href="${x.link}">Open</a>
+      ${dupDelete(x)}
     </div>`).join('') || '<p class="muted">No possible duplicates found.</p>';
   return `<div class="pt-grid">
     <section><h4><i class="fa-solid fa-people-arrows"></i> Matches (${d.matches.length}) <a class="pt-all" href="${d.all_matches_url}">full match view &rarr;</a></h4>${matches}</section>

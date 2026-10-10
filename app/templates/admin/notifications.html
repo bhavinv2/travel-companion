@@ -5,7 +5,7 @@
   {% with active='notifications' %}{% include 'admin/_sidebar.html' %}{% endwith %}
   <main class="admin-main">
     <h1>Notification switches</h1>
-    <p class="muted">Stop notifications for everyone — completely, or only some channels / kinds. Users can additionally mute kinds they don't want at <code>/settings/notifications</code>; a notification goes out only when the global switch <em>and</em> the user's preference allow it. Account e-mails (verification, password reset) are a kind of their own so they can stay on while everything else is paused.</p>
+    <p class="muted">Stop notifications for everyone — completely, or only some channels / kinds. Users can additionally mute kinds they don't want at <code>/settings/notifications</code>; a notification goes out only when the global switch <em>and</em> the user's preference allow it. Sign-in and sign-up e-mails (e-mail verification, password reset, the invite for a new staff account) are not notifications and are never stopped here: switching them off locked people out of their own accounts.</p>
 
     {% if not sw.enabled %}
     <div class="verify-banner" style="border-radius:10px;margin-bottom:16px;border:1px solid #fde68a"><i class="fa-solid fa-bell-slash"></i> <span><strong>All notifications are currently stopped.</strong>{% if sw.note %} {{ sw.note }}{% endif %}</span></div>
@@ -15,10 +15,10 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
       <h2>All</h2>
-      <label class="flex-check consent-check" style="font-size:15px"><input type="checkbox" name="enabled" {% if sw.enabled %}checked{% endif %}/> <span><strong>Notifications enabled</strong> — untick to stop every notification and e-mail site-wide (partial switches below are ignored while this is off).</span></label>
+      <label class="flex-check consent-check" style="font-size:15px"><input type="checkbox" name="enabled" {% if sw.enabled %}checked{% endif %}/> <span><strong>Notifications enabled</strong> — untick to stop every notification and e-mail site-wide, except sign-in and sign-up e-mails (partial switches below are ignored while this is off).</span></label>
 
       <h2 style="margin-top:20px">Partial · by channel</h2>
-      <label class="flex-check consent-check"><input type="checkbox" name="channel_email" {% if sw.channels.email %}checked{% endif %}/> <span><i class="fa-solid fa-envelope"></i> <strong>E-mail</strong> — outgoing e-mails of every kind</span></label>
+      <label class="flex-check consent-check"><input type="checkbox" name="channel_email" {% if sw.channels.email %}checked{% endif %}/> <span><i class="fa-solid fa-envelope"></i> <strong>E-mail</strong> — outgoing e-mails of every kind except sign-in and sign-up</span></label>
       <label class="flex-check consent-check"><input type="checkbox" name="channel_inapp" {% if sw.channels.inapp %}checked{% endif %}/> <span><i class="fa-solid fa-bell"></i> <strong>In-app</strong> — the bell / notification centre</span></label>
 
       <h2 style="margin-top:20px">Partial · by kind</h2>
@@ -27,8 +27,14 @@
         <tbody>
         {% for c in categories %}
           <tr>
+            {% if c == 'account' %}
+            {# always on: these are how people get into their accounts -- see services/mailer #}
+            <td><i class="fa-solid fa-lock" title="Always on" style="color:var(--muted)"></i></td>
+            <td><strong>{{ c|replace('_',' ') }}</strong> <small class="muted">— always on</small><br/><small class="muted">{{ labels[c] }}. Cannot be switched off: it is how people sign up and get back into their accounts.</small></td>
+            {% else %}
             <td><input type="checkbox" name="cat_{{ c }}" {% if sw.categories[c] %}checked{% endif %} style="width:18px;height:18px;accent-color:var(--coral)"/></td>
             <td><strong>{{ c|replace('_',' ') }}</strong><br/><small class="muted">{{ labels[c] }}</small></td>
+            {% endif %}
             <td>{{ per_category.get(c, 0) }}</td>
           </tr>
         {% endfor %}

@@ -1,4 +1,5 @@
 {# Shared CS console macros. Import with:  {% from 'cs/_macros.html' import ... with context %} #}
+{% from 'admin/_hard_delete.html' import del_btn, row_check, select_all, bulk_bar %}
 
 {% macro contact_icons(trip) -%}
   {%- set cps = trip.contact_points -%}
@@ -33,9 +34,11 @@
   <span class="chip chip-src">{{ trip.source }}</span>
 {%- endmacro %}
 
-{% macro post_row(trip, show_status=True, tree=False) -%}
+{# can_delete: the admin's trash button on the row; bulk: a checkbox too (the posts list only) #}
+{% macro post_row(trip, show_status=True, tree=False, can_delete=False, bulk=False) -%}
 {% set mi = (match_info|default({})).get(trip.id) %}
-<tr id="trip-{{ trip.id }}"{% if mi %} class="has-match"{% endif %}>
+<tr id="trip-{{ trip.id }}" data-hd-row="post-{{ trip.id }}"{% if mi %} class="has-match"{% endif %}>
+  {% if can_delete and bulk %}<td class="hd-pick" data-label="">{{ row_check('post', trip.id) }}</td>{% endif %}
   <td data-label="Post">{% if tree %}<button type="button" class="tree-toggle" data-trip="{{ trip.id }}" title="Matches & duplicates" aria-expanded="false"><i class="fa-solid fa-chevron-right"></i></button> {% endif %}<a href="{{ url_for('cs.post_detail', trip_id=trip.id) }}"><strong>#{{ trip.id }}</strong></a>
     <div class="tt-wrap">{{ trip_type_chip(trip) }}</div></td>
   <td data-label="Person">
@@ -61,20 +64,24 @@
     {% else %}<span class="muted">—</span>{% endif %}
   </td>
   {% if show_status %}<td data-label="Status">{{ status_chip(trip) }}</td>{% endif %}
-  <td class="nowrap row-actions">
+  <td class="row-actions {{ 'hd-wrap' if can_delete else 'nowrap' }}">
     <a class="btn-sm" href="{{ url_for('cs.post_detail', trip_id=trip.id) }}">Open</a>
     <a class="btn-sm" href="{{ url_for('cs.edit_post', trip_id=trip.id) }}">Edit</a>
+    {% if can_delete %}{{ del_btn('post', trip.id, 'post #' ~ trip.id ~ ', ' ~ trip.route_display, tier='type',
+        detail='Its matches, contact details, claim links and activity go with it. Chats between the people are kept.') }}{% endif %}
   </td>
 </tr>
 {%- endmacro %}
 
-{% macro posts_table(trips, show_status=True, empty='Nothing here.', tree=False) -%}
+{% macro posts_table(trips, show_status=True, empty='Nothing here.', tree=False, can_delete=False, bulk=False) -%}
+{# the bar sits with the table so a live-search swap brings a fresh one: nothing selected #}
+{% if can_delete and bulk %}{{ bulk_bar('post', 'posts') }}{% endif %}
 <div class="table-wrap">
 <table class="admin-table stack-mobile">
-  <thead><tr><th>ID</th><th>Person</th><th>Route</th><th>Departs</th><th>Role</th><th>Source</th><th>Contact</th><th>Matches</th>{% if show_status %}<th>Status</th>{% endif %}<th></th></tr></thead>
+  <thead><tr>{% if can_delete and bulk %}<th class="hd-pick">{{ select_all('post') }}</th>{% endif %}<th>ID</th><th>Person</th><th>Route</th><th>Departs</th><th>Role</th><th>Source</th><th>Contact</th><th>Matches</th>{% if show_status %}<th>Status</th>{% endif %}<th></th></tr></thead>
   <tbody>
-    {% for t in trips %}{{ post_row(t, show_status, tree) }}{% else %}
-    <tr><td colspan="10" class="muted">{{ empty }}</td></tr>
+    {% for t in trips %}{{ post_row(t, show_status, tree, can_delete, bulk) }}{% else %}
+    <tr><td colspan="{{ 11 if (can_delete and bulk) else 10 }}" class="muted">{{ empty }}</td></tr>
     {% endfor %}
   </tbody>
 </table>
@@ -91,8 +98,11 @@
     "9175551234" saved before rows had a picker), on "Country?", which the server treats as "not
     chosen" and leaves alone. Defaulting that to India would quietly turn a US number into
     +91 the next time anybody re-saved the post. #}
-{% macro _contact_cc(value='', existing=false) -%}
-{% if existing %}{% set chosen = (PHONE.iso_for(value) if value else '') or '' %}
+{% macro contact_cc_select(value='', existing=false) -%}
+{# only from a number that carries its +: iso_for reads a STORED international number, and on bare
+   digits it answers with whatever the first digits resemble -- "9175551234" is India, "0764498115"
+   the default -- which a re-save would then quietly apply #}
+{% if existing %}{% set chosen = (PHONE.iso_for(value) if (value or '').startswith('+') else '') or '' %}
 {% else %}{% set chosen = PHONE.DEFAULT_ISO %}{% endif %}
 {% set popular, rest = PHONE.choices() %}
 <select name="contact_cc" class="cr-cc" aria-label="Country dialling code">
@@ -117,7 +127,7 @@
             {% for ct in CONTACT_TYPES %}<option value="{{ ct }}" {% if r.type == ct %}selected{% endif %}>{{ CONTACT_TYPE_LABELS[ct] }}</option>{% endfor %}
           </select>
         </td>
-        <td data-label="Value"><div class="cr-val">{{ _contact_cc(r.value if r.type in ('mobile', 'whatsapp') else '', existing=r.value and r.type in ('mobile', 'whatsapp')) }}<input type="text" name="contact_value" value="{{ r.value if r.type != 'inapp_chat' else '' }}" placeholder="email, 98765 43210, facebook.com/…"/></div></td>
+        <td data-label="Value"><div class="cr-val">{{ contact_cc_select(r.value if r.type in ('mobile', 'whatsapp') else '', existing=r.value and r.type in ('mobile', 'whatsapp')) }}<input type="text" name="contact_value" value="{{ r.value if r.type != 'inapp_chat' else '' }}" placeholder="email, 98765 43210, facebook.com/…"/></div></td>
         <td data-label="Label (optional)"><input type="text" name="contact_label" value="{{ r.label or '' }}" placeholder="e.g. son's WhatsApp"/></td>
         {% if per_row_consent %}<td class="center" data-label="May share?"><input type="checkbox" name="contact_consent" value="{{ loop.index0 }}" {% if r.consent %}checked{% endif %}/></td>{% endif %}
         <td><button type="button" class="row-remove" onclick="removeContactRow(this)" title="Remove">&times;</button></td>
@@ -136,7 +146,7 @@
         {% for ct in CONTACT_TYPES %}<option value="{{ ct }}">{{ CONTACT_TYPE_LABELS[ct] }}</option>{% endfor %}
       </select>
     </td>
-    <td data-label="Value"><div class="cr-val">{{ _contact_cc() }}<input type="text" name="contact_value" placeholder="email, 98765 43210, facebook.com/…"/></div></td>
+    <td data-label="Value"><div class="cr-val">{{ contact_cc_select() }}<input type="text" name="contact_value" placeholder="email, 98765 43210, facebook.com/…"/></div></td>
     <td data-label="Label (optional)"><input type="text" name="contact_label" placeholder="e.g. son's WhatsApp"/></td>
     {% if per_row_consent %}<td class="center" data-label="May share?"><input type="checkbox" name="contact_consent" value="__IDX__"/></td>{% endif %}
     <td><button type="button" class="row-remove" onclick="removeContactRow(this)" title="Remove">&times;</button></td>
@@ -183,6 +193,12 @@ function _syncContactRow(tr) {
     if (tr) _syncContactRow(tr);
   }));
   body.querySelectorAll('.contact-row').forEach(_syncContactRow);
+  // A form reset puts the values back without firing input/change, which left a picker showing
+  // beside a value that is no longer a number. Re-read every row once the reset has applied.
+  const form = body.closest('form');
+  if (form) form.addEventListener('reset', () => setTimeout(() => {
+    body.querySelectorAll('.contact-row').forEach(_syncContactRow);
+  }));
 })();
 if (!document.querySelector('#contactRowsBody .contact-row')) addContactRow();
 </script>

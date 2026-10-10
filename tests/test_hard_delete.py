@@ -58,8 +58,11 @@ def test_delete_post_cascade_removes_everything_tied_to_it(app, db, user, other_
     assert ContactPoint.query.filter_by(trip_id=a.id).count() == 0
     assert ClaimToken.query.filter_by(trip_id=a.id).count() == 0
     assert ConnectionRequest.query.filter_by(trip_id=a.id).count() == 0
-    assert db.session.get(ChatRoom, room_id) is None
-    assert ChatMessage.query.filter_by(room_id=room_id).count() == 0
+    # The chat is KEPT, detached from the post: a room belongs to a pair of people and is reused
+    # for all their posts, so deleting it wiped everything they had said about other trips too.
+    room = db.session.get(ChatRoom, room_id)
+    assert room is not None and room.trip_id is None
+    assert ChatMessage.query.filter_by(room_id=room_id).count() > 0
     assert TripLeg.query.filter_by(trip_id=a.id).count() == 0
     assert ActivityEvent.query.filter_by(trip_id=a.id).count() == 0
     # the OTHER post is untouched

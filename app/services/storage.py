@@ -152,6 +152,40 @@ def private_url(key):
         ExpiresIn=PRESIGN_SECONDS)
 
 
+def delete_public(url):
+    """Remove a public upload by the URL it was stored under. Anything else -- a Google or Facebook
+    profile photo, a link somebody typed -- is not ours to delete and is left alone."""
+    url = (url or '').strip()
+    if not url:
+        return
+    if url.startswith('/static/uploads/'):
+        name = url[len('/static/uploads/'):]
+        if not name or secure_filename(name) != name:
+            return
+        p = os.path.join(os.path.abspath(current_app.config['UPLOAD_FOLDER']), name)
+        if os.path.exists(p):
+            os.remove(p)
+        return
+    base = (current_app.config.get('S3_PUBLIC_BASE_URL') or '').rstrip('/')
+    if base and backend() == 's3' and url.startswith(base + '/public/'):
+        name = url[len(base) + len('/public/'):]
+        if name and secure_filename(name) == name:
+            try:
+                _s3_client().delete_object(Bucket=current_app.config['S3_BUCKET'], Key=f'public/{name}')
+            except Exception:  # pragma: no cover
+                current_app.logger.exception('Could not delete public object %s', name)
+
+
+def delete_scraper_session(session_key):
+    """Remove a scraper recipe's saved browser session (written by the teach run)."""
+    name = secure_filename(session_key or '')
+    if not name:
+        return
+    p = os.path.join(os.path.abspath(current_app.config['SCRAPER_SESSION_DIR']), name)
+    if os.path.exists(p):
+        os.remove(p)
+
+
 def delete_private(key):
     if not key or secure_filename(key) != key:
         return

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
 import { PhoneCombo, DestinationCombo } from './CountryCombo';
+import { spokenNumber } from '../utils/phone';
 import { useQuote } from '../context/QuoteContext';
 import { photo, site } from '../data/site';
 import { track } from '../utils/track';
@@ -15,6 +16,8 @@ export default function WelcomePopup() {
   const [countryInvalid, setCountryInvalid] = useState(false);
   // +1: the parents are in India, the person filling this in usually is not
   const [dial, setDial] = useState('+1');
+  // the country itself, not just its code: +1 alone cannot say US or Canada
+  const [iso, setIso] = useState('US');
   const [tel, setTel] = useState('');
   const [email, setEmail] = useState('');
   const [travel, setTravel] = useState('Canada');
@@ -109,7 +112,7 @@ export default function WelcomePopup() {
       'Hello! I would like a travel insurance consultation.', '',
       `Name: ${name}`,
       `Country: ${country}`,
-      `Mobile: ${dial} ${tel}`,
+      `Mobile: ${spokenNumber(dial, tel)}`,
       `Email: ${email}`,
       `Travel to: ${travel}`,
     ];
@@ -127,7 +130,8 @@ export default function WelcomePopup() {
             'Content-Type': 'application/json',
             ...(site.csrfToken ? { 'X-CSRFToken': site.csrfToken } : {}),
           },
-          body: JSON.stringify({ name, email, phone: `${dial} ${tel}`, destination: travel }),
+          // the number and its country apart; the server normalises the pair to E.164
+          body: JSON.stringify({ name, email, phone: tel.trim(), phone_cc: iso, destination: travel }),
         });
       } catch {
         /* the WhatsApp hand-off below still works */
@@ -163,7 +167,7 @@ export default function WelcomePopup() {
                 <DestinationCombo value={country} invalid={countryInvalid} onChange={(v) => { setCountry(v); setCountryInvalid(false); }} />
               </div>
               <div className="xtel">
-                <PhoneCombo dial={dial} onChange={(c) => setDial(`+${c.dial}`)} />
+                <PhoneCombo dial={dial} iso={iso} onChange={(c) => { setDial(`+${c.dial}`); setIso(c.iso); }} />
                 <span className="cfield" style={{ flex: 1 }}>
                   <Icon name="i-phone" className="ico s sm" />
                   <input className="cinp" type="tel" inputMode="tel" placeholder="Mobile Number" required value={tel} onChange={(e) => setTel(e.target.value)} />

@@ -977,11 +977,13 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--sky),var(--navy));transition:width 1.6s ease .3s}
 .in .bar i{width:100%}
 .parsed{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;margin-top:16px}
-.pf small{font-size:11px;color:var(--muted);display:block;font-weight:600}
-.pf b{font-size:26px;color:var(--navy);line-height:1}.pf span{font-size:12px;color:var(--muted);display:block}
-.pf.r{text-align:right}.pf.mid{text-align:center}
-.pf.mid i{display:block;border-top:2px dashed #C9D2E3;margin-top:6px;position:relative}
-.pf.mid i::after{content:"✈";position:absolute;left:50%;top:-11px;transform:translateX(-50%);background:#fff;padding:0 6px;color:var(--sunset);font-size:13px}
+/* scoped to the boarding-pass card: a bare `.pf` also matched the phone field, and `.pf small`
+   turned its error message grey */
+.parsed .pf small{font-size:11px;color:var(--muted);display:block;font-weight:600}
+.parsed .pf b{font-size:26px;color:var(--navy);line-height:1}.parsed .pf span{font-size:12px;color:var(--muted);display:block}
+.parsed .pf.r{text-align:right}.parsed .pf.mid{text-align:center}
+.parsed .pf.mid i{display:block;border-top:2px dashed #C9D2E3;margin-top:6px;position:relative}
+.parsed .pf.mid i::after{content:"✈";position:absolute;left:50%;top:-11px;transform:translateX(-50%);background:#fff;padding:0 6px;color:var(--sunset);font-size:13px}
 .tick{margin-top:14px;font-size:13px;font-weight:600;color:#1E7F4F;display:flex;gap:6px;align-items:center}
 /* 02 review */
 .agent{display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:12px}
@@ -1551,8 +1553,13 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
    `.f input,.f select,.f textarea{width:100%}`, and inside the sign-up popup the field sits in
    a `.f`, where that rule outranks a lone `.pf-cc` -- the country select took the whole row and
    squeezed the number out of it. Two classes beat a class and an element. */
-.pf-row .pf-cc{flex:0 0 auto;width:132px;border:1.5px solid rgba(15,35,64,.18);border-radius:11px;padding:11px 8px;font:inherit;font-size:14px;background:#fff}
-.pf-row .pf-num{flex:1 1 auto;width:auto;min-width:0;border:1.5px solid rgba(15,35,64,.18);border-radius:11px;padding:11px 14px;font:inherit;font-size:15px;background:#fff}
+.pf-row .pf-cc{flex:0 0 auto;width:132px;border:1.5px solid var(--line,rgba(15,35,64,.18));border-radius:10px;padding:12px 8px;font:inherit;font-size:15px;background:#fff;color:var(--ink,inherit)}
+.pf-row .pf-num{flex:1 1 auto;width:auto;min-width:0;border:1.5px solid var(--line,rgba(15,35,64,.18));border-radius:10px;padding:12px 14px;font:inherit;font-size:15px;background:#fff;color:var(--ink,inherit)}
+/* Inside a form field (.f) the field already spaces itself, and the extra margin made the phone
+   column taller than its neighbour -- the grid then stretched the email field beside it, pushing
+   that box lower and taller than the phone boxes. Same box as every other input above (.f input). */
+.f .pf{margin-bottom:0}
+.ins-grid .f{align-content:start}
 .pf-row .pf-cc:focus,.pf-row .pf-num:focus{border-color:var(--amber,#f0a01a);outline:none;box-shadow:0 0 0 3px rgba(240,160,26,.18)}
 .pf-err{display:block;font-size:12.5px;font-weight:600;color:#dc2626;margin-top:6px}
 .pf.is-bad .pf-num,.pf.is-bad .pf-cc{border-color:#dc2626;background:#fff6f6}

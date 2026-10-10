@@ -132,12 +132,17 @@ def _hint(item, n):
     return '%d waiting' % n
 
 
-def snapshot(user, console='cs'):
+def snapshot(user, console='cs', viewing=None):
     """{'items': [...], 'total': n} for the widget. Never raises -- see below.
 
     `console` picks which screen each icon opens: an admin on the admin panel goes to the admin
     list, anybody on the CS console stays in the console.
+
+    `viewing` is the endpoint of the page being drawn. On the quotes list itself the quotes are
+    being looked at, so they are not "new" -- without this the button said "3 new" on top of the
+    list showing those three, because the mark that clears them is written after the page.
     """
+    looking_at = SEEN_BY_ENDPOINT.get(viewing or '')
     from app.services import cs_access
 
     now = datetime.utcnow()
@@ -146,7 +151,7 @@ def snapshot(user, console='cs'):
         if not cs_access.can_open(user, item['screen']):
             continue
         try:
-            n = _count(item, user, now)
+            n = 0 if item['key'] == looking_at else _count(item, user, now)
         except Exception:                         # noqa: BLE001
             # One list that cannot be counted -- a migration not yet run, a table locked -- must
             # not take the other four with it, and must never break the page it floats over.
@@ -158,10 +163,10 @@ def snapshot(user, console='cs'):
     return {'items': out, 'total': sum(i['count'] for i in out)}
 
 
-def safe_snapshot(user, console='cs'):
+def safe_snapshot(user, console='cs', viewing=None):
     """snapshot(), or an empty widget. For the template, where an exception would cost the page."""
     try:
-        return snapshot(user, console)
+        return snapshot(user, console, viewing)
     except Exception:                             # noqa: BLE001
         return {'items': [], 'total': 0}
 

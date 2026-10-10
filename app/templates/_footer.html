@@ -85,13 +85,11 @@
     var csrf = f.querySelector('[name=csrf_token]').value;
     var btn = f.querySelector('button');
     btn.disabled = true;
-    fetch('{{ url_for("main.api_landing_contact") }}', {
+    // its own endpoint: the call-back one it used to borrow requires a phone number
+    fetch('{{ url_for("main.api_newsletter") }}', {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
-      body: JSON.stringify({
-        name: 'Newsletter subscriber', email: email, phone: '',
-        message: 'Newsletter signup request from the footer.'
-      })
+      body: JSON.stringify({ email: email })
     }).then(function(r){ return r.json(); }).then(function(d){
       f.querySelector('input[type=email]').value = '';
       var note = f.parentElement.querySelector('p');

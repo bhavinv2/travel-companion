@@ -12,27 +12,41 @@ import { journeyFor } from '../data/site.js';
  * journey (GIG-sheet steps) on the same wave path as "How to Become a Sahayak".
  */
 
-// Every 1×1 cell, in reading order.
-const CELLS = [[1, 1], [1, 2], [1, 3], [1, 4], [2, 1], [2, 2], [2, 3], [2, 4], [3, 1], [3, 2], [3, 3], [3, 4]];
 const slot = (r, c, rs = 1, cs = 1) => ({ r, c, rs, cs });
 
-// Where the enlarged 2×2 block goes for card `i` (1–8): near the card's resting position.
-const bigCorner = (i) => (i <= 4 ? [1, 3] : i <= 6 ? [2, 1] : [2, 3]);
+// Rows needed for `n` cards: one 2×2 block (four cells) plus a cell for each of the others, four
+// to a row. Nine cards is the 4×3 grid this was drawn for; the catalogue is not ours to fix at
+// nine -- the shipped list has twelve, Preventia or an admin can publish more -- and a card with
+// no cell to go to used to throw, which took the whole page down with it.
+const rowsFor = (n) => Math.max(3, Math.ceil((Math.max(n, 1) + 3) / 4));
+
+// Every 1×1 cell of a `rows`-row grid, in reading order, except the ones in `taken`.
+function freeCells(rows, taken) {
+  const out = [];
+  for (let r = 1; r <= rows; r++) for (let c = 1; c <= 4; c++) if (!taken.has(`${r},${c}`)) out.push([r, c]);
+  return out;
+}
+const block = (r, c) => [`${r},${c}`, `${r},${c + 1}`, `${r + 1},${c}`, `${r + 1},${c + 1}`];
 
 function layout(active, n) {
+  const rows = rowsFor(n);
   const out = new Array(n);
-  if (active === null) {
-    out[0] = slot(1, 1, 2, 2);
-    [[1, 3], [1, 4], [2, 3], [2, 4], [3, 1], [3, 2], [3, 3], [3, 4]].forEach(([r, c], k) => { out[k + 1] = slot(r, c); });
-    return out;
-  }
-  const [br, bc] = bigCorner(active);
-  const taken = new Set(['1,1', `${br},${bc}`, `${br},${bc + 1}`, `${br + 1},${bc}`, `${br + 1},${bc + 1}`]);
+  // At rest: the first card is the 2×2 block top left, the rest fill in around it.
+  const rest = freeCells(rows, new Set(block(1, 1)));
+  out[0] = slot(1, 1, 2, 2);
+  for (let i = 1; i < n; i++) out[i] = slot(...rest[i - 1]);
+  if (active === null) return out;
+
+  // A card grows into a 2×2 block near where it rests: its own row and the one above (the row
+  // below for the top row), on its own half of the grid. Nine cards land where they always did.
+  const { r, c } = out[active];
+  const br = Math.min(Math.max(1, r - 1), rows - 1);
+  const bc = c <= 2 ? 1 : 3;
+  const free = freeCells(rows, new Set(['1,1', ...block(br, bc)]));
   out[0] = slot(1, 1);
   out[active] = slot(br, bc, 2, 2);
-  const free = CELLS.filter(([r, c]) => !taken.has(`${r},${c}`));
   let k = 0;
-  for (let i = 1; i < n; i++) if (i !== active) { const [r, c] = free[k++]; out[i] = slot(r, c); }
+  for (let i = 1; i < n; i++) if (i !== active) out[i] = slot(...free[k++]);
   return out;
 }
 
@@ -80,6 +94,7 @@ export default function ServiceBento({ services, openBook }) {
     <>
       <div
         className={cx('sk', active !== null && 'moving')}
+        style={{ '--rows': rowsFor(services.length) }}
         ref={grid}
         onMouseMove={(e) => { pointer.current = { x: e.clientX, y: e.clientY }; schedule(); }}
         onMouseLeave={() => { pointer.current = null; clearTimeout(timer.current); apply(null); }}
@@ -102,7 +117,7 @@ export default function ServiceBento({ services, openBook }) {
                 </>
               )}
               <span className="sk-num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-              <span className="sk-tag">{i === 0 ? 'Most complete' : s.tag}</span>
+              {(i === 0 || s.tag) && <span className="sk-tag">{i === 0 ? 'Most complete' : s.tag}</span>}
               <div className="sk-b">
                 <h3>{s.title}</h3>
                 <div className="sk-reveal">

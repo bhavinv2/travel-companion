@@ -177,11 +177,28 @@ def set_row_edits(row: ScrapeRow, edits: dict, actor=None) -> dict:
     Values are canonical-target keyed; an empty value drops the mapped value; an empty dict clears all
     corrections. Used by previews, post creation and the mapped export alike (via apply_mapping)."""
     from app import db
-    clean = {}
-    for k, v in (edits or {}).items():
+    from app.services import phone as phone_svc
+    from app.services.contacts import detect_type
+    edits = edits or {}
+    clean, errors = {}, []
+    for k, v in edits.items():
         if k not in EDITABLE_TARGETS:
             continue
-        clean[k] = ('' if v is None else str(v).strip())[:500]
+        v = ('' if v is None else str(v).strip())[:500]
+        # A number saved WITH the country somebody picked beside it is stored as E.164 -- the
+        # `<key>_cc` keys are not targets, so they are never stored themselves. Without a
+        # country it is kept exactly as typed: a scraped number with no + says nothing about
+        # where it is from, and an invented code would be worse than none.
+        iso = str(edits.get(k + '_cc') or '').strip().upper()
+        if iso and v and (k == 'phone' or (k == 'contact' and detect_type(v) == 'mobile')):
+            e164, err = phone_svc.normalise(v, iso)
+            if err:
+                errors.append('%s: %s' % (TARGET_LABELS.get(k, k), err))
+                continue
+            v = e164
+        clean[k] = v
+    if errors:
+        raise ValueError(' '.join(errors))
     data = dict(row.data or {})
     base = {c: t for c, t in data.items() if c != '_edits'}
     base_canon = apply_mapping(base, (row.recipe.field_mapping if row.recipe else None) or {})
@@ -265,6 +282,11 @@ def import_row_for(row: ScrapeRow, recipe: ScrapeRecipe, mapping=None) -> dict:
     canon = apply_mapping(row.data or {}, mapping if mapping is not None else (recipe.field_mapping or {}))
     r = importer.build_row(canon, row.id, recipe.default_source or 'website')
     r['scrape_row_id'] = row.id
+    # what the preview should print beside each contact. Added here, not in build_row, so the
+    # stored value, the duplicate key and the import hash are untouched -- this is for reading.
+    from app.services import contacts as contacts_svc
+    for c in r.get('contacts') or []:
+        c['display'] = contacts_svc.display(c.get('type'), c.get('value'))
     return r
 
 

@@ -43,10 +43,11 @@
         <p class="hc-hint" style="margin:0">
           Phone numbers come from
           <a href="{{ url_for('admin.landing_page') }}">Admin &rarr; Landing page</a>,
-          the same two the rest of the site uses:
+          the same list the rest of the site uses. This page shows:
+          {# the rows ticked for insurance (or for every page), spaced exactly as the public page
+             spaces them -- this used to print the legacy two-field strings as they were typed #}
           {% set shown = [] %}
-          {% if whatsapp.get('in') %}{% set _ = shown.append('India ' ~ whatsapp['in']['display']) %}{% endif %}
-          {% if whatsapp.get('us') %}{% set _ = shown.append('USA ' ~ whatsapp['us']['display']) %}{% endif %}
+          {% for p in phones %}{% set _ = shown.append(p.label ~ ' ' ~ p.display) %}{% endfor %}
           <b>{{ shown|join(' · ') if shown else 'none set — the page shows no number at all' }}</b>.
         </p>
       </section>

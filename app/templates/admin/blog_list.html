@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% from 'admin/_hard_delete.html' import del_btn, row_check, select_all, bulk_bar %}
+{% block title %}Blog posts – Admin{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='blog_list' %}{% include 'admin/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <h1>Blog posts</h1>
+    <p class="muted">Every post, drafts included. Deleting one also takes back the "New blog post"
+      notifications that pointed to it.</p>
+
+    <form method="GET" class="cs-filters">
+      <input type="text" name="q" value="{{ q }}" placeholder="Search title or slug…"/>
+      <button type="submit" class="btn btn-primary">Search</button>
+      {% if q %}<a href="{{ url_for('admin.blog_list') }}" class="btn-sm">Reset</a>{% endif %}
+      <a href="{{ url_for('admin.new_blog') }}" class="btn-sm"><i class="fa-solid fa-pen"></i> New blog post</a>
+    </form>
+    <p class="muted">{{ total }} post{{ '' if total == 1 else 's' }}</p>
+
+    {{ bulk_bar('blog', 'blog posts') }}
+    <div class="table-wrap">
+    <table class="admin-table stack-mobile">
+      <thead><tr><th style="width:32px">{{ select_all('blog') }}</th><th>Title</th><th>Author</th><th>Status</th><th>Created</th><th></th></tr></thead>
+      <tbody>
+        {% for b in posts %}
+        <tr data-hd-row="blog-{{ b.id }}">
+          <td data-label="">{{ row_check('blog', b.id) }}</td>
+          <td data-label="Title"><strong>{{ b.title }}</strong><br/><small class="muted">/blog/{{ b.slug }}</small></td>
+          <td data-label="Author">{{ b.author.username if b.author else '—' }}</td>
+          <td data-label="Status">
+            {% if b.is_published %}<span class="chip chip-open">published</span>
+              {% if b.published_at %}<br/><small class="muted">{{ b.published_at|istd }}</small>{% endif %}
+            {% else %}<span class="chip chip-unconfirmed">draft</span>{% endif %}
+          </td>
+          <td data-label="Created">{{ b.created_at|istd if b.created_at }}</td>
+          <td class="nowrap row-actions">
+            {% if b.is_published %}<a class="btn-sm" href="{{ url_for('blog.blog_post', slug=b.slug) }}" target="_blank" rel="noopener">View</a>{% endif %}
+            {{ del_btn('blog', b.id, 'the blog post "' ~ b.title ~ '"', tier='type') }}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="muted">{{ 'No blog post matches that search.' if q else 'No blog posts yet.' }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% include 'admin/_pager.html' %}
+  </main>
+</div>
+{% endblock %}

@@ -6,7 +6,7 @@ automated matching, no card payment -- and nothing clinical is stored here yet, 
 holds only what is needed to turn up at the right door at the right time.
 """
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import Blueprint, current_app, jsonify, render_template, request
 from flask_login import current_user
@@ -20,6 +20,8 @@ sahayak_bp = Blueprint('sahayak', __name__)
 
 EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 PHONE_RE = re.compile(r'[0-9]')
+PIN_RE = re.compile(r'^[1-9][0-9]{5}$')       # an Indian PIN code
+IST = timedelta(hours=5, minutes=30)
 
 
 def _faqs():
@@ -70,6 +72,12 @@ def landing():
                            # disagree -- as the insurance page already does
                            dial_codes=[{'name': n, 'iso': i, 'dial': d}
                                        for i, n, d in phone.COUNTRIES],
+                           # the digit counts the server holds a number to, so the form can say
+                           # "one digit short" before sending rather than after
+                           phone_rules={d: list(r) for d, r in phone.NATIONAL_RANGE.items()},
+                           specializations=[{k: s[k] for k in ('code', 'name', 'description')}
+                                            for s in sahayak.specializations()],
+                           qualifications=list(sahayak.QUALIFICATIONS),
                            contact_url=urls.public_url('main.contact_us'),
                            page_title=PAGE_TITLE, page_description=PAGE_DESCRIPTION,
                            canonical_url=_canonical())
@@ -168,7 +176,11 @@ def book():
         # dialling code and the number separately joined by a space; without this the table
         # would hold "+46 764498115" while the contact table holds "+46764498115", and a
         # column of numbers in two shapes is a column nobody can scan.
-        e164, bad_phone = phone_svc.normalise(phone)
+        # the country picked beside the number (an ISO code). A bundle cached from before
+        # sends "+91 ..." joined instead, which still works: a leading + wins.
+        e164, bad_phone = phone_svc.normalise(
+            phone, get('phone_cc', 4).upper() or phone_svc.DEFAULT_ISO)
+        bad_phone = bad_phone or phone_svc.length_error(e164)
         if bad_phone:
             errors.append(bad_phone)
         else:
@@ -177,6 +189,15 @@ def book():
         errors.append('That e-mail address does not look right.')
     if not address:
         errors.append('We need the address to send somebody to.')
+    pincode = get('pincode', 12)
+    if pincode and not PIN_RE.match(pincode):
+        errors.append('A PIN code is six digits and does not start with 0.')
+    # Optional, and only ever one Preventia actually lists: asking for a specialisation nobody
+    # offers would be a promise the team then has to break on the phone.
+    spec_code = get('specialization', 60)
+    spec = sahayak.specialization(spec_code) if spec_code else None
+    if spec_code and not spec:
+        errors.append('That specialisation is not one we can arrange -- choose another or leave it.')
     if when_type not in SAHAYAK_WHEN:
         when_type = 'asap'
 
@@ -189,6 +210,11 @@ def book():
         else:
             if scheduled_for < datetime.now():
                 errors.append('That time has already passed.')
+    else:
+        # No time asked for: the booking forms no longer offer one, and the team rings to agree it.
+        # Recorded as the moment it was asked, in India's time like the times people type, so the
+        # copy Preventia receives still carries a date and a time.
+        scheduled_for = (datetime.utcnow() + IST).replace(second=0, microsecond=0)
 
     if errors:
         return jsonify({'success': False, 'error': ' '.join(errors)}), 400
@@ -202,9 +228,10 @@ def book():
         contact_name=get('contact_name', 120) or None,
         phone=phone, email=email or None,
         address=address, landmark=get('landmark', 200) or None,
-        pincode=get('pincode', 12) or None, access_notes=get('access_notes', 300) or None,
+        pincode=pincode or None, access_notes=get('access_notes', 300) or None,
         when_type=when_type, scheduled_for=scheduled_for,
-        notes=get('notes', 2000) or None,
+        notes='\n'.join(x for x in (spec and 'Preferred specialisation: %s' % spec['name'],
+                                    get('notes', 2000)) if x) or None,
     )
     db.session.add(booking)
     db.session.commit()
@@ -222,6 +249,9 @@ def book():
                 'landmark': booking.landmark, 'accessNotes': booking.access_notes,
                 'when': SAHAYAK_WHEN_LABELS.get(when_type, when_type),
                 'scheduledFor': scheduled_for.isoformat(' ') if scheduled_for else None,
+                'specialization': spec['name'] if spec else None,
+                'specializationCode': spec['code'] if spec else None,
+                'specializationId': spec.get('id') if spec else None,
                 'message': booking.notes,
                 'ourReference': 'sahayak_bookings#%d' % booking.id},
                booking_id=booking.id)
@@ -241,11 +271,16 @@ def book():
 APPLY_FIELDS = [
     ('full_name', 'Name'), ('age', 'Age'), ('mobile', 'Mobile'), ('whatsapp', 'WhatsApp'),
     ('email', 'E-mail'), ('location', 'City / area / PIN'),
-    ('background', 'Background'), ('highest_qualification', 'Highest qualification'),
-    ('healthcare_qualification', 'Healthcare qualification'), ('certification', 'Certification'),
-    ('institution', 'Institution'), ('year', 'Year of completion'),
-    ('experience', 'Experience'), ('service_city', 'City they can serve'),
+    ('qualification', 'Nursing qualification'), ('years', 'Years of experience'),
+    ('registration_number', 'Nursing council registration no.'),
+    ('nursing_council', 'State Nursing Council'), ('institution', 'Institution'),
+    ('year', 'Year of completion'), ('certification', 'Other certification'),
+    ('home', 'Worked in home healthcare'), ('elder', 'Assisted elderly patients'),
+    ('hosp', 'Worked with hospitals or clinics'), ('experience', 'Experience'),
+    ('services', 'Services they can provide'), ('work', 'Work type'),
+    ('service_city', 'City they can serve'), ('service_pins', 'Areas / PINs'),
     ('availability', 'Availability'), ('languages', 'Languages'), ('transport', 'Transport'),
+    ('documents_offered', 'Documents they have ready'),
 ]
 
 
@@ -273,21 +308,41 @@ def apply():
         the way the rest of the site spaces them, so whoever rings can see the country."""
         raw = get(key)
         if key in ('mobile', 'whatsapp') and raw:
-            e164, bad = phone_svc.normalise(raw)
+            e164, bad = phone_svc.normalise(raw, country(key))
             return raw if bad else phone_svc.pretty(e164, raw)
         return raw
+
+    def country(key):
+        """The country picked beside `key` (mobile_cc / whatsapp_cc), as an ISO code."""
+        return get(key + '_cc', 4).upper() or phone_svc.DEFAULT_ISO
 
     name = get('full_name', 120)
     phone = get('mobile', 30)
     email = get('email', 255).lower()
+    # The nursing qualification. A bundle cached from before this asked "background" or
+    # "healthcare qualification" instead, so those are read too -- and then held to the same list.
+    qualification = next((q for q in sahayak.QUALIFICATIONS
+                          if q.lower() == (get('qualification') or get('healthcare_qualification')
+                                           or get('background')).lower()), None)
 
     errors = []
     if not name:
         errors.append('Please tell us your name.')
+    if not qualification:
+        errors.append('We are recruiting nurses with a B.Sc Nursing, GNM or ANM qualification only.')
+    if not get('registration_number', 60):
+        errors.append('Your State Nursing Council registration number is needed to verify you.')
+    year = get('year', 4)
+    if year and not (year.isdigit() and 1960 <= int(year) <= datetime.now().year):
+        errors.append('The year of completion does not look right.')
+    age = get('age', 3)
+    if age and not (age.isdigit() and 18 <= int(age) <= 75):
+        errors.append('Age should be between 18 and 75.')
     if not phone or not PHONE_RE.search(phone):
         errors.append('A phone number is required — the team calls to talk it through.')
     else:
-        e164, bad_phone = phone_svc.normalise(phone)
+        e164, bad_phone = phone_svc.normalise(phone, country('mobile'))
+        bad_phone = bad_phone or phone_svc.length_error(e164)
         if bad_phone:
             errors.append(bad_phone)
         else:
@@ -298,7 +353,8 @@ def apply():
         return jsonify({'success': False, 'error': ' '.join(errors)}), 400
 
     lines = ['Sahayak application.', '']
-    lines += ['%s: %s' % (label, shown(key)) for key, label in APPLY_FIELDS if get(key)]
+    lines += ['%s: %s' % (label, qualification if key == 'qualification' else shown(key))
+              for key, label in APPLY_FIELDS if key == 'qualification' or get(key)]
     msg = _save_contact({'name': name, 'email': email or 'no-email@nriparentservice.com',
                          'phone': phone, 'message': '\n'.join(lines)}, topic='sahayak')
     ActivityEvent.log('sahayak_application',
@@ -311,7 +367,7 @@ def apply():
                # the whole application: `details` is unstructured at their end and shown to the
                # reviewing admin as it arrives, so it carries the same fields CS reads
                dict([(key, shown(key)) for key, _ in APPLY_FIELDS if get(key)],
-                    ourReference='contact_messages#%d' % msg.id),
+                    qualification=qualification, ourReference='contact_messages#%d' % msg.id),
                contact_id=msg.id)
     return jsonify({'success': True,
                     'message': 'Application received. Our team will call %s.'

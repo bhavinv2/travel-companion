@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'admin/_hard_delete.html' import del_btn %}
 {# The CS team and what each of them can reach. Separate from Users on purpose: that table is
    about everybody with an account, this is about the handful of people who work the console.
 
@@ -26,7 +27,7 @@
     {% if rows %}
     <div class="csa-grid">
       {% for r in rows %}
-      <article class="csa-card">
+      <article class="csa-card" data-hd-row="user-{{ r.agent.id }}">
         <header>
           <span class="csa-who">
             <span class="csa-avatar"><i class="fa-solid fa-headset"></i></span>
@@ -57,6 +58,10 @@
             <i class="fa-solid fa-sliders"></i> Change access
           </a>
           <a class="btn-sm" href="{{ url_for('admin.users', q=r.agent.email) }}">Account</a>
+          {% if r.agent.id != current_user.id %}
+          {{ del_btn('user', r.agent.id, 'the account ' ~ r.agent.username, tier='type',
+                     detail='Posts they created stay; their own posts, chats and notifications go.') }}
+          {% endif %}
         </footer>
       </article>
       {% endfor %}

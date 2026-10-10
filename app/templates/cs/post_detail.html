@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% from 'cs/_macros.html' import status_chip, role_chip, source_chip, trip_type_chip with context %}
+{% from 'admin/_hard_delete.html' import del_btn %}
 {% block title %}Post #{{ trip.id }} – CS Console{% endblock %}
 {% block content %}
 <div class="admin-page">
@@ -37,6 +38,11 @@
         </select>
         <button class="btn-sm danger" onclick="return confirm('Close this post?')"><i class="fa-solid fa-xmark"></i> Close</button>
       </form>
+      {% endif %}
+      {% if current_user.is_admin %}
+      {{ del_btn('post', trip.id, 'post #' ~ trip.id ~ ', ' ~ trip.route_display, tier='type', label='Delete',
+                 detail='Its matches, contact details, claim links and activity go with it. Chats between the people are kept.',
+                 redirect=url_for('cs.posts')) }}
       {% endif %}
     </div>
 
@@ -162,6 +168,12 @@
             <textarea id="claimDm" rows="6" readonly>{{ dm_text }}</textarea>
             <button class="btn-sm" onclick="copyText(document.getElementById('claimDm').value)"><i class="fa-solid fa-copy"></i> Copy DM text</button>
             <small class="muted">expires {{ latest_token.expires_at|istd }}</small>
+            {% if current_user.is_admin %}
+            {# deleting the token is the revoke: the link stops working at once #}
+            {{ del_btn('claim_token', latest_token.id, 'this claim link', label='Revoke link',
+                       detail='Anyone holding it will no longer be able to open it.',
+                       redirect=url_for('cs.post_detail', trip_id=trip.id)) }}
+            {% endif %}
           {% else %}
             <p class="muted">No active link.</p>
           {% endif %}
@@ -230,7 +242,7 @@
         </div>
         <ul class="timeline" id="actList">
           {% for e in events %}
-            <li>
+            <li data-hd-row="activity_event-{{ e.id }}">
               <span class="when">{{ e.when|ist }}</span>
               <span class="who">{{ e.who }}</span>
               <span class="what">{{ e.label }}</span>
@@ -246,6 +258,7 @@
               {% if e.legs %}<span class="tl-legs">{{ e.legs }}</span>{% endif %}
               {% endif %}
               {% if e.rest %}<small class="muted">{% for k, v in e.rest.items() %}{{ k }}={{ v }} {% endfor %}</small>{% endif %}
+              {% if e.deletable and current_user.is_admin %}{{ del_btn('activity_event', e.id, 'this activity entry') }}{% endif %}
             </li>
           {% else %}<li class="muted">No activity yet.</li>{% endfor %}
         </ul>
@@ -328,7 +341,7 @@ const PD_LEGS = {{ leg_data|tojson }};
 (function () {
   const list = document.getElementById('actList');
   if (!list) return;
-  const rows = [...list.querySelectorAll('li')].filter(li => !li.classList.contains('muted'));
+  let rows = [...list.querySelectorAll('li')].filter(li => !li.classList.contains('muted'));
   const pagerBox = document.getElementById('actPager');
   const search = document.getElementById('actSearch');
   const PER = 15;
@@ -351,6 +364,12 @@ const PD_LEGS = {{ leg_data|tojson }};
     } else if (empty) { empty.hidden = true; }
   }
   if (search) search.addEventListener('input', () => { page = 1; render(); });
+  // an admin deleted an entry (static/js/hard-delete.js): page over what is left
+  document.addEventListener('hard-delete:done', (e) => {
+    if (e.detail.kind !== 'activity_event') return;
+    rows = rows.filter(li => li.isConnected);
+    render();
+  });
   render();
 })();
 

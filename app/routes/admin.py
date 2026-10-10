@@ -3,7 +3,10 @@ import os
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user, login_user
 from app import db, mail
+from app.services.ratelimit import rate_limit
 from app.services import urls
+# phone.matches: a search box finds a number however it is spaced on either side
+from app.services import phone as phone_svc
 from app.models import User, CompanionRequest, Feedback, Blog, Notification, AppSetting, USER_ROLES
 from flask_mail import Message as MailMessage
 from datetime import datetime, timedelta
@@ -89,7 +92,7 @@ def users():
         pat = f'%{search}%'
         # whoever CS is looking for, they have one of these to hand — including a phone number,
         # which is often the only thing a caller can give you
-        conds = [User.username.ilike(pat), User.email.ilike(pat), User.phone.ilike(pat),
+        conds = [User.username.ilike(pat), User.email.ilike(pat), phone_svc.matches(User.phone, search),
                  User.first_name.ilike(pat), User.last_name.ilike(pat)]
         if search.isdigit():
             conds.append(User.id == int(search))
@@ -122,15 +125,12 @@ def users():
 @admin_required
 def delete_user(user_id):
     """Permanently delete one account and everything tied to it (posts, matches, chats, ...)."""
-    from app.models import ActivityEvent
     from app.services import admin_delete
     user = User.query.get_or_404(user_id)
     if user.id == current_user.id:
         return jsonify({'error': 'You cannot delete your own account.'}), 400
     label = user.username
-    ActivityEvent.log('user_hard_deleted', actor=current_user, target_user_id=user.id, username=label)
-    admin_delete.delete_user_cascade(user)
-    db.session.commit()
+    admin_delete.hard_delete('user', [user.id], current_user)
     return jsonify({'success': True, 'username': label})
 
 
@@ -146,14 +146,8 @@ def bulk_delete_users():
         return jsonify({'error': 'No accounts selected.'}), 400
     ids = {int(i) for i in ids}
     ids.discard(current_user.id)          # never let a bulk action delete yourself
-    users_qs = User.query.filter(User.id.in_(ids)).all()
-    deleted = 0
-    for user in users_qs:
-        ActivityEvent.log('user_hard_deleted', actor=current_user, target_user_id=user.id, username=user.username)
-        admin_delete.delete_user_cascade(user)
-        deleted += 1
-    db.session.commit()
-    return jsonify({'success': True, 'deleted': deleted})
+    out = admin_delete.hard_delete('user', ids, current_user)
+    return jsonify({'success': True, 'deleted': len(out['deleted'])})
 
 
 @admin_bp.route('/users/<int:user_id>/toggle', methods=['POST'])
@@ -264,11 +258,14 @@ def new_user():
         db.session.commit()
         sent = False
         if form.get('send_link') == 'on':
-            link = f"{current_app.config['SITE_URL']}/auth/reset/{tokens.make_reset_token(user)}"
+            # url_for, not SITE_URL + a path: built by hand it left out the URL prefix the app is
+            # served under, so the link in this e-mail went nowhere in production
+            link = url_for('auth.reset_password', token=tokens.make_reset_token(user), _external=True)
+            login_link = url_for('auth.login', _external=True)
             sent = mailer.send('[NRI Parent Service] Your account is ready', [email],
                                f'Hello {user.first_name or user.username},\n\nAn account was created for you on NRI Parent Service '
-                               f'({", ".join(user.role_keys)}).\nSet your password here: {link}\n\nLogin: {current_app.config["SITE_URL"]}/auth/login',
-                               category='account')
+                               f'({", ".join(user.role_keys)}).\nSet your password here: {link}\n\nLogin: {login_link}',
+                               category='account', account=True)
         flash(f'Account {email} created with roles: {", ".join(user.role_keys)}.' + (' Set-password e-mail sent.' if sent else ''), 'success')
         if generated:
             flash(f'Temporary password for {email}: {generated} - share it securely, it is not shown again.', 'info')
@@ -288,7 +285,45 @@ def messages_page():
         groups[spec['kind']].append({'key': key, 'title': spec['title'], 'help': spec.get('help', ''),
                                      'vars': spec.get('vars', []), 'subject': eff['subject'],
                                      'body': eff['body'], 'edited': eff['edited']})
-    return render_template('admin/messages.html', groups=groups, custom=msg.custom_snippets())
+    return render_template('admin/messages.html', groups=groups, custom=msg.custom_snippets(),
+                           mail=_mail_status())
+
+
+def _mail_status():
+    """How e-mail is set up, in words an admin can act on. Nothing secret: whether a password is
+    SET, never what it is."""
+    from app.services import mailer
+    cfg = current_app.config
+    account = mailer.transport_for(True)
+    other = mailer.transport_for(False)
+    return {
+        'account': account,
+        'account_ready': bool(cfg.get('MAIL_PASSWORD')) if account == 'smtp' else bool(cfg.get('SENDGRID_API_KEY')),
+        'server': cfg.get('MAIL_SERVER'),
+        'username': cfg.get('MAIL_USERNAME') or '',
+        'other': other,
+        'gmail_only_account': mailer.smtp_is_account_only(),
+    }
+
+
+@admin_bp.route('/messages/test-email', methods=['POST'])
+@login_required
+@admin_required
+@rate_limit(6, 3600)
+def test_email():
+    """Send one test e-mail to the signed-in admin and say plainly what happened.
+
+    The only way to see from inside the app why password-reset e-mails are not arriving: the
+    mailer never raises, and the forgot-password page says the same thing whether or not anything
+    went out (it must, or it would tell strangers which e-mail addresses have accounts).
+    """
+    from app.models import ActivityEvent
+    from app.services import mailer
+    ok, what = mailer.diagnose(current_user.email)
+    ActivityEvent.log('mail_test', actor=current_user, ok=ok)
+    db.session.commit()
+    flash(what, 'success' if ok else 'danger')
+    return redirect(url_for('admin.messages_page') + '#mail')
 
 
 def _check_jinja(*texts):
@@ -389,7 +424,7 @@ def insurance_quotes():
         from sqlalchemy import or_
         pat = f'%{q}%'
         query = query.filter(or_(InsuranceQuote.name.ilike(pat), InsuranceQuote.email.ilike(pat),
-                                 InsuranceQuote.phone.ilike(pat)))
+                                 phone_svc.matches(InsuranceQuote.phone, q)))
     query = query.order_by(InsuranceQuote.created_at.desc())
     total = query.count()
     pages = max((total + per_page - 1) // per_page, 1)
@@ -420,7 +455,7 @@ def insurance_page_content():
     """
     from app.models import ActivityEvent
     from app.services import insurance_page
-    from app.services import settings as settings_service
+    from app.services import offices
 
     if request.method == 'POST':
         insurance_page.save_page(request.form.get('price_from'),
@@ -440,7 +475,8 @@ def insurance_page_content():
                            support_email=insurance_page.support_email(),
                            availability=insurance_page.availability(),
                            default_support_email=current_app.config.get('SUPPORT_EMAIL', ''),
-                           whatsapp=settings_service.whatsapp_numbers())
+                           # what the public page will actually show, spaced the way it shows it
+                           phones=offices.numbers('insurance'))
 
 
 @admin_bp.route('/sahayak')
@@ -466,7 +502,7 @@ def sahayak_bookings():
         pat = f'%{q}%'
         query = query.filter(or_(SahayakBooking.patient_name.ilike(pat),
                                  SahayakBooking.contact_name.ilike(pat),
-                                 SahayakBooking.phone.ilike(pat),
+                                 phone_svc.matches(SahayakBooking.phone, q),
                                  SahayakBooking.email.ilike(pat),
                                  SahayakBooking.pincode.ilike(pat),
                                  SahayakBooking.assigned_to_name.ilike(pat)))
@@ -540,7 +576,7 @@ def voices():
         from sqlalchemy import or_
         pat = f'%{q}%'
         cq = cq.filter(or_(ContactMessage.name.ilike(pat), ContactMessage.email.ilike(pat),
-                           ContactMessage.phone.ilike(pat), ContactMessage.message.ilike(pat)))
+                           phone_svc.matches(ContactMessage.phone, q), ContactMessage.message.ilike(pat)))
     cq = cq.order_by(ContactMessage.created_at.desc())
     c_total = cq.count()
     c_pages = max((c_total + per_page - 1) // per_page, 1)
@@ -559,7 +595,7 @@ def voices():
     if q:
         from sqlalchemy import or_ as _or
         scoped = scoped.filter(_or(ContactMessage.name.ilike(pat), ContactMessage.email.ilike(pat),
-                                   ContactMessage.phone.ilike(pat),
+                                   phone_svc.matches(ContactMessage.phone, q),
                                    ContactMessage.message.ilike(pat)))
     counts = {s: scoped.filter(ContactMessage.status == s).count() for s in CONTACT_STATUSES}
 
@@ -1153,14 +1189,12 @@ def disable_listing(trip_id):
 @login_required
 @admin_required
 def delete_listing(trip_id):
-    """Permanently delete one post and everything tied to it (matches, contacts, chats, ...)."""
-    from app.models import ActivityEvent
+    """Permanently delete one post and everything tied to it. Kept for the listings screen; the
+    work is the registry's (services/admin_delete), shared with every other delete button."""
     from app.services import admin_delete
     trip = CompanionRequest.query.get_or_404(trip_id)
     route = trip.route_display
-    ActivityEvent.log('post_hard_deleted', actor=current_user, target_trip_id=trip.id, route=route)
-    admin_delete.delete_post_cascade(trip)
-    db.session.commit()
+    admin_delete.hard_delete('post', [trip.id], current_user)
     return jsonify({'success': True, 'route': route})
 
 
@@ -1168,21 +1202,56 @@ def delete_listing(trip_id):
 @login_required
 @admin_required
 def bulk_delete_listings():
-    from app.models import ActivityEvent
     from app.services import admin_delete
     ids = (request.get_json(silent=True) or {}).get('ids') or []
     ids = [i for i in ids if isinstance(i, int) or (isinstance(i, str) and i.isdigit())]
     if not ids:
         return jsonify({'error': 'No posts selected.'}), 400
-    ids = {int(i) for i in ids}
-    trips = CompanionRequest.query.filter(CompanionRequest.id.in_(ids)).all()
-    deleted = 0
-    for trip in trips:
-        ActivityEvent.log('post_hard_deleted', actor=current_user, target_trip_id=trip.id, route=trip.route_display)
-        admin_delete.delete_post_cascade(trip)
-        deleted += 1
-    db.session.commit()
-    return jsonify({'success': True, 'deleted': deleted})
+    out = admin_delete.hard_delete('post', ids, current_user)
+    return jsonify({'success': True, 'deleted': len(out['deleted'])})
+
+
+def admin_json_required(f):
+    """admin_required for the JSON delete endpoints: a 403 with a message instead of a redirect,
+    so a CS agent's browser -- which never gets the buttons, but could post anyway -- is told no
+    in a form the page can show."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin:
+            return jsonify({'error': 'Only an admin can delete this.'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+@admin_bp.route('/delete/<kind>/<int:obj_id>', methods=['POST'])
+@login_required
+@admin_json_required
+def hard_delete(kind, obj_id):
+    """Permanently delete one row of any kind in services/admin_delete.KINDS -- the endpoint every
+    delete button in the admin panel and the CS console posts to."""
+    from app.services import admin_delete
+    if not admin_delete.available(kind):
+        return jsonify({'error': 'Unknown kind.'}), 404
+    out = admin_delete.hard_delete(kind, [obj_id], current_user)
+    if out['skipped']:
+        return jsonify({'error': out['skipped'][0]['error']}), 400
+    return jsonify({'success': True, 'deleted': out['deleted']})
+
+
+@admin_bp.route('/delete/<kind>/bulk', methods=['POST'])
+@login_required
+@admin_json_required
+def hard_delete_bulk(kind):
+    """The same, for several rows: {"ids": [...]}. Rows a guard refuses are reported, not fatal."""
+    from app.services import admin_delete
+    if not admin_delete.available(kind):
+        return jsonify({'error': 'Unknown kind.'}), 404
+    ids = (request.get_json(silent=True) or {}).get('ids') or []
+    if not ids:
+        return jsonify({'error': 'Nothing selected.'}), 400
+    out = admin_delete.hard_delete(kind, ids, current_user)
+    return jsonify({'success': True, 'deleted': len(out['deleted']), 'ids': out['deleted'],
+                    'skipped': out['skipped']})
 
 
 @admin_bp.route('/feedback')
@@ -1222,8 +1291,9 @@ def feature_feedback(fid):
 @login_required
 @admin_required
 def reject_feedback(fid):
+    from app.services import admin_delete
     fb = Feedback.query.get_or_404(fid)
-    db.session.delete(fb)
+    admin_delete.delete_feedback(fb, current_user)   # its read marks too
     db.session.commit()
     return jsonify({'success': True})
 
@@ -1235,6 +1305,25 @@ def _unique_slug(title):
         n += 1
         slug = f'{base}-{n}'
     return slug
+
+
+@admin_bp.route('/blog')
+@login_required
+@admin_required
+def blog_list():
+    """Every blog post, drafts included -- nothing else lists the unpublished ones -- with the
+    delete buttons. Writing one is still /admin/blog/new."""
+    page, per_page = _page_args(30)
+    q = (request.args.get('q') or '').strip()
+    query = Blog.query
+    if q:
+        pat = f'%{q}%'
+        query = query.filter(db.or_(Blog.title.ilike(pat), Blog.slug.ilike(pat)))
+    total = query.count()
+    pages = max((total + per_page - 1) // per_page, 1)
+    page = min(page, pages)
+    posts = query.order_by(Blog.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
+    return render_template('admin/blog_list.html', posts=posts, q=q, page=page, pages=pages, total=total)
 
 
 @admin_bp.route('/blog/new', methods=['GET', 'POST'])
@@ -1450,6 +1539,26 @@ def notification_log_read(nid):
     n.is_read = not n.is_read
     db.session.commit()
     return jsonify({'success': True, 'is_read': n.is_read})
+
+
+@admin_bp.route('/notification-log/delete-matching', methods=['POST'])
+@login_required
+@admin_json_required
+def notification_log_delete_matching():
+    """Delete every notification the given filter matches -- the same filter arguments the log
+    screen takes ({q, user, user_id, category, status, from, to} as JSON). One summary entry in the
+    activity log rather than one per row: a filter can match thousands."""
+    from app.models import ActivityEvent
+    from app.services import notiflog
+    args = {k: str(v) for k, v in (request.get_json(silent=True) or {}).items()
+            if k in ('q', 'user', 'user_id', 'category', 'status', 'from', 'to') and v not in (None, '')}
+    ids = [i for (i,) in notiflog.build_query(args).with_entities(Notification.id).all()]
+    for start in range(0, len(ids), 500):
+        Notification.query.filter(Notification.id.in_(ids[start:start + 500])) \
+            .delete(synchronize_session=False)
+    ActivityEvent.log('notifications_bulk_deleted', actor=current_user, count=len(ids), filter=args)
+    db.session.commit()
+    return jsonify({'success': True, 'deleted': len(ids)})
 
 
 @admin_bp.route('/notification-log/<int:nid>/delete', methods=['POST'])

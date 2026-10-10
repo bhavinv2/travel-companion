@@ -5,12 +5,16 @@
      base        - action URL prefix, e.g. '/admin/notification-log' or '/cs/notifications'.
                    Always rendered through app_url(): under a URL prefix a bare path points at
                    whatever else is hosted at the site root, which is a 404 nobody sees locally
-     can_delete  - show the per-row delete action (admin only)
+     can_delete  - the delete actions: per row, selected rows, everything this filter matches.
+                   Admin only, from either console -- they post to /admin/delete/notification/...
+                   and /admin/notification-log/delete-matching, never to `base`, so the CS
+                   console grows no delete URL of its own
      f           - dict of current filter values (q, category, status, user, from, to)
      categories  - list of (value, label) for the category dropdown
      groups      - list of (value, label) for the send-to group dropdown
      cat_for_type, cat_labels - map a notification type to its category chip
    The filter form + pager use request.endpoint, so this macro works from either blueprint. #}
+{% from 'admin/_hard_delete.html' import del_btn, row_check, select_all, bulk_bar %}
 {% macro notifications_manager(rows, page, pages, total, base, can_delete, f, categories, groups, cat_for_type, cat_labels) %}
 <section class="nm-send">
   <h2><i class="fa-solid fa-paper-plane"></i> Send a notification</h2>
@@ -61,16 +65,27 @@
   <button type="submit" class="btn btn-primary">Filter</button>
   <a href="{{ app_url(base) }}" class="btn-sm">Reset</a>
 </form>
-<p class="muted">{{ total }} notification{{ '' if total == 1 else 's' }}</p>
+<p class="muted nm-count">{{ total }} notification{{ '' if total == 1 else 's' }}
+  {% if can_delete and total %}
+  {# exactly what the list shows: the same arguments, user_id from a "only this user" link included #}
+  {% set shown = {} %}
+  {% for k in ('q', 'user', 'user_id', 'category', 'status', 'from', 'to') if request.args.get(k) %}{% set _ = shown.update({k: request.args.get(k)}) %}{% endfor %}
+  <button type="button" class="btn-sm danger" id="nmDelMatching" data-total="{{ total }}"
+          data-filter="{{ shown|tojson|forceescape }}">
+    <i class="fa-solid fa-trash-can"></i> Delete all {{ total }}{{ ' matching this filter' if shown else ' notifications' }}</button>
+  {% endif %}
+</p>
+{% if can_delete %}{{ bulk_bar('notification', 'notifications') }}{% endif %}
 
 <div class="table-wrap">
 <table class="admin-table stack-mobile nm-table">
-  <thead><tr><th>User</th><th>Type</th><th>Notification</th><th>Status</th><th>When</th><th></th></tr></thead>
+  <thead><tr>{% if can_delete %}<th class="hd-pick">{{ select_all('notification') }}</th>{% endif %}<th>User</th><th>Type</th><th>Notification</th><th>Status</th><th>When</th><th></th></tr></thead>
   <tbody>
     {% for n in rows %}
     {% set u = n.user %}
     {% set cat = cat_for_type.get(n.type, 'other') %}
-    <tr id="nm-{{ n.id }}" class="{{ 'nm-unread' if not n.is_read }}">
+    <tr id="nm-{{ n.id }}" class="{{ 'nm-unread' if not n.is_read }}" data-hd-row="notification-{{ n.id }}">
+      {% if can_delete %}<td class="hd-pick" data-label="">{{ row_check('notification', n.id) }}</td>{% endif %}
       <td data-label="User">
         {% if u %}
           <a href="{{ app_url(base) }}?user_id={{ u.id }}" title="Show only this user's notifications">{{ u.username }}</a>
@@ -94,13 +109,11 @@
           <i class="fa-solid {{ 'fa-envelope-open' if n.is_read else 'fa-envelope' }}"></i>
           <span>{{ 'Mark unread' if n.is_read else 'Mark read' }}</span>
         </button>
-        {% if can_delete %}
-        <button type="button" class="btn-sm-outline danger nm-del" data-id="{{ n.id }}"><i class="fa-solid fa-trash"></i></button>
-        {% endif %}
+        {% if can_delete %}{{ del_btn('notification', n.id, 'this notification for ' ~ (u.username if u else 'the user')) }}{% endif %}
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="6" class="muted">No notifications match these filters.</td></tr>
+    <tr><td colspan="{{ 7 if can_delete else 6 }}" class="muted">No notifications match these filters.</td></tr>
     {% endfor %}
   </tbody>
 </table>
@@ -148,13 +161,21 @@
   }));
 
   {% if can_delete %}
-  document.querySelectorAll('.nm-del').forEach(b => b.addEventListener('click', async () => {
-    if (!confirm('Delete this notification for the user? This cannot be undone.')) return;
-    const id = b.dataset.id;
-    const res = await apiFetch(`${BASE}/${id}/delete`, { method: 'POST', body: '{}' });
-    const d = await res.json();
-    if (d.success) { const r = document.getElementById('nm-' + id); r.style.transition = 'opacity .2s'; r.style.opacity = '0'; setTimeout(() => r.remove(), 200); }
-  }));
+  // one row and the ticked rows are static/js/hard-delete.js; this is "everything the filter matches"
+  document.getElementById('nmDelMatching')?.addEventListener('click', (e) => {
+    const b = e.currentTarget;
+    const n = Number(b.dataset.total);
+    openHardDeleteModal(`Permanently delete all ${n} notification${n === 1 ? '' : 's'} this filter shows, on every page?`, async () => {
+      b.disabled = true;
+      try {
+        const res = await apiFetch('/admin/notification-log/delete-matching', { method: 'POST', body: b.dataset.filter });
+        const d = await res.json();
+        if (!d.success) { showToast(d.error || 'Could not delete them.', 'danger'); b.disabled = false; return; }
+        showToast(`Deleted ${d.deleted} notification${d.deleted === 1 ? '' : 's'}.`, 'success');
+        setTimeout(() => location.reload(), 600);
+      } catch (err) { showToast('Could not reach the server.', 'danger'); b.disabled = false; }
+    });
+  });
   {% endif %}
 })();
 </script>

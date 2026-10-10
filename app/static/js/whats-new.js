@@ -57,17 +57,23 @@ window.paintStaffBadges = function (badges) {
     setOpen(open, open && fab.matches(':focus-visible'));
   });
 
-  document.addEventListener('keydown', function (e) {
+  // Escape closes the dial only when you are IN it. Listening on the whole page, it fired for an
+  // Escape meant for something else -- closing a dialog, leaving a dropdown -- and shut the dial,
+  // forgot it was wanted open, and pulled focus away from whatever was being used.
+  root.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && root.classList.contains('is-open')) {
       setOpen(false);
       fab.focus();
     }
   });
 
-  // A click anywhere else closes it.
+  // A click anywhere else closes it -- but only for this visit; the remembered preference is for
+  // the next page, and somebody who clicked into a table to read it did not mean "never again".
+  // Capture phase: a control that stops its own click from bubbling -- the phone menu button does --
+  // must still close the dial, or the two end up open on top of each other.
   document.addEventListener('click', function (e) {
     if (root.classList.contains('is-open') && !root.contains(e.target)) setOpen(false);
-  });
+  }, true);
 
   // Small screens: the button sits over the list. Slide it away while scrolling down, bring it
   // back when scrolling up or 900ms after scrolling stops (CSS .is-tucked, max-width 600px).
@@ -87,6 +93,11 @@ window.paintStaffBadges = function (badges) {
   function paint(data) {
     if (!data || !data.items) return;
     window.paintStaffBadges(data.badges);
+    // A list the server no longer offers (access narrowed since the page loaded) is hidden rather
+    // than left showing its old number beside a total that no longer includes it.
+    var offered = {};
+    data.items.forEach(function (it) { offered[it.key] = true; });
+    root.querySelectorAll('.wn-item').forEach(function (a) { a.hidden = !offered[a.dataset.key]; });
     data.items.forEach(function (it) {
       var a = root.querySelector('.wn-item[data-key="' + it.key + '"]');
       if (!a) return;                        // a list the server stopped offering: leave it be

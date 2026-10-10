@@ -4,6 +4,11 @@ import imgVitals from '../assets/services/vitals.jpg';
 import imgOutpatient from '../assets/services/outpatient.jpg';
 import imgInpatient from '../assets/services/inpatient.jpg';
 import imgPharmacy from '../assets/services/pharmacy.jpg';
+// Demo, online consultation and "other" are panels of the care-ecosystem picture the hero uses
+// (frontend/sahayak/design/), so the three photographs sit in the same family as the rest.
+import imgDemo from '../assets/services/demo.jpg';
+import imgVirtual from '../assets/services/virtual-consult.jpg';
+import imgOther from '../assets/services/other.jpg';
 
 // Sahayak gig services, taken from the GIG sheet of "All forms preventia.xlsx".
 // Each service's `includes` lists the visit steps the sheet marks Mandatory (MAD) for that column;
@@ -22,7 +27,7 @@ import imgPharmacy from '../assets/services/pharmacy.jpg';
 // Visit journey shown in "What it covers": one stop per GIG-sheet section, in sheet order.
 // A trailing "?" marks a section the sheet flags Optional (OPT) for that service; others are Mandatory (MAD).
 const STEPS = {
-  booking: { title: 'Booking', text: 'You pick the service, date, time and where the Sahayak should meet your parent.' },
+  booking: { title: 'Booking', text: 'You pick the service and where the Sahayak should meet your parent; we call to agree the time.' },
   checkin: { title: 'Check-in', text: 'Your Sahayak checks in on arrival — time and location recorded.' },
   wq: { title: 'Wellness questionnaire', text: 'Health history, lifestyle, allergies and current symptoms.' },
   vitals: { title: 'Vitals', text: 'BP, pulse, SpO₂, temperature, sugar, breathing rate, weight and BMI.' },
@@ -137,7 +142,8 @@ export const GIG_SERVICES = [
     title: 'Demo Visit',
     tag: 'First visit',
     icon: 'personPlus',
-    img: null, // photo goes here (import from ../assets/services/)
+    // the Sahayak and a father going through his records on a tablet
+    img: imgDemo, imgFit: 'cover', imgPos: '30% 40%',
     sc: '#23804A', st: '#DDF2E5',
     text: 'A first visit to get to know your parents: health questionnaire, vitals, history and medicines.',
     includes: ['Wellness questionnaire', 'Vitals', 'Clinical history', 'Medicines review', 'Health records set up'],
@@ -148,7 +154,8 @@ export const GIG_SERVICES = [
     title: 'Virtual Consultation Support',
     tag: 'Online doctor',
     icon: 'video',
-    img: null, // photo goes here (import from ../assets/services/)
+    // a doctor on a video call, the mother in the corner of the screen
+    img: imgVirtual, imgFit: 'cover', imgPos: '40% 30%',
     sc: '#0B7A6D', st: '#E1F5F2',
     text: 'Your Sahayak sits with your parents during an online doctor consultation and helps it run smoothly.',
     includes: ['Wellness questionnaire', 'Call set-up & support'],
@@ -159,7 +166,8 @@ export const GIG_SERVICES = [
     title: 'Other Support',
     tag: 'Anything else',
     icon: 'plusCircle',
-    img: null, // photo goes here (import from ../assets/services/)
+    // a Sahayak helping a mother with her exercises
+    img: imgOther, imgFit: 'cover', imgPos: '45% 35%',
     sc: '#B23A1C', st: '#FDE3DB',
     text: 'Something else your parents need? Tell us and we’ll plan the visit around it.',
     includes: ['Wellness questionnaire', 'Planned around your request'],

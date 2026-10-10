@@ -1,27 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon, { Underline } from './Icon.jsx';
-import MultiStepForm, { Field, Q } from './MultiStepForm.jsx';
+import MultiStepForm, { ChipsField, Field, Q } from './MultiStepForm.jsx';
 import { FormAside, HELPLINES } from './NeedMode.jsx';
 import { ArrowLink, Chips, Quote, Reveal, SectionHead, SideDecor, Upload, cx } from './ui.jsx';
 import { useInView } from '../hooks.js';
-import { site, postJson } from '../data/site.js';
+import { site, postJson, catalogue, QUALIFICATIONS } from '../data/site.js';
 import { GIG_SERVICES } from '../data/services.js';
-import PhoneField from './PhoneField.jsx';
+import { ELIGIBILITY, NURSING, NURSING_COUNCILS, nursingFor } from '../data/nursing.js';
+import PhoneField, { phoneError, phonePair } from './PhoneField.jsx';
+import * as v from '../validate.js';
 import whyFlexible from '../assets/why-flexible.jpg';
 import whyTraining from '../assets/why-training.jpg';
 import whyCommunity from '../assets/why-community.jpg';
 import whyGrowth from '../assets/why-growth.jpg';
 
-// Who can become a Sahayak — accent colour, qualification chips and a one-line fit.
-const ROLES = [
-  { c: '#1D7FC4', title: 'Doctors', bg: 'Doctor', cta: 'Apply as a Doctor', chips: ['MBBS', 'BAMS', 'BHMS'], text: 'Clinically qualified, reviewing what the visit found and signing off the record.' },
-  { c: '#0F9D8C', title: 'Nurses & ANMs', bg: 'Nurse', cta: 'Apply as a Nurse / ANM', chips: ['GNM', 'B.Sc Nursing', 'ANM'], text: 'Clinical training that covers the checks, the readings and knowing when something needs escalating.' },
-  { c: '#D9771B', title: 'Phlebotomists', bg: 'Phlebotomist', cta: 'Apply as a Phlebotomist', chips: ['DMLT', 'Sample collection'], text: 'Trained in safe blood draws and collecting samples at home for lab tests.' },
-  { c: '#D14B3A', title: 'Paramedics', bg: 'Paramedic', cta: 'Apply as a Paramedic', chips: ['Emergency care', 'BLS'], text: 'Experienced in emergency response, first aid and patient transfers.' },
-  { c: '#1D7FC4', title: 'Certified Health Assistants', bg: 'Health Worker', cta: 'Apply as a Health Assistant', chips: ['Community health', 'Certified'], text: 'Trained to run a visit end to end and record it accurately as they go.' },
-  { c: '#7250D6', title: 'Care Coordinators', bg: 'Care Coordinator', cta: 'Apply as a Care Coordinator', chips: ['Care planning', 'Family liaison'], text: 'The link between the parent, the doctor and the family abroad who is waiting to hear.' },
-  { c: '#2E9A55', title: 'Other Health Professionals', bg: 'Other', cta: 'Apply as a Professional', chips: ['Physiotherapy', 'Allied health'], text: 'Physiotherapists, dietitians and other allied health professionals.' },
-];
 
 // What a Sahayak does — Care Coordination is the featured duty.
 const YOUR_ROLE = [
@@ -39,8 +31,8 @@ const FEATURED_DUTY = {
 
 // Path steps alternate below (u) and above (d) the wave; x is the node's centre.
 const PATH = [
-  { icon: 'docLines', kicker: '01 · Apply', title: 'Tell Us About Yourself', text: 'Start your application by sharing your basic details and healthcare background.', stat: 'Application submitted' },
-  { icon: 'idCard', kicker: '02 · Verify', title: 'Submit Your Credentials', text: 'Provide your professional, identification and experience details for verification.', stat: 'Documents verified' },
+  { icon: 'docLines', kicker: '01 · Apply', title: 'Tell Us About Yourself', text: 'Share your details and your nursing qualification — B.Sc Nursing, GNM or ANM.', stat: 'Application submitted' },
+  { icon: 'idCard', kicker: '02 · Verify', title: 'Submit Your Credentials', text: 'Your nursing certificate, State Nursing Council registration and photo ID, checked by our team.', stat: 'Registration verified' },
   { icon: 'searchCheck', kicker: '03 · Get reviewed', title: 'Application Review', text: 'Our team reviews your information and assesses your suitability for the Sahayak network.', stat: 'Details reviewed' },
   { icon: 'grad', kicker: '04 · Learn & prepare', title: 'Complete Training', text: 'Get familiar with the Sahayak platform, service process, safety practices and role-specific requirements.', stat: 'Training & orientation' },
   { icon: 'heart', kicker: '05 · Start taking work', title: 'Your First Assignment', text: 'Once approved and trained, you can start accepting the assignments you are qualified for.', stat: 'Profile activated' },
@@ -63,9 +55,9 @@ function Hero() {
     <section className="hero hn" id="join">
       <div className="wrap hero-grid">
         <div>
-          <Reveal as="h2" className="h-xl hn-h">Put Your Training Where <em>It Is Needed<Underline /></em></Reveal>
-          <Reveal><Quote>Professional work, properly supported.</Quote></Reveal>
-          <Reveal as="p" className="lead">Join the Sahayak network as a health professional. Each assignment is matched to what you are qualified for, the app takes you through every step, and a doctor reviews the record.</Reveal>
+          <Reveal as="h2" className="h-xl hn-h">Put Your Nursing Training Where <em>It Is Needed<Underline /></em></Reveal>
+          <Reveal><Quote>Registered nurses, properly supported.</Quote></Reveal>
+          <Reveal as="p" className="lead">Sahayak recruits registered nurses — B.Sc Nursing, GNM and ANM. Each assignment is matched to your qualification, the app takes you through every step, and a doctor reviews the record.</Reveal>
           <Reveal className="ctas">
             <ArrowLink href="#apply">Become a Sahayak</ArrowLink>
             <a className="btn btn-o" href="#role">What You Can Do</a>
@@ -90,7 +82,7 @@ function Hero() {
                 </div>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 16 }}>Your Sahayak profile</div>
-                  <div style={{ marginTop: 6 }}><span className="rchip">Health professional · 3–5 yrs</span></div>
+                  <div style={{ marginTop: 6 }}><span className="rchip">GNM nurse · 3–5 yrs</span></div>
                 </div>
               </div>
               <div className="prog rise d4"><span className="ci ok"><Icon name="check" sw={3} /></span>Application submitted</div>
@@ -137,6 +129,9 @@ function Hero() {
   );
 }
 
+/* Who can join: three kinds of registered nurse, each with what the qualification is, how long it
+   takes, how it is registered, and the visits it is typically matched to -- then what every
+   applicant needs, whichever of the three they hold. */
 function Roles({ onApplyAs }) {
   return (
     <section className="sec tight" id="roles">
@@ -144,27 +139,48 @@ function Roles({ onApplyAs }) {
         <SectionHead
           center
           kick="Who can join"
-          title={<>Qualified People, <em>Where They Are Needed</em></>}
-          quote="Clinical training, used properly."
+          title={<>Registered Nurses, <em>Three Ways In</em></>}
+          quote="B.Sc Nursing · GNM · ANM"
           tone="p"
-          sub="If you are clinically trained — or qualified in any part of health — there is a place for you. Every assignment is matched to what you are actually qualified to do, and nothing else."
+          sub="Sahayak recruits registered nurses only. If you hold one of these three qualifications and a current State Nursing Council registration, there is a place for you — and every assignment is matched to your training."
         />
-        <div className="rl">
-          {ROLES.map((r, i) => (
-            <Reveal as="article" key={r.bg} className="rl-c" style={{ '--c': r.c }}>
-              <span className="rl-n">{String(i + 1).padStart(2, '0')}</span>
-              <h3>{r.title}</h3>
-              <p>{r.text}</p>
-              <ul className="rl-chips">
-                {r.chips.map((ch) => <li key={ch}>{ch}</li>)}
+        <div className="nq">
+          {NURSING.map((q) => (
+            <Reveal as="article" key={q.key} className="nq-c" style={{ '--c': q.c }}>
+              <div className="nq-top">
+                <span className="nq-ic"><Icon name={q.icon} sw={1.9} /></span>
+                <div>
+                  <h3>{q.key}</h3>
+                  <p className="nq-full">{q.full}</p>
+                </div>
+              </div>
+              <ul className="nq-facts">
+                <li><Icon name="clock" sw={2} />{q.length}</li>
+                <li><Icon name="shield" sw={2} />{q.reg}</li>
               </ul>
-              <a className="rl-go" href="#apply" onClick={() => onApplyAs(r.bg)}>
-                {r.cta}
+              <p className="nq-tx">{q.text}</p>
+              <p className="nq-k">Typical assignments</p>
+              <ul className="nq-does">
+                {q.does.map((d) => <li key={d}><span><Icon name="check" sw={3} /></span>{d}</li>)}
+              </ul>
+              <a className="nq-go" href="#apply" onClick={() => onApplyAs(q.key)}>
+                Apply with {q.key}
                 <Icon name="arrow" sw={2} />
               </a>
             </Reveal>
           ))}
         </div>
+        <Reveal className="nq-elig">
+          <p className="nq-elig-h">Before you apply</p>
+          <ul>
+            {ELIGIBILITY.map((e) => (
+              <li key={e.title}>
+                <span className="nq-elig-ic"><Icon name={e.icon} sw={1.9} /></span>
+                <span><b>{e.title}</b><small>{e.text}</small></span>
+              </li>
+            ))}
+          </ul>
+        </Reveal>
       </div>
     </section>
   );
@@ -179,7 +195,7 @@ function YourRole() {
           kick="Your role"
           title={<>What a Sahayak <em>Actually Does</em></>}
           quote="Professional work, start to finish."
-          sub="Every assignment is matched to your qualifications, and the app walks you through each step of it — so you always know exactly what is expected and nothing is left to memory."
+          sub="Every assignment is matched to your nursing qualification, and the app walks you through each step of it — so you always know exactly what is expected and nothing is left to memory."
         />
         <div className="dt">
           {YOUR_ROLE.map((r, i) => (
@@ -610,41 +626,93 @@ function WhyJoin() {
 }
 
 const APPLY_EMPTY = {
-  full_name: '', mobile: '', whatsapp: '', email: '', age: '', location: '',
-  background: '', years: '',
-  highest_qualification: '', healthcare_qualification: '', certification: '', institution: '', year: '',
+  full_name: '', mobile: '', mobile_cc: '+91', mobile_iso: 'IN',
+  whatsapp: '', whatsapp_cc: '+91', whatsapp_iso: 'IN', email: '', age: '', location: '',
+  qualification: '', years: '', registration_number: '', nursing_council: '', institution: '',
+  year: '', certification: '',
   home: '', elder: '', hosp: '', experience: '',
   services: [],
   work: '', service_city: '', service_pins: '', availability: [],
   files: {},
 };
 
+const THIS_YEAR = new Date().getFullYear();
+
+/* What each step needs before it lets you on -- the same rules /api/sahayak-apply holds the whole
+   application to, asked one step at a time so the message sits beside the box it is about. */
+const CHECKS = [
+  (d) => v.collect({
+    full_name: v.personName(d.full_name, 'your full name'),
+    mobile: phoneError({ dial: d.mobile_cc, iso: d.mobile_iso, tel: d.mobile }, { required: true }),
+    whatsapp: phoneError({ dial: d.whatsapp_cc, iso: d.whatsapp_iso, tel: d.whatsapp }),
+    email: v.email(d.email),
+    age: v.intRange(d.age, 18, 75, 'Enter your age — 18 to 75.'),
+    location: v.minText(d.location, 3, 'Please enter your city, area or PIN code.'),
+  }),
+  (d) => v.collect({
+    qualification: v.required(d.qualification, 'Choose your nursing qualification.'),
+    years: v.required(d.years, 'Choose your years of experience.'),
+    registration_number: v.minText(d.registration_number, 3, 'Enter your State Nursing Council registration number.'),
+    nursing_council: v.required(d.nursing_council, 'Choose the council you are registered with.'),
+    institution: v.minText(d.institution, 3, 'Enter where you trained.'),
+    year: v.intRange(d.year, 1960, THIS_YEAR, `Enter the year you qualified (1960–${THIS_YEAR}).`),
+  }),
+  (d) => v.collect({
+    home: v.required(d.home, 'Please answer yes or no.'),
+    elder: v.required(d.elder, 'Please answer yes or no.'),
+    hosp: v.required(d.hosp, 'Please answer yes or no.'),
+  }),
+  (d) => v.collect({
+    services: d.services.length ? '' : 'Choose at least one kind of visit you can take.',
+  }),
+  (d) => v.collect({
+    work: v.required(d.work, 'Choose how you would like to work.'),
+    service_city: v.minText(d.service_city, 2, 'Enter the city you can work in.'),
+    availability: d.availability.length ? '' : 'Choose at least one time of day.',
+  }),
+  () => ({}),
+];
+
 function ApplyForm({ applyAs }) {
   const [data, setData] = useState(APPLY_EMPTY);
+  const [errors, setErrors] = useState({});
   const [jump, setJump] = useState(null);
-  const set = (k, v) => setData((d) => ({ ...d, [k]: v }));
+  const set = (k, val) => {
+    setData((d) => ({ ...d, [k]: val }));
+    setErrors((e) => (e[k] ? { ...e, [k]: '' } : e));
+  };
   const setFile = (k) => (file) => setData((d) => ({ ...d, files: { ...d.files, [k]: file } }));
   const f = { data, set };
+  const err = (k) => errors[k] || '';
 
-  // Picking a role (role card or hero card) pre-fills what we know and opens the background step.
+  // Picking a qualification (its card or the hero card) pre-fills what we know and opens that step.
   useEffect(() => {
     if (!applyAs) return;
     setData((d) => ({
       ...d,
-      background: applyAs.bg,
+      ...(QUALIFICATIONS.includes(applyAs.bg) ? { qualification: applyAs.bg } : {}),
       ...(applyAs.name ? { full_name: applyAs.name } : {}),
       ...(applyAs.city ? { location: applyAs.city } : {}),
       ...(applyAs.years ? { years: applyAs.years } : {}),
     }));
-    setJump({ step: 1, nonce: applyAs.nonce });
+    setErrors({});
+    setJump({ step: applyAs.name ? 1 : 0, nonce: applyAs.nonce });
   }, [applyAs]);
 
+  const validate = (step) => {
+    const e = CHECKS[step](data);
+    setErrors(e);
+    return !Object.keys(e).length;
+  };
+
   const yn = (key, text) => (
-    <div className="yn">
+    <div className={cx('yn', err(key) && 'err')}>
       <span>{text}</span>
-      <Chips options={['Yes', 'No']} value={data[key]} onChange={(v) => set(key, v)} />
+      <Chips options={['Yes', 'No']} value={data[key]} onChange={(val) => set(key, val)} />
+      {err(key) && <span className="emsg">{err(key)}</span>}
     </div>
   );
+  const picked = nursingFor(data.qualification);
 
   const steps = [
     {
@@ -653,48 +721,55 @@ function ApplyForm({ applyAs }) {
         <>
           <Q title="Let's get to know you" sub="Your basic details, so our team can reach you." />
           <div className="fields">
-            <Field full id="b-name" label="Full Name" name="full_name" autoComplete="name" {...f} />
-            <PhoneField id="b-mob" label="Mobile Number" required
-                        value={{ dial: f.data.mobile_cc || '+91', tel: f.data.mobile || '' }}
-                        onChange={(v) => { f.set('mobile_cc', v.dial); f.set('mobile', v.tel); }} />
-            <PhoneField id="b-wa" label="WhatsApp Number" hint="Leave blank if it is the same"
-                        value={{ dial: f.data.whatsapp_cc || '+91', tel: f.data.whatsapp || '' }}
-                        onChange={(v) => { f.set('whatsapp_cc', v.dial); f.set('whatsapp', v.tel); }} />
-            <Field id="b-em" label="Email" name="email" type="email" autoComplete="email" {...f} />
-            <Field id="b-age" label="Age" name="age" inputMode="numeric" {...f} />
-            <Field full id="b-loc" label="City / Area / PIN Code" name="location" placeholder="e.g. Hyderabad, Kukatpally, 500072" {...f} />
+            <Field full id="b-name" label="Full Name" req name="full_name" autoComplete="name" error={err('full_name')} {...f} />
+            <PhoneField id="b-mob" label="Mobile Number" required error={err('mobile')}
+                        value={{ dial: data.mobile_cc, iso: data.mobile_iso, tel: data.mobile }}
+                        onChange={(val) => { set('mobile_cc', val.dial); if (val.iso) set('mobile_iso', val.iso); set('mobile', val.tel); }} />
+            <PhoneField id="b-wa" label="WhatsApp Number" hint="Leave blank if it is the same" error={err('whatsapp')}
+                        value={{ dial: data.whatsapp_cc, iso: data.whatsapp_iso, tel: data.whatsapp }}
+                        onChange={(val) => { set('whatsapp_cc', val.dial); if (val.iso) set('whatsapp_iso', val.iso); set('whatsapp', val.tel); }} />
+            <Field id="b-em" label="Email" req name="email" type="email" autoComplete="email" error={err('email')} {...f} />
+            <Field id="b-age" label="Age" req name="age" inputMode="numeric" maxLength={2} error={err('age')}
+                   data={data} set={(k, val) => set(k, val.replace(/\D/g, ''))} />
+            <Field full id="b-loc" label="City / Area / PIN Code" req name="location" placeholder="e.g. Hyderabad, Kukatpally, 500072" error={err('location')} {...f} />
           </div>
         </>
       ),
     },
     {
-      short: 'Background', label: 'Professional background',
+      short: 'Qualification', label: 'Nursing qualification',
       content: (
         <>
-          <Q title="Tell us about your health background" sub="What best describes your training?" />
-          <Chips
-            options={['Doctor', 'Nurse', 'ANM', 'Paramedic', 'Phlebotomist', 'Health Assistant', 'Care Coordinator', 'Other']}
-            value={data.background}
-            onChange={(v) => set('background', v)}
-          />
-          <p className="ql">Years of experience</p>
-          <Chips options={['Less than 1 year', '1–3 years', '3–5 years', '5+ years']} value={data.years} onChange={(v) => set('years', v)} />
-        </>
-      ),
-    },
-    {
-      short: 'Qualify', label: 'Qualifications',
-      content: (
-        <>
-          <Q title="Your education & certification" sub="Share your highest and healthcare-specific qualifications." />
-          <div className="fields">
-            <Field id="b-hq" label="Highest Qualification" name="highest_qualification" {...f} />
-            <Field id="b-hcq" label="Healthcare Qualification" name="healthcare_qualification" placeholder="e.g. GNM, B.Sc Nursing, DMLT" {...f} />
-            <Field id="b-cert" label="Certification" name="certification" {...f} />
-            <Field id="b-inst" label="Institution" name="institution" {...f} />
-            <Field id="b-yr" label="Year of Completion" name="year" inputMode="numeric" {...f} />
+          <Q title="Your nursing qualification" sub="Sahayak recruits registered nurses with one of these three." />
+          <ChipsField error={err('qualification')}>
+            <div className="nq-pick" role="radiogroup" aria-label="Nursing qualification">
+              {NURSING.map((q) => (
+                <button key={q.key} type="button" role="radio" aria-checked={data.qualification === q.key}
+                        className={cx('nq-opt', data.qualification === q.key && 'on')} style={{ '--c': q.c }}
+                        onClick={() => set('qualification', q.key)}>
+                  <b>{q.key}</b>
+                  <small>{q.full}</small>
+                  <i>{q.length}</i>
+                </button>
+              ))}
+            </div>
+          </ChipsField>
+          {picked && <p className="nq-pick-note"><Icon name="shield" sw={2} />Registered as: <b>{picked.reg}</b></p>}
+          <ChipsField label="Years of experience" req error={err('years')}>
+            <Chips options={['Less than 1 year', '1–3 years', '3–5 years', '5+ years']} value={data.years} onChange={(val) => set('years', val)} />
+          </ChipsField>
+          <div className="fields" style={{ marginTop: 18 }}>
+            <Field id="b-reg" label="Nursing council registration no." req name="registration_number" placeholder="As on your certificate" error={err('registration_number')} {...f} />
+            <Field as="select" id="b-council" label="State Nursing Council" req name="nursing_council" error={err('nursing_council')} {...f}>
+              <option value="">Select your council</option>
+              {NURSING_COUNCILS.map((c) => <option key={c} value={c}>{c} Nursing Council</option>)}
+            </Field>
+            <Field id="b-inst" label="Where you trained" req name="institution" placeholder="College or school of nursing" error={err('institution')} {...f} />
+            <Field id="b-yr" label="Year of completion" req name="year" inputMode="numeric" maxLength={4} placeholder="e.g. 2019" error={err('year')}
+                   data={data} set={(k, val) => set(k, val.replace(/\D/g, ''))} />
+            <Field full id="b-cert" label="Other certifications" name="certification" placeholder="Optional — e.g. BLS, critical care" {...f} />
             <div className="fld full">
-              <Upload id="b-certup" name="certificate" icon="upload" title="Upload Certificate / Supporting Document" hint="PDF, JPG or PNG" action="Browse" onChange={setFile('certificate')} />
+              <Upload id="b-certup" name="certificate" icon="upload" title="Upload your nursing certificate" hint="PDF, JPG or PNG — optional now, needed before activation" action="Browse" onChange={setFile('certificate')} />
             </div>
           </div>
         </>
@@ -704,28 +779,30 @@ function ApplyForm({ applyAs }) {
       short: 'Experience', label: 'Experience',
       content: (
         <>
-          <Q title="Tell us about your previous experience" sub="Quick yes or no answers, then a few lines in your own words." />
+          <Q title="Tell us about your nursing experience" sub="Quick yes or no answers, then a few lines in your own words." />
           {yn('home', 'Have you worked in home healthcare?')}
-          {yn('elder', 'Have you assisted elderly patients?')}
-          {yn('hosp', 'Have you worked with hospitals or clinics?')}
+          {yn('elder', 'Have you cared for elderly patients?')}
+          {yn('hosp', 'Have you worked in a hospital or clinic?')}
           <div className="fld" style={{ marginTop: 22 }}>
-            <label htmlFor="b-exp">Describe your relevant experience</label>
-            <textarea id="b-exp" name="experience" value={data.experience} onChange={(e) => set('experience', e.target.value)} />
+            <label htmlFor="b-exp">Describe your experience <small className="opt">optional</small></label>
+            <textarea id="b-exp" name="experience" maxLength={1500} placeholder="e.g. 4 years on a medical ward at a district hospital, then home care for post-surgery patients." value={data.experience} onChange={(e) => set('experience', e.target.value)} />
           </div>
         </>
       ),
     },
     {
-      short: 'Services', label: 'Services you can provide',
+      short: 'Visits', label: 'Visits you can take',
       content: (
         <>
-          <Q title="What kind of support can you provide?" sub="Select all that apply." />
-          <Chips
-            multi
-            options={GIG_SERVICES.map((g) => g.title)}
-            value={data.services}
-            onChange={(v) => set('services', v)}
-          />
+          <Q title="Which visits can you take?" sub="Select all that apply — we only send you the ones you choose." />
+          <ChipsField error={err('services')}>
+            <Chips
+              multi
+              options={catalogue(GIG_SERVICES).map((g) => g.name)}
+              value={data.services}
+              onChange={(val) => set('services', val)}
+            />
+          </ChipsField>
         </>
       ),
     },
@@ -734,14 +811,17 @@ function ApplyForm({ applyAs }) {
       content: (
         <>
           <Q title="When can you take assignments?" sub="Preferred work type" />
-          <Chips options={['Full-time', 'Part-time', 'Flexible']} value={data.work} onChange={(v) => set('work', v)} />
+          <ChipsField error={err('work')}>
+            <Chips options={['Full-time', 'Part-time', 'Flexible']} value={data.work} onChange={(val) => set('work', val)} />
+          </ChipsField>
           <p className="ql">Preferred service area</p>
           <div className="fields">
-            <Field id="b-scity" label="City" name="service_city" {...f} />
-            <Field id="b-spin" label="Areas / PIN Codes" name="service_pins" placeholder="Separate with commas" {...f} />
+            <Field id="b-scity" label="City" req name="service_city" error={err('service_city')} {...f} />
+            <Field id="b-spin" label="Areas / PIN Codes" name="service_pins" placeholder="Optional — separate with commas" {...f} />
           </div>
-          <p className="ql">Availability</p>
-          <Chips multi options={['Morning', 'Afternoon', 'Evening', 'Flexible']} value={data.availability} onChange={(v) => set('availability', v)} />
+          <ChipsField label="Times of day" req error={err('availability')}>
+            <Chips multi options={['Morning', 'Afternoon', 'Evening', 'Flexible']} value={data.availability} onChange={(val) => set('availability', val)} />
+          </ChipsField>
         </>
       ),
     },
@@ -749,13 +829,12 @@ function ApplyForm({ applyAs }) {
       short: 'Documents', label: 'Documents & verification',
       content: (
         <>
-          <Q title="Complete your verification" sub="Upload clear copies. Our team checks every document before activating a profile." />
+          <Q title="Complete your verification" sub="Have these ready. Our team checks every document on the call before a profile is activated." />
           <div className="ups">
-            <Upload id="d-id" name="id_proof" icon="idCard" title="ID Proof" hint="Government-issued photo ID" onChange={setFile('id_proof')} />
-            <Upload id="d-q" name="qualification_certificate" icon="grad" title="Qualification Certificate" hint="Degree or diploma" onChange={setFile('qualification_certificate')} />
-            <Upload id="d-p" name="professional_certificate" icon="shield" title="Professional Certificate" hint="Registration or license, if applicable" onChange={setFile('professional_certificate')} />
-            <Upload id="d-e" name="experience_proof" icon="briefcase" title="Experience Proof" hint="Letter from employer or hospital" onChange={setFile('experience_proof')} />
-            <Upload id="d-o" name="other_documents" icon="doc" title="Other Supporting Documents" hint="Optional" onChange={setFile('other_documents')} />
+            <Upload id="d-id" name="id_proof" icon="idCard" title="Photo ID" hint="Aadhaar, PAN, passport or driving licence" onChange={setFile('id_proof')} />
+            <Upload id="d-q" name="qualification_certificate" icon="grad" title="Nursing certificate" hint="B.Sc Nursing degree, GNM or ANM diploma" onChange={setFile('qualification_certificate')} />
+            <Upload id="d-p" name="registration_certificate" icon="shield" title="Council registration" hint="State Nursing Council registration certificate" onChange={setFile('registration_certificate')} />
+            <Upload id="d-e" name="experience_proof" icon="briefcase" title="Experience letter" hint="From a hospital, clinic or employer, if you have one" onChange={setFile('experience_proof')} />
           </div>
         </>
       ),
@@ -767,6 +846,7 @@ function ApplyForm({ applyAs }) {
       anchor="apply"
       steps={steps}
       jump={jump}
+      validate={validate}
       submitLabel="Submit for Review"
       onSubmit={() =>
         /* Documents are deliberately not sent: /api/sahayak-apply does not take uploads, and
@@ -774,21 +854,24 @@ function ApplyForm({ applyAs }) {
            so whoever rings knows to ask for it. */
         postJson(site.applyUrl, {
           ...data,
-          // the dialling code travels with the number, so what reaches CS can be rung
-          mobile: ((data.mobile_cc || '+91') + ' ' + (data.mobile || '')).trim(),
-          whatsapp: data.whatsapp
-            ? ((data.whatsapp_cc || '+91') + ' ' + data.whatsapp).trim() : '',
-          mobile_cc: undefined,
-          whatsapp_cc: undefined,
+          // Each number as typed, with the COUNTRY it was typed for beside it (an ISO code,
+          // e.g. "IN"). Not joined as "+91 0984...": a leading + skips dropping the trunk 0, so a
+          // joined number could be stored as a different one. See PhoneField.phonePair.
+          mobile: (data.mobile || '').trim(),
+          mobile_cc: phonePair({ dial: data.mobile_cc, iso: data.mobile_iso, tel: data.mobile }).cc,
+          whatsapp: (data.whatsapp || '').trim(),
+          whatsapp_cc: phonePair({ dial: data.whatsapp_cc, iso: data.whatsapp_iso, tel: data.whatsapp }).cc,
+          mobile_iso: undefined,
+          whatsapp_iso: undefined,
           services: (data.services || []).join(', '),
           availability: (data.availability || []).join(', '),
           files: undefined,
-          documents_offered: Object.keys(data.files || {}).join(', '),
+          documents_offered: Object.keys(data.files || {}).filter((k) => data.files[k]).join(', '),
         })
       }
       done={{
         title: 'Application submitted',
-        text: 'Thank you for applying. Our team will review your details and documents, then guide you through training and orientation.',
+        text: 'Thank you for applying. Our team will verify your nursing registration and documents, then guide you through training and orientation.',
         reset: 'Back to the form',
         maxWidth: 460,
       }}
@@ -808,17 +891,17 @@ function Apply({ applyAs }) {
       <div className="wrap">
         <SectionHead
           kick="Apply"
-          title={<>Ready to Become <em>a Sahayak?</em></>}
+          title={<>Ready to Join as <em>a Sahayak Nurse?</em></>}
           quote="Your next chapter starts here."
           tone="p"
-          sub="Seven short steps. You can go back and change any answer before you submit."
+          sub="Six short steps. You can go back and change any answer before you submit."
         />
         <div className="form-wrap">
           <FormAside
-            title="Keep these documents ready"
+            title="Keep these ready"
             quote="Trust starts with the paperwork."
-            text="You'll upload them in the last step for verification."
-            items={['ID proof', 'Qualification certificate', 'Professional certificate', 'Experience proof']}
+            text="Our team verifies every nurse before the first visit."
+            items={['Photo ID', 'Nursing certificate — B.Sc Nursing, GNM or ANM', 'State Nursing Council registration', 'Experience letter, if you have one']}
             callLabel="Questions about applying?"
             phones={HELPLINES}
           />

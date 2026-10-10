@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'admin/_hard_delete.html' import del_btn %}
 {% block title %}{{ recipe.name }} – runs – CS Console{% endblock %}
 {% block content %}
 <div class="admin-page">
@@ -52,7 +53,7 @@
         <thead><tr><th>Run</th><th>Status</th><th>Started</th><th>Pages</th><th>Items</th><th>New</th><th>Health</th><th></th></tr></thead>
         <tbody>
         {% for run in runs %}
-          <tr>
+          <tr data-hd-row="scrape_run-{{ run.id }}">
             <td data-label="Run"><a href="{{ url_for('scraper.run_detail', run_id=run.id) }}"><strong>#{{ run.id }}</strong></a> <small class="muted">{{ run.trigger }}</small></td>
             <td data-label="Status"><span class="chip {{ {'done': 'chip-open', 'running': 'chip-matched', 'queued': 'chip-src', 'failed': 'chip-closed', 'cancelled': 'chip-unconfirmed'}.get(run.status, 'chip-src') }}">{{ run.status }}</span></td>
             <td data-label="Started">{{ run.started_at|ist('%Y-%m-%d %H:%M') if run.started_at else '—' }}{% if run.duration_seconds is not none %}<br/><small class="muted">{{ run.duration_seconds }} s</small>{% endif %}</td>
@@ -60,7 +61,9 @@
             <td data-label="Items">{{ run.rows_total or 0 }}</td>
             <td data-label="New">{{ run.rows_new or 0 }}{% if run.rows_duplicate %} <small class="muted">({{ run.rows_duplicate }} dup)</small>{% endif %}</td>
             <td data-label="Health">{% set rep = run.report %}{% if rep %}<span class="chip {{ {'ok': 'chip-open', 'warning': 'chip-unconfirmed', 'critical': 'chip-closed'}.get(rep.status, 'chip-src') }}">{{ rep.headline }}</span>{% elif run.error %}<small class="urgent">{{ run.error[:80] }}</small>{% else %}—{% endif %}</td>
-            <td class="row-actions"><a class="btn-sm" href="{{ url_for('scraper.run_detail', run_id=run.id) }}">Rows</a></td>
+            <td class="row-actions"><a class="btn-sm" href="{{ url_for('scraper.run_detail', run_id=run.id) }}">Rows</a>
+              {% if run.status not in ('queued', 'running') %}{{ del_btn('scrape_run', run.id, 'run #' ~ run.id, tier='type',
+                  detail='Its scraped rows go with it. Posts already created are kept.') }}{% endif %}</td>
           </tr>
         {% else %}<tr><td colspan="8" class="muted">No runs yet.</td></tr>{% endfor %}
         </tbody></table></div>

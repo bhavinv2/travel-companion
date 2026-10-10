@@ -449,7 +449,8 @@ def test_the_page_never_waits_on_the_journey(client, db):
 
 APPLY = {'full_name': 'Asha Menon', 'mobile': '+91 90000 00001',
          'email': 'asha@example.com', 'experience': '6 years on a cardiology ward',
-         'healthcare_qualification': 'B.Sc Nursing', 'languages': 'Malayalam, English',
+         'qualification': 'B.Sc Nursing', 'registration_number': 'KNMC 12345',
+         'nursing_council': 'Kerala', 'languages': 'Malayalam, English',
          'service_city': 'Kochi'}
 
 

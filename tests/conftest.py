@@ -34,6 +34,10 @@ def app(tmp_path):
         'PRIVATE_UPLOAD_FOLDER': str(tmp_path / 'private'),
         'SERVER_NAME': 'localhost',
         'MAIL_PASSWORD': None,
+        # A general-purpose mail server, so the suite tests what the app sends when one is set up.
+        # The default is Gmail, which carries sign-in/sign-up mail only -- that rule has its own
+        # tests (test_mail_policy.py), which switch this back to smtp.gmail.com.
+        'MAIL_SERVER': 'smtp.mail.test',
     })
     with app.app_context():
         _db.create_all()

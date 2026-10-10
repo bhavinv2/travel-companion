@@ -10,6 +10,8 @@ from werkzeug.datastructures import MultiDict
 
 from app import db
 from app.services import urls
+# phone.matches: a search box finds a number however it is spaced on either side
+from app.services import phone as phone_svc
 from app.models import (
     CompanionRequest, ContactPoint, ClaimToken, ActivityEvent, Notification, User,
     TRIP_STATUSES, TRIP_SOURCES, CS_TRIP_SOURCES, TRIP_SOURCE_LABELS, TRIP_ROLES, TRIP_ROLE_LABELS,
@@ -206,7 +208,7 @@ def sahayak_bookings():
         pat = f'%{q}%'
         query = query.filter(or_(SahayakBooking.patient_name.ilike(pat),
                                  SahayakBooking.contact_name.ilike(pat),
-                                 SahayakBooking.phone.ilike(pat),
+                                 phone_svc.matches(SahayakBooking.phone, q),
                                  SahayakBooking.email.ilike(pat),
                                  SahayakBooking.pincode.ilike(pat),
                                  SahayakBooking.assigned_to_name.ilike(pat)))
@@ -282,7 +284,7 @@ def insurance_quotes():
     if q:
         pat = f'%{q}%'
         query = query.filter(or_(InsuranceQuote.name.ilike(pat), InsuranceQuote.email.ilike(pat),
-                                 InsuranceQuote.phone.ilike(pat)))
+                                 phone_svc.matches(InsuranceQuote.phone, q)))
     query = query.order_by(InsuranceQuote.created_at.desc())
     total = query.count()
     pages = max((total + per_page - 1) // per_page, 1)
@@ -324,7 +326,7 @@ def voices():
     if q:
         pat = f'%{q}%'
         query = query.filter(or_(ContactMessage.name.ilike(pat), ContactMessage.email.ilike(pat),
-                                 ContactMessage.phone.ilike(pat), ContactMessage.message.ilike(pat)))
+                                 phone_svc.matches(ContactMessage.phone, q), ContactMessage.message.ilike(pat)))
     query = query.order_by(ContactMessage.created_at.desc())
     total = query.count()
     c_pages = max((total + PAGE_SIZE - 1) // PAGE_SIZE, 1)
@@ -342,7 +344,7 @@ def voices():
         scoped = scoped.filter(ContactMessage.topic == topic)
     if q:
         scoped = scoped.filter(or_(ContactMessage.name.ilike(pat), ContactMessage.email.ilike(pat),
-                                   ContactMessage.phone.ilike(pat),
+                                   phone_svc.matches(ContactMessage.phone, q),
                                    ContactMessage.message.ilike(pat)))
     counts = {s: scoped.filter(ContactMessage.status == s).count() for s in CONTACT_STATUSES}
 
@@ -373,7 +375,7 @@ def voices():
                            feedbacks=feedbacks, f_total=f_total, f_page=f_page, f_pages=f_pages,
                            pending=pending,
                            reports=reports, r_total=r_total, r_page=r_page, r_pages=r_pages,
-                           r_status=r_status, reports_open=reports_open, can_delete=True,
+                           r_status=r_status, reports_open=reports_open, can_delete=current_user.is_admin,
                            CONTACT_STATUSES=CONTACT_STATUSES, CONTACT_STATUS_LABELS=CONTACT_STATUS_LABELS, CONTACT_TOPICS=CONTACT_TOPICS,
                            CONTACT_TOPIC_LABELS=CONTACT_TOPIC_LABELS, topic=topic,
                            **_choices())
@@ -400,7 +402,11 @@ def report_action(report_id, action):
     elif action == 'delete':
         if not current_user.is_admin:
             return jsonify({'error': 'Only an admin can delete a report.'}), 403
-        db.session.delete(report)
+        # the registry's delete: it also takes the match out of the CS queue when this was its
+        # last open report, which a bare delete left stuck there
+        from app.services import admin_delete
+        admin_delete.hard_delete('match_report', [report.id], current_user)
+        return jsonify({'success': True, 'status': None})
     else:
         return jsonify({'error': 'Unknown action'}), 400
     note = request.get_json(silent=True) or {}
@@ -464,8 +470,9 @@ def feedback_action(fid, action):
         fb.is_approved = True
         ActivityEvent.log('feedback_approved', actor=current_user, feedback_id=fb.id)
     elif action == 'reject':
+        from app.services import admin_delete
         ActivityEvent.log('feedback_rejected', actor=current_user, feedback_id=fb.id)
-        db.session.delete(fb)
+        admin_delete.delete_feedback(fb, current_user)   # its read marks too
     else:
         return jsonify({'error': 'Unknown action'}), 400
     db.session.commit()
@@ -499,9 +506,11 @@ def contact_reply(mid):
     subject = 'Re: your message to NRI Parent Service'
     # force=True: this is a direct answer to something they wrote to us, not marketing, and the
     # category switches exist to stop us mailing people who did not ask to hear from us.
+    # Not account mail -- it used to be filed as such, which would have let it through the Gmail
+    # mailbox that is kept for sign-in and sign-up e-mails (see services/mailer).
     delivered = bool(mailer.send(subject, [m.email], body,
                                  reply_to=current_app.config.get('SUPPORT_EMAIL'),
-                                 category='account', force=True))
+                                 category='cs', force=True))
 
     db.session.add(ContactReply(message_id=m.id, author_id=current_user.id,
                                 body=body, delivered=delivered))
@@ -515,6 +524,9 @@ def contact_reply(mid):
 
     if delivered:
         flash('Reply sent to %s.' % m.email, 'success')
+    elif mailer.transport_for(False) is None:
+        flash('Reply saved, but not e-mailed: the Gmail mailbox is kept for sign-in and sign-up '
+              'e-mails only. Send it by WhatsApp or phone, or set up SendGrid for replies.', 'warning')
     else:
         flash('Reply saved, but the mail provider would not take it. Check the address and the '
               'mail settings — nothing was sent.', 'warning')
@@ -653,7 +665,7 @@ def posts():
             CompanionRequest.poster_name.ilike(pat), CompanionRequest.traveler_name.ilike(pat),
             CompanionRequest.airline.ilike(pat), CompanionRequest.flight_number.ilike(pat),
             CompanionRequest.additional_comments.ilike(pat),
-            CompanionRequest.contact_points.any(ContactPoint.value.ilike(pat)),
+            CompanionRequest.contact_points.any(phone_svc.matches(ContactPoint.value, q)),
             # A post made by a signed-in traveller leaves poster_name empty -- the name
             # lives on their account. The Person column already shows that username, so
             # searching for it has to find the post; without this, typing a name you can
@@ -1069,6 +1081,7 @@ def _activity_feed(events, trip=None):
     as names and routes rather than bare ids.
     """
     from app.models import Match
+    from app.services.admin_delete import MANUAL_EVENTS
 
     other_ids = {e.meta.get('other_trip_id') for e in events if e.meta and e.meta.get('other_trip_id')}
     match_ids = {e.match_id for e in events if e.match_id}
@@ -1104,7 +1117,10 @@ def _activity_feed(events, trip=None):
         them = ((other.poster_name or (other.author.username if other.author else None)
                  or f'post #{other.id}') if other else 'the other traveller')
         rows.append({
+            'id': e.id,
             'event': e.event,
+            # what a person typed (a note, "called") -- the rest is the audit trail and stays
+            'deletable': e.event in MANUAL_EVENTS,
             'label': _event_label(e.event, this, them),
             'when': e.created_at,
             'who': e.actor.username if e.actor else e.actor_type,
@@ -1203,7 +1219,8 @@ def post_tree(trip_id):
             add_dup(t, 'same source page')
     values = [cp.value for cp in trip.contact_points if cp.value and cp.type != 'inapp_chat']
     if values:
-        ids = {cp.trip_id for cp in ContactPoint.query.filter(ContactPoint.value.in_(values),
+        from app.services.contacts import same_contact
+        ids = {cp.trip_id for cp in ContactPoint.query.filter(same_contact(ContactPoint.value, values),
                                                               ContactPoint.trip_id.isnot(None),
                                                               ContactPoint.trip_id != trip.id).all()}
         for t in CompanionRequest.query.filter(CompanionRequest.id.in_(ids)).all():
@@ -1323,7 +1340,7 @@ def notifications():
         'cs/notifications.html', rows=rows, page=page, pages=pages, total=total, f=f,
         categories=[(c, notiflog.CATEGORY_LABELS[c]) for c in notiflog.CATEGORY_ORDER],
         groups=notiflog.SEND_GROUPS, cat_for_type=notiflog.CATEGORY_FOR_TYPE,
-        cat_labels=notiflog.CATEGORY_LABELS, base=url_for('cs.notifications'), can_delete=False)
+        cat_labels=notiflog.CATEGORY_LABELS, base=url_for('cs.notifications'), can_delete=current_user.is_admin)
 
 
 @cs_bp.route('/notifications/send', methods=['POST'])

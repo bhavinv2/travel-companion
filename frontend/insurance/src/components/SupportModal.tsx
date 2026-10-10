@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
 import { OptionCombo, PhoneCombo } from './CountryCombo';
+import { spokenNumber } from '../utils/phone';
 import { site } from '../data/site';
 
 const SUPPORT_EMAIL = 'support@nriparentservice.com';
@@ -36,6 +37,8 @@ export default function SupportModal() {
   const [email, setEmail] = useState('');
   // +1: the parents are in India, the person filling this in usually is not
   const [dial, setDial] = useState('+1');
+  // the country itself, not just its code: +1 alone cannot say US or Canada
+  const [iso, setIso] = useState('US');
   const [tel, setTel] = useState('');
   const [topic, setTopic] = useState(TOPICS[0]);
   const [via, setVia] = useState<(typeof VIA)[number]>('WhatsApp');
@@ -98,7 +101,9 @@ export default function SupportModal() {
           kind: 'support',
           name,
           email,
-          phone: `${dial} ${tel}`,
+          // the number and its country apart; the server normalises the pair to E.164
+          phone: tel.trim(),
+          phone_cc: iso,
           subject: topic,
           preferred: via,
           message,
@@ -173,7 +178,7 @@ export default function SupportModal() {
             <p className="fg">
               <label className="lbl" htmlFor="sp-tel">Phone / WhatsApp <span className="req">*</span></label>
               <span className="xtel">
-                <PhoneCombo dial={dial} onChange={(c) => setDial(`+${c.dial}`)} />
+                <PhoneCombo dial={dial} iso={iso} onChange={(c) => { setDial(`+${c.dial}`); setIso(c.iso); }} />
                 <span className="cfield" style={{ flex: 1 }}>
                   <Icon name="i-phone" className="ico s sm" />
                   <input className="cinp" id="sp-tel" type="tel" inputMode="tel" required

@@ -5,7 +5,7 @@ import { asset, site } from '../data/site';
    never list a third; the constants are the dev server's fallback and nothing else. */
 const SUPPORT_PHONES = [
   { label: 'India', display: '+91 80191 11360', digits: '918019111360' },
-  { label: 'USA', display: '+1 917 900 5094', digits: '19179005094' },
+  { label: 'USA', display: '+1 (917) 900-5094', digits: '19179005094' },
   { label: 'Canada', display: '+1 (647) 770-2288', digits: '16477702288' },
 ];
 const SUPPORT_EMAIL = 'support@nriparentservice.com';

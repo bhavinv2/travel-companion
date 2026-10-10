@@ -86,8 +86,10 @@ def clean(src):
     out['phone_cc'] = (src.get('phone_cc') or phone_svc.DEFAULT_ISO).strip().upper()
     if out['phone']:
         e164, error = phone_svc.normalise(out['phone'], out['phone_cc'])
-        # an unusable number is kept as typed rather than dropped: it is optional, and somebody
-        # reading the enquiry can still see what they meant
+        # Kept as typed when unusable, so a redrawn form shows what they wrote -- but the error
+        # travels with it, and main._validate_contact refuses the enquiry until it is fixed or
+        # cleared. It used to be stored as typed with nobody told, which is how numbers with no
+        # country code reached the inbox.
         out['phone'] = e164 or out['phone']
         out['phone_error'] = error
     allowed = {'topic': TOPICS, 'via': VIA, 'time': TIMES, 'zone': ZONES}

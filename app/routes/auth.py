@@ -55,7 +55,7 @@ def _safe_next(target):
 def send_verification_email(user):
     link = url_for('auth.verify_email', token=tokens.make_verify_token(user), _external=True)
     from app.services import messages
-    return messages.send_email('email_verify', [user.email], 'account', user=user, link=link,
+    return messages.send_email('email_verify', [user.email], 'account', account=True, user=user, link=link,
                                site_url=current_app.config['SITE_URL'],
                                support_email=current_app.config['SUPPORT_EMAIL'])
 
@@ -63,7 +63,7 @@ def send_verification_email(user):
 def send_password_reset_email(user):
     link = url_for('auth.reset_password', token=tokens.make_reset_token(user), _external=True)
     from app.services import messages
-    return messages.send_email('email_password_reset', [user.email], 'account', user=user, link=link,
+    return messages.send_email('email_password_reset', [user.email], 'account', account=True, user=user, link=link,
                                site_url=current_app.config['SITE_URL'],
                                support_email=current_app.config['SUPPORT_EMAIL'])
 
@@ -545,6 +545,43 @@ def forgot_password():
         flash('If an account exists for that e-mail, a reset link is on its way (valid for 2 hours).', 'info')
         return redirect(url_for('auth.login'))
     return render_template('auth/forgot.html')
+
+
+@auth_bp.route('/change-password', methods=['GET', 'POST'])
+@login_required
+@rate_limit(10, 900)
+def change_password():
+    """Change your own password while signed in: the current one, then the new one twice.
+
+    Before this the e-mailed reset link was the only way to change a password, so an account that
+    needed a new one -- an admin still on a default like "admin123" -- depended on e-mail working
+    to get it. An account that signed up through Google has no password yet; it can set one
+    here without being asked for a current one it never had.
+
+    Changing it also kills any reset link already sent: those are tied to the old password.
+    """
+    has_password = bool(current_user.password_hash)
+    if request.method == 'POST':
+        current = request.form.get('current') or ''
+        pw = request.form.get('password') or ''
+        error = None
+        if has_password and not current_user.check_password(current):
+            error = 'Your current password is not right.'
+        elif len(pw) < 8:
+            error = 'The new password must be at least 8 characters.'
+        elif pw != (request.form.get('confirm') or ''):
+            error = 'The two new passwords do not match.'
+        elif has_password and current_user.check_password(pw):
+            error = 'Choose a new password -- that one is the password you have now.'
+        if error:
+            flash(error, 'danger')
+            return render_template('auth/change_password.html', has_password=has_password), 400
+        current_user.set_password(pw)
+        ActivityEvent.log('password_changed', actor=current_user)
+        db.session.commit()
+        flash('Your password has been changed.', 'success')
+        return redirect(url_for('auth.change_password'))
+    return render_template('auth/change_password.html', has_password=has_password)
 
 
 @auth_bp.route('/reset/<token>', methods=['GET', 'POST'])

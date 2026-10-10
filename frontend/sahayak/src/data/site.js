@@ -21,8 +21,20 @@
  *   whatsapp?: string,
  *   waLink?: string,
  *   contactUrl?: string,
+ *   phoneRules?: Object<string, number[]>,
+ *   specializations?: {code: string, name: string, description: string}[],
+ *   qualifications?: string[],
  * }} */
 export const site = (typeof window !== 'undefined' && window.__SAHAYAK__) || {};
+
+/** The specialisations a family may ask for when booking -- Preventia's list, handed over by the
+ *  page. Empty when they could not be asked, and then the choice is simply not offered. */
+export const specializations = () => (Array.isArray(site.specializations) ? site.specializations : []);
+
+/** Who can join as a Sahayak: registered nurses with one of these. services/sahayak.QUALIFICATIONS
+ *  is the list the server holds an application to; this fallback is only for `npm run dev`. */
+export const QUALIFICATIONS = (site.qualifications && site.qualifications.length)
+  ? site.qualifications : ['B.Sc Nursing', 'GNM', 'ANM'];
 
 /** A published support line, or '' when staff have not set one. Never invented. */
 export const helpline = () => (site.phones && site.phones[0]) || null;

@@ -52,7 +52,7 @@
 
     {{ vt.contact_table(messages, 'admin.voice_status',
                         CONTACT_STATUSES, CONTACT_STATUS_LABELS, here(),
-                        topic_labels=CONTACT_TOPIC_LABELS) }}
+                        topic_labels=CONTACT_TOPIC_LABELS, can_delete=True) }}
 
     {% if c_pages > 1 %}
     <div class="pagination">
@@ -79,7 +79,7 @@
       &mdash; {{ 'the home page and the reviews page' if not site else REVIEW_SITE_LABELS[site] }}.
       Rejecting deletes it.</p>
 
-    {{ vt.feedback_table(feedbacks) }}
+    {{ vt.feedback_table(feedbacks, can_delete=True) }}
 
     {% if f_pages > 1 %}
     <div class="pagination">

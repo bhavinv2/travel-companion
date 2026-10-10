@@ -1,4 +1,6 @@
 {% extends 'base.html' %}
+{% from 'cs/_macros.html' import contact_cc_select with context %}
+{% from 'admin/_hard_delete.html' import del_btn %}
 {% block title %}Run #{{ run.id }} – {{ recipe.name }} – CS Console{% endblock %}
 {% block content %}
 <div class="admin-page">
@@ -9,6 +11,9 @@
       <div>
         <a class="btn-sm" href="{{ url_for('scraper.recipe_runs', recipe_id=recipe.id) }}"><i class="fa-solid fa-arrow-left"></i> Runs</a>
         <a class="btn-sm" href="{{ url_for('scraper.mapping', recipe_id=recipe.id, next=here()) }}"><i class="fa-solid fa-arrows-left-right"></i> Mapping</a>
+        {% if run.done %}{{ del_btn('scrape_run', run.id, 'run #' ~ run.id, tier='type', label='Delete run',
+            detail='Its scraped rows go with it. Posts already created are kept.',
+            redirect=url_for('scraper.recipe_runs', recipe_id=recipe.id)) }}{% endif %}
       </div>
     </div>
 
@@ -55,6 +60,8 @@
         <label class="flex-check" style="margin:0" title="Only when the person already confirmed with us — otherwise posts stay CS-only until the claim link is used"><input type="checkbox" name="publish_now"/> publish now</label>
         <button type="submit" class="btn btn-primary" data-action="create" data-url="{{ url_for('scraper.create_posts', run_id=run.id) }}" data-needs-selection {% if not counts.get('new', 0) %}disabled{% endif %}><i class="fa-solid fa-plus"></i> Create posts</button>
         <button type="submit" class="btn-sm" data-action="skip" data-url="{{ url_for('scraper.skip_rows', run_id=run.id) }}" data-needs-selection>Skip</button>
+        {# the ticked rows only, never "all new": a delete names exactly what it removes #}
+        <button type="button" class="btn-sm danger hd-bulk-del" data-hd-kind="scrape_row" data-hd-noun="scraped rows"><i class="fa-solid fa-trash-can"></i> Delete</button>
         <span class="spacer"></span>
         <button type="button" class="btn-sm" data-action="export-selected" data-base="{{ url_for('scraper.export_run', run_id=run.id) }}" data-mapped="0"><i class="fa-solid fa-file-excel"></i> Export {{ 'selected' }} / run (raw)</button>
         <button type="button" class="btn-sm" data-action="export-selected" data-base="{{ url_for('scraper.export_run', run_id=run.id) }}" data-mapped="1"><i class="fa-solid fa-file-excel"></i> mapped</button>
@@ -65,8 +72,8 @@
         <thead><tr><th><input type="checkbox" id="selectAllRows"/></th><th>Row</th><th>Status</th><th>Person</th><th>Route</th><th>Departs</th><th>Flight</th><th>Role</th><th>Languages</th><th>Contact</th><th>Notes</th><th></th></tr></thead>
         <tbody>
         {% for r in rows %}{% set p = previews.get(r.id, {}) %}
-          <tr id="srow-{{ r.id }}" class="row-{{ r.status }} {{ 'row-error' if p.errors }} {{ 'row-edited' if (r.data or {}).get('_edits') }}">
-            <td><input type="checkbox" class="inc" name="include" value="{{ r.id }}" {% if r.status != 'new' %}disabled{% endif %}/></td>
+          <tr id="srow-{{ r.id }}" data-hd-row="scrape_row-{{ r.id }}" class="row-{{ r.status }} {{ 'row-error' if p.errors }} {{ 'row-edited' if (r.data or {}).get('_edits') }}">
+            <td><input type="checkbox" class="inc" data-hd-kind="scrape_row" name="include" value="{{ r.id }}" {% if r.status != 'new' %}disabled{% endif %}/></td>
             <td data-label="Row"><strong>#{{ r.id }}</strong><br/><small class="muted">{{ (r.data or {}).get('_fetched_at', '')[:10] }}</small></td>
             <td data-label="Status">
               <span class="chip {{ {'new': 'chip-src', 'duplicate': 'chip-unconfirmed', 'imported': 'chip-open', 'skipped': 'chip-closed'}.get(r.status, 'chip-src') }}">{{ r.status }}</span>{% if (r.data or {}).get('_edits') %} <span class="chip chip-open" title="Has manual corrections">edited</span>{% endif %}
@@ -78,12 +85,13 @@
             <td data-label="Flight">{{ p.airline or '' }} {{ p.flight_number or '' }}</td>
             <td data-label="Role">{{ TRIP_ROLE_LABELS.get(p.role, p.role or '') }}</td>
             <td data-label="Languages">{{ (p.languages or [])|join(', ') }}</td>
-            <td data-label="Contact" class="ci-cell">{% for c in p.contacts or [] %}<span class="ci ci-pending" title="{{ c.value }}"><i class="{{ CONTACT_TYPE_ICONS.get(c.type) }}"></i></span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+            <td data-label="Contact" class="ci-cell">{% for c in p.contacts or [] %}<span class="ci ci-pending" title="{{ c.value|contact_display(c.type) }}"><i class="{{ CONTACT_TYPE_ICONS.get(c.type) }}"></i></span>{% else %}<span class="muted">—</span>{% endfor %}</td>
             <td data-label="Notes"><small>{% for e in p.errors or [] %}<span class="urgent">{{ e }}</span><br/>{% endfor %}{% for w in p.warnings or [] %}<span class="muted">{{ w }}</span><br/>{% endfor %}</small></td>
             <td class="row-actions">
               <button type="button" class="btn-sm" onclick="viewRow({{ r.id }})">View</button>
               {% if r.status in ('new', 'skipped') %}<button type="button" class="btn-sm" onclick="viewRow({{ r.id }}, 'edit')" title="Fix spellings or change any value before the post is created">Edit</button>{% endif %}
               {% if r.status == 'new' %}<a class="btn-sm" href="{{ url_for('cs.new_post', scrape_row=r.id) }}" title="Open prefilled in the post form to fix or complete it">Post form</a>{% endif %}
+              {{ del_btn('scrape_row', r.id, 'row #' ~ r.id) }}
             </td>
           </tr>
         {% else %}
@@ -99,7 +107,9 @@
 <div class="modal-overlay" id="rowModal" style="display:none">
   <div class="modal-box" style="max-width:780px;max-height:90vh;overflow:auto">
     <button class="modal-close" id="closeRowModal">&times;</button>
-    <h2 style="display:flex;align-items:center;gap:10px;justify-content:flex-start">Scraped row <span id="rowModalId" class="muted"></span> <span class="chip chip-open" id="rowModalEdited" style="display:none">edited</span></h2>
+    <h2 style="display:flex;align-items:center;gap:10px;justify-content:flex-start">Scraped row <span id="rowModalId" class="muted"></span> <span class="chip chip-open" id="rowModalEdited" style="display:none">edited</span>
+      {# its id is filled in by scraper.js renderRowModal #}
+      <span id="rowModalDel" style="margin-left:auto">{{ del_btn('scrape_row', 0, 'this scraped row', label='Delete row') }}</span></h2>
 
     <div class="row-modal-tabs">
       <button type="button" class="btn-sm" id="rowTab-view" onclick="showRowTab('view')"><i class="fa-solid fa-eye"></i> Post preview</button>
@@ -125,5 +135,9 @@
     </div>
   </div>
 </div>
+{# The country picker the row editor puts beside a phone (scraper.js renderRowModal). The same
+   one the contact rows use; it starts on "Country?", because a scraped number with no + says
+   nothing about where it is from and nothing here may guess. #}
+<template id="rowCcTpl">{{ contact_cc_select('', existing=true) }}</template>
 {% endblock %}
 {% block extra_js %}<script src="{{ url_for('static', filename='js/scraper.js') }}"></script>{% endblock %}

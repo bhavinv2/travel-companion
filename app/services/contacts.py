@@ -25,6 +25,71 @@ def detect_type(value):
     return 'other'
 
 
+# A WhatsApp link carries the full international number, without its +, in one of these shapes.
+_WA_LINK = re.compile(r'(?:wa\.me/|whatsapp\.com/send/?\?(?:[^#]*&)?phone=)\+?(\d{7,15})', re.I)
+# What the contact rows' picker treats as "this is a phone number" -- the rule in
+# cs/_macros.html _contactRowIsPhone, kept identical so the server only applies a country the
+# screen actually showed beside the number.
+_PHONE_SHAPE = re.compile(r'[\d\s().+-]+')
+
+
+def looks_like_phone(value):
+    v = (value or '').strip()
+    digits = re.sub(r'[^\d]', '', v)
+    return 7 <= len(digits) <= 15 and bool(_PHONE_SHAPE.fullmatch(v))
+
+
+def _phone_text(v):
+    """The number inside a phone/WhatsApp value. A wa.me link is always international, so it gets
+    its + back and no chosen country is applied to it -- read as a national number, "wa.me/46764498115"
+    with the US picked became +146764498115. A label typed in front ("whatsapp: 0764...") is dropped."""
+    m = _WA_LINK.search(v)
+    if m:
+        return '+' + m.group(1)
+    return re.sub(r'^[^\d+]+', '', v)
+
+
+def is_wa_link(value):
+    return bool(_WA_LINK.search(value or ''))
+
+
+# How many trailing digits identify a phone number however it was stored. Nine is the national
+# number for most of the countries the site serves, and short enough that a code typed or not,
+# a + or none, a trunk 0 or none, all leave it unchanged.
+_TAIL = 9
+
+
+def phone_tail(value):
+    """The last nine digits of a phone-shaped value, or ''. +919876543210, 919876543210,
+    09876543210 and 9876543210 all end in 876543210 -- which is the point."""
+    v = _phone_text((value or '').strip())
+    digits = re.sub(r'[^\d]', '', v)
+    if len(digits) < _TAIL or not (v.startswith('+') or looks_like_phone(v)):
+        return ''
+    return digits[-_TAIL:]
+
+
+def same_contact(column, values):
+    """SQL: `column` holds one of `values` -- exactly, or, for a phone, the same number however it
+    was stored. None when there is nothing to look for.
+
+    Numbers typed into a form are stored as E.164 now, but imported and scraped ones (and rows
+    saved before) keep bare digits, since nobody chose a country for them. An exact comparison
+    stopped seeing that "+919876543210" and "9876543210" are one person -- and the duplicate
+    and shared-contact checks are exactly where that matters.
+    """
+    from sqlalchemy import func, or_
+    vals = [v for v in values if v]
+    conds = [column.in_(vals)] if vals else []
+    tails = {phone_tail(v) for v in vals} - {''}
+    if tails:
+        digits = column
+        for ch in (' ', '-', '(', ')', '.', '+'):
+            digits = func.replace(digits, ch, '')
+        conds += [digits.like('%' + t) for t in sorted(tails)]
+    return or_(*conds) if conds else None
+
+
 def normalize_value(ctype, value, iso=None):
     """The stored form of a contact value.
 
@@ -37,7 +102,8 @@ def normalize_value(ctype, value, iso=None):
     if ctype == 'email':
         return v.lower()
     if ctype in ('mobile', 'whatsapp'):
-        if iso:
+        v = _phone_text(v)
+        if iso and not v.startswith('+'):
             from app.services import phone as phone_svc
             e164, err = phone_svc.normalise(v, iso)
             if e164 and not err:
@@ -129,6 +195,12 @@ def parse_contact_rows(form_or_json):
             continue
         if not value:
             continue  # blank row
+        # The row's country counts only where the screen showed its picker: a row chosen as
+        # Mobile/WhatsApp, or a "Detect" row whose value reads as a bare number. Every row SUBMITS
+        # a country (the lists must stay in step), so without this a hidden default was quietly
+        # applied to values nobody saw it beside.
+        chosen = (r.get('cc') or '').strip().upper() or None
+        shown = ctype in ('mobile', 'whatsapp') or (ctype in ('auto', '') and looks_like_phone(value))
         if ctype == 'auto' or not ctype:
             ctype = detect_type(value)
         ok, err = validate(ctype, value)
@@ -137,7 +209,7 @@ def parse_contact_rows(form_or_json):
             continue
         rows.append({
             'type': ctype,
-            'value': normalize_value(ctype, value, (r.get('cc') or '').strip().upper() or None),
+            'value': normalize_value(ctype, value, chosen if shown else None),
             'label': (r.get('label') or '').strip()[:100],
             'consent': bool(r.get('consent')),
         })

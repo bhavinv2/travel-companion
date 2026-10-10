@@ -44,6 +44,7 @@ SECTIONS = [
             _item('voices_feedback', 'admin.voices', 'Feedback', 'fa-star', tab='feedback'),
             _item('voices_report', 'admin.voices', 'Reports', 'fa-flag-checkered', tab='report'),
             _item('landing', 'admin.landing_page', 'Landing page', 'fa-flag'),
+            _item('blog_list', 'admin.blog_list', 'Blog posts', 'fa-newspaper'),
             _item('blog', 'admin.new_blog', 'New blog post', 'fa-pen'),
             _item('help', 'admin.help_center_page', 'Help & FAQ', 'fa-circle-question'),
         ],

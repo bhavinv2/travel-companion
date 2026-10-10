@@ -83,10 +83,14 @@ function usePopover() {
 
 /** Flag + dial-code searchable picker, matching the original "expert form" mobile field. */
 export function PhoneCombo({
-  dial, onChange,
-}: BaseProps & { dial: string; onChange: (c: Country) => void }) {
+  dial, iso, onChange,
+}: BaseProps & { dial: string; iso?: string; onChange: (c: Country) => void }) {
   const { boxRef, searchRef, open, toggle, query, setQuery, rows, place } = usePopover();
-  const current = COUNTRIES.find((c) => `+${c.dial}` === dial) ?? COUNTRIES.find((c) => c.name === 'India')!;
+  // The ISO wins when there is one: +1 is the US, Canada and a dozen islands, so a dial code alone
+  // redrew "United States" as whichever of them came first in the list.
+  const current = (iso ? COUNTRIES.find((c) => c.iso === iso) : undefined)
+    ?? COUNTRIES.find((c) => `+${c.dial}` === dial)
+    ?? COUNTRIES.find((c) => c.name === 'India')!;
 
   return (
     <div className="itel" id="x-itel" ref={boxRef}>

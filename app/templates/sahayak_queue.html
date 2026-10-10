@@ -2,6 +2,8 @@
 {# Sahayak bookings. One screen for both consoles: CS works the queue, admin reads it.
    `endpoint` and `sidebar` are all that differ, so the two can never drift into showing
    different things about the same request. #}
+{% set can_delete = current_user.is_admin %}
+{% from 'admin/_hard_delete.html' import del_btn, row_check, select_all, bulk_bar %}
 {% block title %}Sahayak bookings{% endblock %}
 {% block content %}
 <div class="admin-page">
@@ -41,17 +43,18 @@
 
     <p class="admin-count"><b>{{ total }}</b> booking{{ '' if total == 1 else 's' }}{{ ' in this view' if (status or service or q) }}</p>
 
+    {% if can_delete %}{{ bulk_bar('sahayak_booking', 'bookings') }}{% endif %}
     <div class="admin-panel">
-    <div class="table-wrap">
     <div class="table-wrap">
       <table class="admin-table stack-mobile sk-queue">
         <thead>
-          <tr><th>When</th><th>Service</th><th>Patient</th><th>Contact</th><th>Where</th>
+          <tr>{% if can_delete %}<th class="hd-pick">{{ select_all('sahayak_booking') }}</th>{% endif %}<th>When</th><th>Service</th><th>Patient</th><th>Contact</th><th>Where</th>
               <th>Status</th><th>Sahayak</th><th>Actions</th></tr>
         </thead>
         <tbody>
           {% for b in bookings %}
-          <tr id="sk-{{ b.id }}">
+          <tr id="sk-{{ b.id }}" data-hd-row="sahayak_booking-{{ b.id }}">
+            {% if can_delete %}<td class="hd-pick" data-label="">{{ row_check('sahayak_booking', b.id) }}</td>{% endif %}
             <td data-label="When" class="nowrap">
               <strong>{{ b.when_display }}</strong>
               {% if b.when_type == 'asap' %}<span class="sk-asap">ASAP</span>{% endif %}
@@ -83,19 +86,22 @@
               <input type="text" class="sk-assignee" data-id="{{ b.id }}" value="{{ b.assigned_to_name or '' }}"
                      placeholder="Name" aria-label="Sahayak assigned to booking {{ b.id }}">
               {% if b.assigned_by %}<br/><small class="muted">by {{ b.assigned_by.username }}</small>{% endif %}</td>
-            <td data-label="Actions" class="nowrap row-actions">
+            <td data-label="Actions" class="row-actions {{ 'hd-wrap' if can_delete else 'nowrap' }}">
               {% if b.status in ('new', 'assigned') %}
               <button class="btn-sm" data-sk-act="assigned" data-id="{{ b.id }}">Assign</button>
               <button class="btn-sm" data-sk-act="completed" data-id="{{ b.id }}">Done</button>
               <button class="btn-sm danger" data-sk-act="cancelled" data-id="{{ b.id }}">Cancel</button>
-              {% else %}
+              {% elif not can_delete %}
               <span class="muted">—</span>
               {% endif %}
+              {# `lead` is from the Status cell: only a booking that reached Preventia has a copy there #}
+              {% if can_delete %}{{ del_btn('sahayak_booking', b.id, 'the booking for ' ~ b.patient_name,
+                  detail=('The copy already sent to Preventia is not deleted.' if lead and lead.ok else '')) }}{% endif %}
             </td>
           </tr>
           {% if b.notes or b.cs_notes %}
-          <tr class="sk-notes-row">
-            <td colspan="8">
+          <tr class="sk-notes-row" data-hd-also="sahayak_booking-{{ b.id }}">
+            <td colspan="{{ 9 if can_delete else 8 }}">
               {% if b.notes %}<div class="sk-note-fam"><b>From the family:</b> {{ b.notes }}</div>{% endif %}
               <label class="sk-note-cs"><span>Internal note</span>
                 <input type="text" class="sk-cs-note" data-id="{{ b.id }}" value="{{ b.cs_notes or '' }}"
@@ -104,7 +110,7 @@
           </tr>
           {% endif %}
           {% else %}
-          <tr><td colspan="8" class="admin-empty">
+          <tr><td colspan="{{ 9 if can_delete else 8 }}" class="admin-empty">
             <i class="fa-regular fa-calendar-check"></i>
             {{ 'No bookings match this view.' if (status or service or q) else 'Nothing in this queue.' }}
           </td></tr>

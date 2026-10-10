@@ -18,7 +18,8 @@ from datetime import datetime, date
 from app import db
 from app.models import CompanionRequest, ContactPoint, ActivityEvent, TRIP_ROLES, PREF_GENDERS
 from app.services.locations import normalize_location
-from app.services.contacts import detect_type, normalize_value, validate
+from app.services.contacts import (detect_type, is_wa_link, normalize_value, phone_tail,
+                                   same_contact, validate)
 
 COLUMN_ALIASES = {
     'title': ['title', 'subject'],
@@ -218,6 +219,7 @@ def build_row(canon, idx, default_source='website'):
     """Turn one parsed record into a normalised, validated import row."""
     canon = {k: ('' if isinstance(v, str) and is_empty_value(v) else v) for k, v in (canon or {}).items()}
     row = {'idx': idx, 'errors': [], 'warnings': [], 'contacts': []}
+    key_parts = []   # the contact values the import key is hashed from -- see below
     origin = normalize_location(canon.get('origin', ''))
     dest = normalize_location(canon.get('destination', ''))
     from_date = parse_date(canon.get('start'))
@@ -252,13 +254,18 @@ def build_row(canon, idx, default_source='website'):
         ctype = {'email': 'email', 'phone': 'mobile', 'facebook': 'facebook'}.get(col) or detect_type(v)
         ok, err = validate(ctype, v)
         if ok:
-            row['contacts'].append({'type': ctype, 'value': normalize_value(ctype, v)})
+            stored = normalize_value(ctype, v)
+            row['contacts'].append({'type': ctype, 'value': stored})
+            # what the import key hashes. A wa.me link is stored with its + now, which is right,
+            # but the key was always hashed without it; hashing the new form would make every
+            # sheet imported before this change look like new rows when uploaded again.
+            key_parts.append(stored.lstrip('+') if is_wa_link(v) else stored)
         else:
             row['warnings'].append(f'{col}: {err}')
     key = canon.get('import_key') or ''
     if not key:
         basis = '|'.join([row['source_url'], row['flying_from'], row['destination'], row['from_date'] or '',
-                          ';'.join(c['value'] for c in row['contacts'])])
+                          ';'.join(key_parts)])
         key = hashlib.sha1(basis.encode('utf-8')).hexdigest()
     row['import_key'] = key[:64]
 
@@ -289,8 +296,13 @@ def annotate_duplicates(rows):
     values = [c['value'] for r in rows for c in r['contacts']]
     known = {}
     if values:
-        for cp in ContactPoint.query.filter(ContactPoint.value.in_(values), ContactPoint.trip_id.isnot(None)).all():
+        # same_contact: a number already on a post as "+919876543210" is the same contact as
+        # "9876543210" in the sheet. Keyed by value AND by phone tail so either finds it.
+        for cp in ContactPoint.query.filter(same_contact(ContactPoint.value, values),
+                                            ContactPoint.trip_id.isnot(None)).all():
             known.setdefault(cp.value, cp.trip_id)
+            if phone_tail(cp.value):
+                known.setdefault('tail:' + phone_tail(cp.value), cp.trip_id)
     seen_keys = set()
     for r in rows:
         if r['import_key'] in existing:
@@ -303,8 +315,9 @@ def annotate_duplicates(rows):
             r['status'] = 'error' if r['errors'] else 'ok'
         seen_keys.add(r['import_key'])
         for c in r['contacts']:
-            if c['value'] in known:
-                r['warnings'].append(f"Contact {c['value']} already on post #{known[c['value']]}")
+            hit = known.get(c['value']) or known.get('tail:' + phone_tail(c['value'])) if c['value'] else None
+            if hit:
+                r['warnings'].append(f"Contact {c['value']} already on post #{hit}")
     return rows
 
 

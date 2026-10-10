@@ -74,13 +74,13 @@
     <div class="admin-card" id="departing">
       <div class="card-head"><h2><i class="fa-solid fa-plane-departure"></i> 1 · Departing in the next 7 days</h2>
         <a class="btn-sm" href="{{ url_for('cs.posts', days=7) }}">See all</a></div>
-      {{ posts_table(departing_soon, empty='No departures in the next 7 days.') }}
+      {{ posts_table(departing_soon, empty='No departures in the next 7 days.', can_delete=current_user.is_admin) }}
     </div>
 
     <div class="admin-card" id="new">
       <div class="card-head"><h2><i class="fa-solid fa-sparkles"></i> 2 · New in the last 48 hours</h2>
         <a class="btn-sm" href="{{ url_for('cs.posts', sort='newest') }}">See all</a></div>
-      {{ posts_table(new_posts, empty='No new posts.') }}
+      {{ posts_table(new_posts, empty='No new posts.', can_delete=current_user.is_admin) }}
     </div>
 
     <div class="admin-card" id="repeats">
@@ -109,7 +109,7 @@
     <div class="admin-card" id="awaiting">
       <div class="card-head"><h2><i class="fa-solid fa-hourglass-half"></i> 5 · Awaiting claim (unconfirmed)</h2>
         <a class="btn-sm" href="{{ url_for('cs.posts', status='unconfirmed') }}">See all</a></div>
-      {{ posts_table(awaiting_claim[:20], show_status=False, empty='No unconfirmed posts.') }}
+      {{ posts_table(awaiting_claim[:20], show_status=False, empty='No unconfirmed posts.', can_delete=current_user.is_admin) }}
     </div>
 
     <div class="admin-card" id="closed">

@@ -420,3 +420,14 @@ def test_a_click_in_the_queue_reads_the_whole_post(client, app, db, cs_user):
     assert 'data-post="%d" data-unread' % other.trip_a_id in html
     # a second click changes nothing
     assert client.post('/cs/posts/%d/matches/read' % a.id).get_json()['match_ids'] == []
+
+
+def test_the_list_being_viewed_is_not_shown_as_new_on_it(client, db, admin_user):
+    """The mark that clears the quotes count is written after the page renders, so the button on
+    the quotes list itself used to say "1 new" about the list it was sitting on."""
+    quote()
+    login(client, 'admin@test.com')
+    html = client.get('/admin/insurance-quotes').data.decode()
+    item = html.split('data-key="insurance"', 1)[1].split('</a>', 1)[0]
+    assert 'class="wn-n" hidden' in item
+    assert 'nothing new' in item

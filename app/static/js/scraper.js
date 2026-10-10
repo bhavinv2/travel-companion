@@ -180,7 +180,11 @@ function renderMappedPreview(el, p, message) {
   add('Role', p.role);
   add('Languages', p.languages);
   add('Needs', p.needs);
-  add('Contacts', (p.contacts || []).map(c => `${c.type}: ${c.value}`));
+  // display: a phone spaced so its country code is findable (services/contacts.display); a scraped
+  // number with no + has no country in it, and says so rather than looking dialable
+  add('Contacts', (p.contacts || []).map(c => `${c.type}: ${c.display || c.value}` +
+    ((c.type === 'mobile' || c.type === 'whatsapp') && !String(c.value || '').startsWith('+')
+      ? ' (no country code)' : '')));
   add('Comments', [p.title, p.message].filter(Boolean).join(' — '));
   add('Source', `${p.source} ${p.source_url || ''}`);
   if ((p.errors || []).length) { const dt = document.createElement('dt'); dt.textContent = 'Errors'; const dd = document.createElement('dd'); dd.className = 'urgent'; dd.textContent = p.errors.join(' '); el.append(dt, dd); }
@@ -197,10 +201,14 @@ if (rowsForm) {
     const n = boxes().filter(b => b.checked).length;
     if (count) count.textContent = n;
     rowsForm.querySelectorAll('[data-needs-selection]').forEach(b => { b.disabled = n === 0 && !rowsForm.querySelector('input[name=select]:checked'); });
+    // Delete takes the ticked rows only -- "all N new rows" is not a list it can name
+    rowsForm.querySelectorAll('.hd-bulk-del').forEach(b => { b.disabled = n === 0; });
   };
   master?.addEventListener('change', () => { boxes().forEach(b => { b.checked = master.checked; }); update(); });
   boxes().forEach(b => b.addEventListener('change', update));
   rowsForm.querySelector('input[name=select]')?.addEventListener('change', update);
+  // rows deleted (static/js/hard-delete.js) are gone from the table: count again
+  document.addEventListener('hard-delete:done', (e) => { if (e.detail.kind === 'scrape_row') update(); });
   update();
   rowsForm.querySelectorAll('[data-action]').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -241,6 +249,8 @@ function showRowTab(tab) {
 function renderRowModal() {
   const d = _rowModal;
   document.getElementById('rowModalId').textContent = `#${d.row.id}`;
+  const del = document.querySelector('#rowModalDel .hd-del');
+  if (del) del.dataset.hdId = d.row.id;
   const hasEdits = Object.keys(d.edits || {}).length > 0;
   document.getElementById('rowModalEdited').style.display = hasEdits ? '' : 'none';
   document.getElementById('rowEditReset').style.display = hasEdits ? '' : 'none';
@@ -275,7 +285,30 @@ function renderRowModal() {
     inp.dataset.base = d.base[f.key] || '';
     if ((d.edits || {})[f.key] !== undefined) inp.classList.add('edited-input');
     if (!d.editable) inp.disabled = true;
-    wrap.append(lab, inp);
+    // Phone, and Contact when what is in it is a number: a country picker beside the box, so the
+    // number can be saved with its code. Not the shared phone field -- its script strips
+    // everything but digits, which would wreck an e-mail typed into Contact.
+    const tpl = document.getElementById('rowCcTpl');
+    if ((f.key === 'phone' || f.key === 'contact') && tpl) {
+      const box = document.createElement('div');
+      box.className = 'cr-val row-cc';
+      const cc = tpl.content.querySelector('select').cloneNode(true);
+      cc.dataset.ccFor = f.key;
+      cc.removeAttribute('name');
+      // A plain <select>, not searchselect.js's searchable one: that draws its list inside the
+      // page, and in this modal it opened behind the modal where it could not be clicked. A native
+      // list is drawn by the browser, above everything. Set before insertion, so it is skipped.
+      cc.setAttribute('data-no-search', '');
+      if (!d.editable) cc.disabled = true;
+      const sync = () => box.classList.toggle('is-phone',
+        f.key === 'phone' ? !!inp.value.trim() : _rowLooksLikePhone(inp.value));
+      inp.addEventListener('input', sync);
+      sync();
+      box.append(cc, inp);
+      wrap.append(lab, box);
+    } else {
+      wrap.append(lab, inp);
+    }
     grid.appendChild(wrap);
   });
 
@@ -291,6 +324,13 @@ function renderRowModal() {
     if (!target || target === 'ignore') tdM.className = 'muted';
     tr.append(tdK, tdV, tdM); tb.appendChild(tr);
   });
+}
+
+// The same rule as services/contacts.detect_type 'mobile' and the contact rows' picker.
+function _rowLooksLikePhone(v) {
+  v = (v || '').trim();
+  const n = v.replace(/\D/g, '');
+  return n.length >= 7 && n.length <= 15 && /^[\d\s().+-]+$/.test(v);
 }
 
 function updateRowCells(id, p, hasEdits) {
@@ -311,6 +351,18 @@ document.getElementById('rowEditSave')?.addEventListener('click', async () => {
   document.querySelectorAll('#rowEditGrid [data-key]').forEach(el => {
     const v = el.value.trim();
     if (v !== (el.dataset.base || '').trim()) edits[el.dataset.key] = v;
+  });
+  // A country picked beside a number goes with it -- and takes the number along even when the
+  // digits were not retyped, or picking "India" for an unchanged scraped number would be thrown
+  // away as "no difference".
+  document.querySelectorAll('#rowEditGrid select[data-cc-for]').forEach(sel => {
+    const key = sel.dataset.ccFor;
+    const box = sel.closest('.row-cc');
+    const num = document.querySelector(`#rowEditGrid [data-key="${key}"]`);
+    if (sel.value && box && box.classList.contains('is-phone') && num && num.value.trim()) {
+      edits[key] = num.value.trim();
+      edits[key + '_cc'] = sel.value;
+    }
   });
   const res = await apiFetch(`/cs/scraper/api/rows/${_rowModal.row.id}/edit`, { method: 'POST', body: JSON.stringify({ edits }) });
   const d = await res.json();
@@ -336,3 +388,9 @@ document.getElementById('rowEditReset')?.addEventListener('click', async () => {
 });
 
 document.getElementById('closeRowModal')?.addEventListener('click', () => { document.getElementById('rowModal').style.display = 'none'; });
+// the row open in the modal was deleted from it: nothing left to show
+document.addEventListener('hard-delete:done', (e) => {
+  if (e.detail.kind === 'scrape_row' && _rowModal && e.detail.ids.includes(String(_rowModal.row.id))) {
+    document.getElementById('rowModal').style.display = 'none';
+  }
+});

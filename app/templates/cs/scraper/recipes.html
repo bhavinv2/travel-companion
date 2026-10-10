@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'admin/_hard_delete.html' import del_btn %}
 {% block title %}Web scraper – CS Console{% endblock %}
 {% block content %}
 <div class="admin-page">
@@ -16,7 +17,7 @@
         <thead><tr><th>Recipe</th><th>Type</th><th>Rows</th><th>Last run</th><th>Schedule</th><th></th></tr></thead>
         <tbody>
         {% for r in recipes %}{% set c = counts[r.id] %}
-          <tr>
+          <tr data-hd-row="scrape_recipe-{{ r.id }}">
             <td data-label="Recipe">
               <a href="{{ url_for('scraper.recipe_runs', recipe_id=r.id) }}"><strong>{{ r.name }}</strong></a>
               {% if not r.is_active %} <span class="chip chip-closed">inactive</span>{% endif %}<br/>
@@ -38,6 +39,8 @@
               <a class="btn-sm" href="{{ url_for('scraper.recipe_runs', recipe_id=r.id) }}">Runs &amp; rows</a>
               <a class="btn-sm" href="{{ url_for('scraper.mapping', recipe_id=r.id) }}">Mapping</a>
               {% if r.mode == 'recipe' %}<a class="btn-sm" href="{{ url_for('scraper.recipe_form', recipe_id=r.id) }}">Edit</a>{% endif %}
+              {% if not c.active %}{{ del_btn('scrape_recipe', r.id, 'the recipe "' ~ r.name ~ '"', tier='type',
+                  detail='All its runs and scraped rows go with it. Posts already created are kept.') }}{% endif %}
             </td>
           </tr>
         {% else %}

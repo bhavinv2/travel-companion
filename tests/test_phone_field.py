@@ -31,6 +31,22 @@ FORMS = ['/contact-us', '/auth/register']
     ('91 98480 00000', 'IN', '+919848000000'),      # code typed without the plus
     ('917 900 5094', 'US', '+19179005094'),
     ('416 555 0199', 'CA', '+14165550199'),         # a country the site did not used to know
+    # A national number that happens to START with its own country code. These were stored with
+    # the code eaten -- "91234 56789" became +9123456789, a different and undialable number.
+    ('91234 56789', 'IN', '+919123456789'),
+    ('91000 12345', 'IN', '+919100012345'),
+    ('919848000000', 'IN', '+919848000000'),        # twelve digits is still code + number
+    ('6512 3456', 'SG', '+6565123456'),
+    ('65 6512 3456', 'SG', '+6565123456'),
+    ('501234567', 'AE', '+971501234567'),
+    ('97150 1234567', 'AE', '+971501234567'),
+    ('12125550101', 'US', '+12125550101'),
+    ('07911 123456', 'GB', '+447911123456'),
+    # 011 is how the US and Canada dial out -- but in India it is Delhi's area code
+    ('011 91 98480 00000', 'US', '+919848000000'),
+    ('011 2345 6789', 'IN', '+911123456789'),
+    # "(0)" marks a trunk 0 that is dropped from abroad
+    ('+44 (0)20 7946 0958', 'GB', '+442079460958'),
 ])
 def test_whatever_was_typed_is_stored_dialable(app, raw, iso, expected):
     assert phone.normalise(raw, iso)[0] == expected
@@ -149,7 +165,10 @@ def test_a_country_we_are_unsure_of_keeps_what_staff_typed():
     """A London landline groups 20 7946 0958 and a mobile 7700 900123; guessing one rule for
     both prints something no British reader recognises."""
     assert phone.pretty('+442079460958', '+44 20 7946 0958') == '+44 20 7946 0958'
-    assert phone.pretty('+61412345678', '0412 345 678') == '0412 345 678'
+    # ...but only spacing that carries the country code: "0412 345 678" read as a number with
+    # no country, the one thing the spacing exists to prevent
+    assert phone.pretty('+61412345678', '0412 345 678') == '+61 412345678'
+    assert phone.pretty('+46764498115', '076 449 8115') == '+46 764498115'
     # with nothing to fall back on, the dialling code is still split off -- a reader has to be
     # able to see where +44 ends even when we cannot group the rest
     assert phone.pretty('+442079460958') == '+44 2079460958'
@@ -234,7 +253,10 @@ def test_the_countries_we_do_know_keep_their_own_spelling():
 def test_a_number_a_human_has_already_spaced_is_left_alone():
     """Somebody who wrote it out knows their own country's grouping better than this does."""
     assert phone.pretty('+442079460958', '+44 20 7946 0958') == '+44 20 7946 0958'
-    assert phone.pretty('+61412345678', '0412 345 678') == '0412 345 678'
+    # ...but only spacing that carries the country code: "0412 345 678" read as a number with
+    # no country, the one thing the spacing exists to prevent
+    assert phone.pretty('+61412345678', '0412 345 678') == '+61 412345678'
+    assert phone.pretty('+46764498115', '076 449 8115') == '+46 764498115'
     # but a run of digits as the fallback is no better than no fallback
     assert phone.pretty('+46764498115', '0764498115') == '+46 764498115'
 
@@ -259,3 +281,10 @@ def test_a_sahayak_booking_is_stored_the_same_way_every_other_number_is(client, 
     booking = SahayakBooking.query.get(r.get_json()['booking_id'])
     assert booking.phone == '+46764498115'
     assert phone.pretty(booking.phone) == '+46 764498115'
+
+
+@pytest.mark.parametrize('stored', ['9175551234', '0764498115', '18155085888'])
+def test_a_number_with_no_plus_is_shown_as_stored(stored):
+    """No + means no country is known. Formatting it invented one -- "9175551234" was printed as
+    "+91 75551234" in the staff lists, India, for what may be a US number."""
+    assert phone.pretty(stored, stored) == stored

@@ -11,7 +11,13 @@
 {% macro phone_field(name='phone', value='', iso='', label='Phone / WhatsApp', required=false,
                      id='', hint='', autocomplete='tel') %}
 {% set fid = id or ('pf-' ~ name) %}
-{% set chosen = (iso or PHONE.iso_for(value) or PHONE.DEFAULT_ISO)|upper %}
+{# The country to show. `iso` when the caller knows it (a redraw after an error should pass back
+   the <name>_cc that was submitted). Otherwise read it off the value -- but only a value that
+   carries its +: iso_for reads a STORED number, and on a national number it matches whatever code
+   the first digits happen to resemble ("98480 00000" is Iran, "(416) 555-0199" Switzerland). A
+   visitor who picked India and saw Iran on the redraw would resubmit a wrong number. #}
+{% set _v = (value or '')|string|trim %}
+{% set chosen = (iso or (PHONE.iso_for(_v) if _v.startswith('+') else '') or PHONE.DEFAULT_ISO)|upper %}
 {% set popular, rest = PHONE.choices() %}
 <div class="pf" data-phone-field>
   {# label='' for a page that draws its own above the field (the sign-up form's has an icon) #}

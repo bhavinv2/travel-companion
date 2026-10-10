@@ -16,7 +16,7 @@
       <div class="form-row">
         <div class="field-group"><label>First name</label><input type="text" name="first_name" value="{{ form.get('first_name', '') }}"/></div>
         <div class="field-group"><label>Last name</label><input type="text" name="last_name" value="{{ form.get('last_name', '') }}"/></div>
-        <div class="field-group">{{ phone_field(label='Phone', value=form.get('phone', '')) }}</div>
+        <div class="field-group">{{ phone_field(label='Phone', value=form.get('phone', ''), iso=form.get('phone_cc', '')) }}</div>
       </div>
       <div class="form-row">
         <div class="field-group"><label>Password <span class="optional">(blank = generate)</span></label><input type="text" name="password" value="" autocomplete="off" placeholder="min. 8 characters"/></div>

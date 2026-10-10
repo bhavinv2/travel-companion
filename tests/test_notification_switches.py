@@ -76,16 +76,18 @@ def test_partial_by_channel_email_off(client, user, other_user, db):
     assert m.needs_cs_attention is False and mailer.OUTBOX == []
 
 
-def test_account_emails_have_their_own_switch(client, user, db):
-    mailer.OUTBOX.clear()
-    _off(enabled=True, categories={'match_alerts': False, 'chat': False})
+def test_account_emails_cannot_be_switched_off(client, user, db):
+    """They used to have a switch of their own, and turning it -- or the e-mail channel, or
+    everything -- off silently stopped password reset for everybody. Sign-in and sign-up mail is
+    not a notification; it is how people get into their own accounts."""
     login(client, 'bob@test.com')
-    client.post('/auth/resend-verification', data={})
-    assert mailer.OUTBOX and mailer.OUTBOX[-1]['category'] == 'account'
-    mailer.OUTBOX.clear()
-    _off(enabled=True, categories={'account': False})
-    client.post('/auth/resend-verification', data={})
-    assert mailer.OUTBOX == []
+    for switches in ({'enabled': True, 'categories': {'account': False}},
+                     {'enabled': True, 'channels': {'email': False}},
+                     {'enabled': False}):
+        mailer.OUTBOX.clear()
+        _off(**switches)
+        client.post('/auth/resend-verification', data={})
+        assert mailer.OUTBOX and mailer.OUTBOX[-1]['category'] == 'account', switches
 
 
 def test_broadcast_and_blog_respect_switches(client, admin_user, user, db):

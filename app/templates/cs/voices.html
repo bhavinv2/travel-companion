@@ -65,7 +65,7 @@
     <div class="table-wrap">
     {{ vt.contact_table(items, 'cs.contact_status',
                         CONTACT_STATUSES, CONTACT_STATUS_LABELS, here(), with_notes=True,
-                        topic_labels=CONTACT_TOPIC_LABELS) }}
+                        topic_labels=CONTACT_TOPIC_LABELS, can_delete=current_user.is_admin) }}
 
     {% if pages > 1 %}
     <div class="pagination">
@@ -81,7 +81,7 @@
     {% elif tab == 'feedback' %}
     <p class="muted small vc-note"><strong>Approve</strong> accepts a review; the <strong>&#9733; Feature</strong> toggle hand-picks which approved reviews appear on the public home page (up to 6, newest first &mdash; until you feature any, the newest approved ones show). Rejecting deletes the review.</p>
 
-    {{ vt.feedback_table(feedbacks) }}
+    {{ vt.feedback_table(feedbacks, can_delete=current_user.is_admin) }}
 
     {% if f_pages > 1 %}
     <div class="pagination">

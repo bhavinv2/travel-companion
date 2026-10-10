@@ -301,6 +301,7 @@
             {% if current_user.is_influencer or current_user.is_admin %}
               <a href="{{ url_for('main.promo_dashboard') }}"><i class="fa-solid fa-chart-line"></i> {{ _('Promotion dashboard') }}</a>
             {% endif %}
+              <a href="{{ url_for('auth.change_password') }}"><i class="fa-solid fa-key"></i> {{ _('Change password') }}</a>
               {# a form, not a link: signing somebody out is a state change, and a GET one can
                  be triggered by any page that can make this browser fetch a URL #}
               <form method="post" action="{{ url_for('auth.logout') }}" class="menu-logout">
@@ -508,6 +509,12 @@
   {% endblock %}
   <script src="{{ url_for('static', filename='js/insurance.js') }}"></script>
   <script src="{{ url_for('static', filename='js/contact-modal.js') }}"></script>
+  {# Hard delete, for admins only: the type-DELETE dialog once per page and the one script every
+     delete button uses (templates/admin/_hard_delete.html). Never sent to anybody else. #}
+  {% if current_user.is_authenticated and current_user.is_admin %}
+    {% include 'admin/_confirm_delete.html' %}
+    <script src="{{ url_for('static', filename='js/hard-delete.js') }}" defer></script>
+  {% endif %}
   {% block extra_js %}{% endblock %}
 </body>
 </html>

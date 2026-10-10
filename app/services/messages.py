@@ -92,10 +92,14 @@ def render_subject(key, **ctx):
     return render_string(effective(key)['subject'], **ctx)
 
 
-def send_email(key, recipients, category, **ctx):
-    """Render + send a registered e-mail template through the normal mailer gate."""
+def send_email(key, recipients, category, account=False, **ctx):
+    """Render + send a registered e-mail template through the normal mailer gate.
+
+    account=True for sign-in/sign-up mail -- see services/mailer: never switched off, and the only
+    kind the Gmail mailbox carries."""
     from app.services import mailer
-    return mailer.send(render_subject(key, **ctx), recipients, render_body(key, **ctx), category=category)
+    return mailer.send(render_subject(key, **ctx), recipients, render_body(key, **ctx),
+                       category=category, account=account)
 
 
 def save_override(key, subject, body, actor=None):

@@ -15,6 +15,10 @@ from app.services import settings
 
 SETTING_KEY = 'sahayak_catalogue'
 
+# Who can join as a Sahayak. Only registered nurses, and only these three routes into nursing:
+# the page, the application form and the server all read this one list.
+QUALIFICATIONS = ('B.Sc Nursing', 'GNM', 'ANM')
+
 # The FAQ category the public page reads, managed on the ordinary Admin -> Help & FAQ screen.
 FAQ_CATEGORY = 'sahayak'
 
@@ -198,6 +202,18 @@ def services():
     if rows is None:
         return [dict(zip(FIELDS, row)) for row in DEFAULT_SERVICES]
     return [dict(r) for r in rows]
+
+
+def specializations():
+    """The specialisations a family may ask for when booking, from Preventia; [] when it cannot
+    be asked (the page then simply does not offer the choice)."""
+    from app.services import preventia
+    return preventia.specializations() or []
+
+
+def specialization(code):
+    """The specialisation with this code, or None."""
+    return next((s for s in specializations() if s['code'] == code), None)
 
 
 def by_key(key):

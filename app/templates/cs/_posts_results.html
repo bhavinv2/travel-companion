@@ -8,5 +8,6 @@
    never noticed that filters had been applied. #}
 {{ saved_filter_bar(saved_views, saved_listing, filter_chips, active_view) }}
 {{ filter_chip_row(filter_chips, url_for('cs.posts')) }}
-{{ posts_table(posts, empty='No posts match these filters.', tree=True) }}
+{{ posts_table(posts, empty='No posts match these filters.', tree=True,
+               can_delete=current_user.is_admin, bulk=True) }}
 {% include 'admin/_pager.html' %}

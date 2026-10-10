@@ -55,7 +55,8 @@ export default function QuoteModal() {
         destination: form.destination,
         ages: form.ages.slice(0, form.travellers),
         email: form.email,
-        phone: form.phone ? `${form.dial} ${form.phone}`.trim() : '',
+        phone: form.phone.trim(),
+        phoneCc: form.cc,
       });
       if (cancelled) return;
       if (res.url) {
@@ -196,7 +197,7 @@ export default function QuoteModal() {
                 <div className="fg">
                   <label className="lbl" htmlFor="m-tel">Mobile number</label>
                   <span className="tel">
-                    <DialSelect id="m-dial" value={form.dial} onChange={(v) => setForm({ dial: v })} />
+                    <DialSelect id="m-dial" value={form.cc} onChange={(v) => setForm({ cc: v })} />
                     <span className="iw" style={{ flex: 1 }}><Icon name="i-mobile" className="ico sm" />
                       <input className="inp" id="m-tel" type="tel" placeholder="00000 00000" value={form.phone} onChange={(e) => setForm({ phone: e.target.value })} />
                     </span>

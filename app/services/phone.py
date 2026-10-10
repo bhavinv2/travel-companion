@@ -168,6 +168,24 @@ DEFAULT_ISO = 'US'
 # A national number is 4-14 digits; with the code, E.164 allows at most 15.
 _DIGITS = re.compile(r'[^0-9]')
 MIN_NATIONAL = 6
+
+# How long the national number is, for countries where it is fixed. Used for one decision only:
+# whether digits that BEGIN with the country's own code are that code typed without the plus, or
+# a national number that happens to start with those digits. Prefix and a minimum length cannot
+# tell them apart -- "91234 56789" is an ordinary Indian mobile, and was stored as +9123456789,
+# the 91 eaten as the country code. Length can: ten digits is the number, twelve is code+number.
+# Only fixed-length plans are listed; anywhere else the old rule stands.
+_NATIONAL_LEN = {
+    '1': 10,     # US, Canada and the rest of the North American plan
+    '91': 10,    # India
+    '971': 9,    # UAE mobiles
+    '966': 9,    # Saudi Arabia
+    '65': 8,     # Singapore -- "6512 3456" is a landline, not +65 123456
+    '974': 8, '965': 8, '973': 8, '968': 8,   # Qatar, Kuwait, Bahrain, Oman
+    '44': 10,    # UK, without its trunk 0
+    '61': 9,     # Australia, without its trunk 0
+    '852': 8,    # Hong Kong
+}
 MAX_E164 = 15
 
 
@@ -252,14 +270,23 @@ def pretty(e164, fallback=''):
     d = _DIGITS.sub('', e164 or '')
     if not d:
         return fallback
+    if not (e164 or '').strip().startswith('+'):
+        # No + means no country is known -- a row saved before numbers were normalised, as bare
+        # national digits. Formatting it would invent one: "9175551234" printed as "+91 75551234",
+        # India, for what may well be a US number. Shown as stored, the not-knowing stays visible.
+        return (fallback or e164 or '').strip()
     for code in sorted(_GROUPS, key=len, reverse=True):
         if d.startswith(code):
             out = _GROUPS[code](d[len(code):])
             if out:
                 return out
             break
-    if fallback and ' ' in fallback.strip():
-        return fallback
+    # Somebody's own spacing is kept for a country we have no grouping rule for -- a London number
+    # reads "20 7946 0958", and a guess would print something no Briton recognises. But only when
+    # it carries the country code: "076 449 8115" for a Swedish number was shown exactly so, and
+    # the whole point of the spacing is that the code can be found.
+    if fallback and ' ' in fallback.strip() and fallback.strip().startswith('+'):
+        return fallback.strip()
     code, rest = split_dial(d)
     return '+%s %s' % (code, rest) if code else '+' + d
 
@@ -273,6 +300,9 @@ def normalise(number, iso=DEFAULT_ISO):
     raw = (number or '').strip()
     if not raw:
         return '', None
+    # "(0)" is how a number written for both audiences marks its trunk 0: dialled at home, dropped
+    # from abroad -- "+44 (0)20 7946 0958". Kept, it made an undialable +440207946...
+    raw = raw.replace('(0)', ' ')
 
     country = BY_ISO.get((iso or '').upper()) or BY_ISO[DEFAULT_ISO]
     dial = country['dial']
@@ -282,8 +312,17 @@ def normalise(number, iso=DEFAULT_ISO):
     else:
         digits = _DIGITS.sub('', raw)
         # 00 is how much of the world writes +
+        national_len = _NATIONAL_LEN.get(dial)
         if digits.startswith('00'):
             digits = digits[2:]
+        elif dial == '1' and digits.startswith('011') and len(digits) > 3 + MIN_NATIONAL:
+            # 011 is how the US and Canada dial out, the way most of the world uses 00. Only for
+            # +1: in India 011 is Delhi's area code, and "011 2345 6789" is a Delhi number.
+            digits = digits[3:]
+        elif national_len and len(digits.lstrip('0')) == national_len:
+            # exactly a national number's length: it IS the national number, even when its
+            # first digits match the country code (see _NATIONAL_LEN)
+            digits = dial + digits.lstrip('0')
         elif digits.startswith(dial) and len(digits) > len(dial) + MIN_NATIONAL - 1:
             pass                      # they typed the code without the plus
         else:
@@ -302,6 +341,75 @@ def normalise(number, iso=DEFAULT_ISO):
     if len(digits) - len(code) < MIN_NATIONAL:
         return '', 'That number looks too short. Check the digits after the country code.'
     return '+' + digits, None
+
+
+_PHONEISH = re.compile(r'[\d\s()+.\-]+')
+
+
+def search_digits(q):
+    """The digits to look for when a search box is given something shaped like a phone number,
+    else ''. "+91 98765 43210", "(214) 555-0101" and "0091 98765 43210" all qualify; "Ravi" and
+    "ravi@x.com" do not. Leading zeros -- an 00 international prefix or a national trunk 0 -- are
+    dropped, because the stored E.164 has neither. Fewer than six digits is not a phone search."""
+    q = (q or '').strip()
+    if not q or not _PHONEISH.fullmatch(q):
+        return ''
+    d = _DIGITS.sub('', q).lstrip('0')
+    return d if len(d) >= MIN_NATIONAL else ''
+
+
+def search_condition(column, q):
+    """A SQL condition: `column` holds the phone number `q` describes, or None if q is not one.
+
+    The screens show numbers spaced ("+91 98765 43210") and store them without spaces, so a
+    number copied off the page and pasted into a search box used to find nothing. Both sides
+    are compared as bare digits; rows saved before numbers were normalised, spaced or bracketed,
+    are found too.
+    """
+    d = search_digits(q)
+    if not d:
+        return None
+    from sqlalchemy import func
+    expr = column
+    for ch in (' ', '-', '(', ')', '.', '+'):
+        expr = func.replace(expr, ch, '')
+    return expr.like('%' + d + '%')
+
+
+def matches(column, q):
+    """`column` ILIKE %q% -- or, when q is shaped like a phone number, the same digits however
+    either side is spaced. The drop-in for a search box that also searches phone numbers."""
+    from sqlalchemy import or_
+    like = column.ilike('%' + (q or '').strip() + '%')
+    digits = search_condition(column, q)
+    return like if digits is None else or_(like, digits)
+
+
+# How many digits follow the country code, for the countries where that is fixed enough to check.
+# Stricter than normalise(), which takes any six or more: a form a family fills in to have somebody
+# ring them back is better told "that is one digit short" than handed a number nobody can dial.
+# Ranges where a country really has two lengths -- UAE landlines are 8 and mobiles 9, UK numbers
+# 9 or 10 -- so a correct number is never refused.
+NATIONAL_RANGE = {
+    '1': (10, 10), '91': (10, 10), '971': (8, 9), '966': (9, 9), '65': (8, 8),
+    '974': (8, 8), '965': (8, 8), '973': (8, 8), '968': (8, 8), '44': (9, 10),
+    '61': (9, 9), '852': (8, 8),
+}
+
+
+def length_error(e164):
+    """A plain-words complaint when a normalised number has the wrong number of digits for its
+    country, or None. Only for the countries in NATIONAL_RANGE; elsewhere normalise() decides."""
+    code, national = split_dial(e164 or '')
+    if not code:
+        return None
+    low, high = NATIONAL_RANGE.get(code, (None, None))
+    if low is None or low <= len(national) <= high:
+        return None
+    want = str(low) if low == high else '%d or %d' % (low, high)
+    country = next((c['name'] for c in BY_ISO.values() if c['dial'] == code and c['iso'] in POPULAR), None) \
+        or next((c['name'] for c in BY_ISO.values() if c['dial'] == code), 'that country')
+    return 'A number in %s has %s digits after +%s -- this one has %d.' % (country, want, code, len(national))
 
 
 def is_valid(number, iso=DEFAULT_ISO):

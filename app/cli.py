@@ -700,18 +700,19 @@ def register(app):
 
         # ---- contact enquiries in all three states (Voices > Contact, for CS and admin) ----
         enquiries = [
-            ('Bhavani Devi', 'bhavani.devi@example.com', '+91 98490 11223',
+            # E.164, as the real forms store numbers -- the screens space them for reading
+            ('Bhavani Devi', 'bhavani.devi@example.com', '+919849011223',
              'I posted for my son travelling BLR to SEA but cannot log in any more - the password reset '
              'email never arrives. Can you help?', 'new', None, 0.2, None, None),
             ('Prakash Rao', 'prakash.rao@example.com', None,
              'Is there a way to search only for companions on Emirates flights via Dubai?', 'new', None, 1, None, None),
-            ('Meera Iyer', 'meera.iyer@example.com', '+1 408 555 0188',
+            ('Meera Iyer', 'meera.iyer@example.com', '+14085550188',
              'A member I matched with shared a phone number that seems out of service. What should I do next?',
              'in_progress', cs, 2, 'Called the other party once - no answer. Will retry tomorrow and update both sides.', None),
             ('Sunil Varma', 'sunil.varma@example.com', None,
              'Please delete my old post from March; the trip already happened.', 'closed', cs, 6,
              'Post closed on request, confirmation sent by email.', None),
-            ('Uma Desis', 'user@connectingdesis.com', '+1 214 555 0170',
+            ('Uma Desis', 'user@connectingdesis.com', '+12145550170',
              'Loving the site - just wanted to say the new matching explanations are very clear!', 'closed',
              admin, 9, 'Thanked her; forwarded to the team channel.', 'user@connectingdesis.com'),
         ]
@@ -785,7 +786,7 @@ def register(app):
         # the same phone number on both posts -> the "repeated contact" queue lights up
         for p in (p1, p2):
             if not any(c.type == 'mobile' for c in p.contact_points):
-                db.session.add(ContactPoint(trip=p, type='mobile', value='+91 90000 11223',
+                db.session.add(ContactPoint(trip=p, type='mobile', value='+919000011223',
                                             consent_to_share=False, added_by='cs'))
 
         # a post departing in 2 days with nothing consented -> the "needs action" queue

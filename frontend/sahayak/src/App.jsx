@@ -9,7 +9,7 @@ import FinderModal from './components/ServiceFinder.jsx';
 import { BecomeHeroCard, NeedHeroCard } from './components/HeroCard.jsx';
 import { scrollToId } from './hooks.js';
 import { site } from './data/site.js';
-import heroNeed from './assets/hero-need.jpg';
+import heroEco from './assets/hero-care-ecosystem.jpg';
 import heroBecome from './assets/hero-become.jpg';
 import logoMark from './assets/logo-mark.png';
 
@@ -17,15 +17,15 @@ import logoMark from './assets/logo-mark.png';
 const JOURNEY = {
   need: {
     label: 'Book a Sahayak', short: 'Book', sub: 'A professional with your parents',
-    icon: 'homeHeart', art: heroNeed,
-    say: 'A qualified health professional takes each step with your parents — the check, the '
-       + 'test, the appointment, the medicines — and every step is recorded for you to read.',
+    icon: 'homeHeart', art: heroEco,
+    say: 'A registered nurse takes each step with your parents — the check, the test, the '
+       + 'appointment, the medicines — and every step is recorded for you to read.',
   },
   become: {
-    label: 'Join as a Sahayak', short: 'Join', sub: 'For health professionals',
+    label: 'Join as a Sahayak', short: 'Join', sub: 'For B.Sc Nursing, GNM & ANM nurses',
     icon: 'userPlus', art: heroBecome,
-    say: 'Take the assignments you are qualified for, close to home, with the app guiding '
-       + 'every step and a doctor reviewing the record you leave behind.',
+    say: 'Registered nurses take assignments matched to their qualification, close to home, '
+       + 'with the app guiding every step and a doctor reviewing the record.',
   },
 };
 // The switch button always advertises the *other* journey, in that journey's colour.
@@ -234,7 +234,7 @@ function Footer({ mode, onSwitch }) {
               <img src={logoMark} alt="" width="200" height="161" />
               <BrandLockup className="ftr-logo-tx" />
             </a>
-            <p>Qualified health professionals who take each step with your parents at home, and a record of it that reaches you — so you can be there, even from miles away.</p>
+            <p>Registered nurses who take each step with your parents at home, and a record of it that reaches you — so you can be there, even from miles away.</p>
           </div>
           <div>
             <h4>For families</h4>
@@ -286,21 +286,27 @@ function Heroes({ openBook, onApply }) {
   return (
     <div id="top">
       <div className="m-need">
-        <section className="bh">
-          <img className="bh-blur" src={heroNeed} alt="" aria-hidden="true" />
-          <img className="bh-bg" src={heroNeed} alt="A Sahayak in uniform smiling with an elderly mother at her home" />
+        {/* The care-ecosystem picture is a whole story -- the nurse at the centre, and around her
+            the video consultation, the hospital, the readings, the lab, the medicines, the ride --
+            so it is shown whole, framed beside the copy, rather than as a backdrop the copy and
+            its fade would cover half of. */}
+        <section className="bh bh-eco">
+          <img className="bh-blur" src={heroEco} alt="" aria-hidden="true" />
           <div className="wrap bh-in">
             <div className="bh-copy">
               <div className="rise"><span className="hero-script">Someone qualified beside them — even from miles away.</span></div>
-              <span className="eyebrow rise d1"><i></i>Sahayak · Professional health assistance</span>
+              <span className="eyebrow rise d1"><i></i>Sahayak · Registered nurses at home</span>
               <h1 className="bh-h">
                 <span className="ln"><span className="l1">Health Assistance,</span></span>
                 <span className="ln"><span className="l2"><span className="t">At Every</span> <span className="b">Step<Underline /></span><span className="dt">.</span></span></span>
               </h1>
-              <p className="lead rise d3">A qualified health professional takes each step with your parents — the check, the test, the appointment, the medicines — and every step is logged as it happens, so you see it without having to ask.</p>
+              <p className="lead rise d3">A registered nurse takes each step with your parents — the check, the test, the appointment, the medicines — and every step is logged as it happens, so you see it without having to ask.</p>
             </div>
+            <figure className="bh-eco-art rise d4">
+              <img src={heroEco} width="1672" height="941"
+                   alt="A Sahayak nurse with an elderly mother, surrounded by what a Sahayak handles: video consultations, hospital visits, vitals, lab samples, medicines and rides to appointments" />
+            </figure>
           </div>
-          <HeroBadge />
         </section>
         <NeedHeroCard openBook={openBook} />
       </div>
@@ -311,13 +317,13 @@ function Heroes({ openBook, onApply }) {
           <div className="wrap bh-in">
             <div className="bh-copy">
               <div className="rise"><span className="hero-script">Your training, where it is actually needed.</span></div>
-              <span className="eyebrow rise d1"><i></i>Sahayak · For health professionals</span>
+              <span className="eyebrow rise d1"><i></i>Sahayak · For B.Sc Nursing, GNM &amp; ANM nurses</span>
               <h1 className="bh-h">
-                <span className="ln"><span className="l1">Your Health Training</span></span>
+                <span className="ln"><span className="l1">Your Nursing Training</span></span>
                 <span className="ln"><span className="l1 l1b">Belongs Beside a Family</span></span>
                 <span className="ln"><span className="l2"><span className="t">at</span> <span className="b">Home<Underline /></span><span className="dt">.</span></span></span>
               </h1>
-              <p className="lead rise d3">Join Sahayak as a health professional. Take assignments you are qualified for, close to home, with the app guiding each step and a doctor reviewing the record.</p>
+              <p className="lead rise d3">Join Sahayak if you hold a B.Sc Nursing, GNM or ANM qualification. Take assignments matched to your training, close to home, with the app guiding each step and a doctor reviewing the record.</p>
             </div>
           </div>
           <HeroBadge />

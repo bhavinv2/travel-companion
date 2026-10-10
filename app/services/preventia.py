@@ -101,6 +101,23 @@ def clear_cache():
     _cache.clear()
 
 
+def specializations():
+    """What a Sahayak can specialise in -- elder care, post-surgery care -- in their order.
+
+    [{'code', 'name', 'description', 'id'}], or None when it cannot be asked. Families choose one
+    when they book, so it is offered only when this answers: an invented list would let somebody
+    ask for a specialisation nobody can send.
+    """
+    data = _get('specializations', {'role': ROLE})
+    if data is None:
+        return None
+    rows = [s for s in data if isinstance(s, dict) and (s.get('code') or s.get('name'))
+            and (s.get('role') or ROLE) == ROLE]
+    rows.sort(key=lambda s: (s.get('sortOrder') is None, s.get('sortOrder') or 0, s.get('name') or ''))
+    return [{'code': (s.get('code') or s.get('name'))[:60], 'name': (s.get('name') or s.get('code'))[:80],
+             'description': (s.get('description') or '')[:200], 'id': s.get('id')} for s in rows]
+
+
 # ---------------------------------------------------------------------------
 # Leads (§2.8) -- the only thing we send them
 # ---------------------------------------------------------------------------

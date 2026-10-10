@@ -373,13 +373,18 @@ def toggle_recipe(recipe_id):
 @login_required
 @admin_required
 def delete_recipe(recipe_id):
+    from app.services import admin_delete
     rec = ScrapeRecipe.query.get_or_404(recipe_id)
     if rec.active_run:
         flash('Cancel the running job first.', 'danger')
         return redirect(url_for('scraper.recipes'))
-    db.session.delete(rec)   # runs and rows cascade; created posts are untouched
-    db.session.commit()
-    flash(f'Recipe "{rec.name}" and its scraped rows were deleted. Posts already created are kept.', 'success')
+    name = rec.name
+    # the same delete as every other button: logged, and the saved browser session goes too
+    out = admin_delete.hard_delete('scrape_recipe', [rec.id], current_user)
+    if out['skipped']:
+        flash(out['skipped'][0]['error'], 'danger')
+        return redirect(url_for('scraper.recipes'))
+    flash(f'Recipe "{name}" and its scraped rows were deleted. Posts already created are kept.', 'success')
     return redirect(url_for('scraper.recipes'))
 
 
@@ -512,7 +517,11 @@ def row_edit(row_id):
     if row.status not in ('new', 'skipped'):
         return jsonify({'error': 'This row is already a post - edit the post itself instead.'}), 400
     payload = request.get_json(silent=True) or {}
-    scraper.set_row_edits(row, payload.get('edits') or {}, current_user)
+    try:
+        scraper.set_row_edits(row, payload.get('edits') or {}, current_user)
+    except ValueError as e:
+        # a number that could not be made dialable with the country picked; nothing was saved
+        return jsonify({'error': str(e)}), 400
     mapped = scraper.preview_rows([row], row.recipe)[0]
     return jsonify({'success': True, 'edits': (row.data or {}).get('_edits', {}), 'mapped': mapped})
 

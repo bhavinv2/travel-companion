@@ -10,7 +10,8 @@ export interface QuoteForm {
   residence: string;
   name: string;
   email: string;
-  dial: string;
+  /** country of the phone number, an ISO code -- see DialSelect */
+  cc: string;
   phone: string;
   purpose: string;
   preExisting: 'no' | 'yes';
@@ -27,7 +28,7 @@ const initialForm: QuoteForm = {
   residence: 'India',
   name: '',
   email: '',
-  dial: '+91',
+  cc: 'IN',
   phone: '',
   purpose: 'Visiting family',
   preExisting: 'no',

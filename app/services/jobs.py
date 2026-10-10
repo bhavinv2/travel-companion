@@ -107,15 +107,13 @@ def run_retention(today=None):
              .filter(CompanionRequest.source != 'organic', CompanionRequest.claimed_at.is_(None),
                      CompanionRequest.user_id.is_(None), CompanionRequest.from_date.isnot(None),
                      CompanionRequest.from_date < today - timedelta(days=1)).all())
+    # The admin hard delete's cascade, not one of its own: this used to delete matches without
+    # their parties and leave scraped rows pointing at the post, which PostgreSQL refuses -- and
+    # since the whole job commits once, one stale imported post rolled the entire run back.
+    from app.services import admin_delete
+    purged_files = []
     for t in stale:
-        if t.ticket_attachment:
-            delete_private(t.ticket_attachment)
-        Match.query.filter((Match.trip_a_id == t.id) | (Match.trip_b_id == t.id)).delete(synchronize_session=False)
-        for c in ConnectionRequest.query.filter_by(trip_id=t.id).all():
-            Notification.query.filter_by(connection_id=c.id).update({'connection_id': None})
-            db.session.delete(c)
-        ActivityEvent.query.filter_by(trip_id=t.id).delete(synchronize_session=False)
-        db.session.delete(t)   # contact points and claim tokens cascade
+        admin_delete.delete_post_cascade(t, purged_files)
         result['unconfirmed_deleted'] += 1
 
     cutoff = datetime.utcnow() - timedelta(days=60)
@@ -132,6 +130,8 @@ def run_retention(today=None):
     for run in ScrapeRun.query.filter(ScrapeRun.created_at < scrape_cutoff, ScrapeRun.result.isnot(None)).all():
         run.result = None   # detect/preview payloads carry sample rows
     db.session.commit()
+    # only now: a rolled-back run must not have destroyed the tickets it would have kept
+    admin_delete.remove_files(purged_files)
     return result
 
 

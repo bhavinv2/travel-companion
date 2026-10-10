@@ -4,21 +4,27 @@
    they wrote in the middle, state and the actions you can take on the right. Reviews and
    the CS console render from here too, so the four panes cannot drift apart again.
 
-   Only the endpoints differ between admin and CS, so they are passed in.
+   Only the endpoints differ between admin and CS, so they are passed in -- and can_delete, the
+   admin-only checkboxes and trash buttons (admin/_hard_delete.html), since an agent sees these
+   same tables. The checkbox shares the When cell rather than taking a column: the CS inbox was
+   already as wide as the screen beside the console menu, and a column more pushed the actions
+   off it.
 #}
+{% from 'admin/_hard_delete.html' import del_btn, row_check, select_all, bulk_bar %}
 
-{% macro contact_table(messages, status_endpoint, statuses, labels, next_url, with_notes=False, topic_labels={}) %}
+{% macro contact_table(messages, status_endpoint, statuses, labels, next_url, with_notes=False, topic_labels={}, can_delete=False) %}
+{% if can_delete %}{{ bulk_bar('contact_message', 'enquiries') }}{% endif %}
 <table class="admin-table vc-table">
   <thead>
     <tr>
-      <th>When</th><th>About</th><th>From</th><th>Message</th>
+      <th class="nowrap">{% if can_delete %}{{ select_all('contact_message') }} {% endif %}When</th><th>About</th><th>From</th><th>Message</th>
       <th>Status</th><th>Handled by</th><th>Move to</th>
     </tr>
   </thead>
   <tbody>
   {% for m in messages %}
-    <tr{% if m.is_unread %} class="vc-unread" data-read="contact/{{ m.id }}"{% endif %}>
-      <td class="nowrap">{% if m.is_unread %}<span class="vc-new-dot" title="You have not opened this yet">New</span><br/>{% endif %}{{ m.created_at|ist('%d %b %Y<br/>%H:%M')|safe if m.created_at }}</td>
+    <tr data-hd-row="contact_message-{{ m.id }}"{% if m.is_unread %} class="vc-unread" data-read="contact/{{ m.id }}"{% endif %}>
+      <td class="nowrap">{% if can_delete %}<span class="vc-pick">{{ row_check('contact_message', m.id) }}</span>{% endif %}{% if m.is_unread %}<span class="vc-new-dot" title="You have not opened this yet">New</span><br/>{% endif %}{{ m.created_at|ist('%d %b %Y<br/>%H:%M')|safe if m.created_at }}</td>
       {# which service the enquiry came from: the insurance page writes into this same inbox #}
       <td class="nowrap"><span class="cm-topic cm-topic-{{ m.topic or 'companion' }}">{{ topic_labels.get(m.topic, 'Travel companion') }}</span></td>
       {# The phone sits under the e-mail rather than in a column of its own: eight columns did not
@@ -36,7 +42,7 @@
           <b><i class="fa-solid fa-reply"></i>
             {{ r.author.username if r.author else 'CS' }} &middot;
             {{ r.created_at|ist('%d %b, %H:%M') if r.created_at }}</b>
-          {% if not r.delivered %}<em>not sent &mdash; the mail provider refused it</em>{% endif %}
+          {% if not r.delivered %}<em>not sent by e-mail</em>{% endif %}
           <span>{{ r.body }}</span>
         </div>
         {% endfor %}
@@ -60,6 +66,8 @@
           {% for s in statuses if s != m.status %}
           <button type="submit" name="status" value="{{ s }}" class="btn-sm-outline">{{ labels[s] }}</button>
           {% endfor %}
+          {% if can_delete %}{{ del_btn('contact_message', m.id, 'the enquiry from ' ~ m.name, tier='type',
+                                        detail='Its replies go with it. A reply already e-mailed is not unsent.') }}{% endif %}
         </form>
       </td>
     </tr>
@@ -124,20 +132,22 @@
 {% endmacro %}
 
 
-{% macro feedback_table(feedbacks) %}
+{% macro feedback_table(feedbacks, can_delete=False) %}
+{# Reject is already the single delete; can_delete adds deleting several at once. #}
+{% if can_delete %}{{ bulk_bar('feedback', 'reviews') }}{% endif %}
 <table class="admin-table vc-table">
   <thead>
     <tr>
       {# No "Decided by": a Feedback row records no approver, and a column that is
          always a dash is noise rather than structure. #}
-      <th>When</th><th>From</th><th>About</th><th>Rating</th><th>Review</th>
+      <th class="nowrap">{% if can_delete %}{{ select_all('feedback') }} {% endif %}When</th><th>From</th><th>About</th><th>Rating</th><th>Review</th>
       <th>Status</th><th>Home page</th><th>Move to</th>
     </tr>
   </thead>
   <tbody>
   {% for fb in feedbacks %}
-    <tr id="fb-{{ fb.id }}"{% if fb.is_unread %} class="vc-unread" data-read="feedback/{{ fb.id }}"{% endif %}>
-      <td class="nowrap">{% if fb.is_unread %}<span class="vc-new-dot" title="You have not opened this yet">New</span><br/>{% endif %}{{ fb.created_at|ist('%d %b %Y<br/>%H:%M')|safe if fb.created_at }}</td>
+    <tr id="fb-{{ fb.id }}" data-hd-row="feedback-{{ fb.id }}"{% if fb.is_unread %} class="vc-unread" data-read="feedback/{{ fb.id }}"{% endif %}>
+      <td class="nowrap">{% if can_delete %}<span class="vc-pick">{{ row_check('feedback', fb.id) }}</span>{% endif %}{% if fb.is_unread %}<span class="vc-new-dot" title="You have not opened this yet">New</span><br/>{% endif %}{{ fb.created_at|ist('%d %b %Y<br/>%H:%M')|safe if fb.created_at }}</td>
       <td><strong>{{ fb.user.username if fb.user else 'A traveller' }}</strong>
         {% if fb.user %}<br/><a href="mailto:{{ fb.user.email }}">{{ fb.user.email }}</a>{% endif %}</td>
       <td class="nowrap"><span class="badge-pill {{ 'green' if fb.site == 'insurance' else 'yellow' if fb.site == 'sahayak' }}">{{ fb.site_label }}</span></td>
@@ -173,16 +183,17 @@
 
 
 {% macro report_table(reports, can_delete=False) %}
+{% if can_delete %}{{ bulk_bar('match_report', 'reports') }}{% endif %}
 <table class="admin-table vc-table rp-table">
   <thead>
-    <tr><th>When</th><th>Reporter</th><th>Match</th><th>Problem</th><th>Status</th><th>Actions</th></tr>
+    <tr><th class="nowrap">{% if can_delete %}{{ select_all('match_report') }} {% endif %}When</th><th>Reporter</th><th>Match</th><th>Problem</th><th>Status</th><th>Actions</th></tr>
   </thead>
   <tbody>
   {% for r in reports %}
     {% set m = r.match %}
     <tr id="rp-{{ r.id }}" class="{{ 'rp-open' if r.status == 'open' }}{{ ' vc-unread' if r.is_unread }}"
-        {%- if r.is_unread %} data-read="report/{{ r.id }}"{% endif %}>
-      <td class="nowrap" data-label="When">{% if r.is_unread %}<span class="vc-new-dot" title="You have not opened this yet">New</span><br/>{% endif %}{{ r.created_at|ist('%d %b %Y<br/>%H:%M')|safe if r.created_at }}</td>
+        {%- if r.is_unread %} data-read="report/{{ r.id }}"{% endif %} data-hd-row="match_report-{{ r.id }}">
+      <td class="nowrap" data-label="When">{% if can_delete %}<span class="vc-pick">{{ row_check('match_report', r.id) }}</span>{% endif %}{% if r.is_unread %}<span class="vc-new-dot" title="You have not opened this yet">New</span><br/>{% endif %}{{ r.created_at|ist('%d %b %Y<br/>%H:%M')|safe if r.created_at }}</td>
       <td data-label="Reporter">
         {% if r.reporter %}<strong>{{ r.reporter.username }}</strong><br/><a href="mailto:{{ r.reporter.email }}">{{ r.reporter.email }}</a>
         {% else %}<span class="muted">Guest / not signed in</span>{% endif %}

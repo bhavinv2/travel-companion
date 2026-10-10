@@ -40,6 +40,10 @@ export default function CountrySelect({
   );
 }
 
+/** The dialling-code picker. Its value is the COUNTRY (an ISO code such as "IN"), not the code:
+ *  +1 is the US, Canada and a dozen islands, so options keyed by "+1" all shared one value and a
+ *  visitor who picked the United States saw Canada when the form redrew. The form sends this ISO
+ *  as `phone_cc` beside the number, and the server does the rest. */
 export function DialSelect({
   id,
   value,
@@ -48,13 +52,13 @@ export function DialSelect({
 }: {
   id?: string;
   value: string;
-  onChange: (value: string) => void;
+  onChange: (iso: string) => void;
   className?: string;
 }) {
   return (
     <select id={id} className={className} value={value} onChange={(e) => onChange(e.target.value)} aria-label="Country code">
       {sorted.map((c) => (
-        <option key={c.iso} value={`+${c.dial}`}>
+        <option key={c.iso} value={c.iso}>
           {flagEmoji(c.iso)} +{c.dial}
         </option>
       ))}

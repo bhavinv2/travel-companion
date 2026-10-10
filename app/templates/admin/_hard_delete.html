@@ -1,0 +1,46 @@
+{# Admin hard delete, for any screen in the admin panel or the CS console.
+
+   Import with:  {% from 'admin/_hard_delete.html' import del_btn, row_check, select_all, bulk_bar %}
+
+   Every button posts to /admin/delete/<kind>/<id> (or /bulk) -- services/admin_delete.KINDS is the
+   list of kinds and what deleting each one takes with it. Behaviour lives in static/js/hard-delete.js;
+   the confirm dialog (admin/_confirm_delete.html) is on every page an admin sees, from base.html.
+
+   Gate every call on `can_delete` (the screen's own flag) or current_user.is_admin: the server
+   refuses a CS agent with a 403 either way, but an agent should never be shown a button that
+   cannot work.
+
+   Mark the row the record is drawn in with data-hd-row="<kind>-<id>" so it disappears when the
+   delete succeeds; a second row that belongs to it (a notes row under a booking) gets
+   data-hd-also="<kind>-<id>".
+
+   tier:   'type'    -- the type-DELETE dialog; for anything with dependants
+           'confirm' -- a plain confirm; for a leaf row
+   detail: a sentence added to the question -- what goes with it, or what does NOT (the copy a
+           partner already holds)
+   redirect: where to go once it is gone, for a page whose subject it was #}
+
+{% macro del_btn(kind, id, what, tier='confirm', label='', detail='', redirect='') -%}
+<button type="button" class="btn-sm danger hd-del" data-hd-kind="{{ kind }}" data-hd-id="{{ id }}"
+        data-hd-what="{{ what }}" data-hd-tier="{{ tier }}"
+        {%- if detail %} data-hd-detail="{{ detail }}"{% endif %}
+        {%- if redirect %} data-hd-redirect="{{ redirect }}"{% endif %} title="Delete permanently"
+        aria-label="Delete {{ what }} permanently"><i class="fa-solid fa-trash-can"></i>{% if label %} {{ label }}{% endif %}</button>
+{%- endmacro %}
+
+{% macro row_check(kind, id) -%}
+<input type="checkbox" class="hd-check" data-hd-kind="{{ kind }}" value="{{ id }}" aria-label="Select #{{ id }}"/>
+{%- endmacro %}
+
+{% macro select_all(kind) -%}
+<input type="checkbox" class="hd-all" data-hd-kind="{{ kind }}" aria-label="Select all on this page"/>
+{%- endmacro %}
+
+{# noun is plural: "enquiries", "bookings" #}
+{% macro bulk_bar(kind, noun) -%}
+<div class="bulk-select-bar hd-bulk" data-hd-kind="{{ kind }}" style="display:none">
+  <strong class="hd-count">0</strong> selected
+  <button type="button" class="btn-sm danger hd-bulk-del" data-hd-kind="{{ kind }}" data-hd-noun="{{ noun }}">
+    <i class="fa-solid fa-trash-can"></i> Delete selected</button>
+</div>
+{%- endmacro %}

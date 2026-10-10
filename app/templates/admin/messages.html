@@ -32,6 +32,27 @@ h2.msg-group i { color: var(--coral); }
       Bodies are Jinja templates — the chips under each editor show the variables you can use, e.g. <code>{{ '{{ url }}' }}</code>.
       <strong>Reset</strong> returns to the built-in text.</p>
 
+    {# How e-mail is delivered, and a way to find out why it is not. #}
+    <section class="admin-card" id="mail" style="margin-bottom:22px">
+      <h2 style="margin-top:0"><i class="fa-solid fa-paper-plane"></i> E-mail delivery</h2>
+      <ul style="margin:8px 0 12px 18px;line-height:1.7;font-size:14px">
+        <li><strong>Sign-in and sign-up e-mails</strong> (verification, password reset, new staff
+          invites): sent through
+          {% if mail.account == 'smtp' %}<code>{{ mail.server }}</code>{% if mail.username %} as <code>{{ mail.username }}</code>{% endif %}{% else %}SendGrid{% endif %}
+          &mdash; {% if mail.account_ready %}<span style="color:#15803d;font-weight:700">set up</span>{% else %}<span style="color:#b91c1c;font-weight:700">not set up: {{ 'MAIL_PASSWORD' if mail.account == 'smtp' else 'SENDGRID_API_KEY' }} is empty, so nothing is sent</span>{% endif %}.
+          Always on, whatever the notification switches say.</li>
+        <li><strong>Everything else</strong> (match alerts, CS replies, blog announcements, enquiry copies):
+          {% if mail.other == 'sendgrid' %}sent through SendGrid.
+          {% elif mail.other == 'smtp' %}sent through <code>{{ mail.server }}</code>.
+          {% else %}<strong>not e-mailed</strong> &mdash; the Gmail mailbox is kept for sign-in and sign-up e-mails. In-app notifications still go out. Set <code>SENDGRID_API_KEY</code> to e-mail these.{% endif %}</li>
+      </ul>
+      <form method="POST" action="{{ url_for('admin.test_email') }}" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-envelope-circle-check"></i> Send a test e-mail to me</button>
+        <small class="muted">to {{ current_user.email }} &mdash; if password-reset e-mails are not arriving, this says why.</small>
+      </form>
+    </section>
+
     <h2 class="msg-group"><i class="fa-solid fa-comment-dots"></i> Copy for CS agents</h2>
     {% for t in groups.cs_copy %}
     <div class="admin-card msg-card" id="msg-{{ t.key }}">

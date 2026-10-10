@@ -42,6 +42,8 @@ export interface QuoteRequest {
   ages: string[];
   email: string;
   phone: string;
+  /** the country the phone number was typed for, as an ISO code; the server normalises with it */
+  phoneCc?: string;
 }
 
 export interface QuoteResult {
@@ -74,7 +76,11 @@ export async function requestQuote(req: QuoteRequest): Promise<QuoteResult> {
     citizenship,
     travellers: req.ages.filter(Boolean).map((age) => ({ age })),
     email: req.email,
+    // The number as typed and its country, apart. Joined as "+91 098..." a leading + told the
+    // server the number was already international, so a national trunk 0 was kept and a
+    // different number stored.
     phone: req.phone,
+    phone_cc: req.phoneCc || '',
   };
   if (req.plan === 'health') body.destination = destination;
 

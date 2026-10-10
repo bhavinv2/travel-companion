@@ -56,7 +56,7 @@
               <td>{{ r.airline or '' }} {{ r.flight_number or '' }}</td>
               <td>{{ TRIP_ROLE_LABELS.get(r.role, r.role) }}</td>
               <td>{{ r.languages|join(', ') }}</td>
-              <td>{% for c in r.contacts %}<span class="ci ci-pending" title="{{ c.value }}"><i class="{{ CONTACT_TYPE_ICONS.get(c.type) }}"></i></span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+              <td>{% for c in r.contacts %}<span class="ci ci-pending" title="{{ c.value|contact_display(c.type) }}"><i class="{{ CONTACT_TYPE_ICONS.get(c.type) }}"></i></span>{% else %}<span class="muted">—</span>{% endfor %}</td>
               <td><small>{% for e in r.errors %}<span class="urgent">{{ e }}</span><br/>{% endfor %}{% for w in r.warnings %}<span class="muted">{{ w }}</span><br/>{% endfor %}</small></td>
             </tr>
           {% endfor %}

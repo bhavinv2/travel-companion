@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'admin/_hard_delete.html' import del_btn %}
 {% block title %}Admin Dashboard – NRI Parent Service{% endblock %}
 {% block content %}
 <div class="admin-page">
@@ -61,7 +62,7 @@
         <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Joined</th><th>Active</th><th>Actions</th></tr></thead>
         <tbody>
           {% for user in recent_users %}
-          <tr>
+          <tr data-hd-row="user-{{ user.id }}">
             <td>{{ user.username }}</td>
             <td>{{ user.email }}</td>
             <td>{{ user.effective_role }}</td>
@@ -71,6 +72,10 @@
               <button class="btn-sm" onclick="toggleUser({{ user.id }}, this)">
                 {{ 'Disable' if user.is_active else 'Enable' }}
               </button>
+              {% if user.id != current_user.id %}
+              {{ del_btn('user', user.id, 'the account ' ~ user.username, tier='type',
+                         detail='Their posts, chats, requests and notifications go with it.') }}
+              {% endif %}
             </td>
           </tr>
           {% endfor %}
@@ -84,7 +89,7 @@
         <thead><tr><th>User</th><th>Route</th><th>Source</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>
           {% for trip in recent_trips %}
-          <tr>
+          <tr data-hd-row="post-{{ trip.id }}">
             <td>{{ trip.author.username if trip.author else (trip.poster_name or 'CS post') }}</td>
             <td>{{ trip.route_display }}</td>
             <td>{{ trip.source }}</td>
@@ -95,6 +100,8 @@
               {% if trip.status != 'closed' %}
               <button class="btn-sm danger" onclick="disableListing({{ trip.id }}, this)">Disable</button>
               {% endif %}
+              {{ del_btn('post', trip.id, 'post #' ~ trip.id ~ ', ' ~ trip.route_display, tier='type',
+                         detail='Its matches, contact details, claim links and activity go with it. Chats between the people are kept.') }}
             </td>
           </tr>
           {% endfor %}

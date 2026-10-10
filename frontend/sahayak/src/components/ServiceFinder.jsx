@@ -1,293 +1,281 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from './Icon.jsx';
-import { ArrowButton, cx } from './ui.jsx';
+import { cx } from './ui.jsx';
 import { catalogue, helpline, site } from '../data/site.js';
-import meetImg from '../assets/meet-sahayak-family.jpg';
-import { GIG_SERVICES } from '../data/services.js';
+import artImg from '../assets/finder-care.jpg';
+import { GIG_SERVICES, gigFor } from '../data/services.js';
 import { INCLUDES, NEEDS } from '../data/needs.js';
 
-/* "Which service do we need?" -- answered from the GIG sheet rather than from opinion.
+/* "Which service do we need?" -- four taps, from what the family can describe to the service that
+ * covers it.
  *
- * Nine services is a lot to choose between when you are three thousand miles away and not
- * sure what is wrong. The chips above name them; this works the other way round, from what
- * the family can actually describe to the service that covers it.
- *
- * One question at a time. Every question earns its place twice over: it either moves the
- * recommendation, or it fills in something the booking form would otherwise ask again --
- * usually both. Answering six here means the booking opens half filled in, which is the only
- * reason it is worth asking six.
- *
- *   who      -> booking's "who needs support"
- *   what     -> scoring
- *   travel   -> scoring (and the only thing that separates Out-Patient from In-Patient)
- *   often    -> scoring, and the booking's one-off / weekly / ongoing
- *   ordered  -> scoring, and the booking's "is this a follow-up"
- *   needs    -> scoring, against the sheet's matrix
- *
- * The scoring is the sheet's own matrix (data/needs.js, generated from it): each service is
- * scored on how much of what they asked for it actually includes. Mandatory counts for more
- * than optional, and asking for something a service does not do counts against it -- which is
- * what stops "a blood sample" recommending a pharmacy delivery.
- *
- * Two of the questions exist because the matrix cannot answer them. Out-Patient and In-Patient
- * are identical in it -- both are "take them somewhere", nothing else mandatory -- so only
- * asking which splits them. Pharmacy Delivery has nothing mandatory at all beyond the frame
- * every service shares, so it can only be reached by someone saying that is what they want.
+ * The first version scored every service against every answer, and the "anything in particular"
+ * list counted for more than anything else: Wellness Screen does nearly everything on that list
+ * as a matter of course, so ticking two or three things made it the answer whatever had been
+ * said before -- every family was told to book a Wellness Screen. Now the question that matters
+ * is asked plainly ("what do they need most?", in the family's words, one answer per service)
+ * and decides the match; the extras only adjust it when they plainly contradict it, and otherwise
+ * pick the alternatives and say what the match does and does not cover.
  */
 
-// The situation weights carry the recommendation; the ones after it only nudge, so a late
-// answer can refine a choice but never overturn what somebody plainly said they needed.
-const STEPS = [
-  {
-    key: 'who', q: 'Who needs support?',
-    items: [
-      { key: 'Mother', label: 'My mother' },
-      { key: 'Father', label: 'My father' },
-      { key: 'Both Parents', label: 'Both of them' },
-      { key: 'Other', label: 'Somebody else', hint: 'A relative or a family friend' },
-    ],
-  },
-  {
-    key: 'what', q: 'What best describes what they need?',
-    items: [
-      { key: 'tests', label: 'A doctor has asked for tests',
-        hint: 'Blood work, urine, an ECG', w: { lab_work: 4, wellness_screen: 1 } },
-      { key: 'overdue', label: 'Nobody has checked on them in a while',
-        hint: 'No particular complaint', w: { wellness_screen: 4, vitals: 2, demo: 1 } },
-      { key: 'appointment', label: 'There is an appointment or admission coming up',
-        hint: 'They need someone with them', w: { out_patient_visit: 3, in_patient_visit: 3 } },
-      { key: 'routine', label: 'Day-to-day things',
-        hint: 'Readings, medicines, keeping records straight',
-        w: { vitals: 3, pharmacy_delivery: 3, demo: 1 } },
-      { key: 'unsure', label: 'I want to see how this works first',
-        hint: 'Before booking anything longer', w: { demo: 5 } },
-      { key: 'other', label: 'Something else', hint: 'Tell us and we will arrange it',
-        w: { other: 3 } },
-    ],
-  },
-  {
-    key: 'travel', q: 'Does someone need to go with them?',
-    items: [
-      { key: 'home', label: 'No — everything at home', hint: 'Nobody has to leave the house',
-        w: { out_patient_visit: -4, in_patient_visit: -4 } },
-      { key: 'clinic', label: 'Yes — to a clinic or doctor', hint: 'There and back the same day',
-        w: { out_patient_visit: 5 } },
-      { key: 'hospital', label: 'Yes — into hospital', hint: 'An admission or a procedure',
-        w: { in_patient_visit: 5 } },
-      { key: 'collect', label: 'Only to collect something', hint: 'Medicines or a report',
-        w: { pharmacy_delivery: 4 } },
-    ],
-  },
-  {
-    key: 'often', q: 'How often will this be needed?',
-    items: [
-      { key: 'One-time', label: 'Just this once',
-        w: { wellness_screen: 1, lab_work: 1, demo: 1 } },
-      { key: 'Weekly', label: 'Every week or two', w: { vitals: 2, pharmacy_delivery: 1 } },
-      { key: 'Ongoing', label: 'Regularly, for a while',
-        w: { vitals: 2, pharmacy_delivery: 2 } },
-      { key: 'Urgent', label: 'As soon as possible', hint: 'Something has come up',
-        w: { out_patient_visit: 1, lab_work: 1 } },
-    ],
-  },
-  {
-    key: 'ordered', q: 'Has a doctor already asked for this?',
-    items: [
-      { key: 'script', label: 'Yes — there is a prescription or request',
-        hint: 'You can attach it when you book', w: { lab_work: 2, pharmacy_delivery: 2 } },
-      { key: 'followup', label: 'It is a follow-up to an earlier visit',
-        w: { out_patient_visit: 1, in_patient_visit: 1 } },
-      { key: 'none', label: 'No — we just want them looked at',
-        w: { wellness_screen: 1, vitals: 1 } },
-      { key: 'dunno', label: 'Not sure', w: {} },
-    ],
-  },
-  {
-    key: 'needs', q: 'Anything in particular they need?', multi: true, optional: true,
-    note: 'Choose as many as apply, or skip this.', items: NEEDS,
-  },
+// What a family would say, mapped to the GIG sheet's service. One tile per service.
+const NEED_TILES = [
+  { key: 'checkup', gig: 'Wellness Screen', icon: 'pulse', label: 'A full health check-up', hint: 'Vitals, blood & urine tests, ECG' },
+  { key: 'tests', gig: 'Lab Work', icon: 'tube', label: 'Tests a doctor asked for', hint: 'Samples collected at home' },
+  { key: 'readings', gig: 'Vitals', icon: 'heartBeat', label: 'Regular BP & sugar checks', hint: 'Readings recorded and shared' },
+  { key: 'clinic', gig: 'Out-Patient Visit', icon: 'stethoscope', label: 'Someone to take them to a doctor', hint: 'There and back, same day' },
+  { key: 'hospital', gig: 'In-Patient Visit', icon: 'hospital', label: 'Support during a hospital stay', hint: 'Admission, procedure, discharge' },
+  { key: 'medicines', gig: 'Pharmacy Delivery', icon: 'pill', label: 'Medicines picked up & delivered', hint: 'Pharmacy to their door' },
+  { key: 'online', gig: 'Virtual Consultation Support', icon: 'video', label: 'Help with an online consultation', hint: 'Set up and sit through the call' },
+  { key: 'try', gig: 'Demo Visit', icon: 'personPlus', label: 'A first visit to try Sahayak', hint: 'Get to know them, set up records' },
+  { key: 'other', gig: 'Other', icon: 'plusCircle', label: 'Something else', hint: 'Tell us and we will plan it' },
 ];
 
-const POINTS = { MAD: 3, OPT: 1 };
-const MISSING = -3;        // asked for something this service does not do at all
+// The sheet's matrix (data/needs.js) is keyed by Preventia's codes; the GIG names are what gigFor
+// hands back for any key, whichever list the page was given.
+const INCLUDES_BY_GIG = {
+  'Wellness Screen': INCLUDES.wellness_screen,
+  'Lab Work': INCLUDES.lab_work,
+  Vitals: INCLUDES.vitals,
+  'Out-Patient Visit': INCLUDES.out_patient_visit,
+  'In-Patient Visit': INCLUDES.in_patient_visit,
+  'Pharmacy Delivery': INCLUDES.pharmacy_delivery,
+  'Demo Visit': INCLUDES.demo,
+  'Virtual Consultation Support': INCLUDES.virtual_consult_support,
+  Other: INCLUDES.other,
+};
 
-function score(list, answers) {
-  const chosen = STEPS
-    .filter((s) => !s.multi)
-    .map((s) => (s.items.find((i) => i.key === answers[s.key]) || {}).w)
-    .filter(Boolean);
-  const needs = answers.needs || [];
+// When one service is the answer, these are the ones most often worth a second look.
+const RELATED = {
+  'Wellness Screen': ['Vitals', 'Lab Work'],
+  'Lab Work': ['Wellness Screen', 'Vitals'],
+  Vitals: ['Wellness Screen', 'Demo Visit'],
+  'Out-Patient Visit': ['In-Patient Visit', 'Virtual Consultation Support'],
+  'In-Patient Visit': ['Out-Patient Visit', 'Vitals'],
+  'Pharmacy Delivery': ['Vitals', 'Virtual Consultation Support'],
+  'Virtual Consultation Support': ['Vitals', 'Out-Patient Visit'],
+  'Demo Visit': ['Wellness Screen', 'Vitals'],
+  Other: ['Demo Visit', 'Wellness Screen'],
+};
+
+const OFTEN = [
+  { key: 'One-time', label: 'Just this once', icon: 'calendarCheck', w: { 'Wellness Screen': 0.5, 'Lab Work': 0.5, 'Demo Visit': 0.5 } },
+  { key: 'Weekly', label: 'Every week or two', icon: 'calendar', w: { Vitals: 1, 'Pharmacy Delivery': 1 } },
+  { key: 'Ongoing', label: 'Regularly, for a while', icon: 'refresh', w: { Vitals: 1, 'Pharmacy Delivery': 1 } },
+  { key: 'Urgent', label: 'As soon as possible', icon: 'siren', w: { 'Out-Patient Visit': 0.5, 'Lab Work': 0.5 } },
+];
+
+const WHO = [
+  { key: 'Mother', label: 'My mother', icon: 'heart' },
+  { key: 'Father', label: 'My father', icon: 'heart' },
+  { key: 'Both Parents', label: 'Both of them', icon: 'family' },
+  { key: 'Other', label: 'Someone else', icon: 'userPlus', hint: 'A relative or family friend' },
+];
+
+const STEPS = [
+  { key: 'who', q: 'Who is this for?', items: WHO },
+  { key: 'need', q: 'What do they need most?', sub: 'Pick the one closest — you can add more next.', items: NEED_TILES, wide: true },
+  { key: 'extras', q: 'Anything else to include?', sub: 'Optional — choose any that apply.', items: NEEDS, multi: true },
+  { key: 'often', q: 'How often will this be needed?', items: OFTEN },
+];
+
+const PRIMARY = 12;          // the service they named: decisive unless the extras plainly say otherwise
+const POINTS = { MAD: 2, OPT: 1 };
+const MISSING = -2;
+
+const labelOf = (k) => (NEEDS.find((n) => n.key === k) || {}).label || k;
+
+/** Every catalogue service, scored against the answers, best first. */
+function rank(list, a) {
+  const tile = NEED_TILES.find((t) => t.key === a.need);
+  const often = OFTEN.find((o) => o.key === a.often);
+  const related = tile ? RELATED[tile.gig] || [] : [];
   return list
     .map((svc) => {
-      const has = INCLUDES[svc.key] || {};
-      let n = chosen.reduce((t, w) => t + (w[svc.key] || 0), 0);
+      const gig = gigFor(svc.key);
+      const g = gig ? gig.key : '';
+      const has = INCLUDES_BY_GIG[g] || {};
+      let n = 0;
+      const primary = !!tile && tile.gig === g;
+      if (primary) n += PRIMARY;
       const covers = [];
       const gaps = [];
       let mad = 0;
-      needs.forEach((k) => {
+      a.extras.forEach((k) => {
         const mark = has[k];
         n += mark ? POINTS[mark] : MISSING;
         if (mark === 'MAD') mad += 1;
         (mark ? covers : gaps).push(k);
       });
-      return { svc, n, mad, covers, gaps };
+      if (often && often.w[g]) n += often.w[g];
+      const rel = related.indexOf(g);
+      return { svc, gig, n, mad, covers, gaps, primary, rel: rel < 0 ? 99 : rel };
     })
-    // Ties go to the service that does more of it as a matter of course rather than on
-    // request: asking for samples taken to a lab should land on Lab Work, where that is the
-    // whole point, not on a service that merely offers it. Without this the tie falls to
-    // whatever order the catalogue happened to arrive in.
-    .sort((a, b) => b.n - a.n || b.mad - a.mad);
+    .sort((x, y) => y.n - x.n || Number(y.primary) - Number(x.primary) || y.mad - x.mad || x.rel - y.rel);
 }
 
-const labelOf = (k) => (NEEDS.find((n) => n.key === k) || {}).label || k;
-
-/** One answer. A button, not an <input>, so the whole row is the target on a phone. */
-function Choice({ item, chosen, multi, onPick }) {
+/** One answer: a tile with an icon. A button, so the whole tile is the target on a phone. */
+function Tile({ item, chosen, multi, onPick }) {
   return (
     <button type="button" role={multi ? 'checkbox' : 'radio'} aria-checked={chosen}
-            className={cx('sf-row', chosen && 'on')} onClick={onPick}>
-      <span className={cx('sf-mark', multi && 'box')} aria-hidden="true">
-        {multi && <Icon name="check" sw={3.4} />}
-      </span>
-      <span className="sf-rtx">
+            className={cx('fx-tile', chosen && 'on', multi && 'multi')} onClick={onPick}>
+      {item.icon && <span className="fx-tile-ic" aria-hidden="true"><Icon name={item.icon} sw={1.9} /></span>}
+      <span className="fx-tile-tx">
         <b>{item.label}</b>
         {item.hint && <small>{item.hint}</small>}
       </span>
+      <span className="fx-tick" aria-hidden="true"><Icon name="check" sw={3.2} /></span>
     </button>
   );
 }
 
-const EMPTY = { who: null, what: null, travel: null, often: null, ordered: null, needs: [] };
+/** The photograph a service is shown with -- the bento's own, or its colour and icon. */
+function SvcArt({ gig, className }) {
+  if (gig && gig.img) {
+    return <img className={className} src={gig.img} alt="" style={{ objectPosition: gig.imgPos || '50% 40%' }} />;
+  }
+  return (
+    <span className={cx(className, 'fx-noart')} style={{ '--sc': gig?.sc || '#0B3AA8', '--st': gig?.st || '#E3EAFD' }}>
+      <Icon name={gig?.icon || 'stethoscope'} sw={1.8} />
+    </span>
+  );
+}
+
+const EMPTY = { who: null, need: null, extras: [], often: null };
 
 function Wizard({ openBook, onBooked }) {
   const list = useMemo(() => catalogue(GIG_SERVICES), []);
+  // Only offer a need the catalogue can actually book.
+  const tiles = useMemo(() => NEED_TILES.filter((t) => list.some((s) => gigFor(s.key)?.key === t.gig)), [list]);
+  const steps = useMemo(() => STEPS.map((s) => (s.key === 'need' ? { ...s, items: tiles.length ? tiles : NEED_TILES } : s)), [tiles]);
   const [step, setStep] = useState(0);
-  const [answers, setAnswers] = useState(EMPTY);
+  const [a, setA] = useState(EMPTY);
+  const timer = useRef();
+  useEffect(() => () => clearTimeout(timer.current), []);
 
-  const ranked = useMemo(() => score(list, answers), [list, answers]);
+  const done = step >= steps.length;
+  const current = steps[step];
+  const ranked = useMemo(() => (done ? rank(list, a) : []), [done, list, a]);
   const best = ranked[0];
-  const runnerUp = ranked[1] && ranked[1].n > 0 && ranked[1].n >= ranked[0].n - 2
-    ? ranked[1] : null;
+  const alts = ranked.slice(1).filter((r) => r.n > -2).slice(0, 2);
+  const tile = NEED_TILES.find((t) => t.key === a.need);
 
-  const done = step >= STEPS.length;
-  const current = STEPS[step];
-  const chosen = done ? null : answers[current.key];
-  const canGo = done || current.optional || (current.multi ? true : !!chosen);
-
-  const set = (key, value) => setAnswers((a) => ({ ...a, [key]: value }));
-  const toggle = (key) => setAnswers((a) => ({
-    ...a,
-    needs: a.needs.includes(key) ? a.needs.filter((x) => x !== key) : a.needs.concat(key),
-  }));
+  const pick = (key) => {
+    if (current.multi) {
+      setA((x) => ({ ...x, extras: x.extras.includes(key) ? x.extras.filter((k) => k !== key) : x.extras.concat(key) }));
+      return;
+    }
+    setA((x) => ({ ...x, [current.key]: key }));
+    // one answer is the whole question: move on by itself, after the tick has been seen
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setStep((s) => s + 1), 260);
+  };
+  const chosen = (key) => (current.multi ? a.extras.includes(key) : a[current.key] === key);
+  const canGo = current && (current.multi || !!a[current.key]);
 
   // Everything they told us, carried into the booking rather than asked for twice.
   const book = (svc) => {
     if (onBooked) onBooked();
-    return openBook({
-    svc,
-    who: answers.who || '',
-    when: answers.often || '',
-    followUp: answers.ordered === 'followup' ? 'Yes'
-      : answers.ordered === 'none' || answers.ordered === 'script' ? 'No' : '',
-    });
+    openBook({ svc, who: a.who || '', when: a.often || '' });
   };
 
-  return (
-    <div className="sf">
-          <div className="sf-head">
-            <h3>{done ? 'Here is what fits' : 'Find the right service'}</h3>
-            <div className="sf-dots" aria-hidden="true">
-              {STEPS.map((s, i) => (
-                <i key={s.key} className={cx(i === step && 'on', i < step && 'did')}></i>
-              ))}
-            </div>
-            <span className="sf-of">
-              {done ? 'Done' : `Question ${step + 1} of ${STEPS.length}`}
-            </span>
-          </div>
+  const pct = Math.round((Math.min(step, steps.length) / steps.length) * 100);
 
-          {!done ? (
-            <div className="sf-body">
-              <p className="sf-q">{current.q}</p>
-              {current.note && <p className="sf-note">{current.note}</p>}
-              <div className={cx('sf-rows', current.multi && 'two')}
-                   role={current.multi ? 'group' : 'radiogroup'} aria-label={current.q}>
-                {current.items.map((item) => (
-                  <Choice
-                    key={item.key}
-                    item={item}
-                    multi={current.multi}
-                    chosen={current.multi ? answers.needs.includes(item.key)
-                                          : chosen === item.key}
-                    onPick={() => (current.multi ? toggle(item.key)
-                                                 : set(current.key, item.key))}
-                  />
-                ))}
-              </div>
-              <div className="sf-nav">
-                {step > 0 && (
-                  <button type="button" className="sf-back" onClick={() => setStep(step - 1)}>
-                    <Icon name="arrowLeft" sw={2.2} />Back
-                  </button>
-                )}
-                <button type="button" className="sf-next" disabled={!canGo}
-                        onClick={() => setStep(step + 1)}>
-                  {step === STEPS.length - 1
-                    ? (answers.needs.length ? 'See my match' : 'Skip and see my match')
-                    : 'Next'}
-                </button>
-              </div>
+  if (done && best) {
+    const why = [];
+    if (best.primary && tile) why.push(tile.label);
+    best.covers.forEach((k) => why.push(labelOf(k)));
+    return (
+      <div className="fx fx-res" aria-live="polite">
+        <div className="fx-match">
+          <div className="fx-match-art">
+            <SvcArt gig={best.gig} className="fx-match-img" />
+            <span className="fx-badge"><Icon name="check" sw={3} />Best match</span>
+          </div>
+          <div className="fx-match-body">
+            <h4>{best.svc.name}</h4>
+            {best.svc.blurb && <p className="fx-blurb">{best.svc.blurb}</p>}
+            <div className="fx-meta">
+              {best.svc.duration && <span className="fx-pill"><Icon name="clock" sw={2.2} />{best.svc.duration}</span>}
+              {best.svc.price && <span className="fx-pill price">&#8377;{best.svc.price}</span>}
             </div>
-          ) : (
-            <div className="sf-body sf-res" aria-live="polite">
-              <span className="sf-kick">Closest match</span>
-              <h4>{best.svc.name}</h4>
-              {best.svc.blurb && <p className="sf-blurb">{best.svc.blurb}</p>}
-              {(best.svc.price || best.svc.duration) && (
-                <p className="sf-meta">
-                  {best.svc.price && <b>&#8377;{best.svc.price}</b>}
-                  {best.svc.price && best.svc.duration && <span aria-hidden="true"> · </span>}
-                  {best.svc.duration && <span>{best.svc.duration}</span>}
-                </p>
-              )}
-              {best.covers.length > 0 && (
-                <ul className="sf-why">
-                  {best.covers.map((k) => (
-                    <li key={k}><Icon name="check" sw={3} />{labelOf(k)}</li>
-                  ))}
-                </ul>
-              )}
-              {/* Said plainly rather than quietly dropped: being told afterwards that the
-                  visit never included the thing you asked for is how trust goes. */}
-              {best.gaps.length > 0 && (
-                <p className="sf-gap">
-                  <Icon name="close" sw={2.6} />
-                  <span>
-                    This one does not cover {best.gaps.map(labelOf).join(', ').toLowerCase()}.
-                    {runnerUp && ' Have a look at the alternative below.'}
-                  </span>
-                </p>
-              )}
-              <div className="sf-acts">
-                <ArrowButton onClick={() => book(best.svc.key)}>
-                  Book {best.svc.name}
-                </ArrowButton>
-                <button type="button" className="sf-again"
-                        onClick={() => { setAnswers(EMPTY); setStep(0); }}>Start again</button>
-              </div>
-              <p className="sf-carry">
-                <Icon name="check" sw={3} />
-                Your answers come with you — the booking opens already filled in.
-              </p>
-              {runnerUp && (
-                <button type="button" className="sf-alt" onClick={() => book(runnerUp.svc.key)}>
-                  <span>Also close: <b>{runnerUp.svc.name}</b></span>
-                  <Icon name="arrow" sw={2} />
-                </button>
-              )}
-            </div>
-          )}
+          </div>
+        </div>
+
+        {why.length > 0 && (
+          <ul className="fx-why" aria-label="Why this fits">
+            {why.map((w) => <li key={w}><span className="fx-why-ic"><Icon name="check" sw={3} /></span>{w}</li>)}
+          </ul>
+        )}
+        {/* Said plainly rather than quietly dropped: being told afterwards that the visit never
+            included the thing you asked for is how trust goes. */}
+        {best.gaps.length > 0 && (
+          <p className="fx-gap">
+            <span className="fx-gap-ic"><Icon name="close" sw={2.6} /></span>
+            <span>Does not include {best.gaps.map(labelOf).join(', ').toLowerCase()} — tell us when we call and we will plan for it.</span>
+          </p>
+        )}
+
+        <div className="fx-acts">
+          <button type="button" className="fx-book" onClick={() => book(best.svc.key)}>
+            Book {best.svc.name}<Icon name="arrow" sw={2.2} />
+          </button>
+          <button type="button" className="fx-again" onClick={() => { setA(EMPTY); setStep(0); }}>
+            <Icon name="refresh" sw={2} />Start again
+          </button>
+        </div>
+        <p className="fx-carry">
+          <span className="fx-carry-ic"><Icon name="clipboard" sw={2} /></span>
+          Your answers are carried into the booking form, so you will not be asked twice.
+        </p>
+
+        {alts.length > 0 && (
+          <div className="fx-alts">
+            <p className="fx-alts-h">Also worth a look</p>
+            {alts.map((r) => (
+              <button key={r.svc.key} type="button" className="fx-alt" onClick={() => book(r.svc.key)}>
+                <SvcArt gig={r.gig} className="fx-alt-img" />
+                <span className="fx-alt-tx">
+                  <b>{r.svc.name}</b>
+                  <small>{[r.svc.duration, r.svc.price && `₹${r.svc.price}`].filter(Boolean).join(' · ') || 'Book this instead'}</small>
+                </span>
+                <span className="fx-alt-go"><Icon name="arrow" sw={2.2} /></span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="fx">
+      <div className="fx-prog">
+        <span className="fx-prog-tx">Question {step + 1} of {steps.length}</span>
+        <span className="fx-bar" aria-hidden="true"><i style={{ width: `${Math.max(pct, 6)}%` }}></i></span>
+      </div>
+      <p className="fx-q">{current.q}</p>
+      {current.sub && <p className="fx-sub">{current.sub}</p>}
+      <div className={cx('fx-tiles', current.wide && 'wide', current.multi && 'chips')}
+           role={current.multi ? 'group' : 'radiogroup'} aria-label={current.q}>
+        {current.items.map((item) => (
+          <Tile key={item.key} item={item} multi={current.multi} chosen={chosen(item.key)} onPick={() => pick(item.key)} />
+        ))}
+      </div>
+      <div className="fx-nav">
+        {step > 0 ? (
+          <button type="button" className="fx-back" onClick={() => setStep(step - 1)}>
+            <Icon name="arrowLeft" sw={2.2} />Back
+          </button>
+        ) : <span />}
+        {(current.multi || step === steps.length - 1) && (
+          <button type="button" className="fx-next" disabled={!canGo} onClick={() => setStep(step + 1)}>
+            {current.multi ? (a.extras.length ? 'Next' : 'Skip') : 'See my match'}
+            <Icon name="arrow" sw={2.2} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -336,8 +324,8 @@ export default function FinderModal({ mode, openBook }) {
       return !!el && el.offsetParent !== null;
     };
     const busy = () => {
-      const a = document.activeElement;
-      return (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))
+      const el = document.activeElement;
+      return (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))
         || showing('.bk-wrap')
         || showing('.cov-wrap')
         || document.body.classList.contains('lock');
@@ -371,10 +359,15 @@ export default function FinderModal({ mode, openBook }) {
       <button type="button" className="fm-back" aria-label="Close" onClick={dismiss}></button>
       <div className="fm">
         <div className="fm-art" aria-hidden="true">
-          <img src={meetImg} alt="" />
+          <img src={artImg} alt="" />
           <div className="fm-art-tx">
-            <b>Not sure what to ask for?</b>
-            <span>Most families are not. Tell us what is going on and we will name it.</span>
+            <span className="fm-art-k">Sahayak</span>
+            <b>Not sure which service your parents need?</b>
+            <ul>
+              <li><Icon name="check" sw={3} />Four quick questions</li>
+              <li><Icon name="check" sw={3} />A registered nurse for each visit</li>
+              <li><Icon name="check" sw={3} />Or talk to a person, any time</li>
+            </ul>
           </div>
         </div>
 
@@ -382,13 +375,14 @@ export default function FinderModal({ mode, openBook }) {
           <button type="button" className="fm-x" aria-label="Close" ref={closeRef}
                   onClick={dismiss}><Icon name="close" sw={2.2} /></button>
           <h2 id="fm-title">Find the right service</h2>
-          <div className="fm-tabs" role="tablist">
+          <p className="fm-sub">Answer a few questions and we will suggest the visit that fits.</p>
+          <div className="fm-seg" role="tablist">
             <button type="button" role="tab" aria-selected={tab === 'find'}
-                    className={cx('fm-tab', tab === 'find' && 'on')}
-                    onClick={() => setTab('find')}>Answer a few questions</button>
+                    className={cx('fm-seg-b', tab === 'find' && 'on')}
+                    onClick={() => setTab('find')}><Icon name="searchCheck" sw={2} />Find a service</button>
             <button type="button" role="tab" aria-selected={tab === 'talk'}
-                    className={cx('fm-tab', tab === 'talk' && 'on')}
-                    onClick={() => setTab('talk')}>Talk to us</button>
+                    className={cx('fm-seg-b', tab === 'talk' && 'on')}
+                    onClick={() => setTab('talk')}><Icon name="phone" sw={2} />Talk to us</button>
           </div>
 
           <div className="fm-panel">

@@ -2,6 +2,9 @@
 {# One screen, both consoles. `endpoint` and `sidebar` are all that differ, so CS and admin can
    never drift into showing different things about the same lead. #}
 {% set endpoint = endpoint or 'admin.insurance_quotes' %}
+{# the delete controls follow who is looking, in either console: an agent never gets them #}
+{% set can_delete = current_user.is_admin %}
+{% from 'admin/_hard_delete.html' import del_btn, row_check, select_all, bulk_bar %}
 {% block title %}Insurance leads{% endblock %}
 {% block content %}
 <div class="admin-page">
@@ -33,17 +36,19 @@
       </form>
     </div>
 
+    {% if can_delete %}{{ bulk_bar('insurance_quote', 'quote requests') }}{% endif %}
     <div class="admin-panel" id="leadResults">
     <div class="table-wrap">
       {# stack-mobile: the six columns do not fit a phone, and a table that scrolls sideways
          inside a card hides half of every lead. #}
       <table class="admin-table stack-mobile">
       <thead>
-        <tr><th>When</th><th>Who</th><th>Cover</th><th>Travellers</th><th>Dates</th><th>Status</th></tr>
+        <tr>{% if can_delete %}<th class="hd-pick">{{ select_all('insurance_quote') }}</th>{% endif %}<th>When</th><th>Who</th><th>Cover</th><th>Travellers</th><th>Dates</th><th>Status</th>{% if can_delete %}<th></th>{% endif %}</tr>
       </thead>
       <tbody>
         {% for iq in quotes %}
-        <tr>
+        <tr data-hd-row="insurance_quote-{{ iq.id }}">
+          {% if can_delete %}<td class="hd-pick" data-label="">{{ row_check('insurance_quote', iq.id) }}</td>{% endif %}
           <td data-label="When">{{ iq.created_at|istd('%d %b %Y') }}<br><small>{{ iq.created_at|ist('%H:%M') }}</small></td>
           <td data-label="Who">
             <b><a href="mailto:{{ iq.email }}">{{ iq.email }}</a></b><br>
@@ -58,9 +63,13 @@
             <span class="badge-pill {{ 'green' if iq.status == 'quoted' else 'yellow' }}">{{ iq.status|capitalize }}</span>
             {% if iq.quote_url %}<br><a class="btn-sm-outline" href="{{ iq.quote_url }}" target="_blank" rel="noopener">Open quote</a>{% endif %}
           </td>
+          {% if can_delete %}
+          <td class="nowrap row-actions" data-label="">{{ del_btn('insurance_quote', iq.id, 'the quote request from ' ~ iq.email,
+              detail="The quote on the partner's own site is not deleted.") }}</td>
+          {% endif %}
         </tr>
         {% else %}
-        <tr><td colspan="6" class="admin-empty">
+        <tr><td colspan="{{ 8 if can_delete else 6 }}" class="admin-empty">
           <i class="fa-regular fa-folder-open"></i>
           {{ 'No leads match this filter.' if (status or q) else 'No insurance quote requests yet.' }}
         </td></tr>
