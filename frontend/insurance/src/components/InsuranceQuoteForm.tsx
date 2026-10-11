@@ -18,17 +18,17 @@ const PLANS = [
   {
     id: 'visitors', icon: 'i-shield', tone: 'blue', title: 'Visitors', subtitle: 'Visiting the USA',
     presection: 'visitorUSA', heading: 'Visitor Insurance',
-    blurb: 'Cover for parents and family visiting the USA — medical emergencies, hospitalisation and doctor visits while they stay with you.',
+    blurb: 'Medical cover for eligible emergencies, hospitalisation, and doctor visits during your family’s stay in the USA.',
   },
   {
-    id: 'medical', icon: 'i-plane', tone: 'amber', title: 'Travel Medical', subtitle: 'Canada, Australia & rest of world',
+    id: 'medical', icon: 'i-plane', tone: 'amber', title: 'Travel Medical', subtitle: 'Canada, Australia & the rest of the world',
     presection: 'travelOutsideUSA', heading: 'Travel Medical Insurance',
-    blurb: 'Cover for Canada, Australia and the rest of the world — emergency treatment, evacuation and trip disruptions abroad.',
+    blurb: 'Explore travel medical plans for Canada, Australia, and other destinations. Benefits and exclusions vary by plan.',
   },
   {
-    id: 'schengen', icon: 'i-globe', tone: 'green', title: 'Schengen', subtitle: 'Europe visa cover',
+    id: 'schengen', icon: 'i-globe', tone: 'green', title: 'Schengen', subtitle: 'Schengen visa cover',
     presection: 'schengen', heading: 'Schengen Visa Insurance',
-    blurb: 'Built for Schengen visa applications — minimum medical cover across all 29 Schengen countries, with documents by email.',
+    blurb: 'Explore travel medical plans for Schengen visa applications. Check that your chosen policy meets the relevant visa requirements.',
   },
 ] as const;
 
@@ -186,7 +186,7 @@ export default function InsuranceQuoteForm() {
         <div className="iform-panel">
           <div className={`iform-fields${isMedical ? ' iform-fields-4' : ''}`}>
             <p className="fg">
-              <label className="lbl" htmlFor="if-start">Coverage starts <span style={{ color: 'var(--blue)' }}>*</span></label>
+              <label className="lbl" htmlFor="if-start">Cover start date <span style={{ color: 'var(--blue)' }}>*</span></label>
               <span className="iw"><Icon name="i-cal" className="ico sm" />
                 <input
                   ref={startRef}
@@ -206,7 +206,7 @@ export default function InsuranceQuoteForm() {
               </span>
             </p>
             <p className="fg">
-              <label className="lbl" htmlFor="if-end">Coverage ends <span style={{ color: 'var(--blue)' }}>*</span></label>
+              <label className="lbl" htmlFor="if-end">Cover end date <span style={{ color: 'var(--blue)' }}>*</span></label>
               <span className="iw"><Icon name="i-cal" className="ico sm" />
                 <input
                   ref={endRef}
@@ -239,7 +239,7 @@ export default function InsuranceQuoteForm() {
 
           <div className="iform-ages">
             <div className="iform-ages-hd">
-              <label className="lbl" style={{ marginBottom: 0 }}>Traveller ages <span style={{ color: 'var(--blue)' }}>*</span></label>
+              <label className="lbl" style={{ marginBottom: 0 }}>Travellers’ ages (in years) <span style={{ color: 'var(--blue)' }}>*</span></label>
               <button className="add-traveller" type="button" onClick={addTraveller}>
                 <Icon name="i-plus" className="ico sm" />Add traveller
               </button>
@@ -262,7 +262,7 @@ export default function InsuranceQuoteForm() {
                 </span>
               ))}
             </div>
-            <p className="tiny" style={{ marginTop: 10 }}>Add everyone travelling &mdash; each age is priced separately.</p>
+            <p className="tiny" style={{ marginTop: 10 }}>Enter each traveller’s age on the cover start date. Pricing is calculated separately for each traveller.</p>
           </div>
 
           <div className="iform-contact">
@@ -340,7 +340,7 @@ export default function InsuranceQuoteForm() {
         </div>
 
         <p className="iform-note iform-note-hl">
-          In partnership with <a href="https://preventia360.com/" target="_blank" rel="noopener noreferrer" className="preventia-link">Preventia360</a> &mdash; quotes are priced live on their site, where you complete the purchase.
+          Quotes are provided by <a href="https://preventia360.com/" target="_blank" rel="noopener noreferrer" className="preventia-link">Preventia360</a>. You’ll complete your purchase on its website.
         </p>
       </form>
       </div>

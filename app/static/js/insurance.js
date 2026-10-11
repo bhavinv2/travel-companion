@@ -39,7 +39,7 @@
     form.querySelector('.ins-add').disabled = rows.length >= MAX_TRAVELLERS;
     form.querySelector('.ins-trav-hint').textContent =
       rows.length >= MAX_TRAVELLERS ? 'That is the most we can quote in one go.'
-                                    : 'Add everyone travelling — each age is priced separately.';
+                                    : 'Enter each traveller’s age on the cover start date. Pricing is calculated separately for each traveller.';
   }
 
   function addRow(form, focus) {

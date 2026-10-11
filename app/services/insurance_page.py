@@ -6,7 +6,7 @@ settings cache window, with no migration and no deploy.
 
 Shape:
     {'price_from':    'from $1.20 a day ...',
-     'assurances':    ['Policy documents by e-mail in minutes', ...],
+     'assurances':    ['Policy documents by email after purchase', ...],
      'support_email': '', 'availability': ''}
 
 Everything here starts EMPTY and its section simply does not render until somebody fills it in.
@@ -30,7 +30,7 @@ SETTING_KEY = 'insurance_page'
 # Suggestions for the admin screen only -- nothing here is published until it is saved, because
 # only the business knows which of them are true of its plans.
 ASSURANCE_SUGGESTIONS = [
-    'Policy documents by e-mail within minutes',
+    'Policy documents by email after purchase',
     'Free look period — cancel within 10 days',
     'No medical exam for most plans',
     'Buy online, no paperwork',
@@ -60,7 +60,7 @@ def support_email():
 
 
 def availability():
-    """The "Availability" line in the contact block, e.g. "Across time zones, every day". Empty
+    """The "Availability" line in the contact block, e.g. "Mon–Sat, 9 am–7 pm IST". Empty
     falls back to what the page shipped with -- it is a claim about staffing, so the business
     says it, not us."""
     return (_blob().get('availability') or '').strip()

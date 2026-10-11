@@ -17,10 +17,10 @@ export default function Hero() {
           </span>
           <h1 className="h1" style={{ marginTop: 22 }}>Travel Further. Stay Protected.</h1>
           <p className="lead" style={{ marginTop: 20, maxWidth: 520 }}>
-            Travel insurance for every journey &mdash; designed for unexpected medical emergencies, trip disruptions and travel-related expenses.
+            Travel insurance for your journey, with cover for eligible medical emergencies, trip disruptions, and other travel-related expenses.
           </p>
           <p className="small" style={{ marginTop: 12, maxWidth: 520 }}>
-            Quote and compare international travel insurance and travel medical insurance online, and buy in minutes — brought to you by NRI Parent Service.
+            Get quotes and compare international travel insurance and travel medical plans online through NRI Parent Service. Complete your purchase with Preventia360.
           </p>
         </div>
       </div>

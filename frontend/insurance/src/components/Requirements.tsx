@@ -29,7 +29,7 @@ export default function Requirements() {
           <span className="kick req-kick">Travel requirements</span>
           <h2 className="h2" style={{ marginTop: 12 }}>Is Travel Insurance Mandatory?</h2>
           <span className="script-tag" style={{ fontSize: 22, color: 'var(--blue)' }}>Know before you go.</span>
-          <p className="lead" style={{ marginTop: 14 }}>It depends on where you're going and why. Requirements differ by destination, visa and trip.</p>
+          <p className="lead" style={{ marginTop: 14 }}>Requirements vary by destination, visa type, and purpose of travel.</p>
           <div className="req-note">
             <span className="req-note-ic"><Icon name="i-info" /></span>
             <span>

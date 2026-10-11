@@ -22,15 +22,15 @@ const CARDS = [
     photo: photo('benefit-interruption.jpg'), alt: 'City street at dusk',
   },
   {
-    icon: 'i-clock', title: 'Trip Delay', desc: 'Support for covered delays beyond set hours.',
+    icon: 'i-clock', title: 'Trip Delay', desc: 'Cover for eligible delays that exceed your plan’s minimum delay period.',
     photo: photo('benefit-delay.jpg'), alt: 'Hand holding a small clock',
   },
   {
-    icon: 'i-bag', title: 'Baggage Protection', desc: 'Cover for eligible lost or delayed checked bags.',
+    icon: 'i-bag', title: 'Baggage Protection', desc: 'Cover for eligible expenses arising from lost or delayed checked baggage.',
     photo: photo('benefit-baggage.jpg'), alt: 'Travel backpack packed and ready',
   },
   {
-    icon: 'i-phone', title: '24/7 Assistance', desc: 'A helpline for emergencies, in any time zone.',
+    icon: 'i-phone', title: '24/7 Assistance', desc: 'A helpline for emergencies in any time zone.',
     photo: photo('benefit-support-247.jpg'), alt: 'Two people shaking hands over paperwork',
   },
   {

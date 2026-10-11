@@ -103,7 +103,7 @@ export default function VisitorInsurance() {
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '14px 24px', marginTop: 28 }}>
             <button className="btn btn-p full" type="button" onClick={() => openQuote()}>Get a Free Quote</button>
             <a href="#benefits" style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-              Compare visitors insurance
+              Explore visitor insurance benefits
               <Icon name="i-arrow" className="ico sm" />
             </a>
           </div>

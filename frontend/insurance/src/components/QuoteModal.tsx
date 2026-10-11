@@ -142,7 +142,7 @@ export default function QuoteModal() {
               </div>
               <div className="iform-ages" style={{ marginTop: 18, background: 'var(--sky)', borderRadius: 16, padding: '16px 18px' }}>
                 <div className="iform-ages-hd">
-                  <label className="lbl" style={{ marginBottom: 0 }}>Traveller ages <span style={{ color: 'var(--blue)' }}>*</span></label>
+                  <label className="lbl" style={{ marginBottom: 0 }}>Travellers’ ages (in years) <span style={{ color: 'var(--blue)' }}>*</span></label>
                   <button className="add-traveller" type="button" onClick={addTraveller} disabled={form.ages.length >= 8}>
                     <Icon name="i-plus" className="ico sm" />Add traveller
                   </button>
@@ -166,7 +166,7 @@ export default function QuoteModal() {
                     </span>
                   ))}
                 </div>
-                <p className="tiny" style={{ marginTop: 10 }}>Age on the trip start date &mdash; each age is priced separately.</p>
+                <p className="tiny" style={{ marginTop: 10 }}>Enter each traveller’s age on the cover start date. Pricing is calculated separately for each traveller.</p>
               </div>
               <div className="modal-ft">
                 <span className="tiny" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -235,7 +235,7 @@ export default function QuoteModal() {
                   View My Plans<Icon name="i-arrow" className="ico w sm" />
                 </button>
               </div>
-              <p className="tiny" style={{ marginTop: 12 }}>You'll be taken to our secure quote page to compare 65+ A-rated plans and buy online.</p>
+              <p className="tiny" style={{ marginTop: 12 }}>You’ll be taken to our secure quote page to compare the available plans and buy online.</p>
             </div>
           )}
 

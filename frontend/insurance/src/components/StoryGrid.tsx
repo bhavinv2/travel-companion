@@ -22,7 +22,7 @@ const STORIES = [
     photo: photo('story-business.jpg'), alt: 'Business traveller resting feet on a suitcase in an airport departure lounge as a plane takes off',
   },
   {
-    title: 'Senior Travellers', desc: 'Plans suited to travellers over 60.',
+    title: 'Senior Travellers', desc: 'Explore plans for senior travellers, subject to age and eligibility limits.',
     photo: photo('story-senior.jpg'), alt: 'Senior couple walking arm in arm through a historic city plaza abroad',
   },
   {

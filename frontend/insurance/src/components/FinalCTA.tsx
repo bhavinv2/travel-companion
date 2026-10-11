@@ -33,7 +33,7 @@ export default function FinalCTA() {
           <div className="fcta-copy">
             <h2 className="fcta-h">Ready to Travel With More Confidence?</h2>
             <p className="fcta-lead">
-              Compare 65+ A-rated plans for your parents&apos; visit &mdash; free quotes in under two minutes.
+              Compare available plans for your parents&rsquo; visit and get a free quote online.
             </p>
             <div className="fcta-btns">
               <button className="btn fcta-a" type="button" onClick={() => openQuote()}>

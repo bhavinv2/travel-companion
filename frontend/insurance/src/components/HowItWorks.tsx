@@ -7,19 +7,19 @@ import { useInView } from '../hooks/useInView';
 const STEPS = [
   {
     icon: 'i-pin', tone: 'amber', title: 'Tell Us About Your Trip',
-    desc: 'Destination, dates and travellers.', chip: 'Takes two minutes',
+    desc: 'Destination, dates and travellers.', chip: 'A few quick details',
   },
   {
     icon: 'i-list', tone: 'blue', title: 'Compare Your Options',
-    desc: '65+ A-rated plans, side by side.', chip: 'No payment to compare',
+    desc: 'Available plans, side by side.', chip: 'No payment to compare',
   },
   {
     icon: 'i-shield', tone: 'green', title: 'Choose Your Coverage',
-    desc: 'Pick the plan that fits and buy online.', chip: 'Policy issued instantly',
+    desc: 'Pick the plan that fits and buy online.', chip: 'Policy sent after purchase',
   },
   {
     icon: 'i-plane', tone: 'rose', title: 'Travel With Confidence',
-    desc: 'Your policy and help, on your phone.', chip: '24/7 assistance',
+    desc: 'Access your policy and assistance from your phone.', chip: '24/7 assistance',
   },
 ];
 
@@ -42,7 +42,7 @@ export default function HowItWorks() {
           <h2 className="h2" style={{ marginTop: 12, maxWidth: 720 }}>Travel Insurance Made Simple</h2>
           <span className="script-tag" style={{ fontSize: 22, color: 'var(--horizon)' }}>Steps, made simple.</span>
           <p className="lead" style={{ marginTop: 12, maxWidth: 560 }}>
-            Getting your parents covered takes just a few minutes, start to finish.
+            Getting your parents covered is simple, start to finish.
           </p>
         </div>
 

@@ -147,52 +147,54 @@ DEFAULT_FAQS = [
 #
 # Every answer is deliberately about travel insurance in general and defers to the policy
 # wording for specifics. What a given plan covers, excludes or waits out differs by plan and by
-# insurer, and that page sells 65+ of them -- a confident number here would be wrong for most.
+# insurer, and that page sells many of them -- a confident number here would be wrong for most.
 _INSURANCE_QA = [
     ('What is travel insurance?',
      'A policy that can help cover eligible costs from unexpected events on a trip, such as '
-     'medical emergencies, evacuation, delays or lost baggage. It pays towards what the policy '
-     'lists, up to the limits you choose when you buy.'),
+     'medical emergencies, evacuation, delays or lost baggage. The policy helps pay eligible '
+     'expenses, subject to its benefit limits, deductibles, and exclusions.'),
     ('What does travel insurance cover?',
-     'It varies by plan. Common benefits are emergency medical treatment, hospitalisation, '
-     'emergency evacuation, trip interruption and baggage. The amount each one pays, and the '
-     'deductible you meet first, are set by the plan you pick. Always read the policy wording '
+     'Depending on the plan, benefits may include emergency medical treatment, hospitalisation, '
+     'emergency evacuation, trip interruption, and baggage protection. The benefit limits and '
+     'any applicable deductible are set out in your chosen plan. Always read the policy wording '
      'before you buy — that document, not this page, is the contract.'),
     ('What is not covered?',
-     'Most travel medical plans exclude routine or planned treatment, check-ups, dental and '
-     'vision beyond emergencies, pregnancy and childbirth in many cases, injuries from extreme '
-     'sports, and anything arising while under the influence. Exclusions differ between plans, '
-     'so compare them rather than assuming they match.'),
+     'Exclusions vary by plan and may include routine or planned treatment, non-emergency dental '
+     'or vision care, certain pregnancy-related expenses, some high-risk activities, and '
+     'incidents involving alcohol or drugs. Read the policy’s exclusions and benefit conditions '
+     'carefully.'),
     ('Are pre-existing conditions covered?',
-     'Sometimes, and it is the question worth asking before you buy. Plans differ: some exclude '
-     'pre-existing conditions outright, some cover an acute onset of one, and some cover them '
-     'after a look-back period during which you were stable. The look-back window and what '
-     'counts as stable are defined in each policy. If somebody travelling has a known condition, '
-     'tell us and we will point you at the plans that address it.'),
+     'Cover for pre-existing conditions varies by plan. Some plans exclude them, while others may '
+     'provide limited cover, such as for an acute onset, subject to specific conditions and age '
+     'limits. Any look-back or medical-stability period is defined by the policy. Check these '
+     'terms with the insurer before buying.'),
     ('Is there a waiting period?',
-     'Many plans apply one, so cover for certain benefits starts a set number of days after the '
-     'policy does. It is one of the things that differs most between plans, and one of the '
-     'reasons to buy before departure rather than after a problem appears.'),
+     'Some plans or benefits have waiting periods. Check the policy’s start date, waiting '
+     'periods, and conditions before buying. Buying a policy does not guarantee cover for an '
+     'event that has already occurred.'),
     ('When should I buy?',
-     'Before the trip starts, and ideally as soon as it is booked. Cover cannot be bought for '
-     'something that has already happened, and benefits that protect the cost of the trip only '
-     'apply to bookings made before the policy was issued.'),
+     'Buy travel insurance before you travel, ideally soon after making your first trip booking. '
+     'Eligibility for trip cancellation cover and other time-sensitive benefits depends on the '
+     'policy, your booking and payment dates, and when you purchase cover. Check how the policy '
+     'treats later bookings and known events.'),
     ('Is travel insurance mandatory?',
      'For some destinations and visa types, yes — many Schengen visa applications require proof '
      'of minimum medical cover, and some countries ask for it on entry. Requirements change, so '
      'check the embassy or immigration source for your destination; they have the final word.'),
     ('What is visitor insurance?',
-     'Travel medical cover for people visiting another country — most often parents staying with '
-     'family abroad, or tourists. It covers emergencies that happen during the visit rather than '
-     'ongoing care, and it is bought for the length of the stay.'),
+     'Visitor insurance is travel medical insurance for people visiting another country, '
+     'including parents visiting family and tourists. Depending on the plan, it may cover '
+     'eligible medical emergencies during the insured visit. Routine or ongoing care may be '
+     'excluded.'),
     ('How do I make a claim?',
-     'You claim with the insurer who issued the policy, not with us. Keep every medical report, '
+     'Submit your claim to the insurer or designated claims administrator named in your policy, '
+     'not to us. Keep every medical report, '
      'bill and receipt, and tell the insurer as soon as you reasonably can — most set a deadline '
      'for notifying them. Their emergency line is on your policy document. If you are not sure '
      'where to start, contact us and we will walk you through it.'),
     ('Can I buy travel insurance online?',
-     'Yes. Get a quote, compare 65+ A-rated plans side by side and buy online. Policy documents '
-     'are sent to you by e-mail.'),
+     'Yes. Get a quote, compare the available plans side by side and buy online. Policy '
+     'documents are sent to you by email.'),
 ]
 
 DEFAULT_FAQS += [{'id': 'faq_ins_%02d' % i, 'category': 'travel_insurance',

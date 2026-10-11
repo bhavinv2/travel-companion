@@ -81,7 +81,7 @@ export default function Footer() {
               </a>
             ))}
             <a className="fl" href={`mailto:${site.supportEmail || SUPPORT_EMAIL}`}><Icon name="i-mail" className="ico h xs" />{site.supportEmail || SUPPORT_EMAIL}</a>
-            <span className="fl" style={{ cursor: 'default' }}><Icon name="i-clock" className="ico h xs" />Across time zones</span>
+            <span className="fl" style={{ cursor: 'default' }}><Icon name="i-clock" className="ico h xs" />India · USA · Canada teams</span>
           </div>
         </div>
         <hr style={{ border: 0, borderTop: '1px solid rgba(255,255,255,.12)', margin: '40px 0 20px' }} />

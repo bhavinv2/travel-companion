@@ -27,21 +27,21 @@ const CARDS = [
   },
   {
     tag: 'Delay cover', title: 'Trip Delay',
-    desc: 'Support for covered delays beyond set hours.',
+    desc: 'Cover for eligible delays that exceed your plan’s minimum delay period.',
     photo: photo('benefit-delay.jpg'), alt: 'Hand holding a small clock',
   },
   {
     tag: 'Baggage cover', title: 'Baggage Protection',
-    desc: 'Cover for eligible lost or delayed checked bags.',
+    desc: 'Cover for eligible expenses arising from lost or delayed checked baggage.',
     photo: photo('benefit-baggage.jpg'), alt: 'Travel backpack packed and ready',
   },
   {
-    tag: '24/7 cover', title: '24/7 Assistance',
-    desc: 'A helpline for emergencies, in any time zone.',
+    tag: '24/7 assistance', title: '24/7 Assistance',
+    desc: 'A helpline for emergencies in any time zone.',
     photo: photo('benefit-support-247.jpg'), alt: 'Two people shaking hands over paperwork',
   },
   {
-    tag: 'Support cover', title: 'Travel Support',
+    tag: 'Travel assistance', title: 'Travel Support',
     desc: 'Guidance on documents, clinics and next steps.',
     photo: photo('benefit-support-docs.jpg'), alt: 'Hand signing travel paperwork',
   },
@@ -64,7 +64,7 @@ export default function WhyRail() {
           <div>
             <span className="kick">Why it matters</span>
             <h2 className="h2" style={{ marginTop: 12 }}>Why You Need Travel Insurance</h2>
-            <span className="script-tag" style={{ fontSize: 22, color: 'var(--marigold)' }}>Prevent medical bills from disrupting your trip.</span>
+            <span className="script-tag" style={{ fontSize: 22, color: 'var(--marigold)' }}>Help protect your trip budget from eligible medical expenses.</span>
             <p className="lead" style={{ marginTop: 10 }}>Because unexpected moments shouldn't become unexpected expenses.</p>
           </div>
         </div>

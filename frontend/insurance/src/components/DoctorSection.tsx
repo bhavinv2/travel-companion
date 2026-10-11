@@ -27,14 +27,14 @@ export default function DoctorSection() {
         <div>
           <span className="chip g">
             <Icon name="i-check" className="ico g xs" />
-            Free for our travel insurance customers
+            For eligible insured travellers
           </span>
-          <h2 className="h2" style={{ marginTop: 16 }}>Free Virtual Doctor Consultation While You&apos;re Abroad</h2>
+          <h2 className="h2" style={{ marginTop: 16 }}>Virtual Doctor Consultations for Eligible Travellers</h2>
           <span className="script-tag" style={{ display: 'block', fontSize: 22, marginTop: 8, color: 'var(--blue)' }}>
             Care that travels with you.
           </span>
           <p className="lead" style={{ marginTop: 14, maxWidth: 520 }}>
-            Every traveller insured with us can speak to a doctor by video or phone from wherever they are staying, at no extra cost.
+            Eligible insured travellers may be able to consult a doctor by video or phone at no additional cost, subject to service availability and applicable terms.
           </p>
 
           <ul className="vcon-feats">

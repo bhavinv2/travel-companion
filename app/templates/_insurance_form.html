@@ -22,18 +22,18 @@
       </button>
       <button type="button" class="ins-type" data-ins-type="health" role="tab" aria-selected="false">
         <span class="ins-type-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L11 19v-5.5L21 16z"/></svg></span>
-        <span class="ins-type-tx"><b>Travel Medical</b><small>Canada, Australia &amp; rest of world</small></span>
+        <span class="ins-type-tx"><b>Travel Medical</b><small>Canada, Australia &amp; the rest of the world</small></span>
       </button>
       <button type="button" class="ins-type" data-ins-type="schengen" role="tab" aria-selected="false">
         <span class="ins-type-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 4 5.7 4 9s-1.4 6.3-4 9c-2.6-2.7-4-5.7-4-9s1.4-6.3 4-9Z"/></svg></span>
-        <span class="ins-type-tx"><b>Schengen</b><small>Europe visa cover</small></span>
+        <span class="ins-type-tx"><b>Schengen</b><small>Schengen visa cover</small></span>
       </button>
     </div>
 
     <div class="ins-grid">
-      <div class="f"><label for="{{ p }}-start">Coverage starts <i class="rq">*</i></label>
+      <div class="f"><label for="{{ p }}-start">Cover start date <i class="rq">*</i></label>
         {% if native_dates %}<input id="{{ p }}-start" class="ins-start" type="date" min="{{ today }}">{% else %}<input id="{{ p }}-start" class="ins-start" type="text" readonly data-cal data-min="today" placeholder="Pick a date">{% endif %}</div>
-      <div class="f"><label for="{{ p }}-end">Coverage ends <i class="rq">*</i></label>
+      <div class="f"><label for="{{ p }}-end">Cover end date <i class="rq">*</i></label>
         {% if native_dates %}<input id="{{ p }}-end" class="ins-end" type="date" min="{{ today }}">{% else %}<input id="{{ p }}-end" class="ins-end" type="text" readonly data-cal data-min="today" placeholder="Pick a date">{% endif %}</div>
       <div class="f ins-cit-f"><label for="{{ p }}-cit">Country of citizenship <i class="rq">*</i></label>
         <select id="{{ p }}-cit" class="ins-cit" data-no-search>
@@ -57,7 +57,7 @@
        list, so the form lets you add more. #}
     <div class="ins-trav">
       <div class="ins-trav-top">
-        <label>Traveller ages <i class="rq">*</i></label>
+        <label>Travellers’ ages (in years) <i class="rq">*</i></label>
         <button type="button" class="ins-add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>Add traveller</button>
       </div>
       <div class="ins-trav-rows"></div>
@@ -93,6 +93,6 @@
       </div>
     </div>
   </div>
-  <p class="hint ins-foot">In partnership with {{ partner }} — quotes are priced live on their site, where you complete the purchase.</p>
+  <p class="hint ins-foot">Quotes are provided by {{ partner }}. You’ll complete your purchase on its website.</p>
 </form>
 {% endmacro %}

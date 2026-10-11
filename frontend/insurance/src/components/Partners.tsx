@@ -42,7 +42,7 @@ export default function Partners() {
         </h2>
         <span className="script-tag" style={{ fontSize: 22, color: 'var(--marigold)' }}>Choice, made simple.</span>
         <p className="lead" style={{ marginTop: 12, maxWidth: 640 }}>
-          Side-by-side quotes from leading travel and visitor insurance providers, in one place.
+          Compare quotes from travel and visitor insurance providers in one place.
         </p>
         <ul className="pt-points">
           <li className="t-blue"><Icon name="i-list" className="ico sm" />Compare side by side</li>

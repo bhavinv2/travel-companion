@@ -48,8 +48,8 @@ def _faqs():
 # What the page says it is. These are the words search results show, so the page's own title
 # and meta description are built from them too -- schema that describes a different page from
 # the one it sits on is the thing that gets discounted.
-PAGE_NAME = 'Buy Travel Insurance Online | Visitors Insurance for USA | NRI Parent Service'
-PAGE_HEADLINE = 'Buy Travel & Visitor Insurance Online for USA'
+PAGE_NAME = 'Buy Travel Insurance Online | Visitor Insurance for the USA | NRI Parent Service'
+PAGE_HEADLINE = 'Buy Travel & Visitor Insurance Online for the USA'
 PAGE_DESCRIPTION = ('Buy travel insurance online for parents, relatives and visitors travelling '
                     'to the USA. Compare travel and visitor insurance plans with expert guidance '
                     'from NRI Parent Service.')

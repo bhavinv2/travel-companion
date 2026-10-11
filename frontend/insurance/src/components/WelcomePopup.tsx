@@ -23,6 +23,8 @@ export default function WelcomePopup() {
   const [travel, setTravel] = useState('Canada');
   const [travelInvalid, setTravelInvalid] = useState(false);
   const [sent, setSent] = useState(false);
+  // true: the server stored the enquiry; false: it did not; null: nowhere to send it (dev build)
+  const [saved, setSaved] = useState<boolean | null>(null);
   const [waUrl, setWaUrl] = useState('');
   // The listeners below outlive a render, so they read the live value through a ref rather than
   // closing over a stale one.
@@ -122,9 +124,10 @@ export default function WelcomePopup() {
     // A WhatsApp link somebody never clicks leaves no trace of the enquiry. Record it in the inbox
     // CS already works from first, hand off second; a failed POST must not block the hand-off.
     track('popup_lead');
+    let stored: boolean | null = null;
     if (site.enquiryUrl) {
       try {
-        await fetch(site.enquiryUrl, {
+        const r = await fetch(site.enquiryUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -133,10 +136,12 @@ export default function WelcomePopup() {
           // the number and its country apart; the server normalises the pair to E.164
           body: JSON.stringify({ name, email, phone: tel.trim(), phone_cc: iso, destination: travel }),
         });
+        stored = r.ok;
       } catch {
-        /* the WhatsApp hand-off below still works */
+        stored = false;   /* the WhatsApp hand-off below still works */
       }
     }
+    setSaved(stored);
     setSent(true);
   }
 
@@ -155,8 +160,8 @@ export default function WelcomePopup() {
                 <path d="M4 22C60 4 140 28 198 6" fill="none" stroke="#B8D0FF" strokeWidth="2" strokeDasharray="1.5 7" strokeLinecap="round" />
               </svg>
             </div>
-            <h2 className="cpop-h" id="cpop-title">Book Your <span>Consultation Now</span></h2>
-            <p className="cpop-sub">Get expert guidance for your safe and hassle-free travel.</p>
+            <h2 className="cpop-h" id="cpop-title">Request a <span>Consultation</span></h2>
+            <p className="cpop-sub">Get expert guidance to help you choose travel insurance.</p>
             <div className="cpop-fields">
               <span className="cfield">
                 <Icon name="i-user" className="ico s sm" />
@@ -191,9 +196,13 @@ export default function WelcomePopup() {
         ) : (
           <div className="cpop-bd cpop-thanks">
             <span className="cpop-wa-ic"><Icon name="i-whatsapp" className="ico-solid" style={{ width: 30, height: 30 }} /></span>
-            <h2 className="cpop-h2">Thank You!</h2>
-            <p className="cpop-sub2">Get Your Details on <b>WhatsApp</b> with Our Assistance</p>
-            <p className="cpop-body">Our team will contact you shortly on WhatsApp to assist you with the next steps.</p>
+            <h2 className="cpop-h2">{saved === false ? 'Almost There' : 'Thank You!'}</h2>
+            <p className="cpop-sub2">Get travel insurance guidance on <b>WhatsApp</b>.</p>
+            <p className="cpop-body">{saved === true
+              ? 'We’ve received your request. Our team will contact you on WhatsApp.'
+              : saved === false
+                ? 'We could not save your request just now. Message us on WhatsApp and our team will help you from there.'
+                : 'Message us on WhatsApp and our team will help you from there.'}</p>
             <div className="cpop-pic">
               <img src={photo('whatsapp-expert.jpg')} alt="Our travel insurance expert, ready to chat on WhatsApp" width={582} height={326} loading="lazy" decoding="async" />
             </div>

@@ -10,7 +10,8 @@ import { track } from '../utils/track';
 // Fallbacks only: the served page injects whatever staff set in the admin screens.
 const WHATSAPP_NUMBER = '918019111360';
 const SUPPORT_EMAIL = 'support@nriparentservice.com';
-const AVAILABILITY = 'Across time zones, every day';
+// Not a claim of round-the-clock cover: the real hours are set by staff in Admin -> Insurance page.
+const AVAILABILITY = 'Contact our India, USA, or Canada team';
 const SUPPORT_PHONES = [
   { label: 'India', display: '+91 80191 11360', digits: '918019111360' },
   { label: 'USA', display: '+1 (917) 900-5094', digits: '19179005094' },
@@ -29,6 +30,8 @@ export default function ExpertContact() {
   const [dest, setDest] = useState('');
   const [destInvalid, setDestInvalid] = useState(false);
   const [sent, setSent] = useState(false);
+  // true: the server stored the enquiry; false: it did not; null: nowhere to send it (dev build)
+  const [saved, setSaved] = useState<boolean | null>(null);
   const [waUrl, setWaUrl] = useState('');
 
   // Staff set these in Admin -> Landing page; the constants above are what this build ships with
@@ -59,9 +62,10 @@ export default function ExpertContact() {
     // A WhatsApp link somebody never clicks leaves no trace of the enquiry. Record it in the inbox
     // CS already works from first, hand off second; a failed POST must not block the hand-off.
     track('expert_form');
+    let ok: boolean | null = null;
     if (site.enquiryUrl) {
       try {
-        await fetch(site.enquiryUrl, {
+        const r = await fetch(site.enquiryUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -70,10 +74,12 @@ export default function ExpertContact() {
           // the number and its country apart; the server normalises the pair to E.164
           body: JSON.stringify({ name, email, phone: tel.trim(), phone_cc: iso, destination: dest }),
         });
+        ok = r.ok;
       } catch {
-        /* the WhatsApp hand-off below still works */
+        ok = false;   /* the WhatsApp hand-off below still works */
       }
     }
+    setSaved(ok);
     setSent(true);
   }
 
@@ -92,7 +98,7 @@ export default function ExpertContact() {
           <h2 className="h2" style={{ marginTop: 14 }}>Discuss Your <span className="expert-mute">Travel Cover</span> With an Expert</h2>
           <span className="script-tag" style={{ fontSize: 22, color: 'var(--blue)' }}>We're just a message away.</span>
           <p className="lead" style={{ marginTop: 16, maxWidth: 470 }}>
-            Not sure which plan fits your trip? Share a few details and one of our travel insurance specialists will walk you through the options &mdash; no cost, no obligation.
+            Not sure which plan is right for your trip? Share a few details, and a travel insurance specialist will explain your options at no cost and with no obligation.
           </p>
           {/* Every line here is something you can act on. Read-only text made a visitor on a
               phone copy a number out by hand, and gave the two numbers no context -- +91 and
@@ -170,9 +176,13 @@ export default function ExpertContact() {
                 Edit My Details
               </button>
               <span className="cpop-wa-ic"><Icon name="i-whatsapp" className="ico-solid" style={{ width: 30, height: 30 }} /></span>
-              <h2 className="cpop-h2">Thank You!</h2>
-              <p className="cpop-sub2">Get Your Details on <b>WhatsApp</b> with Our Assistance</p>
-              <p className="cpop-body">Our team will contact you shortly on WhatsApp to assist you with the next steps.</p>
+              <h2 className="cpop-h2">{saved === false ? 'Almost There' : 'Thank You!'}</h2>
+              <p className="cpop-sub2">Get travel insurance guidance on <b>WhatsApp</b>.</p>
+              <p className="cpop-body">{saved === true
+                ? 'We’ve received your request. Our team will contact you on WhatsApp.'
+                : saved === false
+                  ? 'We could not save your request just now. Message us on WhatsApp and our team will help you from there.'
+                  : 'Message us on WhatsApp and our team will help you from there.'}</p>
               <div className="cpop-pic">
                 <img src={photo('whatsapp-expert.jpg')} alt="Our travel insurance expert, ready to chat on WhatsApp" width={582} height={326} loading="lazy" decoding="async" />
               </div>
