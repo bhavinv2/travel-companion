@@ -5,28 +5,36 @@
 {% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/crm.css') }}"/>{% endblock %}
 {% block content %}
 <div class="admin-page">
-  {% with active=('crm_insights' if crm_tab == 'insights' else 'crm_setup' if crm_tab == 'setup' else 'crm_board') %}{% include 'cs/_sidebar.html' %}{% endwith %}
-  <main class="admin-main crm" data-crm="{{ url_for('crm.board') }}" data-wa="{{ 1 if wa_ready else 0 }}">
+  {% if request.blueprint == 'admin_crm' %}
+    {% with active=('crm_' ~ (crm_tab or 'board')) %}{% include 'admin/_sidebar.html' %}{% endwith %}
+  {% else %}
+    {% with active=('crm_insights' if crm_tab == 'insights' else 'crm_setup' if crm_tab == 'setup' else 'crm_board') %}{% include 'cs/_sidebar.html' %}{% endwith %}
+  {% endif %}
+  <main class="admin-main crm" data-crm="{{ crm_url('board') }}" data-wa="{{ 1 if wa_ready else 0 }}">
     <nav class="crm-tabs" aria-label="Sales CRM">
-      <a href="{{ url_for('crm.today') }}" class="{{ 'on' if crm_tab == 'today' }}">
+      <a href="{{ crm_url('today') }}" class="{{ 'on' if crm_tab == 'today' }}">
         <i class="fa-solid fa-list-check"></i> My follow-ups
         {% if my_due %}<span class="n" title="{{ my_due }} due now">{{ my_due }}</span>{% endif %}</a>
-      <a href="{{ url_for('crm.board') }}" class="{{ 'on' if crm_tab == 'board' }}">
+      <a href="{{ crm_url('board') }}" class="{{ 'on' if crm_tab == 'board' }}">
         <i class="fa-solid fa-table-columns"></i> Lead board</a>
-      <a href="{{ url_for('crm.add') }}" class="{{ 'on' if crm_tab == 'add' }}">
+      <a href="{{ crm_url('add') }}" class="{{ 'on' if crm_tab == 'add' }}">
         <i class="fa-solid fa-user-plus"></i> Add a lead</a>
-      <a href="{{ url_for('crm.checks') }}" class="{{ 'on' if crm_tab == 'checks' }}">
+      <a href="{{ crm_url('checks') }}" class="{{ 'on' if crm_tab == 'checks' }}">
         <i class="fa-solid fa-clipboard-check"></i> Inbox check
         {% if check_due %}<span class="n warn" title="This half hour's inboxes are not ticked yet">!</span>{% endif %}</a>
       {% if CS_ACCESS.can_open(current_user, 'crm_insights') %}
-      <a href="{{ url_for('crm.insights') }}" class="{{ 'on' if crm_tab == 'insights' }}">
-        <i class="fa-solid fa-chart-line"></i> Numbers</a>
+      <a href="{{ crm_url('insights') }}" class="{{ 'on' if crm_tab == 'insights' }}">
+        <i class="fa-solid fa-chart-line"></i> Dashboard</a>
       {% endif %}
+      <a href="{{ crm_url('process') }}" class="{{ 'on' if crm_tab == 'process' }}">
+        <i class="fa-solid fa-diagram-project"></i> Sales process</a>
       {% if CS_ACCESS.can_open(current_user, 'crm_setup') %}
-      <a href="{{ url_for('crm.setup') }}" class="{{ 'on' if crm_tab == 'setup' }}">
+      <a href="{{ crm_url('setup') }}" class="{{ 'on' if crm_tab == 'setup' }}">
         <i class="fa-solid fa-sliders"></i> Set-up
         {% if unrouted_count %}<span class="n warn" title="{{ unrouted_count }} new lead source(s) to set up">{{ unrouted_count }}</span>{% endif %}</a>
       {% endif %}
+      <button type="button" class="focus-btn" data-focus title="Hide the menus and use the whole screen (Esc to come back)">
+        <i class="fa-solid fa-expand"></i> <span>Focus mode</span></button>
     </nav>
     {% block crm %}{% endblock %}
   </main>

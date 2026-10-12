@@ -92,11 +92,15 @@
   }
 
   /* -------------------------------------------------------------- sending */
-  function sendMessage(leadId, text, taskId, phone, via) {
+  // a ready message picked from "Or a ready message": its id goes with the send, so it is counted
+  // under its code (BW, FM, HJ...) -- forgotten as soon as the reply box is edited away from it
+  var quickPick = null;
+
+  function sendMessage(leadId, text, taskId, phone, via, answerId) {
     text = (text || '').trim();
     if (!text) { toast('Write the message first.', true); return Promise.resolve(null); }
     if (via && via !== 'whatsapp') {
-      return post('lead/' + leadId + '/send', { text: text, task_id: taskId || null, via: via }).then(function (d) {
+      return post('lead/' + leadId + '/send', { text: text, task_id: taskId || null, via: via, answer_id: answerId || null }).then(function (d) {
         if (!d._ok) { toast(d.error || 'Could not send.', true); return null; }
         toast(via === 'instagram' ? 'Sent on Instagram' : 'Sent on Messenger');
         return d;
@@ -108,7 +112,7 @@
       var link = waLink(phone, text);
       if (link) { window.open(link, '_blank', 'noopener'); opened = true; }
     }
-    return post('lead/' + leadId + '/send', { text: text, task_id: taskId || null }).then(function (d) {
+    return post('lead/' + leadId + '/send', { text: text, task_id: taskId || null, answer_id: answerId || null }).then(function (d) {
       if (!d._ok) { toast(d.error || 'Could not send.', true); return null; }
       if (d.mode === 'sent') toast('Sent on WhatsApp');
       else {
@@ -207,7 +211,9 @@
           .then(function (d) { b.disabled = false; if (d) reloadSoon(900); });
       } else if (act === 'send-reply') {
         b.disabled = true;
-        sendMessage(leadId, document.getElementById('crm-reply').value, null, phone, b.dataset.via)
+        var replyText = document.getElementById('crm-reply').value;
+        sendMessage(leadId, replyText, null, phone, b.dataset.via,
+                    quickPick && quickPick.text.trim() === replyText.trim() ? quickPick.id : null)
           .then(function (d) { b.disabled = false; if (d) reloadSoon(900); });
       } else if (act === 'copy-reply') {
         var txt = document.getElementById('crm-reply').value;
@@ -337,6 +343,7 @@
       if (!s) return;
       if (e.target.closest('[data-use]') && reply) {
         reply.value = s.querySelector('.b').textContent;
+        quickPick = null;
         reply.focus();
         reply.scrollIntoView({ behavior: 'smooth', block: 'center' });
         post('answer/' + encodeURIComponent(s.dataset.id) + '/used', {});
@@ -390,6 +397,92 @@
     }, true);
   }
 
+  /* -------------------------------------------------------------- lead page: buttons added later */
+  if (leadPage) {
+    // Quote sent / Payment link sent
+    leadPage.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-act="event"]');
+      if (!b) return;
+      b.disabled = true;
+      post('lead/' + leadPage.dataset.lead + '/event', { code: b.dataset.code }).then(function (d) {
+        if (!d._ok) { b.disabled = false; toast(d.error || 'Could not save.', true); return; }
+        toast(d.stage ? 'Saved — moved to ' + d.stage : 'Saved');
+        reloadSoon();
+      });
+    });
+    // ready to buy?
+    leadPage.querySelectorAll('[data-likelihood] [data-lk]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var on = btn.classList.contains('on');
+        post('lead/' + leadPage.dataset.lead + '/update', { likelihood: on ? '' : btn.dataset.lk }).then(function (d) {
+          if (!d._ok) { toast(d.error || 'Could not save.', true); return; }
+          leadPage.querySelectorAll('[data-likelihood] [data-lk]').forEach(function (x) { x.classList.remove('on'); });
+          if (!on) btn.classList.add('on');
+        });
+      });
+    });
+    // a ready message fills the reply box, filled in for this lead
+    var quick = leadPage.querySelector('[data-quick]');
+    if (quick) quick.addEventListener('click', function (e) {
+      var c = e.target.closest('[data-answer]');
+      if (!c) return;
+      var reply = document.getElementById('crm-reply');
+      reply.value = c.dataset.text;
+      quickPick = { id: c.dataset.answer, text: c.dataset.text };
+      quick.querySelectorAll('.chip').forEach(function (x) { x.classList.remove('on'); });
+      c.classList.add('on');
+      reply.focus();
+    });
+    // their WhatsApp conversation, read from the WhatsApp CRM
+    var thread = leadPage.querySelector('[data-thread]');
+    if (thread) {
+      fetch(thread.dataset.url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var body = thread.querySelector('[data-thread-body]');
+          if (d.error) { body.innerHTML = '<p class="muted" style="margin:0">' + esc(d.error) + '</p>'; return; }
+          if (d.url) { var a = thread.querySelector('[data-thread-link]'); a.href = d.url; a.hidden = false; }
+          var msgs = d.messages || [];
+          if (!msgs.length) { body.innerHTML = '<p class="muted" style="margin:0">No WhatsApp messages with them yet.</p>'; return; }
+          body.innerHTML = msgs.map(function (m) {
+            var when = m.created_at ? new Date(m.created_at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+            var text = m.content_text || '[' + (m.content_type || 'message') + ']';
+            return '<div class="bubble ' + (m.direction === 'inbound' ? 'in' : 'out') + '"><p>' + esc(text) + '</p><small>' + esc(when) +
+              (m.direction !== 'inbound' && m.status ? ' · ' + esc(m.status) : '') + '</small></div>';
+          }).join('');
+          body.scrollTop = body.scrollHeight;
+        })
+        .catch(function () {
+          thread.querySelector('[data-thread-body]').innerHTML = '<p class="muted" style="margin:0">Could not load the conversation.</p>';
+        });
+    }
+  }
+
+  /* -------------------------------------------------------------- focus mode */
+  function setFocus(on) {
+    document.body.classList.toggle('crm-focus', on);
+    var b = document.querySelector('[data-focus]');
+    if (b) b.innerHTML = on ? '<i class="fa-solid fa-compress"></i> <span>Leave focus mode</span>'
+                            : '<i class="fa-solid fa-expand"></i> <span>Focus mode</span>';
+    try { localStorage.setItem('crm-focus', on ? '1' : ''); } catch (e) { /* private window */ }
+  }
+  var focusBtn = document.querySelector('[data-focus]');
+  if (focusBtn) {
+    try { if (localStorage.getItem('crm-focus') === '1') setFocus(true); } catch (e) { /* ignore */ }
+    focusBtn.addEventListener('click', function () { setFocus(!document.body.classList.contains('crm-focus')); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && document.body.classList.contains('crm-focus') && !document.querySelector('dialog[open]')) setFocus(false);
+    });
+  }
+
+  /* -------------------------------------------------------------- log today's work: − / + */
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-step]');
+    if (!b) return;
+    var input = b.parentElement.querySelector('input');
+    input.value = Math.max(0, (parseFloat(input.value) || 0) + parseFloat(b.dataset.step));
+  });
+
   /* -------------------------------------------------------------- inbox check */
   document.addEventListener('click', function (e) {
     var t = e.target.closest('[data-tick]');
@@ -403,7 +496,8 @@
       if (!d._ok) { toast(d.error || 'Could not save.', true); return; }
       if (all) { toast('All inboxes ticked for this half hour'); reloadSoon(400); return; }
       t.classList.toggle('on', !!d.ticked);
-      t.textContent = d.ticked ? '\u2713' : '';
+      t.textContent = d.ticked ? '✓' : '';
+      if (d.ticked) t.classList.remove('miss');
     });
   });
 

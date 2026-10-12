@@ -1644,6 +1644,11 @@ CRM_CHECK_CHANNELS = ['Tawk', 'FB Messenger', 'Instagram Messenger', 'FB Comment
                       'IND WhatsApp', 'USA WhatsApp', 'Email', 'India Call', 'USA Call', 'Telegram',
                       'TC website']
 CRM_CHECK_HOURS = (7, 24)     # IST, half-hour slots from 07:00 to midnight
+# How ready to buy -- the colour of the row in the sales sheet (green: ready, yellow: thinking).
+CRM_LIKELIHOOD = {'hot': 'Ready to buy', 'warm': 'Thinking about it', 'cold': 'Not likely'}
+# What a stage does by itself: move a lead on after N days without a reply, or once the trip
+# has started (N days after departure).
+CRM_AUTO_KINDS = {'no_reply': 'days with no reply from them', 'departed': 'days after the trip starts'}
 
 
 class CrmPipeline(db.Model):
@@ -1686,6 +1691,14 @@ class CrmStage(db.Model):
     # a reply from the person moves a lead here out of the first stage (cold lead -> prospect)
     on_reply = db.Column(db.Boolean, nullable=False, default=False)
     sla_hours = db.Column(db.Integer)                                    # how long a lead may sit here
+    # automation: after `auto_days` (see CRM_AUTO_KINDS) move the lead to `auto_to` by itself
+    auto_kind = db.Column(db.String(10))
+    auto_days = db.Column(db.Integer)
+    auto_to_id = db.Column(db.Integer, db.ForeignKey('crm_stages.id', use_alter=True,
+                                                     name='fk_crm_stage_auto_to'), nullable=True)
+    auto_reason = db.Column(db.String(80))
+
+    auto_to = db.relationship('CrmStage', remote_side='CrmStage.id', foreign_keys=[auto_to_id], post_update=True)
 
     __table_args__ = (db.UniqueConstraint('pipeline_id', 'key', name='uq_crm_stage_key'),)
 
@@ -1725,6 +1738,7 @@ class CrmPerson(db.Model):
     consent_marketing = db.Column(db.Boolean, nullable=False, default=False)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     wacrm_contact_id = db.Column(db.String(64), nullable=True, index=True)
+    wacrm_conversation_id = db.Column(db.String(64), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -1781,6 +1795,10 @@ class CrmLead(db.Model):
     stage_id = db.Column(db.Integer, db.ForeignKey('crm_stages.id'), nullable=True, index=True)
     status = db.Column(db.String(6), nullable=False, default='open')     # open / won / lost
     temperature = db.Column(db.String(3))
+    likelihood = db.Column(db.String(4))   # hot / warm / cold (CRM_LIKELIHOOD)
+    # brought in from before the CRM (site backfill, the sales sheet): its history is in the
+    # imported KPI numbers already, so the live numbers leave it out
+    imported = db.Column(db.Boolean, nullable=False, default=False)
     owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
     fallout_reason = db.Column(db.String(80))
     details = db.Column(db.JSON)          # what the form said: trip dates, ages, service, message
@@ -1922,8 +1940,26 @@ class CrmAnswer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(160), nullable=False)       # the question, in their words
     keywords = db.Column(db.String(400))                    # more words that should find it
+    # set on a ready message rather than an answer: BW, FM, HJ... picked from "Quick messages"
+    # on the lead page and counted under its code; answers (no code) are what "They asked" offers
+    code = db.Column(db.String(20))
     body = db.Column(db.Text, nullable=False)
     product = db.Column(db.String(4), nullable=False, default='GEN')
     use_count = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CrmActivity(db.Model):
+    """A number on the KPI sheet the CRM cannot count by itself (Google reviews, blogs on the
+    WordPress site...), entered by the person who did it; or a day of the old KPI tabs brought in
+    from the sales sheet (source 'import'). user_id None: the team's own row."""
+    __tablename__ = 'crm_activities'
+
+    id = db.Column(db.Integer, primary_key=True)
+    day = db.Column(db.Date, nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    metric = db.Column(db.String(30), nullable=False)
+    count = db.Column(db.Float, nullable=False, default=0)
+    source = db.Column(db.String(8), nullable=False, default='manual')     # manual / import
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

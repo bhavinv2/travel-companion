@@ -274,7 +274,7 @@ def test_per_person_numbers(app, client, cs_user):
     assert (t['leads'], t['messages'], t['calls'], t['talked'], t['done']) == (1, 1, 1, 1, 1)
     assert t['codes']['TI'] == 1 and t['first_reply_h'] is not None
     page = client.get('/cs/crm/insights?who=%d' % cs_user.id).get_data(as_text=True)
-    assert 'day by day' in page and 'Messages sent' in page
+    assert 'Csagent&#39;s numbers' in page and 'Day by day' in page and 'Messages by kind' in page
     csv = client.get('/cs/crm/insights.csv?days=7')
     assert csv.headers['Content-Type'].startswith('text/csv') and b'Messages sent' in csv.data
 
@@ -380,7 +380,7 @@ def workbook():
 
 
 def test_reading_the_sales_workbook():
-    rows, stats = crm_import.read_sheet(workbook())
+    rows, stats, kpi = crm_import.read_sheet(workbook())
     by = {r['name'] or r['details'].get('post'): r for r in rows}
     assert stats['Cold Leads']['rows'] == 2 and stats['Prospects']['rows'] == 2
     assert by['HYD DFW NRI TC']['phone'] == '+18044976837'

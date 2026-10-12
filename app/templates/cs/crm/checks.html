@@ -50,7 +50,7 @@
       {% set open = editable and can_tick(day, s) %}
       <td class="{{ 'now' if editable and s == now_slot }}">
         {% if open %}
-        <button type="button" class="tick{{ ' on' if t }}" data-tick data-slot="{{ s }}" data-channel="{{ ch }}"
+        <button type="button" class="tick{{ ' on' if t }}{{ ' miss' if not t and now_slot is not none and s < now_slot }}" data-tick data-slot="{{ s }}" data-channel="{{ ch }}"
                 title="{{ ch }} at {{ label(s) }}{{ ' — ticked by ' ~ t.user.username if t and t.user else '' }}">{{ '✓' if t else '' }}</button>
         {% elif t %}<span class="tick on" title="{{ t.user.username if t.user else '' }}">✓</span>
         {% elif cov.due and s < (now_slot if day == today and now_slot is not none else 99) %}<span class="tick miss" title="Not checked">·</span>
@@ -69,7 +69,7 @@
   <h3>The last seven days</h3>
   <div class="crm-bars">
     {% for d, c in week %}
-    <div class="r"><a href="{{ url_for('crm.checks', day=d.isoformat()) }}">{{ d.strftime('%a %d %b') }}</a>
+    <div class="r"><a href="{{ crm_url('checks', day=d.isoformat()) }}">{{ d.strftime('%a %d %b') }}</a>
       <span class="bar"><i style="width:{{ c.pct or 0 }}%;{{ 'background:var(--crm-bad)' if (c.pct or 0) < 60 }}"></i></span>
       <span class="n">{{ '%d%%' % c.pct if c.pct is not none else '—' }}</span></div>
     {% endfor %}
@@ -79,7 +79,7 @@
 {% if CS_ACCESS.can_open(current_user, 'crm_setup') %}
 <details class="panel tint">
   <summary style="cursor:pointer;font-weight:600"><i class="fa-solid fa-sliders"></i> Change the list of inboxes</summary>
-  <form method="POST" action="{{ url_for('crm.save_whatsapp') }}" style="margin-top:10px">
+  <form method="POST" action="{{ crm_url('save_whatsapp') }}" style="margin-top:10px">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <input type="hidden" name="action" value="channels"/>
     <textarea name="channels" rows="8">{{ channels|join('\n') }}</textarea>

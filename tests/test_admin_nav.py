@@ -85,9 +85,9 @@ def test_the_sidebar_shows_only_the_current_product(client, db, admin_user):
     for elsewhere in ('Colour themes', 'Options &amp; dropdowns', 'Bookings', 'Listings'):
         assert elsewhere not in nav, elsewhere
 
-    # all four are always offered, so switching never needs a trip via the dashboard
+    # all of them are always offered, so switching never needs a trip via the dashboard
     labels = [c[2] for c in choices(html)]
-    assert labels == ['Travel Companion', 'Travel Insurance', 'Sahayak', 'Site']
+    assert labels == ['Travel Companion', 'Travel Insurance', 'Sahayak', 'Sales CRM', 'Site']
 
 
 def test_the_switcher_says_which_product_you_are_on(client, db, admin_user):

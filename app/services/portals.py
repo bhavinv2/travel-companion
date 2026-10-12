@@ -19,8 +19,8 @@ from flask_login import current_user
 from app.services import admin_nav, cs_access
 
 # Which blueprints belong to which console.
-ADMIN_BLUEPRINTS = {'admin'}
-CS_BLUEPRINTS = {'cs', 'matches', 'imports', 'scraper', 'jobs', 'saved'}
+ADMIN_BLUEPRINTS = {'admin', 'admin_crm'}
+CS_BLUEPRINTS = {'cs', 'matches', 'imports', 'scraper', 'jobs', 'saved', 'crm'}
 
 
 def which():

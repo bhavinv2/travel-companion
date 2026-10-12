@@ -61,8 +61,9 @@ def _score(q, head, body):
 def library(product=None):
     """Every answer that could be suggested: (id, kind, product, title, body)."""
     from app.services import help_center
+    # answers only: a quick message (it has a code) is picked by hand, never suggested
     rows = [('a%d' % a.id, 'answer', a.product, a.title, a.body, a.keywords or '')
-            for a in CrmAnswer.query.all()]
+            for a in CrmAnswer.query.filter(CrmAnswer.code.is_(None)).all()]
     by_site = {v: k for k, v in HELP_SITE.items()}
     for site in help_center.SITE_KEYS:
         for f in help_center.faqs(site):

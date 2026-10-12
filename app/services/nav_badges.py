@@ -90,6 +90,7 @@ def _compute(user):
         out['crm_board'] = CrmTask.query.filter(
             CrmTask.status == 'open', CrmTask.owner_id == user.id,
             CrmTask.due_at <= datetime.utcnow()).count()
+        out['crm_today'] = out['crm_board']          # the same count on the admin portal's menu
     return out
 
 

@@ -89,10 +89,12 @@ def ensure_defaults():
     from app.services import crm_defaults as d
     changed = False
     if not db.session.query(CrmPipeline.id).first():
+        automations = []
         for key, name, product, reasons, stages in d.PIPELINES:
             p = CrmPipeline(key=key, name=name, product=product, fallout_reasons=reasons)
             db.session.add(p)
-            for pos, (skey, sname, kind, on_reply, sla, steps) in enumerate(stages):
+            for pos, stage_def in enumerate(stages):
+                skey, sname, kind, on_reply, sla, steps = stage_def[:6]
                 st = CrmStage(key=skey, name=sname, kind=kind, on_reply=on_reply, sla_hours=sla,
                               position=pos)
                 p.stages.append(st)
@@ -100,10 +102,21 @@ def ensure_defaults():
                     st.steps.append(CrmPlaybookStep(code=code, title=title, channel=channel,
                                                     trigger=trig, trigger_value=val, auto=auto,
                                                     body=body, position=spos))
+                if len(stage_def) > 6 and stage_def[6]:
+                    automations.append((p, st, stage_def[6]))
+        db.session.flush()
+        for p, st, (akind, adays, to_key, reason) in automations:
+            target = next((s for s in p.stages if s.key == to_key), None)
+            if target is not None:
+                st.auto_kind, st.auto_days, st.auto_to, st.auto_reason = akind, adays, target, reason
         changed = True
-    if not db.session.query(CrmAnswer.id).first():
+    if not db.session.query(CrmAnswer.id).filter(CrmAnswer.code.is_(None)).first():
         for product, title, keywords, body in d.ANSWERS:
             db.session.add(CrmAnswer(product=product, title=title, keywords=keywords, body=body))
+        changed = True
+    if not db.session.query(CrmAnswer.id).filter(CrmAnswer.code.isnot(None)).first():
+        for product, code, title, body in d.QUICK_MESSAGES:
+            db.session.add(CrmAnswer(product=product, code=code, title=title, body=body))
         changed = True
     if changed:
         db.session.flush()
@@ -273,7 +286,7 @@ def capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, pro
             details=None, message=None, ref=None, utm=None, departure_date=None, consent=None,
             user_id=None, channel='form', when=None, identities=None, ends_on=None,
             created_by_id=None, start_stage=None, plan=True, notify=True, temperature=None,
-            fallout_reason=None, external_id=None, sync=True):
+            fallout_reason=None, external_id=None, sync=True, imported=False, likelihood=None):
     """Record an enquiry as a lead. Returns the lead, or None when there is nobody to reach.
 
     The same person asking about the same product again within the source's window is the same
@@ -332,7 +345,7 @@ def capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, pro
                        owner=assign_owner(src), details=details, utm=utm or None,
                        departure_date=departure_date, ends_on=ends_on, created_at=now,
                        last_activity_at=now, entered_stage_at=now, created_by_id=created_by_id,
-                       temperature=temperature)
+                       temperature=temperature, likelihood=likelihood, imported=imported)
         if stage is not None and stage.kind != 'open':
             lead.closed_at = now
             lead.fallout_reason = fallout_reason if stage.kind == 'lost' else None
@@ -535,7 +548,7 @@ def move_stage(lead, stage, user=None, reason=None, fallout_reason=None, plan=Tr
             t.status, t.done_at, t.note = 'skipped', now, 'Stage changed'
     db.session.add(CrmStageChange(lead=lead, from_stage_id=lead.stage_id, to_stage_id=stage.id,
                                   by_id=getattr(user, 'id', None),
-                                  reason=(fallout_reason or reason or '')[:160] or None))
+                                  reason=(reason or fallout_reason or '')[:160] or None))
     lead.stage = stage
     lead.entered_stage_at = now
     lead.sla_alerted_at = None
@@ -737,6 +750,94 @@ def run_auto_steps(now=None, limit=200):
     return {'crm_auto_sent': sent}
 
 
+def run_stage_automations(now=None, limit=500):
+    """The stages that move leads by themselves (Set-up -> Pipelines): after N days with no reply
+    from them, or N days after the trip starts. The reason is recorded like a person's move."""
+    now = now or datetime.utcnow()
+    today = (now + IST).date()
+    moved = 0
+    for st in CrmStage.query.filter(CrmStage.auto_kind.isnot(None), CrmStage.auto_to_id.isnot(None)).all():
+        days = max(st.auto_days or 0, 0)
+        target = st.auto_to
+        if target is None or target.pipeline_id != st.pipeline_id or target.id == st.id:
+            continue
+        q = CrmLead.query.filter(CrmLead.stage_id == st.id, CrmLead.status == 'open')
+        if st.auto_kind == 'no_reply':
+            q = q.filter(CrmLead.entered_stage_at <= now - timedelta(days=days))
+        elif st.auto_kind == 'departed':
+            q = q.filter(CrmLead.departure_date.isnot(None),
+                         CrmLead.departure_date <= today - timedelta(days=days))
+        else:
+            continue
+        for lead in q.limit(limit).all():
+            if st.auto_kind == 'no_reply':
+                heard = (CrmTouchpoint.query.filter(CrmTouchpoint.lead_id == lead.id,
+                                                    CrmTouchpoint.direction == 'in',
+                                                    CrmTouchpoint.channel != 'form',
+                                                    CrmTouchpoint.created_at >= lead.entered_stage_at)
+                         .first())
+                if heard:
+                    continue
+            reason = st.auto_reason or 'Moved automatically'
+            move_stage(lead, target, reason=reason + ' (automatic)',
+                       fallout_reason=reason if target.kind == 'lost' else None)
+            moved += 1
+    db.session.commit()
+    return {'crm_auto_moved': moved}
+
+
+EVENTS = {
+    # code: (what happened, the stage it moves the lead to, if the pipeline has it)
+    'Q': ('Quote sent', 'quoted'),
+    'PLS': ('Payment link sent', 'pipeline'),
+}
+
+
+def mark_event(lead, code, user=None, note=None):
+    """A button on the lead: Quote sent (Q) / Payment link sent (PLS). Logged under its code, and
+    the lead moves forward to the matching stage -- never back. Returns the stage it moved to."""
+    label, stage_key = EVENTS[code]
+    log_touch(lead, 'whatsapp', 'out', body=note or label, code=code, user=user, status='sent')
+    target = next((s for s in (lead.pipeline.stages if lead.pipeline else []) if s.key == stage_key), None)
+    moved = None
+    if target is not None and lead.status == 'open' and lead.stage and target.position > lead.stage.position:
+        move_stage(lead, target, user=user, reason=label)
+        moved = target
+    db.session.commit()
+    return moved
+
+
+def quick_messages(product=None):
+    """The ready messages with a code (BW, FM, HJ...), the lead's product first."""
+    rows = CrmAnswer.query.filter(CrmAnswer.code.isnot(None)).all()
+    rows.sort(key=lambda a: (a.product not in (product, 'GEN'), a.product != product, a.code))
+    return rows
+
+
+# ======================================================================================= whatsapp thread
+
+def whatsapp_thread(lead, limit=40):
+    """The conversation with this person in the WhatsApp CRM, oldest first, for the lead page.
+    Reading only: nothing is created there. {'messages': [...], 'url': inbox link} or {'error'}."""
+    from app.services import wacrm
+    if not wacrm.enabled():
+        return {'error': 'The WhatsApp CRM is not connected on this server.'}
+    person = lead.person
+    try:
+        if not person.wacrm_contact_id and person.phone:
+            person.wacrm_contact_id = wacrm.find_contact(person.phone)
+        if not person.wacrm_conversation_id and person.wacrm_contact_id:
+            person.wacrm_conversation_id = wacrm.conversation_for(person.wacrm_contact_id)
+        db.session.commit()
+        if not person.wacrm_conversation_id:
+            return {'messages': [], 'url': None}
+        msgs = wacrm.conversation_messages(person.wacrm_conversation_id, limit=limit)
+    except wacrm.WacrmError as exc:
+        db.session.rollback()
+        return {'error': str(exc)}
+    return {'messages': list(reversed(msgs)), 'url': wacrm.inbox_url(person.wacrm_conversation_id)}
+
+
 def run_sla_alerts(now=None, limit=500):
     """Tell the owner (or the admins, when nobody owns it) about a lead that has sat in its stage
     longer than the stage allows -- once per stage; moving it clears the mark."""
@@ -782,7 +883,7 @@ def social_reply_channels(lead):
     return [ch for ch, kind in SOCIAL_ID.items() if lead.person.identity(kind)]
 
 
-def send_social(lead, channel, text, user=None, task=None):
+def send_social(lead, channel, text, user=None, task=None, code=None):
     """Answer on Instagram or Messenger through the Page. Raises meta.MetaError with a sentence a
     person can act on when Meta says no (usually: their last message is over 24 hours old)."""
     from app.services import meta
@@ -791,7 +892,7 @@ def send_social(lead, channel, text, user=None, task=None):
         raise meta.MetaError('They have not written to us on %s, and Meta lets a business reply only.'
                              % channel.capitalize())
     mid = meta.send_text(rid, text)
-    log_touch(lead, channel, 'out', body=text, code=task.code if task else None, user=user, status='sent',
+    log_touch(lead, channel, 'out', body=text, code=task.code if task else code, user=user, status='sent',
               external_id=mid)
     if task is not None and task.status == 'open':
         complete_task(task, user=user)

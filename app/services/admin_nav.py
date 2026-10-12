@@ -76,6 +76,21 @@ SECTIONS = [
         ],
     },
     {
+        # The Sales CRM, the same screens the CS console has at /cs/crm, here with the admin menu
+        'key': 'crm',
+        'label': 'Sales CRM',
+        'icon': 'fa-filter-circle-dollar',
+        'items': [
+            _item('crm_today', 'admin_crm.today', 'Follow-ups', 'fa-list-check'),
+            _item('crm_board', 'admin_crm.board', 'Lead board', 'fa-table-columns'),
+            _item('crm_add', 'admin_crm.add', 'Add a lead', 'fa-user-plus'),
+            _item('crm_checks', 'admin_crm.checks', 'Inbox check', 'fa-clipboard-check'),
+            _item('crm_insights', 'admin_crm.insights', 'Sales dashboard', 'fa-chart-line'),
+            _item('crm_process', 'admin_crm.process', 'Sales process', 'fa-diagram-project'),
+            _item('crm_setup', 'admin_crm.setup', 'CRM set-up', 'fa-sliders'),
+        ],
+    },
+    {
         'key': 'site',
         'label': 'Site',
         'icon': 'fa-gear',
@@ -101,10 +116,7 @@ DASHBOARD = {'key': 'dashboard', 'endpoint': 'admin.dashboard', 'label': 'Dashbo
 # it from the account menu in base.html, having no admin panel to find it in.
 PROMOTION = {'key': 'promotion', 'endpoint': 'main.promo_dashboard', 'label': 'Promotion',
              'icon': 'fa-chart-line', 'args': {}}
-# The Sales CRM is shared with the CS console (/cs/crm); admins reach its set-up from there.
-SALES_CRM = {'key': 'crm', 'endpoint': 'crm.board', 'label': 'Sales CRM',
-             'icon': 'fa-filter-circle-dollar', 'args': {}}
-TOP = [DASHBOARD, PROMOTION, SALES_CRM]
+TOP = [DASHBOARD, PROMOTION]
 
 # Screens reached from another one rather than from the menu.
 ALIASES = {'feedback': 'voices_feedback'}
@@ -179,6 +191,9 @@ def section_for_endpoint(endpoint, args=None):
     if endpoint == 'admin.help_center_page':
         site = args.get('site')
         return site if site in ('insurance', 'sahayak') else 'companion'
+    if (endpoint or '').startswith('admin_crm.'):
+        # a lead page, a set-up save...: every Sales CRM screen is in the Sales CRM tab
+        return 'crm'
     return _SECTION_BY_ENDPOINT.get(endpoint or '')
 
 

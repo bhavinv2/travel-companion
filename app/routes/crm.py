@@ -20,13 +20,33 @@ from app.models import (CrmAnswer, CrmIdentity, CrmLead, CrmPerson, CrmPipeline,
                         CrmStage, CrmStageChange, CrmTask, CrmTouchpoint, User,
                         CRM_CALL_OUTCOMES, CRM_CHANNEL_LABELS, CRM_PRODUCT_LABELS, CRM_PRODUCTS,
                         CRM_SOURCE_KIND_LABELS, CRM_SOURCE_KINDS, CRM_SOURCE_STATUSES,
-                        CRM_STAGE_KINDS, CRM_STEP_TRIGGERS, CRM_TEMPERATURES)
+                        CRM_STAGE_KINDS, CRM_STEP_TRIGGERS, CRM_TEMPERATURES, CRM_LIKELIHOOD,
+                        CRM_AUTO_KINDS)
 from app.routes.cs import cs_required
-from app.services import crm, crm_answers, crm_reports, meta, wacrm
+from app.services import crm, crm_answers, crm_kpi, crm_reports, meta, wacrm
 from app.services.ratelimit import rate_limit
 
 crm_bp = Blueprint('crm', __name__)
 crm_public_bp = Blueprint('crm_public', __name__)
+
+# The same screens are mounted twice: /cs/crm inside the CS console (blueprint "crm") and
+# /admin/crm inside the admin portal (blueprint "admin_crm", admins only). Links are built with
+# crm_url() so whoever is in one portal stays in it.
+CRM_BLUEPRINTS = ('crm', 'admin_crm')
+
+
+@crm_bp.app_template_global()
+def crm_url(endpoint, **values):
+    bp = request.blueprint if request.blueprint in CRM_BLUEPRINTS else 'crm'
+    return url_for('%s.%s' % (bp, endpoint), **values)
+
+
+@crm_bp.before_request
+def _admin_copy_is_for_admins():
+    if request.blueprint == 'admin_crm' and current_user.is_authenticated and not current_user.is_admin:
+        # an agent who followed an admin link: the same screen, in their own console
+        return redirect(url_for('crm.' + request.endpoint.split('.', 1)[1], **(request.view_args or {}),
+                                **request.args.to_dict()))
 
 
 def admin_only(f):
@@ -38,7 +58,7 @@ def admin_only(f):
             if request.is_json or request.accept_mimetypes.best == 'application/json':
                 return jsonify({'error': 'Only an admin can change the CRM set-up.'}), 403
             flash('Only an admin can change the CRM set-up.', 'danger')
-            return redirect(url_for('crm.board'))
+            return redirect(crm_url('board'))
         return f(*args, **kwargs)
     return decorated
 
@@ -52,6 +72,7 @@ def _common():
     return {'PRODUCTS': CRM_PRODUCT_LABELS, 'TEMPS': CRM_TEMPERATURES, 'CHANNELS': CRM_CHANNEL_LABELS,
             'OUTCOMES': CRM_CALL_OUTCOMES, 'KINDS': CRM_SOURCE_KIND_LABELS,
             'IST_OFFSET': crm.IST, 'utcnow': datetime.utcnow(), 'wa_ready': crm.wa_can_send(),
+            'LIKELIHOOD': CRM_LIKELIHOOD, 'wa_configured': wacrm.enabled(),
             'check_due': not crm_reports.current_slot_done(crm.crm_settings()['check_channels']),
             'unrouted_count': CrmSource.query.filter_by(status='unrouted').count(),
             'my_due': CrmTask.query.filter(CrmTask.status == 'open', CrmTask.owner_id == current_user.id,
@@ -176,6 +197,9 @@ def lead(lead_id):
     pipelines = CrmPipeline.query.filter_by(is_active=True).order_by(CrmPipeline.id).all()
     return render_template('cs/crm/lead.html', lead=lead, person=lead.person, task=task,
                            social=crm.social_reply_channels(lead),
+                           quick=[(q, crm.fill(q.body, lead, current_user)) for q in crm.quick_messages(lead.product)],
+                           events=[(code, label) for code, (label, key) in crm.EVENTS.items()
+                                   if lead.pipeline and any(s.key == key for s in lead.pipeline.stages)],
                            ref_url=_ref_url(lead),
                            next_text=next_text, timeline=_timeline(lead), suggestions=suggestions,
                            last_in=last_in, asked_text=asked_text, others=others, staff=_staff(), pipelines=pipelines,
@@ -209,13 +233,13 @@ def route_lead(lead_id):
     pipe = CrmPipeline.query.filter_by(key=(request.form.get('pipeline') or _json().get('pipeline'))).first()
     if pipe is None:
         flash('Choose a pipeline.', 'danger')
-        return redirect(url_for('crm.lead', lead_id=lead.id))
+        return redirect(crm_url('lead', lead_id=lead.id))
     crm.set_pipeline(lead, pipe, user=current_user)
     if not lead.owner_id:
         lead.owner = current_user if current_user.is_cs else None
     db.session.commit()
     flash('Moved to %s.' % pipe.name, 'success')
-    return redirect(url_for('crm.lead', lead_id=lead.id))
+    return redirect(crm_url('lead', lead_id=lead.id))
 
 
 @crm_bp.route('/task/<int:task_id>/<action>', methods=['POST'])
@@ -250,9 +274,14 @@ def send(lead_id):
     task = db.session.get(CrmTask, int(data['task_id'])) if data.get('task_id') else None
     if task is not None and (task.lead_id != lead.id or task.status != 'open'):
         task = None
+    quick = db.session.get(CrmAnswer, int(data['answer_id'])) if str(data.get('answer_id') or '').isdigit() else None
+    if quick is not None and quick.code:
+        quick.use_count = (quick.use_count or 0) + 1
+        data['code'] = quick.code
     if via in crm.SOCIAL_ID:
         try:
-            result = crm.send_social(lead, via, text[:1900], user=current_user, task=task)
+            result = crm.send_social(lead, via, text[:1900], user=current_user, task=task,
+                                     code=data.get('code'))
         except meta.MetaError as exc:
             db.session.rollback()
             return jsonify({'error': str(exc)}), 400
@@ -318,6 +347,11 @@ def update(lead_id):
         if t and t not in CRM_TEMPERATURES:
             return jsonify({'error': 'Unknown status.'}), 400
         lead.temperature = t
+    if 'likelihood' in data:
+        v = data['likelihood'] or None
+        if v and v not in CRM_LIKELIHOOD:
+            return jsonify({'error': 'Unknown choice.'}), 400
+        lead.likelihood = v
     if 'departure_date' in data:
         raw = (data['departure_date'] or '').strip()
         try:
@@ -419,7 +453,7 @@ def add():
                            created_by_id=current_user.id, start_stage=start, notify=not mine)
         if lead is None:
             flash('Could not add that lead.', 'danger')
-            return redirect(url_for('crm.add'))
+            return redirect(crm_url('add'))
         # whoever added it takes it, unless they chose to share it out
         if mine:
             lead.owner_id = current_user.id
@@ -428,7 +462,7 @@ def add():
                     t.owner_id = current_user.id
             db.session.commit()
         flash('Lead added.', 'success')
-        return redirect(url_for('crm.lead', lead_id=lead.id))
+        return redirect(crm_url('lead', lead_id=lead.id))
     return render_template('cs/crm/add.html', sources=manual, form={}, **_common())
 
 
@@ -437,18 +471,133 @@ def add():
 @crm_bp.route('/insights')
 @cs_required
 def insights():
-    days = int(request.args.get('days') or 30)
+    days = request.args.get('days', type=int) or 30
     days = days if days in (7, 30, 90) else 30
-    since = datetime.utcnow() - timedelta(days=days)
     staff = _staff()
-    totals, daily = crm_reports.kpis(since)
     who = request.args.get('who', type=int)
     person = next((u for u in staff if u.id == who), None)
-    days_list = [(datetime.utcnow() + crm.IST).date() - timedelta(days=i) for i in range(min(days, 31))]
+    today = (datetime.utcnow() + crm.IST).date()
+    first = today - timedelta(days=days - 1)
+    day_list, groups = crm_kpi.table(first, today, person.id if person else None)
+    _, before = crm_kpi.table(first - timedelta(days=days), first - timedelta(days=1), person.id if person else None)
+    now_tot = {k: t for _, rows in groups for k, _, _, _, t in rows}
+    old_tot = {k: t for _, rows in before for k, _, _, _, t in rows}
+    series = {k: v for _, rows in groups for k, _, _, v, _ in rows}
+    totals, _ = crm_reports.kpis(datetime.utcnow() - timedelta(days=days))
+    log_day = today
+    if request.args.get('log_day'):
+        try:
+            log_day = min(datetime.strptime(request.args['log_day'], '%Y-%m-%d').date(), today)
+        except ValueError:
+            pass
     return render_template('cs/crm/insights.html', data=crm.insights(days), days=days, staff=staff,
-                           totals=totals, daily=daily, person=person, days_list=days_list,
+                           person=person, day_list=day_list, groups=groups, now_tot=now_tot,
+                           old_tot=old_tot, series=series, totals=totals, today=today,
                            overdue=crm_reports.overdue_by_owner(), METRICS=crm_reports.METRICS,
+                           MANUAL=[(k, crm_kpi.METRICS[k][0]) for k in crm_kpi.MANUAL],
+                           log_day=log_day, my_log=crm_kpi.entries(log_day, current_user.id),
                            **_common())
+
+
+@crm_bp.route('/insights/log', methods=['POST'])
+@cs_required
+def log_work():
+    """Log today's work: the few numbers the CRM cannot count by itself."""
+    try:
+        day = datetime.strptime(request.form.get('day') or '', '%Y-%m-%d').date()
+    except ValueError:
+        day = (datetime.utcnow() + crm.IST).date()
+    for key in crm_kpi.MANUAL:
+        raw = (request.form.get(key) or '').strip()
+        if raw == '':
+            continue
+        try:
+            crm_kpi.set_entry(day, current_user.id, key, max(0.0, float(raw)))
+        except ValueError:
+            flash('"%s" needs a number.' % crm_kpi.METRICS[key][0], 'danger')
+    flash('Saved your numbers for %s.' % day.strftime('%d %b'), 'success')
+    return redirect(crm_url('insights', days=request.form.get('days') or 30, log_day=day.isoformat()) + '#log')
+
+
+# ============================================================================================ the sales process
+
+@crm_bp.route('/process')
+@cs_required
+def process():
+    """The Sales Process tab, drawn from the live CRM: lead channels, the way in, every pipeline
+    with today's counts and its messages, the fallouts, and the open gaps."""
+    from app.services import crm_defaults
+    crm.ensure_defaults()
+    settings_ = crm.crm_settings_raw()
+    channels = settings_.get('channels') or [list(c) for c in crm_defaults.CHANNELS]
+    gaps = settings_.get('gaps') or [{'text': g, 'done': False} for g in crm_defaults.GAPS]
+    pipelines = CrmPipeline.query.filter_by(is_active=True).order_by(CrmPipeline.id).all()
+    open_counts = dict(db.session.query(CrmLead.stage_id, func.count(CrmLead.id))
+                       .filter(CrmLead.status == 'open').group_by(CrmLead.stage_id).all())
+    since = datetime.utcnow() - timedelta(days=30)
+    closed_counts = dict(db.session.query(CrmLead.stage_id, func.count(CrmLead.id))
+                         .filter(CrmLead.status != 'open', CrmLead.closed_at >= since)
+                         .group_by(CrmLead.stage_id).all())
+    inlets = (db.session.query(CrmSource, func.count(CrmLead.id))
+              .outerjoin(CrmLead, (CrmLead.source_id == CrmSource.id) & (CrmLead.created_at >= since))
+              .filter(CrmSource.status != 'paused').group_by(CrmSource.id)
+              .order_by(func.count(CrmLead.id).desc(), CrmSource.name).all())
+    return render_template('cs/crm/process.html', channels=channels, gaps=gaps, pipelines=pipelines,
+                           open_counts=open_counts, closed_counts=closed_counts, inlets=inlets,
+                           **_common())
+
+
+@crm_bp.route('/process', methods=['POST'])
+@cs_required
+@admin_only
+def save_process():
+    f = request.form
+    if f.get('what') == 'gaps':
+        texts = [t.strip()[:200] for t in (f.get('gaps') or '').splitlines() if t.strip()][:40]
+        done = set(f.getlist('done'))
+        crm.save_settings(current_user, gaps=[{'text': t, 'done': t in done} for t in texts])
+    elif f.get('what') == 'gap_done':
+        settings_ = crm.crm_settings_raw()
+        from app.services import crm_defaults
+        gaps = settings_.get('gaps') or [{'text': g, 'done': False} for g in crm_defaults.GAPS]
+        for g in gaps:
+            if g['text'] == f.get('text'):
+                g['done'] = not g.get('done')
+        crm.save_settings(current_user, gaps=gaps)
+    elif f.get('what') == 'channels':
+        rows = []
+        for line in (f.get('channels') or '').splitlines():
+            parts = [x.strip() for x in line.split('|')]
+            if parts and parts[0]:
+                rows.append((parts + ['', '', '', ''])[:4])
+        crm.save_settings(current_user, channels=rows[:80])
+    flash('Saved.', 'success')
+    return redirect(crm_url('process'))
+
+
+# ============================================================================================ lead extras
+
+@crm_bp.route('/lead/<int:lead_id>/event', methods=['POST'])
+@cs_required
+def event(lead_id):
+    """Quote sent / Payment link sent: logged under Q / PLS, and the lead moves forward."""
+    lead = _lead_or_404(lead_id)
+    code = (_json().get('code') or '').upper()
+    if code not in crm.EVENTS:
+        return jsonify({'error': 'Unknown action.'}), 400
+    moved = crm.mark_event(lead, code, user=current_user, note=(_json().get('note') or '').strip()[:500] or None)
+    return jsonify({'success': True, 'stage': moved.name if moved else None})
+
+
+@crm_bp.route('/lead/<int:lead_id>/whatsapp')
+@cs_required
+def whatsapp_thread(lead_id):
+    """Their WhatsApp conversation from the WhatsApp CRM, for the lead page. Reading only."""
+    lead = _lead_or_404(lead_id)
+    out = crm.whatsapp_thread(lead)
+    for m in out.get('messages') or []:
+        m.pop('id', None)
+    return jsonify(out)
 
 
 @crm_bp.route('/insights.csv')
@@ -483,7 +632,7 @@ def setup():
     tab = request.args.get('tab') or 'sources'
     pipelines = CrmPipeline.query.order_by(CrmPipeline.id).all()
     ctx = {'tab': tab, 'pipelines': pipelines, 'staff': _staff(),
-           'STATUSES': CRM_SOURCE_STATUSES, 'STAGE_KINDS': CRM_STAGE_KINDS}
+           'STATUSES': CRM_SOURCE_STATUSES, 'STAGE_KINDS': CRM_STAGE_KINDS, 'AUTO_KINDS': CRM_AUTO_KINDS}
     if tab == 'sources':
         sources = CrmSource.query.all()
         order = {'unrouted': 0, 'live': 1, 'paused': 2}
@@ -509,7 +658,6 @@ def setup():
         ctx['meta_url'] = _public_url('crm_public.meta_webhook')
         ctx['snippet_url'] = url_for('static', filename='js/lead-capture.js', _external=True)
         ctx['wa_secret'] = bool(wacrm.webhook_secret())
-        ctx['wa_configured'] = wacrm.enabled()
         ctx['wa_mode'] = crm.crm_settings()['whatsapp_mode']
         ctx['WA_MODES'] = crm.WA_MODES
         ctx['wa_hook'] = (crm.crm_settings_raw().get('wacrm_webhook') or {})
@@ -535,7 +683,7 @@ def save_source():
     name = (f.get('name') or '').strip()[:100]
     if not name:
         flash('Give the source a name people will recognise.', 'danger')
-        return redirect(url_for('crm.setup', tab='sources', edit=sid or 'new'))
+        return redirect(crm_url('setup', tab='sources', edit=sid or 'new'))
     if src is None:
         key = _slug(f.get('key') or name)
         base, n = key, 2
@@ -575,7 +723,7 @@ def save_source():
                         t.owner_id = lead.owner_id
     db.session.commit()
     flash('Saved "%s".' % src.name, 'success')
-    return redirect(url_for('crm.setup', tab='sources'))
+    return redirect(crm_url('setup', tab='sources'))
 
 
 @crm_bp.route('/setup/pipeline', methods=['POST'])
@@ -588,7 +736,7 @@ def save_pipeline():
         name = (f.get('name') or '').strip()[:80]
         if not name:
             flash('Name the new pipeline.', 'danger')
-            return redirect(url_for('crm.setup', tab='pipelines'))
+            return redirect(crm_url('setup', tab='pipelines'))
         key = _slug(name)[:40]
         base, n = key, 2
         while CrmPipeline.query.filter_by(key=key).first():
@@ -604,7 +752,7 @@ def save_pipeline():
         db.session.add(p)
         db.session.commit()
         flash('Pipeline "%s" created. Add its stages and messages.' % name, 'success')
-        return redirect(url_for('crm.setup', tab='pipelines', p=key))
+        return redirect(crm_url('setup', tab='pipelines', p=key))
 
     pipe = CrmPipeline.query.filter_by(key=f.get('pipeline')).first_or_404()
     if action == 'reasons':
@@ -613,7 +761,7 @@ def save_pipeline():
         pipe.is_active = f.get('is_active') == 'on'
         db.session.commit()
         flash('Saved.', 'success')
-        return redirect(url_for('crm.setup', tab='pipelines', p=pipe.key))
+        return redirect(crm_url('setup', tab='pipelines', p=pipe.key))
     if action == 'stage':
         sid = f.get('stage_id')
         st = db.session.get(CrmStage, int(sid)) if sid and sid.isdigit() else None
@@ -623,7 +771,7 @@ def save_pipeline():
                 name = (f.get('name') or '').strip()[:60]
                 if not name:
                     flash('Name the stage.', 'danger')
-                    return redirect(url_for('crm.setup', tab='pipelines', p=pipe.key))
+                    return redirect(crm_url('setup', tab='pipelines', p=pipe.key))
                 key = _slug(name)[:40].replace('-', '_')
                 base, n = key, 2
                 while any(s.key == key for s in pipe.stages):
@@ -639,7 +787,7 @@ def save_pipeline():
                                             else max([s.position for s in pipe.stages] or [0]) + 1))
                 db.session.commit()
                 flash('Stage added.', 'success')
-            return redirect(url_for('crm.setup', tab='pipelines', p=pipe.key))
+            return redirect(crm_url('setup', tab='pipelines', p=pipe.key))
         if op == 'save':
             st.name = (f.get('name') or st.name).strip()[:60] or st.name
             st.kind = f.get('kind') if f.get('kind') in CRM_STAGE_KINDS else st.kind
@@ -650,6 +798,14 @@ def save_pipeline():
                         s.on_reply = False
             sla = (f.get('sla_hours') or '').strip()
             st.sla_hours = int(sla) if sla.isdigit() else None
+            kind = f.get('auto_kind') if f.get('auto_kind') in CRM_AUTO_KINDS else None
+            to = db.session.get(CrmStage, int(f.get('auto_to') or 0)) if (f.get('auto_to') or '').isdigit() else None
+            days = (f.get('auto_days') or '').strip()
+            if kind and to is not None and to.pipeline_id == pipe.id and to.id != st.id:
+                st.auto_kind, st.auto_to, st.auto_days = kind, to, int(days) if days.isdigit() else 0
+                st.auto_reason = (f.get('auto_reason') or '').strip()[:80] or None
+            else:
+                st.auto_kind = st.auto_to = st.auto_days = st.auto_reason = None
         elif op in ('up', 'down'):
             ordered = list(pipe.stages)
             i = ordered.index(st)
@@ -660,13 +816,13 @@ def save_pipeline():
             in_use = CrmLead.query.filter_by(stage_id=st.id).count()
             if in_use or len(pipe.stages) <= 2:
                 flash('That stage still has leads in it, or the pipeline would be too short.', 'danger')
-                return redirect(url_for('crm.setup', tab='pipelines', p=pipe.key))
+                return redirect(crm_url('setup', tab='pipelines', p=pipe.key))
             CrmStageChange.query.filter((CrmStageChange.to_stage_id == st.id) |
                                         (CrmStageChange.from_stage_id == st.id)).delete(synchronize_session=False)
             db.session.delete(st)
         db.session.commit()
         flash('Saved.', 'success')
-        return redirect(url_for('crm.setup', tab='pipelines', p=pipe.key))
+        return redirect(crm_url('setup', tab='pipelines', p=pipe.key))
     abort(400)
 
 
@@ -687,7 +843,7 @@ def save_step():
         db.session.delete(step)
         db.session.commit()
         flash('Step removed.', 'success')
-        return redirect(url_for('crm.setup', tab='messages', p=stage.pipeline.key))
+        return redirect(crm_url('setup', tab='messages', p=stage.pipeline.key))
     if step is None:
         step = CrmPlaybookStep(stage=stage, position=max([s.position for s in stage.steps] or [-1]) + 1)
         db.session.add(step)
@@ -706,7 +862,7 @@ def save_step():
     step.wa_template = (f.get('wa_template') or '').strip()[:80] or None
     db.session.commit()
     flash('Saved %s.' % step.code, 'success')
-    return redirect(url_for('crm.setup', tab='messages', p=stage.pipeline.key))
+    return redirect(crm_url('setup', tab='messages', p=stage.pipeline.key))
 
 
 @crm_bp.route('/setup/answer', methods=['POST'])
@@ -720,12 +876,12 @@ def save_answer():
         db.session.delete(a)
         db.session.commit()
         flash('Answer removed.', 'success')
-        return redirect(url_for('crm.setup', tab='answers'))
+        return redirect(crm_url('setup', tab='answers'))
     title = (f.get('title') or '').strip()[:160]
     body = (f.get('body') or '').strip()[:4000]
     if not title or not body:
         flash('Write the question and the answer.', 'danger')
-        return redirect(url_for('crm.setup', tab='answers', edit=aid or 'new'))
+        return redirect(crm_url('setup', tab='answers', edit=aid or 'new'))
     if a is None:
         a = CrmAnswer()
         db.session.add(a)
@@ -734,7 +890,7 @@ def save_answer():
     a.product = f.get('product') if f.get('product') in CRM_PRODUCTS else 'GEN'
     db.session.commit()
     flash('Answer saved.', 'success')
-    return redirect(url_for('crm.setup', tab='answers'))
+    return redirect(crm_url('setup', tab='answers'))
 
 
 # ============================================================================================ inbox check
@@ -816,7 +972,7 @@ def save_whatsapp():
         if not url.startswith('https://') or '127.0.0.1' in url or 'localhost' in url:
             flash('Do this on the live site: the WhatsApp CRM can only send replies to a public https '
                   'address, and this one is %s.' % url, 'danger')
-            return redirect(url_for('crm.setup', tab='connect'))
+            return redirect(crm_url('setup', tab='connect'))
         try:
             old = (crm.crm_settings_raw().get('wacrm_webhook') or {}).get('id')
             if old:
@@ -835,8 +991,8 @@ def save_whatsapp():
         if names:
             crm.save_settings(current_user, check_channels=names)
             flash('Inbox list saved.', 'success')
-        return redirect(url_for('crm.checks'))
-    return redirect(url_for('crm.setup', tab='connect'))
+        return redirect(crm_url('checks'))
+    return redirect(crm_url('setup', tab='connect'))
 
 
 IMPORT_DIR = 'crm-imports'
@@ -860,7 +1016,7 @@ def backfill():
     flash('Brought in %d past enquir%s%s.' % (got, 'y' if got == 1 else 'ies',
                                               ' (%d were already here)' % out['already'] if out.get('already') else ''),
           'success')
-    return redirect(url_for('crm.setup', tab='import'))
+    return redirect(crm_url('setup', tab='import'))
 
 
 @crm_bp.route('/setup/import', methods=['POST'])
@@ -873,17 +1029,29 @@ def import_sheet():
     f = request.files.get('sheet')
     if not f or not (f.filename or '').lower().endswith('.xlsx'):
         flash('Choose the Sales Process workbook (.xlsx).', 'danger')
-        return redirect(url_for('crm.setup', tab='import'))
+        return redirect(crm_url('setup', tab='import'))
     token = secrets.token_hex(12)
     path = _import_path(token)
     f.save(path)
     try:
-        rows, stats = crm_import.read_sheet(path)
+        rows, stats, kpi = crm_import.read_sheet(path)
     except Exception:          # noqa: BLE001 -- not a workbook, or not this one
         current_app.logger.exception('Sales sheet unreadable')
         flash('That file could not be read as an Excel workbook.', 'danger')
-        return redirect(url_for('crm.setup', tab='import'))
-    preview = {'token': token, 'stats': stats, 'total': len(rows), 'name': f.filename,
+        return redirect(crm_url('setup', tab='import'))
+    staff = _staff()
+
+    def guess(tab):
+        # "HB KPI" -> the person whose initials are HB
+        ini = tab.split()[0].upper()
+        for u in staff:
+            parts = [x for x in (u.full_name or '').split() if x]
+            if len(parts) >= 2 and (parts[0][0] + parts[-1][0]).upper() == ini:
+                return u.id
+        return None
+    kpi_tabs = [{'tab': t, 'days': len({d for d, _, _ in rows_}), 'team': t == 'KPI',
+                 'guess': None if t == 'KPI' else guess(t)} for t, rows_ in kpi.items() if rows_]
+    preview = {'token': token, 'stats': stats, 'total': len(rows), 'name': f.filename, 'kpi': kpi_tabs,
                'products': dict(__import__('collections').Counter(r['product'] for r in rows))}
     pipelines = CrmPipeline.query.order_by(CrmPipeline.id).all()
     return render_template('cs/crm/setup.html', tab='import', preview=preview, pipelines=pipelines,
@@ -901,23 +1069,31 @@ def import_confirm():
     token = request.form.get('token') or ''
     if not re.fullmatch(r'[0-9a-f]{24}', token) or not os.path.exists(_import_path(token)):
         flash('That upload has expired -- choose the file again.', 'danger')
-        return redirect(url_for('crm.setup', tab='import'))
+        return redirect(crm_url('setup', tab='import'))
     owner = request.form.get('owner', type=int)
     owner = owner if owner in {u.id for u in _staff()} else None
     path = _import_path(token)
     try:
-        rows, _ = crm_import.read_sheet(path)
-        out = crm_import.import_sheet(rows, owner_id=owner)
+        rows, _, kpi = crm_import.read_sheet(path)
+        staff_ids = {u.id for u in _staff()}
+        kpi_users = {}
+        for tab in kpi:
+            choice = request.form.get('kpi_' + tab.replace(' ', '_'))
+            if tab == 'KPI' and choice == 'team':
+                kpi_users[tab] = None
+            elif choice and choice.isdigit() and int(choice) in staff_ids:
+                kpi_users[tab] = int(choice)
+        out = crm_import.import_sheet(rows, owner_id=owner, kpi=kpi, kpi_users=kpi_users)
     finally:
         try:
             os.remove(path)
         except OSError:
             pass
-    got = sum(v for k, v in out.items() if k not in ('already', 'unreachable'))
+    got = sum(v for k, v in out.items() if k not in ('already', 'unreachable') and not k.startswith('KPI'))
     flash('Imported %d lead%s from the sales sheet%s.' % (got, '' if got == 1 else 's',
                                                          ' (%d were already here)' % out['already'] if out.get('already') else ''),
           'success')
-    return redirect(url_for('crm.board', owner='all'))
+    return redirect(crm_url('board', owner='all'))
 
 
 # ============================================================================================ public
@@ -1015,11 +1191,15 @@ def wacrm_webhook():
                                    identities=[('wacrm', str(data['contact_id']))])
                 if lead:
                     lead.person.wacrm_contact_id = str(data['contact_id'])
+                    if data.get('conversation_id'):
+                        lead.person.wacrm_conversation_id = str(data['conversation_id'])
                     db.session.commit()
                 return jsonify({'ok': True, 'created': bool(lead)})
             person.wacrm_contact_id = str(data['contact_id'])
         if person is None:
             return jsonify({'ok': True, 'ignored': True})
+        if data.get('conversation_id'):
+            person.wacrm_conversation_id = str(data['conversation_id'])
         lead = next((l for l in person.leads if l.status == 'open'), None) or (person.leads[0] if person.leads else None)
         if lead is None:
             return jsonify({'ok': True, 'ignored': True})

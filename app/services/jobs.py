@@ -148,6 +148,7 @@ def run_all():
     from app.services import crm
     try:
         out.update(crm.run_auto_steps())
+        out.update(crm.run_stage_automations())
         out.update(crm.run_sla_alerts())
     except Exception:          # noqa: BLE001 -- one job failing must not stop the others reporting
         from app import db

@@ -9,19 +9,19 @@
     <p class="muted" style="margin:4px 0 0">Drag a card to the next column when it moves on. Click a card to message or call.</p>
   </div>
   <div class="actions">
-    <a class="cb primary" href="{{ url_for('crm.add') }}"><i class="fa-solid fa-user-plus"></i> Add a lead</a>
+    <a class="cb primary" href="{{ crm_url('add') }}"><i class="fa-solid fa-user-plus"></i> Add a lead</a>
   </div>
 </div>
 
 {% if unrouted %}
-<div class="panel tint" style="border-color:var(--crm-due)">
+<div class="panel warn">
   <h3><i class="fa-solid fa-triangle-exclamation" style="color:var(--crm-due)"></i>
     {{ unrouted|length }} lead{{ 's' if unrouted|length != 1 }} from a form nobody has set up yet</h3>
   <p class="muted" style="margin:0 0 10px">They are safe. Open one and choose which pipeline it belongs to
-    {%- if CS_ACCESS.can_open(current_user, 'crm_setup') %}, or <a href="{{ url_for('crm.setup', tab='sources') }}">set the source up once</a> so the next ones go there by themselves{% endif %}.</p>
+    {%- if CS_ACCESS.can_open(current_user, 'crm_setup') %}, or <a href="{{ crm_url('setup', tab='sources') }}">set the source up once</a> so the next ones go there by themselves{% endif %}.</p>
   <div class="chips">
     {% for l in unrouted[:12] %}
-    <a class="chip" href="{{ url_for('crm.lead', lead_id=l.id) }}">{{ l.person.display_name }} · {{ l.source.name if l.source else 'Unknown' }}</a>
+    <a class="chip" href="{{ crm_url('lead', lead_id=l.id) }}">{{ l.person.display_name }} · {{ l.source.name if l.source else 'Unknown' }}</a>
     {% endfor %}
   </div>
 </div>
@@ -29,7 +29,7 @@
 
 <nav class="crm-pipes" aria-label="Pipelines">
   {% for p in pipelines %}
-  <a href="{{ url_for('crm.board', p=p.key, owner=owner, q=q or None) }}" class="{{ 'on' if pipe and p.id == pipe.id }}">
+  <a href="{{ crm_url('board', p=p.key, owner=owner, q=q or None) }}" class="{{ 'on' if pipe and p.id == pipe.id }}">
     {{ p.name }} <span class="c">{{ counts.get(p.id, 0) }}</span></a>
   {% endfor %}
 </nav>
@@ -39,7 +39,7 @@
   <input type="hidden" name="owner" value="{{ owner }}"/>
   <div class="chips" role="group" aria-label="Whose leads">
     {% for key, label in [('mine', 'Mine'), ('all', "Everyone's"), ('none', "Nobody's yet")] %}
-    <a class="chip{{ ' on' if owner == key }}" href="{{ url_for('crm.board', p=pipe.key if pipe else None, owner=key, q=q or None) }}">{{ label }}</a>
+    <a class="chip{{ ' on' if owner == key }}" href="{{ crm_url('board', p=pipe.key if pipe else None, owner=key, q=q or None) }}">{{ label }}</a>
     {% endfor %}
   </div>
   <input type="search" name="q" value="{{ q }}" placeholder="Find by name, phone or e-mail"/>
@@ -48,6 +48,18 @@
 {% if not pipe %}
 <div class="panel crm-empty"><i class="fa-solid fa-inbox"></i>No pipelines yet.</div>
 {% else %}
+{# the journey as a picture: how many are in each stage now, and how many of the stage before made it #}
+{% set opens = columns|selectattr('stage.kind', 'equalto', 'open')|list %}
+<div class="stage-strip" aria-label="Leads in each stage">
+  {% for col in columns %}
+  {% set prev = columns[loop.index0 - 1] if loop.index0 > 0 and col.stage.kind == 'open' else none %}
+  <div class="ss {{ col.stage.kind }}">
+    <b>{{ col.total }}</b><span>{{ col.stage.name }}</span>
+    {% if col.stage.auto_kind and col.stage.auto_to %}<i class="fa-solid fa-robot" title="Moves by itself: {{ col.stage.auto_days }} day{{ 's' if col.stage.auto_days != 1 }} {{ 'without a reply' if col.stage.auto_kind == 'no_reply' else 'after travel' }} → {{ col.stage.auto_to.name }}"></i>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+
 <div class="crm-board" data-board data-pipeline="{{ pipe.key }}"
      data-reasons='{{ (pipe.fallout_reasons or [])|tojson|forceescape }}'>
   {% for col in columns %}
@@ -60,7 +72,8 @@
     <div class="drop" data-drop data-stage="{{ st.id }}" data-kind="{{ st.kind }}" data-name="{{ st.name }}">
       {% for l in col.leads %}
       {% set t = l.open_task %}
-      <a class="crm-card" href="{{ url_for('crm.lead', lead_id=l.id) }}" draggable="true" data-lead="{{ l.id }}">
+      <a class="crm-card{{ ' lk-' ~ l.likelihood if l.likelihood }}" href="{{ crm_url('lead', lead_id=l.id) }}" draggable="true" data-lead="{{ l.id }}"
+         title="{{ LIKELIHOOD.get(l.likelihood, '') }}">
         <div class="top">{{ temp_dot(l.temperature) }}<span class="nm">{{ l.person.display_name }}</span></div>
         <div class="meta">
           {{ product_chip(l.product) }}

@@ -516,6 +516,8 @@ def create_app(test_config=None):
     app.register_blueprint(scraper_bp, url_prefix='/cs/scraper')
     app.register_blueprint(saved_bp)
     app.register_blueprint(crm_bp, url_prefix='/cs/crm')
+    # the same Sales CRM inside the admin portal, with the admin menu (see routes/crm.py)
+    app.register_blueprint(crm_bp, url_prefix='/admin/crm', name='admin_crm')
     app.register_blueprint(crm_public_bp)
 
     from app import cli

@@ -76,7 +76,7 @@ def backfill(days=180, now=None):
         lead = crm.capture(
             'ti-quote', phone=q.phone, email=q.email, product='TI', user_id=q.user_id,
             departure_date=q.start_date, ends_on=q.end_date, ref=('insurance_quotes', q.id),
-            when=q.created_at, utm={}, plan=not past, notify=False, sync=False,
+            when=q.created_at, utm={}, plan=not past, notify=False, sync=False, imported=True,
             start_stage=_first_lost('ti-standard') if past else None,
             fallout_reason='Trip date passed' if past else None,
             details={'plan': q.insurance_type, 'travellers_ages': ages, 'citizenship': q.citizenship,
@@ -105,7 +105,7 @@ def backfill(days=180, now=None):
         lead = crm.capture(key, name=m.name, phone=m.phone, email=m.email,
                            product=TOPIC_PRODUCT.get(m.topic), message=text, user_id=m.user_id,
                            ref=('contact_messages', m.id), when=m.created_at, utm={},
-                           plan=not old, notify=False, sync=False,
+                           plan=not old, notify=False, sync=False, imported=True,
                            temperature='EL' if old else None)
         done(lead, 'contact messages')
 
@@ -118,7 +118,7 @@ def backfill(days=180, now=None):
         st = _stage('sahayak-visit', stage_for.get(b.status, 'new'))
         lead = crm.capture('sh-booking', name=b.contact_name or b.patient_name, phone=b.phone, email=b.email,
                            product='SH', ref=('sahayak_bookings', b.id), user_id=b.user_id,
-                           when=b.created_at, utm={}, start_stage=st, notify=False, sync=False,
+                           when=b.created_at, utm={}, start_stage=st, notify=False, sync=False, imported=True,
                            plan=b.status == 'new' and b.created_at >= fresh,
                            fallout_reason='Cancelled' if b.status == 'cancelled' else None,
                            details={'service': b.service_name, 'for': b.patient_name, 'age': b.patient_age,
@@ -133,7 +133,7 @@ def backfill(days=180, now=None):
             out['already'] += 1
             continue
         key = 'tc-import' if t.import_key else ('tc-cs-post' if t.created_by_id and not t.user_id else 'tc-trip-post')
-        lead = crm.capture_trip(t, key, when=t.created_at, utm={}, notify=False, sync=False)
+        lead = crm.capture_trip(t, key, when=t.created_at, utm={}, notify=False, sync=False, imported=True)
         done(lead, 'trip posts')
     db.session.commit()
     return out
@@ -246,14 +246,19 @@ def parse_contacts(*cells, hint=None):
     return phone, email, idents, re.sub(r'[\s,]+', ' ', rest).strip()
 
 
-def _rows(z, path, shared):
-    """Each row of a sheet as {column letter: text}, streamed."""
-    col = re.compile(r'([A-Z]+)')
+def _rows(z, path, shared, styles=None):
+    """Each row of a sheet as (row number, {column letter: text}, {column letter: colour}), streamed.
+    The colour is the cell's fill, or 'font:<rgb>' when only its text is coloured."""
+    col = re.compile(r'([A-Z]+)(\d+)')
     for _, el in ET.iterparse(z.open(path)):
         if el.tag != NS + 'row':
             continue
-        cells = {}
+        cells, colours, rownum = {}, {}, None
         for c in el.iter(NS + 'c'):
+            m = col.match(c.get('r') or '')
+            if not m:
+                continue
+            rownum = rownum or int(m.group(2))
             v = c.find(NS + 'v')
             t = c.get('t')
             val = None
@@ -264,16 +269,96 @@ def _rows(z, path, shared):
             elif v is not None:
                 val = v.text
             if val not in (None, ''):
-                m = col.match(c.get('r') or '')
-                if m:
-                    cells[m.group(1)] = str(val).strip()
+                cells[m.group(1)] = str(val).strip()
+            if styles and c.get('s'):
+                colour = styles(int(c.get('s')))
+                if colour:
+                    colours[m.group(1)] = colour
+        if rownum is None and el.get('r'):
+            rownum = int(el.get('r'))
         el.clear()
-        yield cells
+        yield rownum, cells, colours
+
+
+def _styles(z):
+    """style index -> 'FFRRGGBB' fill, or 'font:FFRRGGBB' for coloured text, or None."""
+    if 'xl/styles.xml' not in z.namelist():
+        return None
+    st = ET.parse(z.open('xl/styles.xml')).getroot()
+
+    def rgb(node):
+        return node.get('rgb') if node is not None else None
+    fills = []
+    for f in (st.find(NS + 'fills') or []):
+        pf = f.find(NS + 'patternFill')
+        fills.append(rgb(pf.find(NS + 'fgColor')) if pf is not None and pf.get('patternType') not in (None, 'none') else None)
+    fonts = [rgb(f.find(NS + 'color')) for f in (st.find(NS + 'fonts') or [])]
+    xfs = [(int(x.get('fillId', 0)), int(x.get('fontId', 0))) for x in (st.find(NS + 'cellXfs') or [])]
+
+    def colour(i):
+        if i >= len(xfs):
+            return None
+        fi, fo = xfs[i]
+        # compared on RRGGBB: Excel writes FF in front, other tools 00
+        fill = (fills[fi] if fi < len(fills) else None) or ''
+        if len(fill) >= 6 and fill[-6:].upper() not in ('FFFFFF', '000000'):
+            return fill[-6:].upper()
+        font = (fonts[fo] if fo < len(fonts) else None) or ''
+        if font[-6:].upper() == 'FF0000':
+            return 'font:FF0000'
+        return None
+    return colour
+
+
+# the row's colour in the sheet -> how ready they are to buy
+GREENS = {'92D050', '00B050', '00FF00', 'C6EFCE', 'A9D08E'}
+YELLOWS = {'FFFF00', 'FFC000', 'FFE699', 'FFEB9C', 'F4B084'}
+
+
+def likelihood_from(colour):
+    if not colour:
+        return None
+    if colour in GREENS:
+        return 'hot'
+    if colour in YELLOWS:
+        return 'warm'
+    if colour == 'font:FF0000' or colour in ('FF0000', 'C00000'):
+        return 'cold'
+    return None
+
+
+COMMENT_NOISE = re.compile(r'\[Threaded comment\].*?Comment:\s*', re.S)
+
+
+def _comments(z, sheet_path):
+    """{'B26': text} for the cell comments of one sheet -- where the team kept the conversation
+    ("9/14 - will get back tomorrow ... 20/9 sent PF#1") and the parents' medical conditions."""
+    rels_path = sheet_path.replace('worksheets/', 'worksheets/_rels/') + '.rels'
+    if rels_path not in z.namelist():
+        return {}
+    out = {}
+    for r in ET.parse(z.open(rels_path)).getroot():
+        target = r.get('Target') or ''
+        if 'comments' not in target:
+            continue
+        path = 'xl/' + target.replace('../', '').lstrip('/').replace('xl/', '')
+        if path not in z.namelist():
+            continue
+        for cm in ET.parse(z.open(path)).getroot().iter(NS + 'comment'):
+            text = ''.join(t.text or '' for t in cm.iter(NS + 't')).strip()
+            text = COMMENT_NOISE.sub('', text).strip()
+            if text:
+                out[cm.get('ref')] = text[:4000]
+    return out
+
+
+KPI_TABS = ('KPI', 'HB KPI', 'AP KPI', 'HK KPI')
 
 
 def read_sheet(path_or_file):
-    """Every lead row of the workbook: [{'sheet', 'row', 'name', 'phone', 'email', 'identities', ...}]
-    plus a per-tab Counter. Reads only; nothing is stored."""
+    """Every lead row of the workbook: [{'sheet', 'ref', 'name', 'phone', 'email', 'identities', ...}],
+    a per-tab Counter, and the KPI tabs' days {'KPI': [(day, metric, n)], 'HB KPI': [...]}. Reads only."""
+    from app.services import crm_kpi
     z = zipfile.ZipFile(path_or_file)
     shared = []
     if 'xl/sharedStrings.xml' in z.namelist():
@@ -281,18 +366,28 @@ def read_sheet(path_or_file):
             if el.tag == NS + 'si':
                 shared.append(''.join(t.text or '' for t in el.iter(NS + 't')))
                 el.clear()
+    styles = _styles(z)
     wb = ET.parse(z.open('xl/workbook.xml')).getroot()
     rels = ET.parse(z.open('xl/_rels/workbook.xml.rels')).getroot()
     target = {r.get('Id'): r.get('Target') for r in rels}
-    out, stats = [], {}
+    out, stats, kpi = [], {}, {}
     for idx, s in enumerate(wb.iter(NS + 'sheet')):
         name = (s.get('name') or '').strip()
+        path = 'xl/' + target[s.get(RNS + 'id')].lstrip('/').replace('xl/', '')
+        if name in KPI_TABS:
+            rows = []
+            for _, cells, _ in _rows(z, path, shared):
+                rows.append(cells)
+                if len(rows) > 200:
+                    break
+            kpi[name] = crm_kpi.read_kpi_rows(rows)
+            continue
         if name not in SHEETS:
             continue
-        path = 'xl/' + target[s.get(RNS + 'id')].lstrip('/').replace('xl/', '')
+        notes = _comments(z, path)
         st = stats.setdefault(name, Counter())
         header, empty_run = {}, 0
-        for n, cells in enumerate(_rows(z, path, shared)):
+        for n, (rownum, cells, colours) in enumerate(_rows(z, path, shared, styles)):
             if not header and any(v.lower().startswith('phone') for v in cells.values()):
                 header = {v.strip().lower(): c for c, v in cells.items()}
                 continue
@@ -303,11 +398,27 @@ def read_sheet(path_or_file):
                     break
                 continue
             empty_run = 0
+            # the name cell's colour says how ready they are; its comments are the conversation
+            name_col = (header.get('lead') or header.get('customer') or header.get('pipeline') or 'B')
+            row['likelihood'] = likelihood_from(colours.get(name_col) or colours.get('A'))
+            names_cols = {header.get('names'), header.get('ur')} - {None}
+            history, medical = [], []
+            for ref, text in notes.items():
+                m = re.match(r'([A-Z]+)(\d+)$', ref or '')
+                if m and rownum and int(m.group(2)) == rownum:
+                    (medical if m.group(1) in names_cols else history).append(text)
+            row['history'] = history
+            if medical:
+                row['details']['medical_conditions'] = ' / '.join(medical)[:300]
             st['rows'] += 1
             st['with phone' if row['phone'] else 'with e-mail' if row['email'] else
                'Instagram / Facebook only' if row['identities'] else 'no way to reach'] += 1
+            if history:
+                st['with notes'] += 1
+            if row['likelihood'] == 'hot':
+                st['ready to buy'] += 1
             out.append(row)
-    return out, stats
+    return out, stats, kpi
 
 
 def _sheet_row(sheet, sheet_idx, n, cells, header):
@@ -342,12 +453,16 @@ def _sheet_row(sheet, sheet_idx, n, cells, header):
     day = excel_date(get('date'))
     messages = []
     for head, c in header.items():
-        if not MESSAGE_CODES.match(head.upper()):
+        code = None
+        if MESSAGE_CODES.match(head.upper()):
+            code = re.sub(r'\s*#\s*', ' #', head.upper()).replace('F M', 'FM')
+        elif head.strip().lower() in ('q', 'pls'):
+            code = head.strip().upper()            # quote sent, payment link sent
+        if not code:
             continue
         v = (cells.get(c) or '').strip()
         if not v or v.upper() in ('N', 'NO', '0'):
             continue
-        code = re.sub(r'\s*#\s*', ' #', head.upper()).replace('F M', 'FM')
         messages.append((code, excel_date(v) or day))
     ls = (get('ls') or '').upper()
     return {
@@ -363,8 +478,13 @@ def _sheet_row(sheet, sheet_idx, n, cells, header):
     }
 
 
-def import_sheet(rows, owner_id=None):
-    """Store what read_sheet() returned. Returns a Counter. Rows already imported are skipped."""
+def import_sheet(rows, owner_id=None, kpi=None, kpi_users=None):
+    """Store what read_sheet() returned. Returns a Counter. Rows already imported are skipped; the
+    KPI tabs replace whatever an earlier import of the same tab brought in.
+
+    `kpi_users` says whose each KPI tab is: {'KPI': None (the team), 'HB KPI': user id, ...}; a tab
+    with no person chosen is left out."""
+    from app.services import crm_kpi
     from app.services.crm_defaults import PRODUCT_PIPELINE
     crm.ensure_defaults()
     out = Counter()
@@ -378,8 +498,9 @@ def import_sheet(rows, owner_id=None):
         lead = crm.capture(r['source'], name=r['name'], phone=r['phone'], email=r['email'],
                            identities=r['identities'], product=r['product'], details=r['details'],
                            departure_date=r['departure'], ends_on=r['ends'], when=when, utm={},
-                           ref=('sales_sheet', r['ref']), start_stage=stage, plan=False, notify=False, sync=False,
-                           temperature=r['temperature'],
+                           ref=('sales_sheet', r['ref']), start_stage=stage, plan=False, notify=False,
+                           sync=False, imported=True, temperature=r['temperature'],
+                           likelihood=r.get('likelihood'),
                            fallout_reason='From the sales sheet' if stage and stage.kind == 'lost' else None)
         if lead is None:
             out['unreachable'] += 1
@@ -389,17 +510,21 @@ def import_sheet(rows, owner_id=None):
             # the same person on a later tab: they moved on
             crm.move_stage(lead, stage, reason='Sales sheet: %s' % r['sheet'], plan=False,
                            fallout_reason='From the sales sheet' if stage.kind == 'lost' else None)
+        if r.get('likelihood') and not lead.likelihood:
+            lead.likelihood = r['likelihood']
         if owner_id:
             lead.owner_id = owner_id
         for code, day in r['messages']:
             at = datetime.combine(day, time(6, 0)) if day else when
+            label = {'Q': 'Quote sent', 'PLS': 'Payment link sent'}.get(code, code)
             db.session.add(CrmTouchpoint(lead=lead, person_id=lead.person_id,
                                          channel='call' if code.startswith('CL') else 'whatsapp',
-                                         direction='out', code=code, status='sent', created_at=at,
-                                         body='%s (recorded in the sales sheet)' % code))
-        if r['comment']:
-            db.session.add(CrmTouchpoint(lead=lead, person_id=lead.person_id, channel='note', direction='none',
-                                         body=r['comment'][:4000], created_at=when))
+                                         direction='out', code=code, status='imported', created_at=at,
+                                         body='%s (recorded in the sales sheet)' % label))
+        for note in [r['comment']] + list(r.get('history') or []):
+            if note:
+                db.session.add(CrmTouchpoint(lead=lead, person_id=lead.person_id, channel='note',
+                                             direction='none', body=note[:4000], created_at=when))
         if r['next_date'] and lead.status == 'open' and not lead.open_task:
             step = (r['next_step'] or 'Follow-up').strip()[:20]
             db.session.add(CrmTask(lead=lead, code=step, title='Follow up (%s, from the sales sheet)' % step,
@@ -408,4 +533,8 @@ def import_sheet(rows, owner_id=None):
                                    owner_id=lead.owner_id))
         db.session.commit()
         out[r['sheet']] += 1
+    for tab, days in (kpi or {}).items():
+        if tab not in (kpi_users or {}):
+            continue
+        out['KPI days (%s)' % tab] = crm_kpi.import_kpi(days, user_id=kpi_users[tab])
     return out

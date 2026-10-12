@@ -98,6 +98,36 @@ def upsert_contact(phone, name=None, email=None, tags=None):
     return cid
 
 
+def find_contact(phone):
+    """The id of the contact with this number, or None. It stores numbers as digits only and
+    searches by part of the number, so the last ten digits are searched and compared in full."""
+    digits = ''.join(ch for ch in (phone or '') if ch.isdigit())
+    if len(digits) < 8:
+        return None
+    rows = _call('GET', '/api/v1/contacts', params={'search': digits[-10:], 'limit': 20}) or []
+    for c in rows:
+        theirs = ''.join(ch for ch in str(c.get('phone') or '') if ch.isdigit())
+        if theirs and (theirs == digits or theirs[-10:] == digits[-10:]):
+            return str(c.get('id'))
+    return None
+
+
+def conversation_for(contact_id):
+    rows = _call('GET', '/api/v1/conversations', params={'contact_id': contact_id, 'limit': 1}) or []
+    return str(rows[0].get('id')) if rows else None
+
+
+def conversation_messages(conversation_id, limit=40):
+    """Newest first: [{'direction': inbound/outbound, 'content_type', 'content_text', 'status',
+    'created_at', 'sender_type'}]."""
+    return _call('GET', '/api/v1/conversations/%s/messages' % conversation_id,
+                 params={'limit': max(1, min(int(limit), 100))}) or []
+
+
+def inbox_url(conversation_id):
+    return '%s/inbox?c=%s' % (base_url(), conversation_id) if conversation_id else base_url() + '/inbox'
+
+
 def me():
     """Who the key belongs to: {'account': {'id', 'name'}, 'key': {'id', 'scopes'}}. No side
     effects -- this is the "Test the connection" button."""

@@ -41,6 +41,11 @@ def upgrade():
         sa.Column('kind', sa.String(8), nullable=False, server_default='open'),
         sa.Column('on_reply', sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column('sla_hours', sa.Integer()),
+        sa.Column('auto_kind', sa.String(10)),
+        sa.Column('auto_days', sa.Integer()),
+        sa.Column('auto_to_id', sa.Integer(), sa.ForeignKey('crm_stages.id', name='fk_crm_stage_auto_to'),
+                  nullable=True),
+        sa.Column('auto_reason', sa.String(80)),
         sa.UniqueConstraint('pipeline_id', 'key', name='uq_crm_stage_key'),
     )
     op.create_index('ix_crm_stages_pipeline_id', 'crm_stages', ['pipeline_id'])
@@ -74,6 +79,7 @@ def upgrade():
         sa.Column('consent_marketing', sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=True),
         sa.Column('wacrm_contact_id', sa.String(64), nullable=True),
+        sa.Column('wacrm_conversation_id', sa.String(64), nullable=True),
         sa.Column('created_at', sa.DateTime()),
         sa.Column('updated_at', sa.DateTime()),
     )
@@ -89,6 +95,8 @@ def upgrade():
         sa.Column('stage_id', sa.Integer(), sa.ForeignKey('crm_stages.id'), nullable=True),
         sa.Column('status', sa.String(6), nullable=False, server_default='open'),
         sa.Column('temperature', sa.String(3)),
+        sa.Column('likelihood', sa.String(4)),
+        sa.Column('imported', sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column('owner_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=True),
         sa.Column('fallout_reason', sa.String(80)),
         sa.Column('details', sa.JSON()),
@@ -197,6 +205,7 @@ def upgrade():
         sa.Column('id', sa.Integer(), primary_key=True),
         sa.Column('title', sa.String(160), nullable=False),
         sa.Column('keywords', sa.String(400)),
+        sa.Column('code', sa.String(20)),
         sa.Column('body', sa.Text(), nullable=False),
         sa.Column('product', sa.String(4), nullable=False, server_default='GEN'),
         sa.Column('use_count', sa.Integer(), nullable=False, server_default='0'),
@@ -205,8 +214,22 @@ def upgrade():
     )
 
 
+    op.create_table(
+        'crm_activities',
+        sa.Column('id', sa.Integer(), primary_key=True),
+        sa.Column('day', sa.Date(), nullable=False),
+        sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=True),
+        sa.Column('metric', sa.String(30), nullable=False),
+        sa.Column('count', sa.Float(), nullable=False, server_default='0'),
+        sa.Column('source', sa.String(8), nullable=False, server_default='manual'),
+        sa.Column('updated_at', sa.DateTime()),
+    )
+    op.create_index('ix_crm_activities_day', 'crm_activities', ['day'])
+    op.create_index('ix_crm_activities_user_id', 'crm_activities', ['user_id'])
+
+
 def downgrade():
-    for table in ('crm_answers', 'crm_channel_checks', 'crm_identities', 'crm_stage_changes', 'crm_tasks', 'crm_touchpoints',
+    for table in ('crm_activities', 'crm_answers', 'crm_channel_checks', 'crm_identities', 'crm_stage_changes', 'crm_tasks', 'crm_touchpoints',
                   'crm_playbook_steps', 'crm_leads', 'crm_people', 'crm_sources', 'crm_stages',
                   'crm_pipelines'):
         # IF EXISTS: a database upgraded by an earlier draft of this revision lacks the newer tables

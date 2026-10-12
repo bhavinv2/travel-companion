@@ -6,7 +6,7 @@
 <div data-lead-page data-lead="{{ lead.id }}" data-product="{{ lead.product }}" data-phone="{{ person.phone or '' }}"
      data-reasons='{{ ((lead.pipeline.fallout_reasons if lead.pipeline else []) or [])|tojson|forceescape }}'>
 
-<p style="margin:0 0 10px"><a href="{{ url_for('crm.board', p=lead.pipeline.key if lead.pipeline else None) }}" class="muted"><i class="fa-solid fa-arrow-left"></i> Back to the board</a></p>
+<p style="margin:0 0 10px"><a href="{{ crm_url('board', p=lead.pipeline.key if lead.pipeline else None) }}" class="muted"><i class="fa-solid fa-arrow-left"></i> Back to the board</a></p>
 
 {# --------------------------------------------------------------- who they are #}
 <section class="panel">
@@ -44,6 +44,14 @@
         </select>
       </div>
       <div>
+        <span class="lb">Ready to buy?</span>
+        <div class="chips" data-likelihood>
+          {% for k, label in LIKELIHOOD.items() %}
+          <button type="button" class="chip lk-{{ k }}{{ ' on' if lead.likelihood == k }}" data-lk="{{ k }}">{{ label }}</button>
+          {% endfor %}
+        </div>
+      </div>
+      <div>
         <span class="lb">How warm are they?</span>
         <div class="chips" data-temps>
           {% for k, label in TEMPS.items() %}
@@ -71,12 +79,20 @@
       {% if st.kind == 'won' %}<i class="fa-solid fa-trophy"></i> {% elif st.kind == 'lost' %}<i class="fa-solid fa-xmark"></i> {% endif %}{{ st.name }}</button>
     {% endfor %}
   </div>
+  {% if events and lead.status == 'open' %}
+  <div class="row" style="margin-top:12px;gap:8px">
+    <span class="muted" style="font-size:13px">Just did it?</span>
+    {% for code, label in events %}
+    <button type="button" class="cb sm" data-act="event" data-code="{{ code }}"><i class="fa-solid {{ 'fa-file-invoice-dollar' if code == 'Q' else 'fa-link' }}"></i> {{ label }}</button>
+    {% endfor %}
+  </div>
+  {% endif %}
 </section>
 {% else %}
-<section class="panel" style="border:2px solid var(--crm-due)">
+<section class="panel warn">
   <h3><i class="fa-solid fa-route" style="color:var(--crm-due)"></i> Which pipeline does this lead belong to?</h3>
   <p class="muted" style="margin:0 0 10px">It came from "{{ lead.source.name if lead.source else 'a form' }}", which nobody has set up yet. Choose one and the first message goes on the list.</p>
-  <form method="POST" action="{{ url_for('crm.route_lead', lead_id=lead.id) }}" class="row">
+  <form method="POST" action="{{ crm_url('route_lead', lead_id=lead.id) }}" class="row">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <select name="pipeline" style="max-width:320px" required>
       <option value="">Choose…</option>
@@ -151,6 +167,14 @@
       <div class="none">Type their question above and the best ready answers appear here.</div>
       {% endfor %}
     </div>
+    {% if quick %}
+    <span class="lb" style="margin-top:14px">Or a ready message</span>
+    <div class="chips quick" data-quick>
+      {% for q, filled in quick %}
+      <button type="button" class="chip" data-answer="{{ q.id }}" data-code="{{ q.code }}" data-text="{{ filled }}" title="{{ q.title }}"><b>{{ q.code }}</b>&nbsp;{{ q.title }}</button>
+      {% endfor %}
+    </div>
+    {% endif %}
     <label class="lb" for="crm-reply" style="margin-top:14px">Your reply</label>
     <textarea id="crm-reply" rows="5" placeholder="Pick an answer above, or write your own"></textarea>
     <div class="row" style="margin-top:10px">
@@ -178,6 +202,17 @@
     <textarea id="crm-note" rows="3" placeholder="e.g. Spoke to her son; they will decide by Friday"></textarea>
     <div class="row end" style="margin-top:8px"><button class="cb primary" data-act="note">Save</button></div>
   </section>
+
+  {# ------------------------------------------------------------- the whatsapp conversation #}
+  {% if wa_configured and person.phone %}
+  <section class="panel" data-thread data-url="{{ crm_url('whatsapp_thread', lead_id=lead.id) }}">
+    <div class="row between" style="margin-bottom:8px">
+      <h2 style="margin:0"><i class="fa-brands fa-whatsapp" style="color:var(--crm-wa)"></i> WhatsApp conversation</h2>
+      <a class="cb sm" data-thread-link href="#" target="_blank" rel="noopener" hidden>Open in WhatsApp CRM <i class="fa-solid fa-up-right-from-square"></i></a>
+    </div>
+    <div class="wa-thread" data-thread-body><p class="muted" style="margin:0">Loading the conversation…</p></div>
+  </section>
+  {% endif %}
 
   {# ------------------------------------------------------------- history #}
   <section class="panel">
@@ -245,7 +280,7 @@
   <section class="panel">
     <h3>Their other enquiries</h3>
     {% for o in others %}
-    <p style="margin:6px 0"><a href="{{ url_for('crm.lead', lead_id=o.id) }}">{{ PRODUCTS.get(o.product, o.product) }}</a>
+    <p style="margin:6px 0"><a href="{{ crm_url('lead', lead_id=o.id) }}">{{ PRODUCTS.get(o.product, o.product) }}</a>
       <span class="muted">· {{ o.stage.name if o.stage else 'not routed' }} · {{ when(o.created_at, utcnow) }}</span></p>
     {% endfor %}
   </section>

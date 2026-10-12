@@ -1,0 +1,125 @@
+{% extends 'cs/crm/_layout.html' %}
+{% set crm_tab = 'process' %}
+{% block crm_title %}Sales process{% endblock %}
+{% macro status_class(note) -%}
+{%- set n = (note or '')|lower -%}
+{%- if 'ongoing' in n or 'on going' in n or 'working' in n -%}live
+{%- elif n -%}work
+{%- else -%}idle{%- endif -%}
+{%- endmacro %}
+{% block crm %}
+<div class="crm-head">
+  <div>
+    <h1>How we sell</h1>
+    <p class="muted" style="margin:4px 0 0">The whole process on one page, drawn from today's numbers. Click any stage to open its leads.</p>
+  </div>
+</div>
+
+{# ------------------------------------------------------------------ 1. where leads come from #}
+<section class="panel">
+  <div class="proc-h"><span class="proc-n">1</span><div><h2 style="margin:0">Where leads come from</h2>
+    <p class="muted" style="margin:2px 0 0">Every form, pop-up and inbox sends its leads straight to the CRM. Last 30 days:</p></div></div>
+  <div class="inlets">
+    {% for src, n in inlets %}
+    <div class="inlet{{ ' quiet' if not n }}"><b>{{ n }}</b><span>{{ src.name }}</span></div>
+    {% endfor %}
+  </div>
+</section>
+
+{# ------------------------------------------------------------------ 2. each pipeline as a picture #}
+<section class="panel">
+  <div class="proc-h"><span class="proc-n">2</span><div><h2 style="margin:0">The journey, product by product</h2>
+    <p class="muted" style="margin:2px 0 0">Open leads in each stage now, the messages that go with it, and what moves a lead on by itself.</p></div></div>
+  {% for p in pipelines %}
+  {% set opens = p.stages|selectattr('kind', 'equalto', 'open')|list %}
+  {% set wins = p.stages|selectattr('kind', 'equalto', 'won')|list %}
+  {% set losses = p.stages|selectattr('kind', 'equalto', 'lost')|list %}
+  <div class="proc-pipe">
+    <h3>{{ p.name }}</h3>
+    <div class="proc-flow">
+      {% for st in opens + wins %}
+      <a class="proc-stage{{ ' won' if st.kind == 'won' }}" href="{{ crm_url('board', p=p.key, owner='all') }}">
+        <span class="cnt">{{ open_counts.get(st.id, 0) if st.kind == 'open' else closed_counts.get(st.id, 0) }}</span>
+        <b>{{ st.name }}</b>
+        <small>{{ 'now' if st.kind == 'open' else 'last 30 days' }}{% if st.on_reply %} · a reply lands here{% endif %}</small>
+        {% if st.steps %}<span class="codes">{% for s in st.steps %}<i title="{{ s.title }}">{{ s.code }}</i>{% endfor %}</span>{% endif %}
+        {% if st.auto_kind and st.auto_to %}<span class="auto"><i class="fa-solid fa-robot"></i> {{ st.auto_days }} day{{ 's' if st.auto_days != 1 }} {{ 'without a reply' if st.auto_kind == 'no_reply' else 'after travel' }} → {{ st.auto_to.name }}</span>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+    {% if losses %}
+    <div class="proc-loss">
+      {% for st in losses %}
+      <a class="proc-stage lost" href="{{ crm_url('board', p=p.key, owner='all') }}">
+        <span class="cnt">{{ closed_counts.get(st.id, 0) }}</span><b>{{ st.name }}</b><small>fell out, last 30 days</small>
+        {% if st.steps %}<span class="codes">{% for s in st.steps %}<i title="{{ s.title }}">{{ s.code }}</i>{% endfor %}</span>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</section>
+
+{# ------------------------------------------------------------------ 3. lead channels #}
+<section class="panel">
+  <div class="proc-h"><span class="proc-n">3</span><div><h2 style="margin:0">Lead channels</h2>
+    <p class="muted" style="margin:2px 0 0">The {{ channels|length }} ways we find people, who owns each, and where it stands.</p></div></div>
+  <div class="legend-row">
+    <span><i class="sw live"></i> Running</span><span><i class="sw work"></i> Needs work</span><span><i class="sw idle"></i> Not started</span>
+  </div>
+  <div class="chan-grid">
+    {% for platform, activity, owner, note in channels %}
+    <div class="chan {{ status_class(note) }}">
+      <span class="plat">{{ platform }}</span>
+      <b>{{ activity }}</b>
+      <small>{{ owner or 'No owner yet' }}{% if note %} · {{ note }}{% endif %}</small>
+    </div>
+    {% endfor %}
+  </div>
+  {% if CS_ACCESS.can_open(current_user, 'crm_setup') %}
+  <details style="margin-top:12px">
+    <summary class="muted" style="cursor:pointer">Edit the channels</summary>
+    <form method="POST" action="{{ crm_url('save_process') }}" class="stack" style="margin-top:8px">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="what" value="channels"/>
+      <textarea name="channels" rows="10">{% for c in channels %}{{ c|join(' | ') }}
+{% endfor %}</textarea>
+      <p class="hint">One per line: platform | activity | owner | where it stands ("Ongoing" shows as running).</p>
+      <div><button class="cb primary">Save</button></div>
+    </form>
+  </details>
+  {% endif %}
+</section>
+
+{# ------------------------------------------------------------------ 4. gaps #}
+<section class="panel">
+  <div class="proc-h"><span class="proc-n">4</span><div><h2 style="margin:0">Gaps to close</h2>
+    <p class="muted" style="margin:2px 0 0">What the team agreed still needs work.</p></div></div>
+  <ul class="gaps">
+    {% for g in gaps %}
+    <li class="{{ 'done' if g.done }}">
+      {% if CS_ACCESS.can_open(current_user, 'crm_setup') %}
+      <form method="POST" action="{{ crm_url('save_process') }}" style="display:inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="what" value="gap_done"/>
+        <input type="hidden" name="text" value="{{ g.text }}"/>
+        <button class="gap-box" title="{{ 'Mark as not done' if g.done else 'Mark as done' }}">{{ '✓' if g.done else '' }}</button>
+      </form>
+      {% else %}<span class="gap-box">{{ '✓' if g.done else '' }}</span>{% endif %}
+      <span>{{ g.text }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% if CS_ACCESS.can_open(current_user, 'crm_setup') %}
+  <details style="margin-top:10px">
+    <summary class="muted" style="cursor:pointer">Edit the list</summary>
+    <form method="POST" action="{{ crm_url('save_process') }}" class="stack" style="margin-top:8px">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="what" value="gaps"/>
+      {% for g in gaps if g.done %}<input type="hidden" name="done" value="{{ g.text }}"/>{% endfor %}
+      <textarea name="gaps" rows="6">{% for g in gaps %}{{ g.text }}
+{% endfor %}</textarea>
+      <div><button class="cb primary">Save</button></div>
+    </form>
+  </details>
+  {% endif %}
+</section>
+{% endblock %}

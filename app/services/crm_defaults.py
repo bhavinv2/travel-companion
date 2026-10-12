@@ -16,7 +16,8 @@ Message text may use these, filled in when it is sent:
 
 # ---------------------------------------------------------------------------------------- pipelines
 # (key, name, product, fallout reasons, stages)
-# stage: (key, name, kind, on_reply, sla_hours, steps)
+# stage: (key, name, kind, on_reply, sla_hours, steps[, automation])
+#   automation: (kind, days, stage key to move to, reason) -- see CRM_AUTO_KINDS
 # step:  (code, title, channel, trigger, value, auto, body)
 H = 'after_hours'
 D = 'before_departure_days'
@@ -28,28 +29,38 @@ PIPELINES = [
       'No response', 'Wrong number'],
      [
          ('cold', 'Cold lead', 'open', False, 24, [
-             ('TI #1', 'Introduce yourself and ask for ages and dates', 'whatsapp', H, 0, True,
-              "Hi {name}, this is {agent} from NRI Parent Service. You asked about travel insurance "
-              "for your parents. Cover for parents travelling from India can be tricky with "
-              "pre-existing conditions and medical limits, and that is exactly what we help with. "
-              "Could you share their ages and travel dates? I will send you two options to compare."),
-             ('CL #2', 'Call and ask for a good time to talk', 'call', H, 24, False,
-              "Introduce yourself, say you are following up on their insurance enquiry, and ask "
-              "when is a good time to go through the options."),
+             ('TI #1', 'Details: introduce yourself and offer a quote', 'whatsapp', H, 0, True,
+              "Hi {name}, {agent} here from NRI Parent Service. You mentioned you might be looking "
+              "into travel insurance options for your parents' upcoming visit.\n\n"
+              "Managing coverage for parents travelling from India can get complicated with "
+              "pre-existing conditions and emergency medical limits. We built our NRI parent "
+              "insurance plans to handle exactly these needs, with seamless claims support and "
+              "zero-hassle paperwork.\n\n"
+              "Would you have 5 minutes this week for a quick chat, or would you prefer I send over "
+              "a quick quote breakdown based on their travel dates?\n\n"
+              "Here is the additional value we provide at no extra charge:\n"
+              "* 24/7 local-language support: direct help with claims or policy questions, without "
+              "waiting for a generic call centre.\n"
+              "* A complimentary virtual doctor consultation for your parents while they are abroad.\n"
+              "* Complimentary travel companion help, so your parents are not alone on the journey."),
+             ('CL #2', 'Call after a day: ask for a good time to talk', 'call', H, 24, False,
+              "Hi, I am {agent}, welcome to NRI Parent Service. Follow up on their insurance enquiry, "
+              "ask when is a good time to go through the options, and send the flyer."),
              ('CL #3', 'Third and last call', 'call', H, 72, False,
-              "Last try. If there is still no answer, move the lead to fallout with the reason "
-              "'No response'."),
-         ]),
+              "Hi, I am {agent}, welcome to NRI Parent Service (send the flyer). This is the third "
+              "call -- the limit. If there is still no answer the lead moves to fallout by itself."),
+         ], ('no_reply', 7, 'prospect_fallout', 'No response after three calls')),
          ('prospect', 'Prospect', 'open', True, 48, [
-             ('TI #2', 'Check in: did they decide?', 'whatsapp', H, 24, False,
-              "Hi {name}, {agent} here. Did you get a chance to look at cover for your parents? "
-              "Happy to answer any question, or to call if that is easier."),
-             ('TI #3', 'Call with two options and the payment link', 'call', H, 48, False,
-              "Call and walk them through at least two comparable plans with prices, explain what "
-              "we add at no extra cost, and send the payment link."),
-         ]),
+             ('TI #2', 'Daily message: did they decide?', 'whatsapp', H, 24, False,
+              "Hi {name}, I am {agent}. How are you doing? Did you make a decision on your parents' "
+              "cover? Happy to answer any question, or to call if that is easier."),
+             ('TI #3', 'Call after 2 days with no response: two options + payment link', 'call', H, 48, False,
+              "Give at least two options with comparable prices, our unique selling points (local-"
+              "language support, free virtual doctor consultation, travel companion help), and the "
+              "details for the payment link."),
+         ], ('no_reply', 10, 'prospect_fallout', 'No response')),
          ('quoted', 'Quoted', 'open', False, 72, [
-             ('TI #4', 'Send two quotes side by side', 'whatsapp', H, 0, False,
+             ('TI #4', 'Quotes: two options side by side', 'whatsapp', H, 0, False,
               "Hi {name}, here are two options for your parents' visit:\n\n"
               "1) [plan, cover, price]\n2) [plan, cover, price]\n\n"
               "Both can be bought online: {insurance_link}\n"
@@ -58,18 +69,23 @@ PIPELINES = [
          ]),
          ('pipeline', 'Pipeline', 'open', False, 120, [
              ('PI #1', 'Five-day follow-up', 'whatsapp', H, 120, False,
-              "Hi {name}, {agent} here. Just checking in on your parents' cover. Did you make a "
-              "decision? I can hold the quotes for you."),
-             ('PI #2', 'Call: travel is close', 'call', D, 3, False,
-              "Their travel is {days} days away. Call: we want them to enjoy the visit rather "
-              "than worry about health; choose the best option together."),
-             ('PI #4', 'Day of travel: hand to the US team', 'call', D, 0, False,
-              "Departure day. Escalate to the US sales team for a last call."),
-         ]),
+              "Hi {name}, I am {agent}. How are you doing? Did you make a decision on your parents' "
+              "cover? I can hold the quotes for you."),
+             ('PI #2', 'Call message: departure in 3 days or less', 'whatsapp', D, 3, False,
+              "Hi {name}, your parents' travel is coming soon. We want to make sure you have an "
+              "amazing time with them rather than worrying about health. If you haven't decided yet, "
+              "we can have a call together and choose the best option possible."),
+             ('PI #3', 'Sales call', 'call', H, 24, False,
+              "Sales call: go through the two options again and help them pay."),
+             ('PI #4', 'Day of travel: US escalation', 'call', D, 0, False,
+              "Departure day. Escalate to the US sales team for a last sales call from the USA."),
+         ], ('departed', 1, 'pipeline_fallout', 'Trip started without buying')),
          ('customer', 'Policy bought', 'won', False, None, [
              ('CE #1', 'Welcome to the family', 'whatsapp', H, 0, True,
-              "Welcome to the NRI Parent Service family, {name}! We are here for anything during "
-              "your parents' visit: claims, questions, or a doctor consultation. Save this number."),
+              "Welcome to the NRI Parent Service family, {name}! We are here to support you -- "
+              "please reach out to us for any of these:\n* claims or questions about the policy\n"
+              "* a virtual doctor consultation for your parents\n* a travel companion for their "
+              "next journey\nSave this number: {agent}, NRI Parent Service."),
              ('CE #2', 'Feedback and a reference', 'whatsapp', H, 168, False,
               "Hi {name}, how is the visit going? If we helped, a short review or a friend who "
               "could use us would mean a lot."),
@@ -80,11 +96,19 @@ PIPELINES = [
               "Hi {name}, your parents' cover ends on {ends}. If they are staying longer, I can "
               "extend it before then so there is no gap -- just reply with the new return date."),
          ]),
-         ('prospect_fallout', 'Prospect fallout', 'lost', False, None, []),
-         ('pipeline_fallout', 'Pipeline fallout', 'lost', False, None, [
+         ('prospect_fallout', 'Prospect fallout', 'lost', False, None, [
              ('PF #1', 'Five days later: still here for them', 'whatsapp', H, 120, False,
               "Hi {name}, just checking everything is OK with your parents' trip. If anything is "
               "needed, we are still here."),
+         ]),
+         ('pipeline_fallout', 'Pipeline fallout', 'lost', False, None, [
+             ('PF #1', 'Five days later: why could we not get your business?', 'whatsapp', H, 120, False,
+              "Hi {name}, just checking everything is OK with your parents' trip -- we are still here "
+              "if anything is needed. If you have a moment: what made you decide not to go ahead "
+              "with us? It helps us do better."),
+             ('PF #2', 'Feedback poll', 'whatsapp', H, 72, False,
+              "Hi {name}, one quick question so we can improve: why did you not take the cover with "
+              "us?\nA) Price  B) Bought elsewhere  C) Not needed any more  D) Something else"),
          ]),
      ]),
 
@@ -93,33 +117,39 @@ PIPELINES = [
       'No response', 'Wrong number', 'Duplicate'],
      [
          ('posted', 'Posted', 'open', False, 48, [
-             ('TC #1', 'Warm welcome, no selling', 'whatsapp', H, 0, True,
-              "Hi {name}, this is {agent} from NRI Parent Service. We have your trip and we are "
-              "looking out for a companion for you. You can follow your matches here: "
-              "{companion_link}. We are here to make the journey smooth."),
+             ('TC #1', 'Welcome warm-up (compassion, no selling)', 'whatsapp', H, 0, True,
+              "Hi {name}, I am {agent} from NRI Parent Service. We have your trip, and we will also be "
+              "looking out for a companion for your parents -- we are here to make their journey "
+              "smooth. Your trip and matches are here: {companion_link}\nYou can reach us on this "
+              "WhatsApp, on Instagram, or in the chat on the site."),
              ('TC #4', 'Fifteen days out, no match yet', 'whatsapp', D, 15, False,
               "Hi {name}, we are still looking for the right companion and will keep at it. "
               "Meanwhile, have you sorted travel insurance? Parents' cover with pre-existing "
               "conditions is our speciality: {insurance_link}"),
-             ('TC #5', 'Five days out: call a loyal lead', 'call', D, 5, False,
-              "Call: we could not find a companion yet. Offer travel insurance and what makes ours "
-              "different."),
-         ]),
+             ('TC #5', 'Loyal lead, travel in 5 days: call', 'call', D, 5, False,
+              "Call: we could not find a proper companion, but we can help with travel insurance -- "
+              "explain what makes ours different."),
+             ('TC #6', 'Non-responsive lead, travel in 5 days: insurance message', 'whatsapp', D, 5, False,
+              "Hi {name}, we are still looking for a companion for your parents. Whatever happens, "
+              "please make sure they travel insured: our parent plans cover pre-existing conditions, "
+              "with a free virtual doctor consultation while abroad. {insurance_link}"),
+         ], ('departed', 1, 'closed', 'Travelled already')),
          ('in_touch', 'In touch', 'open', True, 72, [
-             ('TC #3', 'Closest match update', 'whatsapp', H, 72, False,
-              "Hi {name}, an update on your trip: we are working on the closest matches for your "
-              "route and dates. Nothing for you to do yet."),
-         ]),
+             ('TC #3', 'Closest match update (no selling)', 'whatsapp', H, 72, False,
+              "Hi {name}, an update on your parents' trip: we are working on the closest matches for "
+              "their route and dates. You can see them here: {companion_link}"),
+         ], ('departed', 1, 'closed', 'Travelled already')),
          ('matched', 'Matched', 'open', False, 48, [
-             ('TC #2', 'Hooray! Then insurance, briefly', 'whatsapp', H, 0, False,
-              "Hooray {name}, you have a companion! One more thing for a worry-free trip: travel "
-              "insurance built for parents, with a complimentary virtual doctor consultation. "
+             ('TC #2', 'Match success: Hooray! Then insurance, short and sweet', 'whatsapp', H, 0, False,
+              "Hooray {name}, your parents have a companion! One more thing for a worry-free trip: "
+              "travel insurance built for parents, with a complimentary virtual doctor consultation. "
               "{insurance_link}"),
-         ]),
+         ], ('departed', 1, 'connected', 'They travelled together')),
          ('connected', 'Connected', 'won', False, None, [
-             ('TC #7', 'Gift Health and Sahayak, gently', 'whatsapp', H, 48, False,
-              "Hi {name}, glad the companion worked out. When your parents are home, a Sahayak "
-              "nurse can take care of check-ups and appointments: {sahayak_link}"),
+             ('TC #7', 'Match success: health, Sahayak and Gift Health', 'whatsapp', H, 48, False,
+              "Hi {name}, glad the companion worked out! Health matters as much as the journey: a "
+              "Sahayak nurse can take care of your parents' check-ups and appointments at home, and "
+              "our preventive plans (Gift Health) keep an eye on them all year. {sahayak_link}"),
          ]),
          ('closed', 'No longer needed', 'lost', False, None, []),
      ]),
@@ -183,7 +213,7 @@ PIPELINES = [
          ('talking', 'In conversation', 'open', True, 48, [
              ('GEN #2', 'Follow up next day', 'whatsapp', H, 24, False,
               "Hi {name}, {agent} here. Is there anything else we can help with?"),
-         ]),
+         ], ('no_reply', 7, 'closed', 'No response')),
          ('resolved', 'Resolved', 'won', False, None, []),
          ('closed', 'Closed', 'lost', False, None, []),
      ]),
@@ -312,4 +342,106 @@ ANSWERS = [
      'who are you what is company about nri parent service',
      "NRI Parent Service helps families abroad look after parents in India: travel companions, "
      "travel insurance for visiting parents, and Sahayak nurses for care at home."),
+]
+
+
+# ---------------------------------------------------------------------------------------- quick messages
+# (product, code, title, body) -- sent from a lead at any time and counted under the code on the
+# KPI dashboard (BW birthday wishes, FM festival messages, ER expiration reminders...).
+QUICK_MESSAGES = [
+    ('GEN', 'BW', 'Birthday wishes',
+     "Happy birthday, {name}! Wishing you and your family a wonderful year ahead. -- {agent}, NRI Parent Service"),
+    ('GEN', 'FM', 'Festival message',
+     "Wishing you and your family a very happy festival, {name}! May it bring health and joy to your parents "
+     "and to all of you. -- {agent}, NRI Parent Service"),
+    ('GEN', 'OM', 'Occasion message',
+     "Hi {name}, {agent} from NRI Parent Service here -- thinking of you and your family on this occasion. "
+     "We are always here if your parents need anything."),
+    ('GEN', 'CM', 'Casual message',
+     "Hi {name}, {agent} here from NRI Parent Service. Just checking in -- how are you and your parents doing?"),
+    ('TI', 'HJ', 'Happy journey',
+     "Wishing your parents a safe and happy journey, {name}! If anything comes up on the way or after they "
+     "land, call {helplines} or message me here."),
+    ('TI', 'SA', 'Safely arrived?',
+     "Hi {name}, have your parents arrived safely? I hope the journey went well. Remember they can have a "
+     "free virtual doctor consultation any time during their stay."),
+    ('TI', 'ER', 'Expiration reminder',
+     "Hi {name}, your parents' cover ends on {ends}. If they are staying longer, I can extend it before then "
+     "so there is no gap -- just reply with the new return date."),
+    ('TI', 'CS', 'Feedback poll',
+     "Hi {name}, one quick question so we can improve: how would you rate our help, from 1 (poor) to 5 "
+     "(excellent)? And is there anything we could have done better?"),
+    ('GEN', 'PM', 'Promotional message',
+     "Hi {name}, {agent} from NRI Parent Service. Planning your parents' next visit? Travel insurance built "
+     "for parents, a travel companion for the journey and a Sahayak nurse at home: {site_link}"),
+    ('GEN', 'SE', 'Shift end message',
+     "Hi {name}, {agent} here -- I am signing off for today. For anything urgent our team is on {helplines}, "
+     "and I will pick up your conversation first thing tomorrow."),
+    ('TC', 'TC #8', 'Closest match update: health and Gift Health',
+     "Hi {name}, we have not found the right companion yet but we are still doing our best. Meanwhile, "
+     "health matters as much as the journey: a Sahayak nurse at home and our preventive plans (Gift Health) "
+     "keep an eye on your parents all year. {sahayak_link}"),
+    ('TC', 'TC #10', 'Non-responsive lead, travel in 5 days: Gift Health',
+     "Hi {name}, before your parents travel: our preventive health plans (Gift Health) and Sahayak home "
+     "nurses look after them before and after the journey. {sahayak_link}"),
+    ('TI', 'PF #3', 'Keep in touch after a fallout',
+     "Hi {name}, {agent} from NRI Parent Service. Hope your parents are well! Whenever they plan the next "
+     "visit, we would love to help with the cover, a companion or a nurse at home."),
+]
+
+
+# ---------------------------------------------------------------------------------------- the sales process
+# The "Sales Process" tab's lead channels: (platform, activity, who owns it, where it stands).
+# Edited on the Sales process page.
+CHANNELS = [
+    ('Facebook', 'Organic posting in groups', 'Sales', 'Ongoing'),
+    ('Facebook', 'Commenting', 'Sales', 'Ongoing'),
+    ('Instagram', 'Commenting', 'Sales', 'Ongoing'),
+    ('Instagram', 'Drop-ins', 'Marketing', 'Needs positioning'),
+    ('Facebook', 'Drop-ins', 'Marketing', 'Needs work'),
+    ('WhatsApp', 'WhatsApp blasts', 'US Sales', ''),
+    ('Traditional', 'Event marketing', 'US Sales', ''),
+    ('WhatsApp', 'WhatsApp community', 'Sales', 'Will engage soon'),
+    ('Traditional', 'Store signage', 'US Sales', 'Needs work'),
+    ('Google', 'Search ads', 'Digital marketing', 'Waiting on the insurance website'),
+    ('Google', 'Display ads', '', ''),
+    ('Google', 'SEO', '', 'On page / off page'),
+    ('Websites', 'Featured ads', '', ''),
+    ('Facebook', 'Meta paid marketing', '', ''),
+    ('YouTube', 'Drop-ins', '', ''),
+    ('YouTube', 'Ads', '', ''),
+    ('TikTok', 'Drop-ins', '', ''),
+    ('TikTok', 'Ads', '', ''),
+    ('Instagram', 'Threads drop-ins', '', ''),
+    ('LinkedIn', 'Marketing', '', ''),
+    ('LinkedIn', 'Paid marketing', '', ''),
+    ('Google', 'Newsletters', '', ''),
+    ('Media', 'Print media and publications', '', ''),
+    ('Media', 'Digital print media', '', ''),
+    ('Traditional', 'Telugu associations', '', ''),
+    ('Media', 'Webinars', '', ''),
+    ('Media', 'Radio ads', '', ''),
+    ('Media', 'Television ads', '', ''),
+    ('Websites', 'Digital media and channels', '', ''),
+    ('Traditional', 'Customer reference', '', ''),
+    ('Media', 'Podcast', '', ''),
+    ('X', 'Drop-ins', '', ''),
+    ('X', 'Paid marketing', '', ''),
+    ('WhatsApp', 'WhatsApp paid marketing', '', ''),
+    ('Websites', 'Blog', 'Sales', 'SEO'),
+    ('Websites', 'Travel companion websites', 'Sales', 'We need to bring a baseline'),
+    ('App stores', 'App promotion', '', ''),
+    ('Traditional', 'Customer engagement', 'Sales', 'Working, needs rigour'),
+    ('Traditional', 'Indian event marketing', '', ''),
+    ('Social media', 'Influencer marketing', '', ''),
+    ('Telegram', 'Telegram groups', '', 'Needs account opening'),
+]
+
+GAPS = [
+    'Did we explore everything and everywhere for cold leads?',
+    'Prospect to pipeline conversion needs to be unlocked',
+    'Pipeline fallout needs to be addressed',
+    'Process fallout needs to be addressed',
+    'We have to work on a complete value intro message',
+    'OTP to verify phones at login',
 ]

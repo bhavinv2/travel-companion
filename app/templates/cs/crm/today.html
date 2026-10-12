@@ -9,8 +9,8 @@
     <p class="muted" style="margin:4px 0 0">Work from the top. Each button does the whole job: it sends or logs, ticks the step off and puts the next one on the list.</p>
   </div>
   <div class="actions chips">
-    <a class="chip{{ ' on' if who == 'me' }}" href="{{ url_for('crm.today') }}">Mine</a>
-    <a class="chip{{ ' on' if who == 'all' }}" href="{{ url_for('crm.today', who='all') }}">Everybody's</a>
+    <a class="chip{{ ' on' if who == 'me' }}" href="{{ crm_url('today') }}">Mine</a>
+    <a class="chip{{ ' on' if who == 'all' }}" href="{{ crm_url('today', who='all') }}">Everybody's</a>
   </div>
 </div>
 
@@ -20,10 +20,10 @@
 {% endif %}
 
 {% if stuck %}
-<section class="panel" style="border-color:var(--crm-bad)">
+<section class="panel alert">
   <h3><i class="fa-solid fa-hourglass-end" style="color:var(--crm-bad)"></i> Waiting too long in their stage ({{ stuck|length }})</h3>
   <div class="chips">
-    {% for l in stuck[:20] %}<a class="chip" href="{{ url_for('crm.lead', lead_id=l.id) }}">{{ l.person.display_name }} · {{ l.stage.name }}</a>{% endfor %}
+    {% for l in stuck[:20] %}<a class="chip" href="{{ crm_url('lead', lead_id=l.id) }}">{{ l.person.display_name }} · {{ l.stage.name }}</a>{% endfor %}
   </div>
 </section>
 {% endif %}
@@ -43,7 +43,7 @@
     <div>
       <div class="who">
         {{ temp_dot(l.temperature) }}
-        <a href="{{ url_for('crm.lead', lead_id=l.id) }}">{{ l.person.display_name }}</a>
+        <a href="{{ crm_url('lead', lead_id=l.id) }}">{{ l.person.display_name }}</a>
         {{ product_chip(l.product) }}
         {% if l.stage %}<span class="chip">{{ l.stage.name }}</span>{% endif %}
         {% if l.days_to_departure is not none and l.days_to_departure >= 0 %}<span class="chip {{ 'bad' if l.days_to_departure <= 3 else 'due' }}"><i class="fa-solid fa-plane-departure"></i> leaves in {{ l.days_to_departure }}d</span>{% endif %}
@@ -63,13 +63,13 @@
       <a class="cb primary" href="mailto:{{ l.person.email }}?body={{ texts.get(t.id, '')|urlencode }}" data-act="done-after" data-task="{{ t.id }}">
         <i class="fa-solid fa-envelope"></i> Write e-mail</a>
       {% else %}
-      <a class="cb" href="{{ url_for('crm.lead', lead_id=l.id) }}"><i class="fa-solid fa-up-right-from-square"></i> Open</a>
+      <a class="cb" href="{{ crm_url('lead', lead_id=l.id) }}"><i class="fa-solid fa-up-right-from-square"></i> Open</a>
       {% endif %}
       <div class="row" style="gap:6px">
         <button class="cb sm ok" data-act="done" data-task="{{ t.id }}" title="I did it"><i class="fa-solid fa-check"></i> Done</button>
         <button class="cb sm" data-act="snooze" data-task="{{ t.id }}" title="Move to tomorrow"><i class="fa-regular fa-clock"></i> Tomorrow</button>
       </div>
-      <a class="cb sm ghost" href="{{ url_for('crm.lead', lead_id=l.id) }}">Open lead <i class="fa-solid fa-arrow-right"></i></a>
+      <a class="cb sm ghost" href="{{ crm_url('lead', lead_id=l.id) }}">Open lead <i class="fa-solid fa-arrow-right"></i></a>
     </div>
   </article>
   {% endfor %}
