@@ -8,7 +8,7 @@
 <select name="{{ name }}">{% for code, label in PRODUCTS.items() %}<option value="{{ code }}"{{ ' selected' if value == code }}>{{ label }}</option>{% endfor %}</select>
 {%- endmacro %}
 {% macro pipe_tabs(tabname) -%}
-<nav class="crm-pipes">
+<nav class="pipes">
   {% for p in pipelines %}<a href="{{ crm_url('setup', tab=tabname, p=p.key) }}" class="{{ 'on' if pipe and p.id == pipe.id }}">{{ p.name }}{% if not p.is_active %} <span class="c">(off)</span>{% endif %}</a>{% endfor %}
 </nav>
 {%- endmacro %}
@@ -53,8 +53,8 @@
 {% endmacro %}
 
 {% block crm %}
-<div class="crm-head"><h1>CRM set-up</h1></div>
-<nav class="crm-pipes" style="margin-bottom:18px">
+<div class="page-head"><h1>CRM set-up</h1></div>
+<nav class="subtabs">
   {% for key, label, icon in [('sources', 'Lead sources', 'fa-door-open'), ('pipelines', 'Pipelines & stages', 'fa-diagram-next'), ('messages', 'Messages', 'fa-message'), ('answers', 'Ready answers', 'fa-comments'), ('connect', 'Connect', 'fa-plug'), ('import', 'Import', 'fa-file-import')] %}
   <a href="{{ crm_url('setup', tab=key) }}" class="{{ 'on' if tab == key }}"><i class="fa-solid {{ icon }}"></i> {{ label }}{% if key == 'sources' and unrouted_count %} <span class="chip due" style="padding:0 7px">{{ unrouted_count }} new</span>{% endif %}</a>
   {% endfor %}
@@ -63,7 +63,7 @@
 {# =================================================================== sources #}
 {% if tab == 'sources' %}
   {% if edit is not none %}
-  <section class="panel next">
+  <section class="card focus">
     <h2>{{ 'New lead source' if is_new else 'Edit "' ~ edit.name ~ '"' }}</h2>
     <form method="POST" action="{{ crm_url('save_source') }}" class="crm-form">
       {{ csrf() }}
@@ -93,7 +93,7 @@
     </form>
   </section>
   {% endif %}
-  <section class="panel">
+  <section class="card">
     <div class="row between" style="margin-bottom:10px">
       <div><h2 style="margin:0">Where leads come from</h2>
         <p class="muted" style="margin:4px 0 0">Every form, pop-up and chat. A new page sends its leads here by itself; it shows up at the top as <b>needs set-up</b> until you choose its pipeline once.</p></div>
@@ -122,7 +122,7 @@
 {# =================================================================== pipelines #}
 {% elif tab == 'pipelines' %}
   {{ pipe_tabs('pipelines') }}
-  <details class="panel tint" style="padding:12px 16px">
+  <details class="card flat" style="padding:12px 16px">
     <summary style="cursor:pointer;font-weight:600"><i class="fa-solid fa-plus"></i> A new pipeline</summary>
     <form method="POST" action="{{ crm_url('save_pipeline') }}" class="row" style="margin-top:10px">
       {{ csrf() }}<input type="hidden" name="action" value="new"/>
@@ -133,7 +133,7 @@
     </form>
   </details>
   {% if pipe %}
-  <section class="panel">
+  <section class="card">
     <form method="POST" action="{{ crm_url('save_pipeline') }}" class="crm-form">
       {{ csrf() }}<input type="hidden" name="action" value="reasons"/><input type="hidden" name="pipeline" value="{{ pipe.key }}"/>
       <div><label class="lb">Name</label><input type="text" name="name" value="{{ pipe.name }}" maxlength="80"/>
@@ -143,7 +143,7 @@
       <div class="full"><button class="cb primary">Save</button></div>
     </form>
   </section>
-  <section class="panel">
+  <section class="card">
     <h2>Stages, in order</h2>
     <p class="hint" style="margin-top:-6px">Tick <b>a reply moves here</b> on the stage a lead should jump to when they answer the first message (cold lead → prospect).</p>
     {% for st in pipe.stages %}
@@ -195,7 +195,7 @@
   {% if pipe %}
   <p class="muted">The follow-ups of <b>{{ pipe.name }}</b>, stage by stage. When a lead enters a stage its first step goes on the owner's list; doing a step plans the next one.</p>
   {% for st in pipe.stages %}
-  <section class="panel" id="st-{{ st.id }}">
+  <section class="card" id="st-{{ st.id }}">
     <h2>{{ st.name }} <small class="muted" style="font-weight:500">· {{ st.steps|length }} step(s)</small></h2>
     {% for s in st.steps %}
     <details class="crm-step">
@@ -215,14 +215,14 @@
 
 {# =================================================================== answers #}
 {% elif tab == 'answers' %}
-  <section class="panel crm-asked" data-try-answers>
+  <section class="card crm-asked" data-try-answers>
     <h2><i class="fa-solid fa-wand-magic-sparkles"></i> Try it</h2>
     <p class="muted" style="margin-top:-6px">Type a question the way a customer would. These are the answers the team will be offered.</p>
     <textarea id="crm-q" rows="2" placeholder="e.g. my father has diabetes is it covered"></textarea>
     <div class="crm-sugg" data-sugg><div class="none">Suggestions appear as you type.</div></div>
   </section>
   {% if edit is not none %}
-  <section class="panel next">
+  <section class="card focus">
     <h2>{{ 'New answer' if not edit.id else 'Edit answer' }}</h2>
     <form method="POST" action="{{ crm_url('save_answer') }}" class="crm-form">
       {{ csrf() }}{% if edit.id %}<input type="hidden" name="id" value="{{ edit.id }}"/>{% endif %}
@@ -238,7 +238,7 @@
     </form>
   </section>
   {% endif %}
-  <section class="panel">
+  <section class="card">
     <div class="row between" style="margin-bottom:10px">
       <div><h2 style="margin:0">Ready answers</h2>
         <p class="muted" style="margin:4px 0 0">The questions from your Help & FAQ pages are offered too, so there is no need to copy them here.</p></div>
@@ -258,7 +258,7 @@
 
 {# =================================================================== connect #}
 {% elif tab == 'connect' %}
-  <section class="panel">
+  <section class="card">
     <h2><i class="fa-solid fa-file-circle-plus"></i> A new landing page</h2>
     <ol class="steps-howto">
       <li><b>Give the form a source code</b> — any short name in lower case, e.g. <code>diwali-insurance</code>. Add the two lines below to the page.
@@ -273,7 +273,7 @@
     </ol>
     <p class="hint">A page on another website (or a developer) can send to <code>{{ intake_url }}</code> as JSON: <code>{"source": "…", "name": "…", "phone": "+91…", "email": "…", "message": "…", "fields": {…}}</code>. Other websites must be listed in <code>CRM_INTAKE_ORIGINS</code>.</p>
   </section>
-  <section class="panel">
+  <section class="card">
     <h2><i class="fa-brands fa-whatsapp" style="color:var(--crm-wa)"></i> WhatsApp CRM</h2>
     {% if not wa_configured %}
     <p class="muted">Not set up on this server: it needs <code>WACRM_URL</code> and <code>WACRM_API_KEY</code>. Until then "Send" opens WhatsApp with the message typed.</p>
@@ -298,7 +298,7 @@
     </ol>
     {% endif %}
   </section>
-  <section class="panel">
+  <section class="card">
     <h2><i class="fa-brands fa-instagram"></i> Instagram &amp; Facebook</h2>
     {% if meta_ready %}
     <p><span class="chip ok">Connected</span> Messages and comments on the Page and its Instagram account arrive as replies or new leads, and "Send" on a lead answers them there.</p>
@@ -318,7 +318,7 @@
   </section>
 {% elif tab == 'import' %}
   {% if preview %}
-  <section class="panel next">
+  <section class="card focus">
     <h2><i class="fa-solid fa-file-excel"></i> {{ preview.name }}: {{ preview.total }} leads found</h2>
     <table class="crm-table" style="margin-bottom:12px">
       <thead><tr><th>Tab</th><th>Leads</th><th>With phone</th><th>E-mail only</th><th>Instagram / Facebook only</th></tr></thead>
@@ -352,7 +352,7 @@
     </form>
   </section>
   {% endif %}
-  <section class="panel">
+  <section class="card">
     <h2><i class="fa-solid fa-clock-rotate-left"></i> Enquiries from before the CRM</h2>
     <p class="muted">Insurance quotes, contact messages, Sahayak bookings and applications, and trip posts that have not flown yet. Ones that are still live get their first follow-up; old ones arrive marked as expired, and a quote whose trip has passed arrives as fallen out. Safe to run again.</p>
     <form method="POST" action="{{ crm_url('backfill') }}" class="row" data-busy>
@@ -362,7 +362,7 @@
       <button class="cb primary"><i class="fa-solid fa-download"></i> Bring them in</button>
     </form>
   </section>
-  <section class="panel">
+  <section class="card">
     <h2><i class="fa-solid fa-file-excel"></i> The sales sheet (Sales Process workbook)</h2>
     <p class="muted">Choose the .xlsx file. You will see what is in it before anything is stored.</p>
     <form method="POST" action="{{ crm_url('import_sheet') }}" enctype="multipart/form-data" class="row" data-busy>

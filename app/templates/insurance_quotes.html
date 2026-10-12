@@ -5,6 +5,7 @@
 {# the delete controls follow who is looking, in either console: an agent never gets them #}
 {% set can_delete = current_user.is_admin %}
 {% from 'admin/_hard_delete.html' import del_btn, row_check, select_all, bulk_bar %}
+{% from '_crm_pill.html' import crm_pill with context %}
 {% block title %}Insurance leads{% endblock %}
 {% block content %}
 <div class="admin-page">
@@ -54,6 +55,7 @@
             <b><a href="mailto:{{ iq.email }}">{{ iq.email }}</a></b><br>
             <small>{% if iq.name %}{{ iq.name }}{% if iq.phone %} · {% endif %}{% endif %}{{ PHONE.pretty(iq.phone, iq.phone) if iq.phone else '' }}</small>
             {% if iq.user %}<br><small>Signed in as {{ iq.user.username }}</small>{% endif %}
+            <div style="margin-top:6px">{{ crm_pill('insurance_quote', 'insurance_quotes', iq.id, iq.phone, iq.email) }}</div>
           </td>
           <td data-label="Cover">{{ {'visitors': 'Visitors Medical', 'health': 'Travel Medical', 'schengen': 'Schengen Visa'}.get(iq.insurance_type, iq.insurance_type) }}<br>
             <small>{{ iq.citizenship }}{% if iq.destination %} &rarr; {{ iq.destination }}{% endif %}</small></td>

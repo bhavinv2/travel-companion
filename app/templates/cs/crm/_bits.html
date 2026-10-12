@@ -8,6 +8,19 @@
 <span class="temp t-{{ t or 'none' }}" title="{{ TEMPS.get(t, 'Not contacted yet') if t else 'Not contacted yet' }}"></span>
 {%- endmacro %}
 
+{# The pipeline symbol: one colour per kind of stage, and dots for how far along the journey they
+   are (cold lead, prospect, pipeline, customer). The same everywhere in the portal. #}
+{% macro stage_pill(lead, link=true) -%}
+{%- set role = CRM_ROLE(lead) or 'new' -%}
+{%- set order = ['cold', 'prospect', 'pipeline', 'customer'] -%}
+{%- set idx = order.index(role) if role in order else -1 -%}
+{%- set label = lead.stage.name if lead.stage else 'Not routed yet' -%}
+{%- set tip = (lead.pipeline.name ~ ': ' if lead.pipeline else '') ~ label -%}
+{%- if link %}<a class="pill r-{{ role }}" href="{{ crm_url('lead', lead_id=lead.id) }}" title="{{ tip }}">{% else %}<span class="pill r-{{ role }}" title="{{ tip }}">{% endif -%}
+{%- if role == 'lost' %}<i class="fa-solid fa-circle-xmark"></i>{% else %}<span class="dots">{% for r in order %}<i class="{{ 'on' if loop.index0 <= idx }}"></i>{% endfor %}</span>{% endif %} {{ label }}
+{%- if link %}</a>{% else %}</span>{% endif -%}
+{%- endmacro %}
+
 {% macro channel_icon(ch) -%}
 {%- if ch == 'whatsapp' -%}<i class="fa-brands fa-whatsapp"></i>
 {%- elif ch == 'call' -%}<i class="fa-solid fa-phone"></i>
@@ -35,3 +48,40 @@
 {%- endmacro %}
 
 {% macro ist(dt) -%}{{ (dt + IST_OFFSET).strftime('%d %b, %I:%M %p') if dt else '' }}{%- endmacro %}
+
+{% macro initials(name) -%}{{ ((name or '?').split()|map('first')|list)[:2]|join|upper }}{%- endmacro %}
+
+{# a follow-up as a card: who, what to do, the message, and one big button for it #}
+{% macro task_card(t, text, utcnow, show_owner=false) -%}
+{%- set l = t.lead -%}
+<article class="crm-task{{ ' late' if t.due_at < utcnow }}" data-task="{{ t.id }}" data-lead="{{ l.id }}">
+  <div>
+    <div class="who">
+      <a class="nm" href="{{ crm_url('lead', lead_id=l.id) }}">{{ l.person.display_name }}</a>
+      {{ stage_pill(l) }}
+      {{ product_chip(l.product) }}
+      {% if l.days_to_departure is not none and l.days_to_departure >= 0 %}<span class="chip {{ 'bad' if l.days_to_departure <= 3 else 'due' }}"><i class="fa-solid fa-plane-departure"></i> travels in {{ l.days_to_departure }} day{{ 's' if l.days_to_departure != 1 }}</span>{% endif %}
+    </div>
+    <div class="what">{{ channel_icon(t.channel) }} <b>{{ t.title }}</b> <span class="due">· {{ 'was due ' ~ when(t.due_at, utcnow) if t.due_at < utcnow else 'due ' ~ when(t.due_at, utcnow) }}{% if show_owner %} · {{ t.owner.full_name if t.owner else 'nobody' }}{% endif %}</span></div>
+    {% if text %}<div class="msg">{{ text }}</div>{% endif %}
+  </div>
+  <div class="btns">
+    {% if t.channel == 'whatsapp' and l.person.phone %}
+    <button class="cb wa" data-act="send" data-lead="{{ l.id }}" data-task="{{ t.id }}" data-phone="{{ l.person.phone }}" data-text="{{ text }}">
+      <i class="fa-brands fa-whatsapp"></i> Send on WhatsApp</button>
+    {% elif t.channel == 'call' and l.person.phone %}
+    <a class="cb primary" href="tel:{{ l.person.phone }}" data-act="dial" data-lead="{{ l.id }}" data-task="{{ t.id }}">
+      <i class="fa-solid fa-phone"></i> Call now</a>
+    {% elif t.channel == 'email' and l.person.email %}
+    <a class="cb primary" href="mailto:{{ l.person.email }}?body={{ text|urlencode }}" data-act="done-after" data-task="{{ t.id }}">
+      <i class="fa-solid fa-envelope"></i> Write e-mail</a>
+    {% else %}
+    <a class="cb primary" href="{{ crm_url('lead', lead_id=l.id) }}"><i class="fa-solid fa-arrow-right"></i> Open</a>
+    {% endif %}
+    <div class="row">
+      <button class="cb sm ok" data-act="done" data-task="{{ t.id }}" title="I did it"><i class="fa-solid fa-check"></i> Done</button>
+      <button class="cb sm" data-act="snooze" data-task="{{ t.id }}" title="Move to tomorrow"><i class="fa-regular fa-clock"></i> Tomorrow</button>
+    </div>
+  </div>
+</article>
+{%- endmacro %}

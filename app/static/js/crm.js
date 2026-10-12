@@ -22,12 +22,31 @@
     }).catch(function () { return { _ok: false, error: 'No connection. Please try again.' }; });
   }
 
-  function toast(msg, bad) {
+  function toast(msg, bad, action) {
+    document.querySelectorAll('.crm-toast').forEach(function (x) { x.remove(); });
     var t = document.createElement('div');
     t.className = 'crm-toast' + (bad ? ' bad' : '');
-    t.textContent = msg;
+    var span = document.createElement('span');
+    span.textContent = msg;
+    t.appendChild(span);
+    if (action) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = action.label;
+      b.addEventListener('click', function () { t.remove(); action.run(); });
+      t.appendChild(b);
+    }
     document.body.appendChild(t);
-    setTimeout(function () { t.remove(); }, bad ? 5000 : 2600);
+    setTimeout(function () { t.remove(); }, action ? 8000 : (bad ? 5000 : 2600));
+  }
+
+  // every move can be taken back for a few seconds: a wrong drop is one click to undo
+  function undoMove(leadId) {
+    post('lead/' + leadId + '/undo', {}).then(function (d) {
+      if (!d._ok) { toast(d.error || 'Could not undo.', true); return; }
+      toast('Back in ' + d.stage);
+      reloadSoon(700);
+    });
   }
 
   function reloadSoon(ms) { setTimeout(function () { location.reload(); }, ms || 600); }
@@ -86,7 +105,8 @@
     }).then(function (d) {
       if (d === null) return null;
       if (!d._ok) { toast(d.error || 'Could not move it.', true); return null; }
-      toast(d.status === 'won' ? 'Won! 🎉' : 'Moved to ' + d.stage);
+      toast(d.status === 'won' ? 'Won! 🎉 Moved to ' + d.stage : 'Moved to ' + d.stage, false,
+            { label: 'Undo', run: function () { undoMove(leadId); } });
       return d;
     });
   }
@@ -238,6 +258,23 @@
           if (!d._ok) { toast(d.error || 'Could not save.', true); return; }
           toast('Saved'); reloadSoon();
         });
+      } else if (act === 'undo') {
+        undoMove(leadId);
+      } else if (act === 'reopen') {
+        post('lead/' + leadId + '/reopen', {}).then(function (d) {
+          if (!d._ok) { toast(d.error || 'Could not reopen.', true); return; }
+          toast('Reopened — back in ' + d.stage); reloadSoon();
+        });
+      } else if (act === 'remove') {
+        choose('Take ' + (b.dataset.name || 'this lead') + ' out of the Sales CRM?',
+               'Their follow-ups and history in the CRM go too. The record on the site (their quote, booking or post) stays.',
+               [{ label: 'Yes, remove', value: 'yes' }]).then(function (v) {
+          if (v !== 'yes') return;
+          post('lead/' + leadId + '/remove', {}).then(function (d) {
+            if (!d._ok) { toast(d.error || 'Could not remove.', true); return; }
+            location.href = d.next;
+          });
+        });
       } else if (act === 'edit-person') {
         var box = dialog.querySelector('.in');
         box.innerHTML = '<h3>Their details</h3><div class="stack" style="margin-top:10px">' +
@@ -268,7 +305,7 @@
     leadPage.querySelectorAll('[data-journey] button').forEach(function (btn) {
       btn.addEventListener('click', function () {
         if (btn.classList.contains('now')) return;
-        moveLead(leadId, btn, leadPage).then(function (d) { if (d) reloadSoon(); });
+        moveLead(leadId, btn, leadPage).then(function (d) { if (d) reloadSoon(2200); });
       });
     });
 
@@ -388,7 +425,6 @@
       moveLead(card.dataset.lead, d, board).then(function (res) {
         if (!res) return;
         d.insertBefore(card, d.firstChild);
-        if (res.status !== 'open') reloadSoon(800);
       });
     });
     // a drag that ends on a card must not also open it
@@ -441,7 +477,8 @@
         .then(function (d) {
           var body = thread.querySelector('[data-thread-body]');
           if (d.error) { body.innerHTML = '<p class="muted" style="margin:0">' + esc(d.error) + '</p>'; return; }
-          if (d.url) { var a = thread.querySelector('[data-thread-link]'); a.href = d.url; a.hidden = false; }
+          var a = leadPage.querySelector('[data-thread-link]');
+          if (d.url && a) { a.href = d.url; a.hidden = false; }
           var msgs = d.messages || [];
           if (!msgs.length) { body.innerHTML = '<p class="muted" style="margin:0">No WhatsApp messages with them yet.</p>'; return; }
           body.innerHTML = msgs.map(function (m) {
@@ -462,8 +499,7 @@
   function setFocus(on) {
     document.body.classList.toggle('crm-focus', on);
     var b = document.querySelector('[data-focus]');
-    if (b) b.innerHTML = on ? '<i class="fa-solid fa-compress"></i> <span>Leave focus mode</span>'
-                            : '<i class="fa-solid fa-expand"></i> <span>Focus mode</span>';
+    if (b) b.innerHTML = on ? '<i class="fa-solid fa-compress"></i>' : '<i class="fa-solid fa-expand"></i>';
     try { localStorage.setItem('crm-focus', on ? '1' : ''); } catch (e) { /* private window */ }
   }
   var focusBtn = document.querySelector('[data-focus]');
@@ -519,5 +555,14 @@
     ta.value = ta.value.slice(0, s) + v.dataset.var + ta.value.slice(en);
     ta.focus();
     ta.selectionStart = ta.selectionEnd = s + v.dataset.var.length;
+  });
+  /* -------------------------------------------------------------- copy buttons (shift-end message) */
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-copy]');
+    if (!b) return;
+    var src = b.parentElement.querySelector('[data-copy-text]');
+    var text = src ? src.textContent : '';
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(
+      function () { toast('Copied'); }, function () { toast('Select the text and copy it', true); });
   });
 })();

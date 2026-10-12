@@ -35,26 +35,82 @@ crm_public_bp = Blueprint('crm_public', __name__)
 CRM_BLUEPRINTS = ('crm', 'admin_crm')
 
 
+# Set-up, imports, the dashboard and the daily tracker are the admin's: one-time or management
+# work. Customer service sees only the day's work, in the CS console.
+MANAGE = {'setup', 'save_source', 'save_pipeline', 'save_step', 'save_answer', 'save_whatsapp', 'backfill',
+          'import_sheet', 'import_confirm', 'insights', 'insights_csv', 'tracker', 'save_process'}
+
+
+def _portal_bp():
+    bp = request.blueprint or ''
+    if bp in CRM_BLUEPRINTS:
+        return bp
+    # a link from another admin screen (the insurance leads, the voices...) stays in the admin portal
+    return 'admin_crm' if bp.startswith('admin') and current_user.is_authenticated and current_user.is_admin else 'crm'
+
+
 @crm_bp.app_template_global()
 def crm_url(endpoint, **values):
-    bp = request.blueprint if request.blueprint in CRM_BLUEPRINTS else 'crm'
-    return url_for('%s.%s' % (bp, endpoint), **values)
+    if endpoint in MANAGE and current_user.is_authenticated and current_user.is_admin:
+        return url_for('admin_crm.%s' % endpoint, **values)
+    return url_for('%s.%s' % (_portal_bp(), endpoint), **values)
+
+
+@crm_bp.app_template_global('CRM_LEAD_FOR')
+def crm_lead_for(ref_type, ref_id, phone=None, email=None):
+    """The lead behind a record on another screen (an insurance quote, a booking, a post...), for
+    the pipeline symbol next to it. Looked up once per kind per page."""
+    from app.models import request_cache
+    cache = request_cache('crm_refs')
+    key = ('ref', ref_type)
+    if key not in cache:
+        cache[key] = {l.ref_id: l for l in CrmLead.query.filter_by(ref_type=ref_type)
+                      .order_by(CrmLead.created_at).all()}
+    lead = cache[key].get(ref_id)
+    if lead is None and (phone or email):
+        pkey = ('person', phone or '', (email or '').lower())
+        if pkey not in cache:
+            person = crm.find_person(phone if (phone or '').startswith('+') else None, email)
+            cache[pkey] = (next((l for l in person.leads if l.status == 'open'), None)
+                           or (person.leads[0] if person.leads else None)) if person else None
+        lead = cache[pkey]
+    return lead
+
+
+@crm_bp.app_template_global('CRM_ROLE')
+def crm_role(lead):
+    return crm.stage_role(lead.stage) if lead is not None else None
+
+
+@crm_bp.app_template_global('CRM_ROLE_OF')
+def crm_role_of(stage):
+    return crm.stage_role(stage)
 
 
 @crm_bp.before_request
-def _admin_copy_is_for_admins():
-    if request.blueprint == 'admin_crm' and current_user.is_authenticated and not current_user.is_admin:
+def _who_sees_what():
+    if not current_user.is_authenticated:
+        return None
+    name = (request.endpoint or '').split('.', 1)[-1]
+    if request.blueprint == 'admin_crm' and not current_user.is_admin:
         # an agent who followed an admin link: the same screen, in their own console
-        return redirect(url_for('crm.' + request.endpoint.split('.', 1)[1], **(request.view_args or {}),
-                                **request.args.to_dict()))
+        if name in MANAGE:
+            return redirect(url_for('crm.today'))
+        return redirect(url_for('crm.' + name, **(request.view_args or {}), **request.args.to_dict()))
+    if request.blueprint == 'crm' and name in MANAGE:
+        if current_user.is_admin:
+            # the admin's screens live in the admin portal; 307 keeps a form's method and fields
+            return redirect(url_for('admin_crm.' + name, **(request.view_args or {}), **request.args.to_dict()),
+                            code=307)
+        flash('That part of the Sales CRM is for admins.', 'warning')
+        return redirect(url_for('crm.today'))
 
 
 def admin_only(f):
-    """The set-up screens: admins, and any agent an admin has explicitly given "CRM set-up"."""
+    """The set-up and management screens: admins only."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        from app.services import cs_access
-        if not cs_access.can_open(current_user, 'crm_setup'):
+        if not current_user.is_admin:
             if request.is_json or request.accept_mimetypes.best == 'application/json':
                 return jsonify({'error': 'Only an admin can change the CRM set-up.'}), 403
             flash('Only an admin can change the CRM set-up.', 'danger')
@@ -134,8 +190,51 @@ def today():
     if who == 'me':
         sq = sq.filter(CrmLead.owner_id == current_user.id)
     stuck = [l for l in sq.order_by(CrmLead.entered_stage_at).limit(200).all() if l.stuck_hours]
+    due_now = [t for t in tasks if t.due_at <= end_of_day]
+    # a lead's very first message: "welcome the new ones" comes before the other follow-ups
+    welcome = [t for t in due_now if t.step is not None and t.step.position == 0 and t.lead.stage is not None
+               and t.lead.pipeline is not None and t.lead.stage.id == t.lead.pipeline.first_stage.id]
+    follow = [t for t in due_now if t not in welcome]
+    later = [t for t in tasks if t.due_at > end_of_day]
+    start = datetime.combine((now + crm.IST).date(), datetime.min.time()) - crm.IST
+    done_q = CrmTask.query.filter(CrmTask.status == 'done', CrmTask.done_at >= start)
+    if who == 'me':
+        done_q = done_q.filter(CrmTask.done_by_id == current_user.id)
+    done_today = done_q.count()
+    channels = crm.crm_settings()['check_channels']
+    day, slot = crm_reports.current()
+    ticks = crm_reports.grid(day)
+    se = CrmAnswer.query.filter_by(code='SE').first()
     return render_template('cs/crm/today.html', groups=groups, texts=texts, who=who, total=len(tasks),
-                           stuck=stuck, **_common())
+                           stuck=stuck, welcome=welcome, follow=follow, later=later, done_today=done_today,
+                           slot=slot, slot_label=crm_reports.slot_label, slot_done=sum(1 for c in channels if (slot, c) in ticks),
+                           channels=channels, coverage=crm_reports.coverage(day, channels),
+                           shift_end=crm.fill(se.body, CrmLead(person=CrmPerson(name='there')), current_user) if se else '',
+                           MANUAL=[(k, crm_kpi.METRICS[k][0]) for k in crm_kpi.MANUAL],
+                           my_log=crm_kpi.entries((now + crm.IST).date(), current_user.id), **_common())
+
+
+@crm_bp.route('/tracker')
+@cs_required
+@admin_only
+def tracker():
+    """The daily tracker: for any day, what each person had to do and what they did."""
+    today_ = (datetime.utcnow() + crm.IST).date()
+    try:
+        day = datetime.strptime(request.args.get('day') or '', '%Y-%m-%d').date()
+    except ValueError:
+        day = today_
+    day = min(day, today_)
+    staff = _staff()
+    sheet = crm_reports.day_sheet(day, staff)
+    who = request.args.get('who', type=int)
+    person = sheet.get(who) if who else None
+    channels = crm.crm_settings()['check_channels']
+    return render_template('cs/crm/tracker.html', day=day, today=today_, sheet=sheet, staff=staff, person=person,
+                           prev_day=day - timedelta(days=1), next_day=day + timedelta(days=1),
+                           coverage=crm_reports.coverage(day, channels), slot_label=crm_reports.slot_label,
+                           slots=crm_reports.slots(), MANUAL=dict((k, crm_kpi.METRICS[k][0]) for k in crm_kpi.MANUAL),
+                           **_common())
 
 
 # ============================================================================================ lead
@@ -197,6 +296,8 @@ def lead(lead_id):
     pipelines = CrmPipeline.query.filter_by(is_active=True).order_by(CrmPipeline.id).all()
     return render_template('cs/crm/lead.html', lead=lead, person=lead.person, task=task,
                            social=crm.social_reply_channels(lead),
+                           has_moves=any(ch.from_stage_id for ch in lead.stage_changes),
+                           can_remove=crm.can_remove(lead, current_user),
                            quick=[(q, crm.fill(q.body, lead, current_user)) for q in crm.quick_messages(lead.product)],
                            events=[(code, label) for code, (label, key) in crm.EVENTS.items()
                                    if lead.pipeline and any(s.key == key for s in lead.pipeline.stages)],
@@ -463,13 +564,76 @@ def add():
             db.session.commit()
         flash('Lead added.', 'success')
         return redirect(crm_url('lead', lead_id=lead.id))
-    return render_template('cs/crm/add.html', sources=manual, form={}, **_common())
+    q = (request.args.get('q') or '').strip()
+    found = crm.search_records(q) if request.args.get('from') == 'existing' else []
+    return render_template('cs/crm/add.html', sources=manual, form={}, q=q, found=found,
+                           mode='existing' if request.args.get('from') == 'existing' else 'new', **_common())
+
+
+@crm_bp.route('/add/record', methods=['POST'])
+@cs_required
+def add_from_record():
+    """Make a lead of something the site already has: from "Add a lead -> From existing data",
+    or the "Add to Sales CRM" button beside a quote, a booking, a message or a post."""
+    kind, rid = request.form.get('kind'), request.form.get('id', type=int)
+    if kind not in crm.RECORD_KINDS or not rid:
+        abort(400)
+    lead, created = crm.lead_from_record(kind, rid, user=current_user)
+    if lead is None:
+        flash('That record has no phone number or e-mail to follow up, so it cannot become a lead.', 'danger')
+        return redirect(request.referrer or crm_url('add', **{'from': 'existing'}))
+    if created and request.form.get('mine') != '0':
+        lead.owner_id = current_user.id
+        for t in lead.tasks:
+            if t.status == 'open':
+                t.owner_id = current_user.id
+        db.session.commit()
+    flash(('Added to the Sales CRM: %s.' if created else '%s is already in the Sales CRM.') % lead.person.display_name,
+          'success' if created else 'info')
+    nxt = request.form.get('next') or ''
+    if nxt.startswith('/') and not nxt.startswith('//'):
+        return redirect(nxt)
+    return redirect(crm_url('lead', lead_id=lead.id))
+
+
+# ============================================================================================ undo, reopen, remove
+
+@crm_bp.route('/lead/<int:lead_id>/undo', methods=['POST'])
+@cs_required
+def undo(lead_id):
+    lead = _lead_or_404(lead_id)
+    back = crm.undo_last_move(lead, user=current_user)
+    if back is None:
+        return jsonify({'error': 'There is no move to undo.'}), 400
+    return jsonify({'success': True, 'stage': back.name})
+
+
+@crm_bp.route('/lead/<int:lead_id>/reopen', methods=['POST'])
+@cs_required
+def reopen(lead_id):
+    lead = _lead_or_404(lead_id)
+    back = crm.reopen(lead, user=current_user)
+    if back is None:
+        return jsonify({'error': 'This lead is already open.'}), 400
+    return jsonify({'success': True, 'stage': back.name})
+
+
+@crm_bp.route('/lead/<int:lead_id>/remove', methods=['POST'])
+@cs_required
+def remove(lead_id):
+    lead = _lead_or_404(lead_id)
+    if not crm.can_remove(lead, current_user):
+        return jsonify({'error': 'Only the person who added or looks after this lead, or an admin, can remove it.'}), 403
+    name = crm.remove_lead(lead, user=current_user)
+    flash('%s was taken out of the Sales CRM.' % name, 'success')
+    return jsonify({'success': True, 'next': crm_url('board', owner='all')})
 
 
 # ============================================================================================ insights
 
 @crm_bp.route('/insights')
 @cs_required
+@admin_only
 def insights():
     days = request.args.get('days', type=int) or 30
     days = days if days in (7, 30, 90) else 30
@@ -516,6 +680,8 @@ def log_work():
         except ValueError:
             flash('"%s" needs a number.' % crm_kpi.METRICS[key][0], 'danger')
     flash('Saved your numbers for %s.' % day.strftime('%d %b'), 'success')
+    if request.form.get('back') == 'today' or not current_user.is_admin:
+        return redirect(crm_url('today') + '#finish')
     return redirect(crm_url('insights', days=request.form.get('days') or 30, log_day=day.isoformat()) + '#log')
 
 
@@ -525,12 +691,11 @@ def log_work():
 @cs_required
 def process():
     """The Sales Process tab, drawn from the live CRM: lead channels, the way in, every pipeline
-    with today's counts and its messages, the fallouts, and the open gaps."""
+    with today's counts and its messages, and the fallouts."""
     from app.services import crm_defaults
     crm.ensure_defaults()
     settings_ = crm.crm_settings_raw()
     channels = settings_.get('channels') or [list(c) for c in crm_defaults.CHANNELS]
-    gaps = settings_.get('gaps') or [{'text': g, 'done': False} for g in crm_defaults.GAPS]
     pipelines = CrmPipeline.query.filter_by(is_active=True).order_by(CrmPipeline.id).all()
     open_counts = dict(db.session.query(CrmLead.stage_id, func.count(CrmLead.id))
                        .filter(CrmLead.status == 'open').group_by(CrmLead.stage_id).all())
@@ -542,7 +707,7 @@ def process():
               .outerjoin(CrmLead, (CrmLead.source_id == CrmSource.id) & (CrmLead.created_at >= since))
               .filter(CrmSource.status != 'paused').group_by(CrmSource.id)
               .order_by(func.count(CrmLead.id).desc(), CrmSource.name).all())
-    return render_template('cs/crm/process.html', channels=channels, gaps=gaps, pipelines=pipelines,
+    return render_template('cs/crm/process.html', channels=channels, pipelines=pipelines,
                            open_counts=open_counts, closed_counts=closed_counts, inlets=inlets,
                            **_common())
 
@@ -552,19 +717,7 @@ def process():
 @admin_only
 def save_process():
     f = request.form
-    if f.get('what') == 'gaps':
-        texts = [t.strip()[:200] for t in (f.get('gaps') or '').splitlines() if t.strip()][:40]
-        done = set(f.getlist('done'))
-        crm.save_settings(current_user, gaps=[{'text': t, 'done': t in done} for t in texts])
-    elif f.get('what') == 'gap_done':
-        settings_ = crm.crm_settings_raw()
-        from app.services import crm_defaults
-        gaps = settings_.get('gaps') or [{'text': g, 'done': False} for g in crm_defaults.GAPS]
-        for g in gaps:
-            if g['text'] == f.get('text'):
-                g['done'] = not g.get('done')
-        crm.save_settings(current_user, gaps=gaps)
-    elif f.get('what') == 'channels':
+    if f.get('what') == 'channels':
         rows = []
         for line in (f.get('channels') or '').splitlines():
             parts = [x.strip() for x in line.split('|')]
@@ -602,6 +755,7 @@ def whatsapp_thread(lead_id):
 
 @crm_bp.route('/insights.csv')
 @cs_required
+@admin_only
 def insights_csv():
     """The per-person numbers, day by day, for a spreadsheet -- the old KPI tabs."""
     import csv

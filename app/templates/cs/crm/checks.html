@@ -2,7 +2,7 @@
 {% set crm_tab = 'checks' %}
 {% block crm_title %}Inbox check{% endblock %}
 {% block crm %}
-<div class="crm-head">
+<div class="page-head">
   <div>
     <h1>Inbox check</h1>
     <p class="muted" style="margin:4px 0 0">Every half hour from 7 am to midnight (India time), look at each inbox and tick it. Nothing waits more than thirty minutes.</p>
@@ -15,7 +15,7 @@
 </div>
 
 {% if editable and now_slot is not none %}
-<section class="panel next" data-checks>
+<section class="card focus" data-checks>
   <div class="row between">
     <div>
       <h2 style="margin:0">Now: {{ label(now_slot) }}–{{ label(now_slot + 1) if now_slot + 1 < 48 else '00:00' }}</h2>
@@ -28,10 +28,10 @@
   </div>
 </section>
 {% elif editable %}
-<section class="panel tint"><b>Outside checking hours.</b> <span class="muted">The check runs from 7 am to midnight, India time.</span></section>
+<section class="card flat"><b>Outside checking hours.</b> <span class="muted">The check runs from 7 am to midnight, India time.</span></section>
 {% endif %}
 
-<section class="panel">
+<section class="card">
   <div class="row between" style="margin-bottom:10px">
     <h2 style="margin:0">{{ 'Today' if day == today else day.strftime('%a %d %b %Y') }}</h2>
     {% if cov.pct is not none %}
@@ -65,7 +65,7 @@
   {% if cov.missed and day != today %}<p class="hint">Missed: {{ cov.missed|join(', ') }}</p>{% endif %}
 </section>
 
-<section class="panel">
+<section class="card">
   <h3>The last seven days</h3>
   <div class="crm-bars">
     {% for d, c in week %}
@@ -76,8 +76,8 @@
   </div>
 </section>
 
-{% if CS_ACCESS.can_open(current_user, 'crm_setup') %}
-<details class="panel tint">
+{% if current_user.is_admin %}
+<details class="card flat">
   <summary style="cursor:pointer;font-weight:600"><i class="fa-solid fa-sliders"></i> Change the list of inboxes</summary>
   <form method="POST" action="{{ crm_url('save_whatsapp') }}" style="margin-top:10px">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>

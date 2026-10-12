@@ -4,6 +4,7 @@
    different things about the same request. #}
 {% set can_delete = current_user.is_admin %}
 {% from 'admin/_hard_delete.html' import del_btn, row_check, select_all, bulk_bar %}
+{% from '_crm_pill.html' import crm_pill with context %}
 {% block title %}Sahayak bookings{% endblock %}
 {% block content %}
 <div class="admin-page">
@@ -68,6 +69,7 @@
               {# href stays E.164 so it dials; only what is read is respaced #}
               <a href="tel:{{ b.phone }}">{{ PHONE.pretty(b.phone, b.phone) }}</a>
               {% if b.contact_name %}<br/><small class="muted">{{ b.contact_name }}</small>{% endif %}
+              <div style="margin-top:6px">{{ crm_pill('sahayak_booking', 'sahayak_bookings', b.id, b.phone, b.email) }}</div>
               {% if b.email %}<br/><small class="muted">{{ b.email }}</small>{% endif %}</td>
             <td data-label="Where">{{ b.address }}
               {% if b.landmark %}<br/><small class="muted">near {{ b.landmark }}</small>{% endif %}

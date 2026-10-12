@@ -79,7 +79,7 @@ def _landing_structured_data(landing_faqs, review_stats):
     signal (same 'credible' threshold as the visible rating text, so the structured data can
     never claim more than the page itself does)."""
     from flask import current_app
-    from app.services import nri_services
+    from app.services import nri_services, offices
     site = current_app.config['SITE_URL']
     page_title = 'Travel Companion | Find a Trusted Travel Buddy Online'
     page_description = ('Help your parents travel with confidence. Find a trusted travel companion '
@@ -103,7 +103,7 @@ def _landing_structured_data(landing_faqs, review_stats):
             'description': 'NRI Parent Service helps parents, senior citizens and travellers find trusted '
                            'companions travelling on the same route.',
             'contactPoint': {'@type': 'ContactPoint', 'contactType': 'customer support',
-                             'email': current_app.config['SUPPORT_EMAIL'], 'availableLanguage': 'English'},
+                             'email': offices.support_address(), 'availableLanguage': 'English'},
             'sameAs': [url for _, url, _ in nri_services.SOCIAL],
         },
         {

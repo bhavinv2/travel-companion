@@ -1,66 +1,104 @@
 {% extends 'cs/crm/_layout.html' %}
 {% set crm_tab = 'add' %}
 {% from '_phone_field.html' import phone_field with context %}
+{% from 'cs/crm/_bits.html' import stage_pill with context %}
 {% block crm_title %}Add a lead{% endblock %}
 {% block crm %}
-<div class="crm-head">
+<div class="page-head">
   <div>
     <h1>Add a lead</h1>
-    <p class="muted" style="margin:4px 0 0">Somebody rang, messaged on Instagram, or you met them at an event. Ten seconds here and their follow-ups are planned for you.</p>
+    <p class="lead-in">Someone new who rang or messaged — or someone the site already knows. Their follow-ups are planned for you.</p>
   </div>
 </div>
-<form method="POST" class="panel" style="max-width:820px" data-add-lead>
+
+<nav class="tabs-big" aria-label="How to add">
+  <a href="{{ crm_url('add') }}" class="{{ 'on' if mode == 'new' }}"><span class="ico"><i class="fa-solid fa-user-plus"></i></span>
+    <div><b>Someone new</b><span>A call, an Instagram message, an event</span></div></a>
+  <a href="{{ crm_url('add', **{'from': 'existing'}) }}" class="{{ 'on' if mode == 'existing' }}"><span class="ico green"><i class="fa-solid fa-database"></i></span>
+    <div><b>From existing data</b><span>A quote, booking, message, trip post or account already on the site</span></div></a>
+</nav>
+
+{% if mode == 'existing' %}
+{# ---------------------------------------------------------------- from what the site already has #}
+<section class="card" style="max-width:900px">
+  <form method="GET" class="row" style="margin-bottom:14px">
+    <input type="hidden" name="from" value="existing"/>
+    <label class="search" style="flex:1;position:relative"><i class="fa-solid fa-magnifying-glass" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--c-muted)"></i>
+      <input type="search" name="q" value="{{ q }}" placeholder="Name, e-mail or phone number" style="padding-left:38px" autofocus aria-label="Find"/></label>
+    <button class="cb primary"><i class="fa-solid fa-magnifying-glass"></i> Find</button>
+  </form>
+  {% if q and not found %}
+  <p class="muted">Nothing on the site matches "{{ q }}". Try part of the name, the e-mail, or the last digits of the phone — or add them as someone new.</p>
+  {% elif not q %}
+  <p class="muted">Search insurance quotes, contact messages, Sahayak bookings, trip posts and site accounts. Pick one to make them a lead.</p>
+  {% endif %}
+  <div class="found">
+    {% set kind_icon = {'insurance_quote': 'fa-shield-heart', 'contact_message': 'fa-envelope', 'sahayak_booking': 'fa-house-medical', 'trip': 'fa-plane-departure', 'user': 'fa-user'} %}
+    {% for r in found %}
+    <div class="rec">
+      <span class="k"><i class="fa-solid {{ kind_icon[r.kind] }}"></i></span>
+      <div style="min-width:0"><b>{{ r.title }}</b><small>{{ r.label }} · {{ r.what }}{% if r.sub %} · {{ r.sub }}{% endif %}</small></div>
+      <div>
+        {% if r.lead %}{{ stage_pill(r.lead) }}
+        {% else %}
+        <form method="POST" action="{{ crm_url('add_from_record') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <input type="hidden" name="kind" value="{{ r.kind }}"/><input type="hidden" name="id" value="{{ r.id }}"/>
+          <button class="cb primary sm"><i class="fa-solid fa-plus"></i> Make a lead</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+{% else %}
+{# ---------------------------------------------------------------- someone new #}
+<form method="POST" class="card" style="max-width:900px" data-add-lead>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
   <div class="stack">
     <div>
-      <span class="lb">What are they interested in?</span>
-      <div class="chips" data-pick="product">
+      <span class="lb">1. What are they interested in?</span>
+      <div class="choice-tiles">
         {% for code, label in PRODUCTS.items() %}
-        <label class="chip" style="cursor:pointer;font-size:14px;padding:8px 14px">
-          <input type="radio" name="product" value="{{ code }}"{{ ' checked' if (form.get('product') or 'TI') == code }} style="margin:0 4px 0 0"/> {{ label }}</label>
+        <label><input type="radio" name="product" value="{{ code }}"{{ ' checked' if (form.get('product') or 'TI') == code }}/> {{ label }}</label>
         {% endfor %}
       </div>
     </div>
+    <div>
+      <span class="lb">2. Who are they?</span>
+      <div class="crm-form">
+        <div><label class="lb" for="a-name">Name</label>
+          <input type="text" id="a-name" name="name" value="{{ form.get('name', '') }}" maxlength="120" placeholder="e.g. Lakshmi Rao" autofocus/></div>
+        <div>{{ phone_field('phone', value=form.get('phone', ''), iso=form.get('phone_cc', ''), label='Phone / WhatsApp') }}</div>
+        <div><label class="lb" for="a-email">E-mail <small class="muted">(optional)</small></label>
+          <input type="email" id="a-email" name="email" value="{{ form.get('email', '') }}" maxlength="255"/></div>
+        <div><label class="lb" for="a-ig">Instagram <small class="muted">(optional)</small></label>
+          <input type="text" id="a-ig" name="instagram" value="{{ form.get('instagram', '') }}" maxlength="200" placeholder="@their.handle"/></div>
+        <div><label class="lb" for="a-fb">Facebook <small class="muted">(optional)</small></label>
+          <input type="text" id="a-fb" name="facebook" value="{{ form.get('facebook', '') }}" maxlength="200" placeholder="facebook.com/…"/></div>
+        <div><label class="lb" for="a-dep">Travel date <small class="muted">(if they know it)</small></label>
+          <input type="date" id="a-dep" name="departure_date" value="{{ form.get('departure_date', '') }}"/></div>
+      </div>
+      <p class="hint">A phone number, an e-mail or an Instagram / Facebook handle — at least one, so we can follow up.</p>
+    </div>
     <div class="crm-form">
-      <div>
-        <label class="lb" for="a-name">Their name</label>
-        <input type="text" id="a-name" name="name" value="{{ form.get('name', '') }}" maxlength="120" placeholder="e.g. Lakshmi Rao" autofocus/>
-      </div>
-      <div>{{ phone_field('phone', value=form.get('phone', ''), iso=form.get('phone_cc', ''), label='Phone / WhatsApp') }}</div>
-      <div>
-        <label class="lb" for="a-email">E-mail <small class="muted">(optional)</small></label>
-        <input type="email" id="a-email" name="email" value="{{ form.get('email', '') }}" maxlength="255"/>
-      </div>
-      <div>
-        <label class="lb" for="a-ig">Instagram <small class="muted">(handle or profile link)</small></label>
-        <input type="text" id="a-ig" name="instagram" value="{{ form.get('instagram', '') }}" maxlength="200" placeholder="@their.handle"/>
-      </div>
-      <div>
-        <label class="lb" for="a-fb">Facebook <small class="muted">(profile link)</small></label>
-        <input type="text" id="a-fb" name="facebook" value="{{ form.get('facebook', '') }}" maxlength="200" placeholder="facebook.com/…"/>
-      </div>
-      <div>
-        <label class="lb" for="a-src">Where did they come from?</label>
+      <div><label class="lb" for="a-src">3. Where did they come from?</label>
         <select id="a-src" name="source" required>
           <option value="">Choose…</option>
           {% for s in sources %}<option value="{{ s.key }}"{{ ' selected' if form.get('source') == s.key }}>{{ s.name }}</option>{% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="lb" for="a-dep">Travel date <small class="muted">(if they know it)</small></label>
-        <input type="date" id="a-dep" name="departure_date" value="{{ form.get('departure_date', '') }}"/>
-      </div>
-      <div>
-        <span class="lb">Who follows up?</span>
-        <label class="check"><input type="radio" name="owner" value="me" checked/> Me</label>
-        <label class="check"><input type="radio" name="owner" value="auto"/> Whoever has the fewest leads</label>
-      </div>
-      <div class="full">
-        <label class="lb" for="a-note">What did they say or ask?</label>
-        <textarea id="a-note" name="note" rows="4" placeholder="e.g. Parents (68 and 72) flying Hyderabad to Dallas on 12 Dec, want insurance with pre-existing cover">{{ form.get('note', '') }}</textarea>
-      </div>
+        </select></div>
+      <div><span class="lb">4. Who follows up?</span>
+        <div class="choice-tiles">
+          <label><input type="radio" name="owner" value="me" checked/> Me</label>
+          <label><input type="radio" name="owner" value="auto"/> Share it out</label>
+        </div></div>
     </div>
+    <div><label class="lb" for="a-note">5. What did they say or ask?</label>
+      <textarea id="a-note" name="note" rows="4" placeholder="e.g. Parents (68 and 72) flying Hyderabad to Dallas on 12 Dec, want insurance with pre-existing cover">{{ form.get('note', '') }}</textarea></div>
     <div class="row end"><button class="cb primary big"><i class="fa-solid fa-user-plus"></i> Add the lead</button></div>
   </div>
 </form>
+{% endif %}
 {% endblock %}

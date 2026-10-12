@@ -143,7 +143,10 @@ def test_contact_details_come_from_settings(client, db):
     """The bundle ships a hard-coded support address and a list of numbers; the server overrides
     both, so the page can never advertise a mailbox or a line nobody is watching."""
     data, _ = injected(client)
-    assert data['supportEmail'] == 'support@connectingdesis.com'
+    # the address published in Admin -> Landing page, the same one every other page prints --
+    # not the configured SUPPORT_EMAIL, which no screen could change
+    from app.services import offices
+    assert data['supportEmail'] == offices.email('insurance') == 'info@nriparentservice.com'
     # The same list the footer, the contact page and the chooser print: services/offices decides
     # what is published, and this page no longer keeps its own idea of it. On a fresh install
     # that is the shipped list -- real lines that are answered -- rather than nothing here and
@@ -836,7 +839,7 @@ def test_support_details_can_be_set_from_the_admin_screen(client, db):
     line did not: one was an environment variable, the other was hard-coded in the bundle."""
     from app.services import insurance_page as ip
     data, _ = injected(client)
-    assert data['supportEmail'] == 'support@connectingdesis.com'   # the site-wide default
+    assert data['supportEmail'] == 'info@nriparentservice.com'     # Admin -> Landing page's address
     assert data['availability'] == ''                              # bundle keeps its own line
 
     ip.save_page('', [], support_email_text='insurance@nriparentservice.com',
@@ -848,4 +851,4 @@ def test_support_details_can_be_set_from_the_admin_screen(client, db):
     # cleared means "use the default", not "publish nothing"
     ip.save_page('', [], support_email_text='', availability_text='')
     data, _ = injected(client)
-    assert data['supportEmail'] == 'support@connectingdesis.com'
+    assert data['supportEmail'] == 'info@nriparentservice.com'

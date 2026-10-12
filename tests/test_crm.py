@@ -68,7 +68,7 @@ def test_unknown_source_is_kept_unrouted_until_an_admin_routes_it(app, client, a
     src = CrmSource.query.filter_by(key='diwali-landing').one()
     assert src.status == 'unrouted' and lead.pipeline is None and not lead.tasks
     login(client, admin_user.email)
-    r = client.post('/cs/crm/setup/source', data={'id': src.id, 'name': 'Diwali page', 'kind': 'form',
+    r = client.post('/admin/crm/setup/source', data={'id': src.id, 'name': 'Diwali page', 'kind': 'form',
                                                    'product': 'TI', 'pipeline': 'ti-standard',
                                                    'status': 'live', 'dedupe_days': '30'})
     assert r.status_code == 302
@@ -200,10 +200,12 @@ def test_cs_agent_works_the_crm_screens(app, client, cs_user):
     crm.record_reply(lead, 'Is diabetes covered for my father?')
     _db.session.commit()
     login(client, cs_user.email)
-    for url in ('/cs/crm/', '/cs/crm/today', '/cs/crm/add', '/cs/crm/insights',
-                '/cs/crm/lead/%d' % lead.id, '/cs/crm/?p=tc-companion&owner=all&q=ramesh'):
+    for url in ('/cs/crm/', '/cs/crm/today', '/cs/crm/add', '/cs/crm/add?from=existing&q=ram', '/cs/crm/checks',
+                '/cs/crm/process', '/cs/crm/lead/%d' % lead.id, '/cs/crm/?p=tc-companion&owner=all&q=ramesh'):
         r = client.get(url)
         assert r.status_code == 200, url
+    for admin_only in ('/cs/crm/insights', '/cs/crm/setup', '/cs/crm/tracker', '/admin/crm/insights'):
+        assert client.get(admin_only).headers['Location'].endswith('/cs/crm/today'), admin_only
     page = client.get('/cs/crm/lead/%d' % lead.id).get_data(as_text=True)
     assert 'Are pre-existing conditions covered?' in page          # the suggestion for their question
     assert 'TI #2' in page                                           # their next step
@@ -271,29 +273,29 @@ def test_quick_add(app, client, cs_user):
 
 def test_setup_is_for_admins(app, client, cs_user, admin_user):
     login(client, cs_user.email)
-    assert client.get('/cs/crm/setup').status_code == 302
+    assert client.get('/admin/crm/setup').status_code == 302
     client.post('/auth/logout')
     login(client, admin_user.email)
     for tab in ('sources', 'pipelines', 'messages', 'answers', 'connect'):
-        assert client.get('/cs/crm/setup?tab=%s' % tab).status_code == 200, tab
-    assert client.get('/cs/crm/setup?tab=sources&edit=new').status_code == 200
-    assert client.get('/cs/crm/setup?tab=answers&edit=new').status_code == 200
+        assert client.get('/admin/crm/setup?tab=%s' % tab).status_code == 200, tab
+    assert client.get('/admin/crm/setup?tab=sources&edit=new').status_code == 200
+    assert client.get('/admin/crm/setup?tab=answers&edit=new').status_code == 200
 
 
 def test_admin_edits_pipelines_steps_and_answers(app, client, admin_user):
     login(client, admin_user.email)
     crm.ensure_defaults()
-    r = client.post('/cs/crm/setup/pipeline', data={'action': 'new', 'name': 'Gift Health', 'product': 'GH'})
+    r = client.post('/admin/crm/setup/pipeline', data={'action': 'new', 'name': 'Gift Health', 'product': 'GH'})
     assert r.status_code == 302
     pipe = CrmPipeline.query.filter_by(key='gift-health').one()
     assert [s.kind for s in pipe.stages] == ['open', 'open', 'won', 'lost']
     st = pipe.stages[0]
-    client.post('/cs/crm/setup/step', data={'stage_id': st.id, 'code': 'GH #1', 'title': 'Say hello',
+    client.post('/admin/crm/setup/step', data={'stage_id': st.id, 'code': 'GH #1', 'title': 'Say hello',
                                             'channel': 'whatsapp', 'value': '2', 'unit': 'days',
                                             'trigger': 'after_hours', 'body': 'Hi {name}'})
     step = st.steps[0]
     assert step.trigger_value == 48 and step.body == 'Hi {name}'
-    client.post('/cs/crm/setup/answer', data={'title': 'Do you ship gifts abroad?', 'body': 'Yes, we do.',
+    client.post('/admin/crm/setup/answer', data={'title': 'Do you ship gifts abroad?', 'body': 'Yes, we do.',
                                               'keywords': 'gift ship courier', 'product': 'GH'})
     assert crm_answers.suggest('can you courier a gift', 'GH')[0]['title'] == 'Do you ship gifts abroad?'
 

@@ -402,7 +402,7 @@ def _tell_owner(lead, new_source=False):
                         body=what, link=_lead_link(lead))
         if new_source:
             from app.services import cs_access
-            for u in cs_access.recipients('crm_setup', limit=None):
+            for u in User.query.filter(User.is_admin.is_(True), User.is_active.is_(True)).all():
                 notify.push(u.id, 'crm_source', title='A new lead source needs setting up',
                             body='"%s" sent its first lead. Choose its pipeline once in Sales CRM -> Set-up.'
                                  % lead.source.key, link='/cs/crm/setup?tab=sources')
@@ -858,7 +858,7 @@ def run_sla_alerts(now=None, limit=500):
             targets = [lead.owner_id]
         else:
             if admins is None:
-                admins = [u.id for u in cs_access.recipients('crm_setup', limit=None)]
+                admins = [u.id for u in User.query.filter(User.is_admin.is_(True), User.is_active.is_(True))]
             targets = admins
         for uid in targets:
             notify.push(uid, 'crm_stuck', title='Waiting too long: %s' % lead.person.display_name,
@@ -990,3 +990,193 @@ def insights(days=30):
     return {'days': days, 'created': created, 'won': won, 'lost': lost, 'overdue': overdue,
             'messages': messages, 'replies': replies, 'new_by_source': new_by_source,
             'by_product': by_product, 'reasons': reasons, 'moves': moves, 'owners': owners}
+
+
+# ======================================================================================= where a lead is
+
+def stage_role(stage):
+    """cold / prospect / pipeline / customer / lost -- the pipeline symbol shown everywhere."""
+    if stage is None:
+        return 'new'
+    if stage.kind == 'won':
+        return 'customer'
+    if stage.kind == 'lost':
+        return 'lost'
+    stages = sorted(stage.pipeline.stages, key=lambda s: s.position) if stage.pipeline else [stage]
+    opens = [s for s in stages if s.kind == 'open']
+    reply = next((s for s in stages if s.on_reply), None)
+    if opens and stage.id == opens[0].id:
+        return 'cold'
+    if reply is not None and stage.id == reply.id:
+        return 'prospect'
+    if reply is not None and stage.position < reply.position:
+        return 'cold'
+    return 'pipeline'
+
+
+ROLE_LABELS = {'new': 'Not routed', 'cold': 'Cold lead', 'prospect': 'Prospect', 'pipeline': 'Pipeline',
+               'customer': 'Customer', 'lost': 'Fell out'}
+
+
+# ======================================================================================= existing records -> leads
+
+RECORD_KINDS = {
+    'insurance_quote': ('insurance_quotes', 'Insurance quote'),
+    'contact_message': ('contact_messages', 'Contact message'),
+    'sahayak_booking': ('sahayak_bookings', 'Sahayak booking'),
+    'trip': ('companion_requests', 'Trip post'),
+    'user': ('users', 'Site account'),
+}
+
+
+def _record(kind, record_id):
+    from app.models import CompanionRequest, ContactMessage, InsuranceQuote, SahayakBooking
+    model = {'insurance_quote': InsuranceQuote, 'contact_message': ContactMessage,
+             'sahayak_booking': SahayakBooking, 'trip': CompanionRequest, 'user': User}.get(kind)
+    return db.session.get(model, record_id) if model else None
+
+
+def lead_for_record(kind, record_id):
+    ref_type = RECORD_KINDS.get(kind, (None,))[0]
+    if not ref_type:
+        return None
+    return (CrmLead.query.filter_by(ref_type=ref_type, ref_id=record_id)
+            .order_by(CrmLead.created_at.desc()).first())
+
+
+def lead_from_record(kind, record_id, user=None):
+    """Make a lead of something the site already has -- a quote, a contact message, a booking, a
+    trip post, an account. Returns (lead, created). An existing lead for it is returned as it is."""
+    existing = lead_for_record(kind, record_id)
+    if existing is not None:
+        return existing, False
+    r = _record(kind, record_id)
+    if r is None:
+        return None, False
+    by = getattr(user, 'id', None)
+    common = dict(utm={}, created_by_id=by, notify=False)
+    if kind == 'insurance_quote':
+        ages = ', '.join(str(t.get('age')) for t in (r.travellers or []) if isinstance(t, dict))
+        lead = capture('ti-quote', name=r.name, phone=r.phone, email=r.email, product='TI', user_id=r.user_id,
+                       departure_date=r.start_date, ends_on=r.end_date, ref=('insurance_quotes', r.id),
+                       details={'plan': r.insurance_type, 'travellers_ages': ages, 'citizenship': r.citizenship,
+                                'destination': r.destination, 'quote': r.status}, **common)
+    elif kind == 'contact_message':
+        text = r.message or ''
+        key = ('sh-apply' if text.startswith('Sahayak application') else
+               'ti-support' if text.startswith('Support request from the /travel-insurance') else
+               'ti-expert' if text.startswith('Travel insurance enquiry from the /travel-insurance') else
+               'contact-%s' % (r.topic or 'general'))
+        lead = capture(key, name=r.name, phone=r.phone, email=r.email, message=text, user_id=r.user_id,
+                       product={'companion': 'TC', 'insurance': 'TI', 'sahayak': 'SH'}.get(r.topic, 'GEN'),
+                       ref=('contact_messages', r.id), **common)
+    elif kind == 'sahayak_booking':
+        lead = capture('sh-booking', name=r.contact_name or r.patient_name, phone=r.phone, email=r.email,
+                       product='SH', user_id=r.user_id, ref=('sahayak_bookings', r.id),
+                       details={'service': r.service_name, 'for': r.patient_name, 'age': r.patient_age,
+                                'pin_code': r.pincode, 'address': r.address}, **common)
+    elif kind == 'trip':
+        lead = capture_trip(r, 'tc-trip-post' if r.user_id else 'tc-cs-post', **common)
+    else:  # a site account
+        lead = capture('site-account', name=r.full_name, phone=r.phone, email=r.email, user_id=r.id,
+                       ref=('users', r.id), **common)
+    return lead, lead is not None
+
+
+def search_records(q, limit=8):
+    """Things the site already knows about somebody, for "Add a lead -> From existing data"."""
+    from app.models import CompanionRequest, ContactMessage, InsuranceQuote, SahayakBooking
+    q = (q or '').strip()
+    if len(q) < 2:
+        return []
+    like = '%%%s%%' % q
+    digits = re.sub(r'\D', '', q)
+    dlike = '%%%s%%' % digits[-9:] if len(digits) >= 5 else None
+
+    def ph(col):
+        return [col.ilike(dlike)] if dlike else []
+    out = []
+    for r in (InsuranceQuote.query.filter(or_(InsuranceQuote.email.ilike(like), InsuranceQuote.name.ilike(like),
+                                              *ph(InsuranceQuote.phone)))
+              .order_by(InsuranceQuote.created_at.desc()).limit(limit)):
+        out.append(('insurance_quote', r.id, r.name or r.email, '%s · %s' % (r.email, r.phone or ''), r.created_at,
+                    'Insurance quote for %s' % r.start_date.strftime('%d %b %Y') if r.start_date else 'Insurance quote'))
+    for r in (ContactMessage.query.filter(or_(ContactMessage.email.ilike(like), ContactMessage.name.ilike(like),
+                                              *ph(ContactMessage.phone)))
+              .order_by(ContactMessage.created_at.desc()).limit(limit)):
+        out.append(('contact_message', r.id, r.name, '%s · %s' % (r.email, r.phone or ''), r.created_at,
+                    (r.message or '')[:90]))
+    for r in (SahayakBooking.query.filter(or_(SahayakBooking.patient_name.ilike(like),
+                                              SahayakBooking.contact_name.ilike(like),
+                                              SahayakBooking.email.ilike(like), *ph(SahayakBooking.phone)))
+              .order_by(SahayakBooking.created_at.desc()).limit(limit)):
+        out.append(('sahayak_booking', r.id, r.contact_name or r.patient_name, r.phone or '', r.created_at,
+                    'Sahayak: %s for %s' % (r.service_name, r.patient_name)))
+    for r in (CompanionRequest.query.filter(or_(CompanionRequest.poster_name.ilike(like),
+                                                CompanionRequest.traveler_name.ilike(like)))
+              .order_by(CompanionRequest.created_at.desc()).limit(limit)):
+        out.append(('trip', r.id, r.poster_name or r.traveler_name or 'Trip #%d' % r.id, r.route_display,
+                    r.created_at, 'Trip post #%d, %s' % (r.id, r.from_date.strftime('%d %b %Y') if r.from_date else '')))
+    for r in (User.query.filter(or_(User.email.ilike(like), User.username.ilike(like), User.first_name.ilike(like),
+                                    User.last_name.ilike(like), *ph(User.phone)))
+              .order_by(User.id.desc()).limit(limit)):
+        out.append(('user', r.id, r.full_name, '%s · %s' % (r.email, r.phone or ''), r.created_at if hasattr(r, 'created_at') else None,
+                    'Site account'))
+    rows = []
+    for kind, rid, title, sub, when, what in out:
+        rows.append({'kind': kind, 'id': rid, 'title': title or '—', 'sub': sub, 'when': when, 'what': what,
+                     'label': RECORD_KINDS[kind][1], 'lead': lead_for_record(kind, rid)})
+    rows.sort(key=lambda r: r['when'] or datetime.min, reverse=True)
+    return rows
+
+
+# ======================================================================================= undo, reopen, remove
+
+def undo_last_move(lead, user=None):
+    """Put the lead back where it was before its last move (a slip of the mouse, a wrong drop).
+    Returns the stage it went back to, or None when there is nothing to undo."""
+    last = (CrmStageChange.query.filter(CrmStageChange.lead_id == lead.id, CrmStageChange.from_stage_id.isnot(None))
+            .order_by(CrmStageChange.created_at.desc(), CrmStageChange.id.desc()).first())
+    if last is None or last.to_stage_id != lead.stage_id or last.from_stage is None:
+        return None
+    back = last.from_stage
+    move_stage(lead, back, user=user, reason='Undone: back from %s' % (lead.stage.name if lead.stage else '?'))
+    db.session.commit()
+    return back
+
+
+def reopen(lead, user=None):
+    """A won or lost lead back to work, in the open stage it was in before it closed."""
+    if lead.status == 'open' or lead.pipeline is None:
+        return None
+    prev = (CrmStageChange.query.filter(CrmStageChange.lead_id == lead.id, CrmStageChange.to_stage_id == lead.stage_id)
+            .order_by(CrmStageChange.created_at.desc(), CrmStageChange.id.desc()).first())
+    back = prev.from_stage if prev is not None and prev.from_stage is not None and prev.from_stage.kind == 'open' \
+        else lead.pipeline.first_stage
+    move_stage(lead, back, user=user, reason='Reopened')
+    db.session.commit()
+    return back
+
+
+def can_remove(lead, user):
+    return bool(user and (user.is_admin or lead.created_by_id == user.id or lead.owner_id == user.id))
+
+
+def remove_lead(lead, user=None):
+    """Take a lead out of the CRM (added by mistake). Its person goes too when nothing else of
+    theirs is left. The record it came from on the site is not touched."""
+    from app.models import ActivityEvent
+    person = lead.person
+    name = person.display_name if person else '?'
+    lead_id = lead.id
+    db.session.delete(lead)
+    db.session.flush()
+    if person is not None and not CrmLead.query.filter_by(person_id=person.id).first():
+        CrmTouchpoint.query.filter_by(person_id=person.id).delete(synchronize_session=False)
+        db.session.delete(person)
+    try:
+        ActivityEvent.log('crm_lead_removed', actor=user, lead_id=lead_id, name=name)
+    except Exception:          # noqa: BLE001 -- the log is a courtesy
+        pass
+    db.session.commit()
+    return name

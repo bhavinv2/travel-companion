@@ -37,7 +37,7 @@ export default function ExpertContact() {
   // Staff set these in Admin -> Landing page; the constants above are what this build ships with
   // for the dev server. A line staff have cleared is not published at all.
   const supportEmail = site.supportEmail || SUPPORT_EMAIL;
-  const phones = site.supportPhones?.length ? site.supportPhones : SUPPORT_PHONES;
+  const phones = site.supportPhones ?? SUPPORT_PHONES;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -56,7 +56,7 @@ export default function ExpertContact() {
       `Mobile: ${spokenNumber(dial, tel)}`,
       `Destination: ${dest}`,
     ];
-    const number = (site.whatsapp || WHATSAPP_NUMBER).replace(/[^0-9]/g, '');
+    const number = (site.whatsapp ?? WHATSAPP_NUMBER).replace(/[^0-9]/g, '');
     setWaUrl(`https://api.whatsapp.com/send/?phone=${number}&text=${encodeURIComponent(lines.join('\n'))}`);
 
     // A WhatsApp link somebody never clicks leaves no trace of the enquiry. Record it in the inbox

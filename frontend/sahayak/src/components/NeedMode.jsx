@@ -274,11 +274,17 @@ function MilesAway() {
   );
 }
 
-// Helpline numbers shown in the "Prefer to talk it through?" box.
-export const HELPLINES = [
+// Helpline numbers shown in the "Prefer to talk it through?" box: the ones staff publish in
+// Admin -> Landing page, handed over by the page. They were typed in here once, so changing a
+// number on that screen never reached these two forms. The pair below is only for `npm run dev`,
+// where no page hands any over.
+const DEV_HELPLINES = [
   { number: '+91 80191 11360', tel: '+918019111360', country: 'India' },
   { number: '+1 917 900 5094', tel: '+19179005094', country: 'USA' },
 ];
+export const HELPLINES = Array.isArray(site.phones)
+  ? site.phones.map((p) => ({ number: p.display, tel: '+' + p.digits, country: p.label }))
+  : DEV_HELPLINES;
 
 export function FormAside({ title, quote, text, items, callLabel, callValue, phones }) {
   return (
@@ -292,6 +298,8 @@ export function FormAside({ title, quote, text, items, callLabel, callValue, pho
           <li key={it}><span><Icon name="check" sw={2.4} /></span>{it}</li>
         ))}
       </ul>
+      {/* no published line and nothing else to say: no box, rather than a heading over nothing */}
+      {(phones ? phones.length > 0 : callValue) && (
       <div className="call">
         <span className="logo" style={{ background: 'rgba(255,255,255,.16)' }}><Icon name="phone" className="i" /></span>
         <div>
@@ -310,6 +318,7 @@ export function FormAside({ title, quote, text, items, callLabel, callValue, pho
           )}
         </div>
       </div>
+      )}
     </Reveal>
   );
 }

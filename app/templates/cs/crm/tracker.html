@@ -1,0 +1,115 @@
+{% extends 'cs/crm/_layout.html' %}
+{% set crm_tab = 'tracker' %}
+{% from 'cs/crm/_bits.html' import stage_pill, initials with context %}
+{% block crm_title %}Daily tracker{% endblock %}
+{% macro score(c) -%}
+{%- if c.score is none -%}<span class="muted small">nothing was due</span>
+{%- else -%}<span class="score"><span class="bar"><i class="{{ 'low' if c.score < 50 else 'mid' if c.score < 85 else '' }}" style="width:{{ c.score }}%"></i></span><b>{{ c.score }}%</b></span>{%- endif -%}
+{%- endmacro %}
+{% macro hm(dt) -%}{{ (dt + IST_OFFSET).strftime('%I:%M %p').lstrip('0') if dt else '—' }}{%- endmacro %}
+{% block crm %}
+<div class="page-head">
+  <div>
+    <h1>Daily tracker</h1>
+    <p class="lead-in">What each person had to do on a day, and what they did — follow-ups, messages, calls, inbox checks.</p>
+  </div>
+  <form class="daynav" method="GET">
+    {% if person %}<input type="hidden" name="who" value="{{ person.user.id }}"/>{% endif %}
+    <a class="cb sm" href="{{ crm_url('tracker', day=prev_day.isoformat(), who=person.user.id if person else None) }}" aria-label="Day before"><i class="fa-solid fa-chevron-left"></i></a>
+    <input type="date" name="day" value="{{ day.isoformat() }}" max="{{ today.isoformat() }}" onchange="this.form.submit()" aria-label="Day"/>
+    {% if day < today %}<a class="cb sm" href="{{ crm_url('tracker', day=next_day.isoformat(), who=person.user.id if person else None) }}" aria-label="Next day"><i class="fa-solid fa-chevron-right"></i></a>
+    <a class="cb sm ghost" href="{{ crm_url('tracker', who=person.user.id if person else None) }}">Today</a>{% endif %}
+  </form>
+</div>
+
+{# ================================================================ everybody #}
+<section class="card">
+  <div class="card-head">
+    <div class="t"><span class="ico"><i class="fa-solid fa-users"></i></span>
+      <div><h2>{{ 'Today' if day == today else day.strftime('%A %d %B') }} — the team</h2>
+        <p class="muted small">Inbox check for the whole team: {{ '%d%%' % coverage.pct if coverage.pct is not none else 'not started yet' }} of half hours fully checked{% if coverage.missed %} · missed {{ coverage.missed|length }}{% endif %}</p></div></div>
+  </div>
+  <div class="table-wrap">
+  <table class="crm-table">
+    <thead><tr><th>Person</th><th>Follow-ups done</th><th>Done / due</th><th>Missed</th><th>Messages</th><th>Calls</th><th>Moved on</th><th>Added</th><th>Inbox checks</th><th>Working</th></tr></thead>
+    <tbody>
+    {% for u in staff %}{% set s = sheet[u.id] %}{% set c = s.counts %}
+    <tr>
+      <td><a class="nm" href="{{ crm_url('tracker', day=day.isoformat(), who=u.id) }}">{{ u.full_name }}</a>{% if u.is_admin %} <span class="chip">admin</span>{% endif %}</td>
+      <td>{{ score(c) }}</td>
+      <td>{{ c.done }} / {{ c.due }}</td>
+      <td>{% if c.missed %}<span class="chip bad">{{ c.missed }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
+      <td>{{ c.messages }}</td><td>{{ c.calls }}</td><td>{{ c.moves }}</td><td>{{ c.added }}</td>
+      <td>{{ c.slots }} half hour{{ 's' if c.slots != 1 }}</td>
+      <td class="muted">{% if s.first %}{{ hm(s.first) }} – {{ hm(s.last) }}{% else %}no activity{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+{# ================================================================ one person #}
+{% if person %}
+{% set c = person.counts %}
+<section class="card focus" id="person">
+  <div class="card-head">
+    <div class="t"><span class="ico">{{ initials(person.user.full_name) }}</span>
+      <div><h2>{{ person.user.full_name }} — {{ 'today' if day == today else day.strftime('%d %B') }}</h2>
+        <p class="muted small">{% if person.first %}Working {{ hm(person.first) }} – {{ hm(person.last) }} (India time){% else %}No activity this day{% endif %}</p></div></div>
+    <a class="cb sm ghost" href="{{ crm_url('tracker', day=day.isoformat()) }}">Close</a>
+  </div>
+  <div class="row" style="margin-bottom:16px">
+    <span class="chip ok"><i class="fa-solid fa-check"></i> {{ c.done }} done</span>
+    {% if c.missed %}<span class="chip bad"><i class="fa-solid fa-xmark"></i> {{ c.missed }} missed</span>{% endif %}
+    {% if c.pending %}<span class="chip"><i class="fa-regular fa-clock"></i> {{ c.pending }} still to do</span>{% endif %}
+    <span class="chip info"><i class="fa-solid fa-paper-plane"></i> {{ c.messages }} messages</span>
+    <span class="chip info"><i class="fa-solid fa-phone"></i> {{ c.calls }} calls</span>
+    <span class="chip info"><i class="fa-solid fa-clipboard-check"></i> {{ c.slots }} inbox checks</span>
+  </div>
+
+  <div class="grid2">
+    <div>
+      <h3 style="margin-bottom:10px">Checklist, customer by customer</h3>
+      {% if person.checklist %}
+      <div class="checklist">
+        {% for lead, items in person.checklist %}
+        <div class="cust">
+          <div class="row between"><a href="{{ crm_url('lead', lead_id=lead.id) }}"><b>{{ lead.person.display_name }}</b></a>{{ stage_pill(lead) }}</div>
+          <ul>
+            {% for it in items %}
+            {% set t = it.task %}
+            <li>
+              <span class="mark {{ it.state }}" title="{{ {'done': 'Done on time', 'late': 'Done late', 'missed': 'Missed', 'pending': 'Still to do', 'moved': 'Not needed: the lead moved on'}[it.state] }}">{{ {'done': '✓', 'late': '✓', 'missed': '✕', 'pending': '·', 'moved': '↷'}[it.state] }}</span>
+              <span>{{ t.code }} · {{ t.title }}</span>
+              <span class="muted small">{% if it.at %}{{ hm(it.at) }}{% else %}due {{ hm(t.due_at) }}{% endif %}</span>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="hint" style="margin-top:8px"><span class="mark done">✓</span> on time &nbsp; <span class="mark late">✓</span> late &nbsp; <span class="mark missed">✕</span> missed &nbsp; <span class="mark pending">·</span> still to do &nbsp; <span class="mark moved">↷</span> not needed any more</p>
+      {% else %}<p class="muted">No follow-ups were due.</p>{% endif %}
+      {% if person.log %}
+      <h3 style="margin:16px 0 8px">Logged by hand</h3>
+      <div class="chips">{% for k, v in person.log.items() %}<span class="chip">{{ MANUAL.get(k, k) }}: {{ v|int }}</span>{% endfor %}</div>
+      {% endif %}
+    </div>
+    <div>
+      <h3 style="margin-bottom:10px">Hour by hour</h3>
+      {% if person.timeline %}
+      <ul class="hours">
+        {% for at, lead, icon, text in person.timeline %}
+        <li><time>{{ hm(at) }}</time><span class="ic"><i class="fa-solid {{ icon }}"></i></span>
+          <span>{{ text }}{% if lead %} — <a href="{{ crm_url('lead', lead_id=lead.id) }}">{{ lead.person.display_name }}</a>{% endif %}</span></li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="muted">Nothing recorded.</p>{% endif %}
+    </div>
+  </div>
+</section>
+{% else %}
+<p class="muted">Click a name to see their checklist and their day hour by hour.</p>
+{% endif %}
+{% endblock %}

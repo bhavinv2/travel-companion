@@ -13,9 +13,10 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
       <section class="admin-card lp-card">
-        <h2><i class="fa-solid fa-envelope"></i> Contact e-mail</h2>
+        <h2><i class="fa-solid fa-inbox"></i> Where enquiries are e-mailed</h2>
         <p class="muted small">The landing "Request a call back" form is always saved to the CS console. Tick this to
-          <strong>also e-mail it</strong> to the address below. This is the only e-mail this screen enables — nothing else.</p>
+          <strong>also e-mail it</strong> to the address below. This address is <strong>not shown to visitors</strong> &mdash;
+          the address visitors see is under <a href="#mailRows">Support addresses</a> further down.</p>
         <label class="tick-check" style="margin:12px 0">
           <input type="checkbox" name="contact_email_enabled" {{ 'checked' if ls.contact_email_enabled }}/>
           <span class="tick-box"></span>
@@ -29,11 +30,10 @@
 
       <section class="admin-card lp-card">
         <h2><i class="fa-brands fa-whatsapp"></i> WhatsApp numbers</h2>
-        <p class="muted small">Drives every <strong>Chat on WhatsApp</strong> button on the site &mdash; the landing
-          page's floating button, the sign-up prompt, the Contact Us popup and the footer. With <strong>both</strong>
-          numbers set, visitors pick the India or USA team (the likely one is pre-selected from their time zone).
-          With one, the button opens it directly. With none, the buttons are hidden &mdash; nothing is shown
-          until a real number is here.</p>
+        <p class="muted small">Every <strong>Chat on WhatsApp</strong> button and every phone number on the site comes
+          from this list &mdash; the home page, Travel Insurance, Sahayak, Contact us and the footer. With two or more,
+          visitors pick a team; with one, the button opens it directly; with none, the buttons are hidden.
+          Use <strong>Show on</strong> to keep a number to some pages only. Saved changes show on the site straight away.</p>
         {# A list, not two boxes. It used to be exactly India and USA, so a third country meant
            a code change; now adding Canada is a row. A number that cannot be dialled is dropped
            on save rather than published. #}
@@ -86,8 +86,14 @@
         </div>
 
         <h3 class="hc-h2" style="margin-top:28px"><i class="fa-solid fa-envelope"></i> Support addresses</h3>
-        <p class="muted small">Shown wherever the site offers an e-mail. Same rule as the numbers:
-          tick nothing and it appears everywhere.</p>
+        <p class="muted small">Shown wherever the site offers an e-mail &mdash; the home page, Travel Insurance,
+          Sahayak, Contact us, help, privacy and terms. Same rule as the numbers: tick nothing and it appears everywhere.
+          Saved changes show on the site straight away.</p>
+        {% if insurance_email %}
+        <p class="lp-note"><i class="fa-solid fa-circle-info"></i> The Travel Insurance page shows
+          <strong>{{ insurance_email }}</strong>, set in <a href="{{ url_for('admin.insurance_page_content') }}">Insurance page</a>.
+          Empty that box to use the address here.</p>
+        {% endif %}
         <div class="ed-rows" id="mailRows">
           {% for e in emails %}
           {% set row = loop.index0 %}
@@ -161,6 +167,8 @@
 .lp-color-row { display: flex; align-items: center; gap: 8px; }
 .lp-color-row input[type=color] { width: 40px; height: 38px; border: 1px solid var(--border); border-radius: 9px; padding: 2px; background: #fff; cursor: pointer; }
 .lp-color-row input[type=text] { flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; font-family: monospace; font-size: 13px; text-transform: uppercase; }
+.lp-note { background: #fff8e6; border: 1px solid #f3d27a; color: #7a5200; border-radius: 10px; padding: 10px 12px; font-size: 13.5px; margin: 10px 0 0; }
+.lp-note a { color: inherit; font-weight: 700; }
 .lp-var { font-size: 11px; color: var(--muted); flex: 0 0 auto; }
 .lp-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
 @media (max-width: 560px) { .lp-colors { grid-template-columns: 1fr; } }

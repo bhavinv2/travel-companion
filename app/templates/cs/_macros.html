@@ -1,5 +1,6 @@
 {# Shared CS console macros. Import with:  {% from 'cs/_macros.html' import ... with context %} #}
 {% from 'admin/_hard_delete.html' import del_btn, row_check, select_all, bulk_bar %}
+{% from '_crm_pill.html' import crm_pill with context %}
 
 {% macro contact_icons(trip) -%}
   {%- set cps = trip.contact_points -%}
@@ -46,6 +47,7 @@
        where Open goes rather than being the one piece of the row that does nothing. #}
     <a class="person-link" href="{{ url_for('cs.post_detail', trip_id=trip.id) }}">{{ trip.poster_name or (trip.author.username if trip.author else '—') }}</a>
     {% if trip.traveler_name %}<br/><small class="muted">for {{ trip.traveler_name }}</small>{% endif %}
+    <div style="margin-top:6px">{{ crm_pill('trip', 'companion_requests', trip.id) }}</div>
   </td>
   <td data-label="Route">{{ trip.route_display }}{% if trip.airline %}<br/><small class="muted">{{ trip.airline }} {{ trip.flight_number or '' }}</small>{% endif %}</td>
   <td data-label="Departs">

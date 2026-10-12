@@ -474,7 +474,9 @@ def insurance_page_content():
                            max_assurances=insurance_page.MAX_ASSURANCES,
                            support_email=insurance_page.support_email(),
                            availability=insurance_page.availability(),
-                           default_support_email=current_app.config.get('SUPPORT_EMAIL', ''),
+                           # what the page shows when this is left empty: the address published
+                           # for insurance in Admin -> Landing page
+                           default_support_email=offices.support_address('insurance'),
                            # what the public page will actually show, spaced the way it shows it
                            phones=offices.numbers('insurance'))
 
@@ -1427,8 +1429,13 @@ def landing_page():
         ActivityEvent.log('landing_settings_changed', actor=current_user)
         flash('Landing page settings saved.', 'success')
         return redirect(url_for('admin.landing_page'))
+    from app.services import insurance_page
     return render_template('admin/landing.html', ls=app_settings.landing_settings(),
                            numbers=offices.numbers(), emails=offices.emails(),
+                           # Admin -> Insurance page can give that page its own address, which
+                           # then wins over this list; say so here, where it would otherwise
+                           # look as if saving changed nothing
+                           insurance_email=insurance_page.support_email(),
                            site_choices=offices.SITES,
                            color_defaults=app_settings.LANDING_COLOR_DEFAULTS,
                            color_labels=app_settings.LANDING_COLOR_LABELS)

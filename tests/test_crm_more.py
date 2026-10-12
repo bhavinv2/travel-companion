@@ -95,11 +95,11 @@ def test_admin_switches_and_tests_the_connection(app, client, admin_user, wa_key
     monkeypatch.setattr(wacrm, 'me', lambda: {'account': {'name': 'Admin'},
                                               'key': {'scopes': ['contacts:read', 'contacts:write', 'messages:send']}})
     login(client, admin_user.email)
-    r = client.post('/cs/crm/setup/whatsapp', data={'action': 'test'}, follow_redirects=True)
+    r = client.post('/admin/crm/setup/whatsapp', data={'action': 'test'}, follow_redirects=True)
     assert b'Connected to the WhatsApp CRM account' in r.data
-    client.post('/cs/crm/setup/whatsapp', data={'action': 'mode', 'mode': 'send'})
+    client.post('/admin/crm/setup/whatsapp', data={'action': 'mode', 'mode': 'send'})
     assert crm.wa_mode() == 'send'
-    page = client.get('/cs/crm/setup?tab=connect').get_data(as_text=True)
+    page = client.get('/admin/crm/setup?tab=connect').get_data(as_text=True)
     assert 'Connect replies' in page
 
 
@@ -107,11 +107,11 @@ def test_registering_the_webhook_keeps_its_secret(app, client, admin_user, wa_ke
     monkeypatch.setattr(wacrm, 'register_webhook', lambda url: {'id': 'w1', 'secret': 'whsec_abc', 'url': url})
     login(client, admin_user.email)
     # the test server is not public: refused with a reason
-    r = client.post('/cs/crm/setup/whatsapp', data={'action': 'webhook'}, follow_redirects=True)
+    r = client.post('/admin/crm/setup/whatsapp', data={'action': 'webhook'}, follow_redirects=True)
     assert b'Do this on the live site' in r.data
     app.config['PREFERRED_URL_SCHEME'] = 'https'
     monkeypatch.setattr('app.routes.crm._public_url', lambda ep: 'https://example.org/api/crm/wacrm-webhook')
-    client.post('/cs/crm/setup/whatsapp', data={'action': 'webhook'})
+    client.post('/admin/crm/setup/whatsapp', data={'action': 'webhook'})
     assert wacrm.webhook_secret() == 'whsec_abc'
 
 
@@ -207,7 +207,7 @@ def test_reply_on_instagram_from_the_lead(app, client, cs_user, meta_keys, monke
     lead = CrmLead.query.one()
     login(client, cs_user.email)
     page = client.get('/cs/crm/lead/%d' % lead.id).get_data(as_text=True)
-    assert 'Send on Instagram' in page
+    assert 'data-via="instagram"' in page
     d = client.post('/cs/crm/lead/%d/send' % lead.id, json={'text': 'Hi Anita!', 'via': 'instagram'}).get_json()
     assert d['mode'] == 'sent' and sent == [('IG1', 'Hi Anita!')]
     assert CrmTouchpoint.query.filter_by(direction='out', channel='instagram').one().external_id == 'mid.9'
@@ -248,7 +248,7 @@ def test_stuck_leads_show_on_the_todo_list(app, client, cs_user):
     lead.entered_stage_at = datetime.utcnow() - timedelta(hours=50)
     _db.session.commit()
     login(client, cs_user.email)
-    assert 'Waiting too long' in client.get('/cs/crm/today').get_data(as_text=True)
+    assert 'Leads waiting too long' in client.get('/cs/crm/today').get_data(as_text=True)
     assert 'waiting' in client.get('/cs/crm/?owner=all').get_data(as_text=True)
 
 
@@ -264,7 +264,7 @@ def test_expiry_reminder_is_due_before_the_policy_ends(app):
 
 # ============================================================================================ numbers
 
-def test_per_person_numbers(app, client, cs_user):
+def test_per_person_numbers(app, client, cs_user, admin_user):
     lead = ti_lead()
     login(client, cs_user.email)
     client.post('/cs/crm/lead/%d/send' % lead.id, json={'text': 'Hello', 'task_id': lead.open_task.id})
@@ -273,9 +273,12 @@ def test_per_person_numbers(app, client, cs_user):
     t = totals[cs_user.id]
     assert (t['leads'], t['messages'], t['calls'], t['talked'], t['done']) == (1, 1, 1, 1, 1)
     assert t['codes']['TI'] == 1 and t['first_reply_h'] is not None
-    page = client.get('/cs/crm/insights?who=%d' % cs_user.id).get_data(as_text=True)
+    assert client.get('/cs/crm/insights').status_code == 302          # the dashboard is the admin's
+    client.post('/auth/logout')
+    login(client, admin_user.email)
+    page = client.get('/admin/crm/insights?who=%d' % cs_user.id).get_data(as_text=True)
     assert 'Csagent&#39;s numbers' in page and 'Day by day' in page and 'Messages by kind' in page
-    csv = client.get('/cs/crm/insights.csv?days=7')
+    csv = client.get('/admin/crm/insights.csv?days=7')
     assert csv.headers['Content-Type'].startswith('text/csv') and b'Messages sent' in csv.data
 
 
@@ -304,7 +307,7 @@ def test_inbox_check(app, client, cs_user, ten_fifteen):
 
 def test_admin_edits_the_inbox_list(app, client, admin_user):
     login(client, admin_user.email)
-    client.post('/cs/crm/setup/whatsapp', data={'action': 'channels', 'channels': 'Tawk\nIND WhatsApp\n'})
+    client.post('/admin/crm/setup/whatsapp', data={'action': 'channels', 'channels': 'Tawk\nIND WhatsApp\n'})
     assert crm.crm_settings()['check_channels'] == ['Tawk', 'IND WhatsApp']
 
 
@@ -395,12 +398,12 @@ def test_reading_the_sales_workbook():
 
 def test_importing_the_sales_workbook(app, client, admin_user, cs_user):
     login(client, admin_user.email)
-    r = client.post('/cs/crm/setup/import', data={'sheet': (workbook(), 'Sales Process 1.5.xlsx')},
+    r = client.post('/admin/crm/setup/import', data={'sheet': (workbook(), 'Sales Process 1.5.xlsx')},
                     content_type='multipart/form-data')
     page = r.get_data(as_text=True)
     assert 'leads found' in page and 'Prospects' in page
     token = page.split('name="token" value="', 1)[1].split('"', 1)[0]
-    client.post('/cs/crm/setup/import/confirm', data={'token': token, 'owner': cs_user.id})
+    client.post('/admin/crm/setup/import/confirm', data={'token': token, 'owner': cs_user.id})
     leads = {l.person.display_name: l for l in CrmLead.query.all()}
     assert len(leads) == 6
     kiran = leads['Kiran']
@@ -413,24 +416,24 @@ def test_importing_the_sales_workbook(app, client, admin_user, cs_user):
     assert leads['some.one'].person.identity('instagram') == 'some.one'
     assert Notification.query.filter_by(type='crm_lead').count() == 0
     # the same workbook again adds nothing
-    r = client.post('/cs/crm/setup/import', data={'sheet': (workbook(), 'again.xlsx')}, content_type='multipart/form-data')
+    r = client.post('/admin/crm/setup/import', data={'sheet': (workbook(), 'again.xlsx')}, content_type='multipart/form-data')
     token = r.get_data(as_text=True).split('name="token" value="', 1)[1].split('"', 1)[0]
-    client.post('/cs/crm/setup/import/confirm', data={'token': token})
+    client.post('/admin/crm/setup/import/confirm', data={'token': token})
     assert CrmLead.query.count() == 6
 
 
 def test_backfill_button_and_import_tab(app, client, admin_user, cs_user):
     login(client, admin_user.email)
-    assert b'Enquiries from before the CRM' in client.get('/cs/crm/setup?tab=import').data
-    r = client.post('/cs/crm/setup/backfill', data={'days': 90}, follow_redirects=True)
+    assert b'Enquiries from before the CRM' in client.get('/admin/crm/setup?tab=import').data
+    r = client.post('/admin/crm/setup/backfill', data={'days': 90}, follow_redirects=True)
     assert b'Brought in 0 past enquiries' in r.data
     client.post('/auth/logout')
     login(client, cs_user.email)
-    assert client.post('/cs/crm/setup/backfill').status_code == 302 and CrmLead.query.count() == 0
+    assert client.post('/admin/crm/setup/backfill').status_code == 302 and CrmLead.query.count() == 0
 
 
 def test_only_the_import_screen_takes_a_big_upload(app):
-    with app.test_request_context('/cs/crm/setup/import', method='POST'):
+    with app.test_request_context('/admin/crm/setup/import', method='POST'):
         from flask import request
         assert request.max_content_length == 64 * 1024 * 1024
     with app.test_request_context('/api/contact', method='POST'):

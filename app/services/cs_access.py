@@ -72,21 +72,14 @@ SCREENS = [
     {'key': 'sahayak', 'label': 'Sahayak queue', 'icon': 'fa-house-medical', 'site': 'sahayak',
      'endpoints': ['cs.sahayak_bookings', 'cs.sahayak_update']},
 
-    # --- sales CRM: every product's leads in one place. The to-do list, the board, the lead page
-    # and its buttons are one screen, because an agent who may follow a lead up must also be able
-    # to open it; the numbers and the set-up can be given or kept separately.
-    {'key': 'crm_board', 'label': 'Follow-ups & leads', 'icon': 'fa-list-check', 'site': 'crm',
+    # --- sales CRM: the day's work. The set-up, imports, dashboard and daily tracker are the
+    # admin's and live in the admin portal (routes/crm.py MANAGE), so they are not offered here.
+    {'key': 'crm_board', 'label': 'My sales day', 'icon': 'fa-filter-circle-dollar', 'site': 'crm',
      'endpoints': ['crm.today', 'crm.board', 'crm.lead', 'crm.move', 'crm.route_lead',
                    'crm.task_action', 'crm.send', 'crm.call', 'crm.note', 'crm.update',
-                   'crm.suggest', 'crm.answer_used', 'crm.add', 'crm.checks', 'crm.check_tick', 'crm.event', 'crm.whatsapp_thread',
-                   'crm.process']},
-    {'key': 'crm_insights', 'label': 'Sales numbers', 'icon': 'fa-chart-line', 'site': 'crm',
-     'endpoints': ['crm.insights', 'crm.insights_csv', 'crm.log_work']},
-    {'key': 'crm_setup', 'label': 'CRM set-up', 'icon': 'fa-sliders', 'site': 'crm',
-     'admin_only': True,
-     'endpoints': ['crm.setup', 'crm.save_source', 'crm.save_pipeline', 'crm.save_step',
-                   'crm.save_answer', 'crm.save_whatsapp', 'crm.backfill', 'crm.import_sheet',
-                   'crm.import_confirm', 'crm.save_process']},
+                   'crm.suggest', 'crm.answer_used', 'crm.add', 'crm.checks', 'crm.check_tick', 'crm.event',
+                   'crm.whatsapp_thread', 'crm.process', 'crm.add_from_record', 'crm.undo', 'crm.reopen',
+                   'crm.remove', 'crm.log_work']},
 ]
 
 SITES = [

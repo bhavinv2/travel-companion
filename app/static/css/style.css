@@ -4465,3 +4465,20 @@ span.cu-chan-ic, .cu-office-flag .flag-txt { display: grid; place-items: center;
 /* User voices: the message column gives a little so every action stays on screen beside the menu */
 .vc-table .cm-cell { min-width: 280px; }
 .mq-group[data-unread] .mq-table tbody tr { cursor: pointer; }
+
+/* ===== Sales CRM: the pipeline symbol on every screen that shows a person (_crm_pill.html) ===== */
+.crm-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 7px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  text-decoration: none; white-space: nowrap; line-height: 1.4; border: 1px solid transparent; font-family: inherit; }
+.crm-pill .dots { display: inline-flex; gap: 2px; }
+.crm-pill .dots i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .25; display: block; }
+.crm-pill .dots i.on { opacity: 1; }
+.crm-pill.r-new { background: #f1f5f9; color: #475569; }
+.crm-pill.r-cold { background: #eef2f6; color: #334155; }
+.crm-pill.r-prospect { background: #e7f0fd; color: #1d4ed8; }
+.crm-pill.r-pipeline { background: #fff1db; color: #9a5300; }
+.crm-pill.r-customer { background: #e3f6ea; color: #15803d; }
+.crm-pill.r-lost { background: #fde8e8; color: #b91c1c; }
+a.crm-pill:hover { filter: brightness(.95); }
+.crm-pill-form { display: inline; margin: 0; }
+.crm-pill.add { background: #fff; color: #1f5fc0; border: 1px dashed #93b8e8; cursor: pointer; }
+.crm-pill.add:hover { background: #eaf3fe; }

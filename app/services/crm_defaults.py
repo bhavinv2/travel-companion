@@ -253,6 +253,7 @@ SOURCES = [
     ('google-ads', 'Google Ads', 'ads', 'TI', 'ti-standard', [], 'live'),
     ('direct-sale', 'Direct sale', 'manual', 'TI', 'ti-standard', [], 'live'),
     ('sales-sheet', 'Sales sheet (Excel import)', 'import', 'GEN', 'general', [], 'live'),
+    ('site-account', 'Site account (added from existing data)', 'manual', 'GEN', 'general', [], 'live'),
 ]
 
 # ---------------------------------------------------------------------------------------- answers
@@ -435,13 +436,4 @@ CHANNELS = [
     ('Traditional', 'Indian event marketing', '', ''),
     ('Social media', 'Influencer marketing', '', ''),
     ('Telegram', 'Telegram groups', '', 'Needs account opening'),
-]
-
-GAPS = [
-    'Did we explore everything and everywhere for cold leads?',
-    'Prospect to pipeline conversion needs to be unlocked',
-    'Pipeline fallout needs to be addressed',
-    'Process fallout needs to be addressed',
-    'We have to work on a complete value intro message',
-    'OTP to verify phones at login',
 ]

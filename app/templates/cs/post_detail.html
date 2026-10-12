@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% from 'cs/_macros.html' import status_chip, role_chip, source_chip, trip_type_chip with context %}
 {% from 'admin/_hard_delete.html' import del_btn %}
+{% from '_crm_pill.html' import crm_pill with context %}
 {% block title %}Post #{{ trip.id }} – CS Console{% endblock %}
 {% block content %}
 <div class="admin-page">
@@ -10,7 +11,7 @@
 
     {# What this post is, and what you can do to it -- on one line under the title. #}
     <div class="pd-chips">
-      {{ status_chip(trip) }} {{ role_chip(trip) }} {{ source_chip(trip) }}
+      {{ status_chip(trip) }} {{ role_chip(trip) }} {{ source_chip(trip) }} {{ crm_pill('trip', 'companion_requests', trip.id) }}
       {{ trip_type_chip(trip) }}
       {% if trip.ticket_booked %}<span class="chip chip-open">ticket booked</span>{% endif %}
       <span class="pd-chip-gap"></span>

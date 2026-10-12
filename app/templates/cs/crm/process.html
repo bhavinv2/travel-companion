@@ -8,7 +8,7 @@
 {%- else -%}idle{%- endif -%}
 {%- endmacro %}
 {% block crm %}
-<div class="crm-head">
+<div class="page-head">
   <div>
     <h1>How we sell</h1>
     <p class="muted" style="margin:4px 0 0">The whole process on one page, drawn from today's numbers. Click any stage to open its leads.</p>
@@ -16,7 +16,7 @@
 </div>
 
 {# ------------------------------------------------------------------ 1. where leads come from #}
-<section class="panel">
+<section class="card">
   <div class="proc-h"><span class="proc-n">1</span><div><h2 style="margin:0">Where leads come from</h2>
     <p class="muted" style="margin:2px 0 0">Every form, pop-up and inbox sends its leads straight to the CRM. Last 30 days:</p></div></div>
   <div class="inlets">
@@ -27,7 +27,7 @@
 </section>
 
 {# ------------------------------------------------------------------ 2. each pipeline as a picture #}
-<section class="panel">
+<section class="card">
   <div class="proc-h"><span class="proc-n">2</span><div><h2 style="margin:0">The journey, product by product</h2>
     <p class="muted" style="margin:2px 0 0">Open leads in each stage now, the messages that go with it, and what moves a lead on by itself.</p></div></div>
   {% for p in pipelines %}
@@ -62,7 +62,7 @@
 </section>
 
 {# ------------------------------------------------------------------ 3. lead channels #}
-<section class="panel">
+<section class="card">
   <div class="proc-h"><span class="proc-n">3</span><div><h2 style="margin:0">Lead channels</h2>
     <p class="muted" style="margin:2px 0 0">The {{ channels|length }} ways we find people, who owns each, and where it stands.</p></div></div>
   <div class="legend-row">
@@ -77,7 +77,7 @@
     </div>
     {% endfor %}
   </div>
-  {% if CS_ACCESS.can_open(current_user, 'crm_setup') %}
+  {% if current_user.is_admin %}
   <details style="margin-top:12px">
     <summary class="muted" style="cursor:pointer">Edit the channels</summary>
     <form method="POST" action="{{ crm_url('save_process') }}" class="stack" style="margin-top:8px">
@@ -91,35 +91,4 @@
   {% endif %}
 </section>
 
-{# ------------------------------------------------------------------ 4. gaps #}
-<section class="panel">
-  <div class="proc-h"><span class="proc-n">4</span><div><h2 style="margin:0">Gaps to close</h2>
-    <p class="muted" style="margin:2px 0 0">What the team agreed still needs work.</p></div></div>
-  <ul class="gaps">
-    {% for g in gaps %}
-    <li class="{{ 'done' if g.done }}">
-      {% if CS_ACCESS.can_open(current_user, 'crm_setup') %}
-      <form method="POST" action="{{ crm_url('save_process') }}" style="display:inline">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="what" value="gap_done"/>
-        <input type="hidden" name="text" value="{{ g.text }}"/>
-        <button class="gap-box" title="{{ 'Mark as not done' if g.done else 'Mark as done' }}">{{ '✓' if g.done else '' }}</button>
-      </form>
-      {% else %}<span class="gap-box">{{ '✓' if g.done else '' }}</span>{% endif %}
-      <span>{{ g.text }}</span>
-    </li>
-    {% endfor %}
-  </ul>
-  {% if CS_ACCESS.can_open(current_user, 'crm_setup') %}
-  <details style="margin-top:10px">
-    <summary class="muted" style="cursor:pointer">Edit the list</summary>
-    <form method="POST" action="{{ crm_url('save_process') }}" class="stack" style="margin-top:8px">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="what" value="gaps"/>
-      {% for g in gaps if g.done %}<input type="hidden" name="done" value="{{ g.text }}"/>{% endfor %}
-      <textarea name="gaps" rows="6">{% for g in gaps %}{{ g.text }}
-{% endfor %}</textarea>
-      <div><button class="cb primary">Save</button></div>
-    </form>
-  </details>
-  {% endif %}
-</section>
 {% endblock %}

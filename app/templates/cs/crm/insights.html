@@ -38,7 +38,7 @@
 {%- endmacro %}
 
 {% block crm %}
-<div class="crm-head">
+<div class="page-head">
   <div>
     <h1>{{ person.full_name ~ "'s numbers" if person else 'Sales dashboard' }}</h1>
     <p class="muted" style="margin:4px 0 0">Last {{ days }} days{{ ', compared with the %d days before' % days }}. Counted from the CRM as the team works — nothing to fill in except "Log today's work".</p>
@@ -70,7 +70,7 @@
 </div>
 
 {# ------------------------------------------------------------------ the funnel #}
-<section class="panel">
+<section class="card">
   <h2>From lead to customer</h2>
   {% set f_cold = now_tot.get('cold') or 0 %}{% set f_pro = now_tot.get('prospects') or 0 %}
   {% set f_pipe = now_tot.get('pipeline') or 0 %}{% set f_cust = now_tot.get('customers') or 0 %}
@@ -92,14 +92,14 @@
 </section>
 
 <div class="grid2">
-  <section class="panel"><h2>Where new leads came from</h2>{{ bars(data.new_by_source) }}</section>
-  <section class="panel"><h2>Messages by kind</h2>
+  <section class="card"><h2>Where new leads came from</h2>{{ bars(data.new_by_source) }}</section>
+  <section class="card"><h2>Messages by kind</h2>
     {% set msg_rows = [] %}
     {% for group, rows in groups if group == 'Messages sent' %}{% for key, label, how, vals, total in rows if key != 'msg_total' and total %}{% set _ = msg_rows.append((label, total)) %}{% endfor %}{% endfor %}
     {{ bars(msg_rows|sort(attribute=1, reverse=true)) }}
   </section>
-  <section class="panel"><h2>Why leads fell out</h2>{{ bars(data.reasons, '#dc2626') }}</section>
-  <section class="panel"><h2>Marketing</h2>
+  <section class="card"><h2>Why leads fell out</h2>{{ bars(data.reasons, '#dc2626') }}</section>
+  <section class="card"><h2>Marketing</h2>
     <div class="mini-tiles">
       {% for group, rows in groups if group in ('Marketing', 'Lead source points') %}{% for key, label, how, vals, total in rows if key != 'response_time' %}
       <div class="mini"><b>{{ num(total) }}</b><span>{{ label }}</span>{% if how == 'manual' %}<i title="Entered in Log today's work">✎</i>{% endif %}</div>
@@ -110,7 +110,7 @@
 
 {# ------------------------------------------------------------------ the team #}
 {% if not person %}
-<section class="panel">
+<section class="card">
   <div class="row between" style="margin-bottom:10px">
     <h2 style="margin:0">The team</h2>
     <a class="cb sm" href="{{ crm_url('insights_csv', days=days) }}"><i class="fa-solid fa-file-csv"></i> Download for Excel</a>
@@ -134,7 +134,7 @@
 {% endif %}
 
 {# ------------------------------------------------------------------ log today's work #}
-<section class="panel" id="log">
+<section class="card" id="log">
   <div class="row between">
     <div><h2 style="margin:0"><i class="fa-solid fa-pen-to-square"></i> Log today's work</h2>
       <p class="muted" style="margin:4px 0 0">Only the things the CRM cannot see. Everything else counts itself.</p></div>
@@ -157,7 +157,7 @@
 </section>
 
 {# ------------------------------------------------------------------ day by day #}
-<details class="panel">
+<details class="card">
   <summary style="cursor:pointer;font-weight:700;font-size:16px">Day by day — every number, like the KPI sheet</summary>
   <div style="overflow-x:auto;margin-top:12px">
   <table class="crm-table daygrid">

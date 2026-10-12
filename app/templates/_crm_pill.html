@@ -1,0 +1,26 @@
+{# The Sales CRM's pipeline symbol, for the screens outside the CRM (insurance leads, the Sahayak
+   queue, user voices, posts). Where the person is already a lead: their stage, in its colour,
+   linking to the lead. Where they are not: a button that makes them one.
+
+   Import it with context (the "next" address needs the request):
+     {% from '_crm_pill.html' import crm_pill with context %}
+     {{ crm_pill('insurance_quote', 'insurance_quotes', iq.id, iq.phone, iq.email) }} #}
+{% macro crm_pill(kind, ref_type, ref_id, phone=None, email=None) -%}
+{%- set lead = CRM_LEAD_FOR(ref_type, ref_id, phone, email) -%}
+{%- if lead -%}
+  {%- set role = CRM_ROLE(lead) or 'new' -%}
+  {%- set order = ['cold', 'prospect', 'pipeline', 'customer'] -%}
+  {%- set idx = order.index(role) if role in order else -1 -%}
+  <a class="crm-pill r-{{ role }}" href="{{ crm_url('lead', lead_id=lead.id) }}"
+     title="Sales CRM — {{ lead.pipeline.name ~ ': ' if lead.pipeline }}{{ lead.stage.name if lead.stage else 'not routed' }}">
+    {%- if role == 'lost' %}<i class="fa-solid fa-circle-xmark"></i>{% else %}<span class="dots">{% for r in order %}<i class="{{ 'on' if loop.index0 <= idx }}"></i>{% endfor %}</span>{% endif %}
+    {{ lead.stage.name if lead.stage else 'In the CRM' }}</a>
+{%- else -%}
+  <form method="POST" action="{{ crm_url('add_from_record') }}" class="crm-pill-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <input type="hidden" name="kind" value="{{ kind }}"/><input type="hidden" name="id" value="{{ ref_id }}"/>
+    <input type="hidden" name="next" value="{{ request.full_path if request else '' }}"/>
+    <button class="crm-pill add" title="Make this a lead in the Sales CRM"><i class="fa-solid fa-plus"></i> Sales CRM</button>
+  </form>
+{%- endif -%}
+{%- endmacro %}

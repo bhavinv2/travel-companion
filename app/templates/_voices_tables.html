@@ -11,6 +11,7 @@
    off it.
 #}
 {% from 'admin/_hard_delete.html' import del_btn, row_check, select_all, bulk_bar %}
+{% from '_crm_pill.html' import crm_pill with context %}
 
 {% macro contact_table(messages, status_endpoint, statuses, labels, next_url, with_notes=False, topic_labels={}, can_delete=False) %}
 {% if can_delete %}{{ bulk_bar('contact_message', 'enquiries') }}{% endif %}
@@ -32,7 +33,8 @@
       <td><strong>{{ m.name }}</strong><br/><a href="mailto:{{ m.email }}">{{ m.email }}</a>
         {#- Spelled the way that country spells it. A column of numbers each written differently
             reads as a column of mistakes. #}
-        {% if m.phone %}<br/><a class="nowrap" href="tel:{{ m.phone }}">{{ PHONE.pretty(m.phone, m.phone) }}</a>{% endif %}</td>
+        {% if m.phone %}<br/><a class="nowrap" href="tel:{{ m.phone }}">{{ PHONE.pretty(m.phone, m.phone) }}</a>{% endif %}
+        <div style="margin-top:6px">{{ crm_pill('contact_message', 'contact_messages', m.id, m.phone, m.email) }}</div></td>
       <td class="cm-cell">
         <div class="cm-msg">{{ m.message }}</div>
         {% if m.cs_notes %}<div class="cm-notes-sm"><i class="fa-solid fa-note-sticky"></i> {{ m.cs_notes }}</div>{% endif %}

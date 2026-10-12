@@ -19,7 +19,38 @@ NOTIFY_DEFAULTS = {
 }
 
 
+def _stamp():
+    """When any setting last changed, and how many there are -- one small query."""
+    from sqlalchemy import func
+    return db.session.query(func.max(AppSetting.updated_at), func.count(AppSetting.key)).one()
+
+
+_seen = {'stamp': None}
+
+
+def _drop_stale():
+    """Forget this process's copies when another worker has saved a setting since.
+
+    The cache is per gunicorn worker. A save cleared it only in the worker that took the POST, so
+    the page after "Saved" -- served by the other worker -- could still show the old numbers for
+    up to CACHE_SECONDS, and so could every public page. Asked once per request, so a page that
+    reads twenty settings still asks once.
+    """
+    from flask import has_request_context, request
+    if not has_request_context() or request.environ.get('app.settings_checked'):
+        return
+    request.environ['app.settings_checked'] = True
+    try:
+        stamp = tuple(_stamp())
+    except Exception:
+        return                          # no table yet (a fresh database): keep what is cached
+    if stamp != _seen['stamp']:
+        _cache.clear()
+        _seen['stamp'] = stamp
+
+
 def get_setting(key, default=None):
+    _drop_stale()
     now = time.monotonic()
     hit = _cache.get(key)
     if hit and hit[0] > now:

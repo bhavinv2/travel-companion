@@ -282,6 +282,25 @@ def email(site=None):
     return rows[0]['address'] if rows else ''
 
 
+def support_address(site=None):
+    """The address a page prints: the one published in Admin -> Landing page for the page it is
+    on, else the configured SUPPORT_EMAIL.
+
+    Most pages printed SUPPORT_EMAIL straight from the configuration, so an address changed on
+    that screen reached the contact page and the Sahayak page and nothing else -- the home page,
+    the insurance page, help, privacy and terms all kept the old one. This is what the template
+    global SUPPORT_EMAIL is now, so every page that prints it follows the screen.
+    """
+    from flask import current_app
+    try:
+        found = email(site if site is not None else current_site())
+    except Exception:
+        # the settings table unreachable (an error page mid-outage): the configured address
+        # is still a real one
+        found = ''
+    return found or current_app.config.get('SUPPORT_EMAIL', '')
+
+
 # What is already in the box when WhatsApp opens. Somebody who taps a button and lands on an
 # empty chat usually types nothing: the first line is the hardest one. It also tells whoever
 # answers which page the message came from, which no amount of "Hi" does.

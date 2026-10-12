@@ -114,7 +114,7 @@ from flask import Request as _FlaskRequest  # noqa: E402
 # Uploads bigger than MAX_CONTENT_LENGTH, allowed on these screens only. The sales team's workbook
 # is 24 MB of mostly empty formatted cells; raising the limit everywhere to take it would let every
 # public form accept that much too.
-BIG_UPLOADS = {'crm.import_sheet': 64 * 1024 * 1024}
+BIG_UPLOADS = {'crm.import_sheet': 64 * 1024 * 1024, 'admin_crm.import_sheet': 64 * 1024 * 1024}
 
 
 class AppRequest(_FlaskRequest):
@@ -588,7 +588,6 @@ def create_app(test_config=None):
         from app.services import (admin_nav, contact_form, cs_access, insurance_countries,
                                   nav_badges, nri_services, offices, phone, portals, products,
                                   urls, whats_new)
-        from app.services import settings as _settings
         return {
             # Templates use this for "today" in date inputs. Between 18:30 and 00:00 IST,
             # utcnow() is still yesterday in India, which would let somebody pick a date that
@@ -629,7 +628,6 @@ def create_app(test_config=None):
             'CONTACT_EMAIL': offices.email,
             'here': urls.here,
             'NRI_SOCIAL': nri_services.SOCIAL,
-            'WHATSAPP': _settings.whatsapp_numbers,
             'INSURANCE_PARTNER_NAME': nri_services.INSURANCE_PARTNER_NAME,
             'INSURANCE_PARTNER_URL': nri_services.INSURANCE_PARTNER_URL,
             'CONTACT_TYPE_ICONS': CONTACT_TYPE_ICONS,
@@ -644,7 +642,9 @@ def create_app(test_config=None):
             'OPT': options,
             'CURRENT_LANG': get_locale(),
             'SITE_URL': app.config['SITE_URL'],
-            'SUPPORT_EMAIL': app.config['SUPPORT_EMAIL'],
+            # the address published in Admin -> Landing page for this page, falling back to the
+            # configured one -- not the configured one outright, which no screen could change
+            'SUPPORT_EMAIL': offices.support_address(),
         }
 
     for folder in (app.config['UPLOAD_FOLDER'], app.config['PRIVATE_UPLOAD_FOLDER'],

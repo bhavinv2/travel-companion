@@ -31,7 +31,7 @@ def ti_lead(phone='+919876543210', **kw):
 def test_the_crm_lives_in_the_admin_portal_too(app, client, admin_user):
     login(client, admin_user.email)
     page = client.get('/admin/crm/').get_data(as_text=True)
-    assert 'Admin Panel' in page and 'Sales dashboard' in page and 'Sales process' in page
+    assert 'Admin Panel' in page and 'Dashboard' in page and 'How we sell' in page and 'Daily tracker' in page
     assert 'href="/admin/crm/today"' in page            # links stay in the admin portal
     assert client.get('/admin/crm/insights').status_code == 200
     assert client.get('/admin/crm/process').status_code == 200
@@ -82,13 +82,13 @@ def test_admin_sets_a_stage_automation(app, client, admin_user):
     login(client, admin_user.email)
     crm.ensure_defaults()
     quoted, lost = stage('ti-standard', 'quoted'), stage('ti-standard', 'prospect_fallout')
-    client.post('/cs/crm/setup/pipeline', data={'action': 'stage', 'pipeline': 'ti-standard', 'stage_id': quoted.id,
+    client.post('/admin/crm/setup/pipeline', data={'action': 'stage', 'pipeline': 'ti-standard', 'stage_id': quoted.id,
                                                 'op': 'save', 'name': 'Quoted', 'kind': 'open', 'auto_kind': 'no_reply',
                                                 'auto_days': '5', 'auto_to': lost.id, 'auto_reason': 'Went quiet'})
     _db.session.expire_all()
     q = stage('ti-standard', 'quoted')
     assert (q.auto_kind, q.auto_days, q.auto_to.key, q.auto_reason) == ('no_reply', 5, 'prospect_fallout', 'Went quiet')
-    assert 'Went quiet' not in client.get('/cs/crm/setup?tab=pipelines&p=ti-standard').get_data(as_text=True) or True
+    assert 'Went quiet' not in client.get('/admin/crm/setup?tab=pipelines&p=ti-standard').get_data(as_text=True) or True
 
 
 # ============================================================================================ the lead page
@@ -151,7 +151,7 @@ def test_the_whatsapp_conversation_on_the_lead(app, client, cs_user, monkeypatch
         {'id': 'm1', 'direction': 'inbound', 'content_text': 'Need cover for my parents', 'created_at': '2026-10-12T10:00:00Z'}])
     lead = ti_lead()
     login(client, cs_user.email)
-    assert 'WhatsApp conversation' in client.get('/cs/crm/lead/%d' % lead.id).get_data(as_text=True)
+    assert 'data-thread' in client.get('/cs/crm/lead/%d' % lead.id).get_data(as_text=True)
     d = client.get('/cs/crm/lead/%d/whatsapp' % lead.id).get_json()
     assert [m['content_text'] for m in d['messages']] == ['Need cover for my parents', 'Here are two options']
     assert d['url'] == 'https://crm.example/crm/inbox?c=conv-9'
@@ -167,7 +167,7 @@ def test_the_whatsapp_conversation_without_the_crm(app, client, cs_user):
 
 # ============================================================================================ the dashboard
 
-def test_the_dashboard_counts_what_the_team_does(app, client, cs_user):
+def test_the_dashboard_counts_what_the_team_does(app, client, cs_user, admin_user):
     lead = ti_lead()
     login(client, cs_user.email)
     client.post('/cs/crm/lead/%d/send' % lead.id, json={'text': 'Hello', 'task_id': lead.open_task.id})
@@ -180,7 +180,9 @@ def test_the_dashboard_counts_what_the_team_does(app, client, cs_user):
     assert team['msg_total'][today] == 1 and team['msg_prospect'][today] == 1
     mine = crm_kpi.compute(today, today, cs_user.id)
     assert mine['msg_total'][today] == 1
-    page = client.get('/cs/crm/insights?days=7').get_data(as_text=True)
+    client.post('/auth/logout')
+    login(client, 'admin@test.com')
+    page = client.get('/admin/crm/insights?days=7').get_data(as_text=True)
     assert 'From lead to customer' in page and 'Log today' in page and 'Day by day' in page
 
 
@@ -219,15 +221,12 @@ def test_the_sales_process_page(app, client, admin_user, cs_user):
     login(client, cs_user.email)
     page = client.get('/cs/crm/process').get_data(as_text=True)
     assert 'Where leads come from' in page and 'Travel insurance' in page and 'TI #1' in page
-    assert 'Organic posting in groups' in page and 'Prospect to pipeline conversion' in page
-    assert client.post('/cs/crm/process', data={'what': 'gaps', 'gaps': 'x'}).status_code == 302   # not theirs to edit
+    assert 'Organic posting in groups' in page and 'Gaps to close' not in page
+    assert client.post('/cs/crm/process', data={'what': 'channels', 'channels': 'x | y'}).status_code == 302
+    assert 'channels' not in crm.crm_settings_raw()                    # not theirs to edit
     client.post('/auth/logout')
     login(client, admin_user.email)
-    client.post('/cs/crm/process', data={'what': 'gaps', 'gaps': 'Fix intro message\nMore Telegram groups'})
-    client.post('/cs/crm/process', data={'what': 'gap_done', 'text': 'Fix intro message'})
-    assert crm.crm_settings_raw()['gaps'] == [{'text': 'Fix intro message', 'done': True},
-                                              {'text': 'More Telegram groups', 'done': False}]
-    client.post('/cs/crm/process', data={'what': 'channels', 'channels': 'Facebook | Groups | Sales | Ongoing'})
+    client.post('/admin/crm/process', data={'what': 'channels', 'channels': 'Facebook | Groups | Sales | Ongoing'})
     assert crm.crm_settings_raw()['channels'] == [['Facebook', 'Groups', 'Sales', 'Ongoing']]
 
 
@@ -298,13 +297,13 @@ def test_the_workbook_comes_in_with_its_notes_colours_and_history(app, client, a
     hb_user.first_name, hb_user.last_name = 'Harsha', 'Bandi'
     _db.session.commit()
     login(client, admin_user.email)
-    r = client.post('/cs/crm/setup/import', data={'sheet': (workbook(), 'Sales Process.xlsx')},
+    r = client.post('/admin/crm/setup/import', data={'sheet': (workbook(), 'Sales Process.xlsx')},
                     content_type='multipart/form-data')
     page = r.get_data(as_text=True)
     assert 'Dashboard history from the KPI tabs' in page
     assert 'value="%d" selected' % hb_user.id in page                 # HB KPI guessed as Harsha Bandi
     token = page.split('name="token" value="', 1)[1].split('"', 1)[0]
-    client.post('/cs/crm/setup/import/confirm', data={'token': token, 'kpi_KPI': 'team', 'kpi_HB_KPI': hb_user.id})
+    client.post('/admin/crm/setup/import/confirm', data={'token': token, 'kpi_KPI': 'team', 'kpi_HB_KPI': hb_user.id})
     kiran = CrmLead.query.join(CrmLead.person).filter_by(name='Kiran').one()
     assert kiran.likelihood == 'warm' and kiran.imported
     notes = [t.body for t in kiran.touchpoints if t.channel == 'note']

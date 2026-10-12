@@ -10,7 +10,10 @@ export default function WhatsAppFab() {
   const { consultOpen } = useQuote();
   // The number staff marked for WhatsApp on Admin -> Landing page. Hard-coding it here meant
   // changing it on the admin screen moved every button on the page except this one.
-  const number = (site.whatsapp || WHATSAPP_NUMBER).replace(/[^0-9]/g, '');
+  // '' when staff publish no WhatsApp line for this page: then there is no button, rather than
+  // one that opens a chat with a number somebody removed.
+  const number = (site.whatsapp ?? WHATSAPP_NUMBER).replace(/[^0-9]/g, '');
+  if (!number) return null;
 
   return (
     <a

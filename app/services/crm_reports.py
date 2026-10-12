@@ -192,3 +192,117 @@ def current_slot_done(channels):
         return True
     ticks = grid(day)
     return all((s, ch) in ticks for ch in channels)
+
+
+# ============================================================================================ the daily tracker
+
+def day_bounds(day):
+    start = datetime.combine(day, datetime.min.time()) - IST
+    return start, start + timedelta(days=1)
+
+
+def day_sheet(day, users):
+    """What each person had to do on `day` (India time) and what they did -- the admin's daily
+    tracker. {user id: {...}} with:
+        checklist  follow-ups due that day (and earlier ones finished that day), by customer:
+                   [{'lead', 'items': [{'task', 'state': done/late/missed/pending/moved, 'at'}]}]
+        timeline   [(time, lead or None, icon, text)] oldest first
+        counts     due, done, missed, pending, messages, calls, moves, added, checks
+        first, last  their first and last action of the day
+        log        what they entered in "Log today's work"
+    """
+    from app.models import CrmActivity, CrmChannelCheck, CrmLead, CrmStageChange
+    start, end = day_bounds(day)
+    now = datetime.utcnow()
+    ids = [u.id for u in users]
+    sheet = {u.id: {'user': u, 'checklist': defaultdict(list), 'timeline': [], 'first': None, 'last': None,
+                    'counts': defaultdict(int), 'log': {}} for u in users}
+
+    def touch(uid, when):
+        s = sheet.get(uid)
+        if s is None or when is None:
+            return
+        s['first'] = when if s['first'] is None or when < s['first'] else s['first']
+        s['last'] = when if s['last'] is None or when > s['last'] else s['last']
+
+    # the checklist: due that day, or finished that day though due before
+    tasks = (CrmTask.query.filter(CrmTask.owner_id.in_(ids) | CrmTask.done_by_id.in_(ids))
+             .filter(((CrmTask.due_at >= start) & (CrmTask.due_at < end)) |
+                     ((CrmTask.done_at >= start) & (CrmTask.done_at < end))).all())
+    for t in tasks:
+        due_today = start <= t.due_at < end
+        if t.status == 'done':
+            # on time: due that day and done that day; otherwise done, but late
+            state = 'done' if due_today and t.done_at and t.done_at < end else 'late'
+            who = t.done_by_id or t.owner_id
+        elif t.status == 'skipped':
+            state, who = 'moved', t.owner_id
+        else:
+            state, who = ('pending' if t.due_at > now else 'missed'), t.owner_id
+        s = sheet.get(who)
+        if s is None:
+            continue
+        s['checklist'][t.lead].append({'task': t, 'state': state, 'at': t.done_at})
+        if due_today:
+            s['counts']['due'] += 1
+        s['counts'][{'done': 'done', 'late': 'done', 'missed': 'missed', 'pending': 'pending',
+                     'moved': 'moved'}[state]] += 1
+        if t.done_at and start <= t.done_at < end and t.status == 'done':
+            s['timeline'].append((t.done_at, t.lead, 'fa-check', 'Did %s · %s' % (t.code or '', t.title)))
+            touch(who, t.done_at)
+
+    # messages and calls they made
+    for tp in (CrmTouchpoint.query.filter(CrmTouchpoint.agent_id.in_(ids), CrmTouchpoint.direction == 'out',
+                                          CrmTouchpoint.created_at >= start, CrmTouchpoint.created_at < end)):
+        s = sheet[tp.agent_id]
+        if tp.channel == 'call':
+            s['counts']['calls'] += 1
+            s['timeline'].append((tp.created_at, tp.lead, 'fa-phone', 'Called — %s' % (tp.outcome or '').replace('_', ' ')))
+        else:
+            s['counts']['messages'] += 1
+            s['timeline'].append((tp.created_at, tp.lead, 'fa-paper-plane',
+                                  'Sent %s on %s' % (tp.code or 'a message', tp.channel)))
+        touch(tp.agent_id, tp.created_at)
+    # notes they wrote
+    for tp in (CrmTouchpoint.query.filter(CrmTouchpoint.agent_id.in_(ids), CrmTouchpoint.direction == 'none',
+                                          CrmTouchpoint.created_at >= start, CrmTouchpoint.created_at < end)):
+        sheet[tp.agent_id]['timeline'].append((tp.created_at, tp.lead, 'fa-note-sticky', 'Wrote a note'))
+        touch(tp.agent_id, tp.created_at)
+    # leads they moved
+    for ch in (CrmStageChange.query.filter(CrmStageChange.by_id.in_(ids), CrmStageChange.from_stage_id.isnot(None),
+                                           CrmStageChange.created_at >= start, CrmStageChange.created_at < end)):
+        s = sheet[ch.by_id]
+        s['counts']['moves'] += 1
+        s['timeline'].append((ch.created_at, ch.lead, 'fa-arrow-right-arrow-left',
+                              'Moved %s → %s' % (ch.from_stage.name if ch.from_stage else '?',
+                                                 ch.to_stage.name if ch.to_stage else '?')))
+        touch(ch.by_id, ch.created_at)
+    # leads they added
+    for l in CrmLead.query.filter(CrmLead.created_by_id.in_(ids), CrmLead.created_at >= start, CrmLead.created_at < end):
+        s = sheet[l.created_by_id]
+        s['counts']['added'] += 1
+        s['timeline'].append((l.created_at, l, 'fa-user-plus', 'Added this lead'))
+        touch(l.created_by_id, l.created_at)
+    # the inbox check
+    for c in CrmChannelCheck.query.filter(CrmChannelCheck.day == day, CrmChannelCheck.user_id.in_(ids)):
+        s = sheet[c.user_id]
+        s['counts']['checks'] += 1
+        s.setdefault('slots', set()).add(c.slot)
+        touch(c.user_id, c.checked_at)
+    for s in sheet.values():
+        n = len(s.get('slots') or ())
+        if n:
+            s['timeline'].append((s['first'] or start, None, 'fa-clipboard-check',
+                                  'Checked the inboxes in %d half hour%s' % (n, '' if n == 1 else 's')))
+        s['counts']['slots'] = n
+    # what they logged by hand
+    for a in CrmActivity.query.filter(CrmActivity.day == day, CrmActivity.user_id.in_(ids),
+                                      CrmActivity.source == 'manual'):
+        sheet[a.user_id]['log'][a.metric] = a.count
+    for s in sheet.values():
+        s['timeline'].sort(key=lambda e: e[0])
+        due = s['counts']['due']
+        s['counts']['score'] = round(100 * min(s['counts']['done'], due) / due) if due else None
+        s['checklist'] = sorted(s['checklist'].items(),
+                                key=lambda kv: min(i['task'].due_at for i in kv[1]))
+    return sheet

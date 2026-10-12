@@ -118,7 +118,7 @@ export default function WelcomePopup() {
       `Email: ${email}`,
       `Travel to: ${travel}`,
     ];
-    const number = (site.whatsapp || WHATSAPP_NUMBER).replace(/[^0-9]/g, '');
+    const number = (site.whatsapp ?? WHATSAPP_NUMBER).replace(/[^0-9]/g, '');
     setWaUrl(`https://api.whatsapp.com/send/?phone=${number}&text=${encodeURIComponent(lines.join('\n'))}`);
 
     // A WhatsApp link somebody never clicks leaves no trace of the enquiry. Record it in the inbox

@@ -1,40 +1,38 @@
-{# Every Sales CRM screen: the CS menu on the left, the CRM's own tabs across the top.
-   A child sets `crm_tab` (today / board / add / insights / setup) at its top level. #}
+{# Every Sales CRM screen: the portal's own menu on the left, the CRM's menu across the top.
+   A child sets `crm_tab` (today / board / add / checks / tracker / insights / process / setup).
+
+   Customer service sees the day's work only. The admin also sees the daily tracker, the
+   dashboard and the set-up -- in the admin portal, where routes/crm.py sends those screens. #}
 {% extends 'base.html' %}
-{% block title %}{% block crm_title %}Sales CRM{% endblock %} – CS Console{% endblock %}
+{% block title %}{% block crm_title %}Sales CRM{% endblock %} – Sales CRM{% endblock %}
 {% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/crm.css') }}"/>{% endblock %}
 {% block content %}
 <div class="admin-page">
   {% if request.blueprint == 'admin_crm' %}
     {% with active=('crm_' ~ (crm_tab or 'board')) %}{% include 'admin/_sidebar.html' %}{% endwith %}
   {% else %}
-    {% with active=('crm_insights' if crm_tab == 'insights' else 'crm_setup' if crm_tab == 'setup' else 'crm_board') %}{% include 'cs/_sidebar.html' %}{% endwith %}
+    {% with active='crm_board' %}{% include 'cs/_sidebar.html' %}{% endwith %}
   {% endif %}
   <main class="admin-main crm" data-crm="{{ crm_url('board') }}" data-wa="{{ 1 if wa_ready else 0 }}">
-    <nav class="crm-tabs" aria-label="Sales CRM">
-      <a href="{{ crm_url('today') }}" class="{{ 'on' if crm_tab == 'today' }}">
-        <i class="fa-solid fa-list-check"></i> My follow-ups
-        {% if my_due %}<span class="n" title="{{ my_due }} due now">{{ my_due }}</span>{% endif %}</a>
-      <a href="{{ crm_url('board') }}" class="{{ 'on' if crm_tab == 'board' }}">
-        <i class="fa-solid fa-table-columns"></i> Lead board</a>
-      <a href="{{ crm_url('add') }}" class="{{ 'on' if crm_tab == 'add' }}">
-        <i class="fa-solid fa-user-plus"></i> Add a lead</a>
-      <a href="{{ crm_url('checks') }}" class="{{ 'on' if crm_tab == 'checks' }}">
-        <i class="fa-solid fa-clipboard-check"></i> Inbox check
+    <nav class="crm-nav" aria-label="Sales CRM">
+      <a href="{{ crm_url('today') }}" class="{{ 'on' if crm_tab == 'today' }}"><i class="fa-solid fa-sun"></i> My day
+        {% if my_due %}<span class="n" title="{{ my_due }} to do now">{{ my_due }}</span>{% endif %}</a>
+      <a href="{{ crm_url('board') }}" class="{{ 'on' if crm_tab == 'board' }}"><i class="fa-solid fa-table-columns"></i> Leads</a>
+      <a href="{{ crm_url('add') }}" class="{{ 'on' if crm_tab == 'add' }}"><i class="fa-solid fa-user-plus"></i> Add a lead</a>
+      <a href="{{ crm_url('checks') }}" class="{{ 'on' if crm_tab == 'checks' }}"><i class="fa-solid fa-clipboard-check"></i> Inbox check
         {% if check_due %}<span class="n warn" title="This half hour's inboxes are not ticked yet">!</span>{% endif %}</a>
-      {% if CS_ACCESS.can_open(current_user, 'crm_insights') %}
-      <a href="{{ crm_url('insights') }}" class="{{ 'on' if crm_tab == 'insights' }}">
-        <i class="fa-solid fa-chart-line"></i> Dashboard</a>
-      {% endif %}
-      <a href="{{ crm_url('process') }}" class="{{ 'on' if crm_tab == 'process' }}">
-        <i class="fa-solid fa-diagram-project"></i> Sales process</a>
-      {% if CS_ACCESS.can_open(current_user, 'crm_setup') %}
-      <a href="{{ crm_url('setup') }}" class="{{ 'on' if crm_tab == 'setup' }}">
-        <i class="fa-solid fa-sliders"></i> Set-up
+      <a href="{{ crm_url('process') }}" class="{{ 'on' if crm_tab == 'process' }}"><i class="fa-solid fa-diagram-project"></i> How we sell</a>
+      {% if current_user.is_admin %}
+      <span class="sep" aria-hidden="true"></span>
+      <a href="{{ crm_url('tracker') }}" class="{{ 'on' if crm_tab == 'tracker' }}"><i class="fa-solid fa-list-check"></i> Daily tracker</a>
+      <a href="{{ crm_url('insights') }}" class="{{ 'on' if crm_tab == 'insights' }}"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
+      <a href="{{ crm_url('setup') }}" class="{{ 'on' if crm_tab == 'setup' }}"><i class="fa-solid fa-sliders"></i> Set-up
         {% if unrouted_count %}<span class="n warn" title="{{ unrouted_count }} new lead source(s) to set up">{{ unrouted_count }}</span>{% endif %}</a>
       {% endif %}
-      <button type="button" class="focus-btn" data-focus title="Hide the menus and use the whole screen (Esc to come back)">
-        <i class="fa-solid fa-expand"></i> <span>Focus mode</span></button>
+      <span class="right">
+        <button type="button" class="icon-btn" data-focus title="Focus mode: hide the menus (Esc to come back)" aria-label="Focus mode">
+          <i class="fa-solid fa-expand"></i></button>
+      </span>
     </nav>
     {% block crm %}{% endblock %}
   </main>

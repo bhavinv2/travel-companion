@@ -1,75 +1,62 @@
 {% extends 'cs/crm/_layout.html' %}
 {% set crm_tab = 'board' %}
-{% from 'cs/crm/_bits.html' import product_chip, temp_dot, channel_icon, when, ist with context %}
+{% from 'cs/crm/_bits.html' import product_chip, temp_dot, channel_icon, when, ist, stage_pill with context %}
 {% block crm_title %}{{ person.display_name }}{% endblock %}
 {% block crm %}
 <div data-lead-page data-lead="{{ lead.id }}" data-product="{{ lead.product }}" data-phone="{{ person.phone or '' }}"
      data-reasons='{{ ((lead.pipeline.fallout_reasons if lead.pipeline else []) or [])|tojson|forceescape }}'>
 
-<p style="margin:0 0 10px"><a href="{{ crm_url('board', p=lead.pipeline.key if lead.pipeline else None) }}" class="muted"><i class="fa-solid fa-arrow-left"></i> Back to the board</a></p>
+<p style="margin:0 0 12px"><a href="{{ crm_url('board', p=lead.pipeline.key if lead.pipeline else None, owner='all') }}" class="muted" style="text-decoration:none">
+  <i class="fa-solid fa-arrow-left"></i> All leads</a></p>
 
-{# --------------------------------------------------------------- who they are #}
-<section class="panel">
-  <div class="crm-person">
+{# ================================================================ who they are #}
+<section class="card">
+  <div class="lead-hero">
+    <div class="av">{{ (person.name or person.phone or '?')[:1]|upper }}</div>
     <div class="id">
-      <div class="av">{{ (person.name or person.phone or '?')[:1]|upper }}</div>
-      <div>
-        <h1 style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">{{ person.display_name }}
-          {{ product_chip(lead.product) }}
-          {% if lead.status == 'won' %}<span class="chip ok"><i class="fa-solid fa-trophy"></i> Won</span>
-          {% elif lead.status == 'lost' %}<span class="chip bad">Lost{% if lead.fallout_reason %}: {{ lead.fallout_reason }}{% endif %}</span>{% endif %}
-        </h1>
-        <div class="contact">
-          {% if person.phone %}
-          <a class="cb sm wa" href="https://wa.me/{{ person.phone|replace('+', '') }}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> {{ PHONE.pretty(person.phone) }}</a>
-          <a class="cb sm" href="tel:{{ person.phone }}"><i class="fa-solid fa-phone"></i> Call</a>
-          {% endif %}
-          {% if person.email %}<a class="cb sm" href="mailto:{{ person.email }}"><i class="fa-solid fa-envelope"></i> {{ person.email }}</a>{% endif %}
-          {% set ig = person.identity('instagram') %}{% set fb = person.identity('facebook') %}
-          {% if ig %}<a class="cb sm" href="https://www.instagram.com/{{ ig }}" target="_blank" rel="noopener"><i class="fa-brands fa-instagram"></i> {{ ig }}</a>{% endif %}
-          {% if fb %}<a class="cb sm" href="https://www.facebook.com/{{ fb }}" target="_blank" rel="noopener"><i class="fa-brands fa-facebook"></i> {{ fb }}</a>{% endif %}
-          {% for ch in social %}<span class="chip info" title="They wrote to us there, so a reply can be sent from here"><i class="fa-brands fa-{{ 'instagram' if ch == 'instagram' else 'facebook-messenger' }}"></i> replies from here</span>{% endfor %}
-          <button class="cb sm ghost" data-act="edit-person" data-name="{{ person.name or '' }}" data-email="{{ person.email or '' }}"
-                  data-phone="{{ person.phone or '' }}" data-instagram="{{ ig or '' }}" data-facebook="{{ fb or '' }}"><i class="fa-solid fa-pen"></i> Edit</button>
-        </div>
-        <div class="hint">Came in {{ when(lead.created_at, utcnow) }} from <b>{{ lead.source.name if lead.source else 'unknown' }}</b>{% if person.country %} · number from {{ PHONE.label(person.country) }}{% endif %}</div>
-      </div>
+      <h1>{{ person.display_name }} {{ stage_pill(lead, link=false) }}</h1>
+      <p class="sub">{{ PRODUCTS.get(lead.product, lead.product) }} · came in {{ when(lead.created_at, utcnow) }} from {{ lead.source.name if lead.source else 'unknown' }}
+        {%- if lead.owner %} · looked after by <b>{{ lead.owner.full_name }}</b>{% endif %}</p>
     </div>
-    <div class="stack" style="min-width:240px">
-      <div>
-        <label class="lb" for="crm-owner">Who looks after this lead</label>
-        <select id="crm-owner" data-update="owner_id">
-          <option value="">Nobody yet</option>
-          {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if lead.owner_id == u.id }}>{{ u.full_name if u.full_name is defined else u.username }}{{ ' (you)' if u.id == current_user.id }}</option>{% endfor %}
-        </select>
-      </div>
-      <div>
-        <span class="lb">Ready to buy?</span>
-        <div class="chips" data-likelihood>
-          {% for k, label in LIKELIHOOD.items() %}
-          <button type="button" class="chip lk-{{ k }}{{ ' on' if lead.likelihood == k }}" data-lk="{{ k }}">{{ label }}</button>
-          {% endfor %}
+    <div class="acts">
+      {% if person.phone %}
+      <a class="cb wa" href="https://wa.me/{{ person.phone|replace('+', '') }}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> {{ PHONE.pretty(person.phone) }}</a>
+      <a class="cb" href="tel:{{ person.phone }}"><i class="fa-solid fa-phone"></i> Call</a>
+      {% endif %}
+      {% if person.email %}<a class="cb" href="mailto:{{ person.email }}" title="{{ person.email }}"><i class="fa-solid fa-envelope"></i> E-mail</a>{% endif %}
+      {% set ig = person.identity('instagram') %}{% set fb = person.identity('facebook') %}
+      {% if ig %}<a class="cb" href="https://www.instagram.com/{{ ig }}" target="_blank" rel="noopener"><i class="fa-brands fa-instagram"></i> {{ ig }}</a>{% endif %}
+      {% if fb %}<a class="cb" href="https://www.facebook.com/{{ fb }}" target="_blank" rel="noopener"><i class="fa-brands fa-facebook"></i> Facebook</a>{% endif %}
+      <details class="more-menu">
+        <summary class="cb" aria-label="More"><i class="fa-solid fa-ellipsis"></i> More</summary>
+        <div class="menu">
+          <button type="button" data-act="edit-person" data-name="{{ person.name or '' }}" data-email="{{ person.email or '' }}"
+                  data-phone="{{ person.phone or '' }}" data-instagram="{{ ig or '' }}" data-facebook="{{ fb or '' }}">
+            <i class="fa-solid fa-pen"></i><span>Edit their details<small>name, phone, e-mail, Instagram</small></span></button>
+          {% if has_moves %}<button type="button" data-act="undo"><i class="fa-solid fa-rotate-left"></i><span>Undo the last move<small>put them back in the stage before</small></span></button>{% endif %}
+          {% if lead.status != 'open' %}<button type="button" data-act="reopen"><i class="fa-solid fa-box-open"></i><span>Reopen<small>back to work, in their last open stage</small></span></button>{% endif %}
+          {% if can_remove %}<button type="button" class="danger" data-act="remove" data-name="{{ person.display_name }}"><i class="fa-solid fa-trash"></i><span>Remove from the Sales CRM<small>added by mistake — the record on the site stays</small></span></button>{% endif %}
         </div>
-      </div>
-      <div>
-        <span class="lb">How warm are they?</span>
-        <div class="chips" data-temps>
-          {% for k, label in TEMPS.items() %}
-          <button type="button" class="chip{{ ' on' if lead.temperature == k }}" data-temp="{{ k }}" title="{{ label }}">{{ temp_dot(k) }} {{ label }}</button>
-          {% endfor %}
-        </div>
-      </div>
+      </details>
     </div>
   </div>
 </section>
 
-{# --------------------------------------------------------------- where they are #}
+{# ================================================================ where they are #}
 {% if lead.pipeline %}
-<section class="panel">
-  <div class="row between" style="margin-bottom:8px">
-    <h3 style="margin:0">{{ lead.pipeline.name }} — click a step to move them there</h3>
-    {% if lead.entered_stage_at %}<small class="muted">In "{{ lead.stage.name if lead.stage }}" since {{ when(lead.entered_stage_at, utcnow) }}
-      {% if lead.stuck_hours %}<span class="chip stuck" title="Longer than this stage allows ({{ lead.stage.sla_hours }} h)">waiting too long</span>{% endif %}</small>{% endif %}
+<section class="card">
+  <div class="card-head" style="margin-bottom:10px">
+    <div class="t"><span class="ico"><i class="fa-solid fa-route"></i></span>
+      <div><h2>{{ lead.pipeline.name }}</h2><p class="muted small">Click a stage to move them there.
+        {% if lead.entered_stage_at %}In "{{ lead.stage.name if lead.stage }}" since {{ when(lead.entered_stage_at, utcnow) }}.{% endif %}
+        {% if lead.stuck_hours %}<span class="chip stuck">waiting too long</span>{% endif %}</p></div></div>
+    {% if events and lead.status == 'open' %}
+    <div class="row">
+      {% for code, label in events %}
+      <button type="button" class="cb sm" data-act="event" data-code="{{ code }}"><i class="fa-solid {{ 'fa-file-invoice-dollar' if code == 'Q' else 'fa-link' }}"></i> {{ label }}</button>
+      {% endfor %}
+    </div>
+    {% endif %}
   </div>
   {% set cur = lead.stage.position if lead.stage else -1 %}
   <div class="crm-journey" data-journey>
@@ -79,114 +66,125 @@
       {% if st.kind == 'won' %}<i class="fa-solid fa-trophy"></i> {% elif st.kind == 'lost' %}<i class="fa-solid fa-xmark"></i> {% endif %}{{ st.name }}</button>
     {% endfor %}
   </div>
-  {% if events and lead.status == 'open' %}
-  <div class="row" style="margin-top:12px;gap:8px">
-    <span class="muted" style="font-size:13px">Just did it?</span>
-    {% for code, label in events %}
-    <button type="button" class="cb sm" data-act="event" data-code="{{ code }}"><i class="fa-solid {{ 'fa-file-invoice-dollar' if code == 'Q' else 'fa-link' }}"></i> {{ label }}</button>
-    {% endfor %}
-  </div>
-  {% endif %}
 </section>
 {% else %}
-<section class="panel warn">
-  <h3><i class="fa-solid fa-route" style="color:var(--crm-due)"></i> Which pipeline does this lead belong to?</h3>
-  <p class="muted" style="margin:0 0 10px">It came from "{{ lead.source.name if lead.source else 'a form' }}", which nobody has set up yet. Choose one and the first message goes on the list.</p>
+<section class="card warn">
+  <div class="card-head"><div class="t"><span class="ico amber"><i class="fa-solid fa-route"></i></span>
+    <div><h2>Which pipeline do they belong to?</h2><p class="muted small">They came from "{{ lead.source.name if lead.source else 'a form' }}", which is not set up yet.</p></div></div></div>
   <form method="POST" action="{{ crm_url('route_lead', lead_id=lead.id) }}" class="row">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <select name="pipeline" style="max-width:320px" required>
       <option value="">Choose…</option>
       {% for p in pipelines %}<option value="{{ p.key }}"{{ ' selected' if p.product == lead.product }}>{{ p.name }}</option>{% endfor %}
     </select>
-    <button class="cb primary">Put it there</button>
+    <button class="cb primary">Put them there</button>
   </form>
 </section>
 {% endif %}
 
-<div class="grid2">
+<div class="cols-2">
 <div>
-  {# ------------------------------------------------------------- the next step #}
+  {# ============================================================== 1. what to do now #}
   {% if task %}
-  <section class="panel next" data-next data-task="{{ task.id }}">
-    <div class="next-h">
-      <span class="code">{{ task.code }}</span>
-      <b>{{ task.title }}</b>
-      <span class="chip {{ 'bad' if task.due_at < utcnow else 'due' }}"><i class="fa-regular fa-clock"></i> due {{ when(task.due_at, utcnow) }}</span>
-      {% if task.auto %}<span class="chip info" title="Sent by itself once the WhatsApp CRM is connected">automatic</span>{% endif %}
+  <section class="card focus" data-next data-task="{{ task.id }}">
+    <div class="card-head" style="margin-bottom:10px">
+      <div class="t"><span class="ico"><i class="fa-solid fa-bolt"></i></span><h2>What to do now</h2></div>
+      <span class="chip {{ 'bad' if task.due_at < utcnow else 'due' }}"><i class="fa-regular fa-clock"></i> {{ 'was due ' if task.due_at < utcnow else 'due ' }}{{ when(task.due_at, utcnow) }}</span>
     </div>
+    <div class="todo-what"><span class="code">{{ task.code }}</span><b style="font-size:16px">{{ task.title }}</b>
+      {% if task.auto %}<span class="chip info" title="Sent by itself once the WhatsApp CRM sends messages">automatic</span>{% endif %}</div>
     {% if task.channel == 'call' %}
       {% if person.phone %}
-      <div class="row" style="margin-bottom:10px">
-        <a class="cb primary big" href="tel:{{ person.phone }}"><i class="fa-solid fa-phone"></i> Call {{ PHONE.pretty(person.phone) }}</a>
-      </div>
+      <div class="row" style="margin-bottom:12px"><a class="cb primary big" href="tel:{{ person.phone }}"><i class="fa-solid fa-phone"></i> Call {{ PHONE.pretty(person.phone) }}</a></div>
       <span class="lb">How did the call go?</span>
       <div class="chips" data-call-outcomes data-task="{{ task.id }}">
         {% for k, label in OUTCOMES.items() %}<button type="button" class="chip" data-outcome="{{ k }}">{{ label }}</button>{% endfor %}
       </div>
-      {% if next_text %}<details style="margin-top:10px"><summary class="muted">What to say</summary><div class="hint" style="white-space:pre-wrap">{{ next_text }}</div></details>{% endif %}
-      {% else %}<p class="muted">There is no phone number for this lead.</p>{% endif %}
+      {% if next_text %}<details style="margin-top:12px"><summary class="muted" style="cursor:pointer">What to say</summary><p class="hint" style="white-space:pre-wrap">{{ next_text }}</p></details>{% endif %}
+      {% else %}<p class="muted">There is no phone number for them — add one under More → Edit their details.</p>{% endif %}
     {% else %}
-      <label class="lb" for="crm-next-text">The message (change anything you like)</label>
-      <textarea id="crm-next-text" rows="6">{{ next_text }}</textarea>
-      <div class="row" style="margin-top:10px">
-        {% if task.channel == 'email' and person.email %}
-        <a class="cb primary" data-act="mail" href="mailto:{{ person.email }}"><i class="fa-solid fa-envelope"></i> Write e-mail</a>
-        {% elif person.phone %}
-        <button class="cb wa big" data-act="send-next"><i class="fa-brands fa-whatsapp"></i> {{ 'Send' if wa_ready else 'Send on WhatsApp' }}</button>
-        {% elif not social %}<span class="muted">No phone number — add one with Edit above.</span>{% endif %}
-        {% for ch in social %}<button class="cb primary" data-act="send-next" data-via="{{ ch }}"><i class="fa-brands fa-{{ 'instagram' if ch == 'instagram' else 'facebook-messenger' }}"></i> Send on {{ 'Instagram' if ch == 'instagram' else 'Messenger' }}</button>{% endfor %}
+      <div class="composer">
+        <textarea id="crm-next-text" rows="6" aria-label="The message">{{ next_text }}</textarea>
+        <div class="bar">
+          <span class="muted small">Change anything you like before sending.</span>
+          <div class="row">
+            {% if task.channel == 'email' and person.email %}
+            <a class="cb primary" data-act="mail" href="mailto:{{ person.email }}"><i class="fa-solid fa-envelope"></i> Write e-mail</a>
+            {% elif person.phone %}
+            <button class="cb wa" data-act="send-next"><i class="fa-brands fa-whatsapp"></i> {{ 'Send' if wa_ready else 'Send on WhatsApp' }}</button>
+            {% endif %}
+            {% for ch in social %}<button class="cb primary" data-act="send-next" data-via="{{ ch }}"><i class="fa-brands fa-{{ 'instagram' if ch == 'instagram' else 'facebook-messenger' }}"></i> {{ 'Instagram' if ch == 'instagram' else 'Messenger' }}</button>{% endfor %}
+          </div>
+        </div>
       </div>
+      {% if not person.phone and not social and task.channel != 'email' %}<p class="hint">No phone number — add one under More → Edit their details.</p>{% endif %}
     {% endif %}
-    <div class="row" style="margin-top:12px;gap:6px">
+    <div class="row" style="margin-top:12px">
       <button class="cb sm ok" data-act="done" data-task="{{ task.id }}"><i class="fa-solid fa-check"></i> I did it another way</button>
       <button class="cb sm" data-act="snooze" data-task="{{ task.id }}"><i class="fa-regular fa-clock"></i> Tomorrow</button>
       <button class="cb sm ghost" data-act="skip" data-task="{{ task.id }}">Skip this step</button>
     </div>
-    {% if no_answers >= 2 %}<p class="hint" style="color:var(--crm-bad)"><i class="fa-solid fa-phone-slash"></i> {{ no_answers }} calls in a row went unanswered.</p>{% endif %}
+    {% if no_answers >= 2 %}<p class="hint" style="color:var(--c-bad)"><i class="fa-solid fa-phone-slash"></i> {{ no_answers }} calls in a row went unanswered.</p>{% endif %}
   </section>
   {% elif lead.status == 'open' and lead.pipeline %}
-  <section class="panel tint">
-    <b><i class="fa-regular fa-circle-check"></i> No step is planned for this stage.</b>
-    <p class="muted" style="margin:6px 0 0">Move the lead on when it is ready, or write to them below.</p>
+  <section class="card good">
+    <div class="t" style="display:flex;gap:12px;align-items:center"><span class="ico green"><i class="fa-solid fa-circle-check"></i></span>
+      <div><h2>Nothing planned for this stage</h2><p class="muted small">Move them on when they are ready, or write to them below.</p></div></div>
   </section>
   {% endif %}
 
-  {# ------------------------------------------------------------- they asked -> answers #}
-  <section class="panel crm-asked" data-asked>
-    <h2><i class="fa-regular fa-comments"></i> They asked… we answer</h2>
-    <label class="lb" for="crm-q">Their question {% if last_in %}<span class="muted">(their last message, {{ when(last_in.created_at, utcnow) }})</span>{% endif %}</label>
-    <textarea id="crm-q" rows="3" placeholder="Paste or type what they asked — e.g. why is the price different for my mother?">{{ asked_text }}</textarea>
-    <div class="crm-sugg" data-sugg>
-      {% for s in suggestions %}
-      <div class="s" data-id="{{ s.id }}">
-        <div class="t"><span>{{ s.title }}</span>{% if s.kind == 'faq' %}<span class="chip">Help page</span>{% endif %}</div>
-        <div class="b">{{ s.body }}</div>
-        <button type="button" class="cb sm primary" data-use>Use this answer</button>
+  {# ============================================================== 2. the conversation #}
+  <section class="card" data-asked>
+    <div class="card-head"><div class="t"><span class="ico wa"><i class="fa-regular fa-comments"></i></span><h2>Conversation</h2></div>
+      {% if wa_configured and person.phone %}<a class="cb sm" data-thread-link href="#" target="_blank" rel="noopener" hidden>Open in WhatsApp CRM <i class="fa-solid fa-up-right-from-square"></i></a>{% endif %}</div>
+    <div class="convo">
+      {% if wa_configured and person.phone %}
+      <div data-thread data-url="{{ crm_url('whatsapp_thread', lead_id=lead.id) }}">
+        <div class="wa-thread" data-thread-body><p class="muted small">Loading their WhatsApp messages…</p></div>
       </div>
-      {% else %}
-      <div class="none">Type their question above and the best ready answers appear here.</div>
-      {% endfor %}
-    </div>
-    {% if quick %}
-    <span class="lb" style="margin-top:14px">Or a ready message</span>
-    <div class="chips quick" data-quick>
-      {% for q, filled in quick %}
-      <button type="button" class="chip" data-answer="{{ q.id }}" data-code="{{ q.code }}" data-text="{{ filled }}" title="{{ q.title }}"><b>{{ q.code }}</b>&nbsp;{{ q.title }}</button>
-      {% endfor %}
-    </div>
-    {% endif %}
-    <label class="lb" for="crm-reply" style="margin-top:14px">Your reply</label>
-    <textarea id="crm-reply" rows="5" placeholder="Pick an answer above, or write your own"></textarea>
-    <div class="row" style="margin-top:10px">
-      {% if person.phone %}<button class="cb wa" data-act="send-reply"><i class="fa-brands fa-whatsapp"></i> {{ 'Send' if wa_ready else 'Send on WhatsApp' }}</button>{% endif %}
-      {% for ch in social %}<button class="cb primary" data-act="send-reply" data-via="{{ ch }}"><i class="fa-brands fa-{{ 'instagram' if ch == 'instagram' else 'facebook-messenger' }}"></i> Send on {{ 'Instagram' if ch == 'instagram' else 'Messenger' }}</button>{% endfor %}
-      <button class="cb ghost sm" data-act="copy-reply"><i class="fa-regular fa-copy"></i> Copy (for Instagram, Facebook, e-mail)</button>
+      {% endif %}
+      <div class="asked">
+        <label class="lbl" for="crm-q">They asked {% if last_in %}<span style="text-transform:none;font-weight:600">· {{ when(last_in.created_at, utcnow) }}</span>{% endif %}</label>
+        <textarea id="crm-q" rows="2" placeholder="Paste or type their question — the best ready answers appear below">{{ asked_text }}</textarea>
+        <div class="crm-sugg" data-sugg>
+          {% for s in suggestions %}
+          <div class="s" data-id="{{ s.id }}">
+            <div class="t"><span>{{ s.title }}</span>{% if s.kind == 'faq' %}<span class="chip">Help page</span>{% endif %}</div>
+            <div class="b">{{ s.body }}</div>
+            <button type="button" class="cb sm primary" data-use>Use this answer</button>
+          </div>
+          {% else %}<div class="none">Type their question and the best ready answers appear here.</div>{% endfor %}
+        </div>
+      </div>
+      <div>
+        <label class="lb" for="crm-reply">Your reply</label>
+        <div class="composer">
+          <textarea id="crm-reply" rows="4" placeholder="Pick an answer above or a ready message below, or write your own"></textarea>
+          <div class="bar">
+            <button class="cb sm ghost" data-act="copy-reply" title="For Instagram, Facebook or e-mail"><i class="fa-regular fa-copy"></i> Copy</button>
+            <div class="row">
+              {% if person.phone %}<button class="cb wa" data-act="send-reply"><i class="fa-brands fa-whatsapp"></i> {{ 'Send' if wa_ready else 'Send on WhatsApp' }}</button>{% endif %}
+              {% for ch in social %}<button class="cb primary" data-act="send-reply" data-via="{{ ch }}"><i class="fa-brands fa-{{ 'instagram' if ch == 'instagram' else 'facebook-messenger' }}"></i> {{ 'Instagram' if ch == 'instagram' else 'Messenger' }}</button>{% endfor %}
+            </div>
+          </div>
+        </div>
+        {% if quick %}
+        <details style="margin-top:10px" open>
+          <summary class="muted small" style="cursor:pointer;font-weight:600">Ready messages — birthday, festival, happy journey…</summary>
+          <div class="quick" data-quick style="margin-top:8px">
+            {% for q, filled in quick %}
+            <button type="button" class="chip" data-answer="{{ q.id }}" data-code="{{ q.code }}" data-text="{{ filled }}" title="{{ q.title }}"><b>{{ q.code }}</b>&nbsp;{{ q.title }}</button>
+            {% endfor %}
+          </div>
+        </details>
+        {% endif %}
+      </div>
     </div>
   </section>
 
-  {# ------------------------------------------------------------- log something #}
-  <section class="panel">
-    <h2><i class="fa-solid fa-pen-to-square"></i> Write down what happened</h2>
+  {# ============================================================== 3. write down what happened #}
+  <section class="card">
+    <div class="card-head"><div class="t"><span class="ico"><i class="fa-solid fa-pen-to-square"></i></span><h2>Write down what happened</h2></div></div>
     {% if person.phone %}
     <span class="lb">I called them — it went:</span>
     <div class="chips" data-call-outcomes data-task="{{ task.id if task and task.channel == 'call' else '' }}" style="margin-bottom:14px">
@@ -194,30 +192,70 @@
     </div>
     {% endif %}
     <div class="row" style="margin-bottom:8px">
-      <select id="crm-note-ch" style="max-width:200px">
+      <select id="crm-note-ch" style="max-width:200px" aria-label="Where">
         {% for k in ['note', 'instagram', 'facebook', 'whatsapp', 'call', 'email', 'sms'] %}<option value="{{ k }}">{{ CHANNELS[k] }}</option>{% endfor %}
       </select>
       <label class="check"><input type="checkbox" id="crm-note-in"/> This is what <b>they</b> wrote to us</label>
     </div>
     <textarea id="crm-note" rows="3" placeholder="e.g. Spoke to her son; they will decide by Friday"></textarea>
-    <div class="row end" style="margin-top:8px"><button class="cb primary" data-act="note">Save</button></div>
+    <div class="row end" style="margin-top:10px"><button class="cb primary" data-act="note"><i class="fa-solid fa-floppy-disk"></i> Save</button></div>
+  </section>
+</div>
+
+{# ================================================================ the side: about them #}
+<aside>
+  <section class="card">
+    <div class="card-head" style="margin-bottom:12px"><div class="t"><span class="ico"><i class="fa-regular fa-user"></i></span><h2>About them</h2></div></div>
+    <div class="facts">
+      <div><span class="lbl">Ready to buy?</span>
+        <div class="chips" data-likelihood>
+          {% for k, label in LIKELIHOOD.items() %}<button type="button" class="chip lk-{{ k }}{{ ' on' if lead.likelihood == k }}" data-lk="{{ k }}">{{ label }}</button>{% endfor %}
+        </div></div>
+      <div><span class="lbl">How do they respond?</span>
+        <div class="chips" data-temps>
+          {% for k, label in TEMPS.items() %}<button type="button" class="chip{{ ' on' if lead.temperature == k }}" data-temp="{{ k }}" title="{{ label }}">{{ temp_dot(k) }} {{ label }}</button>{% endfor %}
+        </div></div>
+      <div><label class="lbl" for="crm-owner">Looked after by</label>
+        <select id="crm-owner" data-update="owner_id">
+          <option value="">Nobody yet</option>
+          {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if lead.owner_id == u.id }}>{{ u.full_name }}{{ ' (you)' if u.id == current_user.id }}</option>{% endfor %}
+        </select></div>
+    </div>
   </section>
 
-  {# ------------------------------------------------------------- the whatsapp conversation #}
-  {% if wa_configured and person.phone %}
-  <section class="panel" data-thread data-url="{{ crm_url('whatsapp_thread', lead_id=lead.id) }}">
-    <div class="row between" style="margin-bottom:8px">
-      <h2 style="margin:0"><i class="fa-brands fa-whatsapp" style="color:var(--crm-wa)"></i> WhatsApp conversation</h2>
-      <a class="cb sm" data-thread-link href="#" target="_blank" rel="noopener" hidden>Open in WhatsApp CRM <i class="fa-solid fa-up-right-from-square"></i></a>
+  <section class="card">
+    <div class="card-head" style="margin-bottom:12px"><div class="t"><span class="ico"><i class="fa-solid fa-plane"></i></span><h2>Their trip & request</h2></div></div>
+    <dl class="kv">
+      <dt>Travels on</dt>
+      <dd><input type="date" value="{{ lead.departure_date.isoformat() if lead.departure_date else '' }}" data-update="departure_date" style="padding:7px 9px"/>
+        {% if lead.days_to_departure is not none and lead.days_to_departure >= 0 %}<div class="hint">in {{ lead.days_to_departure }} day{{ 's' if lead.days_to_departure != 1 }}</div>{% endif %}</dd>
+      {% if lead.ends_on %}<dt>Cover / trip ends</dt><dd>{{ lead.ends_on.strftime('%d %b %Y') }}</dd>{% endif %}
+      {% for k, v in (lead.details or {}).items() %}
+      <dt>{{ k|replace('_', ' ')|capitalize }}</dt><dd>{{ v|join(', ') if v is iterable and v is not string and v is not mapping else v }}</dd>
+      {% endfor %}
+      {% if ref_url %}<dt>On the site</dt><dd><a href="{{ ref_url }}">Open the original <i class="fa-solid fa-up-right-from-square"></i></a></dd>{% endif %}
+    </dl>
+    {% if lead.utm %}
+    <details style="margin-top:12px"><summary class="muted small" style="cursor:pointer;font-weight:600">Where they found us</summary>
+      <dl class="kv" style="margin-top:8px">
+        {% for k, v in lead.utm.items() %}<dt>{{ {'utm_source': 'Source', 'utm_medium': 'Medium', 'utm_campaign': 'Campaign', 'utm_term': 'Keyword', 'utm_content': 'Ad', 'gclid': 'Google Ads', 'fbclid': 'Facebook ad', 'referrer': 'Came from', 'landing': 'First page'}.get(k, k) }}</dt><dd>{{ v }}</dd>{% endfor %}
+      </dl></details>
+    {% endif %}
+  </section>
+
+  {% if others %}
+  <section class="card">
+    <div class="card-head" style="margin-bottom:10px"><div class="t"><span class="ico"><i class="fa-solid fa-layer-group"></i></span><h2>Their other enquiries</h2></div></div>
+    <div class="stack">
+      {% for o in others %}<div class="row between"><span>{{ PRODUCTS.get(o.product, o.product) }}</span>{{ stage_pill(o) }}</div>{% endfor %}
     </div>
-    <div class="wa-thread" data-thread-body><p class="muted" style="margin:0">Loading the conversation…</p></div>
   </section>
   {% endif %}
 
-  {# ------------------------------------------------------------- history #}
-  <section class="panel">
-    <h2><i class="fa-solid fa-clock-rotate-left"></i> Everything so far</h2>
-    <ul class="crm-tl">
+  <details class="card">
+    <summary style="cursor:pointer;list-style:none"><div class="t" style="display:flex;gap:12px;align-items:center"><span class="ico"><i class="fa-solid fa-clock-rotate-left"></i></span>
+      <div><h2>History</h2><p class="muted small">Everything so far · {{ timeline|length }} entries · click to open</p></div></div></summary>
+    <ul class="crm-tl" style="margin-top:12px">
       {% for it in timeline %}
       {% set o = it.obj %}
       <li>
@@ -226,8 +264,7 @@
         <div>
           <div class="h"><b>{% if o.direction == 'in' %}{{ 'They filled in a form' if o.channel == 'form' else 'They wrote (' ~ CHANNELS.get(o.channel, o.channel) ~ ')' }}{% elif o.channel == 'call' %}Call — {{ OUTCOMES.get(o.outcome, o.outcome or '') }}{% elif o.direction == 'out' %}{{ CHANNELS.get(o.channel, o.channel) }} sent{% else %}Note{% endif %}</b>
             {% if o.code %}<span class="chip">{{ o.code }}</span>{% endif %}
-            {% if o.status and o.direction == 'out' %}<span class="chip {{ 'ok' if o.status in ('sent','delivered','read') else 'bad' if o.status == 'failed' else '' }}">{{ 'opened in WhatsApp' if o.status == 'opened' else o.status }}</span>{% endif %}
-            {% if o.agent %}<span class="muted">by {{ o.agent.username }}</span>{% endif %}
+            {% if o.agent %}<span class="muted">by {{ o.agent.full_name }}</span>{% endif %}
             <time title="{{ ist(o.created_at) }} IST">{{ when(o.created_at, utcnow) }}</time></div>
           {% if o.body %}<div class="b">{{ o.body }}</div>{% endif %}
         </div>
@@ -235,7 +272,7 @@
         <span class="ic st"><i class="fa-solid fa-arrow-right-arrow-left"></i></span>
         <div>
           <div class="h"><b>{% if o.from_stage %}{{ o.from_stage.name }} → {% endif %}{{ o.to_stage.name if o.to_stage }}</b>
-            <span class="muted">{{ 'by ' ~ o.by.username if o.by else 'automatically' }}</span>
+            <span class="muted">{{ 'by ' ~ o.by.full_name if o.by else 'automatically' }}</span>
             <time title="{{ ist(o.created_at) }} IST">{{ when(o.created_at, utcnow) }}</time></div>
           {% if o.reason %}<div class="b muted">{{ o.reason }}</div>{% endif %}
         </div>
@@ -248,47 +285,9 @@
         </div>
         {% endif %}
       </li>
-      {% else %}
-      <li><span></span><div class="muted">Nothing yet.</div></li>
-      {% endfor %}
+      {% else %}<li><span></span><div class="muted">Nothing yet.</div></li>{% endfor %}
     </ul>
-  </section>
-</div>
-
-<aside>
-  <section class="panel">
-    <h3>Their trip & request</h3>
-    <dl class="kv">
-      <dt>Leaves on</dt>
-      <dd><input type="date" value="{{ lead.departure_date.isoformat() if lead.departure_date else '' }}" data-update="departure_date" style="padding:6px 8px"/>
-        {% if lead.days_to_departure is not none and lead.days_to_departure >= 0 %}<div class="hint">in {{ lead.days_to_departure }} day{{ 's' if lead.days_to_departure != 1 }}</div>{% endif %}</dd>
-      {% for k, v in (lead.details or {}).items() %}
-      <dt>{{ k|replace('_', ' ')|capitalize }}</dt><dd>{{ v|join(', ') if v is iterable and v is not string and v is not mapping else v }}</dd>
-      {% endfor %}
-      {% if ref_url %}<dt>Original</dt><dd><a href="{{ ref_url }}">Open the original record <i class="fa-solid fa-up-right-from-square"></i></a></dd>{% endif %}
-    </dl>
-  </section>
-  {% if lead.utm %}
-  <section class="panel">
-    <h3>Where they found us</h3>
-    <dl class="kv">
-      {% for k, v in lead.utm.items() %}<dt>{{ {'utm_source': 'Source', 'utm_medium': 'Medium', 'utm_campaign': 'Campaign', 'utm_term': 'Keyword', 'utm_content': 'Ad', 'gclid': 'Google Ads click', 'fbclid': 'Facebook click', 'referrer': 'Came from', 'landing': 'First page'}.get(k, k) }}</dt><dd>{{ v }}</dd>{% endfor %}
-    </dl>
-  </section>
-  {% endif %}
-  {% if others %}
-  <section class="panel">
-    <h3>Their other enquiries</h3>
-    {% for o in others %}
-    <p style="margin:6px 0"><a href="{{ crm_url('lead', lead_id=o.id) }}">{{ PRODUCTS.get(o.product, o.product) }}</a>
-      <span class="muted">· {{ o.stage.name if o.stage else 'not routed' }} · {{ when(o.created_at, utcnow) }}</span></p>
-    {% endfor %}
-  </section>
-  {% endif %}
-  <section class="panel tint">
-    <h3>Messages can use</h3>
-    <p class="hint" style="margin:0">{name} {agent} {product} {departure} {days} {helplines} {insurance_link} {companion_link} {sahayak_link} — they are filled in for you.</p>
-  </section>
+  </details>
 </aside>
 </div>
 </div>

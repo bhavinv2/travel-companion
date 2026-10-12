@@ -94,7 +94,7 @@
   <div style="max-width:720px;margin:60px auto;padding:0 20px;text-align:center">
     <h1>Travel insurance for every journey</h1>
     <p>This page needs JavaScript to show live quotes. You can still reach us on
-      <a href="mailto:{{ SUPPORT_EMAIL }}">{{ SUPPORT_EMAIL }}</a>.</p>
+      <a href="mailto:{{ support_email or SUPPORT_EMAIL }}">{{ support_email or SUPPORT_EMAIL }}</a>.</p>
   </div>
 </noscript>
 {% endblock %}
