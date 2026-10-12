@@ -22,6 +22,10 @@ def _no_live_preventia(monkeypatch):
     """
     monkeypatch.delenv('PREVENTIA_API_URL', raising=False)
     monkeypatch.delenv('PREVENTIA_API_KEY', raising=False)
+    # nor the WhatsApp CRM: the Sales CRM would push every test lead to it as a contact
+    monkeypatch.delenv('WACRM_URL', raising=False)
+    monkeypatch.delenv('WACRM_API_KEY', raising=False)
+    monkeypatch.delenv('WACRM_WEBHOOK_SECRET', raising=False)
 
 
 @pytest.fixture()

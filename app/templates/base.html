@@ -6,6 +6,7 @@
   {# URL prefix for the browser side (subpath deployment) — must precede every other script #}
   <meta name="app-root" content="{{ request.script_root }}"/>
   <script src="{{ url_for('static', filename='js/app-root.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/crm-src.js') }}" defer></script>
   <title>{% block title %}NRI Parent Service – Find Your Travel Companion{% endblock %}</title>
   {# Without this Google writes its own snippet out of whatever text it finds first, which on a
      page that opens with a form is usually the field labels. Each page that has something better

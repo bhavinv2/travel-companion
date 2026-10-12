@@ -101,7 +101,10 @@ DASHBOARD = {'key': 'dashboard', 'endpoint': 'admin.dashboard', 'label': 'Dashbo
 # it from the account menu in base.html, having no admin panel to find it in.
 PROMOTION = {'key': 'promotion', 'endpoint': 'main.promo_dashboard', 'label': 'Promotion',
              'icon': 'fa-chart-line', 'args': {}}
-TOP = [DASHBOARD, PROMOTION]
+# The Sales CRM is shared with the CS console (/cs/crm); admins reach its set-up from there.
+SALES_CRM = {'key': 'crm', 'endpoint': 'crm.board', 'label': 'Sales CRM',
+             'icon': 'fa-filter-circle-dollar', 'args': {}}
+TOP = [DASHBOARD, PROMOTION, SALES_CRM]
 
 # Screens reached from another one rather than from the menu.
 ALIASES = {'feedback': 'voices_feedback'}

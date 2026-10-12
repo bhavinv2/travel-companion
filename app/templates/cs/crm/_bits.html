@@ -1,0 +1,37 @@
+{# Small pieces the CRM screens share. Import with context so they can read the label maps. #}
+
+{% macro product_chip(code) -%}
+<span class="chip p-{{ code }}">{{ PRODUCTS.get(code, code) }}</span>
+{%- endmacro %}
+
+{% macro temp_dot(t) -%}
+<span class="temp t-{{ t or 'none' }}" title="{{ TEMPS.get(t, 'Not contacted yet') if t else 'Not contacted yet' }}"></span>
+{%- endmacro %}
+
+{% macro channel_icon(ch) -%}
+{%- if ch == 'whatsapp' -%}<i class="fa-brands fa-whatsapp"></i>
+{%- elif ch == 'call' -%}<i class="fa-solid fa-phone"></i>
+{%- elif ch == 'email' -%}<i class="fa-solid fa-envelope"></i>
+{%- elif ch == 'instagram' -%}<i class="fa-brands fa-instagram"></i>
+{%- elif ch == 'facebook' -%}<i class="fa-brands fa-facebook-messenger"></i>
+{%- elif ch == 'sms' -%}<i class="fa-solid fa-comment-sms"></i>
+{%- elif ch == 'form' -%}<i class="fa-solid fa-file-lines"></i>
+{%- elif ch == 'chat' -%}<i class="fa-solid fa-comments"></i>
+{%- else -%}<i class="fa-solid fa-note-sticky"></i>
+{%- endif -%}
+{%- endmacro %}
+
+{# "in 3 hours", "2 days ago" -- from UTC times, read by people in India and the US alike #}
+{% macro when(dt, now) -%}
+{%- if dt -%}
+{%- set secs = (dt - now).total_seconds() -%}
+{%- set a = secs|abs -%}
+{%- if a < 3600 -%}{%- set txt = ((a / 60)|round(0, 'ceil')|int) ~ ' min' -%}
+{%- elif a < 86400 -%}{%- set n = (a / 3600)|round(0)|int -%}{%- set txt = n ~ (' hour' if n == 1 else ' hours') -%}
+{%- else -%}{%- set n = (a / 86400)|round(0)|int -%}{%- set txt = n ~ (' day' if n == 1 else ' days') -%}
+{%- endif -%}
+{%- if a < 60 -%}now{%- elif secs > 0 -%}in {{ txt }}{%- else -%}{{ txt }} ago{%- endif -%}
+{%- endif -%}
+{%- endmacro %}
+
+{% macro ist(dt) -%}{{ (dt + IST_OFFSET).strftime('%d %b, %I:%M %p') if dt else '' }}{%- endmacro %}

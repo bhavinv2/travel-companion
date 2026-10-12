@@ -1,0 +1,88 @@
+{% extends 'cs/crm/_layout.html' %}
+{% set crm_tab = 'board' %}
+{% from 'cs/crm/_bits.html' import product_chip, temp_dot, when with context %}
+{% block crm_title %}Lead board{% endblock %}
+{% block crm %}
+<div class="crm-head">
+  <div>
+    <h1>Lead board</h1>
+    <p class="muted" style="margin:4px 0 0">Drag a card to the next column when it moves on. Click a card to message or call.</p>
+  </div>
+  <div class="actions">
+    <a class="cb primary" href="{{ url_for('crm.add') }}"><i class="fa-solid fa-user-plus"></i> Add a lead</a>
+  </div>
+</div>
+
+{% if unrouted %}
+<div class="panel tint" style="border-color:var(--crm-due)">
+  <h3><i class="fa-solid fa-triangle-exclamation" style="color:var(--crm-due)"></i>
+    {{ unrouted|length }} lead{{ 's' if unrouted|length != 1 }} from a form nobody has set up yet</h3>
+  <p class="muted" style="margin:0 0 10px">They are safe. Open one and choose which pipeline it belongs to
+    {%- if CS_ACCESS.can_open(current_user, 'crm_setup') %}, or <a href="{{ url_for('crm.setup', tab='sources') }}">set the source up once</a> so the next ones go there by themselves{% endif %}.</p>
+  <div class="chips">
+    {% for l in unrouted[:12] %}
+    <a class="chip" href="{{ url_for('crm.lead', lead_id=l.id) }}">{{ l.person.display_name }} · {{ l.source.name if l.source else 'Unknown' }}</a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<nav class="crm-pipes" aria-label="Pipelines">
+  {% for p in pipelines %}
+  <a href="{{ url_for('crm.board', p=p.key, owner=owner, q=q or None) }}" class="{{ 'on' if pipe and p.id == pipe.id }}">
+    {{ p.name }} <span class="c">{{ counts.get(p.id, 0) }}</span></a>
+  {% endfor %}
+</nav>
+
+<form class="crm-filters" method="GET">
+  {% if pipe %}<input type="hidden" name="p" value="{{ pipe.key }}"/>{% endif %}
+  <input type="hidden" name="owner" value="{{ owner }}"/>
+  <div class="chips" role="group" aria-label="Whose leads">
+    {% for key, label in [('mine', 'Mine'), ('all', "Everyone's"), ('none', "Nobody's yet")] %}
+    <a class="chip{{ ' on' if owner == key }}" href="{{ url_for('crm.board', p=pipe.key if pipe else None, owner=key, q=q or None) }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+  <input type="search" name="q" value="{{ q }}" placeholder="Find by name, phone or e-mail"/>
+</form>
+
+{% if not pipe %}
+<div class="panel crm-empty"><i class="fa-solid fa-inbox"></i>No pipelines yet.</div>
+{% else %}
+<div class="crm-board" data-board data-pipeline="{{ pipe.key }}"
+     data-reasons='{{ (pipe.fallout_reasons or [])|tojson|forceescape }}'>
+  {% for col in columns %}
+  {% set st = col.stage %}
+  <section class="crm-col k-{{ st.kind }}">
+    <header>
+      <b>{% if st.kind == 'won' %}<i class="fa-solid fa-trophy" style="color:var(--crm-ok)"></i> {% elif st.kind == 'lost' %}<i class="fa-solid fa-circle-xmark" style="color:var(--crm-bad)"></i> {% endif %}{{ st.name }}</b>
+      <span>{{ col.total }}{% if st.kind != 'open' %} · last 30 days{% endif %}</span>
+    </header>
+    <div class="drop" data-drop data-stage="{{ st.id }}" data-kind="{{ st.kind }}" data-name="{{ st.name }}">
+      {% for l in col.leads %}
+      {% set t = l.open_task %}
+      <a class="crm-card" href="{{ url_for('crm.lead', lead_id=l.id) }}" draggable="true" data-lead="{{ l.id }}">
+        <div class="top">{{ temp_dot(l.temperature) }}<span class="nm">{{ l.person.display_name }}</span></div>
+        <div class="meta">
+          {{ product_chip(l.product) }}
+          {% if l.source %}<span class="chip">{{ l.source.name }}</span>{% endif %}
+          {% if l.days_to_departure is not none and l.days_to_departure >= 0 and l.status == 'open' %}
+          <span class="chip {{ 'bad' if l.days_to_departure <= 3 else 'due' if l.days_to_departure <= 15 else '' }}"><i class="fa-solid fa-plane-departure"></i> {{ l.days_to_departure }}d</span>
+          {% endif %}
+          {% if l.fallout_reason %}<span class="chip bad">{{ l.fallout_reason }}</span>{% endif %}
+          {% if l.stuck_hours %}<span class="chip stuck" title="In this stage longer than it allows">waiting {{ (l.stuck_hours + l.stage.sla_hours) // 24 }}d+</span>{% endif %}
+        </div>
+        {% if t %}
+        <div class="nx{{ ' late' if t.due_at < utcnow }}"><i class="fa-regular fa-clock"></i> {{ t.code }} · {{ when(t.due_at, utcnow) }}</div>
+        {% elif l.status == 'open' %}
+        <div class="nx"><i class="fa-regular fa-circle-check"></i> Nothing planned</div>
+        {% endif %}
+        {% if owner != 'mine' %}<div class="nx"><i class="fa-regular fa-user"></i> {{ l.owner.username if l.owner else 'Nobody yet' }}</div>{% endif %}
+      </a>
+      {% endfor %}
+      {% if col.total > col.leads|length %}<div class="more">+ {{ col.total - col.leads|length }} more — search to find them</div>{% endif %}
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

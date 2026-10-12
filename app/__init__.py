@@ -109,8 +109,24 @@ def _env_bool(name, default):
     return v.strip().lower() in ('1', 'true', 'yes', 'on')
 
 
+from flask import Request as _FlaskRequest  # noqa: E402
+
+# Uploads bigger than MAX_CONTENT_LENGTH, allowed on these screens only. The sales team's workbook
+# is 24 MB of mostly empty formatted cells; raising the limit everywhere to take it would let every
+# public form accept that much too.
+BIG_UPLOADS = {'crm.import_sheet': 64 * 1024 * 1024}
+
+
+class AppRequest(_FlaskRequest):
+    @property
+    def max_content_length(self):
+        big = BIG_UPLOADS.get(self.endpoint or '')
+        return big if big else super().max_content_length
+
+
 def create_app(test_config=None):
     app = Flask(__name__)
+    app.request_class = AppRequest
     # Optional subpath deployment (https://nriparentservice.com/travel-companions/): see PrefixMiddleware.
     app.config['APP_URL_PREFIX'] = os.environ.get('APP_URL_PREFIX', '').strip()
     app.config['APP_PUBLIC_HOST'] = os.environ.get('APP_PUBLIC_HOST', '').strip()
@@ -190,6 +206,10 @@ def create_app(test_config=None):
     app.config['JOBS_SECRET'] = os.environ.get('JOBS_SECRET')
     app.config['RETENTION_DAYS'] = int(os.environ.get('RETENTION_DAYS', 30))
     app.config['RATELIMIT_ENABLED'] = _env_bool('RATELIMIT_ENABLED', True)
+    # Sales CRM: other websites allowed to post leads to /api/leads (comma separated origins), and
+    # the lead source a WhatsApp message from a number we have never seen is filed under
+    app.config['CRM_INTAKE_ORIGINS'] = os.environ.get('CRM_INTAKE_ORIGINS', '')
+    app.config['WACRM_SOURCE_KEY'] = os.environ.get('WACRM_SOURCE_KEY', 'wa-india')
     # Optional per-criterion overrides for the matching engine, e.g. {"route": 40, "date": 20}
     try:
         import json as _json
@@ -476,6 +496,7 @@ def create_app(test_config=None):
     from app.routes.jobs import jobs_bp
     from app.routes.scraper import scraper_bp
     from app.routes.saved_views import saved_bp
+    from app.routes.crm import crm_bp, crm_public_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(insurance_bp)
@@ -494,6 +515,8 @@ def create_app(test_config=None):
     app.register_blueprint(jobs_bp)
     app.register_blueprint(scraper_bp, url_prefix='/cs/scraper')
     app.register_blueprint(saved_bp)
+    app.register_blueprint(crm_bp, url_prefix='/cs/crm')
+    app.register_blueprint(crm_public_bp)
 
     from app import cli
     cli.register(app)

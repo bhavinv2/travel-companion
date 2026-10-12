@@ -1604,3 +1604,326 @@ def _back_in_the_queue_is_new_again(session, flush_context, instances):
             for (_, k), seen in request_cache('staff_reads').items():
                 if k == kind:
                     seen.difference_update(ids)
+
+
+# ---------------------------------------------------------------------------
+# Sales CRM (services/crm.py): one record per person, one lead per product they ask about,
+# configured by lead sources and pipelines an admin edits on screen rather than in code.
+# ---------------------------------------------------------------------------
+
+CRM_PRODUCTS = ('TC', 'TI', 'SH', 'GH', 'VC', 'GEN')
+CRM_PRODUCT_LABELS = {'TC': 'Travel Companion', 'TI': 'Travel Insurance', 'SH': 'Sahayak',
+                      'GH': 'Gift Health', 'VC': 'Virtual Consultation', 'GEN': 'General'}
+CRM_SOURCE_KINDS = ('form', 'popup', 'chat', 'ads', 'import', 'manual', 'api')
+CRM_SOURCE_KIND_LABELS = {'form': 'Landing-page form', 'popup': 'Pop-up', 'chat': 'Chat / messaging',
+                          'ads': 'Ad lead form', 'import': 'Import', 'manual': 'Added by staff',
+                          'api': 'Partner site (API)'}
+# live: leads start their pipeline and get their first message. paused: leads are kept, nothing
+# is sent. unrouted: a page nobody has set up yet -- kept, waiting for an admin to choose.
+CRM_SOURCE_STATUSES = ('live', 'paused', 'unrouted')
+CRM_STAGE_KINDS = ('open', 'won', 'lost')
+CRM_TEMPERATURES = {'L': 'Loyal', 'R': 'Responsive', 'U': 'Unresponsive', 'Z': 'Zombie',
+                    'DL': 'Dead lead', 'EL': 'Expired lead'}
+CRM_CHANNELS = ('whatsapp', 'call', 'email', 'sms', 'instagram', 'facebook', 'telegram', 'chat',
+                'note', 'form', 'system')
+CRM_CHANNEL_LABELS = {'whatsapp': 'WhatsApp', 'call': 'Call', 'email': 'E-mail', 'sms': 'SMS',
+                      'instagram': 'Instagram', 'facebook': 'Facebook', 'telegram': 'Telegram',
+                      'chat': 'Chat', 'note': 'Note', 'form': 'Form', 'system': 'System'}
+CRM_CALL_OUTCOMES = {'connected': 'Talked', 'no_answer': 'No answer', 'busy': 'Busy',
+                     'call_back': 'Asked us to call back', 'wrong_number': 'Wrong number',
+                     'switched_off': 'Switched off'}
+# when a step is due: hours after the previous one, days before the trip leaves, or days before
+# the policy ends (the sales sheet's ER -- expiration reminder)
+CRM_STEP_TRIGGERS = ('after_hours', 'before_departure_days', 'before_end_days')
+# Ways to reach somebody who gave no phone or e-mail. instagram / facebook are a handle or profile
+# link typed by staff; ig_id / fb_psid are the ids Meta's webhooks send, which are what a reply
+# through the Graph API is addressed to.
+CRM_IDENTITY_KINDS = ('instagram', 'facebook', 'ig_id', 'fb_psid', 'telegram')
+# The sales sheet's "Checker": every half hour someone confirms each inbox was looked at.
+CRM_CHECK_CHANNELS = ['Tawk', 'FB Messenger', 'Instagram Messenger', 'FB Comments', 'Insta Comments',
+                      'IND WhatsApp', 'USA WhatsApp', 'Email', 'India Call', 'USA Call', 'Telegram',
+                      'TC website']
+CRM_CHECK_HOURS = (7, 24)     # IST, half-hour slots from 07:00 to midnight
+
+
+class CrmPipeline(db.Model):
+    __tablename__ = 'crm_pipelines'
+
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(40), unique=True, nullable=False)
+    name = db.Column(db.String(80), nullable=False)
+    product = db.Column(db.String(4), nullable=False, default='GEN')
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    # what a lost lead may be lost FOR -- shown as buttons, so nobody has to type a reason
+    fallout_reasons = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    stages = db.relationship('CrmStage', backref='pipeline', order_by='CrmStage.position',
+                             cascade='all, delete-orphan')
+
+    @property
+    def first_stage(self):
+        return next((s for s in self.stages if s.kind == 'open'), self.stages[0] if self.stages else None)
+
+    @property
+    def reply_stage(self):
+        return next((s for s in self.stages if s.on_reply), None)
+
+    @property
+    def open_stages(self):
+        return [s for s in self.stages if s.kind == 'open']
+
+
+class CrmStage(db.Model):
+    __tablename__ = 'crm_stages'
+
+    id = db.Column(db.Integer, primary_key=True)
+    pipeline_id = db.Column(db.Integer, db.ForeignKey('crm_pipelines.id'), nullable=False, index=True)
+    key = db.Column(db.String(40), nullable=False)
+    name = db.Column(db.String(60), nullable=False)
+    position = db.Column(db.Integer, nullable=False, default=0)
+    kind = db.Column(db.String(8), nullable=False, default='open')       # open / won / lost
+    # a reply from the person moves a lead here out of the first stage (cold lead -> prospect)
+    on_reply = db.Column(db.Boolean, nullable=False, default=False)
+    sla_hours = db.Column(db.Integer)                                    # how long a lead may sit here
+
+    __table_args__ = (db.UniqueConstraint('pipeline_id', 'key', name='uq_crm_stage_key'),)
+
+
+class CrmSource(db.Model):
+    __tablename__ = 'crm_sources'
+
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(60), unique=True, nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    kind = db.Column(db.String(10), nullable=False, default='form')
+    product = db.Column(db.String(4), nullable=False, default='GEN')
+    pages = db.Column(db.JSON)                          # page addresses it is on, for people to read
+    pipeline_id = db.Column(db.Integer, db.ForeignKey('crm_pipelines.id'), nullable=True)
+    status = db.Column(db.String(10), nullable=False, default='live')
+    team = db.Column(db.JSON)                           # user ids that own its leads; empty = all CS
+    crm_tags = db.Column(db.JSON)                       # tags on the WhatsApp CRM contact
+    dedupe_days = db.Column(db.Integer, nullable=False, default=30)
+    built_in = db.Column(db.Boolean, nullable=False, default=False)   # one of the site's own forms
+    lead_count = db.Column(db.Integer, nullable=False, default=0)
+    last_lead_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+    pipeline = db.relationship('CrmPipeline')
+
+
+class CrmPerson(db.Model):
+    __tablename__ = 'crm_people'
+
+    id = db.Column(db.Integer, primary_key=True)
+    phone = db.Column(db.String(20), unique=True, nullable=True)          # E.164
+    email = db.Column(db.String(255), nullable=True, index=True)
+    name = db.Column(db.String(120))
+    country = db.Column(db.String(2))                                     # ISO code of the number
+    consent_whatsapp = db.Column(db.Boolean, nullable=False, default=False)
+    consent_marketing = db.Column(db.Boolean, nullable=False, default=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    wacrm_contact_id = db.Column(db.String(64), nullable=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    leads = db.relationship('CrmLead', backref='person', order_by='CrmLead.created_at.desc()')
+    identities = db.relationship('CrmIdentity', backref='person', cascade='all, delete-orphan',
+                                 order_by='CrmIdentity.id')
+
+    @property
+    def display_name(self):
+        handle = next((i.value for i in self.identities if i.kind in ('instagram', 'facebook')), None)
+        return self.name or self.phone or self.email or handle or 'Unknown'
+
+    def identity(self, kind):
+        return next((i.value for i in self.identities if i.kind == kind), None)
+
+
+class CrmIdentity(db.Model):
+    """Another way to reach a person: an Instagram handle, a Facebook profile, the ids Meta sends."""
+    __tablename__ = 'crm_identities'
+
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.Integer, db.ForeignKey('crm_people.id'), nullable=False, index=True)
+    kind = db.Column(db.String(20), nullable=False)
+    value = db.Column(db.String(190), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint('kind', 'value', name='uq_crm_identity'),)
+
+
+class CrmChannelCheck(db.Model):
+    """One tick of the inbox check: this channel was looked at in this half hour (IST) by them."""
+    __tablename__ = 'crm_channel_checks'
+
+    id = db.Column(db.Integer, primary_key=True)
+    day = db.Column(db.Date, nullable=False, index=True)          # the date in India
+    slot = db.Column(db.SmallInteger, nullable=False)            # half hours since midnight IST, 0-47
+    channel = db.Column(db.String(40), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    checked_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User')
+
+    __table_args__ = (db.UniqueConstraint('day', 'slot', 'channel', name='uq_crm_check'),)
+
+
+class CrmLead(db.Model):
+    __tablename__ = 'crm_leads'
+
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.Integer, db.ForeignKey('crm_people.id'), nullable=False, index=True)
+    product = db.Column(db.String(4), nullable=False, default='GEN')
+    source_id = db.Column(db.Integer, db.ForeignKey('crm_sources.id'), nullable=True, index=True)
+    pipeline_id = db.Column(db.Integer, db.ForeignKey('crm_pipelines.id'), nullable=True, index=True)
+    stage_id = db.Column(db.Integer, db.ForeignKey('crm_stages.id'), nullable=True, index=True)
+    status = db.Column(db.String(6), nullable=False, default='open')     # open / won / lost
+    temperature = db.Column(db.String(3))
+    owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    fallout_reason = db.Column(db.String(80))
+    details = db.Column(db.JSON)          # what the form said: trip dates, ages, service, message
+    utm = db.Column(db.JSON)              # utm_*, gclid, fbclid, referrer, landing page
+    ref_type = db.Column(db.String(30))   # the record it came from: insurance_quotes, ...
+    ref_id = db.Column(db.Integer)
+    departure_date = db.Column(db.Date)   # drives the "days before departure" steps
+    ends_on = db.Column(db.Date)          # policy / trip end: drives the expiration reminder
+    entered_stage_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # set when the owner was told the lead has sat in its stage too long; cleared on every move
+    sla_alerted_at = db.Column(db.DateTime)
+    last_activity_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    closed_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)   # staff who added it
+
+    source = db.relationship('CrmSource')
+    pipeline = db.relationship('CrmPipeline')
+    stage = db.relationship('CrmStage')
+    owner = db.relationship('User', foreign_keys=[owner_id])
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+    tasks = db.relationship('CrmTask', backref='lead', order_by='CrmTask.due_at',
+                            cascade='all, delete-orphan')
+    touchpoints = db.relationship('CrmTouchpoint', backref='lead',
+                                  order_by='CrmTouchpoint.created_at.desc()',
+                                  cascade='all, delete-orphan')
+
+    __table_args__ = (db.Index('ix_crm_leads_ref', 'ref_type', 'ref_id'),)
+
+    @property
+    def open_task(self):
+        return next((t for t in self.tasks if t.status == 'open'), None)
+
+    @property
+    def days_to_departure(self):
+        if not self.departure_date:
+            return None
+        return (self.departure_date - date.today()).days
+
+    @property
+    def stuck_hours(self):
+        """Hours past its stage's limit (Set-up -> Pipelines, "max hours"), or None when on time."""
+        st = self.stage
+        if self.status != 'open' or st is None or not st.sla_hours or not self.entered_stage_at:
+            return None
+        over = (datetime.utcnow() - self.entered_stage_at).total_seconds() / 3600 - st.sla_hours
+        return int(over) if over > 0 else None
+
+
+class CrmTouchpoint(db.Model):
+    """Something that passed between us and the person: a message either way, a call, a form."""
+    __tablename__ = 'crm_touchpoints'
+
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey('crm_leads.id'), nullable=True, index=True)
+    person_id = db.Column(db.Integer, db.ForeignKey('crm_people.id'), nullable=False, index=True)
+    channel = db.Column(db.String(10), nullable=False, default='note')
+    direction = db.Column(db.String(4), nullable=False, default='none')   # in / out / none
+    code = db.Column(db.String(20))           # the playbook step it carried out, e.g. "TI #3"
+    outcome = db.Column(db.String(20))        # for calls: connected / no_answer / ...
+    body = db.Column(db.Text)
+    status = db.Column(db.String(12))         # sent / delivered / read / failed, for messages
+    agent_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    external_id = db.Column(db.String(120), index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    agent = db.relationship('User', foreign_keys=[agent_id])
+
+
+class CrmTask(db.Model):
+    """The next thing to do for a lead: a message to send or a call to make, by a time."""
+    __tablename__ = 'crm_tasks'
+
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey('crm_leads.id'), nullable=False, index=True)
+    step_id = db.Column(db.Integer, db.ForeignKey('crm_playbook_steps.id'), nullable=True)
+    code = db.Column(db.String(20))
+    title = db.Column(db.String(160), nullable=False)
+    channel = db.Column(db.String(10), nullable=False, default='whatsapp')
+    auto = db.Column(db.Boolean, nullable=False, default=False)
+    due_at = db.Column(db.DateTime, nullable=False, index=True)
+    owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    status = db.Column(db.String(8), nullable=False, default='open')     # open / done / skipped
+    done_at = db.Column(db.DateTime)
+    done_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    note = db.Column(db.String(200))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    step = db.relationship('CrmPlaybookStep')
+    owner = db.relationship('User', foreign_keys=[owner_id])
+
+    @property
+    def is_overdue(self):
+        return self.status == 'open' and self.due_at < datetime.utcnow()
+
+
+class CrmStageChange(db.Model):
+    __tablename__ = 'crm_stage_changes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey('crm_leads.id'), nullable=False, index=True)
+    from_stage_id = db.Column(db.Integer, db.ForeignKey('crm_stages.id'), nullable=True)
+    to_stage_id = db.Column(db.Integer, db.ForeignKey('crm_stages.id'), nullable=False)
+    by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)   # None: the system
+    reason = db.Column(db.String(160))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    lead = db.relationship('CrmLead', backref=db.backref('stage_changes', cascade='all, delete-orphan',
+                                                         order_by='CrmStageChange.created_at.desc()'))
+    from_stage = db.relationship('CrmStage', foreign_keys=[from_stage_id])
+    to_stage = db.relationship('CrmStage', foreign_keys=[to_stage_id])
+    by = db.relationship('User', foreign_keys=[by_id])
+
+
+class CrmPlaybookStep(db.Model):
+    """One message or call in a stage's sequence -- the TC #1 / TI #3 / PI #2 of the sales sheet."""
+    __tablename__ = 'crm_playbook_steps'
+
+    id = db.Column(db.Integer, primary_key=True)
+    stage_id = db.Column(db.Integer, db.ForeignKey('crm_stages.id'), nullable=False, index=True)
+    position = db.Column(db.Integer, nullable=False, default=0)
+    code = db.Column(db.String(20), nullable=False)
+    title = db.Column(db.String(160), nullable=False)
+    channel = db.Column(db.String(10), nullable=False, default='whatsapp')   # whatsapp / call / email
+    body = db.Column(db.Text)              # the message, with {name} {agent} {product}... filled in
+    trigger = db.Column(db.String(24), nullable=False, default='after_hours')
+    trigger_value = db.Column(db.Integer, nullable=False, default=0)
+    auto = db.Column(db.Boolean, nullable=False, default=False)   # sent without a person, once connected
+    wa_template = db.Column(db.String(80))  # the approved WhatsApp template it maps to, if any
+
+    stage = db.relationship('CrmStage', backref=db.backref('steps', order_by='CrmPlaybookStep.position',
+                                                           cascade='all, delete-orphan'))
+
+
+class CrmAnswer(db.Model):
+    """A ready answer to a question people ask -- suggested when their message reads like it."""
+    __tablename__ = 'crm_answers'
+
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(160), nullable=False)       # the question, in their words
+    keywords = db.Column(db.String(400))                    # more words that should find it
+    body = db.Column(db.Text, nullable=False)
+    product = db.Column(db.String(4), nullable=False, default='GEN')
+    use_count = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

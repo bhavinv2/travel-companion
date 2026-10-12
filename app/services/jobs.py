@@ -144,4 +144,13 @@ def run_all():
     out.update(run_retention())
     out['scrape_stale_recovered'] = scraper_worker.recover_stale_runs()
     out['scrape_runs_started'] = scraper_worker.enqueue_scheduled()
+    # Sales CRM: the follow-ups marked automatic, once the WhatsApp CRM is connected
+    from app.services import crm
+    try:
+        out.update(crm.run_auto_steps())
+        out.update(crm.run_sla_alerts())
+    except Exception:          # noqa: BLE001 -- one job failing must not stop the others reporting
+        from app import db
+        db.session.rollback()
+        out['crm_auto_sent'] = 'failed'
     return out

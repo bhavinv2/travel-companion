@@ -238,6 +238,14 @@ def book():
     ActivityEvent.log('sahayak_booking', actor=current_user if current_user.is_authenticated else None,
                       booking_id=booking.id, service=service['key'], when=when_type)
     db.session.commit()
+    from app.services import crm
+    crm.capture_safely('sh-booking', name=booking.contact_name or booking.patient_name, phone=booking.phone,
+                       email=booking.email, product='SH', message=get('notes', 2000) or None,
+                       ref=('sahayak_bookings', booking.id), user_id=booking.user_id,
+                       details={'service': service['name'], 'for': booking.patient_name,
+                                'age': booking.patient_age, 'pin_code': booking.pincode,
+                                'address': booking.address,
+                                'specialisation': spec['name'] if spec else None})
 
     from app.services import preventia
     _push_lead(preventia.BOOKING_REQUEST,
@@ -356,7 +364,8 @@ def apply():
     lines += ['%s: %s' % (label, qualification if key == 'qualification' else shown(key))
               for key, label in APPLY_FIELDS if key == 'qualification' or get(key)]
     msg = _save_contact({'name': name, 'email': email or 'no-email@nriparentservice.com',
-                         'phone': phone, 'message': '\n'.join(lines)}, topic='sahayak')
+                         'phone': phone, 'message': '\n'.join(lines)}, topic='sahayak',
+                        lead_source='sh-apply')
     ActivityEvent.log('sahayak_application',
                       actor=current_user if current_user.is_authenticated else None,
                       contact_id=msg.id)

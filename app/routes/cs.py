@@ -911,6 +911,8 @@ def new_post():
                           confirmed_over=[d['id'] for d in dups] or None)
         db.session.commit()
         _link_scraped_row(trip, request.form.get('scrape_row_id'), publish_now)
+        from app.services import crm
+        crm.capture_trip(trip, 'tc-cs-post')
         found = matching.compute_matches_for(trip, include_unconfirmed=True, actor=current_user)
         if dups:
             flash('Posted anyway over %s possible duplicate(s): %s.'

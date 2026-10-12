@@ -101,6 +101,8 @@ def claim_page(token):
                         body=f'{name} confirmed post #{trip.id} ({trip.route_display}).',
                         link=f'/cs/posts/{trip.id}')
         db.session.commit()
+        from app.services import crm
+        crm.trip_claimed(trip)
         from app.services import matching
         matching.compute_matches_for(trip, actor=user)
         flash('Thank you — your request is now live.', 'success')

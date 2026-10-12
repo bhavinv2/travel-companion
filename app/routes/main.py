@@ -411,8 +411,11 @@ def _validate_contact(form, need_phone=False):
     return errors
 
 
-def _save_contact(form, topic=None):
+def _save_contact(form, topic=None, lead_source=None):
     """Store the enquiry and let the CS team know. Returns the ContactMessage.
+
+    It also becomes a lead in the Sales CRM, filed under `lead_source` -- by default the contact
+    form of its topic ("contact-insurance"), so each product's enquiries start their own pipeline.
 
     `topic` is which part of the business it is about, so the one inbox can be filtered. Passed
     in where the page already knows (the insurance page sends 'insurance'); otherwise taken from
@@ -440,7 +443,15 @@ def _save_contact(form, topic=None):
         notify.push(agent.id, 'cs_escalation', title='New contact message',
                     body=f'{msg.name} <{msg.email}>: {msg.message[:90]}', link='/cs/contact')
     db.session.commit()
+    from app.services import crm
+    crm.capture_safely(lead_source or 'contact-%s' % msg.topic, name=msg.name, phone=msg.phone,
+                       email=msg.email, product=CONTACT_TOPIC_PRODUCT.get(msg.topic),
+                       message=msg.message, ref=('contact_messages', msg.id), user_id=msg.user_id)
     return msg
+
+
+# which Sales CRM product an enquiry under each contact topic is about
+CONTACT_TOPIC_PRODUCT = {'companion': 'TC', 'insurance': 'TI', 'sahayak': 'SH', 'general': 'GEN'}
 
 
 def _contact_fields(src):
@@ -558,7 +569,8 @@ def api_newsletter():
     if not EMAIL_RE.match(email):
         return jsonify({'success': False, 'error': 'Please enter a valid e-mail address.'}), 400
     _save_contact({'name': 'Newsletter subscriber', 'email': email, 'phone': '',
-                   'message': 'Newsletter signup request from the footer.'}, topic='general')
+                   'message': 'Newsletter signup request from the footer.'}, topic='general',
+                  lead_source='newsletter')
     return jsonify({'success': True}), 201
 
 
@@ -729,6 +741,15 @@ def api_insurance_quote():
         except Exception:
             db.session.rollback()
             current_app.logger.exception('Insurance lead not stored (quote still served) for %s', email)
+            return
+        from app.services import crm
+        crm.capture_safely(
+            'ti-quote', phone=quote.phone, email=quote.email, product='TI',
+            user_id=quote.user_id, departure_date=start, ends_on=end, ref=('insurance_quotes', quote.id),
+            details={'plan': ins_type, 'travellers_ages': ', '.join(ages), 'citizenship': citizenship,
+                     'destination': destination, 'cover': '%s to %s' % (start.strftime('%d %b %Y'),
+                                                                          end.strftime('%d %b %Y')),
+                     'quote': 'priced' if status == 'quoted' else 'partner could not price it'})
 
     req = urllib.request.Request(
         INSURANCE_PARTNER + '/api/compare/travel-medical', data=_json.dumps(payload).encode('utf-8'),

@@ -354,6 +354,9 @@ def commit_rows(rows, actor):
         ActivityEvent.log('post_imported', t, actor=actor, source=t.source, import_key=t.import_key)
         created.append(t)
     db.session.commit()
+    from app.services import crm
+    for t in created:
+        crm.capture_trip(t, 'tc-import')
     for t in created:
         matching.compute_matches_for(t, include_unconfirmed=True, actor=actor)
     return created

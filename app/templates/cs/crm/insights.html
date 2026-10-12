@@ -1,0 +1,102 @@
+{% extends 'cs/crm/_layout.html' %}
+{% set crm_tab = 'insights' %}
+{% block crm_title %}Sales numbers{% endblock %}
+{% macro bars(rows) -%}
+{% set top = (rows|map(attribute=1)|max) if rows else 0 %}
+<div class="crm-bars">
+  {% for label, n in rows %}
+  <div class="r"><span>{{ label }}</span><span class="bar"><i style="width:{{ (100 * n / top)|round(1) if top else 0 }}%"></i></span><span class="n">{{ n }}</span></div>
+  {% else %}<p class="muted" style="margin:0">Nothing in this period yet.</p>{% endfor %}
+</div>
+{%- endmacro %}
+{% block crm %}
+<div class="crm-head">
+  <h1>Sales numbers</h1>
+  <div class="actions chips">
+    {% for d in [7, 30, 90] %}<a class="chip{{ ' on' if days == d }}" href="{{ url_for('crm.insights', days=d) }}">Last {{ d }} days</a>{% endfor %}
+  </div>
+</div>
+{% set closed = data.won + data.lost %}
+<div class="crm-tiles">
+  <div class="crm-tile"><b>{{ data.created }}</b><span>new leads</span></div>
+  <div class="crm-tile ok"><b>{{ data.won }}</b><span>won{% if closed %} · {{ (100 * data.won / closed)|round|int }}% of closed{% endif %}</span></div>
+  <div class="crm-tile bad"><b>{{ data.lost }}</b><span>fell out</span></div>
+  <div class="crm-tile"><b>{{ data.messages }}</b><span>messages & calls made</span></div>
+  <div class="crm-tile"><b>{{ data.replies }}</b><span>replies received{% if data.messages %} · {{ (100 * data.replies / data.messages)|round|int }}% reply rate{% endif %}</span></div>
+  <div class="crm-tile{{ ' bad' if data.overdue }}"><b>{{ data.overdue }}</b><span>follow-ups overdue now</span></div>
+</div>
+<div class="grid2">
+  <section class="panel"><h2>Where new leads came from</h2>{{ bars(data.new_by_source) }}</section>
+  <section class="panel"><h2>By product</h2>
+    <div class="crm-bars">
+      {% set ptop = (data.by_product.values()|max) if data.by_product else 0 %}
+      {% for code, n in data.by_product.items()|sort(attribute=1, reverse=true) %}
+      <div class="r"><span>{{ PRODUCTS.get(code, code) }}</span><span class="bar"><i style="width:{{ (100 * n / ptop)|round(1) if ptop else 0 }}%"></i></span><span class="n">{{ n }}</span></div>
+      {% else %}<p class="muted" style="margin:0">Nothing in this period yet.</p>{% endfor %}
+    </div>
+  </section>
+  <section class="panel"><h2>Why leads fell out</h2>{{ bars(data.reasons) }}</section>
+  <section class="panel"><h2>Follow-ups done, by person</h2>{{ bars(data.owners) }}</section>
+</div>
+<section class="panel">
+  <div class="row between" style="margin-bottom:10px">
+    <div><h2 style="margin:0">Each person</h2>
+      <p class="muted" style="margin:4px 0 0">Counted from what everybody does in the CRM — nothing to fill in. Click a name for their day-by-day numbers.</p></div>
+    <a class="cb sm" href="{{ url_for('crm.insights_csv', days=days) }}"><i class="fa-solid fa-file-csv"></i> Download for Excel</a>
+  </div>
+  <div style="overflow-x:auto">
+  <table class="crm-table">
+    <thead><tr><th>Person</th>{% for k, label in METRICS %}<th>{{ label }}</th>{% endfor %}<th>Overdue now</th><th>First message within</th></tr></thead>
+    <tbody>
+    {% for u in staff %}
+    {% set t = totals.get(u.id, {}) %}
+    <tr>
+      <td><a class="nm" href="{{ url_for('crm.insights', days=days, who=u.id) }}">{{ u.full_name }}</a></td>
+      {% for k, _ in METRICS %}<td>{{ t.get(k, 0) }}</td>{% endfor %}
+      <td>{% set od = overdue.get(u.id, 0) %}<span class="chip {{ 'bad' if od else 'ok' }}">{{ od }}</span></td>
+      <td>{{ '%s h' % t.first_reply_h if t.get('first_reply_h') is not none else '—' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+{% if person %}
+{% set pd = daily.get(person.id, {}) %}
+{% set pt = totals.get(person.id, {}) %}
+<section class="panel" id="person">
+  <div class="row between" style="margin-bottom:10px">
+    <h2 style="margin:0">{{ person.full_name }}, day by day</h2>
+    <a class="cb sm ghost" href="{{ url_for('crm.insights', days=days) }}">Close</a>
+  </div>
+  {% if pt.get('codes') %}
+  <p class="hint" style="margin-top:0">Messages by kind: {% for code, n in pt.codes|dictsort %}<span class="chip">{{ code }} {{ n }}</span> {% endfor %}</p>
+  {% endif %}
+  <div style="overflow-x:auto">
+  <table class="crm-table">
+    <thead><tr><th></th>{% for d in days_list %}<th>{{ d.strftime('%d %b') }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for k, label in METRICS %}
+    <tr><td class="nm" style="white-space:nowrap">{{ label }}</td>
+      {% for d in days_list %}{% set n = pd.get(d, {}).get(k, 0) %}<td style="{{ 'color:var(--muted)' if not n }}">{{ n }}</td>{% endfor %}</tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>Moves into each stage</h2>
+  {% for grp in data.moves|groupby(1) %}
+  <h3 style="margin-top:14px">{{ grp.grouper }}</h3>
+  <div class="crm-bars">
+    {% set mtop = grp.list|map(attribute=2)|max %}
+    {% for stage, pipe, n in grp.list %}
+    <div class="r"><span>{{ stage }}</span><span class="bar"><i style="width:{{ (100 * n / mtop)|round(1) if mtop else 0 }}%"></i></span><span class="n">{{ n }}</span></div>
+    {% endfor %}
+  </div>
+  {% else %}<p class="muted" style="margin:0">No moves in this period yet.</p>{% endfor %}
+</section>
+{% endblock %}

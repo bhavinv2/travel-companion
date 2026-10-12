@@ -1,0 +1,91 @@
+{% extends 'cs/crm/_layout.html' %}
+{% set crm_tab = 'checks' %}
+{% block crm_title %}Inbox check{% endblock %}
+{% block crm %}
+<div class="crm-head">
+  <div>
+    <h1>Inbox check</h1>
+    <p class="muted" style="margin:4px 0 0">Every half hour from 7 am to midnight (India time), look at each inbox and tick it. Nothing waits more than thirty minutes.</p>
+  </div>
+  <div class="actions">
+    <form method="GET" class="row" style="gap:6px">
+      <input type="date" name="day" value="{{ day.isoformat() }}" max="{{ today.isoformat() }}" onchange="this.form.submit()" style="width:auto"/>
+    </form>
+  </div>
+</div>
+
+{% if editable and now_slot is not none %}
+<section class="panel next" data-checks>
+  <div class="row between">
+    <div>
+      <h2 style="margin:0">Now: {{ label(now_slot) }}–{{ label(now_slot + 1) if now_slot + 1 < 48 else '00:00' }}</h2>
+      {% set done_now = [] %}
+      {% for ch in channels if (now_slot, ch) in ticks %}{% set _ = done_now.append(ch) %}{% endfor %}
+      <p class="muted" style="margin:4px 0 0">{{ done_now|length }} of {{ channels|length }} inboxes looked at.</p>
+    </div>
+    <button class="cb ok big" data-tick-all data-slot="{{ now_slot }}"{{ ' disabled' if done_now|length == channels|length }}>
+      <i class="fa-solid fa-check-double"></i> I've checked them all</button>
+  </div>
+</section>
+{% elif editable %}
+<section class="panel tint"><b>Outside checking hours.</b> <span class="muted">The check runs from 7 am to midnight, India time.</span></section>
+{% endif %}
+
+<section class="panel">
+  <div class="row between" style="margin-bottom:10px">
+    <h2 style="margin:0">{{ 'Today' if day == today else day.strftime('%a %d %b %Y') }}</h2>
+    {% if cov.pct is not none %}
+    <span class="chip {{ 'ok' if cov.pct >= 90 else 'due' if cov.pct >= 60 else 'bad' }}" style="font-size:13px;padding:5px 12px">
+      {{ cov.pct }}% of half hours fully checked ({{ cov.done }}/{{ cov.due }})</span>
+    {% endif %}
+  </div>
+  <div style="overflow-x:auto" data-checks>
+  <table class="crm-checks">
+    <thead><tr><th></th>{% for s in slots %}<th class="{{ 'now' if editable and s == now_slot }}">{{ label(s) }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for ch in channels %}
+    <tr><th>{{ ch }}</th>
+      {% for s in slots %}
+      {% set t = ticks.get((s, ch)) %}
+      {% set open = editable and can_tick(day, s) %}
+      <td class="{{ 'now' if editable and s == now_slot }}">
+        {% if open %}
+        <button type="button" class="tick{{ ' on' if t }}" data-tick data-slot="{{ s }}" data-channel="{{ ch }}"
+                title="{{ ch }} at {{ label(s) }}{{ ' — ticked by ' ~ t.user.username if t and t.user else '' }}">{{ '✓' if t else '' }}</button>
+        {% elif t %}<span class="tick on" title="{{ t.user.username if t.user else '' }}">✓</span>
+        {% elif cov.due and s < (now_slot if day == today and now_slot is not none else 99) %}<span class="tick miss" title="Not checked">·</span>
+        {% else %}<span class="tick"></span>{% endif %}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if cov.missed and day != today %}<p class="hint">Missed: {{ cov.missed|join(', ') }}</p>{% endif %}
+</section>
+
+<section class="panel">
+  <h3>The last seven days</h3>
+  <div class="crm-bars">
+    {% for d, c in week %}
+    <div class="r"><a href="{{ url_for('crm.checks', day=d.isoformat()) }}">{{ d.strftime('%a %d %b') }}</a>
+      <span class="bar"><i style="width:{{ c.pct or 0 }}%;{{ 'background:var(--crm-bad)' if (c.pct or 0) < 60 }}"></i></span>
+      <span class="n">{{ '%d%%' % c.pct if c.pct is not none else '—' }}</span></div>
+    {% endfor %}
+  </div>
+</section>
+
+{% if CS_ACCESS.can_open(current_user, 'crm_setup') %}
+<details class="panel tint">
+  <summary style="cursor:pointer;font-weight:600"><i class="fa-solid fa-sliders"></i> Change the list of inboxes</summary>
+  <form method="POST" action="{{ url_for('crm.save_whatsapp') }}" style="margin-top:10px">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <input type="hidden" name="action" value="channels"/>
+    <textarea name="channels" rows="8">{{ channels|join('\n') }}</textarea>
+    <p class="hint">One per line. Old ticks keep their names.</p>
+    <button class="cb primary">Save</button>
+  </form>
+</details>
+{% endif %}
+{% endblock %}

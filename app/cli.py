@@ -43,6 +43,30 @@ def register(app):
         result = jobs.run_all()
         click.echo(f"escalated={result['escalated']} closed_departed={result['closed_departed']}")
 
+    # ----------------------------------------------------------------- sales crm
+
+    @app.cli.command('crm-backfill')
+    @click.option('--days', default=180, show_default=True, help='How far back to go.')
+    def crm_backfill(days):
+        """Bring the site's past enquiries into the Sales CRM (safe to run twice)."""
+        from app.services import crm_import
+        result = crm_import.backfill(days=days)
+        click.echo(', '.join('%s=%s' % kv for kv in sorted(result.items())) or 'nothing to bring in')
+
+    @app.cli.command('crm-import-sheet')
+    @click.argument('path', type=click.Path(exists=True, dir_okay=False))
+    @click.option('--dry-run', is_flag=True, help='Only count what would come in.')
+    def crm_import_sheet(path, dry_run):
+        """Import the "Sales Process" workbook into the Sales CRM (safe to run twice)."""
+        from app.services import crm_import
+        rows, stats = crm_import.read_sheet(path)
+        for sheet, c in stats.items():
+            click.echo('%-22s %s' % (sheet, ', '.join('%s=%s' % kv for kv in sorted(c.items()))))
+        if dry_run:
+            return
+        result = crm_import.import_sheet(rows)
+        click.echo('imported: ' + (', '.join('%s=%s' % kv for kv in sorted(result.items())) or 'nothing'))
+
     # ----------------------------------------------------------------- scraper
 
     def _find_recipe(ref):

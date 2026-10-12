@@ -1,0 +1,66 @@
+{% extends 'cs/crm/_layout.html' %}
+{% set crm_tab = 'add' %}
+{% from '_phone_field.html' import phone_field with context %}
+{% block crm_title %}Add a lead{% endblock %}
+{% block crm %}
+<div class="crm-head">
+  <div>
+    <h1>Add a lead</h1>
+    <p class="muted" style="margin:4px 0 0">Somebody rang, messaged on Instagram, or you met them at an event. Ten seconds here and their follow-ups are planned for you.</p>
+  </div>
+</div>
+<form method="POST" class="panel" style="max-width:820px" data-add-lead>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  <div class="stack">
+    <div>
+      <span class="lb">What are they interested in?</span>
+      <div class="chips" data-pick="product">
+        {% for code, label in PRODUCTS.items() %}
+        <label class="chip" style="cursor:pointer;font-size:14px;padding:8px 14px">
+          <input type="radio" name="product" value="{{ code }}"{{ ' checked' if (form.get('product') or 'TI') == code }} style="margin:0 4px 0 0"/> {{ label }}</label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="crm-form">
+      <div>
+        <label class="lb" for="a-name">Their name</label>
+        <input type="text" id="a-name" name="name" value="{{ form.get('name', '') }}" maxlength="120" placeholder="e.g. Lakshmi Rao" autofocus/>
+      </div>
+      <div>{{ phone_field('phone', value=form.get('phone', ''), iso=form.get('phone_cc', ''), label='Phone / WhatsApp') }}</div>
+      <div>
+        <label class="lb" for="a-email">E-mail <small class="muted">(optional)</small></label>
+        <input type="email" id="a-email" name="email" value="{{ form.get('email', '') }}" maxlength="255"/>
+      </div>
+      <div>
+        <label class="lb" for="a-ig">Instagram <small class="muted">(handle or profile link)</small></label>
+        <input type="text" id="a-ig" name="instagram" value="{{ form.get('instagram', '') }}" maxlength="200" placeholder="@their.handle"/>
+      </div>
+      <div>
+        <label class="lb" for="a-fb">Facebook <small class="muted">(profile link)</small></label>
+        <input type="text" id="a-fb" name="facebook" value="{{ form.get('facebook', '') }}" maxlength="200" placeholder="facebook.com/…"/>
+      </div>
+      <div>
+        <label class="lb" for="a-src">Where did they come from?</label>
+        <select id="a-src" name="source" required>
+          <option value="">Choose…</option>
+          {% for s in sources %}<option value="{{ s.key }}"{{ ' selected' if form.get('source') == s.key }}>{{ s.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="lb" for="a-dep">Travel date <small class="muted">(if they know it)</small></label>
+        <input type="date" id="a-dep" name="departure_date" value="{{ form.get('departure_date', '') }}"/>
+      </div>
+      <div>
+        <span class="lb">Who follows up?</span>
+        <label class="check"><input type="radio" name="owner" value="me" checked/> Me</label>
+        <label class="check"><input type="radio" name="owner" value="auto"/> Whoever has the fewest leads</label>
+      </div>
+      <div class="full">
+        <label class="lb" for="a-note">What did they say or ask?</label>
+        <textarea id="a-note" name="note" rows="4" placeholder="e.g. Parents (68 and 72) flying Hyderabad to Dallas on 12 Dec, want insurance with pre-existing cover">{{ form.get('note', '') }}</textarea>
+      </div>
+    </div>
+    <div class="row end"><button class="cb primary big"><i class="fa-solid fa-user-plus"></i> Add the lead</button></div>
+  </div>
+</form>
+{% endblock %}

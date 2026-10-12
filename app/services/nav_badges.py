@@ -84,6 +84,12 @@ def _compute(user):
     if getattr(user, 'is_authenticated', False):
         out['notifications'] = Notification.query.filter_by(
             user_id=user.id, is_read=False).count()
+        # Sales CRM: this agent's follow-ups that are due now -- the to-do list, not a read mark
+        from datetime import datetime
+        from app.models import CrmTask
+        out['crm_board'] = CrmTask.query.filter(
+            CrmTask.status == 'open', CrmTask.owner_id == user.id,
+            CrmTask.due_at <= datetime.utcnow()).count()
     return out
 
 
