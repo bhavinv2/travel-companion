@@ -389,25 +389,15 @@ def create_app(test_config=None):
         return response
 
     @app.before_request
-    def _cs_screen_guard():
-        """Stop a restricted agent opening a screen they were not given.
+    def _page_guard():
+        """Stop a staff member opening a page their roles do not give them.
 
         Hiding a link is not access control -- the URL is still there, and a bookmark or a
         colleague's pasted link reaches it. This runs before every request, so the menu and the
-        door agree. Admins and unrestricted agents fall straight through.
+        door read the same roles (services/access.py).
         """
-        from flask import flash, redirect, request, url_for
-        from flask_login import current_user
-        from app.services import cs_access
-
-        if not cs_access.applies_to(current_user):
-            return None
-        if cs_access.can_open_endpoint(current_user, request.endpoint):
-            return None
-        flash('That part of the console has not been enabled for your account.', 'warning')
-        # their own landing page, unless that is the very thing they cannot open
-        home = 'cs.home' if cs_access.can_open(current_user, 'home') else 'main.index'
-        return redirect(url_for(home))
+        from app.services import access
+        return access.guard()
 
     @app.after_request
     def _whats_new_seen(response):
@@ -519,6 +509,11 @@ def create_app(test_config=None):
     # the same Sales CRM inside the admin portal, with the admin menu (see routes/crm.py)
     app.register_blueprint(crm_bp, url_prefix='/admin/crm', name='admin_crm')
     app.register_blueprint(crm_public_bp)
+    # workspaces, roles and teams; WhatsApp (the WhatsApp CRM inside the portal)
+    from app.routes.workspace import workspace_bp
+    from app.routes.messaging import messaging_bp
+    app.register_blueprint(workspace_bp)
+    app.register_blueprint(messaging_bp)
 
     from app import cli
     cli.register(app)
@@ -585,7 +580,8 @@ def create_app(test_config=None):
                                 TRIP_ROLES, TRIP_ROLE_LABELS, AGE_GROUPS, AGE_GROUP_LABELS,
                                 GENDERS, PREF_GENDERS)
         from app import options
-        from app.services import (admin_nav, contact_form, cs_access, insurance_countries,
+        from flask_login import current_user
+        from app.services import (access, contact_form, cs_access, insurance_countries,
                                   nav_badges, nri_services, offices, phone, portals, products,
                                   urls, whats_new)
         return {
@@ -594,7 +590,11 @@ def create_app(test_config=None):
             # has already gone or block one that has not.
             'now': lambda: datetime.utcnow() + IST,
             'INSURANCE_DESTINATIONS': insurance_countries,
-            'ADMIN_NAV': admin_nav,
+            # The staff menu and "may this person open that page", from workspace roles.
+            # Functions, so a public page never runs the queries behind them.
+            'STAFF_NAV': lambda active=None: access.nav(current_user, active),
+            'CAN': lambda page: access.can(current_user, page),
+            'WORKSPACE': lambda: access.current_workspace(current_user),
             'CS_ACCESS': cs_access,
             # The function, not the counts: only a staff sidebar calls it, so a public page
             # never runs the queries behind it.

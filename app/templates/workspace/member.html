@@ -1,0 +1,74 @@
+{% extends 'workspace/_layout.html' %}
+{% set ws_tab = 'ws_members' %}
+{% block ws_title %}{{ m.user.full_name or m.user.email }}{% endblock %}
+{% block ws %}
+<div class="ws-head">
+  <div>
+    <h1>{{ m.user.full_name or m.user.username }}</h1>
+    <p>{{ m.user.email }}{% if m.is_owner %} · <span class="ws-pill owner"><i class="fa-solid fa-crown"></i> Owner of {{ ws.name }}</span>{% endif %}</p>
+  </div>
+  <a class="ws-btn" href="{{ url_for('workspace.members') }}"><i class="fa-solid fa-arrow-left"></i> All members</a>
+</div>
+
+{% if is_self %}
+<p class="ws-note warn"><i class="fa-solid fa-lock"></i> This is you. Ask another admin to change your own access, so nobody locks themselves out by accident.</p>
+{% endif %}
+{% if m.wacrm_error %}
+<p class="ws-note bad"><i class="fa-solid fa-circle-exclamation"></i> WhatsApp CRM: {{ m.wacrm_error }}</p>
+{% endif %}
+
+<form method="POST" action="{{ url_for('workspace.save_member', member_id=m.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  <section class="ws-card">
+    <h2><i class="fa-solid fa-user-lock"></i> Role</h2>
+    <p class="lead">{% if m.is_owner %}As the owner they can open every page of the modules this workspace has on, whatever the role says.
+      {% else %}The pages they can open. Their teams can add more.{% endif %}</p>
+    <div class="ws-field" style="max-width:420px">
+      <select name="role_id" {{ 'disabled' if is_self }}>
+        {% for r in ws.roles %}<option value="{{ r.id }}"{{ ' selected' if m.role_id == r.id }}>{{ r.name }}</option>{% endfor %}
+        <option value=""{{ ' selected' if not m.role_id }}>No role of their own (teams only)</option>
+      </select>
+      <small><a href="{{ url_for('workspace.roles') }}">See what each role can open</a></small>
+    </div>
+  </section>
+
+  <section class="ws-card">
+    <h2><i class="fa-solid fa-people-group"></i> Teams</h2>
+    {% if ws.teams %}
+    <div class="ws-checks">{% for t in ws.teams %}
+      <label class="ws-check"><input type="checkbox" name="team_ids" value="{{ t.id }}" {{ 'checked' if t in teams }} {{ 'disabled' if is_self }}/>
+        {{ t.name }}{% if t.role %} <span class="ws-muted">({{ t.role.name }})</span>{% endif %}</label>{% endfor %}</div>
+    {% else %}
+    <p class="ws-muted" style="margin:0">No teams yet. <a href="{{ url_for('workspace.team', team_id=0) }}">Make one</a>.</p>
+    {% endif %}
+  </section>
+
+  {% if not is_self %}
+  <div class="ws-actions" style="margin-bottom:18px">
+    <button class="ws-btn primary"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+  </div>
+  {% endif %}
+</form>
+
+<section class="ws-card">
+  <h2><i class="fa-solid fa-eye"></i> What they can open now</h2>
+  {% if by_module %}
+  <div class="ws-cando">
+    {% for b in by_module %}
+    <div><b><i class="{{ b.icon if ' ' in b.icon else 'fa-solid ' ~ b.icon }}"></i> {{ b.label }}</b>
+      <ul>{% for p in b.pages %}<li>{{ p }}</li>{% endfor %}</ul></div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="ws-muted" style="margin:0">Nothing yet: give them a role or put them in a team.</p>
+  {% endif %}
+</section>
+
+{% if not m.is_owner and not is_self %}
+<form method="POST" action="{{ url_for('workspace.remove_member', member_id=m.id) }}"
+      data-confirm="Remove {{ m.user.full_name or m.user.email }} from {{ ws.name }}? They lose these pages (and WhatsApp access, if linked).">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  <button class="ws-btn danger"><i class="fa-solid fa-user-minus"></i> Remove from {{ ws.name }}</button>
+</form>
+{% endif %}
+{% endblock %}

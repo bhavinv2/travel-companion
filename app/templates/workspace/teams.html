@@ -1,0 +1,38 @@
+{% extends 'workspace/_layout.html' %}
+{% set ws_tab = 'ws_teams' %}
+{% block ws_title %}Teams{% endblock %}
+{% macro initials(u) %}{{ ((u.first_name or u.username or u.email or '?')[:1] ~ (u.last_name or '')[:1])|upper }}{% endmacro %}
+{% block ws %}
+<div class="ws-head">
+  <div>
+    <h1>Teams</h1>
+    <p>A team is a group of people with a role: "Insurance desk", "Sales", "Sahayak operations". Everyone in a team can open the
+      team role's pages, on top of their own role.</p>
+  </div>
+  <a class="ws-btn primary" href="{{ url_for('workspace.team', team_id=0) }}"><i class="fa-solid fa-plus"></i> New team</a>
+</div>
+
+{% if ws.teams %}
+<div class="ws-roles">
+  {% for t in ws.teams %}
+  <div class="ws-team">
+    <h3>{{ t.name }}</h3>
+    {% if t.description %}<p class="ws-muted" style="margin:0">{{ t.description }}</p>{% endif %}
+    <div>{% if t.role %}<span class="ws-pill role">{{ t.role.name }}</span>{% else %}<span class="ws-pill none">No role</span>{% endif %}</div>
+    <div class="ws-faces" title="{{ t.users|map(attribute='email')|join(', ') }}">
+      {% for u in t.users[:8] %}<span class="ws-av">{{ initials(u) }}</span>{% endfor %}
+      {% if t.users|length > 8 %}<span class="ws-av">+{{ t.users|length - 8 }}</span>{% endif %}
+      {% if not t.users %}<span class="ws-muted">Nobody yet</span>{% endif %}
+    </div>
+    <div class="foot" style="display:flex;gap:8px;justify-content:space-between;margin-top:auto">
+      <span class="ws-muted">{{ t.users|length }} {{ 'person' if t.users|length == 1 else 'people' }}</span>
+      <a class="ws-btn sm" href="{{ url_for('workspace.team', team_id=t.id) }}"><i class="fa-solid fa-pen"></i> Change</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<section class="ws-card"><p class="ws-muted" style="margin:0">No teams yet. People can have roles of their own without being in a team;
+  teams are for giving a whole group the same pages at once.</p></section>
+{% endif %}
+{% endblock %}

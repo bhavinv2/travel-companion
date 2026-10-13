@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>WhatsApp – {{ lead.person.name or 'Lead' }}</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace.css') }}">
+<style>
+  body { margin: 0; font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; background: #fff; color: #1b2438; }
+  .lc { padding: 18px; max-width: 760px; }
+  .lc h2 { font-size: 16px; margin: 0 0 6px; display: flex; gap: 8px; align-items: center; }
+  .lc p { margin: 0 0 12px; color: #5b6579; font-size: 14px; }
+  .lc-tpl { border: 1px solid #e3e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+  .lc-tpl b { font-size: 14px; }
+  .lc-tpl pre { white-space: pre-wrap; font: inherit; font-size: 13.5px; color: #42506a; margin: 6px 0 10px; background: #f7f9fc; border-radius: 8px; padding: 8px 10px; }
+  .lc-tpl .vars { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin-bottom: 10px; }
+  .lc-tpl input { padding: 8px 10px; border: 1px solid #cfd7e4; border-radius: 8px; font: inherit; font-size: 13.5px; }
+  .lc-flash { padding: 10px 12px; border-radius: 10px; margin-bottom: 12px; font-size: 14px; background: #f3f7fe; border: 1px solid #d6e3fb; }
+  .lc-flash.danger, .lc-flash.warning { background: #fdf0ef; border-color: #f2c4bf; color: #8a1c13; }
+  .lc-flash.success { background: #ecf8f1; border-color: #bfe6cf; color: #1d6b40; }
+</style>
+</head>
+<body>
+<div class="lc">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}<div class="lc-flash {{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+
+  {% if state == 'off' %}
+    <h2><i class="fa-brands fa-whatsapp" style="color:#25a244"></i> WhatsApp</h2>
+    {% if not role %}
+    <p>Your role does not include WhatsApp, so the conversation is not shown here.</p>
+    {% else %}
+    <p>The WhatsApp CRM is not connected to the portal on this server yet.</p>
+    {% endif %}
+  {% elif state == 'error' %}
+    <h2><i class="fa-solid fa-circle-exclamation" style="color:#b42318"></i> WhatsApp did not answer</h2>
+    <p>{{ error }}</p>
+    <a class="ws-btn sm" href="{{ url_for('messaging.lead_chat', lead_id=lead.id) }}"><i class="fa-solid fa-rotate"></i> Try again</a>
+  {% else %}
+    <h2><i class="fa-brands fa-whatsapp" style="color:#25a244"></i> No WhatsApp conversation yet</h2>
+    {% if not can_send %}
+    <p>There is no phone number on this lead. Add one (Edit on the lead) to message them on WhatsApp.</p>
+    {% else %}
+    <p>WhatsApp only lets a business write first with an approved template. Pick one to start; their reply opens the
+      conversation here.</p>
+    {% if error %}<div class="lc-flash danger">{{ error }}</div>{% endif %}
+    {% for t in templates %}
+    <form class="lc-tpl" method="POST" action="{{ url_for('messaging.lead_template', lead_id=lead.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <input type="hidden" name="name" value="{{ t.name }}"/><input type="hidden" name="language" value="{{ t.language or '' }}"/>
+      <b>{{ t.name }}</b> <span class="ws-pill">{{ t.category|lower }}</span> <span class="ws-muted" style="font-size:12px">{{ t.language }}</span>
+      <pre>{{ t.body }}</pre>
+      {% if t.variables %}
+      <div class="vars">{% for i in range(t.variables) %}
+        <input name="params" required placeholder="Value {{ i + 1 }}{{ ' (their name)' if i == 0 }}"
+               value="{{ (lead.person.name or '').split(' ')[0] if i == 0 else '' }}"/>{% endfor %}</div>
+      {% endif %}
+      <button class="ws-btn sm primary"><i class="fa-solid fa-paper-plane"></i> Send this template</button>
+    </form>
+    {% else %}
+    {% if not error %}<p>No approved templates yet. They are made on WhatsApp → Templates and approved by Meta.</p>{% endif %}
+    {% endfor %}
+    {% endif %}
+  {% endif %}
+</div>
+</body>
+</html>

@@ -1,25 +1,16 @@
-"""The header's site switcher, for both consoles.
+"""Which console a page is in, and the workspace switcher in its header.
 
-The admin panel and the CS console each cover three products plus their own shared screens, and
-an agent working a Sahayak queue has no use for insurance testimonials sitting next to it. The
-switcher picks one product; the sidebar under it shows only that product's screens.
-
-One control, two catalogues. Admin screens are declared in admin_nav, CS screens in cs_access --
-they are different lists with different rules (cs_access also decides what an agent may open at
-all) and merging them would mean one list pretending to be two. This module only answers "which
-console am I in, and what can I switch to".
-
-It is a view of the same screens, not a second set of permissions. Switching changes what the
-menu offers; what somebody is allowed to open is cs_access's job and is enforced on the request,
-not here.
+The admin panel (/admin) and the CS console (/cs) grew up separately and still have separate
+addresses. What somebody may open no longer depends on which one they are in -- workspace roles
+decide that (services/access.py) -- so the header offers workspaces, not consoles: the menu under
+it is that workspace's modules, narrowed to the person's pages.
 """
 from flask import request, url_for
-from flask_login import current_user
 
-from app.services import admin_nav, cs_access
+from app.services import urls
 
 # Which blueprints belong to which console.
-ADMIN_BLUEPRINTS = {'admin', 'admin_crm'}
+ADMIN_BLUEPRINTS = {'admin', 'admin_crm', 'workspace', 'messaging'}
 CS_BLUEPRINTS = {'cs', 'matches', 'imports', 'scraper', 'jobs', 'saved', 'crm'}
 
 
@@ -34,41 +25,21 @@ def which():
 
 
 def switcher():
-    """What the header dropdown should show, or None to render nothing.
-
-    Where we are comes from the ENDPOINT, not from the sidebar's `active` key: the header renders
-    before the sidebar does, so `active` is not in scope yet. Off a console page, or for somebody
-    with only one product to see, there is nothing worth switching.
-    """
-    console = which()
-    if not console:
+    """The workspace switcher in the staff header: the workspace this request works in and the
+    others this person can move to. None on a traveller page, and for somebody with only one
+    workspace and nothing to manage -- a menu with one item is noise."""
+    from flask_login import current_user
+    from app.services import access
+    if which() is None or not access.is_staff(current_user):
         return None
-
-    if console == 'admin':
-        if not getattr(current_user, 'is_admin', False):
-            return None
-        current = admin_nav.section_for_endpoint(request.endpoint, request.args)
-        sites = [{'key': s['key'], 'label': s['label'], 'icon': s['icon'],
-                  'url': url_for(s['items'][0]['endpoint'], **s['items'][0]['args'])}
-                 for s in admin_nav.SECTIONS]
-        on_dashboard = request.endpoint == admin_nav.DASHBOARD['endpoint']
-        return {'console': 'admin', 'sites': sites,
-                'current': None if on_dashboard else current,
-                'label': 'Dashboard' if on_dashboard else _label(sites, current)}
-
-    groups = cs_access.sites_for(current_user)
-    if len(groups) < 2:
-        # nothing to switch between; the sidebar already says everything there is to say
+    current = access.current_workspace(current_user)
+    spaces = access.workspaces_for(current_user)
+    manage = access.can(current_user, 'ws_settings')
+    if current is None or (len(spaces) < 2 and not manage):
         return None
-    current = cs_access.site_for_endpoint(request.endpoint) or groups[0]['key']
-    sites = [{'key': g['key'], 'label': g['label'], 'icon': g['icon'],
-              'url': url_for(g['items'][0]['endpoints'][0])} for g in groups]
-    return {'console': 'cs', 'sites': sites, 'current': current,
-            'label': _label(sites, current)}
-
-
-def _label(sites, current):
-    for s in sites:
-        if s['key'] == current:
-            return s['label']
-    return 'All screens'
+    sites = [{'key': w.id, 'label': w.name, 'icon': 'fa-building',
+              'url': url_for('workspace.switch', ws_id=w.id, next=urls.here())} for w in spaces]
+    if manage:
+        sites.append({'key': 'settings', 'label': 'Workspace settings', 'icon': 'fa-gear',
+                      'url': url_for('workspace.overview')})
+    return {'label': current.name, 'current': current.id, 'sites': sites}

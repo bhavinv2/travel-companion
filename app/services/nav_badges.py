@@ -19,7 +19,7 @@ new to you.
     notifications       not read          -- this agent's own, which is the one count here
                                              that is personal rather than a shared queue
 
-Keyed by the sidebar keys in services/admin_nav, plus 'voices' for the CS console, whose menu has
+Keyed by the menu's page keys (services/access.py), plus 'voices' for the voices screen, whose tabs have
 one line for the whole screen rather than one per slice.
 
 Counted in four aggregate queries rather than one per line, and only when a sidebar actually

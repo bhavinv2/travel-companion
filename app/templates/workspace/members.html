@@ -1,0 +1,69 @@
+{% extends 'workspace/_layout.html' %}
+{% set ws_tab = 'ws_members' %}
+{% block ws_title %}Members{% endblock %}
+{% macro initials(u) %}{{ ((u.first_name or u.username or u.email or '?')[:1] ~ (u.last_name or '')[:1])|upper }}{% endmacro %}
+{% block ws %}
+<div class="ws-head">
+  <div>
+    <h1>Members</h1>
+    <p>The people in {{ ws.name }}. What each person can open is their role plus the roles of their teams.</p>
+  </div>
+</div>
+
+<section class="ws-card">
+  <h2><i class="fa-solid fa-user-plus"></i> Add someone</h2>
+  <p class="lead">Their e-mail address. Somebody without an account gets one, and you can send them a link to set their password.</p>
+  <form method="POST" action="{{ url_for('workspace.add_member') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <div class="ws-grid2">
+      <div class="ws-field"><label for="mEmail">E-mail</label>
+        <input type="email" id="mEmail" name="email" value="{{ prefill }}" required placeholder="name@example.com"/></div>
+      <div class="ws-field"><label for="mName">First name <small>(for a new account)</small></label>
+        <input type="text" id="mName" name="first_name" maxlength="60"/></div>
+      <div class="ws-field"><label for="mRole">Role</label>
+        <select id="mRole" name="role_id">
+          {% for r in ws.roles %}<option value="{{ r.id }}"{{ ' selected' if r.system_key == 'cs' }}>{{ r.name }}</option>{% endfor %}
+          <option value="">No role of their own (teams only)</option>
+        </select></div>
+    </div>
+    {% if ws.teams %}
+    <div class="ws-field"><label>Teams</label>
+      <div class="ws-checks">{% for t in ws.teams %}
+        <label class="ws-check"><input type="checkbox" name="team_ids" value="{{ t.id }}"/> {{ t.name }}</label>{% endfor %}</div>
+    </div>
+    {% endif %}
+    <div class="ws-actions">
+      <label class="ws-check"><input type="checkbox" name="send_link" value="1" checked/> E-mail a set-password link to a new account</label>
+      <button class="ws-btn primary"><i class="fa-solid fa-user-plus"></i> Add</button>
+    </div>
+  </form>
+</section>
+
+<section class="ws-card">
+  <h2><i class="fa-solid fa-users"></i> {{ rows|length }} member{{ 's' if rows|length != 1 }}</h2>
+  <div style="overflow-x:auto">
+  <table class="ws-people">
+    <thead><tr><th>Person</th><th>Role</th><th>Teams</th><th>WhatsApp</th><th></th></tr></thead>
+    <tbody>
+    {% for m in rows %}{% set u = m.user %}
+    <tr>
+      <td><div class="ws-who"><span class="ws-av">{{ initials(u) }}</span>
+        <span><b>{{ u.full_name or u.username }}</b><small>{{ u.email }}{{ ' · inactive' if not u.is_active }}</small></span></div></td>
+      <td>
+        {% if m.is_owner %}<span class="ws-pill owner"><i class="fa-solid fa-crown"></i> Owner</span>{% endif %}
+        {% if m.role %}<span class="ws-pill role">{{ m.role.name }}</span>{% elif not m.is_owner %}<span class="ws-pill none">Teams only</span>{% endif %}
+      </td>
+      <td><div class="ws-chips">{% for t in teams[m.id] %}<span class="ws-pill team">{{ t.name }}</span>{% else %}<span class="ws-muted">—</span>{% endfor %}</div></td>
+      <td class="ws-wa">
+        {% if m.wacrm_error %}<span class="ws-pill bad" title="{{ m.wacrm_error }}"><i class="fa-solid fa-circle-exclamation"></i> Not synced</span>
+        {% elif m.wacrm_role %}<i class="fa-brands fa-whatsapp"></i> {{ m.wacrm_role|capitalize }}
+        {% else %}<span class="ws-muted">—</span>{% endif %}
+      </td>
+      <td style="text-align:right"><a class="ws-btn sm" href="{{ url_for('workspace.member', member_id=m.id) }}"><i class="fa-solid fa-pen"></i> Change</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}

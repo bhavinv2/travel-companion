@@ -1906,8 +1906,10 @@ class CrmStageChange(db.Model):
     reason = db.Column(db.String(160))
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
+    # newest first; the id breaks ties, because two moves in one clock tick (a move and the
+    # automation that follows it) are otherwise in any order -- and Undo reads the first one
     lead = db.relationship('CrmLead', backref=db.backref('stage_changes', cascade='all, delete-orphan',
-                                                         order_by='CrmStageChange.created_at.desc()'))
+                                                         order_by='(CrmStageChange.created_at.desc(), CrmStageChange.id.desc())'))
     from_stage = db.relationship('CrmStage', foreign_keys=[from_stage_id])
     to_stage = db.relationship('CrmStage', foreign_keys=[to_stage_id])
     by = db.relationship('User', foreign_keys=[by_id])
@@ -1963,3 +1965,93 @@ class CrmActivity(db.Model):
     count = db.Column(db.Float, nullable=False, default=0)
     source = db.Column(db.String(8), nullable=False, default='manual')     # manual / import
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Workspaces: who may open which screens (services/access.py)
+#
+# A workspace switches modules on (Sales CRM, WhatsApp, Sahayak ...); a module is a group of
+# pages; a role is a set of pages; people get pages through their own role and the roles of the
+# teams they are in. What a page IS lives in code (services/access.MODULES) -- it is a screen --
+# and everything about who sees it lives here, so it is changed on a screen, not in a deploy.
+# ---------------------------------------------------------------------------
+
+workspace_team_members = db.Table(
+    'workspace_team_members',
+    db.Column('team_id', db.Integer, db.ForeignKey('workspace_teams.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
+)
+
+
+class Workspace(db.Model):
+    __tablename__ = 'workspaces'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    slug = db.Column(db.String(60), nullable=False, unique=True)
+    description = db.Column(db.String(255))
+    # module keys switched on; NULL = every module, so a module that ships later shows up rather
+    # than staying invisible until somebody thinks to tick it
+    modules = db.Column(db.JSON)
+    # the WhatsApp CRM workspace this one is kept in step with: {account_id, name, synced_at,
+    # error}. NULL = not linked.
+    wacrm = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+
+    roles = db.relationship('WorkspaceRole', backref='workspace', cascade='all, delete-orphan',
+                            order_by='WorkspaceRole.id')
+    teams = db.relationship('WorkspaceTeam', backref='workspace', cascade='all, delete-orphan',
+                            order_by='WorkspaceTeam.name')
+    members = db.relationship('WorkspaceMember', backref='workspace', cascade='all, delete-orphan')
+
+
+class WorkspaceRole(db.Model):
+    __tablename__ = 'workspace_roles'
+    __table_args__ = (db.UniqueConstraint('workspace_id', 'name', name='uq_workspace_role_name'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id', ondelete='CASCADE'), nullable=False, index=True)
+    name = db.Column(db.String(80), nullable=False)
+    description = db.Column(db.String(255))
+    pages = db.Column(db.JSON)                        # page keys from services/access.PAGES
+    # 'admin' / 'cs' for the two every workspace starts with; NULL for the ones staff make. The
+    # administrator's pages cannot be edited: a workspace must always have a way back in.
+    system_key = db.Column(db.String(20))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class WorkspaceTeam(db.Model):
+    __tablename__ = 'workspace_teams'
+    __table_args__ = (db.UniqueConstraint('workspace_id', 'name', name='uq_workspace_team_name'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id', ondelete='CASCADE'), nullable=False, index=True)
+    name = db.Column(db.String(80), nullable=False)
+    description = db.Column(db.String(255))
+    role_id = db.Column(db.Integer, db.ForeignKey('workspace_roles.id', ondelete='SET NULL'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    role = db.relationship('WorkspaceRole')
+    users = db.relationship('User', secondary=workspace_team_members, order_by='User.first_name')
+
+
+class WorkspaceMember(db.Model):
+    __tablename__ = 'workspace_members'
+    __table_args__ = (db.UniqueConstraint('workspace_id', 'user_id', name='uq_workspace_member'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    # NULL: their pages come from their teams only
+    role_id = db.Column(db.Integer, db.ForeignKey('workspace_roles.id', ondelete='SET NULL'), nullable=True)
+    is_owner = db.Column(db.Boolean, default=False, nullable=False)
+    added_at = db.Column(db.DateTime, default=datetime.utcnow)
+    added_by_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    # their place in the linked WhatsApp CRM: the role it was last given, when, and what went wrong
+    wacrm_role = db.Column(db.String(20))
+    wacrm_synced_at = db.Column(db.DateTime)
+    wacrm_error = db.Column(db.String(255))
+
+    user = db.relationship('User', foreign_keys=[user_id])
+    role = db.relationship('WorkspaceRole')

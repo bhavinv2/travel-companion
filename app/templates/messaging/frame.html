@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block title %}{{ heading }} – WhatsApp{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace.css') }}">{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% include 'admin/_sidebar.html' %}
+  <main class="admin-main">
+    {% if src %}
+    <div class="wa-frame-wrap">
+      <div class="wa-frame-bar">
+        <h1><i class="fa-brands fa-whatsapp"></i> {{ heading }}</h1>
+        <span class="sp"></span>
+        <a class="ws-btn sm" href="{{ direct }}" target="_blank" rel="noopener" title="Open the WhatsApp CRM in its own tab">
+          <i class="fa-solid fa-up-right-from-square"></i> New tab</a>
+      </div>
+      {# The WhatsApp CRM, signed in as this person. It reports where it is (wacrm:navigate) so the
+         address bar can hold its place: reloading this page lands on the same conversation. #}
+      <iframe class="wa-frame" src="{{ src }}" title="WhatsApp — {{ heading }}" data-wa-frame
+              allow="microphone; clipboard-write" referrerpolicy="same-origin"></iframe>
+    </div>
+    {% else %}
+    <div class="wa-off">
+      <section class="ws-card">
+        <h2><i class="fa-brands fa-whatsapp" style="color:#25a244"></i> {{ heading }}</h2>
+        {% if not configured %}
+        <p class="lead">The WhatsApp CRM is not connected to the portal on this server yet.</p>
+        {% if current_user.is_admin %}
+        <p class="ws-note"><i class="fa-solid fa-circle-info"></i>
+          <span>Set <code>WACRM_URL</code> (the WhatsApp CRM's address under this site) and <code>WACRM_PORTAL_SECRET</code>
+          (the same value as the CRM's <code>PORTAL_SECRET</code>) on the server, then link the workspace on
+          <a href="{{ url_for('workspace.overview') }}#whatsapp">Workspace settings</a>.</span></p>
+        {% endif %}
+        {% else %}
+        <p class="lead">Your role does not include WhatsApp yet. Ask an admin to add a WhatsApp page to your role
+          (Workspace &rarr; Roles &amp; access).</p>
+        {% endif %}
+      </section>
+    </div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}
+{% block extra_js %}
+{% if src %}
+<script>
+(function () {
+  var frame = document.querySelector('[data-wa-frame]');
+  if (!frame) return;
+  // the CRM's own site when it is not this one (studio.preventia360.com), else this site
+  var crmOrigin = {{ (crm_origin or '')|tojson }} || window.location.origin;
+  window.addEventListener('message', function (e) {
+    if (e.origin !== crmOrigin || e.source !== frame.contentWindow) return;
+    var d = e.data || {};
+    if (d.type !== 'wacrm:navigate' || typeof d.path !== 'string' || d.path.charAt(0) !== '/') return;
+    var url = new URL(window.location.href);
+    url.searchParams.set('p', d.path);
+    window.history.replaceState(null, '', url.pathname + url.search);
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

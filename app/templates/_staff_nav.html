@@ -1,0 +1,63 @@
+{# The staff menu, the same in both consoles.
+
+   It is built from the workspace in the header: the modules that workspace has switched on, each
+   with the pages this person's roles give them (services/access.py). A module with nothing in it
+   for them is not shown, so an insurance agent sees an insurance menu rather than thirty links
+   with most of them refused.
+
+   Modules fold; the one being worked in is open, and whatever else was opened stays open
+   (static/js/main.js, "staff menu"). "Find a page" narrows the whole menu as you type. #}
+{% set groups = STAFF_NAV(active if active is defined else None) %}
+{% set ws = WORKSPACE() %}
+{% set waiting = NAV_BADGES() %}
+{% macro ic(icon) %}{{ icon if ' ' in icon else 'fa-solid ' ~ icon }}{% endmacro %}
+<aside class="admin-sidebar staff-nav">
+  <h3 title="{{ ws.name if ws else '' }}">{{ ws.name if ws else ('Admin Panel' if current_user.is_admin else 'CS Console') }}</h3>
+  <button type="button" class="rail-toggle" data-rail-toggle
+          aria-label="Collapse the menu" aria-expanded="true" title="Collapse the menu">
+    <i class="fa-solid fa-bars"></i>
+  </button>
+
+  <nav class="admin-nav-items" aria-label="Menu">
+    {# One <nav>: on a phone the menu is a single dropdown, and two would open on top of each other. #}
+    {% if current_user.is_admin or current_user.is_influencer %}
+    <div class="admin-nav-top">
+      <a href="{{ url_for('main.promo_dashboard') }}" title="Promotion"
+         class="{{ 'active' if request.endpoint == 'main.promo_dashboard' }}">
+        <i class="fa-solid fa-bullhorn"></i> <span>Promotion</span>
+      </a>
+    </div>
+    {% endif %}
+    {% if groups|length > 1 %}
+    <label class="sn-find">
+      <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+      <input type="search" placeholder="Find a page" aria-label="Find a page" data-nav-find autocomplete="off"/>
+    </label>
+    {% endif %}
+    {% for g in groups %}
+    {% set ns = namespace(total=0) %}
+    {% for item in g['items'] if item.badge %}{% set ns.total = ns.total + (waiting.get(item.badge, 0) or 0) %}{% endfor %}
+    {% set total = ns.total %}
+    <div class="sn-group{{ ' open' if g.open }}" data-group="{{ g.key }}">
+      <button type="button" class="sn-head" data-group-toggle aria-expanded="{{ 'true' if g.open else 'false' }}"
+              title="{{ g.label }}">
+        <i class="{{ ic(g.icon) }}"></i><span>{{ g.label }}</span>
+        <span class="sn-sum" aria-label="{{ total }} waiting"{{ ' hidden' if not total }}>{{ total if total < 100 else '99+' }}</span>
+        <i class="fa-solid fa-chevron-down sn-caret" aria-hidden="true"></i>
+      </button>
+      <div class="sn-items">
+        {% for item in g['items'] %}
+        {% set n = waiting.get(item.badge, 0) if item.badge else 0 %}
+        <a href="{{ item.url }}" class="{{ 'active' if item.active }}" data-title="{{ item.label }}"
+           title="{{ item.label }}{{ ' — %d waiting' % n if n }}"{{ ' aria-current="page"' if item.active }}>
+          <i class="{{ ic(item.icon) }}"></i> <span>{{ item.label }}</span>
+          {# the count when the rail is open, a bare dot when it is collapsed to icons #}
+          <span class="nav-badge" data-badge="{{ item.badge or '' }}" aria-label="{{ n }} not read"{{ ' hidden' if not n }}>{{ n if n < 100 else '99+' }}</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+    <p class="sn-none" data-nav-none hidden>No page by that name.</p>
+  </nav>
+</aside>

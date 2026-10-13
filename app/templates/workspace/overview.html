@@ -1,0 +1,111 @@
+{% extends 'workspace/_layout.html' %}
+{% set ws_tab = 'ws_settings' %}
+{% block ws_title %}Workspace settings{% endblock %}
+{% block ws %}
+<div class="ws-head">
+  <div>
+    <h1>{{ ws.name }}</h1>
+    <p>A workspace is a team and the parts of the portal it works in. Switch modules on below, then give
+      people roles on <a href="{{ url_for('workspace.members') }}">Members</a>. Everyone in this workspace shares the same
+      leads, conversations and records.</p>
+  </div>
+  <div class="ws-actions">
+    <span class="ws-pill"><i class="fa-solid fa-user"></i> {{ counts.members }} member{{ 's' if counts.members != 1 }}</span>
+    <span class="ws-pill"><i class="fa-solid fa-people-group"></i> {{ counts.teams }} team{{ 's' if counts.teams != 1 }}</span>
+    <span class="ws-pill"><i class="fa-solid fa-user-lock"></i> {{ counts.roles }} role{{ 's' if counts.roles != 1 }}</span>
+  </div>
+</div>
+
+<form method="POST" action="{{ url_for('workspace.save_settings') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  <input type="hidden" name="modules_sent" value="1"/>
+  <section class="ws-card">
+    <h2><i class="fa-solid fa-building"></i> Name</h2>
+    <div class="ws-grid2">
+      <div class="ws-field"><label for="wsName">Workspace name</label>
+        <input type="text" id="wsName" name="name" value="{{ ws.name }}" maxlength="120" required/></div>
+      <div class="ws-field"><label for="wsDesc">What it is for <small>(optional)</small></label>
+        <input type="text" id="wsDesc" name="description" value="{{ ws.description or '' }}" maxlength="255"
+               placeholder="e.g. Sales and customer service for NRI Parent Service"/></div>
+    </div>
+  </section>
+
+  <section class="ws-card">
+    <h2><i class="fa-solid fa-cubes"></i> Modules</h2>
+    <p class="lead">Each module is a group of pages in the menu. A module that is off disappears for everyone in this
+      workspace; roles decide who sees which pages of the modules that are on.</p>
+    <div class="ws-modules">
+      {% for m in modules %}
+      <label class="ws-module{{ ' locked' if m.required }}">
+        <input type="checkbox" name="modules" value="{{ m.key }}" {{ 'checked' if m.on }} {{ 'disabled' if m.required }}/>
+        <span class="mi"><i class="{{ m.icon if ' ' in m.icon else 'fa-solid ' ~ m.icon }}"></i></span>
+        <span><b>{{ m.label }}</b><small>{{ m.desc }}</small>
+          <small>{{ m.pages|length }} page{{ 's' if m.pages|length != 1 }}{{ ' · always on' if m.required }}</small></span>
+        <span class="tick"><i class="fa-solid fa-check"></i></span>
+      </label>
+      {% endfor %}
+    </div>
+    <div class="ws-actions" style="margin-top:16px">
+      <button class="ws-btn primary"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+    </div>
+  </section>
+</form>
+
+<section class="ws-card" id="whatsapp">
+  <h2><i class="fa-brands fa-whatsapp" style="color:#25a244"></i> WhatsApp CRM</h2>
+  {% if not whatsapp.configured %}
+  <p class="lead">Not connected on this server yet. Once WACRM_URL and WACRM_PORTAL_SECRET are set, this workspace's team can
+    be linked: everyone whose role includes WhatsApp pages gets into the WhatsApp CRM with their portal sign-in.</p>
+  {% elif not whatsapp.linked %}
+  <p class="lead">Link this workspace and its team is kept in step with the WhatsApp CRM: a member whose role includes WhatsApp
+    pages is added there (as an admin when they manage templates, the AI assistant or settings, otherwise as an agent),
+    and taken out when they lose them. Nobody already in the WhatsApp CRM is removed by linking.</p>
+  {% if whatsapp.other %}
+  <p class="ws-note warn"><i class="fa-solid fa-triangle-exclamation"></i> The WhatsApp CRM is linked to <b>{{ whatsapp.other }}</b>.
+    Linking here moves the link to this workspace.</p>
+  {% endif %}
+  <form method="POST" action="{{ url_for('workspace.whatsapp', action='link') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <button class="ws-btn primary"><i class="fa-solid fa-link"></i> Link this workspace</button>
+  </form>
+  {% else %}
+  <p class="ws-note ok"><i class="fa-solid fa-circle-check"></i>
+    <span>Linked to the WhatsApp CRM workspace <b>{{ whatsapp.name or ws.name }}</b>.
+    {{ whatsapp.synced }} member{{ 's' if whatsapp.synced != 1 }} have WhatsApp access{% if whatsapp.failed %}; <b>{{ whatsapp.failed }}</b> could not be synced (see Members){% endif %}.</span></p>
+  {% if whatsapp.error %}<p class="ws-note bad"><i class="fa-solid fa-circle-exclamation"></i> Last sync: {{ whatsapp.error }}</p>{% endif %}
+  {% set extra = (ws.wacrm or {}).get('extra') or [] %}
+  {% if extra %}
+  <p class="ws-note warn"><i class="fa-solid fa-user-clock"></i>
+    <span>{{ extra|length }} {{ 'person is' if extra|length == 1 else 'people are' }} in the WhatsApp CRM but not in this workspace.
+      Add them on Members, or take their WhatsApp access away here.</span></p>
+  <table class="ws-people" style="margin-bottom:12px">
+    {% for x in extra %}
+    <tr><td><div class="ws-who"><span class="ws-av">{{ (x.name or x.email or '?')[:2]|upper }}</span>
+      <span><b>{{ x.name or x.email }}</b><small>{{ x.email }} · {{ x.role }}</small></span></div></td>
+      <td style="text-align:right">
+        <a class="ws-btn sm" href="{{ url_for('workspace.members', add=x.email) }}"><i class="fa-solid fa-user-plus"></i> Add to workspace</a>
+        {% if x.role != 'owner' %}
+        <form method="POST" action="{{ url_for('workspace.whatsapp', action='remove-extra') }}" style="display:inline"
+              data-confirm="Take WhatsApp access away from {{ x.email }}?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="email" value="{{ x.email }}"/>
+          <button class="ws-btn sm danger"><i class="fa-solid fa-user-minus"></i> Remove access</button>
+        </form>
+        {% endif %}
+      </td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+  <div class="ws-actions">
+    <form method="POST" action="{{ url_for('workspace.whatsapp', action='sync') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <button class="ws-btn"><i class="fa-solid fa-rotate"></i> Sync now</button>
+    </form>
+    {% if CAN('wa_inbox') %}<a class="ws-btn" href="{{ url_for('messaging.inbox') }}"><i class="fa-solid fa-comments"></i> Open the inbox</a>{% endif %}
+    <form method="POST" action="{{ url_for('workspace.whatsapp', action='unlink') }}" data-confirm="Stop keeping the WhatsApp CRM team in step with this workspace? Nobody loses access.">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <button class="ws-btn danger"><i class="fa-solid fa-link-slash"></i> Unlink</button>
+    </form>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

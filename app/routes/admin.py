@@ -16,9 +16,12 @@ admin_bp = Blueprint('admin', __name__)
 
 
 def admin_required(f):
+    """An admin screen: open to whoever's role includes its page (services/access.py), and to
+    site admins for the few screens no page claims."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_admin:
+        from app.services import access
+        if not access.allowed(current_user, request.endpoint, fallback=lambda u: u.is_admin):
             flash('Admin access required.', 'danger')
             return redirect(url_for('main.index'))
         return f(*args, **kwargs)
@@ -176,6 +179,9 @@ def set_user_role(user_id):
         return jsonify({'error': 'You cannot remove your own admin role.'}), 400
     user.set_roles([role])
     db.session.commit()
+    # staff join the first workspace; somebody who stopped being staff leaves it
+    from app.services import access
+    access.sync_account(user, by=current_user)
     return jsonify({'success': True, 'role': role})
 
 
@@ -201,6 +207,9 @@ def set_user_roles(user_id):
     user.set_roles(keys)
     ActivityEvent.log('user_roles_changed', actor=current_user, user_id=user.id, before=before, after=user.role_keys)
     db.session.commit()
+    # staff join the first workspace; somebody who stopped being staff leaves it
+    from app.services import access
+    access.sync_account(user, by=current_user)
     return jsonify({'success': True, 'roles': user.role_keys, 'level': user.effective_role})
 
 
@@ -256,6 +265,9 @@ def new_user():
         db.session.flush()
         ActivityEvent.log('user_created_by_admin', actor=current_user, user_id=user.id, roles=user.role_keys)
         db.session.commit()
+        # staff join the first workspace; somebody who stopped being staff leaves it
+        from app.services import access
+        access.sync_account(user, by=current_user)
         sent = False
         if form.get('send_link') == 'on':
             # url_for, not SITE_URL + a path: built by hand it left out the URL prefix the app is
@@ -1071,63 +1083,23 @@ def airlines_delete(airline_id):
 @login_required
 @admin_required
 def cs_agents():
-    """The CS team and what each of them can reach.
-
-    A screen of its own rather than a column on Users: this is about the handful of people who
-    work the console, and the Users table is about everybody who has an account. Looking down a
-    list of travellers to find three agents is not a search anyone should have to do.
-    """
-    from app.services import cs_access
-
-    agents = (User.query
-              .filter(User.role.contains('cs'), User.is_active.is_(True))
-              .order_by(User.username.asc()).all())
-    # an admin holds the cs role too, and is never restricted -- listing them here would offer a
-    # control that does nothing
-    agents = [a for a in agents if not a.is_admin]
-    # The counts are worked out here, from what each agent can actually open -- a template can
-    # filter the stored list but it cannot know that the scraper stays shut unless it was granted.
-    rows = [{'agent': a, 'limited': a.cs_access is not None,
-             'sites': cs_access.summary_for(a),
-             'open': len(cs_access.screens_for(a))} for a in agents]
-    return render_template('admin/cs_agents.html', active='cs_agents', rows=rows,
-                           total_screens=len(cs_access.ALL_KEYS))
+    """Moved: the team and what each person can reach is Workspace -> Members now, where it
+    covers every page on the site rather than the CS console's twelve."""
+    return redirect(url_for('workspace.members'))
 
 
 @admin_bp.route('/users/<int:user_id>/cs-access', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def cs_screen_access(user_id):
-    """Which CS console screens one agent may open.
-
-    A screen of its own rather than more controls in the users table: this is a decision about
-    somebody's job, made occasionally and deliberately, and it needs room to say what each screen
-    actually is. The table keeps one link.
-    """
-    from app.models import ActivityEvent
-    from app.services import cs_access
-
+    """Moved: one person's access is their role and teams on Workspace -> Members."""
+    from app.services import access
     agent = User.query.get_or_404(user_id)
-    if not agent.is_cs or agent.is_admin:
-        # An admin is never restricted, and a non-agent has no console to restrict.
-        flash('Access limits apply to CS agents only.', 'warning')
-        return redirect(url_for('admin.users'))
-
-    if request.method == 'POST':
-        if request.form.get('mode') == 'all':
-            agent.cs_access = None                      # null means unrestricted
-        else:
-            agent.cs_access = cs_access.clean(request.form.getlist('screen'))
-        db.session.commit()
-        ActivityEvent.log('cs_access_changed', actor=current_user, target_user=agent.id,
-                          screens=('all' if agent.cs_access is None else len(agent.cs_access)))
-        db.session.commit()
-        flash('Access saved for %s.' % agent.username, 'success')
-        return redirect(url_for('admin.cs_screen_access', user_id=agent.id))
-
-    return render_template('admin/cs_access.html', active='users', agent=agent,
-                           sites=cs_access.SITES, screens=cs_access.SCREENS,
-                           current=agent.cs_access)
+    ws = access.current_workspace(current_user) or access.ensure_defaults()
+    member = next((m for m in ws.members if m.user_id == agent.id), None) if ws else None
+    if member is not None:
+        return redirect(url_for('workspace.member', member_id=member.id))
+    return redirect(url_for('workspace.members', add=agent.email))
 
 
 @admin_bp.route('/listings')
@@ -1219,7 +1191,8 @@ def admin_json_required(f):
     in a form the page can show."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_admin:
+        from app.services import access
+        if not access.allowed(current_user, request.endpoint, fallback=lambda u: u.is_admin):
             return jsonify({'error': 'Only an admin can delete this.'}), 403
         return f(*args, **kwargs)
     return decorated

@@ -85,8 +85,8 @@ def test_the_menu_shows_only_what_was_granted(client, db, agent):
     html = client.get('/cs/').data.decode()
     sidebar = html.split('admin-sidebar', 1)[1].split('</aside>', 1)[0]
 
-    assert 'Insurance leads' in sidebar
-    for gone in ('All posts', 'Match queue', 'Sahayak queue', 'Import'):
+    assert 'Quote leads' in sidebar
+    for gone in ('All posts', 'Match queue', 'Bookings', 'Import'):
         assert gone not in sidebar, gone
 
 
@@ -126,23 +126,13 @@ def test_admins_are_never_restricted(client, db, admin_user):
 # The admin screen
 # ---------------------------------------------------------------------------
 
-def test_an_admin_can_narrow_and_restore_an_agent(client, db, admin_user, agent):
+# Narrowing an agent is a role now (Workspace -> Roles & access, Members): tests/test_workspace.py.
+# The old per-agent screen forwards there.
+
+def test_the_old_access_screen_forwards_to_members(client, db, admin_user, agent):
     login(client, 'admin@test.com')
-
-    client.post('/admin/users/%d/cs-access' % agent.id,
-                data={'mode': 'some', 'screen': ['home', 'insurance']})
-    assert User.query.get(agent.id).cs_access == ['home', 'insurance']
-
-    client.post('/admin/users/%d/cs-access' % agent.id, data={'mode': 'all'})
-    assert User.query.get(agent.id).cs_access is None
-
-
-def test_unknown_screen_keys_are_not_stored(client, db, admin_user, agent):
-    """The stored list is replayed into a permission check, so a typo must not become a rule."""
-    login(client, 'admin@test.com')
-    client.post('/admin/users/%d/cs-access' % agent.id,
-                data={'mode': 'some', 'screen': ['home', 'made-up', 'insurance']})
-    assert User.query.get(agent.id).cs_access == ['home', 'insurance']
+    r = client.get('/admin/users/%d/cs-access' % agent.id)
+    assert r.status_code == 302 and '/admin/workspace/members' in r.headers['Location']
 
 
 def test_only_an_admin_can_change_access(client, db, agent):

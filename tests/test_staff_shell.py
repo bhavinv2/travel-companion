@@ -30,7 +30,9 @@ def test_traveller_screens_redirect_staff_to_console(client, cs_user, admin_user
 def test_staff_navbar_has_no_traveller_links(client, cs_user, admin_user, user):
     login(client, 'cs@test.com')
     html = client.get('/cs/').data.decode()
-    assert 'CS Console' in html and 'Match Queue' in html and 'staff-tag' in html
+    # the console's screens are in the menu on the left (Match queue among them), not repeated up top
+    assert 'CS Console' in html and 'Match queue' in html and 'staff-tag' in html
+    assert 'Match Queue' not in html.split('nav-links', 1)[1].split('</ul>', 1)[0]
     for traveller_bit in ('Desis on Move', 'How It Works', 'My Dashboard', 'My Connections', 'id="chatSidebar"',
                           'lang-dd', 'Public view', 'portal-switch'):
         assert traveller_bit not in html, traveller_bit

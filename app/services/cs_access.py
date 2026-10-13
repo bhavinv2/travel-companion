@@ -1,27 +1,15 @@
-"""Which CS console screens an agent may open.
+"""The CS console's screen keys, read through workspace roles (services/access.py).
 
-The console covers three separate products plus its own tools, and not every agent works on all
-of them. This lets an admin narrow one agent to the screens they actually use -- the insurance
-desk does not need the scraper, and whoever answers Sahayak bookings does not need the match
-queue.
+This used to be the access list itself: a per-agent `cs_access` column naming the console screens
+an admin had left them. Who opens what now comes from workspace roles, which cover every page on
+the site rather than the console's twelve, and `cs_access` survives only as history -- the first
+workspace turned each distinct list into a role (access.ensure_defaults), and an agent nobody has
+put in a workspace yet is still read by it.
 
-Two decisions shape everything here:
-
-  * An agent is UNRESTRICTED until somebody says otherwise. `user.cs_access` is null for everyone
-    today and for every new hire, and null means "all of it". Nothing changes for anybody when
-    this ships, and a new agent can start work before an admin has got round to them.
-  * This grants SCREENS, not rows. An agent without insurance cannot open the insurance screens,
-    by menu or by typing the URL. The shared inboxes still show everything they always did.
-    Filtering the data too would mean auditing every shared query, and a half-filtered list is
-    worse than an honest one.
-
-Admins are never restricted. Scoping an admin is a different conversation and a different set of
-mistakes; `applies_to` says so in one place rather than at every call site.
-
-Sub-routes matter as much as the menu entry. "All posts" is not one endpoint -- it is the list,
-the detail page, the editor, publish, close, reopen and the rest -- so a screen owns a set of
-endpoints and the guard checks membership. An endpoint nobody claimed is allowed: a new route
-should not silently disappear for restricted agents before anyone notices.
+The screen keys stay because a lot of the site asks in their terms ("who can open the voices
+inbox?" for a notification, "may this agent see the Import link?" in the navbar). Each key maps
+onto the pages that replaced it (access.LEGACY_SCREEN_PAGES), so those questions now get the
+roles' answer.
 """
 
 # key, label, site, and every endpoint that screen owns.
@@ -97,46 +85,35 @@ _OWNER = {ep: s['key'] for s in SCREENS for ep in s['endpoints']}
 
 
 def applies_to(user):
-    """Whether these limits mean anything for this person.
-
-    Only signed-in CS agents who are not admins. An admin sees everything, and saying that here
-    keeps the rule in one place instead of at every call site.
-    """
-    return bool(user and getattr(user, 'is_authenticated', False)
-                and getattr(user, 'is_cs', False) and not getattr(user, 'is_admin', False))
+    """Whether limits mean anything for this person: signed-in staff who are not site admins."""
+    from app.services import access
+    return bool(access.is_staff(user) and not getattr(user, 'is_admin', False))
 
 
 def allowed_keys(user):
-    """The screens this agent may open. None means unrestricted, which is the default."""
+    """The screens this agent may open; None when nobody has narrowed them -- every screen but
+    the admin-only ones (the scraper), which is what an agent has always had by default."""
     if not applies_to(user):
         return None
-    raw = getattr(user, 'cs_access', None)
-    if raw is None:
-        return None
-    return [k for k in raw if k in set(ALL_KEYS)]
+    keys = [s['key'] for s in SCREENS if can_open(user, s['key'])]
+    usual = [s['key'] for s in SCREENS if not s.get('admin_only')]
+    return None if set(usual) <= set(keys) else keys
 
 
 def can_open(user, screen_key):
-    screen = next((s for s in SCREENS if s['key'] == screen_key), None)
-    keys = allowed_keys(user)
-    if screen and screen.get('admin_only'):
-        # it was admin-only before this feature and stays that way by default; only an explicit
-        # grant opens it to an agent
-        if not (user and getattr(user, 'is_admin', False)):
-            return bool(keys is not None and screen_key in keys)
-    return True if keys is None else screen_key in keys
+    from app.services import access
+    pages = access.LEGACY_SCREEN_PAGES.get(screen_key, ())
+    mine = access.pages_for(user)
+    return any(p in mine for p in pages)
 
 
 def can_open_endpoint(user, endpoint):
-    """An endpoint nobody has claimed is allowed. A route added tomorrow should not vanish for
-    restricted agents before anyone has decided where it belongs."""
-    owner = _OWNER.get(endpoint or '')
-    return True if owner is None else can_open(user, owner)
+    from app.services import access
+    return access.allowed(user, endpoint)
 
 
 def site_for_endpoint(endpoint):
-    """Which product an endpoint belongs to, for the header switcher -- which renders before the
-    sidebar has said where it is."""
+    """Which product an endpoint belongs to."""
     key = _OWNER.get(endpoint or '')
     if not key:
         return None
@@ -144,22 +121,12 @@ def site_for_endpoint(endpoint):
 
 
 def screens_for(user):
-    """The menu this agent should see, in declaration order."""
-    keys = allowed_keys(user)
-    is_admin = bool(user and getattr(user, 'is_admin', False))
-    out = []
-    for s in SCREENS:
-        if s.get('admin_only') and not is_admin:
-            # unless an admin has granted it explicitly
-            if keys is None or s['key'] not in keys:
-                continue
-        if keys is None or s['key'] in keys:
-            out.append(s)
-    return out
+    """The console screens this person may open, in declaration order."""
+    return [s for s in SCREENS if can_open(user, s['key'])]
 
 
 def sites_for(user):
-    """(key, label, icon, screens) for each site this agent has anything in."""
+    """(key, label, icon, screens) for each site this person has anything in."""
     visible = screens_for(user)
     out = []
     for key, label, icon in SITES:
@@ -169,44 +136,14 @@ def sites_for(user):
     return out
 
 
-def summary_for(user):
-    """Per-site counts for the admin list: what this agent can actually open, out of what could
-    be granted to them.
-
-    The numerator is screens_for(), not the stored list, because the two disagree: the scraper is
-    closed unless an admin ticks it, so an agent with no limits set reaches four of Travel
-    Companion's five screens, not five. Counting the stored list would print 5/5 and describe a
-    door that is shut.
-    """
-    reachable = {s['key'] for s in screens_for(user)}
-    out = []
-    for key, label, icon in SITES:
-        owned = [s for s in SCREENS if s['site'] == key]
-        got = [s for s in owned if s['key'] in reachable]
-        out.append({'key': key, 'label': label, 'icon': icon,
-                    'got': len(got), 'total': len(owned),
-                    'names': ', '.join(s['label'] for s in got) or 'nothing'})
-    return out
-
-
 def recipients(*screen_keys, limit=20):
-    """Active staff who should hear about something on one of `screen_keys`.
-
-    This grants screens, so it has to gate the notifications about them as well. A notification
-    is an instruction to go and look: sending "New contact message" to an agent whose console
-    has no User voices screen is an instruction they cannot follow -- the link 403s -- and every
-    one of them buries the ones they can act on. The restriction was invisible here, so an agent
-    narrowed to the Sahayak queue was still told about every insurance lead and every report.
-
-    Admins are never restricted, so they always appear. An agent with no limits set is
-    unrestricted too, which is still the default and still everybody today.
-    """
-    from app.models import User
-    staff = (User.query
-             .filter(User.role.in_(['cs', 'admin']), User.is_active.is_(True))
-             .order_by(User.id).all())
-    out = [u for u in staff if any(can_open(u, k) for k in screen_keys)]
-    return out[:limit] if limit else out
+    """Active staff who should hear about something on one of `screen_keys`: whoever's roles, in
+    any of their workspaces, open one of the pages that replaced those screens. A notification is
+    an instruction to go and look; sending it to somebody whose roles cannot open the page is an
+    instruction they cannot follow, and it buries the ones they can act on."""
+    from app.services import access
+    pages = [p for k in screen_keys for p in access.LEGACY_SCREEN_PAGES.get(k, (k,))]
+    return access.recipients(*pages, limit=limit)
 
 
 def clean(keys):

@@ -1,0 +1,87 @@
+{% extends 'workspace/_layout.html' %}
+{% set ws_tab = 'ws_roles' %}
+{% block ws_title %}{{ r.name if r else 'New role' }}{% endblock %}
+{% block ws %}
+<div class="ws-head">
+  <div><h1>{{ r.name if r else ('Copy of ' ~ copy_of.name if copy_of else 'New role') }}</h1>
+    <p>{% if locked %}The Administrator role always has every page, including the ones added later. It cannot be narrowed.
+      {% else %}Tick the pages this role opens. Ticking a module ticks all of its pages.{% endif %}</p></div>
+  <a class="ws-btn" href="{{ url_for('workspace.roles') }}"><i class="fa-solid fa-arrow-left"></i> All roles</a>
+</div>
+
+<form method="POST" action="{{ url_for('workspace.save_role') }}" data-role-form>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  {% if r %}<input type="hidden" name="role_id" value="{{ r.id }}"/>{% endif %}
+  <section class="ws-card">
+    <div class="ws-grid2">
+      <div class="ws-field"><label for="rName">Role name</label>
+        <input type="text" id="rName" name="name" value="{{ r.name if r else ('Copy of ' ~ copy_of.name if copy_of else '') }}"
+               maxlength="80" required placeholder="e.g. Insurance agent"/></div>
+      <div class="ws-field"><label for="rDesc">What it is for <small>(optional)</small></label>
+        <input type="text" id="rDesc" name="description" maxlength="255"
+               value="{{ r.description if r and r.description else (copy_of.description if copy_of and copy_of.description else '') }}"/></div>
+    </div>
+    <p class="ws-muted" style="margin:0"><span class="ws-count" data-role-count>{{ chosen|length }}</span> page(s) chosen</p>
+  </section>
+
+  {% for m in modules %}
+  {% set mine = m.pages|selectattr('key', 'in', chosen)|list %}
+  <section class="ws-role-mod{{ ' off' if not m.on }}" data-role-module>
+    <header>
+      <label><input type="checkbox" data-module-all {{ 'checked' if mine|length == m.pages|length }} {{ 'disabled' if locked }}/>
+        <i class="{{ m.icon if ' ' in m.icon else 'fa-solid ' ~ m.icon }}"></i> {{ m.label }}</label>
+      <small>{% if not m.on %}Switched off in this workspace{% else %}{{ m.desc }}{% endif %}</small>
+    </header>
+    <div class="ws-role-pages">
+      {% for p in m.pages %}
+      <label><input type="checkbox" name="pages" value="{{ p.key }}" {{ 'checked' if p.key in chosen }} {{ 'disabled' if locked }}/>
+        <i class="{{ p.icon if ' ' in p.icon else 'fa-solid ' ~ p.icon }}"></i>
+        <span>{{ p.label }}{% if p.desc %}<small>{{ p.desc }}</small>{% endif %}</span></label>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+
+  <div class="ws-actions ws-sticky">
+    <button class="ws-btn primary"{{ ' disabled' if locked }}><i class="fa-solid fa-floppy-disk"></i> Save role</button>
+    <span class="ws-muted"><span data-role-count>{{ chosen|length }}</span> page(s) chosen</span>
+  </div>
+</form>
+
+{% if r and not r.system_key %}
+<form method="POST" action="{{ url_for('workspace.delete_role', role_id=r.id) }}" style="margin-top:22px"
+      data-confirm="Delete the role {{ r.name }}? People who have it keep their teams' pages only.">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  <button class="ws-btn danger"><i class="fa-solid fa-trash-can"></i> Delete role</button>
+</form>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+  var form = document.querySelector('[data-role-form]');
+  if (!form) return;
+  function count() {
+    var n = form.querySelectorAll('input[name="pages"]:checked').length;
+    form.querySelectorAll('[data-role-count]').forEach(function (out) { out.textContent = n; });
+  }
+  form.querySelectorAll('[data-role-module]').forEach(function (mod) {
+    var all = mod.querySelector('[data-module-all]');
+    var boxes = mod.querySelectorAll('input[name="pages"]');
+    function sync() {
+      var on = 0;
+      boxes.forEach(function (b) { if (b.checked) on++; });
+      all.checked = on === boxes.length;
+      all.indeterminate = on > 0 && on < boxes.length;
+      count();
+    }
+    all.addEventListener('change', function () {
+      boxes.forEach(function (b) { b.checked = all.checked; });
+      sync();
+    });
+    boxes.forEach(function (b) { b.addEventListener('change', sync); });
+    sync();
+  });
+})();
+</script>
+{% endblock %}

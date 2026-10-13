@@ -22,6 +22,8 @@ def register(app):
             raise click.ClickException(f"Unknown role(s): {', '.join(bad)}. Known: {', '.join(sorted(known))}")
         u.set_roles(keys)
         db.session.commit()
+        from app.services import access
+        access.sync_account(u)
         click.echo(f"{u.username} now has roles {', '.join(u.role_keys)} (access: {u.effective_role})")
 
     @app.cli.command('make-admin')
@@ -34,7 +36,17 @@ def register(app):
             raise click.ClickException(f'No user with email {email}')
         u.set_roles(u.role_keys + ['admin'])
         db.session.commit()
+        from app.services import access
+        access.sync_account(u)
         click.echo(f'{u.username} is now admin')
+
+    @app.cli.command('workspace-setup')
+    def workspace_setup():
+        """Make the first workspace from today's admins and agents (also happens by itself the
+        first time somebody opens Workspace settings)."""
+        from app.services import access
+        ws = access.ensure_defaults()
+        click.echo(f'{ws.name}: {len(ws.members)} members, {len(ws.roles)} roles')
 
     @app.cli.command('run-jobs')
     def run_jobs():

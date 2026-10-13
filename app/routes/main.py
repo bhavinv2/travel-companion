@@ -18,12 +18,12 @@ STAFF_REDIRECT_ENDPOINTS = {'main.index', 'main.all_trips', 'main.dashboard', 'm
 
 
 def staff_home(user):
-    """Where a staff account lands: admins on the admin panel, CS agents on the CS console."""
+    """Where a staff account lands: admins on the dashboard, customer service on the queues,
+    anybody else on the first page their roles give them (services/access.home_url)."""
     from flask import url_for
-    if user.is_admin:
-        return url_for('admin.dashboard')
-    if user.is_cs:
-        return url_for('cs.home')
+    from app.services import access
+    if access.is_staff(user):
+        return access.home_url(user)
     return url_for('main.index')
 
 

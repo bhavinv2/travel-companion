@@ -1,0 +1,31 @@
+{% extends 'workspace/_layout.html' %}
+{% set ws_tab = 'ws_roles' %}
+{% block ws_title %}Roles & access{% endblock %}
+{% block ws %}
+<div class="ws-head">
+  <div>
+    <h1>Roles &amp; access</h1>
+    <p>A role is a list of pages. Make one for each kind of job, tick the pages it needs, and give it to people or teams.
+      Nothing about who sees what is fixed in the code.</p>
+  </div>
+  <a class="ws-btn primary" href="{{ url_for('workspace.role', role_id=0) }}"><i class="fa-solid fa-plus"></i> New role</a>
+</div>
+
+<div class="ws-roles">
+  {% for r in ws.roles %}
+  {% set pages = pages_of[r.id] %}
+  <div class="ws-role">
+    <h3>{{ r.name }}{% if r.system_key == 'admin' %} <span class="ws-pill owner" title="Comes with every workspace">Everything</span>{% elif r.system_key %} <span class="ws-pill" title="Comes with every workspace">Built in</span>{% endif %}</h3>
+    {% if r.description %}<p>{{ r.description }}</p>{% endif %}
+    <div class="ws-muted" style="font-size:13px"><span class="ws-count">{{ pages|length }}</span> page{{ 's' if pages|length != 1 }}</div>
+    <div class="foot">
+      <span class="ws-muted" style="font-size:13px">{{ used.get(r.id, 0) }} {{ 'person' if used.get(r.id, 0) == 1 else 'people' }}</span>
+      <span style="display:flex;gap:6px">
+        <a class="ws-btn sm" href="{{ url_for('workspace.role', role_id=0, copy=r.id) }}" title="A new role starting from this one"><i class="fa-solid fa-copy"></i> Copy</a>
+        <a class="ws-btn sm" href="{{ url_for('workspace.role', role_id=r.id) }}"><i class="fa-solid fa-{{ 'eye' if r.system_key == 'admin' else 'pen' }}"></i> {{ 'View' if r.system_key == 'admin' else 'Change' }}</a>
+      </span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

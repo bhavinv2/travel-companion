@@ -400,7 +400,7 @@ def test_a_zero_count_stays_in_the_page_hidden(client, db, cs_user):
     """It has to be there for the refresh to show it again when something arrives."""
     login(client, 'cs@test.com')
     html = client.get('/cs/voices?tab=contact').data.decode()
-    assert 'data-badge="voices" aria-label="0 not read" hidden' in html
+    assert 'data-badge="voices_contact" aria-label="0 not read" hidden' in html
     assert 'data-badge="voices_inbox" hidden' in html
 
 

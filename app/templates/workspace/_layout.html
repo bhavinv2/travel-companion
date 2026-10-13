@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}{% block ws_title %}Workspace{% endblock %} – {{ ws.name if ws else 'Workspace' }}{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace.css') }}">{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% include 'admin/_sidebar.html' %}
+  <main class="admin-main ws-page">
+    {% set tabs = [('ws_settings', 'workspace.overview', 'Workspace', 'fa-building'),
+                   ('ws_members', 'workspace.members', 'Members', 'fa-user-gear'),
+                   ('ws_teams', 'workspace.teams', 'Teams', 'fa-people-group'),
+                   ('ws_roles', 'workspace.roles', 'Roles & access', 'fa-user-lock'),
+                   ('ws_all', 'workspace.all_workspaces', 'All workspaces', 'fa-layer-group')] %}
+    <nav class="ws-tabs" aria-label="Workspace">
+      {% for key, ep, label, icon in tabs if CAN(key) %}
+      <a href="{{ url_for(ep) }}" class="{{ 'on' if ws_tab == key }}"><i class="fa-solid {{ icon }}"></i> {{ label }}</a>
+      {% endfor %}
+    </nav>
+    {% block ws %}{% endblock %}
+  </main>
+</div>
+{% endblock %}

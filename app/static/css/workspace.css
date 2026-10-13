@@ -1,0 +1,127 @@
+/* Workspace settings (members, teams, roles) and WhatsApp inside the portal.
+   Plain, roomy and readable: these screens decide who sees what, and somebody who is not
+   technical should be able to read one and know what it will do. */
+.ws-page { max-width: 1120px; }
+.ws-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+.ws-head h1 { margin: 0 0 4px; font-size: 26px; }
+.ws-head p { margin: 0; color: var(--muted); max-width: 640px; }
+.ws-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 22px; padding: 4px; background: #eef1f6; border-radius: 12px; width: fit-content; max-width: 100%; }
+.ws-tabs a { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 9px; color: #42506a; font-weight: 600; font-size: 14px; text-decoration: none; }
+.ws-tabs a:hover { background: #fff; color: #10254a; }
+.ws-tabs a.on { background: #fff; color: #10254a; box-shadow: 0 1px 3px rgba(16,37,74,.12); }
+.ws-card { background: #fff; border: 1px solid #e3e8f0; border-radius: 14px; padding: 20px 22px; margin-bottom: 18px; }
+.ws-card h2 { margin: 0 0 4px; font-size: 18px; display: flex; align-items: center; gap: 10px; }
+.ws-card h2 i { color: #2f6fdb; }
+.ws-card > p.lead { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
+.ws-grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.ws-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.ws-field label { font-weight: 600; font-size: 13.5px; color: #24324d; }
+.ws-field small { color: var(--muted); font-size: 12.5px; }
+.ws-field input[type=text], .ws-field input[type=email], .ws-field textarea, .ws-field select {
+  width: 100%; padding: 10px 12px; border: 1px solid #cfd7e4; border-radius: 9px; font: inherit; font-size: 14.5px; background: #fff; color: #1b2438; }
+.ws-field textarea { min-height: 70px; resize: vertical; }
+.ws-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+.ws-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 10px; border: 1px solid #cfd7e4; background: #fff;
+  color: #1b2438; font: inherit; font-weight: 600; font-size: 14px; cursor: pointer; text-decoration: none; }
+.ws-btn:hover { background: #f4f7fb; }
+.ws-btn.primary { background: #2f6fdb; border-color: #2f6fdb; color: #fff; }
+.ws-btn.primary:hover { background: #255fc2; }
+.ws-btn.danger { color: #b42318; border-color: #f2c4bf; }
+.ws-btn.danger:hover { background: #fdf0ef; }
+.ws-btn.sm { padding: 6px 11px; font-size: 13px; border-radius: 8px; }
+.ws-muted { color: var(--muted); }
+.ws-note { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 10px; background: #f3f7fe; border: 1px solid #d6e3fb; color: #23406f; font-size: 14px; margin: 0 0 14px; }
+.ws-note.warn { background: #fff8e6; border-color: #f3d27a; color: #7a5200; }
+.ws-note.bad { background: #fdf0ef; border-color: #f2c4bf; color: #8a1c13; }
+.ws-note.ok { background: #ecf8f1; border-color: #bfe6cf; color: #1d6b40; }
+.ws-note i { margin-top: 2px; }
+
+/* modules as cards that switch on and off */
+.ws-modules { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.ws-module { position: relative; display: flex; gap: 12px; padding: 14px; border: 1.5px solid #dfe5ee; border-radius: 12px; cursor: pointer; background: #fff; }
+.ws-module:hover { border-color: #b9c8e0; }
+.ws-module input { position: absolute; opacity: 0; pointer-events: none; }
+.ws-module .mi { flex: 0 0 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: #eef2f8; color: #7a879c; font-size: 17px; }
+.ws-module b { display: block; font-size: 15px; color: #1b2438; }
+.ws-module small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; line-height: 1.4; }
+.ws-module .tick { position: absolute; top: 12px; right: 12px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #c9d3e1; display: flex; align-items: center; justify-content: center; color: transparent; font-size: 11px; }
+.ws-module:has(input:checked) { border-color: #2f6fdb; background: #f6f9ff; }
+.ws-module:has(input:checked) .mi { background: #2f6fdb; color: #fff; }
+.ws-module:has(input:checked) .tick { background: #2f6fdb; border-color: #2f6fdb; color: #fff; }
+.ws-module.locked { cursor: default; opacity: .85; }
+.ws-module input:focus-visible ~ .tick { box-shadow: 0 0 0 3px rgba(47,111,219,.35); }
+
+/* people */
+.ws-people { width: 100%; border-collapse: collapse; }
+.ws-people th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: #6a7891; padding: 8px 10px; border-bottom: 1px solid #e3e8f0; }
+.ws-people td { padding: 12px 10px; border-bottom: 1px solid #eef1f6; vertical-align: middle; font-size: 14px; }
+.ws-people tr:last-child td { border-bottom: 0; }
+.ws-who { display: flex; align-items: center; gap: 12px; min-width: 200px; }
+.ws-av { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: #dfe9fb; color: #24467f; font-weight: 700; font-size: 13px; }
+.ws-who b { display: block; }
+.ws-who small { color: var(--muted); }
+.ws-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; background: #eef2f8; color: #33415c; white-space: nowrap; }
+.ws-pill.role { background: #e7f0fd; color: #1d4ed8; }
+.ws-pill.owner { background: #fff1db; color: #9a5300; }
+.ws-pill.team { background: #eef7f1; color: #1d6b40; }
+.ws-pill.none { background: #f4f4f5; color: #71717a; }
+.ws-pill.bad { background: #fde8e8; color: #b91c1c; }
+.ws-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.ws-wa { font-size: 13px; color: #5b6579; white-space: nowrap; }
+.ws-wa .fa-whatsapp { color: #25a244; }
+
+/* choosing pages for a role */
+.ws-role-mod { border: 1px solid #e3e8f0; border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+.ws-role-mod.off { opacity: .6; }
+.ws-role-mod > header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #f7f9fc; }
+.ws-role-mod > header label { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; cursor: pointer; flex: 1; }
+.ws-role-mod > header small { color: var(--muted); font-weight: 500; }
+.ws-role-pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 4px 14px; padding: 10px 16px 14px; }
+.ws-role-pages label { display: flex; gap: 10px; align-items: flex-start; padding: 7px 4px; cursor: pointer; font-size: 14px; border-radius: 8px; }
+.ws-role-pages label:hover { background: #f6f8fb; }
+.ws-role-pages label small { display: block; color: var(--muted); font-size: 12px; line-height: 1.35; }
+.ws-role-pages i { width: 16px; color: #6a7891; margin-top: 3px; }
+.ws-role-mod input[type=checkbox], .ws-check input[type=checkbox] { width: 17px; height: 17px; accent-color: #2f6fdb; margin-top: 2px; flex: 0 0 auto; }
+.ws-check { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 4px 0; cursor: pointer; }
+.ws-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 12px; }
+.ws-count { font-weight: 700; color: #1b2438; }
+.ws-roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.ws-role { border: 1px solid #e3e8f0; border-radius: 12px; padding: 16px; background: #fff; display: flex; flex-direction: column; gap: 10px; }
+.ws-role h3 { margin: 0; font-size: 16px; display: flex; gap: 8px; align-items: center; }
+.ws-role p { margin: 0; color: var(--muted); font-size: 13.5px; }
+.ws-role .foot { margin-top: auto; display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.ws-bar { height: 6px; border-radius: 3px; background: #eef1f6; overflow: hidden; }
+.ws-bar i { display: block; height: 100%; background: #2f6fdb; }
+.ws-team { border: 1px solid #e3e8f0; border-radius: 12px; padding: 16px; background: #fff; display: flex; flex-direction: column; gap: 10px; }
+.ws-team h3 { margin: 0; font-size: 16px; }
+.ws-faces { display: flex; }
+.ws-faces .ws-av { width: 30px; height: 30px; flex-basis: 30px; font-size: 11.5px; border: 2px solid #fff; margin-left: -6px; }
+.ws-faces .ws-av:first-child { margin-left: 0; }
+.ws-cando { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.ws-cando div { border: 1px solid #eef1f6; border-radius: 10px; padding: 12px; }
+.ws-cando b { display: flex; gap: 8px; align-items: center; font-size: 14px; margin-bottom: 6px; }
+.ws-cando ul { margin: 0; padding-left: 18px; color: #42506a; font-size: 13.5px; }
+.ws-spaces { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+
+/* WhatsApp in the portal's frame */
+.wa-frame-wrap { display: flex; flex-direction: column; height: calc(100vh - 68px); margin: -24px -3%; }
+.wa-frame-bar { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid #e3e8f0; background: #fff; }
+.wa-frame-bar h1 { margin: 0; font-size: 18px; display: flex; gap: 10px; align-items: center; }
+.wa-frame-bar h1 .fa-whatsapp { color: #25a244; }
+.wa-frame-bar .sp { flex: 1; }
+.wa-frame { flex: 1; width: 100%; border: 0; background: #fff; }
+.wa-off { max-width: 680px; margin: 40px auto; }
+@media (max-width: 900px) {
+  .wa-frame-wrap { height: calc(100vh - 120px); margin: -20px -4%; }
+  .ws-people thead { display: none; }
+  .ws-people tr { display: block; border-bottom: 1px solid #eef1f6; padding: 8px 0; }
+  .ws-people td { display: block; border: 0; padding: 4px 6px; }
+}
+
+/* a long form keeps its Save button in reach */
+.ws-sticky { position: sticky; bottom: 0; z-index: 5; background: linear-gradient(180deg, rgba(255,255,255,0), #fff 30%); padding: 14px 0 12px; }
+
+/* The floating "what's new" button would sit on the conversation's Send button; on the WhatsApp
+   pages the menu's own counts do that job. */
+body:has(.wa-frame-wrap) #whatsNew { display: none; }

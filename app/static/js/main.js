@@ -3391,3 +3391,73 @@ function wireBulkSelect(headId, rowSelector, onChange) {
     if (sw) sw.classList.remove('open');
   });
 })();
+
+
+/* ===== staff menu: modules that fold, and "Find a page" ======================
+ * A module heading opens and closes its pages; which ones are open is remembered per browser
+ * (the module being worked in is always open). Typing in "Find a page" shows only the pages
+ * whose names match, across every module, and Enter opens the first one.
+ */
+(function () {
+  const nav = document.querySelector('.staff-nav');
+  if (!nav) return;
+  const KEY = 'cd.navOpen';
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { saved = {}; }
+
+  nav.querySelectorAll('.sn-group').forEach(function (g) {
+    const key = g.dataset.group;
+    const head = g.querySelector('[data-group-toggle]');
+    if (!g.classList.contains('open') && saved[key]) {
+      g.classList.add('open');
+      head.setAttribute('aria-expanded', 'true');
+    }
+    head.addEventListener('click', function () {
+      const open = !g.classList.contains('open');
+      g.classList.toggle('open', open);
+      head.setAttribute('aria-expanded', open ? 'true' : 'false');
+      saved[key] = open;
+      try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) { /* not remembered */ }
+    });
+  });
+
+  const find = nav.querySelector('[data-nav-find]');
+  const none = nav.querySelector('[data-nav-none]');
+  if (!find) return;
+  find.addEventListener('input', function () {
+    const q = find.value.trim().toLowerCase();
+    nav.classList.toggle('is-finding', !!q);
+    let hits = 0;
+    nav.querySelectorAll('.sn-group').forEach(function (g) {
+      let groupHit = false;
+      const groupName = (g.querySelector('.sn-head span') || {}).textContent || '';
+      const wholeGroup = q && groupName.toLowerCase().indexOf(q) !== -1;
+      g.querySelectorAll('.sn-items a').forEach(function (a) {
+        const hit = !q || wholeGroup || (a.dataset.title || '').toLowerCase().indexOf(q) !== -1;
+        a.classList.toggle('no-hit', !hit);
+        if (hit) { groupHit = true; hits += 1; }
+      });
+      g.classList.toggle('has-hit', groupHit);
+    });
+    if (none) none.hidden = !q || hits > 0;
+  });
+  find.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      const first = nav.querySelector('.sn-group.has-hit .sn-items a:not(.no-hit)');
+      if (first) { e.preventDefault(); window.location.href = first.href; }
+    } else if (e.key === 'Escape') {
+      find.value = '';
+      find.dispatchEvent(new Event('input'));
+    }
+  });
+})();
+
+
+/* ===== "Are you sure?" on forms that change who can do what =================
+ * <form data-confirm="..."> asks first. The question lives in an attribute, not inside an
+ * onsubmit string, so a name with an apostrophe in it cannot break the script.
+ */
+document.addEventListener('submit', function (e) {
+  const form = e.target.closest('form[data-confirm]');
+  if (form && !window.confirm(form.dataset.confirm)) e.preventDefault();
+}, true);

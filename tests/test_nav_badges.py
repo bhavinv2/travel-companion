@@ -35,6 +35,12 @@ def sidebar(client, url):
     return aside.split('<nav', 1)[1].rsplit('</nav>', 1)[0]
 
 
+def group(nav, key):
+    """One module of the menu. The menu shows every module the person has (folded), so a count
+    on another product's line is somewhere else in the same <nav>."""
+    return nav.split('data-group="%s"' % key, 1)[1].split('data-group=', 1)[0]
+
+
 def shows_badge(html):
     """A count is on screen. A zero stays in the page, hidden, so it can come back live."""
     import re
@@ -109,7 +115,8 @@ def test_a_product_with_nothing_waiting_shows_nothing(client, db, admin_user):
     enquiry('insurance')
     login(client, 'admin@test.com')
     nav = sidebar(client, '/admin/sahayak')
-    assert not shows_badge(nav)
+    assert not shows_badge(group(nav, 'sahayak'))
+    assert shows_badge(group(nav, 'insurance'))           # where it does belong
 
 
 def test_the_sahayak_line_counts_its_own(client, db, admin_user):
@@ -166,7 +173,7 @@ def test_the_notifications_line_counts_this_agents_own(client, db, cs_user, app)
     line = nav.split('Notifications', 1)[1].split('</a>', 1)[0]
     assert shows_badge(line) and '>2<' in line
     # the shared queues are untouched by one agent's own unread count
-    assert not shows_badge(nav.split('User voices', 1)[1].split('</a>', 1)[0])
+    assert not shows_badge(nav.split('Contact us', 1)[1].split('</a>', 1)[0])
 
 
 def test_one_agents_notifications_are_not_anothers(client, db, cs_user, admin_user):
@@ -190,7 +197,7 @@ def test_the_sent_notification_log_is_not_badged(client, db, admin_user):
     _db.session.commit()
     login(client, 'admin@test.com')
     nav = sidebar(client, '/admin/notification-log')
-    log_line = nav.split('Notifications', 1)[1].split('</a>', 1)[0]
+    log_line = nav.split('Notification log', 1)[1].split('</a>', 1)[0]
     assert not shows_badge(log_line)
 
 
@@ -365,7 +372,7 @@ def test_what_one_agent_read_is_still_unread_for_another(client, db, cs_user):
 
     login(client, 'cs2@test.com')
     nav = sidebar(client, '/cs/voices?tab=contact')
-    assert '>2<' in nav.split('User voices', 1)[1].split('</a>', 1)[0], \
+    assert '>2<' in nav.split('Contact us', 1)[1].split('</a>', 1)[0], \
         'the second agent has opened nothing, so both are new to them'
     html = client.get('/cs/voices?tab=contact').data.decode()
     assert html.count('data-read="contact/') == 2
@@ -375,7 +382,7 @@ def test_what_one_agent_read_is_still_unread_for_another(client, db, cs_user):
     # ...and the first agent's count is untouched by the second one reading
     login(client, 'cs@test.com')
     nav = sidebar(client, '/cs/voices?tab=contact')
-    assert '>1<' in nav.split('User voices', 1)[1].split('</a>', 1)[0]
+    assert '>1<' in nav.split('Contact us', 1)[1].split('</a>', 1)[0]
 
 
 def test_a_mark_written_by_a_parallel_request_does_not_fail_this_one(client, db, cs_user, app):
@@ -427,7 +434,9 @@ def test_a_new_agent_is_not_shown_the_closed_history(client, db, user, cs_user, 
     login(client, 'new@test.com')
     html = client.get('/cs/voices?tab=contact').data.decode()
     nav = sidebar(client, '/cs/voices?tab=contact')
-    assert '>4<' in nav.split('User voices', 1)[1].split('</a>', 1)[0], '2 enquiries, 1 review, 1 report'
+    line = lambda label: nav.split('>' + label + '<', 1)[1].split('</a>', 1)[0]
+    assert '>2<' in line('Contact us') and '>1<' in line('Feedback') and '>1<' in line('Reports'), \
+        '2 enquiries, 1 review, 1 report'
     cara = ContactMessage.query.filter_by(name='Cara').one()
     assert 'data-read="contact/%d"' % cara.id not in html
     assert html.count('data-read="contact/') == 2

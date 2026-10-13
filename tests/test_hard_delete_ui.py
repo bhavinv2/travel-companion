@@ -126,9 +126,12 @@ def test_the_dashboard(app, client, people):
     assert 'data-hd-kind="user" data-hd-id="%d"' % people['admin'].id not in html
 
 
-def test_the_cs_agents_screen(app, client, people):
-    html = page(app, client, 'admin@test.com', 'admin.cs_agents')
-    admin_sees(html, 'user', people['cs'].id, bulk=False)
+def test_the_cs_agents_screen_is_members_now(app, client, people):
+    """The agents list moved to Workspace -> Members; deleting an account stays on Users."""
+    from conftest import login
+    login(client, 'admin@test.com')
+    r = client.get('/admin/cs-agents')
+    assert r.status_code == 302 and r.headers['Location'].endswith('/admin/workspace/members')
 
 
 # ---------------------------------------------------------------------------- notifications

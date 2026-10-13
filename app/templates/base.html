@@ -114,12 +114,12 @@
 
     <ul class="nav-links" id="navLinks">
       {% if is_staff %}
-        {# Offered only where the agent can actually go: an admin may have narrowed their console
-           access, and a link that answers "not for you" is worse than no link. #}
-        {% if CS_ACCESS.can_open(current_user, 'posts') %}<li><a href="{{ url_for('cs.posts') }}"><i class="fa-solid fa-list"></i> Posts</a></li>{% endif %}
-        {% if CS_ACCESS.can_open(current_user, 'matches') %}<li><a href="{{ url_for('matches.cs_match_queue') }}"><i class="fa-solid fa-handshake"></i> Match Queue</a></li>{% endif %}
-        {% if CS_ACCESS.can_open(current_user, 'new') %}<li><a href="{{ url_for('cs.new_post') }}"><i class="fa-solid fa-plus"></i> New Post</a></li>{% endif %}
-        {% if CS_ACCESS.can_open(current_user, 'import') %}<li><a href="{{ url_for('imports.import_page') }}"><i class="fa-solid fa-file-import"></i> Import</a></li>{% endif %}
+        {# Everything else is in the menu on the left, grouped by module; repeating four of its
+           lines up here was a second menu that disagreed with the first. On a page without the
+           menu, this is the way back to it. #}
+        {% if not request.blueprint or request.blueprint not in ('admin', 'admin_crm', 'cs', 'crm', 'matches', 'imports', 'scraper', 'saved', 'workspace', 'messaging') %}
+        <li><a href="{{ staff_home(current_user) }}"><i class="fa-solid fa-table-columns"></i> Console</a></li>
+        {% endif %}
       {% else %}
       {# No "Home" link while you are already home — the logo is the way back, same as the landing. #}
       {% if request.endpoint != 'main.index' %}
@@ -164,23 +164,22 @@
     </ul>
 
     <div class="nav-right">
-      {# Site switcher. Only on a console page, and only when there is more than one product to
-         switch between -- the sidebar under it narrows to whatever is chosen. It is a view of the
-         same screens, not a second set of permissions: what somebody may open is decided by
-         cs_access and enforced on the request. #}
+      {# Workspace switcher (services/portals.switcher). Only on a console page, and only for somebody
+         with more than one workspace or the right to manage this one. The menu under it shows
+         that workspace's modules, narrowed to this person's pages (services/access.py). #}
       {# `site_sw`, not `sw`: a name set here is visible inside every child template's
          block, and `sw` is what the notification-switches screen calls its own data. #}
       {% set site_sw = PORTAL_SWITCHER() %}
       {% if site_sw %}
       <div class="site-sw" id="siteSw">
         <button type="button" class="site-sw-btn" id="siteSwBtn"
-                aria-haspopup="listbox" aria-expanded="false" title="Which site to work on">
+                aria-haspopup="listbox" aria-expanded="false" title="Switch workspace">
           <i class="fa-solid fa-grip site-sw-grip"></i>
           <span class="site-sw-cur">{{ site_sw.label }}</span>
           <i class="fa-solid fa-chevron-down site-sw-caret"></i>
         </button>
         <div class="site-sw-menu" id="siteSwMenu" role="listbox" aria-label="Site">
-          <div class="site-sw-head">Show screens for</div>
+          <div class="site-sw-head">Workspace</div>
           {% for s in site_sw.sites %}
           <a href="{{ s.url }}" role="option" aria-selected="{{ 'true' if s.key == site_sw.current else 'false' }}"
              class="site-sw-item{{ ' on' if s.key == site_sw.current }}">

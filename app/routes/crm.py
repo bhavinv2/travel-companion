@@ -91,26 +91,31 @@ def crm_role_of(stage):
 def _who_sees_what():
     if not current_user.is_authenticated:
         return None
+    from app.services import access
     name = (request.endpoint or '').split('.', 1)[-1]
     if request.blueprint == 'admin_crm' and not current_user.is_admin:
+        # somebody whose role gives them a management screen opens it where it lives
+        if name in MANAGE and access.allowed(current_user, request.endpoint):
+            return None
         # an agent who followed an admin link: the same screen, in their own console
         if name in MANAGE:
             return redirect(url_for('crm.today'))
         return redirect(url_for('crm.' + name, **(request.view_args or {}), **request.args.to_dict()))
     if request.blueprint == 'crm' and name in MANAGE:
-        if current_user.is_admin:
-            # the admin's screens live in the admin portal; 307 keeps a form's method and fields
+        if access.allowed(current_user, 'admin_crm.' + name):
+            # the management screens live in the admin portal; 307 keeps a form's method and fields
             return redirect(url_for('admin_crm.' + name, **(request.view_args or {}), **request.args.to_dict()),
                             code=307)
-        flash('That part of the Sales CRM is for admins.', 'warning')
+        flash('Your role does not include that part of the Sales CRM.', 'warning')
         return redirect(url_for('crm.today'))
 
 
 def admin_only(f):
-    """The set-up and management screens: admins only."""
+    """The set-up and management screens: whoever's role includes them (services/access.py)."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not current_user.is_admin:
+        from app.services import access
+        if not access.allowed(current_user, request.endpoint, fallback=lambda u: u.is_admin):
             if request.is_json or request.accept_mimetypes.best == 'application/json':
                 return jsonify({'error': 'Only an admin can change the CRM set-up.'}), 403
             flash('Only an admin can change the CRM set-up.', 'danger')
@@ -294,7 +299,12 @@ def lead(lead_id):
         s['body'] = crm.fill(s['body'], lead, current_user)
     others = [l for l in lead.person.leads if l.id != lead.id]
     pipelines = CrmPipeline.query.filter_by(is_active=True).order_by(CrmPipeline.id).all()
-    return render_template('cs/crm/lead.html', lead=lead, person=lead.person, task=task,
+    # The real WhatsApp conversation, as the WhatsApp CRM shows it, when it is connected to the
+    # portal and this person's role includes WhatsApp; otherwise the read-only thread below.
+    from app.services import wacrm_team
+    from app.routes.messaging import crm_role
+    wa_embed = bool(wacrm_team.enabled() and lead.person.phone and crm_role(current_user))
+    return render_template('cs/crm/lead.html', lead=lead, person=lead.person, task=task, wa_embed=wa_embed,
                            social=crm.social_reply_channels(lead),
                            has_moves=any(ch.from_stage_id for ch in lead.stage_changes),
                            can_remove=crm.can_remove(lead, current_user),

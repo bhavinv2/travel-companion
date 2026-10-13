@@ -1,153 +1,92 @@
-"""The admin menu, grouped by product.
+"""The staff menu: modules, their pages, and which line is lit.
 
-It had grown to sixteen links in one flat list covering three separate products plus the settings
-that apply to all of them, so somebody who came in to answer a Sahayak booking read past insurance
-testimonials and colour themes to find it. The tabs pick a product; the list shows only its
-screens.
+One menu for both consoles, built from services/access.MODULES (the pages) and the person's roles.
+It replaced two hand-kept menus -- the admin panel's product tabs and the CS console's screen
+list -- that described the same screens differently and drifted apart.
 """
 import os
-import re
 import sys
-
-import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from conftest import login  # noqa: E402
-from app.services import admin_nav  # noqa: E402
+from app.services import access  # noqa: E402
 
 
-def test_every_screen_belongs_to_exactly_one_product(app):
-    """A link in two tabs would suggest there are two screens behind it."""
+def test_every_page_belongs_to_exactly_one_module(app):
     seen = {}
-    for section in admin_nav.SECTIONS:
-        for item in section['items']:
-            key = item['key']
-            assert key not in seen, '%s is in both %s and %s' % (key, seen.get(key), section['key'])
-            seen[key] = section['key']
-    assert len(seen) >= 15
+    for m in access.MODULES:
+        for p in m['pages']:
+            assert p['key'] not in seen, '%s is in both %s and %s' % (p['key'], seen.get(p['key']), m['key'])
+            seen[p['key']] = m['key']
+    assert len(seen) >= 40
 
 
-def test_every_link_points_at_a_real_route(app):
-    """A typo here is a 500 on every admin page, because the sidebar renders on all of them."""
-    endpoints = {r.endpoint for r in app.url_map.iter_rules()}
-    for section in admin_nav.SECTIONS:
-        for item in section['items']:
-            assert item['endpoint'] in endpoints, '%s (%s)' % (item['endpoint'], item['label'])
-    assert admin_nav.DASHBOARD['endpoint'] in endpoints
+def test_every_page_points_at_real_routes(app):
+    """A typo here is a 500 on every staff page, because the menu renders on all of them."""
+    endpoints = set(app.view_functions)
+    for p in access.PAGES.values():
+        for ep in p['endpoints']:
+            assert ep in endpoints, '%s (%s)' % (ep, p['label'])
+        for ep in p['links'].values():
+            assert ep is None or ep in endpoints, '%s (%s)' % (ep, p['label'])
+    for ep in access.STAFF_ANY:
+        assert ep in endpoints, ep
 
 
-def test_each_page_lights_its_own_product(app):
-    assert admin_nav.section_for('listings') == 'companion'
-    assert admin_nav.section_for('insurance_page') == 'insurance'
-    assert admin_nav.section_for('sahayak_services') == 'sahayak'
-    assert admin_nav.section_for('themes') == 'site'
-
-
-def test_a_screen_reached_from_another_still_lights_its_product(app):
-    """The feedback view opens from User voices and has no menu entry of its own."""
-    assert admin_nav.section_for('feedback') == 'companion'
-
-
-def test_an_unknown_key_still_renders_a_menu(app):
-    """A new page whose author forgot to register it must not produce an empty sidebar."""
-    assert admin_nav.section_for('something-new') == admin_nav.SECTIONS[0]['key']
-
-
-def test_the_dashboard_is_not_filed_under_one_product(app):
-    """It reports across all three, so putting it in a tab would misdescribe what it shows."""
-    assert admin_nav.is_dashboard('dashboard')
-    in_tabs = {i['key'] for s in admin_nav.SECTIONS for i in s['items']}
-    assert 'dashboard' not in in_tabs
-
-
-ITEM = re.compile(r'<a href="([^"]+)"[^>]*class="site-sw-item(?: (on))?"[^>]*>'
-                  r'\s*<i[^>]*></i><span>([^<]+)</span>')
-
-
-def choices(html):
-    """(url, current, label) for each entry in the header's site switcher.
-
-    It lives in the header rather than the sidebar so that both consoles carry the same control in
-    the same place, and so it survives the rail being collapsed.
-    """
-    chunk = html.split('site-sw-menu', 1)[1]
-    return [(url, bool(on), label) for url, on, label in ITEM.findall(chunk)]
-
-
-def test_the_sidebar_shows_only_the_current_product(client, db, admin_user):
-    login(client, 'admin@test.com')
-    html = client.get('/admin/insurance-page').data.decode()
-
-    nav = html.split('admin-nav-items', 1)[1]
-    assert 'Quote leads' in nav and 'Page content' in nav
-    # ...and nothing from the other products
-    for elsewhere in ('Colour themes', 'Options &amp; dropdowns', 'Bookings', 'Listings'):
-        assert elsewhere not in nav, elsewhere
-
-    # all of them are always offered, so switching never needs a trip via the dashboard
-    labels = [c[2] for c in choices(html)]
-    assert labels == ['Travel Companion', 'Travel Insurance', 'Sahayak', 'Sales CRM', 'Site']
-
-
-def test_the_switcher_says_which_product_you_are_on(client, db, admin_user):
-    """A control offering four choices and marking none of them current asks you to remember
-    where you are."""
-    login(client, 'admin@test.com')
-    html = client.get('/admin/insurance-page').data.decode()
-    assert '<span class="site-sw-cur">Travel Insurance</span>' in html
-    assert [c[2] for c in choices(html) if c[1]] == ['Travel Insurance']
-
-
-def test_switching_lands_on_that_products_first_screen(client, db, admin_user):
-    """Switching has to go somewhere useful rather than to a menu that asks you to choose again."""
-    login(client, 'admin@test.com')
-    urls = dict((label, url) for url, _, label in choices(client.get('/admin/themes').data.decode()))
-    assert urls['Travel Companion'].endswith('/admin/listings')
-    assert urls['Sahayak'].endswith('/admin/sahayak')
-
-
-def test_the_switcher_is_not_offered_to_people_without_the_panel(client, db, user):
-    """It is a view of the admin menu. Rendering it for a traveller would advertise screens the
-    next click refuses."""
-    login(client, 'bob@test.com')
-    assert 'site-sw-menu' not in client.get('/').data.decode()
-
-
-# ---------------------------------------------------------------------------
-# Contact messages and feedback
-# ---------------------------------------------------------------------------
-
-def test_contact_and_feedback_are_named_in_the_menu(app):
-    """They were reachable before but never named: three tabs inside one screen called
-    "User voices", which tells you nothing about what is in it."""
-    labels = {i['label'] for s in admin_nav.SECTIONS for i in s['items']}
-    assert {'Contact us', 'Feedback', 'Reports', 'Enquiries'} <= labels
-
-
-def test_enquiries_are_filed_under_the_product_they_are_about(app):
-    """A travel-cover enquiry belongs with the insurance screens, not with the companion app.
-    One screen, one URL, different slices -- the topic does the splitting."""
-    by_key = {i['key']: (s['key'], i) for s in admin_nav.SECTIONS for i in s['items']}
-
-    section, item = by_key['voices_insurance']
-    assert section == 'insurance'
-    assert item['args'] == {'tab': 'contact', 'topic': 'insurance'}
-
-    section, item = by_key['voices_contact']
-    assert section == 'companion'
-    assert item['args'] == {'tab': 'contact', 'topic': 'companion'}
+def test_every_staff_screen_is_a_page(app):
+    """A staff route no page claims could only be opened by a site admin, with nobody able to
+    give it to anyone else -- exactly the hard-coding roles replaced."""
+    staff = ('admin.', 'admin_crm.', 'cs.', 'crm.', 'imports.', 'scraper.', 'saved.', 'workspace.', 'messaging.')
+    loose = [ep for ep in app.view_functions if ep.startswith(staff) and not access.claims(ep)]
+    assert loose == ['admin.admin_login']
 
 
 def test_the_right_line_is_lit_for_a_shared_screen(app):
-    """Four lines share one endpoint, so `active` alone cannot say which is current."""
-    assert admin_nav.current_key('voices', {}) == 'voices_contact'
-    assert admin_nav.current_key('voices', {'tab': 'feedback'}) == 'voices_feedback'
-    assert admin_nav.current_key('voices', {'tab': 'report'}) == 'voices_report'
-    assert admin_nav.current_key('voices', {'tab': 'contact', 'topic': 'insurance'}) == 'voices_insurance'
-    # and that last one pulls the sidebar over to the insurance tab
-    assert admin_nav.section_for('voices', {'tab': 'contact', 'topic': 'insurance'}) == 'insurance'
-    assert admin_nav.section_for('voices', {}) == 'companion'
+    """Six lines share the voices inbox; the query string tells them apart."""
+    cases = [
+        ('/admin/voices?tab=contact&topic=sahayak', 'voices_sahayak'),
+        ('/admin/voices?tab=contact&topic=insurance', 'voices_insurance'),
+        ('/admin/voices?tab=contact&topic=general', 'voices_general'),
+        ('/admin/voices?tab=contact', 'voices_contact'),
+        ('/admin/voices?tab=feedback', 'voices_feedback'),
+        ('/cs/voices?tab=report', 'voices_report'),
+        ('/admin/help?site=insurance', 'help_insurance'),
+        ('/admin/help', 'help'),
+        ('/cs/crm/today', 'crm_today'),
+        ('/admin/crm/lead/1', 'crm_board'),
+    ]
+    for url, key in cases:
+        with app.test_request_context(url):
+            assert access.active_page() == key, url
+
+
+def test_the_menu_has_every_module_with_the_current_one_open(client, db, admin_user):
+    login(client, 'admin@test.com')
+    html = client.get('/admin/sahayak').data.decode()
+    nav = html.split('admin-nav-items', 1)[1].split('</nav>', 1)[0]
+    for label in ('Sales CRM', 'Travel Companion', 'Travel Insurance', 'Sahayak', 'WhatsApp', 'Workspace'):
+        assert label in nav, label
+    sahayak = nav.split('data-group="sahayak"', 1)[0].rsplit('<div', 1)[1]
+    assert 'open' in sahayak                               # the module being worked in is open
+    assert 'Applications &amp; enquiries' in nav and 'Bookings' in nav
+
+
+def test_a_menu_line_stays_in_the_console_you_are_in(client, db, admin_user, cs_user):
+    """The same screen exists in both consoles; an admin's links stay in /admin, an agent's in /cs."""
+    login(client, 'admin@test.com')
+    nav = client.get('/admin/sahayak').data.decode().split('admin-nav-items', 1)[1]
+    assert 'href="/admin/insurance-quotes"' in nav
+    client.post('/auth/logout')
+    login(client, 'cs@test.com')
+    nav = client.get('/cs/').data.decode().split('admin-nav-items', 1)[1]
+    assert 'href="/cs/insurance-quotes"' in nav and '/admin/insurance-quotes' not in nav
+
+
+def test_the_menu_is_not_offered_to_travellers(client, db, user):
+    login(client, 'bob@test.com')
+    html = client.get('/').data.decode()
+    assert 'admin-nav-items' not in html and 'site-sw' not in html
 
 
 def test_the_enquiry_inbox_really_filters_by_topic(client, db, admin_user):
@@ -155,51 +94,21 @@ def test_the_enquiry_inbox_really_filters_by_topic(client, db, admin_user):
     from app import db as _db
     from app.models import ContactMessage
     _db.session.add_all([
-        ContactMessage(name='Asha', email='a@example.com', message='about a trip',
-                       topic='companion'),
-        ContactMessage(name='Ravi', email='r@example.com', message='about cover',
-                       topic='insurance'),
+        ContactMessage(name='Asha', email='a@example.com', message='about a trip', topic='companion'),
+        ContactMessage(name='Ravi', email='r@example.com', message='about cover', topic='insurance'),
     ])
     _db.session.commit()
-
     login(client, 'admin@test.com')
     html = client.get('/admin/voices?tab=contact&topic=insurance').data.decode()
     assert 'Ravi' in html and 'Asha' not in html
 
 
-def test_sahayak_requests_have_a_screen_of_their_own(app):
-    """Travel companion and insurance each had an enquiry screen in their section; Sahayak did
-    not, so an application filed under Sahayak was reachable only from the catch-all inbox."""
-    items = {i['key']: i for s in admin_nav.SECTIONS if s['key'] == 'sahayak' for i in s['items']}
-    assert 'voices_sahayak' in items
-    assert items['voices_sahayak']['args'] == {'tab': 'contact', 'topic': 'sahayak'}
-
-
-def test_the_sahayak_slice_of_the_inbox_lights_up_its_own_line(app):
-    """Four lines share the voices endpoint, so the query string is what tells them apart."""
-    assert admin_nav.current_key('voices', {'tab': 'contact', 'topic': 'sahayak'}) == 'voices_sahayak'
-    assert admin_nav.section_for('voices', {'tab': 'contact', 'topic': 'sahayak'}) == 'sahayak'
-    # and the other slices are unmoved
-    assert admin_nav.current_key('voices', {'tab': 'contact', 'topic': 'insurance'}) == 'voices_insurance'
-    assert admin_nav.current_key('voices', {'tab': 'contact', 'topic': 'general'}) == 'voices_general'
-    assert admin_nav.current_key('voices', {'tab': 'contact'}) == 'voices_contact'
-
-
-def test_the_header_switcher_knows_which_product_a_sahayak_enquiry_is(app):
-    """It renders before the sidebar, so it reads the endpoint and args rather than the key."""
-    f = admin_nav.section_for_endpoint
-    assert f('admin.voices', {'tab': 'contact', 'topic': 'sahayak'}) == 'sahayak'
-    assert f('admin.voices', {'tab': 'contact', 'topic': 'insurance'}) == 'insurance'
-    assert f('admin.voices', {'tab': 'feedback', 'topic': 'sahayak'}) == 'companion'
-
-
-def test_the_sahayak_tab_lists_its_new_screen(client, db, admin_user):
-    """The menu is where somebody looks for it, so the sidebar has to carry the line and not
-    only the routing table."""
+def test_a_workspace_without_a_module_has_no_menu_for_it(client, db, admin_user):
     login(client, 'admin@test.com')
-    nav = client.get('/admin/sahayak').data.decode().split('admin-nav-items', 1)[1]
-    assert 'Applications &amp; enquiries' in nav
-    assert 'Bookings' in nav
-    # still only this product's screens
-    for elsewhere in ('Listings', 'Quote leads', 'Colour themes'):
-        assert elsewhere not in nav, elsewhere
+    ws = access.ensure_defaults()
+    ws.modules = ['crm', 'insurance']
+    from app import db as _db
+    _db.session.commit()
+    nav = client.get('/admin/insurance-quotes').data.decode().split('admin-nav-items', 1)[1].split('</nav>', 1)[0]
+    assert 'Travel Insurance' in nav and 'Sales CRM' in nav and 'Workspace' in nav
+    assert 'data-group="sahayak"' not in nav and 'data-group="companion"' not in nav

@@ -136,9 +136,16 @@
   {# ============================================================== 2. the conversation #}
   <section class="card" data-asked>
     <div class="card-head"><div class="t"><span class="ico wa"><i class="fa-regular fa-comments"></i></span><h2>Conversation</h2></div>
-      {% if wa_configured and person.phone %}<a class="cb sm" data-thread-link href="#" target="_blank" rel="noopener" hidden>Open in WhatsApp CRM <i class="fa-solid fa-up-right-from-square"></i></a>{% endif %}</div>
+      {% if wa_embed and person.wacrm_conversation_id %}<a class="cb sm" href="{{ url_for('messaging.inbox', p='/inbox?c=' ~ person.wacrm_conversation_id) }}">Open in the inbox <i class="fa-solid fa-arrow-right"></i></a>
+      {% elif wa_configured and person.phone and not wa_embed %}<a class="cb sm" data-thread-link href="#" target="_blank" rel="noopener" hidden>Open in WhatsApp CRM <i class="fa-solid fa-up-right-from-square"></i></a>{% endif %}</div>
     <div class="convo">
-      {% if wa_configured and person.phone %}
+      {% if wa_embed %}
+      {# The conversation itself, live: reply, send templates, voice notes and media right here.
+         The ready answers below still work -- what "Send" sends lands in this thread. #}
+      <iframe class="crm-wa-frame" src="{{ url_for('messaging.lead_chat', lead_id=lead.id) }}"
+              title="WhatsApp conversation with {{ person.name or 'this lead' }}" loading="lazy"
+              allow="microphone; clipboard-write"></iframe>
+      {% elif wa_configured and person.phone %}
       <div data-thread data-url="{{ crm_url('whatsapp_thread', lead_id=lead.id) }}">
         <div class="wa-thread" data-thread-body><p class="muted small">Loading their WhatsApp messages…</p></div>
       </div>

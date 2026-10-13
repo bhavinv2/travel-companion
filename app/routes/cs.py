@@ -9,7 +9,7 @@ from sqlalchemy import func, or_
 from werkzeug.datastructures import MultiDict
 
 from app import db
-from app.services import urls
+from app.services import access, urls
 # phone.matches: a search box finds a number however it is spaced on either side
 from app.services import phone as phone_svc
 from app.models import (
@@ -38,7 +38,8 @@ def cs_required(f):
             # here(), not request.path: under a URL prefix the latter sends them
             # back to a path outside the app after they sign in
             return redirect(url_for('auth.login', next=urls.here()))
-        if not current_user.is_cs:
+        from app.services import access
+        if not access.allowed(current_user, request.endpoint, fallback=lambda u: u.is_cs):
             flash('The CS console is for customer-service staff only.', 'danger')
             return redirect(url_for('main.index'))
         return f(*args, **kwargs)
@@ -375,7 +376,7 @@ def voices():
                            feedbacks=feedbacks, f_total=f_total, f_page=f_page, f_pages=f_pages,
                            pending=pending,
                            reports=reports, r_total=r_total, r_page=r_page, r_pages=r_pages,
-                           r_status=r_status, reports_open=reports_open, can_delete=current_user.is_admin,
+                           r_status=r_status, reports_open=reports_open, can_delete=access.can(current_user, 'delete_records'),
                            CONTACT_STATUSES=CONTACT_STATUSES, CONTACT_STATUS_LABELS=CONTACT_STATUS_LABELS, CONTACT_TOPICS=CONTACT_TOPICS,
                            CONTACT_TOPIC_LABELS=CONTACT_TOPIC_LABELS, topic=topic,
                            **_choices())
@@ -1342,7 +1343,7 @@ def notifications():
         'cs/notifications.html', rows=rows, page=page, pages=pages, total=total, f=f,
         categories=[(c, notiflog.CATEGORY_LABELS[c]) for c in notiflog.CATEGORY_ORDER],
         groups=notiflog.SEND_GROUPS, cat_for_type=notiflog.CATEGORY_FOR_TYPE,
-        cat_labels=notiflog.CATEGORY_LABELS, base=url_for('cs.notifications'), can_delete=current_user.is_admin)
+        cat_labels=notiflog.CATEGORY_LABELS, base=url_for('cs.notifications'), can_delete=access.can(current_user, 'delete_records'))
 
 
 @cs_bp.route('/notifications/send', methods=['POST'])
