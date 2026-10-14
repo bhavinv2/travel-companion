@@ -98,6 +98,25 @@ def upsert_contact(phone, name=None, email=None, tags=None):
     return cid
 
 
+def set_tags(phone, name=None, email=None, add=(), drop_prefixes=()):
+    """The contact's id, its tags now `add` plus whatever it had that does not start with one of
+    `drop_prefixes` -- so a lead's stage tag ("TI: Prospect") replaces the last one instead of
+    piling up, and tags somebody set by hand in the WhatsApp CRM survive. Sends only a change."""
+    body = {'phone': phone}
+    if name:
+        body['name'] = name
+    if email:
+        body['email'] = email
+    data = _call('POST', '/api/v1/contacts', body) or {}
+    cid = str(data.get('id') or '') or None
+    have = {t.get('name') for t in data.get('tags') or [] if isinstance(t, dict) and t.get('name')}
+    keep = {t for t in have if not any(t.startswith(p) for p in drop_prefixes)}
+    want = keep | {t for t in add if t}
+    if cid and want != have:
+        _call('PATCH', '/api/v1/contacts/%s' % cid, {'tags': sorted(want)})
+    return cid
+
+
 def find_contact(phone):
     """The id of the contact with this number, or None. It stores numbers as digits only and
     searches by part of the number, so the last ten digits are searched and compared in full."""
@@ -134,7 +153,8 @@ def me():
     return _call('GET', '/api/v1/me') or {}
 
 
-def register_webhook(url, events=('message.received', 'message.status_updated')):
+def register_webhook(url, events=('message.received', 'message.status_updated', 'message.sent',
+                                   'conversation.assigned')):
     """Point the WhatsApp CRM's webhook at us. Returns {'id', 'secret', ...}; the secret is only
     ever shown this once. Needs a key with the webhooks:manage scope."""
     return _call('POST', '/api/v1/webhooks', {'url': url, 'events': list(events)}) or {}

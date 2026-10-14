@@ -49,7 +49,7 @@ VOICES = ('cs.voices', 'cs.contact_messages', 'cs.contact_status', 'cs.voice_rea
 
 # what a salesperson does to a lead, from My day or from the lead itself
 CRM_DAILY = _both('lead', 'move', 'route_lead', 'task_action', 'send', 'call', 'note', 'update',
-                  'suggest', 'answer_used', 'event', 'whatsapp_thread', 'undo', 'reopen', 'remove')
+                  'suggest', 'answer_used', 'event', 'undo', 'reopen', 'remove')
 
 MATCHES = ('matches.cs_match_queue', 'matches.cs_matches', 'matches.cs_notify', 'matches.cs_dismiss',
            'matches.cs_connected', 'matches.cs_mark_sent', 'matches.cs_intro_text', 'matches.trip_matches',
@@ -92,7 +92,7 @@ MODULES = [
                admin='admin_crm.insights'),
          _page('crm_setup', 'CRM set-up', 'fa-sliders',
                _both('setup', 'save_source', 'save_pipeline', 'save_step', 'save_answer', 'save_whatsapp',
-                     'backfill', 'import_sheet', 'import_confirm', 'save_process'),
+                     'backfill', 'import_sheet', 'import_confirm', 'save_process', 'setup_templates'),
                admin='admin_crm.setup', desc='Sources, pipelines, follow-up steps, ready messages, imports.'),
      ]},
     {'key': 'companion', 'label': 'Travel Companion', 'icon': 'fa-plane-departure',
@@ -154,7 +154,7 @@ MODULES = [
      'desc': 'The WhatsApp CRM inside the portal: conversations, templates, broadcasts, auto-replies, '
              'chatbot flows and the AI assistant.',
      'pages': [
-         _page('wa_inbox', 'Inbox', 'fa-comments', ['messaging.inbox'], admin='messaging.inbox',
+         _page('wa_inbox', 'Inbox', 'fa-comments', ['messaging.inbox', 'messaging.lead_panel', 'messaging.lead_panel_make'], admin='messaging.inbox',
                cs='messaging.inbox', desc='Every WhatsApp conversation, replies and assignments.'),
          _page('wa_contacts', 'Contacts', 'fa-address-book', ['messaging.contacts'], admin='messaging.contacts',
                cs='messaging.contacts'),

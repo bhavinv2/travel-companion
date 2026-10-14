@@ -294,3 +294,39 @@ def remove_extra(ws, email):
     info['extra'] = [x for x in info.get('extra') or [] if (x.get('email') or '').lower() != email.lower()]
     ws.wacrm = info
     db.session.commit()
+
+
+# ------------------------------------------------------------------- messages and conversations
+
+def push_template_drafts(items):
+    """New WhatsApp templates as DRAFTs (a person submits each to Meta on WhatsApp -> Templates).
+    Existing names are left alone. {created, skipped: [{name, reason}]}."""
+    out = {'created': 0, 'skipped': []}
+    for i in range(0, len(items), 100):
+        data = _api('POST', 'templates/drafts', {'items': items[i:i + 100]}) or {}
+        out['created'] += int(data.get('created') or 0)
+        out['skipped'] += list(data.get('skipped') or [])
+    return out
+
+
+def push_quick_replies(items):
+    """The ready answers as WhatsApp quick replies, matched by title. {created, updated}."""
+    out = {'created': 0, 'updated': 0}
+    for i in range(0, len(items), 200):
+        data = _api('POST', 'quick-replies', {'items': items[i:i + 200]}) or {}
+        out['created'] += int(data.get('created') or 0)
+        out['updated'] += int(data.get('updated') or 0)
+    return out
+
+
+def conversation_info(conversation_id):
+    """{conversation_id, status, assignee_email, last_inbound_at, contact: {...}} or None."""
+    try:
+        return _api('GET', 'conversation/%s' % conversation_id)
+    except TeamError:
+        return None
+
+
+def assign_conversation(phone_digits, email):
+    """Give the person's WhatsApp conversation to `email` (None: nobody). Best effort."""
+    return _api('POST', 'conversation/assign', {'phone': phone_digits, 'email': email})

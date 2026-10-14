@@ -41,15 +41,23 @@
   }
 
   // every move can be taken back for a few seconds: a wrong drop is one click to undo
-  function undoMove(leadId) {
+  function undoMove(leadId, el) {
     post('lead/' + leadId + '/undo', {}).then(function (d) {
       if (!d._ok) { toast(d.error || 'Could not undo.', true); return; }
       toast('Back in ' + d.stage);
-      reloadSoon(700);
+      reloadFor(el, 700);
     });
   }
 
   function reloadSoon(ms) { setTimeout(function () { location.reload(); }, ms || 600); }
+
+  // the lead card in the panel beside the WhatsApp inbox reloads itself, not the page (which would
+  // reload the inbox too); on the lead page and everywhere else the page reloads
+  function reloadFor(el, ms) {
+    var panel = el && el.closest && el.closest('[data-lead-panel]');
+    if (panel && window.CRM_reloadPanel) { setTimeout(window.CRM_reloadPanel, ms || 400); return; }
+    reloadSoon(ms);
+  }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -106,19 +114,17 @@
       if (d === null) return null;
       if (!d._ok) { toast(d.error || 'Could not move it.', true); return null; }
       toast(d.status === 'won' ? 'Won! 🎉 Moved to ' + d.stage : 'Moved to ' + d.stage, false,
-            { label: 'Undo', run: function () { undoMove(leadId); } });
+            { label: 'Undo', run: function () { undoMove(leadId, reasonsSource); } });
       return d;
     });
   }
 
   /* -------------------------------------------------------------- sending */
-  // a ready message picked from "Or a ready message": its id goes with the send, so it is counted
-  // under its code (BW, FM, HJ...) -- forgotten as soon as the reply box is edited away from it
-  var quickPick = null;
-
+  // A step's message: the server decides how it goes -- its approved WhatsApp template, free text
+  // inside the 24 hours after they last wrote, or the agent's own WhatsApp -- and says which.
   function sendMessage(leadId, text, taskId, phone, via, answerId) {
     text = (text || '').trim();
-    if (!text) { toast('Write the message first.', true); return Promise.resolve(null); }
+    if (!text && !taskId) { toast('Write the message first.', true); return Promise.resolve(null); }
     if (via && via !== 'whatsapp') {
       return post('lead/' + leadId + '/send', { text: text, task_id: taskId || null, via: via, answer_id: answerId || null }).then(function (d) {
         if (!d._ok) { toast(d.error || 'Could not send.', true); return null; }
@@ -134,10 +140,11 @@
     }
     return post('lead/' + leadId + '/send', { text: text, task_id: taskId || null, answer_id: answerId || null }).then(function (d) {
       if (!d._ok) { toast(d.error || 'Could not send.', true); return null; }
-      if (d.mode === 'sent') toast('Sent on WhatsApp');
+      if (d.mode === 'sent') toast(d.via === 'template' ? 'Sent on WhatsApp (template)' : 'Sent on WhatsApp');
       else {
         if (!opened && d.url) window.open(d.url, '_blank', 'noopener');
-        toast(d.warning ? 'Not sent automatically — WhatsApp opened instead' : 'WhatsApp opened — press send there', !!d.warning);
+        toast(d.reason || (d.warning ? 'Not sent automatically — WhatsApp opened instead' : 'WhatsApp opened — press send there'),
+              !!(d.reason || d.warning));
       }
       return d;
     });
@@ -179,11 +186,11 @@
               var reason = reasons.find(function (r) { return /respon|answer/i.test(r); }) || reasons[0] || 'No response';
               return post('lead/' + leadPage.dataset.lead + '/move', { stage_id: +lost.dataset.stage, reason: reason });
             }
-          }).then(function () { reloadSoon(200); });
+          }).then(function () { reloadFor(leadPage, 200); });
         return;
       }
     }
-    reloadSoon();
+    reloadFor(leadPage);
   }
 
   /* -------------------------------------------------------------- the to-do list */
@@ -224,46 +231,42 @@
     if (leadPage) {
       var leadId = leadPage.dataset.lead;
       var phone = leadPage.dataset.phone || '';
+      var q = function (sel) { return leadPage.querySelector(sel); };
       if (act === 'send-next') {
-        var next = leadPage.querySelector('[data-next]');
+        var next = q('[data-next]');
+        var edited = q('[data-next-text]');
         b.disabled = true;
-        sendMessage(leadId, document.getElementById('crm-next-text').value, next && next.dataset.task, phone, b.dataset.via)
-          .then(function (d) { b.disabled = false; if (d) reloadSoon(900); });
-      } else if (act === 'send-reply') {
-        b.disabled = true;
-        var replyText = document.getElementById('crm-reply').value;
-        sendMessage(leadId, replyText, null, phone, b.dataset.via,
-                    quickPick && quickPick.text.trim() === replyText.trim() ? quickPick.id : null)
-          .then(function (d) { b.disabled = false; if (d) reloadSoon(900); });
-      } else if (act === 'copy-reply') {
-        var txt = document.getElementById('crm-reply').value;
-        if (!txt.trim()) { toast('Nothing to copy yet.', true); return; }
-        (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(
-          function () { toast('Copied — paste it into Instagram, Facebook or e-mail'); },
-          function () { document.getElementById('crm-reply').select(); document.execCommand('copy'); toast('Copied'); });
+        // the words as they will go: what the agent changed, else the step's own (the button carries
+        // them for the "open your WhatsApp" case, which has to open inside this click)
+        sendMessage(leadId, edited && !edited.closest('[hidden]') ? edited.value : (b.dataset.text || ''),
+                    next && next.dataset.task, phone, b.dataset.via)
+          .then(function (d) { b.disabled = false; if (d) reloadFor(leadPage, 900); });
+      } else if (act === 'edit-next') {
+        var box = q('[data-next-edit]');
+        if (box) { box.hidden = !box.hidden; if (!box.hidden) box.querySelector('textarea').focus(); }
       } else if (act === 'done' || act === 'snooze' || act === 'skip') {
-        taskAction(b.dataset.task, act).then(function (d) { if (d) reloadSoon(); });
+        taskAction(b.dataset.task, act).then(function (d) { if (d) reloadFor(leadPage); });
       } else if (act === 'mail') {
-        var nx = leadPage.querySelector('[data-next]');
-        var body = document.getElementById('crm-next-text').value;
+        var nx = q('[data-next]');
+        var body = (q('[data-next-text]') || {}).value || b.dataset.text || '';
         b.href = b.href.split('?')[0] + '?body=' + encodeURIComponent(body);
-        if (nx) setTimeout(function () { taskAction(nx.dataset.task, 'done').then(function (d) { if (d) reloadSoon(); }); }, 400);
+        if (nx) setTimeout(function () { taskAction(nx.dataset.task, 'done').then(function (d) { if (d) reloadFor(leadPage); }); }, 400);
       } else if (act === 'note') {
-        var text = document.getElementById('crm-note').value.trim();
+        var text = q('[data-note-text]').value.trim();
         if (!text) { toast('Write something first.', true); return; }
         post('lead/' + leadId + '/note', {
-          text: text, channel: document.getElementById('crm-note-ch').value,
-          from_them: document.getElementById('crm-note-in').checked
+          text: text, channel: q('[data-note-ch]').value,
+          from_them: q('[data-note-in]').checked
         }).then(function (d) {
           if (!d._ok) { toast(d.error || 'Could not save.', true); return; }
-          toast('Saved'); reloadSoon();
+          toast('Saved'); reloadFor(leadPage);
         });
       } else if (act === 'undo') {
-        undoMove(leadId);
+        undoMove(leadId, leadPage);
       } else if (act === 'reopen') {
         post('lead/' + leadId + '/reopen', {}).then(function (d) {
           if (!d._ok) { toast(d.error || 'Could not reopen.', true); return; }
-          toast('Reopened — back in ' + d.stage); reloadSoon();
+          toast('Reopened — back in ' + d.stage); reloadFor(leadPage);
         });
       } else if (act === 'remove') {
         choose('Take ' + (b.dataset.name || 'this lead') + ' out of the Sales CRM?',
@@ -290,22 +293,23 @@
           var body = { name: val('crm-e-name'), email: val('crm-e-email'), instagram: val('crm-e-ig'), facebook: val('crm-e-fb') };
           if (val('crm-e-phone').trim() && val('crm-e-phone').trim() !== (b.dataset.phone || '')) body.phone = val('crm-e-phone');
           post('lead/' + leadId + '/update', body)
-            .then(function (d) { if (!d._ok) { toast(d.error || 'Could not save.', true); return; } dialog.close(); toast('Saved'); reloadSoon(); });
+            .then(function (d) { if (!d._ok) { toast(d.error || 'Could not save.', true); return; } dialog.close(); toast('Saved'); reloadFor(leadPage); });
         };
         dialog.showModal();
       }
     }
   });
 
-  /* -------------------------------------------------------------- lead page bits */
-  var leadPage = document.querySelector('[data-lead-page]');
-  if (leadPage) {
+  /* -------------------------------------------------------------- the lead card's own controls */
+  // Bound once per card: on the lead page at load, and in the panel beside the WhatsApp inbox
+  // every time a conversation's lead is loaded into it (window.CRM_bindLead).
+  function bindLead(leadPage) {
     var leadId = leadPage.dataset.lead;
 
     leadPage.querySelectorAll('[data-journey] button').forEach(function (btn) {
       btn.addEventListener('click', function () {
         if (btn.classList.contains('now')) return;
-        moveLead(leadId, btn, leadPage).then(function (d) { if (d) reloadSoon(2200); });
+        moveLead(leadId, btn, leadPage).then(function (d) { if (d) reloadFor(leadPage, 2200); });
       });
     });
 
@@ -314,7 +318,10 @@
         var body = {}; body[el.dataset.update] = el.value;
         post('lead/' + leadId + '/update', body).then(function (d) {
           if (!d._ok) toast(d.error || 'Could not save.', true);
-          else { toast('Saved'); if (el.dataset.update === 'departure_date') reloadSoon(); }
+          else {
+            toast(el.dataset.update === 'owner_id' ? 'Saved — their WhatsApp chat goes to them too' : 'Saved');
+            if (el.dataset.update === 'departure_date') reloadFor(leadPage);
+          }
         });
       });
     });
@@ -338,7 +345,32 @@
         logCall(leadId, c.dataset.outcome, group.dataset.task || null).then(function (d) { afterCall(d, leadPage); });
       });
     });
+
+    // Quote sent / Payment link sent
+    leadPage.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-act="event"]');
+      if (!b) return;
+      b.disabled = true;
+      post('lead/' + leadId + '/event', { code: b.dataset.code }).then(function (d) {
+        if (!d._ok) { b.disabled = false; toast(d.error || 'Could not save.', true); return; }
+        toast(d.stage ? 'Saved — moved to ' + d.stage : 'Saved');
+        reloadFor(leadPage);
+      });
+    });
+    // ready to buy?
+    leadPage.querySelectorAll('[data-likelihood] [data-lk]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var on = btn.classList.contains('on');
+        post('lead/' + leadId + '/update', { likelihood: on ? '' : btn.dataset.lk }).then(function (d) {
+          if (!d._ok) { toast(d.error || 'Could not save.', true); return; }
+          leadPage.querySelectorAll('[data-likelihood] [data-lk]').forEach(function (x) { x.classList.remove('on'); });
+          if (!on) btn.classList.add('on');
+        });
+      });
+    });
   }
+  window.CRM_bindLead = bindLead;
+  document.querySelectorAll('[data-lead-page]').forEach(bindLead);
 
   /* -------------------------------------------------------------- suggested answers */
   var asked = document.querySelector('[data-asked], [data-try-answers]');
@@ -366,7 +398,7 @@
       if (text === lastQ.trim()) return;
       lastQ = text;
       if (!text) { render([]); return; }
-      var url = BASE + 'suggest?q=' + encodeURIComponent(text) + (leadPage ? '&lead=' + leadPage.dataset.lead : '');
+      var url = BASE + 'suggest?q=' + encodeURIComponent(text);
       fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
         .then(function (r) { return r.json(); })
         .then(function (d) { if (q.value.trim() === text) render(d.suggestions || []); })
@@ -380,7 +412,6 @@
       if (!s) return;
       if (e.target.closest('[data-use]') && reply) {
         reply.value = s.querySelector('.b').textContent;
-        quickPick = null;
         reply.focus();
         reply.scrollIntoView({ behavior: 'smooth', block: 'center' });
         post('answer/' + encodeURIComponent(s.dataset.id) + '/used', {});
@@ -431,68 +462,6 @@
     board.addEventListener('click', function (e) {
       if (moved && e.target.closest('.crm-card')) { e.preventDefault(); moved = false; }
     }, true);
-  }
-
-  /* -------------------------------------------------------------- lead page: buttons added later */
-  if (leadPage) {
-    // Quote sent / Payment link sent
-    leadPage.addEventListener('click', function (e) {
-      var b = e.target.closest('[data-act="event"]');
-      if (!b) return;
-      b.disabled = true;
-      post('lead/' + leadPage.dataset.lead + '/event', { code: b.dataset.code }).then(function (d) {
-        if (!d._ok) { b.disabled = false; toast(d.error || 'Could not save.', true); return; }
-        toast(d.stage ? 'Saved — moved to ' + d.stage : 'Saved');
-        reloadSoon();
-      });
-    });
-    // ready to buy?
-    leadPage.querySelectorAll('[data-likelihood] [data-lk]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var on = btn.classList.contains('on');
-        post('lead/' + leadPage.dataset.lead + '/update', { likelihood: on ? '' : btn.dataset.lk }).then(function (d) {
-          if (!d._ok) { toast(d.error || 'Could not save.', true); return; }
-          leadPage.querySelectorAll('[data-likelihood] [data-lk]').forEach(function (x) { x.classList.remove('on'); });
-          if (!on) btn.classList.add('on');
-        });
-      });
-    });
-    // a ready message fills the reply box, filled in for this lead
-    var quick = leadPage.querySelector('[data-quick]');
-    if (quick) quick.addEventListener('click', function (e) {
-      var c = e.target.closest('[data-answer]');
-      if (!c) return;
-      var reply = document.getElementById('crm-reply');
-      reply.value = c.dataset.text;
-      quickPick = { id: c.dataset.answer, text: c.dataset.text };
-      quick.querySelectorAll('.chip').forEach(function (x) { x.classList.remove('on'); });
-      c.classList.add('on');
-      reply.focus();
-    });
-    // their WhatsApp conversation, read from the WhatsApp CRM
-    var thread = leadPage.querySelector('[data-thread]');
-    if (thread) {
-      fetch(thread.dataset.url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          var body = thread.querySelector('[data-thread-body]');
-          if (d.error) { body.innerHTML = '<p class="muted" style="margin:0">' + esc(d.error) + '</p>'; return; }
-          var a = leadPage.querySelector('[data-thread-link]');
-          if (d.url && a) { a.href = d.url; a.hidden = false; }
-          var msgs = d.messages || [];
-          if (!msgs.length) { body.innerHTML = '<p class="muted" style="margin:0">No WhatsApp messages with them yet.</p>'; return; }
-          body.innerHTML = msgs.map(function (m) {
-            var when = m.created_at ? new Date(m.created_at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-            var text = m.content_text || '[' + (m.content_type || 'message') + ']';
-            return '<div class="bubble ' + (m.direction === 'inbound' ? 'in' : 'out') + '"><p>' + esc(text) + '</p><small>' + esc(when) +
-              (m.direction !== 'inbound' && m.status ? ' · ' + esc(m.status) : '') + '</small></div>';
-          }).join('');
-          body.scrollTop = body.scrollHeight;
-        })
-        .catch(function () {
-          thread.querySelector('[data-thread-body]').innerHTML = '<p class="muted" style="margin:0">Could not load the conversation.</p>';
-        });
-    }
   }
 
   /* -------------------------------------------------------------- focus mode */

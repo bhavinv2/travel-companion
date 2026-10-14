@@ -207,8 +207,8 @@ def test_cs_agent_works_the_crm_screens(app, client, cs_user):
     for admin_only in ('/cs/crm/insights', '/cs/crm/setup', '/cs/crm/tracker', '/admin/crm/insights'):
         assert client.get(admin_only).headers['Location'].endswith('/cs/crm/today'), admin_only
     page = client.get('/cs/crm/lead/%d' % lead.id).get_data(as_text=True)
-    assert 'Are pre-existing conditions covered?' in page          # the suggestion for their question
-    assert 'TI #2' in page                                           # their next step
+    assert 'Next step' in page and 'TI #2' in page                  # their next step, on the lead card
+    assert 'crm-reply' not in page                                   # replying is the WhatsApp inbox's job
     today = client.get('/cs/crm/today').get_data(as_text=True)
     assert 'Ramesh Kumar' in today
 
@@ -427,8 +427,22 @@ def test_automatic_steps_go_out_once_connected(app, monkeypatch):
     monkeypatch.setattr(wacrm, 'upsert_contact', lambda *a, **k: 'c-1')
     assert crm.run_auto_steps()['crm_auto_sent'] == 0           # keys alone are not enough...
     crm.save_settings(whatsapp_mode='send')                      # ...an admin has to switch it on
+    # a first message to somebody who has not written on WhatsApp needs an approved template:
+    # without one it is not sent, and goes back on the owner's list with the reason, once
+    assert crm.run_auto_steps()['crm_auto_sent'] == 0 and sent == []
+    task = lead.open_task
+    assert task.code == 'TI #1' and task.auto is False and 'template' in task.note
+    # with the template approved, it goes -- the blanks filled for them, in the template's order
+    from app.services import wa_templates
+    task.auto = True
+    task.step.wa_template = 'nri_ti_1'
+    _db.session.commit()
+    monkeypatch.setattr(wa_templates, 'statuses', lambda force=False: {'nri_ti_1': 'APPROVED'})
+    templated = []
+    monkeypatch.setattr(wacrm, 'send_template',
+                        lambda phone, name, language=None, params=None: templated.append((phone, name, params)) or 'wamid.t')
     assert crm.run_auto_steps()['crm_auto_sent'] == 1
-    assert sent[0][0] == '+919876543210' and 'Ramesh' in sent[0][1]
+    assert templated[0][:2] == ('+919876543210', 'nri_ti_1') and templated[0][2][0] == 'Ramesh'
     assert lead.open_task.code == 'CL #2'
 
 
@@ -490,15 +504,3 @@ def test_a_crm_fault_never_fails_the_form(app, client, monkeypatch):
     assert r.status_code == 200 and r.get_json()['success']
 
 
-def test_question_box_holds_what_they_wrote_not_the_form_fields(app, client, cs_user):
-    lead = crm.capture('tc-trip-post', phone='+919848000001', product='TC', utm={},
-                       details={'route': 'Hyderabad (HYD) → Dallas (DFW)'})
-    login(client, cs_user.email)
-    page = client.get('/cs/crm/lead/%d' % lead.id).get_data(as_text=True)
-    box = page.split('id="crm-q"', 1)[1].split('</textarea>', 1)[0]
-    assert 'Route:' not in box
-    lead2 = crm.capture('contact-insurance', phone='+919848000002', utm={},
-                        message='Is diabetes covered?', details={'preferred_contact': 'WhatsApp'})
-    page = client.get('/cs/crm/lead/%d' % lead2.id).get_data(as_text=True)
-    box = page.split('id="crm-q"', 1)[1].split('</textarea>', 1)[0]
-    assert 'Is diabetes covered?' in box and 'Preferred' not in box

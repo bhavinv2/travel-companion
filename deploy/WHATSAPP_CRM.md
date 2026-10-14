@@ -83,12 +83,32 @@ linked to the project, or paste `supabase/migrations/043_automation_scheduling.s
 It only adds columns and indexes. Nothing else changes in Supabase, and the Meta callback URL stays
 `https://studio.preventia360.com/crm/api/whatsapp/webhook`.
 
+## Updating an installation that is already switched on
+
+The "one process" release (templates from the steps, the lead beside the inbox, replies and
+reassignments flowing back) changes both sides. **Ship the CRM first, then the portal:** the portal
+registers two webhook events (`message.sent`, `conversation.assigned`) that an older CRM refuses, and
+uses four new `/api/portal/*` endpoints.
+
+1. CRM: ship the code and rebuild as in section 1. No new variables and no new Supabase migration.
+2. Portal: deploy as usual (no new variables, no new portal migration).
+3. Do steps 3 to 5 of "Switch on" below.
+
 ## 5. Switch on
 
 1. Open Admin -> Workspace -> WhatsApp CRM -> **Link this workspace**. Everyone whose role has WhatsApp
    pages is added to the CRM; anyone already in the CRM but not in the workspace is listed there for you
    to add or remove (nothing is removed automatically).
 2. Open WhatsApp -> Inbox in the portal and send one test message.
+3. **Sales CRM -> Set-up -> Connect -> "Connect replies"** once more. The portal now also hears about
+   messages agents send from the WhatsApp inbox (they count in the numbers and tick the due follow-up)
+   and about reassignments there (the lead's owner follows), and those two events are added when the
+   webhook is registered.
+4. **Set-up -> WhatsApp templates -> "Put them in WhatsApp as drafts".** Then in WhatsApp -> Templates,
+   check each draft and press Submit; Meta approves in minutes to a day. The list is also in
+   `deploy/whatsapp-templates.csv`. Once a step's template is approved, that step sends through it --
+   by one click, or by itself if the step is set to "Send by itself".
+5. **Set-up -> Ready answers -> "Copy to WhatsApp quick replies"**, so agents pick them in the inbox.
 
 ## If a second copy was deployed on Railway
 

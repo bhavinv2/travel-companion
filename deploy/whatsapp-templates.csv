@@ -1,0 +1,57 @@
+Template name,Category,Language,Body,Sample values (in order),Used for,Code,Problems
+nri_ti_1,MARKETING,en,"Hi {{1}}, {{2}} here from NRI Parent Service. You mentioned you might be looking into travel insurance options for your parents' upcoming visit.
+
+Managing coverage for parents travelling from India can get complicated with pre-existing conditions and emergency medical limits. We built our NRI parent insurance plans to handle exactly these needs, with seamless claims support and zero-hassle paperwork.
+
+Would you have 5 minutes this week for a quick chat, or would you prefer I send over a quick quote breakdown based on their travel dates?
+
+Here is the additional value we provide at no extra charge:
+* 24/7 local-language support: direct help with claims or policy questions, without waiting for a generic call centre.
+* A complimentary virtual doctor consultation for your parents while they are abroad.
+* Complimentary travel companion help, so your parents are not alone on the journey.",Priya | Harsha,Travel insurance: Details: introduce yourself and offer a quote,TI #1,
+nri_ti_2,MARKETING,en,"Hi {{1}}, I am {{2}}. How are you doing? Did you make a decision on your parents' cover? Happy to answer any question, or to call if that is easier.",Priya | Harsha,Travel insurance: Daily message: did they decide?,TI #2,
+nri_ti_4,MARKETING,en,"Hi {{1}}, here are two options for your parents' visit:
+
+1) [plan, cover, price]
+2) [plan, cover, price]
+
+Both can be bought online: https://nriparentservice.com/travel-insurance
+With us you also get local-language support for claims, a complimentary virtual doctor consultation while they are abroad, and travel companion help.",Priya,Travel insurance: Quotes: two options side by side,TI #4,
+nri_pi_1,MARKETING,en,"Hi {{1}}, I am {{2}}. How are you doing? Did you make a decision on your parents' cover? I can hold the quotes for you.",Priya | Harsha,Travel insurance: Five-day follow-up,PI #1,
+nri_pi_2,MARKETING,en,"Hi {{1}}, your parents' travel is coming soon. We want to make sure you have an amazing time with them rather than worrying about health. If you haven't decided yet, we can have a call together and choose the best option possible.",Priya,Travel insurance: Call message: departure in 3 days or less,PI #2,
+nri_ce_1,UTILITY,en,"Welcome to the NRI Parent Service family, {{1}}! We are here to support you -- please reach out to us for any of these:
+* claims or questions about the policy
+* a virtual doctor consultation for your parents
+* a travel companion for their next journey
+Save this number: {{2}}, NRI Parent Service.",Priya | Harsha,Travel insurance: Welcome to the family,CE #1,
+nri_ce_2,UTILITY,en,"Hi {{1}}, how is the visit going? If we helped, a short review or a friend who could use us would mean a lot.",Priya,Travel insurance: Feedback and a reference,CE #2,
+nri_er,UTILITY,en,"Hi {{1}}, your parents' cover ends on {{2}}. If they are staying longer, I can extend it before then so there is no gap -- just reply with the new return date.",Priya | 20 Dec,Travel insurance: Policy ends in 10 days: offer an extension / Ready message: Expiration reminder,ER,
+nri_pf_1,MARKETING,en,"Hi {{1}}, just checking everything is OK with your parents' trip. If anything is needed, we are still here.",Priya,Travel insurance: Five days later: still here for them,PF #1,
+nri_pf_1_ti,MARKETING,en,"Hi {{1}}, just checking everything is OK with your parents' trip -- we are still here if anything is needed. If you have a moment: what made you decide not to go ahead with us? It helps us do better.",Priya,Travel insurance: Five days later: why could we not get your business?,PF #1,
+nri_pf_2,MARKETING,en,"Hi {{1}}, one quick question so we can improve: why did you not take the cover with us?
+A) Price  B) Bought elsewhere  C) Not needed any more  D) Something else",Priya,Travel insurance: Feedback poll,PF #2,
+nri_tc_1,MARKETING,en,"Hi {{1}}, I am {{2}} from NRI Parent Service. We have your trip, and we will also be looking out for a companion for your parents -- we are here to make their journey smooth. Your trip and matches are here: https://nriparentservice.com/travel-companions/trips
+You can reach us on this WhatsApp, on Instagram, or in the chat on the site.",Priya | Harsha,"Travel companion: Welcome warm-up (compassion, no selling)",TC #1,
+nri_tc_4,MARKETING,en,"Hi {{1}}, we are still looking for the right companion and will keep at it. Meanwhile, have you sorted travel insurance? Parents' cover with pre-existing conditions is our speciality: https://nriparentservice.com/travel-insurance",Priya,"Travel companion: Fifteen days out, no match yet",TC #4,
+nri_tc_6,MARKETING,en,"Hi {{1}}, we are still looking for a companion for your parents. Whatever happens, please make sure they travel insured: our parent plans cover pre-existing conditions, with a free virtual doctor consultation while abroad. https://nriparentservice.com/travel-insurance",Priya,"Travel companion: Non-responsive lead, travel in 5 days: insurance message",TC #6,
+nri_tc_3,MARKETING,en,"Hi {{1}}, an update on your parents' trip: we are working on the closest matches for their route and dates. You can see them here: https://nriparentservice.com/travel-companions/trips",Priya,Travel companion: Closest match update (no selling),TC #3,
+nri_tc_2,MARKETING,en,"Hooray {{1}}, your parents have a companion! One more thing for a worry-free trip: travel insurance built for parents, with a complimentary virtual doctor consultation. https://nriparentservice.com/travel-insurance",Priya,"Travel companion: Match success: Hooray! Then insurance, short and sweet",TC #2,
+nri_tc_7,UTILITY,en,"Hi {{1}}, glad the companion worked out! Health matters as much as the journey: a Sahayak nurse can take care of your parents' check-ups and appointments at home, and our preventive plans (Gift Health) keep an eye on them all year. https://nriparentservice.com/sahayak",Priya,"Travel companion: Match success: health, Sahayak and Gift Health",TC #7,
+nri_sh_2,MARKETING,en,"Hi {{1}}, your Sahayak visit is confirmed. We will share the nurse's name before the visit and a summary after it.",Priya,Sahayak visit: Tell the family who is coming,SH #2,
+nri_sh_3,UTILITY,en,"Hi {{1}}, how did the visit go? Your feedback helps us, and we can plan the next one whenever you like.",Priya,Sahayak visit: Ask how it went,SH #3,
+nri_nr_2,MARKETING,en,"Hi {{1}}, thank you for applying to Sahayak. Please send clear photos of your photo ID, your nursing certificate and your council registration certificate.",Priya,Nurse recruitment: Ask for documents,NR #2,
+nri_nr_4,UTILITY,en,"Welcome to the Sahayak network, {{1}}! Your profile is active and assignments near you will start coming through the app.",Priya,Nurse recruitment: Welcome to the network,NR #4,
+nri_gen_1,MARKETING,en,"Hi {{1}}, this is {{2}} from NRI Parent Service. Thank you for getting in touch. How can we help?",Priya | Harsha,General enquiry: Reply within two hours,GEN #1,
+nri_gen_2,MARKETING,en,"Hi {{1}}, {{2}} here. Is there anything else we can help with?",Priya | Harsha,General enquiry: Follow up next day,GEN #2,
+nri_bw,MARKETING,en,"Happy birthday, {{1}}! Wishing you and your family a wonderful year ahead. -- {{2}}, NRI Parent Service",Priya | Harsha,Ready message: Birthday wishes,BW,
+nri_cm,MARKETING,en,"Hi {{1}}, {{2}} here from NRI Parent Service. Just checking in -- how are you and your parents doing?",Priya | Harsha,Ready message: Casual message,CM,
+nri_cs,MARKETING,en,"Hi {{1}}, one quick question so we can improve: how would you rate our help, from 1 (poor) to 5 (excellent)? And is there anything we could have done better?",Priya,Ready message: Feedback poll,CS,
+nri_fm,MARKETING,en,"Wishing you and your family a very happy festival, {{1}}! May it bring health and joy to your parents and to all of you. -- {{2}}, NRI Parent Service",Priya | Harsha,Ready message: Festival message,FM,
+nri_hj,MARKETING,en,"Wishing your parents a safe and happy journey, {{1}}! If anything comes up on the way or after they land, call +91 80191 11360 (India), +1 (917) 900-5094 (USA), +1 (647) 770-2288 (Canada) or message me here.",Priya,Ready message: Happy journey,HJ,
+nri_om,MARKETING,en,"Hi {{1}}, {{2}} from NRI Parent Service here -- thinking of you and your family on this occasion. We are always here if your parents need anything.",Priya | Harsha,Ready message: Occasion message,OM,
+nri_pf_3,MARKETING,en,"Hi {{1}}, {{2}} from NRI Parent Service. Hope your parents are well! Whenever they plan the next visit, we would love to help with the cover, a companion or a nurse at home.",Priya | Harsha,Ready message: Keep in touch after a fallout,PF #3,
+nri_pm,MARKETING,en,"Hi {{1}}, {{2}} from NRI Parent Service. Planning your parents' next visit? Travel insurance built for parents, a travel companion for the journey and a Sahayak nurse at home: https://nriparentservice.com/travel-companions/",Priya | Harsha,Ready message: Promotional message,PM,
+nri_sa,MARKETING,en,"Hi {{1}}, have your parents arrived safely? I hope the journey went well. Remember they can have a free virtual doctor consultation any time during their stay.",Priya,Ready message: Safely arrived?,SA,
+nri_se,MARKETING,en,"Hi {{1}}, {{2}} here -- I am signing off for today. For anything urgent our team is on +91 80191 11360 (India), +1 (917) 900-5094 (USA), +1 (647) 770-2288 (Canada), and I will pick up your conversation first thing tomorrow.",Priya | Harsha,Ready message: Shift end message,SE,
+nri_tc_10,MARKETING,en,"Hi {{1}}, before your parents travel: our preventive health plans (Gift Health) and Sahayak home nurses look after them before and after the journey. https://nriparentservice.com/sahayak",Priya,"Ready message: Non-responsive lead, travel in 5 days: Gift Health",TC #10,
+nri_tc_8,MARKETING,en,"Hi {{1}}, we have not found the right companion yet but we are still doing our best. Meanwhile, health matters as much as the journey: a Sahayak nurse at home and our preventive plans (Gift Health) keep an eye on your parents all year. https://nriparentservice.com/sahayak",Priya,Ready message: Closest match update: health and Gift Health,TC #8,

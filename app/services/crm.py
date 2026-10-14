@@ -470,21 +470,42 @@ def trip_claimed(trip):
         return None
 
 
-def _push_to_whatsapp_crm(lead):
-    """Create the contact in the WhatsApp CRM with the source's tags. Best effort."""
-    from app.services import wacrm
-    if wa_mode() == 'off' or not lead.person.phone:
+def stage_tag(lead):
+    """The contact tag for where this lead is: "TI: Prospect". The product prefix keeps two
+    enquiries by one person (insurance and companion) from overwriting each other's stage."""
+    return '%s: %s' % (lead.product, lead.stage.name) if lead.stage else None
+
+
+def sync_whatsapp(lead, assign=True):
+    """The person's WhatsApp CRM contact in step with the lead. Best effort, never raises:
+      * tags: the source's, the product's, and the stage ("TI: Prospect", replacing the last one)
+        -- so a broadcast can go to "all TI prospects" and an automation can start on a stage;
+      * the conversation assigned to the lead's owner, so it is in their inbox.
+    """
+    from app.services import wacrm, wacrm_team
+    if wa_mode() == 'off' or not lead.person.phone or getattr(lead, 'imported', False):
         return
     try:
         tags = list(lead.source.crm_tags or []) if lead.source else []
-        tags += [lead.product.lower()]
-        cid = wacrm.upsert_contact(lead.person.phone, lead.person.name, lead.person.email, tags)
+        tags.append(lead.product.lower())
+        st = stage_tag(lead)
+        cid = wacrm.set_tags(lead.person.phone, lead.person.name, lead.person.email,
+                             add=tags + ([st] if st else []), drop_prefixes=('%s: ' % lead.product,))
         if cid and lead.person.wacrm_contact_id != cid:
             lead.person.wacrm_contact_id = cid
             db.session.commit()
     except Exception:        # noqa: BLE001
         db.session.rollback()
         log.warning('WhatsApp CRM contact sync failed for lead %s', lead.id, exc_info=True)
+    if assign and lead.owner is not None and wacrm_team.enabled():
+        try:
+            wacrm_team.assign_conversation(lead.person.phone.lstrip('+'), lead.owner.email.lower())
+        except Exception:    # noqa: BLE001 -- not a member there yet, or no conversation
+            log.info('WhatsApp CRM assignment skipped for lead %s', lead.id, exc_info=True)
+
+
+def _push_to_whatsapp_crm(lead):
+    sync_whatsapp(lead)
 
 
 # ======================================================================================= tasks
@@ -559,6 +580,8 @@ def move_stage(lead, stage, user=None, reason=None, fallout_reason=None, plan=Tr
     db.session.flush()
     if plan:
         plan_next(lead, base=now)
+    # the stage tag on their WhatsApp contact follows (no assignment change: the owner did not)
+    sync_whatsapp(lead, assign=False)
     return True
 
 
@@ -627,11 +650,9 @@ def first_name(text):
     return (text or '').strip().split(' ')[0] if text else ''
 
 
-def fill(text, lead, user=None):
-    """Fill {name}, {agent} and the rest into a message for this lead."""
-    if not text:
-        return ''
-    from flask import url_for
+def fill_values(lead, user=None):
+    """{token: value} for this lead -- what {name}, {agent} ... become, in a message or in a
+    template's blanks."""
     from app.services import offices
     owner = lead.owner or user
     values = {
@@ -646,14 +667,21 @@ def fill(text, lead, user=None):
                      or 'our helpline',
     }
     site = (current_app.config.get('SITE_URL') or '').rstrip('/')
+    from app.services import urls
     for var, endpoint in (('insurance_link', 'insurance.landing'), ('companion_link', 'main.all_trips'),
                           ('sahayak_link', 'sahayak.landing'), ('site_link', 'main.index')):
         try:
-            from app.services import urls
-            path = urls.public_url(endpoint)
-            values[var] = path if path.startswith('http') else site + path
+            values[var] = urls.site_link(endpoint)
         except Exception:      # noqa: BLE001 -- outside a request, or a route that is not there
             values[var] = site or ''
+    return values
+
+
+def fill(text, lead, user=None):
+    """Fill {name}, {agent} and the rest into a message for this lead."""
+    if not text:
+        return ''
+    values = fill_values(lead, user)
 
     def sub(m):
         return str(values.get(m.group(1), m.group(0)))
@@ -665,6 +693,87 @@ def whatsapp_link(lead, text):
     if not digits:
         return ''
     return 'https://wa.me/%s?text=%s' % (digits, quote(text or ''))
+
+
+WINDOW_HOURS = 24
+
+
+def whatsapp_window_open(lead, now=None):
+    """Whether they wrote on WhatsApp in the last 24 hours -- the only time WhatsApp lets a
+    business send free text. After that only an approved template goes through."""
+    now = now or datetime.utcnow()
+    last = (CrmTouchpoint.query.filter(CrmTouchpoint.person_id == lead.person_id,
+                                       CrmTouchpoint.channel == 'whatsapp', CrmTouchpoint.direction == 'in')
+            .order_by(CrmTouchpoint.created_at.desc()).first())
+    return bool(last and last.created_at and now - last.created_at < timedelta(hours=WINDOW_HOURS))
+
+
+def send_plan(lead, step=None):
+    """How a WhatsApp message for this lead would go out, decided once for the button and the
+    automatic run alike: {'mode': 'template' | 'text' | 'link', 'template', 'reason'}.
+
+      template  the step has a template Meta approved: it goes, whenever they last wrote
+      text      no approved template, but they wrote in the last 24 hours: free text goes
+      link      neither (or the WhatsApp CRM is not sending): the agent's own WhatsApp opens
+    """
+    from app.services import wa_templates
+    name = step.wa_template if step is not None else None
+    if not (wa_can_send() and lead.person.phone):
+        return {'mode': 'link', 'template': name,
+                'reason': '' if lead.person.phone else 'There is no phone number for them.'}
+    if name and wa_templates.approved(name):
+        return {'mode': 'template', 'template': name, 'reason': ''}
+    if whatsapp_window_open(lead):
+        return {'mode': 'text', 'template': name, 'reason': ''}
+    if name:
+        status = wa_templates.statuses().get(name)
+        why = ('its template "%s" is %s' % (name, status.lower())) if status else \
+              ('its template "%s" is not in WhatsApp yet' % name)
+    else:
+        why = 'this step has no WhatsApp template'
+    return {'mode': 'link', 'template': name,
+            'reason': 'Over 24 hours since they last wrote, and %s -- send it from your WhatsApp.' % why}
+
+
+def send_step(lead, task, user=None, text=None):
+    """Carry out a WhatsApp step: through its approved template, as free text inside the 24-hour
+    window, or as a wa.me link otherwise. Logged and ticked off whichever it was.
+    Returns {'mode': 'sent' | 'link', 'url'?, 'via': 'template' | 'text', 'reason'?}."""
+    from app.services import wacrm, wa_templates
+    step = task.step if task is not None else None
+    body = text if text is not None else fill(step.body if step and step.body else (task.title if task else ''),
+                                             lead, user)
+    plan = send_plan(lead, step)
+    code = task.code if task is not None else None
+    if plan['mode'] == 'template':
+        try:
+            external = wacrm.send_template(lead.person.phone, plan['template'], language=wa_templates.LANGUAGE,
+                                           params=wa_templates.params(step.body, fill_values(lead, user)))
+        except wacrm.WacrmError as exc:
+            plan = {'mode': 'link', 'reason': str(exc)}
+        else:
+            log_touch(lead, 'whatsapp', 'out', body=body, code=code, user=user, status='sent', external_id=external)
+            if task is not None:
+                complete_task(task, user=user)
+            db.session.commit()
+            return {'mode': 'sent', 'via': 'template'}
+    if plan['mode'] == 'text':
+        result = send_whatsapp(lead, body, user=user, code=code, task=task)
+        result['via'] = 'text'
+        return result
+    result = send_whatsapp_link(lead, body, user=user, code=code, task=task)
+    if plan.get('reason'):
+        result['reason'] = plan['reason']
+    return result
+
+
+def send_whatsapp_link(lead, text, user=None, code=None, task=None):
+    """The agent sends it from their own WhatsApp: a wa.me link with the words in, logged."""
+    log_touch(lead, 'whatsapp', 'out', body=text, code=code, user=user, status='opened')
+    if task is not None:
+        complete_task(task, user=user)
+    db.session.commit()
+    return {'mode': 'link', 'url': whatsapp_link(lead, text)}
 
 
 def send_whatsapp(lead, text, user=None, code=None, task=None):
@@ -731,19 +840,17 @@ def run_auto_steps(now=None, limit=200):
             db.session.commit()
             continue
         try:
-            step = task.step
-            if step and step.wa_template:
-                external = wacrm.send_template(lead.person.phone, step.wa_template,
-                                               params=[first_name(lead.person.name) or 'there'])
-                body = '[template %s]' % step.wa_template
-            else:
-                body = fill(step.body if step else task.title, lead)
-                external = wacrm.send_text(lead.person.phone, body)
-            log_touch(lead, 'whatsapp', 'out', body=body, code=task.code, status='sent',
-                      external_id=external)
-            complete_task(task)
-            db.session.commit()
-            sent += 1
+            plan = send_plan(lead, task.step)
+            if plan['mode'] == 'link':
+                # nothing that WhatsApp will let us send by itself: back to the owner's list, once,
+                # with the reason, instead of being tried again every minute
+                task.auto = False
+                task.note = ('Not sent automatically: ' + (plan.get('reason') or 'no approved template'))[:200]
+                db.session.commit()
+                continue
+            result = send_step(lead, task)
+            if result.get('mode') == 'sent':
+                sent += 1
         except Exception:      # noqa: BLE001 -- one bad number must not stop the rest
             db.session.rollback()
             log.warning('CRM auto step %s failed', task.id, exc_info=True)
@@ -807,6 +914,26 @@ def mark_event(lead, code, user=None, note=None):
     return moved
 
 
+def ready_message_code(lead, text, user=None):
+    """The ready message (BW, FM, HJ...) `text` is, as a quick reply picked in the WhatsApp inbox
+    would read for this lead -- so it is counted under its code like one sent from here. None when
+    it is not one of them (or was changed before sending)."""
+    from app.services import wa_templates
+    said = ' '.join((text or '').split())
+    if not said:
+        return None
+    values = fill_values(lead, user)
+    first = values.get('name') or 'there'
+    agent = values.get('agent') or ''
+    for a in CrmAnswer.query.filter(CrmAnswer.code.isnot(None)).all():
+        body = wa_templates.quick_reply_text(a.body)
+        body = body.replace('{{contact.first_name}}', first).replace('{{agent.first_name}}', agent)
+        if ' '.join(body.split()) == said:
+            a.use_count = (a.use_count or 0) + 1
+            return a.code
+    return None
+
+
 def quick_messages(product=None):
     """The ready messages with a code (BW, FM, HJ...), the lead's product first."""
     rows = CrmAnswer.query.filter(CrmAnswer.code.isnot(None)).all()
@@ -815,28 +942,6 @@ def quick_messages(product=None):
 
 
 # ======================================================================================= whatsapp thread
-
-def whatsapp_thread(lead, limit=40):
-    """The conversation with this person in the WhatsApp CRM, oldest first, for the lead page.
-    Reading only: nothing is created there. {'messages': [...], 'url': inbox link} or {'error'}."""
-    from app.services import wacrm
-    if not wacrm.enabled():
-        return {'error': 'The WhatsApp CRM is not connected on this server.'}
-    person = lead.person
-    try:
-        if not person.wacrm_contact_id and person.phone:
-            person.wacrm_contact_id = wacrm.find_contact(person.phone)
-        if not person.wacrm_conversation_id and person.wacrm_contact_id:
-            person.wacrm_conversation_id = wacrm.conversation_for(person.wacrm_contact_id)
-        db.session.commit()
-        if not person.wacrm_conversation_id:
-            return {'messages': [], 'url': None}
-        msgs = wacrm.conversation_messages(person.wacrm_conversation_id, limit=limit)
-    except wacrm.WacrmError as exc:
-        db.session.rollback()
-        return {'error': str(exc)}
-    return {'messages': list(reversed(msgs)), 'url': wacrm.inbox_url(person.wacrm_conversation_id)}
-
 
 def run_sla_alerts(now=None, limit=500):
     """Tell the owner (or the admins, when nobody owns it) about a lead that has sat in its stage

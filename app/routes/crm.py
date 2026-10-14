@@ -38,7 +38,7 @@ CRM_BLUEPRINTS = ('crm', 'admin_crm')
 # Set-up, imports, the dashboard and the daily tracker are the admin's: one-time or management
 # work. Customer service sees only the day's work, in the CS console.
 MANAGE = {'setup', 'save_source', 'save_pipeline', 'save_step', 'save_answer', 'save_whatsapp', 'backfill',
-          'import_sheet', 'import_confirm', 'insights', 'insights_csv', 'tracker', 'save_process'}
+          'import_sheet', 'import_confirm', 'insights', 'insights_csv', 'tracker', 'save_process', 'setup_templates'}
 
 
 def _portal_bp():
@@ -269,53 +269,38 @@ def _ref_url(lead):
         return None
 
 
-FIELD_LINE = re.compile(r'^[A-Z][A-Za-z _/()-]{1,40}: ')
-
-
-def _their_words(tp):
-    """What the person wrote in a touchpoint: a message as it is; for a form, its free text
-    without the "Field: value" lines the form added (those are on the lead already)."""
-    body = (tp.body or '').strip()
-    if tp.channel != 'form':
-        return body
-    return '\n'.join(l for l in body.splitlines() if not FIELD_LINE.match(l)).strip()
+def lead_card_context(lead):
+    """What the lead card needs (_lead_card.html): on the lead page, and beside the WhatsApp
+    inbox (messaging.lead_panel). The next step's words, filled in for them, and how WhatsApp
+    will take it (crm.send_plan) -- decided here so the button says what will really happen."""
+    task = lead.open_task
+    step = task.step if task is not None else None
+    next_text = crm.fill(step.body if step and step.body else (task.title if task else ''), lead, current_user) \
+        if task else ''
+    plan = crm.send_plan(lead, step) if task is not None and task.channel == 'whatsapp' else None
+    return dict(lead=lead, person=lead.person, task=task, next_text=next_text, plan=plan,
+                social=crm.social_reply_channels(lead),
+                events=[(code, label) for code, (label, key) in crm.EVENTS.items()
+                        if lead.pipeline and any(s.key == key for s in lead.pipeline.stages)],
+                ref_url=_ref_url(lead), timeline=_timeline(lead),
+                others=[l for l in lead.person.leads if l.id != lead.id], staff=_staff(),
+                no_answers=crm.no_answer_streak(lead))
 
 
 @crm_bp.route('/lead/<int:lead_id>')
 @cs_required
 def lead(lead_id):
     lead = _lead_or_404(lead_id)
-    task = lead.open_task
-    next_text = crm.fill(task.step.body, lead, current_user) if task and task.step and task.step.body else ''
-    # the last thing they actually wrote -- a form's own fields ("Route: ...") are not a question
-    last_in, asked_text = None, ''
-    for tp in sorted(lead.touchpoints, key=lambda t: (t.created_at or datetime.min, t.id or 0), reverse=True):
-        words = _their_words(tp) if tp.direction == 'in' else None
-        if words:
-            last_in, asked_text = tp, words
-            break
-    suggestions = crm_answers.suggest(asked_text, lead.product) if asked_text else []
-    for s in suggestions:
-        s['body'] = crm.fill(s['body'], lead, current_user)
-    others = [l for l in lead.person.leads if l.id != lead.id]
     pipelines = CrmPipeline.query.filter_by(is_active=True).order_by(CrmPipeline.id).all()
     # The real WhatsApp conversation, as the WhatsApp CRM shows it, when it is connected to the
-    # portal and this person's role includes WhatsApp; otherwise the read-only thread below.
+    # portal and this person's role includes WhatsApp.
     from app.services import wacrm_team
     from app.routes.messaging import crm_role
     wa_embed = bool(wacrm_team.enabled() and lead.person.phone and crm_role(current_user))
-    return render_template('cs/crm/lead.html', lead=lead, person=lead.person, task=task, wa_embed=wa_embed,
-                           social=crm.social_reply_channels(lead),
+    return render_template('cs/crm/lead.html', wa_embed=wa_embed, pipelines=pipelines,
                            has_moves=any(ch.from_stage_id for ch in lead.stage_changes),
                            can_remove=crm.can_remove(lead, current_user),
-                           quick=[(q, crm.fill(q.body, lead, current_user)) for q in crm.quick_messages(lead.product)],
-                           events=[(code, label) for code, (label, key) in crm.EVENTS.items()
-                                   if lead.pipeline and any(s.key == key for s in lead.pipeline.stages)],
-                           ref_url=_ref_url(lead),
-                           next_text=next_text, timeline=_timeline(lead), suggestions=suggestions,
-                           last_in=last_in, asked_text=asked_text, others=others, staff=_staff(), pipelines=pipelines,
-                           no_answers=crm.no_answer_streak(lead),
-                           **_common())
+                           **lead_card_context(lead), **_common())
 
 
 @crm_bp.route('/lead/<int:lead_id>/move', methods=['POST'])
@@ -379,12 +364,17 @@ def send(lead_id):
     lead = _lead_or_404(lead_id)
     data = _json()
     text = (data.get('text') or '').strip()
-    if not text:
-        return jsonify({'error': 'Write the message first.'}), 400
     via = data.get('via') or 'whatsapp'
     task = db.session.get(CrmTask, int(data['task_id'])) if data.get('task_id') else None
     if task is not None and (task.lead_id != lead.id or task.status != 'open'):
         task = None
+    if task is not None and via == 'whatsapp' and task.channel == 'whatsapp':
+        # a step: its approved template, free text inside the 24 hours, or the agent's WhatsApp
+        if not lead.person.phone:
+            return jsonify({'error': 'This lead has no phone number to message.'}), 400
+        return jsonify({'success': True, **crm.send_step(lead, task, user=current_user, text=text or None)})
+    if not text:
+        return jsonify({'error': 'Write the message first.'}), 400
     quick = db.session.get(CrmAnswer, int(data['answer_id'])) if str(data.get('answer_id') or '').isdigit() else None
     if quick is not None and quick.code:
         quick.use_count = (quick.use_count or 0) + 1
@@ -752,17 +742,6 @@ def event(lead_id):
     return jsonify({'success': True, 'stage': moved.name if moved else None})
 
 
-@crm_bp.route('/lead/<int:lead_id>/whatsapp')
-@cs_required
-def whatsapp_thread(lead_id):
-    """Their WhatsApp conversation from the WhatsApp CRM, for the lead page. Reading only."""
-    lead = _lead_or_404(lead_id)
-    out = crm.whatsapp_thread(lead)
-    for m in out.get('messages') or []:
-        m.pop('id', None)
-    return jsonify(out)
-
-
 @crm_bp.route('/insights.csv')
 @cs_required
 @admin_only
@@ -829,7 +808,46 @@ def setup():
         ctx['meta_verify'] = bool(meta.verify_token())
     elif tab == 'import':
         ctx['preview'] = None
+    elif tab == 'templates':
+        from app.services import wa_templates
+        ctx['templates'] = wa_templates.candidates()
+        ctx['tpl_status'] = wa_templates.statuses(force=True)
+        ctx['tpl_error'] = wa_templates.error()
+    if tab == 'messages':
+        from app.services import wa_templates
+        ctx['tpl_status'] = wa_templates.statuses()
     return render_template('cs/crm/setup.html', **ctx, **_common())
+
+
+@crm_bp.route('/setup/templates/<action>', methods=['GET', 'POST'])
+@cs_required
+@admin_only
+def setup_templates(action):
+    """WhatsApp templates for the messages: download the list, put the missing ones into the
+    WhatsApp CRM as drafts (a person then submits each to Meta there), or move the ready answers
+    into its quick replies, where agents pick them while they reply."""
+    from app.services import wa_templates, wacrm_team
+    if action == 'csv':
+        resp = make_response(wa_templates.csv_text())
+        resp.headers['Content-Type'] = 'text/csv; charset=utf-8'
+        resp.headers['Content-Disposition'] = 'attachment; filename=whatsapp-templates.csv'
+        return resp
+    if request.method != 'POST':
+        abort(405)
+    try:
+        if action == 'drafts':
+            out = wa_templates.push_drafts()
+            flash('%d template(s) added to WhatsApp as drafts%s. Open WhatsApp -> Templates to submit them to Meta.'
+                  % (out['created'], ('; %d left out (see the list)' % len(out['skipped'])) if out['skipped'] else ''),
+                  'success')
+        elif action == 'quick-replies':
+            out = wa_templates.push_quick_replies()
+            flash('Quick replies in WhatsApp: %d added, %d updated.' % (out['created'], out['updated']), 'success')
+        else:
+            abort(404)
+    except wacrm_team.TeamError as exc:
+        flash('The WhatsApp CRM said: %s' % exc, 'danger')
+    return redirect(crm_url('setup', tab='answers' if action == 'quick-replies' else 'templates'))
 
 
 def _slug(text):
@@ -1371,6 +1389,10 @@ def wacrm_webhook():
                          channel='whatsapp', external_id=wamid)
         db.session.commit()
         return jsonify({'ok': True})
+    if event == 'message.sent':
+        return _wacrm_sent(data)
+    if event == 'conversation.assigned':
+        return _wacrm_assigned(data)
     if event == 'message.status_updated':
         wamid = data.get('whatsapp_message_id')
         tp = CrmTouchpoint.query.filter_by(external_id=wamid).first() if wamid else None
@@ -1389,6 +1411,78 @@ def wacrm_webhook():
                                 link=crm._lead_link(tp.lead))
                 db.session.commit()
     return jsonify({'ok': True})
+
+
+def _wacrm_lead(data):
+    """The open lead (else the latest) of the person a WhatsApp CRM event is about, or None."""
+    person = (CrmPerson.query.filter_by(wacrm_contact_id=str(data.get('contact_id'))).first()
+              if data.get('contact_id') else None)
+    if person is None and data.get('contact_phone'):
+        digits = ''.join(ch for ch in str(data['contact_phone']) if ch.isdigit())
+        person = crm.find_person(crm.normalise_phone('+' + digits) if digits else None, None)
+        if person is not None and data.get('contact_id'):
+            person.wacrm_contact_id = str(data['contact_id'])
+    if person is None:
+        return None
+    if data.get('conversation_id'):
+        person.wacrm_conversation_id = str(data['conversation_id'])
+    return next((l for l in person.leads if l.status == 'open'), None) or (person.leads[0] if person.leads else None)
+
+
+def _staff_by_email(email):
+    if not email:
+        return None
+    u = User.query.filter(db.func.lower(User.email) == str(email).lower(), User.is_active.is_(True)).first()
+    return u if u is not None and (u.is_cs or u.is_admin) else None
+
+
+def _wacrm_sent(data):
+    """Somebody (or an automation, a flow, the AI) wrote to them from the WhatsApp CRM. It counts
+    like a message sent from here: on the lead's history and in the numbers -- and when an agent
+    wrote from the inbox, the WhatsApp step that was due is done."""
+    wamid = data.get('whatsapp_message_id')
+    if wamid and CrmTouchpoint.query.filter_by(external_id=wamid).first():
+        return jsonify({'ok': True, 'duplicate': True})
+    lead = _wacrm_lead(data)
+    if lead is None:
+        db.session.commit()
+        return jsonify({'ok': True, 'ignored': True})
+    source = str(data.get('source') or 'inbox')
+    agent = _staff_by_email(data.get('sent_by_email')) if source == 'inbox' else None
+    text = data.get('text') or ('[template %s]' % data['template_name'] if data.get('template_name')
+                                else '[%s]' % (data.get('content_type') or 'message'))
+    task = lead.open_task
+    code = crm.ready_message_code(lead, data.get('text'), agent) if source == 'inbox' else None
+    if code is None and source == 'inbox' and task is not None and task.channel == 'whatsapp' \
+            and task.due_at <= datetime.utcnow() + timedelta(hours=12):
+        code = task.code
+        crm.complete_task(task, user=agent, note='Sent from the WhatsApp inbox')
+    crm.log_touch(lead, 'whatsapp', 'out', body=text, code=code, user=agent, status='sent', external_id=wamid)
+    if source != 'inbox':
+        tp = CrmTouchpoint.query.filter_by(external_id=wamid).first() if wamid else None
+        if tp is not None:
+            tp.body = '%s (%s)' % (tp.body, {'automation': 'automation', 'flow': 'chatbot flow', 'ai': 'AI reply',
+                                             'broadcast': 'broadcast'}.get(source, source))
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+def _wacrm_assigned(data):
+    """The conversation was given to somebody in the WhatsApp CRM: they look after the lead now.
+    A change the portal made itself (origin "portal") is only the echo of ours."""
+    if data.get('origin') == 'portal':
+        return jsonify({'ok': True, 'echo': True})
+    lead = _wacrm_lead(data)
+    user = _staff_by_email(data.get('assignee_email'))
+    if lead is None or user is None or lead.owner_id == user.id:
+        db.session.commit()
+        return jsonify({'ok': True, 'ignored': True})
+    lead.owner_id = user.id
+    for t in lead.tasks:
+        if t.status == 'open':
+            t.owner_id = user.id
+    db.session.commit()
+    return jsonify({'ok': True, 'owner': user.email})
 
 
 @crm_public_bp.route('/api/crm/meta-webhook', methods=['GET', 'POST'])

@@ -1,0 +1,30 @@
+{# The sales lead beside the WhatsApp inbox (messaging.lead_panel). Loaded into the panel when a
+   conversation is opened; crm.js binds it (CRM_bindLead). A fragment, not a page. #}
+{% if state == 'lead' %}
+<div data-lead-page data-lead="{{ lead.id }}" data-product="{{ lead.product }}" data-phone="{{ person.phone or '' }}"
+     data-reasons='{{ ((lead.pipeline.fallout_reasons if lead.pipeline else []) or [])|tojson|forceescape }}'>
+  <div class="lp-head">
+    <div><b>{{ person.display_name }}</b>
+      <span class="muted small">{{ PRODUCTS.get(lead.product, lead.product) }}{% if lead.owner %} · {{ lead.owner.full_name }}{% endif %}</span></div>
+    <a class="cb sm" href="{{ crm_url('lead', lead_id=lead.id) }}" title="The whole lead page"><i class="fa-solid fa-up-right-and-down-left-from-center"></i> Open</a>
+  </div>
+  {% include 'cs/crm/_lead_card.html' %}
+</div>
+{% elif state == 'none' %}
+<section class="card lp-empty">
+  <h2 style="font-size:16px;margin:0 0 6px"><i class="fa-solid fa-user-plus"></i> Not a sales lead yet</h2>
+  <p class="muted small" style="margin:0 0 12px">{{ name or 'This person' }} wrote on WhatsApp but is not in the Sales CRM. Make them a lead to plan follow-ups and count them in the numbers.</p>
+  {% if phone and CAN('crm_add') %}
+  <form method="POST" action="{{ url_for('messaging.lead_panel_make') }}" data-lp-make>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <input type="hidden" name="wa_phone" value="{{ phone }}"/><input type="hidden" name="name" value="{{ name }}"/>
+    <input type="hidden" name="conversation" value="{{ conversation }}"/>
+    <button class="cb primary"><i class="fa-solid fa-plus"></i> Make {{ name or 'them' }} a lead</button>
+  </form>
+  {% endif %}
+</section>
+{% else %}
+<section class="card lp-empty">
+  <p class="muted small" style="margin:0">Your role does not include the Sales CRM, so the lead is not shown here.</p>
+</section>
+{% endif %}

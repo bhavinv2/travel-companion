@@ -66,7 +66,7 @@ SCREENS = [
      'endpoints': ['crm.today', 'crm.board', 'crm.lead', 'crm.move', 'crm.route_lead',
                    'crm.task_action', 'crm.send', 'crm.call', 'crm.note', 'crm.update',
                    'crm.suggest', 'crm.answer_used', 'crm.add', 'crm.checks', 'crm.check_tick', 'crm.event',
-                   'crm.whatsapp_thread', 'crm.process', 'crm.add_from_record', 'crm.undo', 'crm.reopen',
+                   'crm.process', 'crm.add_from_record', 'crm.undo', 'crm.reopen',
                    'crm.remove', 'crm.log_work']},
 ]
 

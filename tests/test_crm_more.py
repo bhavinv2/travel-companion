@@ -56,7 +56,8 @@ def test_contacts_mode_adds_contacts_but_sends_nothing(app, wa_keys, monkeypatch
     lead = ti_lead()
     assert lead.person.wacrm_contact_id == 'c-1'
     assert calls[0][:2] == ('POST', '/api/v1/contacts') and 'tags' not in calls[0][2]
-    assert calls[1] == ('PATCH', '/api/v1/contacts/c-1', {'tags': ['ti']})
+    # the product's tag, and where the lead is ("TI: Cold lead") for broadcasts and automations
+    assert calls[1] == ('PATCH', '/api/v1/contacts/c-1', {'tags': ['TI: Cold lead', 'ti']})
     assert crm.send_whatsapp(lead, 'Hello')['mode'] == 'link'
 
 

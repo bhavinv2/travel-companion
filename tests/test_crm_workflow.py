@@ -117,19 +117,30 @@ def test_ready_to_buy_colours_the_card(app, client, cs_user):
     assert 'lk-hot' in client.get('/cs/crm/?owner=all').get_data(as_text=True)
 
 
-def test_ready_messages_are_counted_under_their_code(app, client, cs_user):
+def test_ready_messages_are_counted_under_their_code(app, client, cs_user, monkeypatch):
+    """They are quick replies in the WhatsApp inbox now. Sent from there, one is still counted
+    under its code, as it was when it was sent from the lead page."""
+    import hashlib, hmac, json, time
     lead = ti_lead()
-    login(client, cs_user.email)
-    page = client.get('/cs/crm/lead/%d' % lead.id).get_data(as_text=True)
-    assert 'Birthday wishes' in page and 'Happy birthday, Ramesh!' in page      # filled in for them
-    bw = CrmAnswer.query.filter_by(code='BW').one()
-    client.post('/cs/crm/lead/%d/send' % lead.id, json={'text': 'Happy birthday!', 'answer_id': bw.id})
-    assert CrmTouchpoint.query.filter_by(lead_id=lead.id, direction='out').one().code == 'BW'
+    lead.owner_id = cs_user.id
+    _db.session.commit()
+    monkeypatch.setenv('WACRM_WEBHOOK_SECRET', 'whsec_test')
+    body = {'event': 'message.sent', 'data': {
+        'contact_phone': '919876543210', 'whatsapp_message_id': 'wamid.bw', 'content_type': 'text',
+        'text': 'Happy birthday, Ramesh! Wishing you and your family a wonderful year ahead. -- Csagent, NRI Parent Service',
+        'sent_by_email': cs_user.email, 'source': 'inbox'}}
+    raw = json.dumps(body).encode()
+    t = int(time.time())
+    sig = hmac.new(b'whsec_test', str(t).encode() + b'.' + raw, hashlib.sha256).hexdigest()
+    r = client.post('/api/crm/wacrm-webhook', data=raw,
+                    headers={'X-Wacrm-Signature': 't=%d,v1=%s' % (t, sig), 'Content-Type': 'application/json'})
+    assert r.status_code == 200
+    tp = CrmTouchpoint.query.filter_by(lead_id=lead.id, direction='out').one()
+    assert tp.code == 'BW' and tp.agent_id == cs_user.id and tp.external_id == 'wamid.bw'
     _db.session.expire_all()
     assert CrmAnswer.query.filter_by(code='BW').one().use_count == 1
     # a ready message is never offered as an answer to a question
     assert all(not s['title'].startswith('Birthday') for s in crm_answers.suggest('birthday wishes', 'TI'))
-
 
 def test_messages_follow_the_sales_sheet(app):
     crm.ensure_defaults()
@@ -141,31 +152,25 @@ def test_messages_follow_the_sales_sheet(app):
     assert {a.code for a in CrmAnswer.query.filter(CrmAnswer.code.isnot(None))} >= {'BW', 'FM', 'HJ', 'SA', 'SE', 'TC #8'}
 
 
-def test_the_whatsapp_conversation_on_the_lead(app, client, cs_user, monkeypatch):
+def test_the_lead_page_shows_the_live_whatsapp_conversation(app, client, cs_user, monkeypatch):
+    """The conversation is the WhatsApp CRM's own thread, in a frame -- not a copy read into the
+    page -- so replying, templates and quick replies all happen in one place."""
+    from app.services import access
     monkeypatch.setenv('WACRM_URL', 'https://crm.example/crm')
-    monkeypatch.setenv('WACRM_API_KEY', 'wacrm_live_test')
-    monkeypatch.setattr(wacrm, 'find_contact', lambda phone: 'c-1')
-    monkeypatch.setattr(wacrm, 'conversation_for', lambda cid: 'conv-9')
-    monkeypatch.setattr(wacrm, 'conversation_messages', lambda conv, limit=40: [
-        {'id': 'm2', 'direction': 'outbound', 'content_text': 'Here are two options', 'status': 'read', 'created_at': '2026-10-12T10:05:00Z'},
-        {'id': 'm1', 'direction': 'inbound', 'content_text': 'Need cover for my parents', 'created_at': '2026-10-12T10:00:00Z'}])
+    monkeypatch.setenv('WACRM_PORTAL_SECRET', 'x' * 40)
+    access.ensure_defaults()                      # Customer service gets the WhatsApp inbox
     lead = ti_lead()
     login(client, cs_user.email)
-    assert 'data-thread' in client.get('/cs/crm/lead/%d' % lead.id).get_data(as_text=True)
-    d = client.get('/cs/crm/lead/%d/whatsapp' % lead.id).get_json()
-    assert [m['content_text'] for m in d['messages']] == ['Need cover for my parents', 'Here are two options']
-    assert d['url'] == 'https://crm.example/crm/inbox?c=conv-9'
-    _db.session.expire_all()
-    assert _db.session.get(CrmLead, lead.id).person.wacrm_conversation_id == 'conv-9'
+    page = client.get('/cs/crm/lead/%d' % lead.id).get_data(as_text=True)
+    assert 'class="crm-wa-frame" src="/admin/messaging/lead/%d/chat"' % lead.id in page
+    assert 'data-thread' not in page and 'crm-reply' not in page and 'data-quick' not in page
 
 
-def test_the_whatsapp_conversation_without_the_crm(app, client, cs_user):
+def test_the_lead_page_without_whatsapp_says_why(app, client, cs_user):
     lead = ti_lead()
     login(client, cs_user.email)
-    assert 'error' in client.get('/cs/crm/lead/%d/whatsapp' % lead.id).get_json()
-
-
-# ============================================================================================ the dashboard
+    page = client.get('/cs/crm/lead/%d' % lead.id).get_data(as_text=True)
+    assert 'not connected to the portal yet' in page and 'Open in your WhatsApp' in page
 
 def test_the_dashboard_counts_what_the_team_does(app, client, cs_user, admin_user):
     lead = ti_lead()

@@ -65,7 +65,12 @@ def _screen_view(name):
         if wacrm_team.enabled() and role:
             # ?p= is where they were inside the CRM (the frame reports it), so a reload stays put
             src = wacrm_team.sso_url(current_user, role, _inside(request.args.get('p')) or crm_path)
+        from app.services import crm
+        # the inbox gets the open conversation's sales lead beside it, for whoever works leads
+        panel = bool(src and name == 'inbox' and (access.can(current_user, 'crm_board')
+                                                  or access.can(current_user, 'crm_today')))
         return render_template('messaging/frame.html', heading=heading, page_key=page_key, src=src,
+                               panel=panel, wa_ready=crm.wa_can_send(),
                                configured=wacrm_team.enabled(), role=role, screen=name,
                                direct=wacrm_team.browser_base() + crm_path,
                                crm_origin=wacrm_team.browser_origin())
@@ -170,3 +175,72 @@ def templates_json():
         return jsonify({'templates': wacrm_team.templates()})
     except wacrm_team.TeamError as exc:
         return jsonify({'error': str(exc)}), 502
+
+
+# ------------------------------------------------- the sales lead beside the WhatsApp inbox
+
+def _person_for(conversation_id, phone, name=''):
+    """(person or None, phone digits, name). The inbox usually says the phone; a page that opens
+    straight on a conversation (?p=/inbox?c=...) only knows its id, so ask the CRM."""
+    from app.models import CrmPerson
+    from app.services import crm, wacrm_team
+    person = None
+    if conversation_id:
+        person = CrmPerson.query.filter_by(wacrm_conversation_id=str(conversation_id)).first()
+    digits = ''.join(ch for ch in str(phone or '') if ch.isdigit())
+    if person is None and len(digits) < 8 and conversation_id and wacrm_team.enabled():
+        contact = (wacrm_team.conversation_info(conversation_id) or {}).get('contact') or {}
+        digits = ''.join(ch for ch in str(contact.get('phone') or '') if ch.isdigit())
+        name = name or (contact.get('name') or '')
+    if person is None and len(digits) >= 8:
+        person = crm.find_person(crm.normalise_phone('+' + digits), None)
+        if person is not None and conversation_id:
+            person.wacrm_conversation_id = str(conversation_id)
+            db.session.commit()
+    return person, digits, name
+
+
+@messaging_bp.route('/lead-panel')
+@login_required
+def lead_panel():
+    """The sales lead of the conversation open in the WhatsApp inbox, as the lead card -- loaded
+    beside the inbox each time the agent opens a conversation (the inbox says which: the
+    wacrm:conversation message). Work the lead without leaving the chat."""
+    from app.routes.crm import _common, lead_card_context
+    if not access.allowed(current_user, request.endpoint):
+        abort(403)
+    if not (access.can(current_user, 'crm_board') or access.can(current_user, 'crm_today')):
+        return render_template('messaging/lead_panel.html', state='no_crm')
+    conversation_id = (request.args.get('conversation') or '').strip()[:64]
+    person, digits, name = _person_for(conversation_id, request.args.get('phone'),
+                                       (request.args.get('name') or '').strip())
+    lead = None
+    if person is not None:
+        lead = next((l for l in person.leads if l.status == 'open'), None) or (person.leads[0] if person.leads else None)
+    if lead is None:
+        return render_template('messaging/lead_panel.html', state='none', phone=digits,
+                               name=name[:120], conversation=conversation_id)
+    return render_template('messaging/lead_panel.html', state='lead', compact=True,
+                           **lead_card_context(lead), **_common())
+
+
+@messaging_bp.route('/lead-panel/make', methods=['POST'])
+@login_required
+def lead_panel_make():
+    """Somebody wrote on WhatsApp who is not a lead yet: make them one, from the inbox."""
+    from flask import current_app
+    from app.services import crm
+    if not access.allowed(current_user, request.endpoint) or not access.can(current_user, 'crm_add'):
+        abort(403)
+    digits = ''.join(ch for ch in (request.form.get('wa_phone') or '') if ch.isdigit())
+    if len(digits) < 8:
+        abort(400)
+    key = current_app.config.get('WACRM_SOURCE_KEY') or 'wa-india'
+    lead = crm.capture(key, name=(request.form.get('name') or '').strip()[:120] or None, phone='+' + digits,
+                       channel='whatsapp', utm={}, created_by_id=current_user.id)
+    if lead is not None and request.form.get('conversation'):
+        lead.person.wacrm_conversation_id = request.form.get('conversation')[:64]
+        if lead.owner_id is None:
+            lead.owner_id = current_user.id
+        db.session.commit()
+    return redirect(url_for('messaging.lead_panel', conversation=request.form.get('conversation'), phone=digits))

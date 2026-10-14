@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}{{ heading }} – WhatsApp{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace.css') }}">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace.css') }}">
+{% if panel %}<link rel="stylesheet" href="{{ url_for('static', filename='css/crm.css') }}"/>{% endif %}{% endblock %}
 {% block content %}
 <div class="admin-page">
   {% include 'admin/_sidebar.html' %}
@@ -14,10 +15,21 @@
           <i class="fa-solid fa-up-right-from-square"></i> New tab</a>
       </div>
       {# The WhatsApp CRM, signed in as this person. It reports where it is (wacrm:navigate) so the
-         address bar can hold its place: reloading this page lands on the same conversation. #}
-      <iframe class="wa-frame" src="{{ src }}" title="WhatsApp — {{ heading }}" data-wa-frame
-              allow="microphone; clipboard-write" referrerpolicy="same-origin"></iframe>
+         address bar can hold its place: reloading this page lands on the same conversation. On the
+         inbox it also says which conversation is open (wacrm:conversation), and that person's sales
+         lead is shown beside it -- the lead card, to work the lead without leaving the chat. #}
+      <div class="{{ 'wa-split' if panel }}">
+        <iframe class="wa-frame" src="{{ src }}" title="WhatsApp — {{ heading }}" data-wa-frame
+                allow="microphone; clipboard-write" referrerpolicy="same-origin"></iframe>
+        {% if panel %}
+        <aside class="wa-lead-panel crm" data-lead-panel data-crm="{{ crm_url('board') }}" data-wa="{{ 1 if wa_ready else 0 }}"
+               aria-label="Sales lead">
+          <p class="muted lp-hint"><i class="fa-solid fa-hand-pointer"></i> Open a conversation to see their sales lead here.</p>
+        </aside>
+        {% endif %}
+      </div>
     </div>
+    {% if panel %}<dialog class="crm-dialog" id="crm-dialog"><div class="in"></div></dialog>{% endif %}
     {% else %}
     <div class="wa-off">
       <section class="ws-card">
@@ -58,5 +70,54 @@
   });
 })();
 </script>
+{% if panel %}
+<script src="{{ url_for('static', filename='js/crm.js') }}"></script>
+<script>
+(function () {
+  var frame = document.querySelector('[data-wa-frame]');
+  var panel = document.querySelector('[data-lead-panel]');
+  if (!frame || !panel) return;
+  var crmOrigin = {{ (crm_origin or '')|tojson }} || window.location.origin;
+  var panelUrl = {{ url_for('messaging.lead_panel')|tojson }};
+  var hint = panel.innerHTML;
+  var current = null;
+
+  function show(html) {
+    panel.innerHTML = html;
+    var card = panel.querySelector('[data-lead-page]');
+    if (card && window.CRM_bindLead) window.CRM_bindLead(card);
+    var make = panel.querySelector('[data-lp-make]');
+    if (make) make.addEventListener('submit', function (e) {
+      e.preventDefault();
+      make.querySelector('button').disabled = true;
+      fetch(make.action, { method: 'POST', body: new FormData(make), credentials: 'same-origin' })
+        .then(function (r) { return r.text(); }).then(show);
+    });
+  }
+
+  function load(q) {
+    current = q;
+    if (!q || !q.conversation) { panel.innerHTML = hint; return; }
+    fetch(panelUrl + '?' + new URLSearchParams(q).toString(), { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.text() : ''; })
+      .then(function (html) { if (current === q && html) show(html); });
+  }
+  window.CRM_reloadPanel = function () { load(current); };
+
+  window.addEventListener('message', function (e) {
+    if (e.origin !== crmOrigin || e.source !== frame.contentWindow) return;
+    var d = e.data || {};
+    if (d.type !== 'wacrm:conversation') return;
+    var c = d.contact || {};
+    load(d.conversation_id ? { conversation: String(d.conversation_id), phone: String(c.phone || ''), name: String(c.name || '') } : null);
+  });
+
+  // a reload that lands on a conversation (?p=/inbox?c=...) shows its lead straight away
+  var p = new URL(window.location.href).searchParams.get('p') || '';
+  var m = p.match(/[?&]c=([^&]+)/);
+  if (m) load({ conversation: decodeURIComponent(m[1]), phone: '', name: '' });
+})();
+</script>
+{% endif %}
 {% endif %}
 {% endblock %}

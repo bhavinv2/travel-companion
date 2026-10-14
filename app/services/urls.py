@@ -39,6 +39,19 @@ def public_url(endpoint, **values):
     return url
 
 
+def site_link(endpoint, **values):
+    """public_url as a full address on the public site, for a link that leaves in a message (a
+    WhatsApp text or template). The host comes from SITE_URL -- its scheme and host only: SITE_URL
+    already ends in the app's prefix, and the path public_url gives carries it too, so joining the
+    two whole put /travel-companions in the link twice."""
+    from urllib.parse import urlparse
+    path = public_url(endpoint, **values)
+    if path.startswith('http'):
+        return path
+    site = urlparse(current_app.config.get('SITE_URL') or '')
+    return ('%s://%s' % (site.scheme, site.netloc) if site.netloc else '') + path
+
+
 def public_absolute(endpoint, **values):
     """public_url as a full https://host/path, for canonical tags and the sitemap."""
     path = public_url(endpoint, **values)
