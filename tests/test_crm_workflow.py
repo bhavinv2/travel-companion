@@ -4,6 +4,7 @@ The admin portal's copy of the CRM, stage automations, Quote sent / Payment link
 ready messages, the WhatsApp conversation on the lead, the visual dashboard and its work log, the
 Sales process page, and the workbook's comments, colours and KPI tabs coming in with the import."""
 import io
+import re
 from datetime import date, datetime, timedelta
 
 import openpyxl
@@ -31,12 +32,13 @@ def ti_lead(phone='+919876543210', **kw):
 def test_the_crm_lives_in_the_admin_portal_too(app, client, admin_user):
     login(client, admin_user.email)
     page = client.get('/admin/crm/').get_data(as_text=True)
-    assert 'Admin Panel' in page and 'Dashboard' in page and 'How we sell' in page and 'Daily tracker' in page
+    assert 'Admin Panel' in page and 'Site dashboard' in page and 'How we sell' in page and 'Team today' in page   # U2 menu names
     assert 'href="/admin/crm/today"' in page            # links stay in the admin portal
     assert client.get('/admin/crm/insights').status_code == 200
     assert client.get('/admin/crm/process').status_code == 200
     cs = client.get('/cs/crm/').get_data(as_text=True)
-    assert 'CS Console' in cs and 'href="/cs/crm/today"' in cs
+    # U2: one menu for everyone; an admin on the /cs/ copy keeps links in that copy
+    assert 'href="/cs/crm/today"' in cs
 
 
 def test_an_agent_following_an_admin_link_lands_in_their_console(app, client, cs_user):
@@ -99,13 +101,18 @@ def test_quote_sent_and_payment_link_move_the_lead(app, client, cs_user):
     _db.session.commit()
     login(client, cs_user.email)
     page = client.get('/cs/crm/lead/%d' % lead.id).get_data(as_text=True)
-    assert 'Quote sent' in page and 'Payment link sent' in page
+    assert 'I sent the quote' in page and 'I sent the payment link' in page      # U3 wording
+    assert 'Nothing is sent to the customer' in page
     assert client.post('/cs/crm/lead/%d/event' % lead.id, json={'code': 'Q'}).get_json()['stage'] == 'Quoted'
     assert client.post('/cs/crm/lead/%d/event' % lead.id, json={'code': 'PLS'}).get_json()['stage'] == 'Pipeline'
     # already further on: logged, not moved back
     assert client.post('/cs/crm/lead/%d/event' % lead.id, json={'code': 'Q'}).get_json()['stage'] is None
-    codes = [t.code for t in CrmTouchpoint.query.filter_by(lead_id=lead.id, direction='out').order_by(CrmTouchpoint.id)]
-    assert codes == ['Q', 'PLS', 'Q']
+    # U3: a milestone is a system line, never a WhatsApp message to the customer
+    touches = CrmTouchpoint.query.filter(CrmTouchpoint.lead_id == lead.id,
+                                         CrmTouchpoint.code.in_(['Q', 'PLS'])).order_by(CrmTouchpoint.id).all()
+    assert [t.code for t in touches] == ['Q', 'PLS', 'Q']
+    assert {(t.channel, t.direction) for t in touches} == {('system', 'none')}
+    assert CrmTouchpoint.query.filter_by(lead_id=lead.id, channel='whatsapp', direction='out').count() == 0
     assert client.post('/cs/crm/lead/%d/event' % lead.id, json={'code': 'XX'}).status_code == 400
 
 
@@ -162,15 +169,19 @@ def test_the_lead_page_shows_the_live_whatsapp_conversation(app, client, cs_user
     lead = ti_lead()
     login(client, cs_user.email)
     page = client.get('/cs/crm/lead/%d' % lead.id).get_data(as_text=True)
-    assert 'class="crm-wa-frame" src="/admin/messaging/lead/%d/chat"' % lead.id in page
-    assert 'data-thread' not in page and 'crm-reply' not in page and 'data-quick' not in page
+    # U3 (owner's decision 2026-10-15): one merged timeline with a message box, not an embedded chat frame;
+    # the full WhatsApp CRM chat opens in a drawer on demand
+    assert 'class="crm-wa-frame"' not in page
+    for tag in re.findall(r'<iframe[^>]*>', page):                 # the drawer's frame stays empty until opened
+        assert ' src=' not in tag
+    assert 'Full chat' in page
 
 
 def test_the_lead_page_without_whatsapp_says_why(app, client, cs_user):
     lead = ti_lead()
     login(client, cs_user.email)
     page = client.get('/cs/crm/lead/%d' % lead.id).get_data(as_text=True)
-    assert 'not connected to the portal yet' in page and 'Open in your WhatsApp' in page
+    assert 'WhatsApp is not connected for leads yet' in page and 'Open my WhatsApp' in page    # U3 wording
 
 def test_the_dashboard_counts_what_the_team_does(app, client, cs_user, admin_user):
     lead = ti_lead()

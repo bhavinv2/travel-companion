@@ -65,7 +65,7 @@ def test_the_menu_has_every_module_with_the_current_one_open(client, db, admin_u
     login(client, 'admin@test.com')
     html = client.get('/admin/sahayak').data.decode()
     nav = html.split('admin-nav-items', 1)[1].split('</nav>', 1)[0]
-    for label in ('Sales CRM', 'Travel Companion', 'Travel Insurance', 'Sahayak', 'WhatsApp', 'Workspace'):
+    for label in ('Sales', 'Travel Companion', 'Travel Insurance', 'Sahayak', 'Messaging', 'Team'):
         assert label in nav, label
     sahayak = nav.split('data-group="sahayak"', 1)[0].rsplit('<div', 1)[1]
     assert 'open' in sahayak                               # the module being worked in is open
@@ -110,5 +110,5 @@ def test_a_workspace_without_a_module_has_no_menu_for_it(client, db, admin_user)
     from app import db as _db
     _db.session.commit()
     nav = client.get('/admin/insurance-quotes').data.decode().split('admin-nav-items', 1)[1].split('</nav>', 1)[0]
-    assert 'Travel Insurance' in nav and 'Sales CRM' in nav and 'Workspace' in nav
+    assert 'Travel Insurance' in nav and 'Sales' in nav and 'Team' in nav
     assert 'data-group="sahayak"' not in nav and 'data-group="companion"' not in nav

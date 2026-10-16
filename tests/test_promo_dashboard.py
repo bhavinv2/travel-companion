@@ -212,10 +212,13 @@ def test_the_links_are_the_public_ones(app, db):
 # ---------------------------------------------------------------------------
 
 def test_the_admin_menu_offers_it(client, db, admin_user):
+    """U2: the Promotion line left the site owner's menu on purpose (the figures stay on the
+    dashboard and at /promotion). Pin that, so it is not quietly put back as a second home."""
     login(client, admin_user.email)
     html = client.get('/admin/', follow_redirects=True).data.decode()
-    top = html.split('class="admin-nav-top"', 1)[1].split('</nav>', 1)[0]
-    assert '/promotion' in top, 'it reports on all three products, like the dashboard'
+    nav = html.split('admin-nav-items', 1)[1].split('</nav>', 1)[0]
+    assert 'href="/promotion"' not in nav and '>Promotion<' not in nav
+    assert client.get('/promotion').status_code == 200        # still reachable by address
 
 
 def test_the_admin_dashboard_shows_the_same_figures(client, db, admin_user):

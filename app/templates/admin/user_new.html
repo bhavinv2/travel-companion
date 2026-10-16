@@ -6,7 +6,7 @@
   {% with active='users' %}{% include 'admin/_sidebar.html' %}{% endwith %}
   <main class="admin-main">
     <h1>Add account</h1>
-    <p class="muted">Create a traveller, CS agent or admin account directly. The account is marked e-mail-verified. Leave the password blank to generate a temporary one (shown once after saving), or tick "send set-password link" to e-mail the person a link instead.</p>
+    <p class="muted">Create a traveller account directly. Adding a member of staff? <a href="{{ url_for('workspace.members', add=1) }}">Add them in Team members</a>, so they get a role and teams. The account is marked e-mail-verified. Leave the password blank to generate a temporary one (shown once after saving), or tick "send set-password link" to e-mail the person a link instead.</p>
     <form method="POST" class="admin-card">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div class="form-row">

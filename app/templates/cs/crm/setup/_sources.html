@@ -1,0 +1,58 @@
+{# Set-up -> Where leads come from: the form for one source (?edit=) and the list. #}
+{% from 'cs/crm/_bits.html' import product_chip with context %}
+{% from 'cs/crm/setup/_macros.html' import csrf, product_select with context %}
+{% if edit is not none %}
+<section class="card focus">
+  <h2>{{ 'New lead source' if is_new else 'Edit "' ~ edit.name ~ '"' }}</h2>
+  <form method="POST" action="{{ crm_url('save_source') }}" class="crm-form">
+    {{ csrf() }}
+    {% if not is_new %}<input type="hidden" name="id" value="{{ edit.id }}"/>{% endif %}
+    <div><label class="lb">Name people will recognise</label><input type="text" name="name" value="{{ edit.name or '' }}" maxlength="100" required placeholder="e.g. Diwali insurance page"/></div>
+    <div><label class="lb">What kind</label>
+      <select name="kind">{% for k, label in KINDS.items() %}<option value="{{ k }}"{{ ' selected' if edit.kind == k }}>{{ label }}</option>{% endfor %}</select></div>
+    <div><label class="lb">Product</label>{{ product_select('product', edit.product or 'TI') }}</div>
+    <div><label class="lb">Its leads go into</label>
+      <select name="pipeline">
+        <option value="">— not decided yet (keep them waiting) —</option>
+        {% for p in pipelines %}<option value="{{ p.key }}"{{ ' selected' if edit.pipeline_id == p.id }}>{{ p.name }}</option>{% endfor %}
+      </select></div>
+    <div><span class="lb">Status</span>
+      <label class="check"><input type="radio" name="status" value="live"{{ ' checked' if edit.status != 'paused' }}/> Live — plan the follow-ups</label>
+      <label class="check"><input type="radio" name="status" value="paused"{{ ' checked' if edit.status == 'paused' }}/> Paused — keep leads, plan nothing</label></div>
+    <div><label class="lb">Same person again within (days) is the same lead</label><input type="number" name="dedupe_days" min="0" max="365" value="{{ edit.dedupe_days if edit.dedupe_days is not none else 30 }}"/></div>
+    <div class="full"><span class="lb">Who gets its leads <small class="muted">(nobody ticked = shared evenly across the team)</small></span>
+      <div class="team">{% for u in staff %}<label class="check"><input type="checkbox" name="team" value="{{ u.id }}"{{ ' checked' if edit.team and u.id in edit.team }}/> {{ u.full_name }}</label>{% endfor %}</div></div>
+    <div><label class="lb">Tags in the WhatsApp CRM <small class="muted">(comma separated)</small></label><input type="text" name="crm_tags" value="{{ (edit.crm_tags or [])|join(', ') }}" placeholder="e.g. insurance, diwali"/></div>
+    <div><label class="lb">Page address(es) <small class="muted">(for your notes)</small></label><input type="text" name="pages" value="{{ (edit.pages or [])|join(', ') }}" placeholder="/insurance, /diwali"/></div>
+    {% if not is_new %}<div class="full hint">Form code for this source: <code>{{ edit.key }}</code></div>{% endif %}
+    <div class="full row between">
+      <button class="cb primary">Save</button>
+      <a class="cb ghost" href="{{ crm_url('sources') }}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endif %}
+<section class="card">
+  <div class="row between" style="margin-bottom:10px">
+    <div><h2 style="margin:0">Where leads come from</h2>
+      <p class="muted" style="margin:4px 0 0">Every form, pop-up and chat. A new page sends its leads here by itself; it shows up at the top as <b>needs set-up</b> until you choose its pipeline once.</p></div>
+  </div>
+  <div style="overflow-x:auto">
+  <table class="crm-table">
+    <thead><tr><th>Source</th><th>Kind</th><th>Product</th><th>Goes into</th><th>Status</th><th>Leads</th><th></th></tr></thead>
+    <tbody>
+    {% for s in sources %}
+    <tr class="{{ 'unrouted' if s.status == 'unrouted' }}">
+      <td><span class="nm">{{ s.name }}</span><br/><small class="muted">{{ s.key }}</small></td>
+      <td>{{ KINDS.get(s.kind, s.kind) }}</td>
+      <td>{{ product_chip(s.product) }}</td>
+      <td>{{ s.pipeline.name if s.pipeline else '—' }}</td>
+      <td>{% if s.status == 'live' %}<span class="chip ok">Live</span>{% elif s.status == 'paused' %}<span class="chip">Paused</span>{% else %}<span class="chip due">Needs set-up</span>{% endif %}</td>
+      <td>{{ s.lead_count or 0 }}{% if s.last_lead_at %}<br/><small class="muted">last {{ s.last_lead_at.strftime('%d %b') }}</small>{% endif %}</td>
+      <td><a class="cb sm{{ ' primary' if s.status == 'unrouted' }}" href="{{ crm_url('sources', edit=s.id) }}">{{ 'Set up' if s.status == 'unrouted' else 'Edit' }}</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>

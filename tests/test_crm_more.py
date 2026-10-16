@@ -100,7 +100,7 @@ def test_admin_switches_and_tests_the_connection(app, client, admin_user, wa_key
     assert b'Connected to the WhatsApp CRM account' in r.data
     client.post('/admin/crm/setup/whatsapp', data={'action': 'mode', 'mode': 'send'})
     assert crm.wa_mode() == 'send'
-    page = client.get('/admin/crm/setup?tab=connect').get_data(as_text=True)
+    page = client.get('/admin/crm/connection').get_data(as_text=True)
     assert 'Connect replies' in page
 
 
@@ -249,8 +249,9 @@ def test_stuck_leads_show_on_the_todo_list(app, client, cs_user):
     lead.entered_stage_at = datetime.utcnow() - timedelta(hours=50)
     _db.session.commit()
     login(client, cs_user.email)
-    assert 'Leads waiting too long' in client.get('/cs/crm/today').get_data(as_text=True)
-    assert 'waiting' in client.get('/cs/crm/?owner=all').get_data(as_text=True)
+    # U4: the section is called 'Stuck in a stage', and the lead page chip says 'Stuck:'
+    assert 'Stuck in a stage' in client.get('/cs/crm/today').get_data(as_text=True)
+    assert 'Stuck:' in client.get('/cs/crm/lead/%d' % lead.id).get_data(as_text=True)
 
 
 def test_expiry_reminder_is_due_before_the_policy_ends(app):
@@ -278,7 +279,7 @@ def test_per_person_numbers(app, client, cs_user, admin_user):
     client.post('/auth/logout')
     login(client, admin_user.email)
     page = client.get('/admin/crm/insights?who=%d' % cs_user.id).get_data(as_text=True)
-    assert 'Csagent&#39;s numbers' in page and 'Day by day' in page and 'Messages by kind' in page
+    assert 'Csagent&#39;s results' in page and 'Day by day' in page and 'Messages by kind' in page
     csv = client.get('/admin/crm/insights.csv?days=7')
     assert csv.headers['Content-Type'].startswith('text/csv') and b'Messages sent' in csv.data
 
@@ -425,7 +426,7 @@ def test_importing_the_sales_workbook(app, client, admin_user, cs_user):
 
 def test_backfill_button_and_import_tab(app, client, admin_user, cs_user):
     login(client, admin_user.email)
-    assert b'Enquiries from before the CRM' in client.get('/admin/crm/setup?tab=import').data
+    assert b'Enquiries from before the CRM' in client.get('/admin/crm/data').data
     r = client.post('/admin/crm/setup/backfill', data={'days': 90}, follow_redirects=True)
     assert b'Brought in 0 past enquiries' in r.data
     client.post('/auth/logout')

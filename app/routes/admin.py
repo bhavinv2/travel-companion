@@ -118,9 +118,19 @@ def users():
     pages = max((total + per_page - 1) // per_page, 1)
     page = min(page, pages)
     users_list = query.order_by(User.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
+    # staff are changed in Team members: their row links to it, and only says whether they are a site owner
+    from app.models import WorkspaceMember
+    from app.services import access
+    ws = access.current_workspace(current_user)
+    ids = [u.id for u in users_list]
+    member_of = ({m.user_id: m.id for m in WorkspaceMember.query.filter(WorkspaceMember.workspace_id == ws.id,
+                                                                       WorkspaceMember.user_id.in_(ids)).all()}
+                 if ws and ids else {})
     return render_template('admin/users.html', users=users_list, search=search, roles=options.role_defs(),
                            role_labels=options.role_labels(), page=page, pages=pages, total=total,
-                           filters=dict(q=search, role=role, status=status, verified=verified))
+                           filters=dict(q=search, role=role, status=status, verified=verified),
+                           member_of=member_of,
+                           admin_keys=[r['key'] for r in options.role_defs() if r['level'] == 'admin'])
 
 
 @admin_bp.route('/users/<int:user_id>/delete', methods=['POST'])
@@ -217,7 +227,8 @@ def set_user_roles(user_id):
 @login_required
 @admin_required
 def new_user():
-    """Admins create accounts (travellers, CS agents, other admins) without going through sign-up."""
+    """Admins create traveller accounts without going through sign-up. Staff are added in Team
+    members, where they get a role and teams: a staff role here goes there, e-mail filled in."""
     import secrets
     from app import options
     from app.models import ActivityEvent
@@ -230,6 +241,9 @@ def new_user():
         username = (form.get('username') or '').strip()
         password = form.get('password') or ''
         keys = [k for k in form.getlist('roles') if k in {r['key'] for r in roles}] or ['user']
+        if any(options.role_level(k) in ('cs', 'admin') for k in keys):
+            flash('Staff are added in Team members, where they get a role and teams. Their e-mail is filled in.', 'info')
+            return redirect(url_for('workspace.members', add=1, email=email or None))
         errors = []
         if not email or not EMAIL_RE.match(email):
             errors.append('Valid e-mail is required.')
@@ -252,7 +266,8 @@ def new_user():
         if errors:
             for e in errors:
                 flash(e, 'danger')
-            return render_template('admin/user_new.html', roles=roles, form=form, selected_roles=keys), 200
+            return render_template('admin/user_new.html', roles=[r for r in roles if r['level'] == 'user'], form=form,
+                                   selected_roles=keys), 200
         generated = None
         if not password:
             password = generated = secrets.token_urlsafe(9)
@@ -282,7 +297,8 @@ def new_user():
         if generated:
             flash(f'Temporary password for {email}: {generated} - share it securely, it is not shown again.', 'info')
         return redirect(url_for('admin.users'))
-    return render_template('admin/user_new.html', roles=roles, form=form, selected_roles=['user'])
+    return render_template('admin/user_new.html', roles=[r for r in roles if r['level'] == 'user'], form=form,
+                           selected_roles=['user'])
 
 
 @admin_bp.route('/messages')

@@ -1,0 +1,11 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% block crm_title %}Bring in &amp; download{% endblock %}
+{% block crm %}
+{{ page_head('Bring in & download', 'fa-solid fa-file-arrow-up',
+             'Bring leads in from a spreadsheet or old website records, and download lists. Nobody is messaged when you import.',
+             help=['Nobody is messaged when you import.',
+                   'Old website enquiries and the sales sheet are safe to bring in again: rows already here are skipped.'],
+             full_screen=True) }}
+{% include 'cs/crm/setup/_import.html' %}
+{% endblock %}

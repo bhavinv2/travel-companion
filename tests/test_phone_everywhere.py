@@ -53,7 +53,7 @@ def test_an_account_made_by_an_admin_stores_its_number_dialable(client, db, admi
     """The form drew a country picker; the route ignored it and kept the box as typed."""
     login(client, 'admin@test.com')
     client.post('/admin/users/new', data={'email': 'agent2@example.com', 'username': 'agent2',
-                                          'phone': '0764498115', 'phone_cc': 'SE', 'roles': 'cs'})
+                                          'phone': '0764498115', 'phone_cc': 'SE', 'roles': 'user'})   # U2: staff go through Team members
     u = User.query.filter_by(email='agent2@example.com').first()
     assert u is not None and u.phone == '+46764498115'
 

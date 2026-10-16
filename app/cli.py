@@ -65,6 +65,18 @@ def register(app):
         result = crm_import.backfill(days=days)
         click.echo(', '.join('%s=%s' % kv for kv in sorted(result.items())) or 'nothing to bring in')
 
+    @app.cli.command('crm-wa-backfill')
+    def crm_wa_backfill():
+        """Bring every open lead with a phone into the WhatsApp CRM as a contact with its tags (no chat
+        is made and nothing is sent). The jobs runner does it, a few people every run."""
+        from app.services import crm
+        if not crm.wa_writes_on():
+            click.echo('WhatsApp is off (Set-up → WhatsApp connection): nothing was marked.')
+            return
+        n = crm.wa_backfill()
+        click.echo('%d people marked. The jobs runner brings them in, %d a run; nothing is sent to them.'
+                   % (n, crm.WA_SYNC_BATCH))
+
     @app.cli.command('crm-import-sheet')
     @click.argument('path', type=click.Path(exists=True, dir_okay=False))
     @click.option('--dry-run', is_flag=True, help='Only count what would come in.')

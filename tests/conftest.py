@@ -42,6 +42,8 @@ def app(tmp_path):
         # The default is Gmail, which carries sign-in/sign-up mail only -- that rule has its own
         # tests (test_mail_policy.py), which switch this back to smtp.gmail.com.
         'MAIL_SERVER': 'smtp.mail.test',
+        # the WhatsApp CRM sync runs straight after the commit, in the test's own thread
+        'WA_SYNC_INLINE': True,
     })
     with app.app_context():
         _db.create_all()
@@ -51,6 +53,9 @@ def app(tmp_path):
         _locations.reset_cache()         # same for the airport index (custom airports live in each test DB)
         from app.services import airlines as _airlines
         _airlines.reset_cache()
+        from app.services import crm as _crm, wa_templates as _wa_templates
+        _crm._wa_inbound.clear()         # the WhatsApp CRM's answers are cached for a minute: not across tests
+        _wa_templates.forget()
         yield app
         _db.session.remove()
         _db.drop_all()

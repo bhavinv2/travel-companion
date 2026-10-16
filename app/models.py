@@ -1624,11 +1624,17 @@ CRM_SOURCE_STATUSES = ('live', 'paused', 'unrouted')
 CRM_STAGE_KINDS = ('open', 'won', 'lost')
 CRM_TEMPERATURES = {'L': 'Loyal', 'R': 'Responsive', 'U': 'Unresponsive', 'Z': 'Zombie',
                     'DL': 'Dead lead', 'EL': 'Expired lead'}
+CRM_VIA = ('person', 'auto', 'automation', 'flow', 'ai', 'broadcast', 'import')
+# wa_other: they wrote from another WhatsApp number -- their reply, but it never opens the 24-hour clock
 CRM_CHANNELS = ('whatsapp', 'call', 'email', 'sms', 'instagram', 'facebook', 'telegram', 'chat',
-                'note', 'form', 'system')
+                'note', 'form', 'system', 'wa_other')
 CRM_CHANNEL_LABELS = {'whatsapp': 'WhatsApp', 'call': 'Call', 'email': 'E-mail', 'sms': 'SMS',
                       'instagram': 'Instagram', 'facebook': 'Facebook', 'telegram': 'Telegram',
-                      'chat': 'Chat', 'note': 'Note', 'form': 'Form', 'system': 'System'}
+                      'chat': 'Chat', 'note': 'Note', 'form': 'Form', 'system': 'System',
+                      'wa_other': 'WhatsApp (other number)'}
+# the read-only "Replies" line: what the temperature codes mean, in plain words
+CRM_REPLIES = {'L': 'Comes back', 'R': 'Replies', 'U': 'Not replying', 'Z': 'Stopped replying',
+               'DL': 'Number not working', 'EL': 'Cover ended'}
 CRM_CALL_OUTCOMES = {'connected': 'Talked', 'no_answer': 'No answer', 'busy': 'Busy',
                      'call_back': 'Asked us to call back', 'wrong_number': 'Wrong number',
                      'switched_off': 'Switched off'}
@@ -1739,6 +1745,23 @@ class CrmPerson(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     wacrm_contact_id = db.Column(db.String(64), nullable=True, index=True)
     wacrm_conversation_id = db.Column(db.String(64), nullable=True)
+    # told to the WhatsApp CRM after the save, in the background (crm.run_wa_sync): due since
+    # when, whether their chat should go to the owner, the last problem, the last success
+    wacrm_sync_due_at = db.Column(db.DateTime, nullable=True, index=True)
+    wacrm_assign_due = db.Column(db.Boolean, nullable=True, default=False)
+    # somebody already here wrote from a chat we had not seen: it goes to their owner after the
+    # save, but only if nobody in the WhatsApp CRM has it (an owner change here moves it anyway)
+    wacrm_assign_if_free = db.Column(db.Boolean, nullable=True, default=False)
+    # their next push is quiet (tags written without starting the WhatsApp CRM's "tag added"
+    # automations, contract 19): only while every mark since the last push was a bulk one
+    wacrm_quiet = db.Column(db.Boolean, nullable=True, default=False)
+    wa_sync_error = db.Column(db.String(300))
+    wa_synced_at = db.Column(db.DateTime)
+    wa_opt_out_at = db.Column(db.DateTime)            # they asked for no more WhatsApp messages
+    # an admin opted them back in: their next push takes the "opted-out" tag off (then this clears)
+    wa_opt_in_due = db.Column(db.Boolean, nullable=True, default=False)
+    # when their older WhatsApp messages were brought onto the lead page, once; null again after a failed try
+    wa_history_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -1810,6 +1833,10 @@ class CrmLead(db.Model):
     entered_stage_at = db.Column(db.DateTime, default=datetime.utcnow)
     # set when the owner was told the lead has sat in its stage too long; cleared on every move
     sla_alerted_at = db.Column(db.DateTime)
+    # "Remind me in 1 hour" on a customer waiting on us: hidden on My day, and no waiting bell, until then
+    snoozed_until = db.Column(db.DateTime)
+    # the "is waiting for your reply" bell went for this wait; our next message to them clears it
+    waiting_alerted_at = db.Column(db.DateTime)
     last_activity_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     closed_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
@@ -1861,6 +1888,9 @@ class CrmTouchpoint(db.Model):
     outcome = db.Column(db.String(20))        # for calls: connected / no_answer / ...
     body = db.Column(db.Text)
     status = db.Column(db.String(12))         # sent / delivered / read / failed, for messages
+    fail_reason = db.Column(db.String(300))   # why WhatsApp did not deliver it, in plain words (crm.wa_failure_text)
+    # who sent an outbound message (CRM_VIA); null on older rows: a person when agent_id is set, else automation
+    via = db.Column(db.String(12))
     agent_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     external_id = db.Column(db.String(120), index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
@@ -1881,8 +1911,8 @@ class CrmTask(db.Model):
     auto = db.Column(db.Boolean, nullable=False, default=False)
     due_at = db.Column(db.DateTime, nullable=False, index=True)
     owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
-    status = db.Column(db.String(8), nullable=False, default='open')     # open / done / skipped
-    done_at = db.Column(db.DateTime)
+    status = db.Column(db.String(8), nullable=False, default='open')     # open / sending / done / skipped
+    done_at = db.Column(db.DateTime)          # done_at: when it was done; while "sending", when it was taken
     done_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     note = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

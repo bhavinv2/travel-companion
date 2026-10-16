@@ -5,13 +5,13 @@
 <div class="ws-head">
   <div><h1>{{ t.name if t else 'New team' }}</h1>
     <p>Who is in it, and the role they all get.</p></div>
-  <a class="ws-btn" href="{{ url_for('workspace.teams') }}"><i class="fa-solid fa-arrow-left"></i> All teams</a>
+  <a class="cb" href="{{ url_for('workspace.teams') }}"><i class="fa-solid fa-arrow-left"></i> All teams</a>
 </div>
 
 <form method="POST" action="{{ url_for('workspace.save_team') }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
   {% if t %}<input type="hidden" name="team_id" value="{{ t.id }}"/>{% endif %}
-  <section class="ws-card">
+  <section class="card">
     <div class="ws-grid2">
       <div class="ws-field"><label for="tName">Team name</label>
         <input type="text" id="tName" name="name" value="{{ t.name if t else '' }}" maxlength="80" required placeholder="e.g. Insurance desk"/></div>
@@ -25,7 +25,7 @@
       <input type="text" id="tDesc" name="description" value="{{ t.description if t and t.description else '' }}" maxlength="255"/></div>
   </section>
 
-  <section class="ws-card">
+  <section class="card">
     <h2><i class="fa-solid fa-users"></i> People</h2>
     {% if people %}
     <div class="ws-checks">
@@ -40,7 +40,7 @@
   </section>
 
   <div class="ws-actions">
-    <button class="ws-btn primary"><i class="fa-solid fa-floppy-disk"></i> Save team</button>
+    <button class="cb primary"><i class="fa-solid fa-floppy-disk"></i> Save team</button>
   </div>
 </form>
 
@@ -48,7 +48,7 @@
 <form method="POST" action="{{ url_for('workspace.delete_team', team_id=t.id) }}" style="margin-top:22px"
       data-confirm="Delete the team {{ t.name }}? Its people stay in the workspace and keep their own roles.">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-  <button class="ws-btn danger"><i class="fa-solid fa-trash-can"></i> Delete team</button>
+  <button class="cb danger"><i class="fa-solid fa-trash-can"></i> Delete team</button>
 </form>
 {% endif %}
 {% endblock %}

@@ -21,21 +21,22 @@ def test_multi_role_login_shows_chooser(client, app):
     r = login(client, 'multi@test.com')
     assert r.status_code == 302 and r.headers['Location'].endswith('/auth/choose-portal')
     html = client.get('/auth/choose-portal').data.decode()
-    assert 'Traveller' in html and 'CS Console' in html and 'Admin Panel' in html
+    assert 'Website' in html and 'Staff' in html     # U2: one Staff card for the staff pages (no CS / Admin split)
 
 
 def test_two_role_account_sees_only_its_portals(client, app):
     make('duo@test.com', 'duo', ['user', 'cs'])
     login(client, 'duo@test.com')
     html = client.get('/auth/choose-portal').data.decode()
-    assert 'Traveller' in html and 'CS Console' in html and 'Admin Panel' not in html
+    assert 'Website' in html and 'Staff' in html and 'Admin Panel' not in html
 
 
 def test_choose_cs_lands_console(client, app):
     make('multi2@test.com', 'multi2', ['user', 'cs', 'admin'])
     login(client, 'multi2@test.com')
     r = client.get('/auth/choose-portal?to=cs')
-    assert r.status_code == 302 and r.headers['Location'].endswith('/cs/')
+    # U2: a site owner lands on Results, not on the old /cs/ start page
+    assert r.status_code == 302 and r.headers['Location'].endswith('/admin/crm/insights')
 
 
 def test_choose_traveller_sets_view(client, app):

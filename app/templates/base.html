@@ -51,6 +51,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/bg-art.css') }}"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/footer.css') }}"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/whatsapp.css') }}"/>
+  {% if current_user.is_authenticated and current_user.is_cs %}<link rel="stylesheet" href="{{ url_for('static', filename='css/ui.css') }}"/>{% endif %}
   {% block extra_css %}{% endblock %}
   {# active colour theme, managed at /admin/themes. Last in the head so it wins over
      both style.css (:root) and landing.css (.landing). #}
@@ -270,20 +271,14 @@
               </div>
               <span class="dd-role dd-role-{{ current_user.effective_role }}">{{ current_user.effective_role }}</span>
             </div>
-            {% if current_user.is_cs and (current_user.is_traveller or current_user.is_admin) %}
-            {% set _on_admin = is_staff and request.path.startswith('/admin') %}
-            {% set _on_cs = is_staff and not _on_admin %}
-            {% set _three = current_user.is_traveller and current_user.is_admin %}
+            {# Website / Staff: only for an account that is both. Which one is on comes from the
+               person's chosen view (main.staff_view_active), never from the address. #}
+            {% if current_user.is_cs and current_user.is_traveller %}
             <div class="dd-section">
-              <span class="dd-label">Portal</span>
-              <div class="portal-switch{{ ' three' if _three }}" role="radiogroup" aria-label="Portal">
-                {% if current_user.is_traveller %}
-                <a href="{{ url_for('main.switch_view', view='traveller') }}" role="radio" aria-checked="{{ 'false' if is_staff else 'true' }}" class="{{ '' if is_staff else 'active' }}"><i class="fa-solid fa-person-walking-luggage"></i> <span>Traveller</span></a>
-                {% endif %}
-                <a href="{{ url_for('main.switch_view', view='cs') }}" role="radio" aria-checked="{{ 'true' if _on_cs else 'false' }}" class="{{ 'active' if _on_cs }}"><i class="fa-solid fa-headset"></i> <span>CS Console</span></a>
-                {% if current_user.is_admin %}
-                <a href="{{ url_for('main.switch_view', view='admin') }}" role="radio" aria-checked="{{ 'true' if _on_admin else 'false' }}" class="{{ 'active' if _on_admin }}"><i class="fa-solid fa-gauge"></i> <span>Admin</span></a>
-                {% endif %}
+              <span class="dd-label">View</span>
+              <div class="portal-switch" role="radiogroup" aria-label="View">
+                <a href="{{ url_for('main.switch_view', view='traveller') }}" role="radio" aria-checked="{{ 'false' if is_staff else 'true' }}" class="{{ '' if is_staff else 'active' }}"><i class="fa-solid fa-globe"></i> <span>Website</span></a>
+                <a href="{{ url_for('main.switch_view', view='staff') }}" role="radio" aria-checked="{{ 'true' if is_staff else 'false' }}" class="{{ 'active' if is_staff }}"><i class="fa-solid fa-headset"></i> <span>Staff</span></a>
               </div>
             </div>
             {% endif %}
@@ -514,6 +509,9 @@
   {% if current_user.is_authenticated and current_user.is_admin %}
     {% include 'admin/_confirm_delete.html' %}
     <script src="{{ url_for('static', filename='js/hard-delete.js') }}" defer></script>
+  {% endif %}
+  {% if current_user.is_authenticated and (current_user.is_cs or current_user.is_admin) %}
+  <script src="{{ url_for('static', filename='js/notify.js') }}" data-api="{{ url_for('notifications.list_notifications') }}" defer></script>
   {% endif %}
   {% block extra_js %}{% endblock %}
 </body>

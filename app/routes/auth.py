@@ -480,7 +480,8 @@ def login():
             login_user(user, remember=remember)
             target = _safe_next(session.pop('next', None)) or next_page
             if not target:
-                target = url_for('auth.choose_portal') if len(user.role_levels) >= 2 else staff_home(user)
+                # Website or Staff: only an account that is both is asked
+                target = url_for('auth.choose_portal') if (user.is_traveller and user.is_cs) else staff_home(user)
             if is_ajax:
                 return jsonify({'success': True, 'redirect': target})
             flash(f'Welcome back, {user.first_name or user.username}!', 'success')
@@ -496,21 +497,18 @@ def login():
 @auth_bp.route('/choose-portal')
 @login_required
 def choose_portal():
-    """Accounts holding several roles pick which portal to land in after login."""
-    levels = current_user.role_levels
+    """An account that is both a traveller and staff picks a view after login: Website (their
+    trips) or Staff (their start page). The old 'cs' and 'admin' choices are Staff."""
     to = request.args.get('to')
-    if to == 'traveller' and 'user' in levels:
+    if to == 'traveller' and current_user.is_traveller:
         session['view'] = 'traveller'
         return redirect(url_for('main.dashboard'))
-    if to == 'cs' and current_user.is_cs:
+    if to in ('staff', 'cs', 'admin') and current_user.is_cs:
         session.pop('view', None)
-        return redirect(url_for('cs.home'))
-    if to == 'admin' and current_user.is_admin:
-        session.pop('view', None)
-        return redirect(url_for('admin.dashboard'))
-    if len(levels) < 2:                          # single-portal accounts never see the popup
         return redirect(staff_home(current_user))
-    return render_template('auth/choose_portal.html', levels=levels)
+    if not (current_user.is_traveller and current_user.is_cs):     # one view only: never asked
+        return redirect(staff_home(current_user))
+    return render_template('auth/choose_portal.html', levels=current_user.role_levels)
 
 
 @auth_bp.route('/logout', methods=['POST'])

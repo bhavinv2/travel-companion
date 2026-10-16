@@ -18,8 +18,9 @@ STAFF_REDIRECT_ENDPOINTS = {'main.index', 'main.all_trips', 'main.dashboard', 'm
 
 
 def staff_home(user):
-    """Where a staff account lands: admins on the dashboard, customer service on the queues,
-    anybody else on the first page their roles give them (services/access.home_url)."""
+    """Where a staff account lands (services/access.home_url): site owners on Results, people who
+    work leads on My day, customer service on Service to-do, anybody else on the first page their
+    roles give them."""
     from flask import url_for
     from app.services import access
     if access.is_staff(user):
@@ -57,7 +58,9 @@ def _inject_staff_home():
 @main_bp.route('/switch-view/<view>')
 @login_required
 def switch_view(view):
-    """Accounts holding both a traveller role and a staff role flip between the two experiences."""
+    """Accounts holding both a traveller role and a staff role flip between the two views: Website
+    (their trips) and Staff, which opens their start page (staff_home). The old 'cs' and 'admin'
+    views are Staff too."""
     if view == 'traveller':
         if not (current_user.is_cs and current_user.is_traveller):
             flash('This account has no traveller role.', 'danger')
@@ -65,10 +68,6 @@ def switch_view(view):
         session['view'] = 'traveller'
         return redirect(url_for('main.dashboard'))
     session.pop('view', None)
-    if view == 'cs' and current_user.is_cs:
-        return redirect(url_for('cs.home'))
-    if view == 'admin' and current_user.is_admin:
-        return redirect(url_for('admin.dashboard'))
     return redirect(staff_home(current_user))
 
 
@@ -411,11 +410,14 @@ def _validate_contact(form, need_phone=False):
     return errors
 
 
-def _save_contact(form, topic=None, lead_source=None):
+def _save_contact(form, topic=None, lead_source=None, crm_lead=True):
     """Store the enquiry and let the CS team know. Returns the ContactMessage.
 
     It also becomes a lead in the Sales CRM, filed under `lead_source` -- by default the contact
     form of its topic ("contact-insurance"), so each product's enquiries start their own pipeline.
+    One bell per enquiry: the lead's (the CRM tells whoever got it, or the admins when nobody did),
+    or the contact inbox's when no lead was made. `crm_lead` False (the newsletter box): kept as a
+    message only, no lead and no bell.
 
     `topic` is which part of the business it is about, so the one inbox can be filtered. Passed
     in where the page already knows (the insurance page sends 'insurance'); otherwise taken from
@@ -437,16 +439,27 @@ def _save_contact(form, topic=None, lead_source=None):
     ActivityEvent.log('contact_message_received',
                       actor=(current_user if current_user.is_authenticated else None),
                       contact_id=msg.id, email=msg.email)
-    # Only the agents whose console has the screen this lands on. One that does not would be
-    # told to go and look at a page they cannot open.
-    for agent in cs_access.recipients('voices'):
-        notify.push(agent.id, 'cs_escalation', title='New contact message',
-                    body=f'{msg.name} <{msg.email}>: {msg.message[:90]}', link='/cs/contact')
     db.session.commit()
+    if not crm_lead:
+        return msg
+    from datetime import datetime
     from app.services import crm
-    crm.capture_safely(lead_source or 'contact-%s' % msg.topic, name=msg.name, phone=msg.phone,
-                       email=msg.email, product=CONTACT_TOPIC_PRODUCT.get(msg.topic),
-                       message=msg.message, ref=('contact_messages', msg.id), user_id=msg.user_id)
+    started = datetime.utcnow()
+    lead = crm.capture_safely(lead_source or 'contact-%s' % msg.topic, name=msg.name, phone=msg.phone,
+                              email=msg.email, product=CONTACT_TOPIC_PRODUCT.get(msg.topic),
+                              message=msg.message, ref=('contact_messages', msg.id), user_id=msg.user_id)
+    if lead is None:
+        # no lead was made: the contact inbox is the only place this enquiry shows. Only the agents whose
+        # console has the screen it lands on -- one that does not would be told to open a page they cannot.
+        for agent in cs_access.recipients('voices'):
+            notify.push(agent.id, 'cs_escalation', title='New contact message',
+                        body=f'{msg.name} <{msg.email}>: {msg.message[:90]}', link='/cs/contact')
+        db.session.commit()
+    elif lead.created_at and lead.created_at < started and lead.owner_id:
+        # the same person asking again: the lead is not new, so its owner is told here
+        notify.push(lead.owner_id, 'crm_lead', title=crm.REPEAT_BELL % (msg.name or 'Someone'),
+                    body=msg.message[:90], link=crm._lead_link(lead))
+        db.session.commit()
     return msg
 
 
@@ -570,7 +583,7 @@ def api_newsletter():
         return jsonify({'success': False, 'error': 'Please enter a valid e-mail address.'}), 400
     _save_contact({'name': 'Newsletter subscriber', 'email': email, 'phone': '',
                    'message': 'Newsletter signup request from the footer.'}, topic='general',
-                  lead_source='newsletter')
+                  lead_source='newsletter', crm_lead=False)
     return jsonify({'success': True}), 201
 
 

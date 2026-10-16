@@ -9,7 +9,7 @@
     <p>A team is a group of people with a role: "Insurance desk", "Sales", "Sahayak operations". Everyone in a team can open the
       team role's pages, on top of their own role.</p>
   </div>
-  <a class="ws-btn primary" href="{{ url_for('workspace.team', team_id=0) }}"><i class="fa-solid fa-plus"></i> New team</a>
+  <a class="cb primary" href="{{ url_for('workspace.team', team_id=0) }}"><i class="fa-solid fa-plus"></i> New team</a>
 </div>
 
 {% if ws.teams %}
@@ -26,13 +26,13 @@
     </div>
     <div class="foot" style="display:flex;gap:8px;justify-content:space-between;margin-top:auto">
       <span class="ws-muted">{{ t.users|length }} {{ 'person' if t.users|length == 1 else 'people' }}</span>
-      <a class="ws-btn sm" href="{{ url_for('workspace.team', team_id=t.id) }}"><i class="fa-solid fa-pen"></i> Change</a>
+      <a class="cb sm" href="{{ url_for('workspace.team', team_id=t.id) }}"><i class="fa-solid fa-pen"></i> Change</a>
     </div>
   </div>
   {% endfor %}
 </div>
 {% else %}
-<section class="ws-card"><p class="ws-muted" style="margin:0">No teams yet. People can have roles of their own without being in a team;
+<section class="card"><p class="ws-muted" style="margin:0">No teams yet. People can have roles of their own without being in a team;
   teams are for giving a whole group the same pages at once.</p></section>
 {% endif %}
 {% endblock %}

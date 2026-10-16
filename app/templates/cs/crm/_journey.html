@@ -1,0 +1,41 @@
+{# The journey card on the lead page: the pipeline, the stage bar, the milestone buttons and the
+   WhatsApp line (drawn from portal data only). A live region. The inbox panel has its own compact
+   bar in _lead_card.html. Needs: lead, events, wa, wa_line, chat_url, sync, can_opt_in. #}
+{% from 'cs/crm/_bits.html' import when with context %}
+<section class="card lead-journey" data-lead-live="journey">
+  {% if lead.pipeline %}
+  <div class="card-head">
+    <div class="t"><span class="ico"><i class="fa-solid fa-route"></i></span>
+      <div><h2>{{ lead.pipeline.name }}</h2>
+        <p class="muted small">{% if lead.entered_stage_at %}In “{{ lead.stage.name if lead.stage }}” since {{ when(lead.entered_stage_at, utcnow) }}. {% endif %}Click a stage to move them there.
+          {% if lead.stuck_hours and lead.entered_stage_at %}{% set hrs = ((utcnow - lead.entered_stage_at).total_seconds() / 3600)|int %}
+          <span class="chip stuck">Stuck: {{ ((hrs // 24) ~ (' day' if hrs // 24 == 1 else ' days')) if hrs >= 24 else (hrs ~ ' hours') }} in this stage</span>{% endif %}</p></div></div>
+    {% if events and lead.status == 'open' %}
+    <div class="row lead-milestones">
+      {% for code, label, sname in events %}
+      <button type="button" class="cb sm" data-act="event" data-code="{{ code }}" title="{{ MILESTONE % sname }}"><i class="fa-solid {{ 'fa-file-invoice-dollar' if code == 'Q' else 'fa-link' }}"></i> {{ label }}</button>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% set cur = lead.stage.position if lead.stage else -1 %}
+  <div class="crm-journey" data-journey>
+    {% for st in lead.pipeline.stages %}
+    <button type="button" data-stage="{{ st.id }}" data-kind="{{ st.kind }}" data-name="{{ st.name }}"
+            data-milestone="{{ MILESTONE_STAGES.get(st.key, '') }}" data-ask="{{ MILESTONE_ASK.get(MILESTONE_STAGES.get(st.key), '') }}"
+            class="{{ st.kind if st.kind != 'open' }}{{ ' now' if st.id == lead.stage_id }}{{ ' past' if st.kind == 'open' and st.position < cur and lead.stage and lead.stage.kind == 'open' }}">
+      {% if st.kind == 'won' %}<i class="fa-solid fa-trophy"></i> {% elif st.kind == 'lost' %}<i class="fa-solid fa-xmark"></i> {% endif %}{{ st.name }}</button>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted small"><i class="fa-solid fa-route"></i> Not in a pipeline yet. Choose one above.</p>
+  {% endif %}
+  <div class="lead-wa" data-wa-strip>
+    <span class="ico wa"><i class="fa-brands fa-whatsapp"></i></span><span>{{ wa_line }}</span>
+    {% if wa.chat_status %}<span class="chip">Chat: {{ CHAT_STATUS.get(wa.chat_status, wa.chat_status) }}</span>{% endif %}
+    {% if chat_url %}<a href="{{ chat_url }}" data-act="open-chat" target="_blank" rel="noopener">Open full chat</a>{% endif %}
+    {% if can_opt_in %}<button type="button" class="cb sm" data-act="opt-in">Opt back in</button>{% endif %}
+    {% if sync %}<span class="lead-sync {{ sync.state }}">{{ sync.text }}</span>
+      {% if sync.retry %}<button type="button" class="cb sm quiet" data-act="wa-retry">Try again</button>{% endif %}{% endif %}
+  </div>
+</section>

@@ -8,23 +8,29 @@
   <main class="admin-main">
     {% if src %}
     <div class="wa-frame-wrap">
+      {# The bar: the screen's heading, what it is for, and how it works. It follows the screen
+         shown inside the frame (the script below), so a link inside the CRM never leaves a wrong name
+         on top. #}
       <div class="wa-frame-bar">
-        <h1><i class="fa-brands fa-whatsapp"></i> {{ heading }}</h1>
-        <span class="sp"></span>
-        <a class="ws-btn sm" href="{{ direct }}" target="_blank" rel="noopener" title="Open the WhatsApp CRM in its own tab">
-          <i class="fa-solid fa-up-right-from-square"></i> New tab</a>
+        <div class="wa-frame-title">
+          <h1><i class="fa-brands fa-whatsapp"></i> <span data-frame-heading>{{ heading }}</span></h1>
+          <p class="wa-frame-helper" data-frame-helper>{{ helper }}</p>
+        </div>
+        <details class="help-fold wa-frame-help"><summary>(?) How this works</summary>
+          <ul data-frame-help>{% for line in help %}<li>{{ line }}</li>{% endfor %}</ul></details>
       </div>
       {# The WhatsApp CRM, signed in as this person. It reports where it is (wacrm:navigate) so the
          address bar can hold its place: reloading this page lands on the same conversation. On the
          inbox it also says which conversation is open (wacrm:conversation), and that person's sales
-         lead is shown beside it -- the lead card, to work the lead without leaving the chat. #}
+         lead is shown beside it -- the lead card, to work the lead without leaving the chat. A screen
+         that moved into the portal says so (`retired`), and the whole window goes to its page here. #}
       <div class="{{ 'wa-split' if panel }}">
         <iframe class="wa-frame" src="{{ src }}" title="WhatsApp — {{ heading }}" data-wa-frame
                 allow="microphone; clipboard-write" referrerpolicy="same-origin"></iframe>
         {% if panel %}
         <aside class="wa-lead-panel crm" data-lead-panel data-crm="{{ crm_url('board') }}" data-wa="{{ 1 if wa_ready else 0 }}"
                aria-label="Sales lead">
-          <p class="muted lp-hint"><i class="fa-solid fa-hand-pointer"></i> Open a conversation to see their sales lead here.</p>
+          <p class="muted lp-hint"><i class="fa-solid fa-hand-pointer"></i> Open a chat on the left to see their lead here.</p>
         </aside>
         {% endif %}
       </div>
@@ -32,7 +38,7 @@
     {% if panel %}<dialog class="crm-dialog" id="crm-dialog"><div class="in"></div></dialog>{% endif %}
     {% else %}
     <div class="wa-off">
-      <section class="ws-card">
+      <section class="card">
         <h2><i class="fa-brands fa-whatsapp" style="color:#25a244"></i> {{ heading }}</h2>
         {% if not configured %}
         <p class="lead">The WhatsApp CRM is not connected to the portal on this server yet.</p>
@@ -44,7 +50,7 @@
         {% endif %}
         {% else %}
         <p class="lead">Your role does not include WhatsApp yet. Ask an admin to add a WhatsApp page to your role
-          (Workspace &rarr; Roles &amp; access).</p>
+          (Team &rarr; Roles).</p>
         {% endif %}
       </section>
     </div>
@@ -60,13 +66,48 @@
   if (!frame) return;
   // the CRM's own site when it is not this one (studio.preventia360.com), else this site
   var crmOrigin = {{ (crm_origin or '')|tojson }} || window.location.origin;
+  var SCREENS = {{ screens|tojson }}, goUrl = {{ go_url|tojson }};
+  var heading = document.querySelector('[data-frame-heading]');
+  var helper = document.querySelector('[data-frame-helper]');
+  var help = document.querySelector('[data-frame-help]');
+
+  // the screen a path inside the CRM is: the longest matching path, a /settings tab beating /settings
+  function screenFor(path) {
+    var u;
+    try { u = new URL(path, 'https://x.invalid'); } catch (err) { return null; }
+    var base = u.pathname.replace(/\/+$/, '') || '/', tab = u.searchParams.get('tab'), best = null, score = -1;
+    SCREENS.forEach(function (s) {
+      var hit = s.tabs ? (base === s.base && s.tabs.indexOf(tab) >= 0)
+                       : (base === s.base || base.indexOf(s.base + '/') === 0);
+      var n = s.base.length + (s.tabs ? 1000 : 0);
+      if (hit && n > score) { best = s; score = n; }
+    });
+    return best;
+  }
+
   window.addEventListener('message', function (e) {
     if (e.origin !== crmOrigin || e.source !== frame.contentWindow) return;
     var d = e.data || {};
     if (d.type !== 'wacrm:navigate' || typeof d.path !== 'string' || d.path.charAt(0) !== '/') return;
+    // a screen that moved into the portal (contract 15): the whole window goes to its page here
+    if (typeof d.retired === 'string' && /^[a-z_]{1,32}$/.test(d.retired)) {
+      var to = goUrl + (goUrl.indexOf('?') < 0 ? '?' : '&') + 'go=' + encodeURIComponent(d.retired);
+      try { window.top.location.href = to; } catch (err) { window.location.href = to; }
+      return;
+    }
     var url = new URL(window.location.href);
     url.searchParams.set('p', d.path);
     window.history.replaceState(null, '', url.pathname + url.search);
+    var s = screenFor(d.path);
+    if (s) {
+      heading.textContent = s.heading;
+      helper.textContent = s.helper || '';
+      if (s.help) {
+        while (help.firstChild) help.removeChild(help.firstChild);
+        s.help.forEach(function (t) { var li = document.createElement('li'); li.textContent = t; help.appendChild(li); });
+      }
+      document.title = s.heading + ' \u2013 WhatsApp';
+    }
   });
 })();
 </script>
@@ -81,6 +122,20 @@
   var panelUrl = {{ url_for('messaging.lead_panel')|tojson }};
   var hint = panel.innerHTML;
   var current = null;
+  // contract 10: a message appeared in the open conversation (theirs or ours). Its lead follows once the
+  // webhook has landed here, and once more a little later in case it was slow -- never over something
+  // being typed in the panel, or a dialog it opened.
+  var soon = [];
+  function busy() {
+    var a = document.activeElement, dlg = document.getElementById('crm-dialog');
+    return (dlg && dlg.open) || (a && panel.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
+  }
+  function refreshSoon() {
+    soon.forEach(clearTimeout);
+    soon = [1500, 6000].map(function (ms) {
+      return setTimeout(function () { if (current && current.conversation && !busy()) load(current); }, ms);
+    });
+  }
 
   function show(html) {
     panel.innerHTML = html;
@@ -103,11 +158,23 @@
       .then(function (html) { if (current === q && html) show(html); });
   }
   window.CRM_reloadPanel = function () { load(current); };
+  // contract 25: words for the open conversation's composer -- the WhatsApp CRM fills it and never sends
+  window.CRM_compose = function (text) {
+    if (!current || !current.conversation || !frame.contentWindow) return false;
+    frame.contentWindow.postMessage({ type: 'portal:compose', conversation_id: current.conversation,
+                                      text: String(text || '').slice(0, 4096) }, crmOrigin);
+    return true;
+  };
 
   window.addEventListener('message', function (e) {
     if (e.origin !== crmOrigin || e.source !== frame.contentWindow) return;
     var d = e.data || {};
+    if (d.type === 'wacrm:activity') {
+      if (current && current.conversation && String(d.conversation_id || '') === current.conversation) refreshSoon();
+      return;
+    }
     if (d.type !== 'wacrm:conversation') return;
+    soon.forEach(clearTimeout);
     var c = d.contact || {};
     load(d.conversation_id ? { conversation: String(d.conversation_id), phone: String(c.phone || ''), name: String(c.name || '') } : null);
   });

@@ -1,18 +1,16 @@
 {% extends 'cs/crm/_layout.html' %}
-{% set crm_tab = 'checks' %}
-{% block crm_title %}Inbox check{% endblock %}
+{% from '_page_head.html' import page_head %}
+{% block crm_title %}Half-hourly check{% endblock %}
 {% block crm %}
-<div class="page-head">
-  <div>
-    <h1>Inbox check</h1>
-    <p class="muted" style="margin:4px 0 0">Every half hour from 7 am to midnight (India time), look at each inbox and tick it. Nothing waits more than thirty minutes.</p>
-  </div>
-  <div class="actions">
-    <form method="GET" class="row" style="gap:6px">
-      <input type="date" name="day" value="{{ day.isoformat() }}" max="{{ today.isoformat() }}" onchange="this.form.submit()" style="width:auto"/>
-    </form>
-  </div>
-</div>
+{{ page_head('Half-hourly check', 'fa-solid fa-clipboard-check',
+             'From 7:00 to midnight, look at each inbox every half hour and tick it.',
+             help=['Every half hour from 7:00 to midnight (India time), look at each inbox and tick it.',
+                   'Tick them one by one, or all at once when you have looked at every inbox.',
+                   'The bars show how much of each earlier day was checked.'],
+             full_screen=True) }}
+<form method="GET" class="ui-filters">
+  <input type="date" name="day" value="{{ day.isoformat() }}" max="{{ today.isoformat() }}" onchange="this.form.submit()" style="width:auto" aria-label="Day"/>
+</form>
 
 {% if editable and now_slot is not none %}
 <section class="card focus" data-checks>
@@ -24,7 +22,7 @@
       <p class="muted" style="margin:4px 0 0">{{ done_now|length }} of {{ channels|length }} inboxes looked at.</p>
     </div>
     <button class="cb ok big" data-tick-all data-slot="{{ now_slot }}"{{ ' disabled' if done_now|length == channels|length }}>
-      <i class="fa-solid fa-check-double"></i> I've checked them all</button>
+      <i class="fa-solid fa-check-double"></i> I looked at every inbox</button>
   </div>
 </section>
 {% elif editable %}
@@ -76,7 +74,7 @@
   </div>
 </section>
 
-{% if current_user.is_admin %}
+{% if CAN('crm_connection') %}
 <details class="card flat">
   <summary style="cursor:pointer;font-weight:600"><i class="fa-solid fa-sliders"></i> Change the list of inboxes</summary>
   <form method="POST" action="{{ crm_url('save_whatsapp') }}" style="margin-top:10px">
@@ -84,9 +82,7 @@
     <input type="hidden" name="action" value="channels"/>
     <textarea name="channels" rows="8">{{ channels|join('\n') }}</textarea>
     <p class="hint">One per line. Old ticks keep their names.</p>
-    <p class="hint"><i class="fa-brands fa-whatsapp"></i> The WhatsApp number connected to the WhatsApp CRM is watched in
-      <b>WhatsApp → Inbox</b> (unread chats show there), so it does not need a line here — keep only the numbers and
-      channels that are not connected.</p>
+    <p class="hint"><i class="fa-brands fa-whatsapp"></i> The WhatsApp number linked to the WhatsApp CRM is watched in <b>WhatsApp chats</b>, so it does not need a line here. Keep only the numbers and channels that are not linked.</p>
     <button class="cb primary">Save</button>
   </form>
 </details>

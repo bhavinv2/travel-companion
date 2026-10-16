@@ -5,16 +5,12 @@
 <div class="admin-page">
   {% include 'admin/_sidebar.html' %}
   <main class="admin-main ws-page">
-    {% set tabs = [('ws_settings', 'workspace.overview', 'Workspace', 'fa-building'),
-                   ('ws_members', 'workspace.members', 'Members', 'fa-user-gear'),
-                   ('ws_teams', 'workspace.teams', 'Teams', 'fa-people-group'),
-                   ('ws_roles', 'workspace.roles', 'Roles & access', 'fa-user-lock'),
-                   ('ws_all', 'workspace.all_workspaces', 'All workspaces', 'fa-layer-group')] %}
+    {# Team members, teams and roles are menu lines; only Workspace has a second tab, All workspaces. #}
+    {% if ws_tab in ('ws_settings', 'ws_all') and CAN('ws_all') %}
     <nav class="ws-tabs" aria-label="Workspace">
-      {% for key, ep, label, icon in tabs if CAN(key) %}
-      <a href="{{ url_for(ep) }}" class="{{ 'on' if ws_tab == key }}"><i class="fa-solid {{ icon }}"></i> {{ label }}</a>
-      {% endfor %}
-    </nav>
+      <a href="{{ url_for('workspace.overview') }}" class="{{ 'on' if ws_tab == 'ws_settings' }}"><i class="fa-solid fa-building"></i> Workspace</a>
+      <a href="{{ url_for('workspace.all_workspaces') }}" class="{{ 'on' if ws_tab == 'ws_all' }}"><i class="fa-solid fa-layer-group"></i> All workspaces</a>
+    </nav>{% endif %}
     {% block ws %}{% endblock %}
   </main>
 </div>

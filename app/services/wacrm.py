@@ -2,8 +2,9 @@
 
 Three things only, all through its public API (docs/public-api.md in that repo):
 
-    upsert_contact()  find-or-create the contact for a lead, with tags for product and source
+    find_or_create_contact() / update_contact()   the person's contact, its tags, name and e-mail
     send_text()       a message inside the 24-hour window Meta allows after the person last wrote
+                      (outside it the WhatsApp CRM refuses with 422 window_closed)
     send_template()   an approved template, which is the only thing Meta lets you send first
 
 and one thing back: verify_signature() for its outbound webhook, which tells us when somebody
@@ -17,16 +18,41 @@ import hashlib
 import hmac
 import logging
 import os
+import threading
 import time
+from contextlib import contextmanager
 
 import requests
+from urllib3.exceptions import ConnectTimeoutError
 
 log = logging.getLogger(__name__)
 TIMEOUT = (3.05, 10)
+SYNC_TIMEOUT = (3, 6)          # the background sync: never hold a worker for long
+_local = threading.local()
+
+
+def timeout():
+    """(connect, read) seconds for a call made from this thread."""
+    return getattr(_local, 'timeout', None) or TIMEOUT
+
+
+@contextmanager
+def short_timeouts():
+    before = getattr(_local, 'timeout', None)
+    _local.timeout = SYNC_TIMEOUT
+    try:
+        yield
+    finally:
+        _local.timeout = before
 
 
 class WacrmError(Exception):
-    pass
+    """`status`: the HTTP status, None when there was no answer at all; `code`: the CRM's error
+    code ("window_closed", "meta_error"...); `reached`: False when no connection was ever made
+    (refused, unknown host, connect timeout), so nothing it asked for can have happened."""
+    def __init__(self, message='', status=None, code=None, reached=True):
+        super().__init__(message)
+        self.status, self.code, self.reached = status, code, reached
 
 
 def base_url():
@@ -38,42 +64,60 @@ def api_key():
     return (os.environ.get('WACRM_API_KEY') or '').strip()
 
 
-def webhook_secret():
-    """The secret replies are signed with: the environment's, else the one the WhatsApp CRM gave
-    when Set-up -> Connect registered our webhook (kept in the CRM's settings, never shown)."""
-    env = (os.environ.get('WACRM_WEBHOOK_SECRET') or '').strip()
-    if env:
-        return env
+def webhook_secrets():
+    """Every secret a reply may be signed with: the one the WhatsApp CRM gave when Set-up ->
+    Connect registered our webhook (kept in the CRM's settings, never shown), then
+    WACRM_WEBHOOK_SECRET -- so "Connect again" works whether or not that variable is set."""
+    out = []
     try:
         from app.services import settings
-        return ((settings.get_setting('crm') or {}).get('wacrm_webhook') or {}).get('secret') or ''
+        saved = ((settings.get_setting('crm') or {}).get('wacrm_webhook') or {}).get('secret') or ''
     except Exception:      # noqa: BLE001 -- no app context
-        return ''
+        saved = ''
+    for s in (saved.strip(), (os.environ.get('WACRM_WEBHOOK_SECRET') or '').strip()):
+        if s and s not in out:
+            out.append(s)
+    return out
+
+
+def webhook_secret():
+    """The first of webhook_secrets(), or ''."""
+    s = webhook_secrets()
+    return s[0] if s else ''
 
 
 def enabled():
     return bool(base_url() and api_key())
 
 
+def _never_connected(exc):
+    """Whether a failed request certainly never reached the WhatsApp CRM."""
+    if isinstance(exc, requests.ConnectTimeout):
+        return True
+    reason = getattr(exc.args[0], 'reason', None) if exc.args else None
+    return isinstance(reason, ConnectTimeoutError)     # NewConnectionError (refused, no such host) is one
+
+
 def _call(method, path, payload=None, params=None):
     if not enabled():
-        raise WacrmError('The WhatsApp CRM is not connected.')
+        raise WacrmError('The WhatsApp CRM is not connected.', reached=False)
     try:
-        r = requests.request(method, base_url() + path, json=payload, params=params, timeout=TIMEOUT,
+        r = requests.request(method, base_url() + path, json=payload, params=params, timeout=timeout(),
                              headers={'Authorization': 'Bearer ' + api_key(),
                                       'Accept': 'application/json'})
     except requests.RequestException as exc:
-        raise WacrmError('The WhatsApp CRM could not be reached.') from exc
+        raise WacrmError('The WhatsApp CRM could not be reached.', reached=not _never_connected(exc)) from exc
     try:
         body = r.json()
     except ValueError:
         # an HTML page: almost always a wrong address (the /crm part missing or doubled)
         raise WacrmError('The WhatsApp CRM answered with a web page, not data -- check WACRM_URL '
-                         '(HTTP %s).' % r.status_code)
+                         '(HTTP %s).' % r.status_code, status=r.status_code)
     if r.status_code >= 400:
         err = body.get('error') if isinstance(body, dict) else None
+        code = err.get('code') if isinstance(err, dict) else (err if isinstance(err, str) else None)
         msg = (err.get('message') if isinstance(err, dict) else err) or ('HTTP %s' % r.status_code)
-        raise WacrmError(str(msg)[:200])
+        raise WacrmError(str(msg)[:200], status=r.status_code, code=code)
     return (body or {}).get('data') if isinstance(body, dict) else None
 
 
@@ -98,23 +142,27 @@ def upsert_contact(phone, name=None, email=None, tags=None):
     return cid
 
 
-def set_tags(phone, name=None, email=None, add=(), drop_prefixes=()):
-    """The contact's id, its tags now `add` plus whatever it had that does not start with one of
-    `drop_prefixes` -- so a lead's stage tag ("TI: Prospect") replaces the last one instead of
-    piling up, and tags somebody set by hand in the WhatsApp CRM survive. Sends only a change."""
+def find_or_create_contact(phone, name=None, email=None):
+    """The contact with this number, made when there is none: {id, phone, name, email, tags: [{name}]...}.
+    The name and e-mail are used only when it is made; an existing contact is not changed here."""
     body = {'phone': phone}
     if name:
         body['name'] = name
     if email:
         body['email'] = email
-    data = _call('POST', '/api/v1/contacts', body) or {}
-    cid = str(data.get('id') or '') or None
-    have = {t.get('name') for t in data.get('tags') or [] if isinstance(t, dict) and t.get('name')}
-    keep = {t for t in have if not any(t.startswith(p) for p in drop_prefixes)}
-    want = keep | {t for t in add if t}
-    if cid and want != have:
-        _call('PATCH', '/api/v1/contacts/%s' % cid, {'tags': sorted(want)})
-    return cid
+    return _call('POST', '/api/v1/contacts', body) or {}
+
+
+def update_contact(contact_id, name=None, email=None, tags=None, quiet=False):
+    """Change only what is given: the name, the e-mail, or the whole tag list (the API replaces it).
+    `quiet`: a bulk change -- the tags go without starting the WhatsApp CRM's "tag added"
+    automations (dispatch_tag_events false). An older WhatsApp CRM ignores it and starts them."""
+    body = {k: v for k, v in (('name', name), ('email', email), ('tags', tags)) if v is not None}
+    if not body:
+        return None
+    if quiet:
+        body['dispatch_tag_events'] = False
+    return _call('PATCH', '/api/v1/contacts/%s' % contact_id, body)
 
 
 def find_contact(phone):
@@ -164,6 +212,12 @@ def list_webhooks():
     return _call('GET', '/api/v1/webhooks') or []
 
 
+def switch_webhook_on(webhook_id):
+    """Our webhook back on after the WhatsApp CRM switched it off (15 failed deliveries in a row);
+    that also clears its failure count."""
+    return _call('PATCH', '/api/v1/webhooks/%s' % webhook_id, {'is_active': True})
+
+
 def delete_webhook(webhook_id):
     return _call('DELETE', '/api/v1/webhooks/%s' % webhook_id)
 
@@ -189,9 +243,10 @@ def send_template(phone, name, language=None, params=None):
 
 def verify_signature(header, raw_body, secret=None, now=None, tolerance=300):
     """The CRM signs `"{t}.{raw body}"` with HMAC-SHA256 and sends `X-Wacrm-Signature: t=..,v1=..`.
-    Five minutes either way, so a captured delivery cannot be replayed later."""
-    secret = secret if secret is not None else webhook_secret()
-    if not secret or not header:
+    Five minutes either way, so a captured delivery cannot be replayed later. Either secret will
+    do (webhook_secrets())."""
+    secrets = [s for s in ([secret] if secret is not None else webhook_secrets()) if s]
+    if not secrets or not header:
         return False
     parts = {}
     for kv in header.split(','):
@@ -205,6 +260,6 @@ def verify_signature(header, raw_body, secret=None, now=None, tolerance=300):
     if not v1 or abs((now if now is not None else time.time()) - t) > tolerance:
         return False
     body = raw_body if isinstance(raw_body, bytes) else (raw_body or '').encode('utf-8')
-    expected = hmac.new(secret.encode('utf-8'), str(t).encode('ascii') + b'.' + body,
-                        hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, v1)
+    msg = str(t).encode('ascii') + b'.' + body
+    return any(hmac.compare_digest(hmac.new(s.encode('utf-8'), msg, hashlib.sha256).hexdigest(), v1)
+               for s in secrets)

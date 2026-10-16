@@ -1,15 +1,13 @@
 {% extends 'cs/crm/_layout.html' %}
-{% set crm_tab = 'add' %}
 {% from '_phone_field.html' import phone_field with context %}
 {% from 'cs/crm/_bits.html' import stage_pill with context %}
+{% from '_page_head.html' import page_head %}
 {% block crm_title %}Add a lead{% endblock %}
 {% block crm %}
-<div class="page-head">
-  <div>
-    <h1>Add a lead</h1>
-    <p class="lead-in">Someone new who rang or messaged — or someone the site already knows. Their follow-ups are planned for you.</p>
-  </div>
-</div>
+{{ page_head('Add a lead', 'fa-solid fa-user-plus', "Someone who called, walked in or wrote somewhere we don't capture by ourselves.",
+             help=['A phone number, an e-mail or an Instagram or Facebook handle is needed, so we can follow up.',
+                   'From existing data turns a quote, booking, message or post already on the site into a lead.'],
+             full_screen=True) }}
 
 <nav class="tabs-big" aria-label="How to add">
   <a href="{{ crm_url('add') }}" class="{{ 'on' if mode == 'new' }}"><span class="ico"><i class="fa-solid fa-user-plus"></i></span>

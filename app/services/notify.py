@@ -16,6 +16,7 @@ CATEGORY_FOR_TYPE = {
     'blog': 'announcements', 'broadcast': 'announcements',
     'cs_escalation': 'cs', 'post_claimed': 'cs',
     'crm_lead': 'cs', 'crm_stuck': 'cs', 'crm_source': 'cs', 'crm_failed': 'cs',
+    'crm_waiting': 'cs', 'crm_assigned': 'cs',
     'match_found': 'match_alerts', 'contact_shared': 'match_intro', 'contact_request': 'match_intro',
 }
 

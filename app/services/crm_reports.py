@@ -62,12 +62,14 @@ def kpis(since, until=None, user_ids=None):
     for owner, status, closed in (db.session.query(CrmLead.owner_id, CrmLead.status, CrmLead.closed_at)
                                   .filter(CrmLead.status.in_(('won', 'lost')), *rng(CrmLead.closed_at))):
         add(owner, closed, status)
-    for agent, ch, direction, outcome, code, when, owner in (
+    for agent, ch, direction, outcome, code, when, owner, tp_status in (
             db.session.query(CrmTouchpoint.agent_id, CrmTouchpoint.channel, CrmTouchpoint.direction,
                              CrmTouchpoint.outcome, CrmTouchpoint.code, CrmTouchpoint.created_at,
-                             CrmLead.owner_id)
+                             CrmLead.owner_id, CrmTouchpoint.status)
             .outerjoin(CrmLead, CrmLead.id == CrmTouchpoint.lead_id)
             .filter(*rng(CrmTouchpoint.created_at))):
+        if tp_status == 'imported':
+            continue                 # older messages brought onto the lead page are history, not work
         if direction == 'in':
             if ch != 'form':
                 add(owner, when, 'replies')
@@ -93,7 +95,9 @@ def kpis(since, until=None, user_ids=None):
 
     # how long the first message took, for leads that came in during the period
     first_out = (db.session.query(CrmTouchpoint.lead_id, func.min(CrmTouchpoint.created_at).label('t'))
-                 .filter(CrmTouchpoint.direction == 'out').group_by(CrmTouchpoint.lead_id).subquery())
+                 .filter(CrmTouchpoint.direction == 'out',
+                         db.or_(CrmTouchpoint.status.is_(None), CrmTouchpoint.status != 'imported'))
+                 .group_by(CrmTouchpoint.lead_id).subquery())
     waits = defaultdict(list)
     for owner, created, t in (db.session.query(CrmLead.owner_id, CrmLead.created_at, first_out.c.t)
                               .join(first_out, first_out.c.lead_id == CrmLead.id)
@@ -266,7 +270,10 @@ def day_sheet(day, users):
     # notes they wrote
     for tp in (CrmTouchpoint.query.filter(CrmTouchpoint.agent_id.in_(ids), CrmTouchpoint.direction == 'none',
                                           CrmTouchpoint.created_at >= start, CrmTouchpoint.created_at < end)):
-        sheet[tp.agent_id]['timeline'].append((tp.created_at, tp.lead, 'fa-note-sticky', 'Wrote a note'))
+        if tp.channel == 'system':
+            sheet[tp.agent_id]['timeline'].append((tp.created_at, tp.lead, 'fa-flag', tp.body or 'Marked'))
+        else:
+            sheet[tp.agent_id]['timeline'].append((tp.created_at, tp.lead, 'fa-note-sticky', 'Wrote a note'))
         touch(tp.agent_id, tp.created_at)
     # leads they moved
     for ch in (CrmStageChange.query.filter(CrmStageChange.by_id.in_(ids), CrmStageChange.from_stage_id.isnot(None),
@@ -306,3 +313,94 @@ def day_sheet(day, users):
         s['checklist'] = sorted(s['checklist'].items(),
                                 key=lambda kv: min(i['task'].due_at for i in kv[1]))
     return sheet
+
+
+# ============================================================================================ team today
+
+def visible_staff(user, staff):
+    """Who of `staff` the person sees on Team today. Admins, and anybody who can open the workspace's
+    people page, see everybody; a team lead sees their own workspace teams (and themselves)."""
+    from app.services import access
+    if user.is_admin or access.can(user, 'ws_members'):
+        return list(staff)
+    ws = access.current_workspace(user)
+    member = next((m for m in access.memberships(user) if ws is not None and m.workspace_id == ws.id), None)
+    ids = {user.id}
+    if member is not None:
+        ids |= {u.id for t in access.teams_of(member) for u in t.users}
+    return [u for u in staff if u.id in ids]
+
+
+def team_numbers(day, users, now=None):
+    """{user id: {'open', 'late', 'waiting', 'replies', 'unanswered', 'first_reply'}} for Team today,
+    from seven queries however many people there are. The first three are as things stand now; the
+    rest are about `day` (India time). first_reply: median minutes for a person's first answer, or
+    None."""
+    from app.services import crm_metrics
+    now = now or datetime.utcnow()
+    ids = [u.id for u in users]
+    out = {i: {'open': 0, 'late': 0, 'waiting': 0, 'replies': 0, 'unanswered': 0, 'first_reply': None}
+           for i in ids}
+    if not ids:
+        return out
+    start, end = day_bounds(day)
+    for owner, n in (db.session.query(CrmLead.owner_id, func.count(CrmLead.id))
+                     .filter(CrmLead.status == 'open', CrmLead.owner_id.in_(ids))
+                     .group_by(CrmLead.owner_id)):
+        out[owner]['open'] = n
+    for owner, n in overdue_by_owner().items():
+        if owner in out:
+            out[owner]['late'] = n
+    for owner, n in crm_metrics.waiting_by_owner(ids).items():
+        out[owner]['waiting'] = n
+    for owner, n in (db.session.query(CrmLead.owner_id, func.count(CrmTouchpoint.id))
+                     .join(CrmLead, CrmLead.id == CrmTouchpoint.lead_id)
+                     .filter(CrmTouchpoint.channel == 'whatsapp', CrmTouchpoint.direction == 'in',
+                             func.coalesce(CrmTouchpoint.status, '') != 'imported',
+                             CrmTouchpoint.created_at >= start, CrmTouchpoint.created_at < end,
+                             CrmLead.owner_id.in_(ids))
+                     .group_by(CrmLead.owner_id)):
+        out[owner]['replies'] = n
+    for owner, n in crm_metrics.unanswered_by_owner(start, min(end, now), ids).items():
+        out[owner]['unanswered'] = n
+    for agent, minutes in crm_metrics.first_reply_minutes(start, end, now).items():
+        if agent in out:
+            out[agent]['first_reply'] = minutes
+    return out
+
+
+def step_ticks(day, owner_ids=None):
+    """How each WhatsApp follow-up step went out on `day`: [{'title', 'pipeline', 'sent', 'delivered',
+    'read', 'failed', 'opened', 'total'}] in pipeline, stage and step order. Each message counts once,
+    at its latest tick. `owner_ids`: only leads of those people. Two queries."""
+    from app.models import CrmPipeline, CrmPlaybookStep
+    from app.services.crm_timeline import TICKS
+    start, end = day_bounds(day)
+    steps = {}
+    for code, title, pipe, ppos, spos in (db.session.query(CrmPlaybookStep.code, CrmPlaybookStep.title,
+                                                          CrmPipeline.name, CrmStage.position, CrmPlaybookStep.position)
+                                          .join(CrmStage, CrmStage.id == CrmPlaybookStep.stage_id)
+                                          .join(CrmPipeline, CrmPipeline.id == CrmStage.pipeline_id)
+                                          .filter(CrmPlaybookStep.channel == 'whatsapp')
+                                          .order_by(CrmPipeline.id, CrmStage.position, CrmPlaybookStep.position)):
+        steps.setdefault(code, (pipe, title, len(steps)))
+    if not steps:
+        return []
+    q = (db.session.query(CrmTouchpoint.code, CrmTouchpoint.status, func.count(CrmTouchpoint.id))
+         .filter(CrmTouchpoint.channel == 'whatsapp', CrmTouchpoint.direction == 'out',
+                 CrmTouchpoint.created_at >= start, CrmTouchpoint.created_at < end,
+                 CrmTouchpoint.code.in_(list(steps)),
+                 CrmTouchpoint.status.in_([t for t in TICKS if t != 'sending']))
+         .group_by(CrmTouchpoint.code, CrmTouchpoint.status))
+    if owner_ids is not None:
+        q = q.join(CrmLead, CrmLead.id == CrmTouchpoint.lead_id).filter(CrmLead.owner_id.in_(list(owner_ids)))
+    rows = {}
+    for code, status, n in q:
+        r = rows.setdefault(code, {'sent': 0, 'delivered': 0, 'read': 0, 'failed': 0, 'opened': 0})
+        r[status] = n
+    out = []
+    for code in sorted(rows, key=lambda c: steps[c][2]):
+        pipe, title, _pos = steps[code]
+        r = rows[code]
+        out.append({'title': title, 'pipeline': pipe, **r, 'total': sum(r.values())})
+    return out

@@ -14,14 +14,18 @@
    tooltip is rewritten with it. */
 window.paintStaffBadges = function (badges) {
   if (!badges) return;
+  // _tips: what each count means ("2 follow-ups due + 1 customer waiting on your leads")
+  var tips = badges._tips || {};
   document.querySelectorAll('[data-badge]').forEach(function (el) {
-    var n = badges[el.dataset.badge];
+    var key = el.dataset.badge;
+    var n = badges[key];
     if (n === undefined) return;
     el.hidden = !n;
-    el.textContent = n < 100 ? String(n) : '99+';
-    el.setAttribute('aria-label', n + ' not read');
+    el.textContent = el.hasAttribute('data-mark') ? '!' : (n < 100 ? String(n) : '99+');
+    el.setAttribute('aria-label', tips[key] || (n + ' not read'));
+    if (tips[key]) el.title = tips[key];
     var line = el.closest('a[data-title]');
-    if (line) line.title = line.dataset.title + (n ? ' — ' + n + ' waiting' : '');
+    if (line && !tips[key]) line.title = (line.dataset.tip || line.dataset.title) + (n ? ' — ' + n + ' waiting' : '');
   });
 };
 

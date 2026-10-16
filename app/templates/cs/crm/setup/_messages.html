@@ -1,0 +1,23 @@
+{# Set-up -> Pipelines: the follow-ups of the chosen pipeline, one card per stage (#st-<id>). #}
+{% from 'cs/crm/_bits.html' import channel_icon with context %}
+{% from 'cs/crm/setup/_macros.html' import when_text, step_form with context %}
+{% if pipe %}
+<p class="muted">The follow-ups of <b>{{ pipe.name }}</b>, stage by stage. When a lead enters a stage its first step goes on the owner's list; doing a step plans the next one.</p>
+{% for st in pipe.stages %}
+<section class="card" id="st-{{ st.id }}">
+  <h2>{{ st.name }} <small class="muted" style="font-weight:500">· {{ st.steps|length }} step(s)</small></h2>
+  {% for s in st.steps %}
+  <details class="crm-step">
+    <summary><span class="code">{{ s.code }}</span> {{ channel_icon(s.channel) }} <b>{{ s.title }}</b>
+      {% if s.auto %}<span class="chip info">automatic</span>{% endif %}
+      <span class="when">{{ when_text(s) }}</span></summary>
+    <div class="body">{{ step_form(st, s) }}</div>
+  </details>
+  {% else %}<p class="muted" style="margin:0 0 8px">No steps — leads here wait until somebody moves them.</p>{% endfor %}
+  <details class="crm-step">
+    <summary><i class="fa-solid fa-plus"></i> Add a step to "{{ st.name }}"</summary>
+    <div class="body">{{ step_form(st) }}</div>
+  </details>
+</section>
+{% endfor %}
+{% endif %}

@@ -1,0 +1,55 @@
+{# Set-up's shared pieces, for the pages under cs/crm/setup/ (import them "with context":
+   they read PRODUCTS, CHANNELS, tpl_status, pipelines and pipe from the page). #}
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>{% endmacro %}
+{% macro product_select(name, value) -%}
+<select name="{{ name }}">{% for code, label in PRODUCTS.items() %}<option value="{{ code }}"{{ ' selected' if value == code }}>{{ label }}</option>{% endfor %}</select>
+{%- endmacro %}
+{% macro pipe_tabs(show) -%}
+<nav class="pipes">
+  {% for p in pipelines %}<a href="{{ crm_url('pipelines', p=p.key, show=None if show == 'stages' else show) }}" class="{{ 'on' if pipe and p.id == pipe.id }}">{{ p.name }}{% if not p.is_active %} <span class="c">(off)</span>{% endif %}</a>{% endfor %}
+</nav>
+{%- endmacro %}
+{% macro when_text(s) -%}
+{%- if s.trigger == 'before_departure_days' -%}{{ s.trigger_value }} day{{ 's' if s.trigger_value != 1 }} before they travel
+{%- elif s.trigger == 'before_end_days' -%}{{ s.trigger_value }} day{{ 's' if s.trigger_value != 1 }} before it ends
+{%- elif s.trigger_value == 0 -%}straight away
+{%- elif s.trigger_value % 24 == 0 -%}{{ s.trigger_value // 24 }} day{{ 's' if s.trigger_value != 24 }} after the last step
+{%- else -%}{{ s.trigger_value }} hour{{ 's' if s.trigger_value != 1 }} after the last step{%- endif -%}
+{%- endmacro %}
+{% macro step_form(stage, s=None) %}
+<form method="POST" action="{{ crm_url('save_step') }}" class="crm-form">
+  {{ csrf() }}
+  <input type="hidden" name="stage_id" value="{{ stage.id }}"/>
+  {% if s %}<input type="hidden" name="id" value="{{ s.id }}"/>{% endif %}
+  <div><label class="lb">Short code</label><input type="text" name="code" value="{{ s.code if s else '' }}" maxlength="20" placeholder="e.g. TI #5" required/></div>
+  <div><label class="lb">What it is</label><input type="text" name="title" value="{{ s.title if s else '' }}" maxlength="160" placeholder="e.g. Send the quote reminder" required/></div>
+  <div><label class="lb">How</label>
+    <select name="channel">{% for k in ['whatsapp', 'call', 'email'] %}<option value="{{ k }}"{{ ' selected' if s and s.channel == k }}>{{ CHANNELS[k] }}</option>{% endfor %}</select></div>
+  <div><label class="lb">When</label>
+    {% set by_days = s and s.trigger == 'after_hours' and s.trigger_value and s.trigger_value % 24 == 0 %}
+    <div class="row" style="flex-wrap:nowrap">
+      <input type="number" name="value" min="0" max="2000" value="{{ (s.trigger_value // 24 if by_days else s.trigger_value) if s else 24 }}" style="width:90px"/>
+      <select name="unit" style="width:auto"><option value="hours"{{ ' selected' if not by_days }}>hours</option><option value="days"{{ ' selected' if by_days }}>days</option></select>
+    </div>
+    <select name="trigger" style="margin-top:6px">
+      <option value="after_hours"{{ ' selected' if not s or s.trigger == 'after_hours' }}>after the last step</option>
+      <option value="before_departure_days"{{ ' selected' if s and s.trigger == 'before_departure_days' }}>(days) before they travel</option>
+      <option value="before_end_days"{{ ' selected' if s and s.trigger == 'before_end_days' }}>(days) before the policy / trip ends</option>
+    </select></div>
+  <div class="full"><label class="lb">The message <small class="muted">— for calls, what to say</small></label>
+    <textarea name="body" rows="5" data-vars-target>{{ s.body if s and s.body else '' }}</textarea>
+    <div class="vars">{% for v in ['name', 'agent', 'product', 'departure', 'days', 'ends', 'helplines', 'insurance_link', 'companion_link', 'sahayak_link', 'site_link'] %}<button type="button" data-var="{{ '{' ~ v ~ '}' }}">{{ '{' ~ v ~ '}' }}</button>{% endfor %}</div></div>
+  <div><label class="check"><input type="checkbox" name="auto"{{ ' checked' if s and s.auto }}/> Send by itself when it is due (WhatsApp only)</label>
+    <small class="muted">Off: it waits on the owner's list for one click. On: it goes by itself through its approved template (or as text if they wrote in the last 24 hours).</small></div>
+  <div><label class="lb">WhatsApp template</label>
+    <input type="text" name="wa_template" value="{{ s.wa_template if s and s.wa_template else '' }}" maxlength="80"
+           list="wa-templates" placeholder="filled in by WhatsApp templates -> Put them in WhatsApp"/>
+    {% if s and s.wa_template %}{% set st = (tpl_status or {}).get(s.wa_template) %}
+    <small class="tpl-st tpl-{{ (st or 'missing')|lower }}">{{ {'APPROVED': 'Approved by Meta — used for this step', 'PENDING': 'Waiting for Meta', 'DRAFT': 'Draft — submit it on WhatsApp -> Templates', 'REJECTED': 'Rejected by Meta — change the words and submit again'}.get(st, 'Not in WhatsApp yet') }}</small>
+    {% endif %}</div>
+  <div class="full row between">
+    <button class="cb primary">{{ 'Save' if s else 'Add this step' }}</button>
+    {% if s %}<button class="cb bad sm" name="op" value="delete" onclick="return confirm('Remove {{ s.code }}? Leads waiting on it move past it.')">Remove</button>{% endif %}
+  </div>
+</form>
+{% endmacro %}

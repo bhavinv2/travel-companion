@@ -18,15 +18,16 @@
     <div class="ws-muted" style="font-size:13px">{{ w.members|length }} member{{ 's' if w.members|length != 1 }} ·
       {{ (w.modules|length ~ ' modules') if w.modules is not none else 'every module' }}</div>
     {% if not current or w.id != current.id %}
-    <div class="foot" style="margin-top:auto"><a class="ws-btn sm" href="{{ url_for('workspace.switch', ws_id=w.id) }}"><i class="fa-solid fa-right-left"></i> Switch to it</a></div>
+    <div class="foot" style="margin-top:auto"><a class="cb sm" href="{{ url_for('workspace.switch', ws_id=w.id) }}"><i class="fa-solid fa-right-left"></i> Switch to it</a></div>
     {% endif %}
   </div>
   {% endfor %}
 </div>
 
-<section class="ws-card">
+<section class="card">
   <h2><i class="fa-solid fa-plus"></i> New workspace</h2>
-  <p class="lead">You become its owner. It starts with an Administrator and a Customer service role; add people afterwards.</p>
+  <p class="lead">You become its owner. It starts with the Administrator, Team lead and Sales &amp; service roles; add people afterwards.</p>
+  <p class="ws-note warn"><i class="fa-solid fa-triangle-exclamation"></i> <span>Leads are shared across workspaces, and WhatsApp stays linked to this one.</span></p>
   <form method="POST" action="{{ url_for('workspace.create_workspace') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <div class="ws-grid2">
@@ -37,7 +38,7 @@
       <div class="ws-checks">{% for m in modules %}
         <label class="ws-check"><input type="checkbox" name="modules" value="{{ m.key }}" checked {{ 'disabled' if m.required }}/> {{ m.label }}</label>{% endfor %}</div>
     </div>
-    <button class="ws-btn primary"><i class="fa-solid fa-plus"></i> Create workspace</button>
+    <button class="cb primary"><i class="fa-solid fa-plus"></i> Create workspace</button>
   </form>
 </section>
 {% endblock %}

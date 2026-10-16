@@ -1,0 +1,24 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% from 'cs/crm/setup/_macros.html' import pipe_tabs with context %}
+{% block crm_title %}Pipelines{% endblock %}
+{% block crm %}
+{{ page_head('Pipelines', 'fa-solid fa-diagram-project',
+             'The path a lead follows for each product: its stages, and the follow-ups each stage plans.',
+             help=['Pick a pipeline above. Each has its stages, in order, and the follow-ups each stage plans.',
+                   'When a lead enters a stage, its first follow-up goes on the list of whoever looks after it; doing one plans the next.',
+                   'The WhatsApp templates tab lists the template each follow-up needs to go after 24 hours.'],
+             full_screen=True) }}
+{% if tpl_status %}<datalist id="wa-templates">{% for name in tpl_status %}<option value="{{ name }}"></option>{% endfor %}</datalist>{% endif %}
+{{ pipe_tabs(show) }}
+<nav class="subtabs">
+  <a href="{{ crm_url('pipelines', p=pipe.key if pipe else None) }}" class="{{ 'on' if show == 'stages' }}"><i class="fa-solid fa-diagram-next"></i> Stages &amp; follow-ups</a>
+  <a href="{{ crm_url('pipelines', show='templates') }}" class="{{ 'on' if show == 'templates' }}"><i class="fa-solid fa-file-lines"></i> WhatsApp templates</a>
+</nav>
+{% if show == 'stages' %}
+  {% include 'cs/crm/setup/_pipeline.html' %}
+  {% include 'cs/crm/setup/_messages.html' %}
+{% else %}
+  {% include 'cs/crm/setup/_templates.html' %}
+{% endif %}
+{% endblock %}

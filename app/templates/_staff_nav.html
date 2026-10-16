@@ -1,11 +1,12 @@
 {# The staff menu, the same in both consoles.
 
-   It is built from the workspace in the header: the modules that workspace has switched on, each
-   with the pages this person's roles give them (services/access.py). A module with nothing in it
-   for them is not shown, so an insurance agent sees an insurance menu rather than thirty links
-   with most of them refused.
+   It is built from the workspace in the header: the sections of services/access.SECTIONS, each
+   with the pages this person's roles give them whose area the workspace has switched on. A
+   section with nothing in it for them is not shown, so an insurance agent sees an insurance menu
+   rather than thirty links with most of them refused. Each line's badge comes from
+   services/nav_badges.py, with a tooltip saying what it counts; a "!" is never added to a total.
 
-   Modules fold; the one being worked in is open, and whatever else was opened stays open
+   Sections fold; the one being worked in is open, and whatever else was opened stays open
    (static/js/main.js, "staff menu"). "Find a page" narrows the whole menu as you type. #}
 {% set groups = STAFF_NAV(active if active is defined else None) %}
 {% set ws = WORKSPACE() %}
@@ -20,7 +21,7 @@
 
   <nav class="admin-nav-items" aria-label="Menu">
     {# One <nav>: on a phone the menu is a single dropdown, and two would open on top of each other. #}
-    {% if current_user.is_admin or current_user.is_influencer %}
+    {% if current_user.is_influencer and not current_user.is_admin %}
     <div class="admin-nav-top">
       <a href="{{ url_for('main.promo_dashboard') }}" title="Promotion"
          class="{{ 'active' if request.endpoint == 'main.promo_dashboard' }}">
@@ -36,7 +37,7 @@
     {% endif %}
     {% for g in groups %}
     {% set ns = namespace(total=0) %}
-    {% for item in g['items'] if item.badge %}{% set ns.total = ns.total + (waiting.get(item.badge, 0) or 0) %}{% endfor %}
+    {% for item in g['items'] if item.badge and item.sum %}{% set ns.total = ns.total + (waiting.get(item.badge, 0) or 0) %}{% endfor %}
     {% set total = ns.total %}
     <div class="sn-group{{ ' open' if g.open }}" data-group="{{ g.key }}">
       <button type="button" class="sn-head" data-group-toggle aria-expanded="{{ 'true' if g.open else 'false' }}"
@@ -48,11 +49,12 @@
       <div class="sn-items">
         {% for item in g['items'] %}
         {% set n = waiting.get(item.badge, 0) if item.badge else 0 %}
-        <a href="{{ item.url }}" class="{{ 'active' if item.active }}" data-title="{{ item.label }}"
-           title="{{ item.label }}{{ ' — %d waiting' % n if n }}"{{ ' aria-current="page"' if item.active }}>
+        {% set tip = (waiting.get('_tips') or {}).get(item.badge) %}
+        <a href="{{ item.url }}" class="{{ 'active' if item.active }}" data-title="{{ item.label }}" data-tip="{{ item.tip }}"
+           title="{{ item.tip }}{{ ' — %d waiting' % n if n and not tip }}"{{ ' aria-current="page"' if item.active }}>
           <i class="{{ ic(item.icon) }}"></i> <span>{{ item.label }}</span>
           {# the count when the rail is open, a bare dot when it is collapsed to icons #}
-          <span class="nav-badge" data-badge="{{ item.badge or '' }}" aria-label="{{ n }} not read"{{ ' hidden' if not n }}>{{ n if n < 100 else '99+' }}</span>
+          <span class="nav-badge" data-badge="{{ item.badge or '' }}"{{ ' data-mark' if item.mark }}{% if tip %} title="{{ tip }}"{% endif %} aria-label="{{ tip or ('%d not read' % n) }}"{{ ' hidden' if not n }}>{{ '!' if item.mark else (n if n < 100 else '99+') }}</span>
         </a>
         {% endfor %}
       </div>

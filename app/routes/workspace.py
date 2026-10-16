@@ -112,11 +112,15 @@ def save_settings():
 @workspace_bp.route('/members')
 @staff_page
 def members():
+    """Team members. ?add=1 opens the add form; ?email= (or an address in ?add=) fills it in -- Users
+    sends somebody here to add a member of staff."""
     ws = _ws()
     rows = sorted(ws.members, key=lambda m: (not m.is_owner, (m.user.full_name or m.user.email or '').lower()))
     teams = {m.id: access.teams_of(m) for m in rows}
-    return render_template('workspace/members.html', ws=ws, rows=rows, teams=teams,
-                           prefill=request.args.get('add', ''))
+    add = request.args.get('add', '')
+    prefill = (request.args.get('email') or (add if '@' in add else '')).strip()[:254]
+    return render_template('workspace/members.html', ws=ws, rows=rows, teams=teams, prefill=prefill,
+                           open_add=bool(add or prefill), can_open={m.id: access.can_open_summary(m) for m in rows})
 
 
 @workspace_bp.route('/members/add', methods=['POST'])
@@ -174,8 +178,13 @@ def member(member_id):
     by_module = [{'label': mod['label'], 'icon': mod['icon'],
                   'pages': [p['label'] for p in mod['pages'] if p['key'] in pages]}
                  for mod in access.MODULES if mod['key'] in access.enabled_modules(ws)]
+    from app.models import CrmLead, CrmTask
+    from app.services import cs_access
     return render_template('workspace/member.html', ws=ws, m=m, teams=access.teams_of(m),
                            by_module=[b for b in by_module if b['pages']],
+                           open_leads=CrmLead.query.filter_by(owner_id=m.user_id, status='open').count(),
+                           open_tasks=CrmTask.query.filter_by(owner_id=m.user_id, status='open').count(),
+                           takers=[u for u in cs_access.recipients('crm_board', limit=None) if u.id != m.user_id],
                            is_self=(m.user_id == current_user.id and not current_user.is_admin))
 
 
@@ -206,14 +215,32 @@ def remove_member(member_id):
         flash('You cannot remove yourself.', 'warning')
         return redirect(url_for('workspace.members'))
     who = m.user.full_name or m.user.email
+    from app.services import cs_access
+    # their open leads and follow-ups go first: to a person, or to whoever is least busy (in a team)
+    hand = request.form.get('hand') or 'least'
+    to = team = None
+    if hand == 'person':
+        to = db.session.get(User, request.form.get('to_id', type=int) or 0)
+        if to is None or to.id == m.user_id or to not in cs_access.recipients('crm_board', limit=None):
+            flash('Choose who gets their leads.', 'warning')
+            return redirect(url_for('workspace.member', member_id=m.id))
+    else:
+        tid = request.form.get('team_id', type=int)
+        team = next((t for t in ws.teams if t.id == tid), None)
     try:
-        access.remove_member(m)
+        moved = access.remove_member(m, hand_over={'to': to, 'team': team}, by=current_user)
     except ValueError as exc:
+        db.session.rollback()
         flash(str(exc), 'warning')
-        return redirect(url_for('workspace.members'))
+        return redirect(url_for('workspace.member', member_id=m.id) if not m.is_owner
+                        else url_for('workspace.members'))
     _log('workspace_member_removed', workspace=ws.id, user=who)
     db.session.commit()
-    flash('%s is no longer in %s.' % (who, ws.name), 'success')
+    said = '%s is no longer in %s.' % (who, ws.name)
+    if moved and (moved[0] or moved[1]):
+        said += ' %d lead%s and %d follow-up%s were handed over.' % (
+            moved[0], '' if moved[0] == 1 else 's', moved[1], '' if moved[1] == 1 else 's')
+    flash(said, 'success')
     return redirect(url_for('workspace.members'))
 
 
@@ -342,7 +369,7 @@ def save_role():
     r.name = name
     r.description = (request.form.get('description') or '').strip()[:255] or None
     if r.system_key != 'admin':
-        r.pages = access.clean_pages(request.form.getlist('pages'))
+        r.pages = access.clean_pages(request.form.getlist('pages'), keep=r.pages or [])
     db.session.flush()
     _log('workspace_role_saved', workspace=ws.id, role=r.name, pages=len(access.role_pages(r)))
     db.session.commit()

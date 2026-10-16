@@ -113,7 +113,7 @@ export default function WelcomePopup() {
     const lines = [
       'Hello! I would like a travel insurance consultation.', '',
       `Name: ${name}`,
-      `Country: ${country}`,
+      `Country of residence: ${country}`,
       `Mobile: ${spokenNumber(dial, tel)}`,
       `Email: ${email}`,
       `Travel to: ${travel}`,
@@ -168,7 +168,7 @@ export default function WelcomePopup() {
                 <input className="cinp" type="text" placeholder="Name" required value={name} onChange={(e) => setName(e.target.value)} />
               </span>
               <div>
-                <label className="lbl" style={{ fontSize: 13, marginBottom: 6 }}>Country</label>
+                <label className="lbl" style={{ fontSize: 13, marginBottom: 6 }}>Country of residence</label>
                 <DestinationCombo value={country} invalid={countryInvalid} onChange={(v) => { setCountry(v); setCountryInvalid(false); }} />
               </div>
               <div className="xtel">

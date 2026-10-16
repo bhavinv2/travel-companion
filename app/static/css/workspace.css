@@ -9,10 +9,10 @@
 .ws-tabs a { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 9px; color: #42506a; font-weight: 600; font-size: 14px; text-decoration: none; }
 .ws-tabs a:hover { background: #fff; color: #10254a; }
 .ws-tabs a.on { background: #fff; color: #10254a; box-shadow: 0 1px 3px rgba(16,37,74,.12); }
-.ws-card { background: #fff; border: 1px solid #e3e8f0; border-radius: 14px; padding: 20px 22px; margin-bottom: 18px; }
-.ws-card h2 { margin: 0 0 4px; font-size: 18px; display: flex; align-items: center; gap: 10px; }
-.ws-card h2 i { color: #2f6fdb; }
-.ws-card > p.lead { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
+/* cards and buttons are ui.css's .card and .cb; these are the workspace's own headings in them */
+.ws-page .card h2, .wa-off .card h2 { margin: 0 0 4px; font-size: 18px; display: flex; align-items: center; gap: 10px; }
+.ws-page .card h2 i, .wa-off .card h2 i { color: var(--ui-primary, #1f6fd6); }
+.ws-page .card > p.lead, .wa-off .card > p.lead { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
 .ws-grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
 .ws-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .ws-field label { font-weight: 600; font-size: 13.5px; color: #24324d; }
@@ -21,14 +21,6 @@
   width: 100%; padding: 10px 12px; border: 1px solid #cfd7e4; border-radius: 9px; font: inherit; font-size: 14.5px; background: #fff; color: #1b2438; }
 .ws-field textarea { min-height: 70px; resize: vertical; }
 .ws-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
-.ws-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 10px; border: 1px solid #cfd7e4; background: #fff;
-  color: #1b2438; font: inherit; font-weight: 600; font-size: 14px; cursor: pointer; text-decoration: none; }
-.ws-btn:hover { background: #f4f7fb; }
-.ws-btn.primary { background: #2f6fdb; border-color: #2f6fdb; color: #fff; }
-.ws-btn.primary:hover { background: #255fc2; }
-.ws-btn.danger { color: #b42318; border-color: #f2c4bf; }
-.ws-btn.danger:hover { background: #fdf0ef; }
-.ws-btn.sm { padding: 6px 11px; font-size: 13px; border-radius: 8px; }
 .ws-muted { color: var(--muted); }
 .ws-note { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 10px; background: #f3f7fe; border: 1px solid #d6e3fb; color: #23406f; font-size: 14px; margin: 0 0 14px; }
 .ws-note.warn { background: #fff8e6; border-color: #f3d27a; color: #7a5200; }
@@ -45,9 +37,9 @@
 .ws-module b { display: block; font-size: 15px; color: #1b2438; }
 .ws-module small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; line-height: 1.4; }
 .ws-module .tick { position: absolute; top: 12px; right: 12px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #c9d3e1; display: flex; align-items: center; justify-content: center; color: transparent; font-size: 11px; }
-.ws-module:has(input:checked) { border-color: #2f6fdb; background: #f6f9ff; }
-.ws-module:has(input:checked) .mi { background: #2f6fdb; color: #fff; }
-.ws-module:has(input:checked) .tick { background: #2f6fdb; border-color: #2f6fdb; color: #fff; }
+.ws-module:has(input:checked) { border-color: var(--ui-primary, #1f6fd6); background: #f6f9ff; }
+.ws-module:has(input:checked) .mi { background: var(--ui-primary, #1f6fd6); color: #fff; }
+.ws-module:has(input:checked) .tick { background: var(--ui-primary, #1f6fd6); border-color: var(--ui-primary, #1f6fd6); color: #fff; }
 .ws-module.locked { cursor: default; opacity: .85; }
 .ws-module input:focus-visible ~ .tick { box-shadow: 0 0 0 3px rgba(47,111,219,.35); }
 
@@ -82,7 +74,7 @@
 .ws-role-pages label:hover { background: #f6f8fb; }
 .ws-role-pages label small { display: block; color: var(--muted); font-size: 12px; line-height: 1.35; }
 .ws-role-pages i { width: 16px; color: #6a7891; margin-top: 3px; }
-.ws-role-mod input[type=checkbox], .ws-check input[type=checkbox] { width: 17px; height: 17px; accent-color: #2f6fdb; margin-top: 2px; flex: 0 0 auto; }
+.ws-role-mod input[type=checkbox], .ws-check input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--ui-primary, #1f6fd6); margin-top: 2px; flex: 0 0 auto; }
 .ws-check { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 4px 0; cursor: pointer; }
 .ws-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 12px; }
 .ws-count { font-weight: 700; color: #1b2438; }
@@ -92,7 +84,7 @@
 .ws-role p { margin: 0; color: var(--muted); font-size: 13.5px; }
 .ws-role .foot { margin-top: auto; display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .ws-bar { height: 6px; border-radius: 3px; background: #eef1f6; overflow: hidden; }
-.ws-bar i { display: block; height: 100%; background: #2f6fdb; }
+.ws-bar i { display: block; height: 100%; background: var(--ui-primary, #1f6fd6); }
 .ws-team { border: 1px solid #e3e8f0; border-radius: 12px; padding: 16px; background: #fff; display: flex; flex-direction: column; gap: 10px; }
 .ws-team h3 { margin: 0; font-size: 16px; }
 .ws-faces { display: flex; }
@@ -102,14 +94,23 @@
 .ws-cando div { border: 1px solid #eef1f6; border-radius: 10px; padding: 12px; }
 .ws-cando b { display: flex; gap: 8px; align-items: center; font-size: 14px; margin-bottom: 6px; }
 .ws-cando ul { margin: 0; padding-left: 18px; color: #42506a; font-size: 13.5px; }
+/* Team members: "Add a team member" folds open; "Can open" is one short line per person */
+.ws-page details.card > summary { cursor: pointer; list-style: none; }
+.ws-page details.card > summary::-webkit-details-marker { display: none; }
+.ws-page details.card[open] > summary { margin-bottom: 8px; }
+.ws-cando-line { color: var(--muted); font-size: 13px; }
 .ws-spaces { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
 
 /* WhatsApp in the portal's frame */
 .wa-frame-wrap { display: flex; flex-direction: column; height: calc(100vh - 68px); margin: -24px -3%; }
-.wa-frame-bar { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid #e3e8f0; background: #fff; }
+.wa-frame-bar { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 12px; padding: 10px 18px; border-bottom: 1px solid #e3e8f0; background: #fff; }
 .wa-frame-bar h1 { margin: 0; font-size: 18px; display: flex; gap: 10px; align-items: center; }
 .wa-frame-bar h1 .fa-whatsapp { color: #25a244; }
 .wa-frame-bar .sp { flex: 1; }
+/* the bar's heading and helper line follow the screen inside the frame; "(?) How this works" beside them */
+.wa-frame-title { min-width: 0; flex: 1; }
+.wa-frame-helper { margin: 2px 0 0; color: var(--ui-muted, #5b6b84); font-size: 13px; }
+.wa-frame-help { margin-top: 2px; }
 .wa-frame { flex: 1; width: 100%; border: 0; background: #fff; }
 .wa-off { max-width: 680px; margin: 40px auto; }
 @media (max-width: 900px) {

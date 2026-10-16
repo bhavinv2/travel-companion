@@ -1,0 +1,32 @@
+{# The same header on every page (design section 3.2 / E0): an h1 with its icon, one helper line,
+   "(?) How this works" (3-5 lines), at most one filled button, other actions under "⋯ More".
+   icon: the full class, e.g. 'fa-solid fa-sun' or 'fa-brands fa-whatsapp'. help: a list of lines
+   (or one string). primary: {'label', 'href', 'icon'?}. more: a list of {'label', 'href', 'icon'?,
+   'danger'?}. full_screen: the quiet button that hides the menus (crm.js, data-focus). #}
+{% macro page_head(title, icon, helper, help=None, primary=None, more=None, full_screen=False) -%}
+<header class="ui-head">
+  <div class="ui-head-text">
+    <h1 class="ui-title"><i class="{{ icon }}" aria-hidden="true"></i> {{ title }}</h1>
+    {%- if helper %}<p class="ui-helper">{{ helper }}</p>{% endif %}
+    {%- if help %}
+    <details class="help-fold">
+      <summary>(?) How this works</summary>
+      {%- if help is string %}<p>{{ help }}</p>{% else %}<ul>{% for line in help %}<li>{{ line }}</li>{% endfor %}</ul>{% endif %}
+    </details>
+    {%- endif %}
+  </div>
+  <div class="ui-head-actions">
+    {%- if full_screen %}
+    <button type="button" class="cb quiet icon" data-focus title="Full screen (Esc to come back)" aria-label="Full screen (Esc to come back)"><i class="fa-solid fa-expand"></i></button>
+    {%- endif %}
+    {%- if more %}
+    <details class="ui-more"><summary class="cb quiet">⋯ More</summary>
+      <div class="ui-more-menu">{% for m in more %}<a href="{{ m.href }}"{% if m.danger %} class="danger"{% endif %}>{% if m.icon %}<i class="{{ m.icon }}" aria-hidden="true"></i> {% endif %}{{ m.label }}</a>{% endfor %}</div>
+    </details>
+    {%- endif %}
+    {%- if primary %}
+    <a class="cb primary" href="{{ primary.href }}">{% if primary.icon %}<i class="{{ primary.icon }}" aria-hidden="true"></i> {% endif %}{{ primary.label }}</a>
+    {%- endif %}
+  </div>
+</header>
+{%- endmacro %}

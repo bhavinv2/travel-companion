@@ -1,0 +1,38 @@
+{# Set-up -> Pipelines -> WhatsApp templates: the template each follow-up and quick reply needs. #}
+{% from 'cs/crm/setup/_macros.html' import csrf with context %}
+<section class="card">
+  <div class="row between" style="margin-bottom:6px">
+    <div><h2 style="margin:0"><i class="fa-brands fa-whatsapp"></i> Templates for your messages</h2>
+      <p class="muted" style="margin:4px 0 0;max-width:760px">WhatsApp only lets you write first, or write after 24 hours of silence, with a template Meta has approved.
+        Each follow-up and quick reply below has one made from its own words: the person's first name, your name and
+        the trip dates become blanks; links and helplines are written in. Once a template is approved, its step sends through it —
+        by one click, or by itself if the step is set to.</p></div>
+    <div class="row" style="gap:8px">
+      <a class="cb" href="{{ crm_url('setup_templates', action='csv') }}"><i class="fa-solid fa-file-csv"></i> Download the list</a>
+      <form method="POST" action="{{ crm_url('setup_templates', action='drafts') }}">{{ csrf() }}
+        <button class="cb primary"><i class="fa-solid fa-cloud-arrow-up"></i> Put them in WhatsApp as drafts</button></form>
+    </div>
+  </div>
+  {% if tpl_error %}<p class="hint" style="color:var(--c-bad)"><i class="fa-solid fa-circle-exclamation"></i> {{ tpl_error }} The statuses below are unknown until it is connected.</p>{% endif %}
+  <p class="hint">Drafts are not sent to Meta by themselves: open <b>WhatsApp templates</b>, check each one and send it for approval. Approval usually takes minutes to a day.</p>
+  <div style="overflow-x:auto">
+  <table class="crm-table">
+    <thead><tr><th>Template</th><th>For</th><th>Category</th><th>Words (as Meta sees them)</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for t in templates %}
+    {% set st = tpl_status.get(t.name) %}
+    <tr>
+      <td><span class="nm">{{ t.name }}</span><br/><small class="muted">{{ t.code }}</small></td>
+      <td>{% for u in t.used_for %}<div><small>{{ u }}</small></div>{% endfor %}</td>
+      <td><span class="chip">{{ t.category|lower }}</span></td>
+      <td><div class="msg-preview" style="max-height:120px;margin:0">{{ t.body }}</div>
+        {% if t.tokens %}<small class="muted">Blanks: {% for tok in t.tokens %}<b>{{ '{{' ~ loop.index ~ '}}' }}</b> {{ tok }}{{ ', ' if not loop.last }}{% endfor %}</small>{% endif %}
+        {% for p in t.problems %}<div class="hint" style="color:var(--c-bad)">{{ p }}</div>{% endfor %}</td>
+      <td><span class="tpl-st tpl-{{ (st or 'missing')|lower }}">{{ {'APPROVED': 'Approved', 'PENDING': 'With Meta', 'DRAFT': 'Draft', 'REJECTED': 'Rejected'}.get(st, 'Not in WhatsApp') }}</span>
+        {% if t.steps|selectattr('auto')|list %}<br/><span class="chip info" style="margin-top:4px">sends by itself</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>

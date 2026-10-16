@@ -6,7 +6,7 @@
   <div>
     <h1>{{ ws.name }}</h1>
     <p>A workspace is a team and the parts of the portal it works in. Switch modules on below, then give
-      people roles on <a href="{{ url_for('workspace.members') }}">Members</a>. Everyone in this workspace shares the same
+      people roles on <a href="{{ url_for('workspace.members') }}">Team members</a>. Everyone in this workspace shares the same
       leads, conversations and records.</p>
   </div>
   <div class="ws-actions">
@@ -19,7 +19,7 @@
 <form method="POST" action="{{ url_for('workspace.save_settings') }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
   <input type="hidden" name="modules_sent" value="1"/>
-  <section class="ws-card">
+  <section class="card">
     <h2><i class="fa-solid fa-building"></i> Name</h2>
     <div class="ws-grid2">
       <div class="ws-field"><label for="wsName">Workspace name</label>
@@ -30,7 +30,7 @@
     </div>
   </section>
 
-  <section class="ws-card">
+  <section class="card">
     <h2><i class="fa-solid fa-cubes"></i> Modules</h2>
     <p class="lead">Each module is a group of pages in the menu. A module that is off disappears for everyone in this
       workspace; roles decide who sees which pages of the modules that are on.</p>
@@ -46,12 +46,12 @@
       {% endfor %}
     </div>
     <div class="ws-actions" style="margin-top:16px">
-      <button class="ws-btn primary"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+      <button class="cb primary"><i class="fa-solid fa-floppy-disk"></i> Save</button>
     </div>
   </section>
 </form>
 
-<section class="ws-card" id="whatsapp">
+<section class="card" id="whatsapp">
   <h2><i class="fa-brands fa-whatsapp" style="color:#25a244"></i> WhatsApp CRM</h2>
   {% if not whatsapp.configured %}
   <p class="lead">Not connected on this server yet. Once WACRM_URL and WACRM_PORTAL_SECRET are set, this workspace's team can
@@ -66,7 +66,7 @@
   {% endif %}
   <form method="POST" action="{{ url_for('workspace.whatsapp', action='link') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-    <button class="ws-btn primary"><i class="fa-solid fa-link"></i> Link this workspace</button>
+    <button class="cb primary"><i class="fa-solid fa-link"></i> Link this workspace</button>
   </form>
   {% else %}
   <p class="ws-note ok"><i class="fa-solid fa-circle-check"></i>
@@ -83,12 +83,12 @@
     <tr><td><div class="ws-who"><span class="ws-av">{{ (x.name or x.email or '?')[:2]|upper }}</span>
       <span><b>{{ x.name or x.email }}</b><small>{{ x.email }} · {{ x.role }}</small></span></div></td>
       <td style="text-align:right">
-        <a class="ws-btn sm" href="{{ url_for('workspace.members', add=x.email) }}"><i class="fa-solid fa-user-plus"></i> Add to workspace</a>
+        <a class="cb sm" href="{{ url_for('workspace.members', add=x.email) }}"><i class="fa-solid fa-user-plus"></i> Add to workspace</a>
         {% if x.role != 'owner' %}
         <form method="POST" action="{{ url_for('workspace.whatsapp', action='remove-extra') }}" style="display:inline"
               data-confirm="Take WhatsApp access away from {{ x.email }}?">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="email" value="{{ x.email }}"/>
-          <button class="ws-btn sm danger"><i class="fa-solid fa-user-minus"></i> Remove access</button>
+          <button class="cb sm danger"><i class="fa-solid fa-user-minus"></i> Remove access</button>
         </form>
         {% endif %}
       </td></tr>
@@ -98,12 +98,12 @@
   <div class="ws-actions">
     <form method="POST" action="{{ url_for('workspace.whatsapp', action='sync') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-      <button class="ws-btn"><i class="fa-solid fa-rotate"></i> Sync now</button>
+      <button class="cb"><i class="fa-solid fa-rotate"></i> Sync now</button>
     </form>
-    {% if CAN('wa_inbox') %}<a class="ws-btn" href="{{ url_for('messaging.inbox') }}"><i class="fa-solid fa-comments"></i> Open the inbox</a>{% endif %}
+    {% if CAN('wa_inbox') %}<a class="cb" href="{{ url_for('messaging.inbox') }}"><i class="fa-solid fa-comments"></i> Open the inbox</a>{% endif %}
     <form method="POST" action="{{ url_for('workspace.whatsapp', action='unlink') }}" data-confirm="Stop keeping the WhatsApp CRM team in step with this workspace? Nobody loses access.">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-      <button class="ws-btn danger"><i class="fa-solid fa-link-slash"></i> Unlink</button>
+      <button class="cb danger"><i class="fa-solid fa-link-slash"></i> Unlink</button>
     </form>
   </div>
   {% endif %}

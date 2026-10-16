@@ -2,12 +2,25 @@
    conversation is opened; crm.js binds it (CRM_bindLead). A fragment, not a page. #}
 {% if state == 'lead' %}
 <div data-lead-page data-lead="{{ lead.id }}" data-product="{{ lead.product }}" data-phone="{{ person.phone or '' }}"
+     data-conversation="{{ conversation or '' }}"
      data-reasons='{{ ((lead.pipeline.fallout_reasons if lead.pipeline else []) or [])|tojson|forceescape }}'>
   <div class="lp-head">
     <div><b>{{ person.display_name }}</b>
       <span class="muted small">{{ PRODUCTS.get(lead.product, lead.product) }}{% if lead.owner %} · {{ lead.owner.full_name }}{% endif %}</span></div>
-    <a class="cb sm" href="{{ crm_url('lead', lead_id=lead.id) }}" title="The whole lead page"><i class="fa-solid fa-up-right-and-down-left-from-center"></i> Open</a>
+    <a class="cb sm" href="{{ crm_url('lead', lead_id=lead.id) }}" target="_top" title="The whole lead page"><i class="fa-solid fa-up-right-and-down-left-from-center"></i> Open lead</a>
   </div>
+  {% if belongs %}<p class="lp-belongs">This chat belongs to their {{ PRODUCTS.get(lead.product, lead.product) }} enquiry</p>{% endif %}
+  {% if suggested %}
+  <div class="lp-suggest"><span class="lbl">Suggested reply</span>
+    <p>“{{ suggested.text|truncate(180) }}”</p>
+    <button type="button" class="cb sm" data-act="compose" data-text="{{ suggested.text }}">Put it in the chat</button></div>
+  {% endif %}
+  {% if quick and WA_COMPOSE %}
+  <details class="lp-quick"><summary>Quick replies for {{ (person.name or '').split(' ')[0] or 'them' }} ▾</summary>
+    {% for a, text in quick %}<div class="row between"><span>{{ a.title }}</span>
+      <button type="button" class="cb sm" data-act="compose" data-text="{{ text }}">Put it in the chat</button></div>{% endfor %}
+  </details>
+  {% endif %}
   {% include 'cs/crm/_lead_card.html' %}
 </div>
 {% elif state == 'none' %}

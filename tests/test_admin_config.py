@@ -21,10 +21,11 @@ def test_multi_role_account_switches_between_staff_and_traveller_views(client, d
     assert user.is_cs and not user.is_admin and user.is_traveller and user.effective_role == 'cs'
     assert user.role_keys == ['user', 'cs']
     assert login(client, 'bob@test.com').headers['Location'].endswith('/auth/choose-portal')  # multi-role: pick a portal
-    assert client.get('/auth/choose-portal?to=cs').headers['Location'].endswith('/cs/')
-    assert client.get('/dashboard').headers['Location'].endswith('/cs/')
-    html = client.get('/cs/').data.decode()
-    assert 'portal-switch' in html and 'Traveller</span>' in html      # switcher, not a separate row
+    # U2: staff who can open My day land there, not on the old /cs/ start page
+    assert client.get('/auth/choose-portal?to=cs').headers['Location'].endswith('/cs/crm/today')
+    assert client.get('/dashboard').headers['Location'].endswith('/cs/crm/today')
+    html = client.get('/cs/crm/today').data.decode()
+    assert 'portal-switch' in html and 'Website</span>' in html      # the Website / Staff switcher, not a separate row
     assert client.get('/switch-view/traveller').headers['Location'].endswith('/dashboard')
     page = client.get('/dashboard')
     assert page.status_code == 200
@@ -37,7 +38,7 @@ def test_multi_role_account_switches_between_staff_and_traveller_views(client, d
     # a pure CS account has no traveller view to switch to
     make_user('agent@test.com', 'agent', role='cs')
     login(client, 'agent@test.com')
-    assert client.get('/switch-view/traveller').headers['Location'].endswith('/cs/')
+    assert client.get('/switch-view/traveller').headers['Location'].endswith('/cs/crm/today')
     assert client.get('/dashboard').status_code == 302
     logout(client)
     assert client.get('/dashboard').status_code == 302                              # view flag gone after logout
@@ -81,7 +82,7 @@ def test_custom_role_with_cs_access_level(client, db, user, admin_user):
     html = client.get('/admin/users').data.decode()
     assert 'Moderator' in html
     logout(client)
-    assert login(client, 'bob@test.com').headers['Location'].endswith('/cs/')
+    assert login(client, 'bob@test.com').headers['Location'].endswith('/cs/crm/today')    # U2: staff start on My day
     assert client.get('/cs/').status_code == 200
     logout(client)
     # lowering the role's level re-syncs every account holding it
@@ -99,24 +100,32 @@ def test_custom_role_with_cs_access_level(client, db, user, admin_user):
 # ---------------------------------------------------------------------------
 
 def test_admin_creates_account_with_generated_password(client, db, admin_user):
+    """U2: staff are added in Team members; this form now makes traveller accounts and sends staff there."""
     login(client, 'admin@test.com')
     assert client.get('/admin/users/new').status_code == 200
+    # a staff role goes to Team members, e-mail filled in, and no account is made here
     r = client.post('/admin/users/new', data={'email': 'New.Agent@test.com', 'username': 'newagent', 'first_name': 'Nia',
-                                              'roles': ['user', 'cs']}, follow_redirects=True)
-    assert r.status_code == 200
-    m = re.search(r'Temporary password for new\.agent@test\.com: (\S+) -', r.data.decode())
-    assert m, 'generated password not shown'
+                                              'roles': ['user', 'cs']})
+    assert r.status_code == 302 and '/admin/workspace/members' in r.headers['Location']
+    assert User.query.filter_by(email='new.agent@test.com').first() is None
+    # staff accounts come from the Team members add form
+    client.post('/admin/workspace/members/add', data={'email': 'New.Agent@test.com', 'first_name': 'Nia'})
     u = User.query.filter_by(email='new.agent@test.com').first()
-    assert u.is_verified and u.role_keys == ['user', 'cs'] and u.is_cs
+    assert u.is_verified and u.is_cs
+    # a traveller account still gets a generated password
+    r = client.post('/admin/users/new', data={'email': 'Trav@test.com', 'username': 'trav', 'roles': ['user']}, follow_redirects=True)
+    m = re.search(r'Temporary password for trav@test\.com: (\S+) -', r.data.decode())
+    assert m, 'generated password not shown'
+    t = User.query.filter_by(email='trav@test.com').first()
+    assert t.is_verified and t.role_keys == ['user'] and not t.is_cs
     logout(client)
-    assert login(client, 'new.agent@test.com', m.group(1)).headers['Location'].endswith('/auth/choose-portal')
-    assert client.get('/auth/choose-portal?to=cs').headers['Location'].endswith('/cs/')
+    assert login(client, 'trav@test.com', m.group(1)).status_code == 302
     logout(client)
     # explicit password, duplicates rejected
     login(client, 'admin@test.com')
-    r = client.post('/admin/users/new', data={'email': 'new.agent@test.com', 'username': 'other', 'password': 'Secret#123'})
+    r = client.post('/admin/users/new', data={'email': 'trav@test.com', 'username': 'other', 'password': 'Secret#123'})
     assert r.status_code == 200 and b'already registered' in r.data
-    r = client.post('/admin/users/new', data={'email': 'two@test.com', 'username': 'newagent', 'password': 'short'})
+    r = client.post('/admin/users/new', data={'email': 'two@test.com', 'username': 'trav', 'password': 'short'})
     assert b'already taken' in r.data and b'at least 8' in r.data
     r = client.post('/admin/users/new', data={'email': 'two@test.com', 'username': 'two', 'password': 'Secret#123'})
     assert r.status_code == 302 and User.query.filter_by(email='two@test.com').first().role_keys == ['user']

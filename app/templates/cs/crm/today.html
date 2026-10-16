@@ -1,8 +1,14 @@
 {% extends 'cs/crm/_layout.html' %}
-{% set crm_tab = 'today' %}
 {% from 'cs/crm/_bits.html' import task_card, stage_pill, when with context %}
+{% from '_page_head.html' import page_head %}
+{% from '_empty.html' import empty with context %}
 {% block crm_title %}My day{% endblock %}
 {% block crm %}
+{{ page_head('My day', 'fa-solid fa-sun', 'What to do today, from the top down. Each card has one button that does the job.',
+             help=['Start with the customers waiting for you, then welcome the new leads and do the follow-ups for today.',
+                   'Each card says what its button does. "I did it another way", "Remind me tomorrow" and "Not needed" are under it.',
+                   "Before you finish, save today's numbers and send your sign-off to your open chats."],
+             primary=({'label': 'Add a lead', 'href': crm_url('add'), 'icon': 'fa-solid fa-plus'} if CAN('crm_add') else None), full_screen=True) }}
 {% set hour = (utcnow + IST_OFFSET).hour %}
 {% set to_do = welcome|length + follow|length %}
 {% set total_today = to_do + done_today %}
@@ -11,13 +17,16 @@
   <div class="hello">
     <div>
       <p class="when">{{ (utcnow + IST_OFFSET).strftime('%A, %d %B') }}</p>
-      <h1>{{ 'Good morning' if hour < 12 else 'Good afternoon' if hour < 17 else 'Good evening' }}, {{ current_user.first_name or current_user.username }}</h1>
+      <h2>{{ 'Good morning' if hour < 12 else 'Good afternoon' if hour < 17 else 'Good evening' }}, {{ current_user.first_name or current_user.username }}</h2>
       <p class="muted" style="margin-top:6px">{% if who == 'all' %}Everybody's work for today.{% else %}Here is your day, step by step. Work from the top.{% endif %}</p>
+      <p class="alert-ask" data-alerts-ask hidden>Get a desktop alert when a customer writes?
+        <button type="button" class="cb sm" data-alerts-on>Turn on</button>
+        <button type="button" class="cb sm quiet" data-alerts-no>Not now</button></p>
     </div>
     <div class="progress">
       <div class="lbl"><span>Follow-ups done today</span><span>{{ done_today }} of {{ total_today }}</span></div>
       <div class="bar"><i style="width:{{ (100 * done_today / total_today)|round|int if total_today else 100 }}%"></i></div>
-      {% if current_user.is_admin %}
+      {% if team %}
       <div class="seg" style="margin-top:12px">
         <a href="{{ crm_url('today') }}" class="{{ 'on' if who != 'all' }}">Mine</a>
         <a href="{{ crm_url('today', who='all') }}" class="{{ 'on' if who == 'all' }}">Everybody's</a>
@@ -27,118 +36,175 @@
   </div>
 </section>
 
+{% if getting_started %}
+<section class="card">
+  <h2>Getting started</h2>
+  <ol class="getting">
+    {% for label, done, href in getting_started %}
+    <li class="{{ 'done' if done }}"><a href="{{ href }}">{{ label }}</a>{% if done %} ✓{% endif %}</li>
+    {% endfor %}
+  </ol>
+</section>
+{% endif %}
+
+{% if not waiting and not welcome and not follow and not stuck %}
+<section class="card">{{ empty('fa-solid fa-mug-hot', "All done. New leads and follow-ups appear here as soon as they're due.", {'label': 'See all leads', 'href': crm_url('board')}) }}</section>
+{% endif %}
+
 <ol class="steps">
-  {# ---------------------------------------------------------------- 1. inboxes #}
+  {# ---------------------------------------------------------------- 1. customers waiting #}
+  <li>
+   <details class="step" data-acc{{ ' open' if waiting }}>
+    <summary class="step-head">
+      <span class="num"></span>
+      <div class="what"><h2>Customers waiting for you ({{ waiting|length }})</h2>
+        <p>{{ "On everybody's leads, oldest first." if who == 'all' else 'On your leads, oldest first.' }}</p></div>
+      <span class="count">{{ waiting|length }}</span>
+    </summary>
+    <div class="step-body">
+      {% for w in waiting %}
+      {% set l = w.lead %}
+      <div class="crm-wait" id="wait-{{ l.id }}" data-lead="{{ l.id }}">
+        <div class="line"><b>{{ w.short }}</b> · {{ PRODUCTS.get(l.product, l.product) }} · on {{ REPLY_LABELS.get(w.channel, w.channel) }} · wrote {{ when(w.at, utcnow) }}{% if w.words %}: “{{ w.words }}”{% endif %}{% if who == 'all' %} · {{ l.owner.full_name if l.owner else 'Not given to anyone' }}{% endif %}</div>
+        <div class="btns">
+          <a class="cb primary" href="{{ crm_url('lead', lead_id=l.id, via=w.channel) }}">Reply</a>
+          <button type="button" class="cb sm quiet" data-act="lead-snooze" title="Hides this for an hour. The bell waits too.">Remind me in 1 hour</button>
+        </div>
+      </div>
+      {% else %}<p class="empty"><i class="fa-solid fa-circle-check"></i> Nobody is waiting for an answer.</p>{% endfor %}
+      {% if inbox_waiting and waiting %}<p class="small"><a href="{{ inbox_waiting }}">Open them in WhatsApp chats</a></p>{% endif %}
+    </div>
+   </details>
+  </li>
+
+  {# ---------------------------------------------------------------- 2. new leads #}
+  <li>
+   <details class="step" data-acc{{ ' open' if welcome }}>
+    <summary class="step-head">
+      <span class="num"></span>
+      <div class="what"><h2>Welcome new leads ({{ welcome|length }})</h2><p>Their first message is written for you.</p></div>
+      <span class="count">{{ welcome|length }}</span>
+    </summary>
+    <div class="step-body">
+      {% for t in welcome %}{{ task_card(t, texts.get(t.id, ''), plans[t.id], utcnow, who == 'all') }}
+      {% else %}<p class="empty"><i class="fa-solid fa-circle-check"></i> Nobody new is waiting.</p>{% endfor %}
+    </div>
+   </details>
+  </li>
+
+  {# ---------------------------------------------------------------- 3. follow-ups #}
+  <li>
+   <details class="step" data-acc{{ ' open' if follow }}>
+    <summary class="step-head">
+      <span class="num"></span>
+      <div class="what"><h2>Follow-ups for today ({{ follow|length }})</h2><p>Messages to send and calls to make, the late ones first.</p></div>
+      <span class="count">{{ follow|length }}</span>
+    </summary>
+    <div class="step-body">
+      {% for t in follow %}{{ task_card(t, texts.get(t.id, ''), plans[t.id], utcnow, who == 'all') }}
+      {% else %}<p class="empty"><i class="fa-solid fa-circle-check"></i> All done for today.</p>{% endfor %}
+    </div>
+   </details>
+  </li>
+
+  {# ---------------------------------------------------------------- 4. stuck in a stage #}
+  {% if stuck %}
+  <li>
+   <details class="step" data-acc open>
+    <summary class="step-head">
+      <span class="num"></span>
+      <div class="what"><h2>Stuck in a stage ({{ stuck|length }})</h2><p>No stage move for longer than the stage allows. Open each and move it on.</p></div>
+      <span class="count" style="background:var(--c-bad-soft);color:var(--c-bad-ink)">{{ stuck|length }}</span>
+    </summary>
+    <div class="step-body">
+      <div class="chips">
+        {% for s in stuck %}<a class="chip" href="{{ crm_url('lead', lead_id=s.lead.id) }}"><b>{{ s.short }}</b> (no move for {{ s.text }})</a>{% endfor %}
+      </div>
+    </div>
+   </details>
+  </li>
+  {% endif %}
+
+  {# ---------------------------------------------------------------- 5. the half-hourly check #}
   {% set inbox_ok = slot is none or slot_done == channels|length %}
   <li class="step{{ ' done' if inbox_ok }}">
     <div class="step-head">
       <span class="num"></span>
-      <div class="what"><h2>Check the inboxes</h2>
-        <p>{% if slot is none %}The inbox check runs from 7 am to midnight, India time.{% else %}WhatsApp, Instagram, Facebook, Tawk, calls and e-mail — every half hour.{% endif %}</p></div>
+      <div class="what"><h2>Half-hourly check</h2>
+        <p>{% if slot is none %}The check runs from 7 am to midnight, India time.{% else %}{{ checks_line }}{% endif %}</p></div>
       {% if slot is not none %}<span class="count">{{ slot_done }} / {{ channels|length }}</span>{% endif %}
     </div>
     {% if slot is not none %}
     <div class="step-body">
       <div class="row">
         {% if not inbox_ok %}
-        <button type="button" class="cb ok big" data-tick-all data-slot="{{ slot }}"><i class="fa-solid fa-check-double"></i> I've checked them all ({{ slot_label(slot) }})</button>
+        <button type="button" class="cb ok big" data-tick-all data-slot="{{ slot }}"><i class="fa-solid fa-check-double"></i> I looked at every inbox ({{ slot_label(slot) }})</button>
         {% else %}
-        <span class="empty"><i class="fa-solid fa-circle-check"></i> All inboxes checked for {{ slot_label(slot) }}.</span>
+        <span class="empty"><i class="fa-solid fa-circle-check"></i> All checked for {{ slot_label(slot) }}.</span>
         {% endif %}
-        <a class="cb ghost" href="{{ crm_url('checks') }}">Open the inbox check</a>
+        <a class="cb ghost" href="{{ crm_url('checks') }}">Open the half-hourly check</a>
         {% if coverage.pct is not none %}<span class="muted small">Today so far: {{ coverage.pct }}% of half hours fully checked</span>{% endif %}
       </div>
     </div>
     {% endif %}
   </li>
 
-  {# ---------------------------------------------------------------- 2. new leads #}
-  <li class="step{{ ' done' if not welcome }}">
-    <div class="step-head">
-      <span class="num"></span>
-      <div class="what"><h2>Welcome the new leads</h2><p>Their first message is written for you. One click sends it.</p></div>
-      <span class="count">{{ welcome|length }}</span>
-    </div>
-    <div class="step-body">
-      {% for t in welcome %}{{ task_card(t, texts.get(t.id, ''), utcnow, who == 'all') }}
-      {% else %}<p class="empty"><i class="fa-solid fa-circle-check"></i> Nobody new is waiting.</p>{% endfor %}
-    </div>
-  </li>
-
-  {# ---------------------------------------------------------------- 3. follow-ups #}
-  <li class="step{{ ' done' if not follow }}">
-    <div class="step-head">
-      <span class="num"></span>
-      <div class="what"><h2>Follow-ups for today</h2><p>Messages to send and calls to make, the late ones first.</p></div>
-      <span class="count">{{ follow|length }}</span>
-    </div>
-    <div class="step-body">
-      {% for t in follow %}{{ task_card(t, texts.get(t.id, ''), utcnow, who == 'all') }}
-      {% else %}<p class="empty"><i class="fa-solid fa-circle-check"></i> All done for today.</p>{% endfor %}
-    </div>
-  </li>
-
-  {# ---------------------------------------------------------------- 4. waiting too long #}
-  {% if stuck %}
-  <li class="step">
-    <div class="step-head">
-      <span class="num"></span>
-      <div class="what"><h2>Leads waiting too long</h2><p>They have been in the same stage longer than they should. Open each and move it on.</p></div>
-      <span class="count" style="background:var(--c-bad-soft);color:var(--c-bad-ink)">{{ stuck|length }}</span>
-    </div>
-    <div class="step-body">
-      <div class="chips">
-        {% for l in stuck[:24] %}<a class="chip" href="{{ crm_url('lead', lead_id=l.id) }}"><b>{{ l.person.display_name }}</b> · {{ l.stage.name }}</a>{% endfor %}
-      </div>
-    </div>
-  </li>
-  {% endif %}
-
-  {# ---------------------------------------------------------------- 5. coming up #}
+  {# ---------------------------------------------------------------- 6. coming up #}
   <li>
     <details class="step">
       <summary class="step-head">
         <span class="num"></span>
-        <div class="what"><h2>Coming up</h2><p>Due in the next three days. Nothing to do yet — click to look.</p></div>
+        <div class="what"><h2>Coming up ({{ later|length }})</h2><p>Due in the next three days. Nothing to do yet — click to look.</p></div>
         <span class="count">{{ later|length }}</span>
       </summary>
       <div class="step-body">
-        {% for t in later %}{{ task_card(t, texts.get(t.id, ''), utcnow, who == 'all') }}
+        {% for t in later %}{{ task_card(t, texts.get(t.id, ''), plans[t.id], utcnow, who == 'all') }}
         {% else %}<p class="muted">Nothing planned for the next three days.</p>{% endfor %}
       </div>
     </details>
   </li>
 
-  {# ---------------------------------------------------------------- 6. before you finish #}
+  {# ---------------------------------------------------------------- 7. before you finish #}
   <li>
-    <details class="step" id="finish">
+    <details class="step" id="finish"{{ ' open' if log_day != today }}>
       <summary class="step-head">
         <span class="num"></span>
-        <div class="what"><h2>Before you finish</h2><p>Write down what the CRM cannot see, and say goodbye to your active leads.</p></div>
+        <div class="what"><h2>Before you finish</h2><p>Write down what the CRM cannot see, and say goodbye to your open chats.</p></div>
         <span class="count"><i class="fa-solid fa-flag-checkered"></i></span>
       </summary>
       <div class="step-body stack">
         <form method="POST" action="{{ crm_url('log_work') }}" class="log-grid">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-          <input type="hidden" name="day" value="{{ (utcnow + IST_OFFSET).date().isoformat() }}"/>
+          <input type="hidden" name="day" value="{{ log_day.isoformat() }}"/>
           <input type="hidden" name="back" value="today"/>
-          {% for key, label in MANUAL %}
-          <label class="log-item"><span>{{ label }}</span>
+          {% for key, question, unit in kpi %}
+          <label class="log-item"><span>{{ question }}</span>
             <span class="stepper"><button type="button" data-step="-1" aria-label="One less">−</button>
               <input type="number" min="0" step="1" name="{{ key }}" value="{{ (my_log.get(key) or 0)|int }}"/>
-              <button type="button" data-step="1" aria-label="One more">+</button></span></label>
+              <button type="button" data-step="1" aria-label="One more">+</button></span>
+            <span class="unit">{{ unit }}</span></label>
           {% endfor %}
           <div class="full"><button class="cb primary"><i class="fa-solid fa-floppy-disk"></i> Save today's numbers</button></div>
         </form>
-        {% if shift_end %}
+        {% if who == 'me' %}
         <div class="card flat tight">
-          <span class="lb">Shift-end message (copy and send to your active leads)</span>
-          <p class="small" style="white-space:pre-wrap" data-copy-text>{{ shift_end }}</p>
-          <button type="button" class="cb sm" data-copy style="margin-top:8px"><i class="fa-regular fa-copy"></i> Copy</button>
+          {% if signoff_on %}
+          <button type="button" class="cb wa" data-act="signoff" data-n="{{ signoff_n }}" data-text="{{ signoff_text }}" data-preview="{{ signoff_preview }}"{{ ' disabled' if not signoff_n }}>
+            <i class="fa-brands fa-whatsapp"></i> Send sign-off to my open chats ({{ signoff_n }})</button>
+          {% if signoff_preview %}<p class="muted small">Each gets it with their own first name: “{{ signoff_preview }}”</p>{% endif %}
+          {% if not signoff_n %}<p class="muted small">Nobody on your leads has a chat open right now.</p>{% endif %}
+          {% else %}
+          <p class="muted small">Sending your sign-off from here needs WhatsApp connected (Set-up → WhatsApp connection).</p>
+          {% endif %}
         </div>
         {% endif %}
+        <details class="another-day"><summary>Log numbers for another day</summary>
+          <form method="GET" action="{{ crm_url('today') }}#finish">
+            <input type="date" name="log_day" max="{{ today.isoformat() }}" required/>
+            <button class="cb sm">Open that day</button></form></details>
       </div>
     </details>
   </li>
 </ol>
+{% if next_bar %}<a class="crm-next-bar" href="#{{ next_bar[0] }}">Next: {{ next_bar[1] }}, {{ next_bar[2] }}</a>{% endif %}
 {% endblock %}

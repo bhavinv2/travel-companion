@@ -7,7 +7,7 @@
     <h1>{{ m.user.full_name or m.user.username }}</h1>
     <p>{{ m.user.email }}{% if m.is_owner %} · <span class="ws-pill owner"><i class="fa-solid fa-crown"></i> Owner of {{ ws.name }}</span>{% endif %}</p>
   </div>
-  <a class="ws-btn" href="{{ url_for('workspace.members') }}"><i class="fa-solid fa-arrow-left"></i> All members</a>
+  <a class="cb" href="{{ url_for('workspace.members') }}"><i class="fa-solid fa-arrow-left"></i> All members</a>
 </div>
 
 {% if is_self %}
@@ -19,7 +19,7 @@
 
 <form method="POST" action="{{ url_for('workspace.save_member', member_id=m.id) }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-  <section class="ws-card">
+  <section class="card">
     <h2><i class="fa-solid fa-user-lock"></i> Role</h2>
     <p class="lead">{% if m.is_owner %}As the owner they can open every page of the modules this workspace has on, whatever the role says.
       {% else %}The pages they can open. Their teams can add more.{% endif %}</p>
@@ -32,7 +32,7 @@
     </div>
   </section>
 
-  <section class="ws-card">
+  <section class="card">
     <h2><i class="fa-solid fa-people-group"></i> Teams</h2>
     {% if ws.teams %}
     <div class="ws-checks">{% for t in ws.teams %}
@@ -45,12 +45,12 @@
 
   {% if not is_self %}
   <div class="ws-actions" style="margin-bottom:18px">
-    <button class="ws-btn primary"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+    <button class="cb primary"><i class="fa-solid fa-floppy-disk"></i> Save</button>
   </div>
   {% endif %}
 </form>
 
-<section class="ws-card">
+<section class="card">
   <h2><i class="fa-solid fa-eye"></i> What they can open now</h2>
   {% if by_module %}
   <div class="ws-cando">
@@ -65,10 +65,27 @@
 </section>
 
 {% if not m.is_owner and not is_self %}
+{% if open_leads or open_tasks %}
+{% set first = m.user.first_name or m.user.full_name or m.user.email %}
+<section class="card">
+  <h2><i class="fa-solid fa-user-minus"></i> Remove from {{ ws.name }}</h2>
+  <form method="POST" action="{{ url_for('workspace.remove_member', member_id=m.id) }}"
+        data-confirm="Remove {{ m.user.full_name or m.user.email }} from {{ ws.name }}? Their leads go to who you chose.">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <p>{{ first }} looks after {{ open_leads }} open lead{{ 's' if open_leads != 1 }} and {{ open_tasks }} follow-up{{ 's' if open_tasks != 1 }}. Give them to:</p>
+    <label class="ws-check"><input type="radio" name="hand" value="least" checked/> Whoever is least busy in
+      <select name="team_id" aria-label="Team"><option value="">Anyone in Sales</option>{% for t in ws.teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}</select></label>
+    <label class="ws-check"><input type="radio" name="hand" value="person"/>
+      <select name="to_id" aria-label="Person"><option value="">Choose a person…</option>{% for u in takers %}<option value="{{ u.id }}">{{ u.full_name or u.email }}</option>{% endfor %}</select></label>
+    <button class="cb danger"><i class="fa-solid fa-user-minus"></i> Remove and hand over</button>
+  </form>
+</section>
+{% else %}
 <form method="POST" action="{{ url_for('workspace.remove_member', member_id=m.id) }}"
       data-confirm="Remove {{ m.user.full_name or m.user.email }} from {{ ws.name }}? They lose these pages (and WhatsApp access, if linked).">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-  <button class="ws-btn danger"><i class="fa-solid fa-user-minus"></i> Remove from {{ ws.name }}</button>
+  <button class="cb danger"><i class="fa-solid fa-user-minus"></i> Remove from {{ ws.name }}</button>
 </form>
+{% endif %}
 {% endif %}
 {% endblock %}

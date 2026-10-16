@@ -1,0 +1,14 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% block crm_title %}Quick replies{% endblock %}
+{% block crm %}
+{{ page_head('Quick replies', 'fa-solid fa-bolt',
+             'Ready-made answers. Pick one while chatting, on the lead page or in WhatsApp chats. Edit them only here.',
+             help=['Write the question the way a customer would, and the answer we send.',
+                   'The questions from the Help & FAQ pages are offered too, so there is no need to copy them here.',
+                   'Test a customer message to see which answers come up.',
+                   'While WhatsApp connection is on, saving or removing one here changes it in WhatsApp chats too.'],
+             primary={'label': 'New quick reply', 'href': crm_url('quick_replies', edit='new'), 'icon': 'fa-solid fa-plus'},
+             full_screen=True) }}
+{% include 'cs/crm/setup/_answers.html' %}
+{% endblock %}

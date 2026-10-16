@@ -1,0 +1,66 @@
+{# Set-up -> WhatsApp connection: a new landing page, the WhatsApp CRM (key, switch, existing leads,
+   replies) and Instagram & Facebook. #}
+{% from 'cs/crm/setup/_macros.html' import csrf with context %}
+<section class="card">
+  <h2><i class="fa-solid fa-file-circle-plus"></i> A new landing page</h2>
+  <ol class="steps-howto">
+    <li><b>Give the form a source code</b> — any short name in lower case, e.g. <code>diwali-insurance</code>. Add the two lines below to the page.
+      <code class="copy">&lt;form data-lead-source="diwali-insurance" data-product="TI"&gt;
+&lt;input name="name"&gt; &lt;input name="phone"&gt; &lt;input name="email"&gt; &lt;textarea name="message"&gt;&lt;/textarea&gt;
+&lt;button&gt;Send&lt;/button&gt;
+&lt;/form&gt;
+&lt;script src="{{ snippet_url }}" defer&gt;&lt;/script&gt;</code>
+      <div class="hint">Any other field in the form (dates, ages, cities) is saved with the lead. Ad clicks (utm, gclid, fbclid) are picked up by themselves.</div></li>
+    <li><b>Nothing else is needed.</b> The first lead from it appears under <a href="{{ crm_url('sources') }}">Where leads come from</a> as <b>needs set-up</b>.</li>
+    <li><b>Choose its pipeline once.</b> Every lead after that goes straight in with its follow-ups planned.</li>
+  </ol>
+  <p class="hint">A page on another website (or a developer) can send to <code>{{ intake_url }}</code> as JSON: <code>{"source": "…", "name": "…", "phone": "+91…", "email": "…", "message": "…", "fields": {…}}</code>. Other websites must be listed in <code>CRM_INTAKE_ORIGINS</code>.</p>
+</section>
+<section class="card">
+  <h2><i class="fa-brands fa-whatsapp" style="color:var(--crm-wa)"></i> WhatsApp CRM</h2>
+  {% if not wa_configured %}
+  <p class="muted">Not set up on this server: it needs <code>WACRM_URL</code> and <code>WACRM_API_KEY</code>. Until then "Send" opens WhatsApp with the message typed.</p>
+  {% else %}
+  <ol class="steps-howto">
+    <li><b>Check the key works.</b>
+      <form method="POST" action="{{ crm_url('save_whatsapp') }}" style="display:inline">{{ csrf() }}<input type="hidden" name="action" value="test"/>
+        <button class="cb sm"><i class="fa-solid fa-plug-circle-check"></i> Test the connection</button></form>
+      <div class="hint">Reads who the key belongs to. Sends nothing.</div></li>
+    <li><b>Choose what it is used for.</b>
+      <form method="POST" action="{{ crm_url('save_whatsapp') }}" class="stack" style="margin-top:8px">{{ csrf() }}<input type="hidden" name="action" value="mode"/>
+        {% for key, label in WA_MODES.items() %}
+        <label class="check"><input type="radio" name="mode" value="{{ key }}"{{ ' checked' if wa_mode_saved == key }}/> {{ label.replace(' -- ', ' — ') }}</label>
+        {% endfor %}
+        <div><button class="cb primary sm">Save</button></div>
+      </form>
+      <div class="hint"><b>Keep leads in step</b> makes each new or changed lead a WhatsApp contact tagged with its stage; for older leads press <b>Bring existing leads into WhatsApp</b>. When you change who looks after a lead, its chat goes to them too. WhatsApp CRM automations that start on a tag will start too. <b>Keep leads in step and send</b> also lets the follow-ups marked automatic go out by themselves. Leave it on <b>Off</b> on a test or laptop copy of the site.</div></li>
+    <li><b>Bring in the leads you already have.</b>
+      <form method="POST" action="{{ crm_url('save_whatsapp') }}" style="display:inline"
+            onsubmit="return confirm('Bring every open lead with a phone into WhatsApp? Nothing is sent to them.')">{{ csrf() }}<input type="hidden" name="action" value="backfill"/>
+        <button class="cb sm"><i class="fa-solid fa-user-plus"></i> Bring existing leads into WhatsApp</button></form>
+      <div class="hint">Every open lead with a phone becomes a WhatsApp contact with its tags, a few at a time. Nothing is sent to them.</div></li>
+    <li><b>Connect replies</b> {% if wa_secret %}<span class="chip ok">Connected{% if wa_hook.at %} {{ wa_hook.at[:10] }}{% endif %}</span>{% else %}<span class="chip due">Not yet</span>{% endif %}
+      <form method="POST" action="{{ crm_url('save_whatsapp') }}" style="display:inline">{{ csrf() }}<input type="hidden" name="action" value="webhook"/>
+        <button class="cb sm{{ '' if wa_secret else ' primary' }}">{{ 'Connect again' if wa_secret else 'Connect replies' }}</button></form>
+      <div class="hint">Tells the WhatsApp CRM to report every reply and delivery to <code>{{ webhook_url }}</code>. A reply then moves a cold lead to prospect by itself, and a failed delivery is flagged to whoever sent it. Works from the live site only.</div></li>
+  </ol>
+  {% endif %}
+</section>
+<section class="card">
+  <h2><i class="fa-brands fa-instagram"></i> Instagram &amp; Facebook</h2>
+  {% if meta_ready %}
+  <p><span class="chip ok">Connected</span> Messages and comments on the Page and its Instagram account arrive as replies or new leads, and "Send" on a lead answers them there.</p>
+  {% else %}
+  <p><span class="chip due">Not connected</span> Until it is: on the lead page, open <b>They wrote to us…</b>, pick Instagram or Facebook and paste their message.</p>
+  {% endif %}
+  <details{{ ' open' if not meta_ready }}>
+    <summary style="cursor:pointer;font-weight:600">How to connect (once, by whoever manages the Facebook Page)</summary>
+    <ol class="steps-howto" style="margin-top:10px">
+      <li>In <b>Meta for Developers</b>, create an app (type Business) and add <b>Messenger</b> and <b>Instagram</b>. Link the Facebook Page to the Instagram account in the Page settings.</li>
+      <li>Generate a <b>Page access token</b> for the Page, and copy the app's <b>App secret</b>. Choose any long random text as the <b>verify token</b>.</li>
+      <li>Put them on the server as <code>META_PAGE_TOKEN</code>, <code>META_APP_SECRET</code> and <code>META_VERIFY_TOKEN</code>{% if meta_verify %} <span class="chip ok">verify token set</span>{% endif %}.</li>
+      <li>In the app's webhook settings use <code>{{ meta_url }}</code> with the same verify token, and subscribe the Page to <b>messages</b> and <b>feed</b>, and Instagram to <b>messages</b> and <b>comments</b>.</li>
+      <li>Meta reviews the app before it works for the public (permissions <i>pages_messaging</i>, <i>instagram_manage_messages</i>, <i>pages_read_engagement</i>, <i>instagram_manage_comments</i>). Until then it works for the Page's own admins, which is enough to test.</li>
+    </ol>
+  </details>
+</section>

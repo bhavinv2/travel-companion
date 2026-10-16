@@ -1,7 +1,9 @@
 {# Small pieces the CRM screens share. Import with context so they can read the label maps. #}
 
 {% macro product_chip(code) -%}
-<span class="chip p-{{ code }}">{{ PRODUCTS.get(code, code) }}</span>
+{%- set icon = {'TI': 'fa-shield-heart', 'TC': 'fa-plane-departure', 'SH': 'fa-house-medical', 'GH': 'fa-gift',
+                'VC': 'fa-user-doctor', 'GEN': 'fa-comments'}.get(code, 'fa-layer-group') -%}
+<span class="chip prod p-{{ code }}"><i class="fa-solid {{ icon }}" aria-hidden="true"></i> {{ PRODUCTS.get(code, code) }}</span>
 {%- endmacro %}
 
 {% macro temp_dot(t) -%}
@@ -16,13 +18,19 @@
 {%- set idx = order.index(role) if role in order else -1 -%}
 {%- set label = lead.stage.name if lead.stage else 'Not routed yet' -%}
 {%- set tip = (lead.pipeline.name ~ ': ' if lead.pipeline else '') ~ label -%}
+{%- set role_steps = ROLE_STEPS if ROLE_STEPS is defined else [] -%}
+{%- set roles = role_steps|map('first')|list -%}
+{%- set names = role_steps|map('last')|list -%}
+{%- set step_tip = ('Step %d of %d: %s' % (roles.index(role) + 1, roles|length, names[roles.index(role)])) if role in roles else tip -%}
 {%- if link %}<a class="pill r-{{ role }}" href="{{ crm_url('lead', lead_id=lead.id) }}" title="{{ tip }}">{% else %}<span class="pill r-{{ role }}" title="{{ tip }}">{% endif -%}
-{%- if role == 'lost' %}<i class="fa-solid fa-circle-xmark"></i>{% else %}<span class="dots">{% for r in order %}<i class="{{ 'on' if loop.index0 <= idx }}"></i>{% endfor %}</span>{% endif %} {{ label }}
+{%- if role == 'lost' %}<i class="fa-solid fa-circle-xmark" title="{{ step_tip }}"></i>{% else %}<span class="dots" title="{{ step_tip }}">{% for r in order %}<i class="{{ 'on' if loop.index0 <= idx }}"></i>{% endfor %}</span>{% endif %} {{ label }}
 {%- if link %}</a>{% else %}</span>{% endif -%}
 {%- endmacro %}
 
 {% macro channel_icon(ch) -%}
-{%- if ch == 'whatsapp' -%}<i class="fa-brands fa-whatsapp"></i>
+{%- if ch == 'whatsapp' or ch == 'wa_other' -%}<i class="fa-brands fa-whatsapp"></i>
+{%- elif ch == 'telegram' -%}<i class="fa-brands fa-telegram"></i>
+{%- elif ch == 'system' -%}<i class="fa-solid fa-flag"></i>
 {%- elif ch == 'call' -%}<i class="fa-solid fa-phone"></i>
 {%- elif ch == 'email' -%}<i class="fa-solid fa-envelope"></i>
 {%- elif ch == 'instagram' -%}<i class="fa-brands fa-instagram"></i>
@@ -51,10 +59,12 @@
 
 {% macro initials(name) -%}{{ ((name or '?').split()|map('first')|list)[:2]|join|upper }}{%- endmacro %}
 
-{# a follow-up as a card: who, what to do, the message, and one big button for it #}
-{% macro task_card(t, text, utcnow, show_owner=false) -%}
+{# a follow-up as a card: who, what to do, the words (two lines), and ONE button -- the one the send plan
+   chose (crm.task_plan) -- with the quiet ways out under it #}
+{% macro task_card(t, text, plan, utcnow, show_owner=false) -%}
 {%- set l = t.lead -%}
-<article class="crm-task{{ ' late' if t.due_at < utcnow }}" data-task="{{ t.id }}" data-lead="{{ l.id }}">
+<article class="crm-task{{ ' late' if t.due_at < utcnow }}" id="task-{{ t.id }}" data-task="{{ t.id }}" data-lead="{{ l.id }}"
+         data-phone="{{ l.person.phone or '' }}" data-email="{{ l.person.email or '' }}">
   <div>
     <div class="who">
       <a class="nm" href="{{ crm_url('lead', lead_id=l.id) }}">{{ l.person.display_name }}</a>
@@ -63,25 +73,37 @@
       {% if l.days_to_departure is not none and l.days_to_departure >= 0 %}<span class="chip {{ 'bad' if l.days_to_departure <= 3 else 'due' }}"><i class="fa-solid fa-plane-departure"></i> travels in {{ l.days_to_departure }} day{{ 's' if l.days_to_departure != 1 }}</span>{% endif %}
     </div>
     <div class="what">{{ channel_icon(t.channel) }} <b>{{ t.title }}</b> <span class="due">· {{ 'was due ' ~ when(t.due_at, utcnow) if t.due_at < utcnow else 'due ' ~ when(t.due_at, utcnow) }}{% if show_owner %} · {{ t.owner.full_name if t.owner else 'nobody' }}{% endif %}</span></div>
-    {% if text %}<div class="msg">{{ text }}</div>{% endif %}
+    {% if text %}<div class="msg clamp" data-words>{{ text }}</div>
+    <button type="button" class="linkish sm" data-act="more-words">▾ all the words</button>{% endif %}
+    {% if plan.reason and plan.kind != 'blocked' %}<p class="plan-note">{{ plan.reason }}</p>{% endif %}
   </div>
   <div class="btns">
-    {% if t.channel == 'whatsapp' and l.person.phone %}
-    <button class="cb wa" data-act="send" data-lead="{{ l.id }}" data-task="{{ t.id }}" data-phone="{{ l.person.phone }}" data-text="{{ text }}">
-      <i class="fa-brands fa-whatsapp"></i> Send on WhatsApp</button>
-    {% elif t.channel == 'call' and l.person.phone %}
-    <a class="cb primary" href="tel:{{ l.person.phone }}" data-act="dial" data-lead="{{ l.id }}" data-task="{{ t.id }}">
-      <i class="fa-solid fa-phone"></i> Call now</a>
-    {% elif t.channel == 'email' and l.person.email %}
-    <a class="cb primary" href="mailto:{{ l.person.email }}?body={{ text|urlencode }}" data-act="done-after" data-task="{{ t.id }}">
-      <i class="fa-solid fa-envelope"></i> Write e-mail</a>
+    {% if plan.kind == 'template' %}
+    <button type="button" class="cb wa" data-act="tpl-send" data-template="{{ plan.template }}"><i class="fa-brands fa-whatsapp"></i> Send template</button>
+    {% elif plan.kind == 'text' %}
+    <button type="button" class="cb wa" data-act="text-send" data-text="{{ text }}"><i class="fa-brands fa-whatsapp"></i> Send</button>
+    {% elif plan.kind == 'open' %}
+    <a class="cb primary" href="{{ crm_url('lead', lead_id=l.id, via='whatsapp') }}#box">Open and send</a>
+    {% elif plan.kind == 'own' %}
+    <button type="button" class="cb wa" data-act="wa-own" data-text="{{ text }}"><i class="fa-brands fa-whatsapp"></i> {{ plan.label }}</button>
+    {% elif plan.kind == 'call' %}
+    <a class="cb primary" href="tel:{{ l.person.phone }}" data-act="dial"><i class="fa-solid fa-phone"></i> {{ plan.label }}</a>
+    {% elif plan.kind == 'email' %}
+    <a class="cb primary" href="mailto:{{ l.person.email }}" data-act="mail-task" data-text="{{ text }}"><i class="fa-solid fa-envelope"></i> Write e-mail</a>
+    {% elif plan.kind == 'blocked' %}
+    <p class="blocked">{{ plan.reason }}</p>
+    {% if plan.alt == 'call' and l.person.phone %}<a class="cb" href="tel:{{ l.person.phone }}" data-act="dial">Call instead</a>
+    {% else %}<a class="cb" href="{{ crm_url('lead', lead_id=l.id) }}">Open</a>{% endif %}
     {% else %}
-    <a class="cb primary" href="{{ crm_url('lead', lead_id=l.id) }}"><i class="fa-solid fa-arrow-right"></i> Open</a>
+    <button type="button" class="cb primary" data-act="done">Done</button>
     {% endif %}
-    <div class="row">
-      <button class="cb sm ok" data-act="done" data-task="{{ t.id }}" title="I did it"><i class="fa-solid fa-check"></i> Done</button>
-      <button class="cb sm" data-act="snooze" data-task="{{ t.id }}" title="Move to tomorrow"><i class="fa-regular fa-clock"></i> Tomorrow</button>
+    {% if plan.kind != 'done' %}
+    <div class="row quiet-row">
+      <button type="button" class="cb sm quiet" data-act="done" title="You reached them some other way. Marks this done.">I did it another way</button>
+      <button type="button" class="cb sm quiet" data-act="snooze" title="Moves this to tomorrow.">Remind me tomorrow</button>
+      <button type="button" class="cb sm quiet" data-act="skip" title="Skips this follow-up. The next one is planned.">Not needed</button>
     </div>
+    {% endif %}
   </div>
 </article>
 {%- endmacro %}

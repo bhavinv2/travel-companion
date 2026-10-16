@@ -105,8 +105,8 @@ def test_the_switches_screen_shows_account_mail_as_always_on(client, admin_user)
 
 def test_the_staff_invite_link_is_built_like_the_reset_link(client, admin_user, gmail):
     login(client, 'admin@test.com')
-    client.post('/admin/users/new', data={'email': 'newagent@example.com', 'username': 'newagent',
-                                          'roles': 'cs', 'send_link': 'on'})
+    # U2: staff are added in Team members (the old form sends staff roles there)
+    client.post('/admin/workspace/members/add', data={'email': 'newagent@example.com', 'send_link': 'on'})
     invite = [m for m in mailer.OUTBOX if 'newagent@example.com' in m['recipients']]
     assert invite and invite[0]['account'] is True
     with client.application.test_request_context():

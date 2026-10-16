@@ -13,6 +13,15 @@ How a lead moves, in one place:
   record_reply() a reply from the person. Out of a pipeline's first stage it moves the lead to the
                  stage marked "a reply moves here" -- cold lead becomes prospect without anyone
                  having to drag a card.
+  mark_wa_due()  every change the WhatsApp CRM should know (a new or repeat enquiry, a stage, an
+                 owner, a name, a number) only marks the person. Straight after the save a
+                 background thread brings their contact into step (run_wa_sync), and the jobs
+                 runner retries whoever is still marked. Off (Set-up → WhatsApp connection) marks nothing
+                 and writes nothing. Bulk marks (the backfill, a source's changed tags) are quiet:
+                 the tags go without starting the WhatsApp CRM's tag automations.
+  record_whatsapp_in()  a WhatsApp message from them (the webhook, or the jobs runner catching up
+                 on one it missed) on the lead we last wrote to; a new lead for somebody new or
+                 long gone; STOP and the like opt them out. A closed lead is never reopened.
 
 Nothing here commits halfway: each public function leaves the session flushed and commits once.
 capture_safely() is what the public forms call, so a CRM fault can never cost somebody the
@@ -20,11 +29,16 @@ enquiry they just sent.
 """
 import logging
 import re
+import threading
+from contextlib import contextmanager
 from datetime import datetime, date, time, timedelta
+from time import monotonic
 from urllib.parse import quote
 
 from flask import current_app, request
-from sqlalchemy import func, or_
+from sqlalchemy import and_, case, event, false, func, or_, select
+from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm.exc import ObjectDeletedError
 
 from app import db
 from app.models import (CrmAnswer, CrmIdentity, CrmLead, CrmPerson, CrmPipeline, CrmPlaybookStep,
@@ -40,19 +54,33 @@ UTM_KEYS = ('utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content
             'fbclid', 'referrer', 'landing')
 NO_ANSWER_LIMIT = 3          # CL #3: the third unanswered call is the last
 SETTINGS_KEY = 'crm'
-WA_MODES = {'off': 'Off -- nothing goes to the WhatsApp CRM',
-            'contacts': 'Add new leads as contacts only',
-            'send': 'Contacts, and send messages from here'}
+WA_MODES = {'off': 'Off -- nothing goes to WhatsApp',
+            'contacts': 'Keep leads in step -- agents send from the chat',
+            'send': 'Keep leads in step and send -- follow-ups also go from here'}
+WA_FIRST_OK_LABEL = 'Automatic first messages need their OK'
 
 
 # ======================================================================================= settings
 
 def crm_settings():
-    """The CRM's own switches, set on screen (Set-up -> Connect a page)."""
+    """The CRM's own switches, set on screen (Set-up → WhatsApp connection)."""
     from app.services import settings
     s = settings.get_setting(SETTINGS_KEY) or {}
     return {'whatsapp_mode': s.get('whatsapp_mode') if s.get('whatsapp_mode') in WA_MODES else 'off',
-            'check_channels': list(s.get('check_channels') or CRM_CHECK_CHANNELS)}
+            'check_channels': list(s.get('check_channels') or CRM_CHECK_CHANNELS),
+            # an automatic step that would be somebody's first WhatsApp message waits for a click unless
+            # they agreed (a form's tick) or wrote to us -- Set-up -> Connect; on unless switched off
+            'wa_first_needs_ok': s.get('wa_first_needs_ok') is not False,
+            # the waiting bell goes after this many minutes of a customer waiting on us
+            'waiting_alert_minutes': _minutes(s.get('waiting_alert_minutes'))}
+
+
+def _minutes(v):
+    """Minutes for the waiting bell: a whole number from 5 to 1440; the default when missing or odd."""
+    try:
+        return max(5, min(1440, int(v)))
+    except (TypeError, ValueError):
+        return WAITING_ALERT_MINUTES
 
 
 def crm_settings_raw():
@@ -76,6 +104,14 @@ def wa_mode():
 
 def wa_can_send():
     return wa_mode() == 'send'
+
+
+def wa_writes_on():
+    """Whether the portal may write to the WhatsApp CRM: contacts, chats, tags, quick replies,
+    templates, tag rules. Only on "Keep leads in step" (or "... and send"), with it connected.
+    Reading is always allowed. The team sync (members, sign-in, workspace) does not ask this."""
+    from app.services import wacrm
+    return wa_mode() in ('contacts', 'send') and wacrm.enabled()
 
 
 # ======================================================================================= set-up
@@ -286,7 +322,8 @@ def capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, pro
             details=None, message=None, ref=None, utm=None, departure_date=None, consent=None,
             user_id=None, channel='form', when=None, identities=None, ends_on=None,
             created_by_id=None, start_stage=None, plan=True, notify=True, temperature=None,
-            fallout_reason=None, external_id=None, sync=True, imported=False, likelihood=None):
+            fallout_reason=None, external_id=None, sync=True, imported=False, likelihood=None,
+            person=None, note=None):
     """Record an enquiry as a lead. Returns the lead, or None when there is nobody to reach.
 
     The same person asking about the same product again within the source's window is the same
@@ -294,7 +331,11 @@ def capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, pro
 
     `identities` reach somebody without a phone or e-mail: [('instagram', 'handle'), ...].
     The importers pass `start_stage` (where the lead already is), plan=False, notify=False and
-    sync=False (the WhatsApp CRM allows 120 calls a minute; a bulk import would trip it).
+    sync=False (nothing is marked for the WhatsApp CRM; the backfill brings open ones in later, a
+    few at a time).
+    `person`: somebody already here (a WhatsApp message long after their last lead closed): no lookup.
+    `note`: a lead made by hand from somebody's WhatsApp chat: this note (by `created_by_id`) is
+    logged instead of a message from them, so it never opens WhatsApp's 24 hours or counts as a reply.
     """
     ensure_defaults()
     key = (source_key or '').strip().lower()
@@ -315,10 +356,11 @@ def capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, pro
         email = None
     identities = [(k, clean_identity(k, v)) for k, v in (identities or [])]
     identities = [(k, v) for k, v in identities if v]
-    if not e164 and not email and not identities:
-        return None
-    person = upsert_person(e164, email, (name or '').strip() or None, user_id=user_id, consent=consent,
-                           identities=identities)
+    if person is None:
+        if not e164 and not email and not identities:
+            return None
+        person = upsert_person(e164, email, (name or '').strip() or None, user_id=user_id, consent=consent,
+                               identities=identities)
 
     product = product if product in CRM_PRODUCTS else src.product
     now = when or datetime.utcnow()
@@ -366,20 +408,27 @@ def capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, pro
             lead.utm = utm
         lead.last_activity_at = max(lead.last_activity_at or now, now)
 
-    db.session.add(CrmTouchpoint(lead=lead, person_id=person.id, channel=channel, direction='in',
-                                 body=_summary(details, message), code=None, created_at=now,
-                                 external_id=external_id))
+    if note:
+        db.session.add(CrmTouchpoint(lead=lead, person_id=person.id, channel='note', direction='none',
+                                     body=note[:4000], agent_id=created_by_id, created_at=now))
+    else:
+        db.session.add(CrmTouchpoint(lead=lead, person_id=person.id, channel=channel, direction='in',
+                                     body=_summary(details, message), code=None, created_at=now,
+                                     external_id=external_id))
     src.lead_count = (src.lead_count or 0) + 1
     src.last_lead_at = max(src.last_lead_at or now, now)
     if created and plan and src.status == 'live' and lead.status == 'open':
         plan_next(lead, base=max(now, datetime.utcnow()))
+    if sync:
+        # a new enquiry or a repeat one: their WhatsApp contact and its tags follow, after the save
+        mark_wa_due(person)
     db.session.commit()
-    if created:
-        if sync:
-            _push_to_whatsapp_crm(lead)
-        if notify:
-            _tell_owner(lead, new_source=new_source)
+    if created and notify:
+        _tell_owner(lead, new_source=new_source)
     return lead
+
+
+MADE_FROM_CHAT = 'Made a lead from their WhatsApp chat.'
 
 
 def _lead_link(lead):
@@ -400,12 +449,15 @@ def _tell_owner(lead, new_source=False):
         if lead.owner_id:
             notify.push(lead.owner_id, 'crm_lead', title='New lead: %s' % lead.person.display_name,
                         body=what, link=_lead_link(lead))
+        else:
+            for u in User.query.filter(User.is_admin.is_(True), User.is_active.is_(True)).all():
+                notify.push(u.id, 'crm_lead', title=UNOWNED_BELL, body=what, link=_lead_link(lead))
         if new_source:
             from app.services import cs_access
             for u in User.query.filter(User.is_admin.is_(True), User.is_active.is_(True)).all():
                 notify.push(u.id, 'crm_source', title='A new lead source needs setting up',
-                            body='"%s" sent its first lead. Choose its pipeline once in Sales CRM -> Set-up.'
-                                 % lead.source.key, link='/cs/crm/setup?tab=sources')
+                            body='"%s" sent its first lead. Choose its pipeline once in Set-up → Where leads come from.'
+                                 % lead.source.key, link='/admin/crm/sources')
         db.session.commit()
     except Exception:          # noqa: BLE001
         db.session.rollback()
@@ -476,36 +528,928 @@ def stage_tag(lead):
     return '%s: %s' % (lead.product, lead.stage.name) if lead.stage else None
 
 
-def sync_whatsapp(lead, assign=True):
-    """The person's WhatsApp CRM contact in step with the lead. Best effort, never raises:
-      * tags: the source's, the product's, and the stage ("TI: Prospect", replacing the last one)
-        -- so a broadcast can go to "all TI prospects" and an automation can start on a stage;
-      * the conversation assigned to the lead's owner, so it is in their inbox.
-    """
-    from app.services import wacrm, wacrm_team
-    if wa_mode() == 'off' or not lead.person.phone or getattr(lead, 'imported', False):
-        return
+OPT_OUT_TAG = 'opted-out'
+WA_SYNC_BATCH = 30            # people per jobs run: at most ~120 calls (4 a person)
+WA_INLINE_LIMIT = 10          # people synced straight after one save; the rest wait for the jobs runner
+WA_SYNC_BUDGET = 45           # seconds a sync straight after a save may spend (its own background thread)
+WA_JOBS_BUDGET = 30           # seconds the jobs runner's sync may spend: with the last person (4 calls of 3 + 6 s)
+                              # the jobs request still answers well inside the 120 s worker timeout
+WA_LOCK_WAIT = 20             # seconds a sync after a save waits for another sync in this worker
+WA_JOBS_LOCK_WAIT = 1         # the jobs runner does not wait: a busy worker leaves the marks for the next run
+WA_RETRY_STATUSES = frozenset({401, 403, 404, 408, 429})   # refusals that are not about this person
+WA_RETIRED_TAGS_KEY = 'wa_retired_tags'   # 'crm' setting: tags a source used to add (newest first)
+WA_RETIRED_MAX = 200
+WA_COMPOSE = False   # contract 25 ("Put it in the chat", portal:compose): on once the WhatsApp CRM fills its box (X4, release 2)
+WA_WRITES_OFF = 'WhatsApp is not connected for leads yet. Change it in Set-up → WhatsApp connection.'
+WA_BACKFILL_SAID = ('Bringing %d %s into WhatsApp: they become contacts with their tags, a few at a time. '
+                    'Nothing is sent to them.')
+WA_BACKFILL_NONE = 'Everybody with an open lead and a phone is in WhatsApp already, or on the way.'
+# W1's strict phone rule (wacrm src/lib/whatsapp/phone-utils.ts phoneMatchKind)
+WA_NEAR_DIGITS = 8            # the shorter side of any match that is not exact
+WA_LOCAL_DIGITS = 10          # the longest number read as "saved without its country code"
+WA_MOBILE_LONG = 13           # the long form of the extra-mobile-digit numbers; the short form is 12
+WA_MOBILE_FORMS = (('52', 2, '1', None),       # Mexico: 52 1 + 10 digits
+                   ('54', 2, '9', None),       # Argentina: 54 9 + 10 digits
+                   ('55', 4, '9', '6789'))     # Brazil: 55 + area + 9; only old-style mobiles (6-9) gained it
+WA_RETRY_AFTER = timedelta(hours=1)
+WA_LEASE = timedelta(minutes=5)   # a sync that dies (restart, deploy) is picked up again after this
+WA_ERRORS = {'ambiguous_contact': 'Two WhatsApp contacts could be this number. Open full chat, check the number, then press Try again.',
+             'invalid_phone': 'WhatsApp says this phone number is not valid',
+             'not_configured': 'The WhatsApp CRM has no WhatsApp number connected yet'}
+# what the sync kept before the words changed -> the code, so the lead page says it the new way
+WA_ERRORS_BEFORE = {'More than one WhatsApp contact could be this number -- merge them in WhatsApp -> Contacts':
+                    'ambiguous_contact'}
+NOT_MEMBER = '%s is not in the WhatsApp team yet; the chat goes to them once they are'
+WA_NEW_LEAD_AFTER = timedelta(days=30)   # a message this long after their last lead closed is a new enquiry
+WA_STOP_WORDS = frozenset({'stop', 'unsubscribe', 'stop messages', 'stop promotions', 'stop all',
+                           'dont message'})
+WA_OPT_OUT_CODE = 131050                 # Meta: they stopped marketing messages from us inside WhatsApp
+WA_LEFT_OUT = ('Broadcasts, WhatsApp automations and automatic steps leave them out now; you can still '
+               'answer when they write.')
+META_OPT_OUT_NOTE = 'WhatsApp says they stopped marketing messages from us. ' + WA_LEFT_OUT
+WA_TRY_ELSE = ' Send an approved template, or call them.'
+WA_CATCHUP_KEY, WA_HEALTH_KEY = 'crm_wa_catchup', 'crm_wa_health'   # their own settings rows, never "crm"
+WA_CATCHUP_LIMIT = 200
+WA_CATCHUP_FIRST = timedelta(hours=24)   # the first run looks back one day
+WA_CATCHUP_SETTLE = timedelta(minutes=2)  # the newest messages are left for the webhook
+WA_HEALTH_EVERY = timedelta(hours=1)
+WA_HEALTH_RETELL = timedelta(hours=24)
+WA_HOOK_BELLS = {
+    'switched_on': ('WhatsApp replies were off; they are on again',
+                    'The WhatsApp CRM stopped sending us replies after several failed tries. It is switched '
+                    'back on, and the last message of each chat comes in with the next jobs runs. If it keeps '
+                    'happening, press "Connect replies" in Set-up → WhatsApp connection.'),
+    'off': ('Replies stopped arriving from WhatsApp',
+            'The WhatsApp CRM stopped sending us replies after several failed tries. Press "Connect replies" '
+            'in Set-up → WhatsApp connection to switch them back on.'),
+    'missing': ('Replies stopped arriving from WhatsApp',
+                'Our address is no longer in the WhatsApp CRM, so replies do not reach the leads. Press '
+                '"Connect replies" in Set-up → WhatsApp connection.'),
+}
+_wa_lock = threading.RLock()
+
+
+def _digits(v):
+    return ''.join(ch for ch in str(v or '') if ch.isdigit())
+
+
+_ISO = re.compile(r'^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:?\d{2})?$')
+
+
+def _parse_utc(value):
+    """A naive UTC datetime from ISO 8601 text as the WhatsApp CRM writes it ("...Z", "+00:00",
+    up to nine decimals), or None."""
+    m = _ISO.match(str(value or '').strip())
+    if not m:
+        return None
     try:
-        tags = list(lead.source.crm_tags or []) if lead.source else []
-        tags.append(lead.product.lower())
+        dt = datetime.fromisoformat('%sT%s' % (m.group(1), m.group(2)))
+    except ValueError:
+        return None
+    if m.group(3):
+        dt = dt.replace(microsecond=int(m.group(3)[:6].ljust(6, '0')))
+    tz = m.group(4)
+    if tz and tz != 'Z':
+        sign = -1 if tz[0] == '-' else 1
+        dt -= sign * timedelta(hours=int(tz[1:3]), minutes=int(tz[-2:]))
+    return dt
+
+
+def wa_e164(digits):
+    """E.164 for a number as the WhatsApp CRM keeps it (digits, with the country code as WhatsApp
+    gives it); 10 digits or fewer were saved without one and are read as our forms read them
+    (India). None when it is not a real number."""
+    d = _digits(digits)
+    if len(d) < 8:
+        return None
+    return normalise_phone(d if len(d) <= 10 else '+' + d)
+
+
+def _wa_name(name):
+    """A name from the WhatsApp CRM, or None when it is only their number (it names a contact by
+    its number when it has nothing better)."""
+    n = (name or '').strip()[:120]
+    return n if n and not re.fullmatch(r'[\d\s+().-]+', n) else None
+
+
+def _wa_trunk_forms(d):
+    """`d` with a 0 put in, or its 0 taken out, right after a 1-3 digit country code."""
+    out = []
+    for at in (1, 2, 3):
+        out.append(d[:at] + '0' + d[at:])
+        if d[at:at + 1] == '0' and len(d) - 1 >= WA_NEAR_DIGITS:
+            out.append(d[:at] + d[at + 1:])
+    return out
+
+
+def _wa_mobile_form(d):
+    """The same mobile with or without its extra digit (WA_MOBILE_FORMS), or None."""
+    for cc, at, digit, short_ok in WA_MOBILE_FORMS:
+        if not d.startswith(cc):
+            continue
+        ok = (lambda s: short_ok is None or (len(s) > at and s[at] in short_ok))
+        if len(d) == WA_MOBILE_LONG and d[at] == digit:
+            short = d[:at] + d[at + 1:]
+            return short if ok(short) else None
+        if len(d) == WA_MOBILE_LONG - 1 and ok(d):
+            return d[:at] + digit + d[at:]
+        return None
+    return None
+
+
+def _wa_local_forms(d):
+    """`d` without a 1-3 digit country code, when what is left is 8-10 digits not starting with 0."""
+    return [d[at:] for at in (1, 2, 3)
+            if WA_NEAR_DIGITS <= len(d) - at <= WA_LOCAL_DIGITS and d[at] != '0']
+
+
+def same_whatsapp_number(ours, theirs):
+    """Whether the WhatsApp CRM's contact number is this person's, by its own strict rule (W1,
+    phoneMatchKind): the same digits; the same number written another way -- a 0 or 00 in front,
+    a trunk 0 after a 1-3 digit country code (370 0 63949836), the extra mobile digit of Mexico
+    (52 1), Argentina (54 9) or Brazil (55 + area + 9, mobiles only); or theirs saved without its
+    country code (8-10 digits) that is ours without a 1-3 digit code. Only their side may lack the
+    code. Two full international numbers that share only their last digits are two people."""
+    g, s = _digits(ours), _digits(theirs)
+    if not g or not s:
+        return False
+    if g == s:
+        return True
+    S, G = re.sub(r'^0{1,2}', '', s), re.sub(r'^0{1,2}', '', g)
+    if min(len(S), len(G)) < WA_NEAR_DIGITS:
+        return False
+    if S == G or G in _wa_trunk_forms(S) or _wa_mobile_form(S) == G:
+        return True
+    return S in _wa_local_forms(G)
+
+
+def _real_name(person):
+    n = (person.name or '').strip()
+    return n if n and n.lower() not in ('newsletter subscriber', 'unknown') else None
+
+
+def mark_wa_due(person, assign=False, assign_if_free=False, quiet=False):
+    """The WhatsApp CRM should learn about this person: marked here, told after the save (see
+    run_wa_sync). `assign`: their owner changed here, so the chat goes to the owner too.
+    `assign_if_free`: they wrote from a chat we had not seen, so it goes to the owner only if
+    nobody has it. `quiet`: a bulk change (the backfill, a source's tags): their tags are written
+    without starting the WhatsApp CRM's "tag added" automations (contract 19), but only when every
+    mark since their last push was quiet. Any other change, before or after, makes it a normal
+    push. A hand-over of the chat is never quiet. No call, no commit, no rollback. False (nothing
+    marked) when WhatsApp is off, or there is nothing to find them by (no number, no WhatsApp
+    contact)."""
+    if person is None or not (person.phone or person.wacrm_contact_id) or not wa_writes_on():
+        return False
+    if quiet and not (assign or assign_if_free):
+        if person.wacrm_sync_due_at is None:
+            person.wacrm_quiet = True          # nothing was waiting: this push can be quiet
+    else:
+        person.wacrm_quiet = False             # a person's own change: the push is a normal one
+    person.wacrm_sync_due_at = datetime.utcnow()
+    if assign:
+        person.wacrm_assign_due = True
+    if assign_if_free:
+        person.wacrm_assign_if_free = True
+    if person.id is None:
+        db.session.flush()
+    db.session.info.setdefault('wa_due', set()).add(person.id)
+    return True
+
+
+def _wa_drop_tags_later(contact_id, keep_for=None):
+    """After the save, take the portal's tags off a contact this person no longer has (a changed
+    number, a removed person). The contact and its chat stay. Somebody else on the same contact
+    is brought into step instead, which puts the right tags on it."""
+    if not contact_id or not wa_writes_on():
+        return
+    others =CrmPerson.query.filter(CrmPerson.wacrm_contact_id == str(contact_id), CrmPerson.id != keep_for).all()
+    if others:
+        for o in others:
+            mark_wa_due(o)
+        return
+    db.session.info.setdefault('wa_cleanup', []).append(str(contact_id))
+
+
+def change_phone(person, e164):
+    """A new number for them. The WhatsApp CRM ids were the old number's: they go, the old contact
+    loses the portal's tags (its chat stays in WhatsApp), and the new number comes in after the save."""
+    from app.services import phone as phone_svc
+    if not e164 or e164 == person.phone:
+        return False
+    _wa_drop_tags_later(person.wacrm_contact_id, keep_for=person.id)
+    person.phone = e164
+    person.country = (phone_svc.iso_for(e164) or '')[:2] or None
+    person.wacrm_contact_id = person.wacrm_conversation_id = None
+    mark_wa_due(person)
+    return True
+
+
+def stage_renamed(stage):
+    """A stage's new name reaches the tags: everybody with an open lead in it, and anybody already
+    in the WhatsApp CRM whose lead finished there. Returns how many were marked."""
+    people = (CrmPerson.query.join(CrmLead, CrmLead.person_id == CrmPerson.id)
+              .filter(CrmLead.stage_id == stage.id,
+                      or_(CrmLead.status == 'open', CrmPerson.wacrm_contact_id.isnot(None)))
+              .distinct().all())
+    return sum(1 for p in people if mark_wa_due(p))
+
+
+def _wa_mark_quietly(people, now=None, phone_only=False):
+    """Mark many people at once, quietly (mark_wa_due's `quiet`): one UPDATE and no thread -- the
+    jobs runner brings them in, WA_SYNC_BATCH a run. `people`: a select of person ids. Somebody
+    already due keeps their mark, and how it goes. Flushes first, so marks made earlier in this
+    save count. Call it last in a save: the people in the session are not refreshed. No commit.
+    How many were marked; 0 while writes are off."""
+    if not wa_writes_on():
+        return 0
+    db.session.flush()
+    reach = (CrmPerson.phone.isnot(None) if phone_only else
+             or_(CrmPerson.phone.isnot(None), CrmPerson.wacrm_contact_id.isnot(None)))
+    return (CrmPerson.query.filter(reach, CrmPerson.wacrm_sync_due_at.is_(None), CrmPerson.id.in_(people))
+            .update({'wacrm_sync_due_at': now or datetime.utcnow(), 'wacrm_quiet': True},
+                    synchronize_session=False))
+
+
+def wa_backfill(now=None):
+    """Bring everybody with an open lead and a phone (imported ones too) into the WhatsApp CRM,
+    quietly: their contact and its tags only, without starting its tag automations. No chat is
+    made and nothing is sent. This only marks them; the jobs runner does the work, WA_SYNC_BATCH a
+    run. Somebody whose last sync was refused (a person had to sort it out) is tried again.
+    Returns how many were marked."""
+    if not wa_writes_on():
+        return 0
+    n = _wa_mark_quietly(select(CrmLead.person_id).where(CrmLead.status == 'open'), now, phone_only=True)
+    db.session.commit()
+    return n
+
+
+def wa_mark_source(src, now=None):
+    """A source's tags changed (Set-up -> Sources): everybody with an open lead from it is brought
+    into step quietly, by the jobs runner. No commit. Returns how many were marked."""
+    return _wa_mark_quietly(select(CrmLead.person_id).where(CrmLead.source_id == src.id,
+                                                            CrmLead.status == 'open'), now)
+
+
+def _wa_live_source_tags():
+    """Every tag a lead source adds now (Set-up -> Sources), lower case."""
+    return {t.strip().lower() for s in CrmSource.query.all() for t in (s.crm_tags or []) if t and t.strip()}
+
+
+def _wa_source_tags():
+    """The source tags the portal looks after, lower case: every tag a source adds, and every one
+    a source used to add (wa_retire_tags) -- so the sync takes those off. Never "opted-out"."""
+    old = {str(t).strip().lower() for t in (crm_settings_raw().get(WA_RETIRED_TAGS_KEY) or []) if str(t).strip()}
+    return (_wa_live_source_tags() | old) - {OPT_OUT_TAG}
+
+
+def wa_retire_tags(removed, actor=None):
+    """Tags a source no longer adds stay the portal's (the 'crm' setting WA_RETIRED_TAGS_KEY), so
+    the sync keeps taking them off people's WhatsApp contacts. Newest first, at most
+    WA_RETIRED_MAX; never "opted-out", never a tag a source still adds (one put back leaves the
+    list). Saves -- which commits -- only when the list changes. Returns the list."""
+    live = _wa_live_source_tags()
+    old = [str(t).strip().lower() for t in (crm_settings_raw().get(WA_RETIRED_TAGS_KEY) or []) if str(t).strip()]
+    out = []
+    for t in sorted(str(x).strip().lower() for x in (removed or ()) if str(x).strip()) + old:
+        if t != OPT_OUT_TAG and t not in live and t not in out:
+            out.append(t)
+    out = out[:WA_RETIRED_MAX]
+    if out != old:
+        save_settings(actor, **{WA_RETIRED_TAGS_KEY: out})
+    return out
+
+
+def _wa_is_portal_tag(name, source_tags):
+    """`source_tags` comes from _wa_source_tags(), retired tags included."""
+    n = (name or '').strip().lower()
+    if n == OPT_OUT_TAG:
+        return False                     # never taken off by the portal
+    products = [p.lower() for p in CRM_PRODUCTS]
+    return n in products or any(n.startswith(p + ': ') for p in products) or n in source_tags
+
+
+def _wa_wanted_tags(person):
+    """The tags the portal puts on their contact: per product, the product ("ti") and where its
+    lead is ("TI: Prospect") -- the open lead, else the latest finished one, so Won / Lost stays
+    visible; every lead's source tags; and "opted-out" once they opted out."""
+    def rank(l):
+        return (l.status == 'open', l.last_activity_at or l.created_at or datetime.min, l.id or 0)
+    best, want = {}, set()
+    for lead in person.leads:
+        if lead.product not in best or rank(lead) > rank(best[lead.product]):
+            best[lead.product] = lead
+        want |= {t for t in ((lead.source.crm_tags or []) if lead.source else []) if t}
+    for product, lead in best.items():
+        want.add(product.lower())
         st = stage_tag(lead)
-        cid = wacrm.set_tags(lead.person.phone, lead.person.name, lead.person.email,
-                             add=tags + ([st] if st else []), drop_prefixes=('%s: ' % lead.product,))
-        if cid and lead.person.wacrm_contact_id != cid:
-            lead.person.wacrm_contact_id = cid
-            db.session.commit()
-    except Exception:        # noqa: BLE001
+        if st:
+            want.add(st)
+    if person.wa_opt_out_at:
+        want.add(OPT_OUT_TAG)
+    return want
+
+
+def _wa_tag_list(have, want, source_tags, drop=()):
+    """The contact's new tag list, or None when nothing changes. Tags set by hand in the WhatsApp
+    CRM stay; a portal tag that no longer fits goes. Compared ignoring case, as it does. `drop`:
+    names that go whatever else is true (the "opted-out" tag after an admin opted them back in)."""
+    drop_l = {d.lower() for d in drop}
+    want_l = {w.lower(): w for w in want if w.lower() not in drop_l}
+    have_l = {h.lower() for h in have}
+    final = [h for h in have if h.lower() not in drop_l
+             and (h.lower() in want_l or not _wa_is_portal_tag(h, source_tags))]
+    final += [w for k, w in want_l.items() if k not in have_l]
+    return None if {f.lower() for f in final} == have_l else sorted(final)
+
+
+def _wa_drop_tags(contact_id, source_tags):
+    from app.services import wacrm
+    try:
+        data = wacrm.get_contact(contact_id) or {}
+        have = [t.get('name') for t in data.get('tags') or [] if isinstance(t, dict) and t.get('name')]
+        keep = [t for t in have if not _wa_is_portal_tag(t, source_tags)]
+        if len(keep) != len(have):
+            wacrm.update_contact(contact_id, tags=sorted(keep))
+    except Exception:      # noqa: BLE001 -- best effort; the contact keeps its old tags
+        log.info('WhatsApp CRM tags not taken off contact %s', contact_id, exc_info=True)
+
+
+def _wa_main_lead(person):
+    """Their most recently active open lead: its owner looks after the chat."""
+    opens = [l for l in person.leads if l.status == 'open']
+    return max(opens, key=lambda l: (l.last_activity_at or l.created_at or datetime.min, l.id), default=None)
+
+
+def _wa_claim(person, now=None):
+    """Take this person for a sync: their mark becomes a short lease, so another worker leaves
+    them alone. None when somebody else just took them (or they are gone, or backing off)."""
+    try:
+        due = person.wacrm_sync_due_at
+    except ObjectDeletedError:
+        return None                      # removed since the list was read
+    if due is None or due > (now or datetime.utcnow()):
+        return None
+    lease = datetime.utcnow() + WA_LEASE
+    n = (CrmPerson.query.filter(CrmPerson.id == person.id, CrmPerson.wacrm_sync_due_at == due)
+         .update({'wacrm_sync_due_at': lease}, synchronize_session=False))
+    db.session.commit()
+    return lease if n else None
+
+
+def _wa_parks(exc):
+    """Whether the WhatsApp CRM refused this person for a reason only a person can sort out -- a
+    number it will not take, two contacts that could be the number (4xx): kept as their problem
+    and not tried again every hour. A wrong key or address, or a feature an older WhatsApp CRM
+    lacks (401, 403, 404), a slow or busy server (408, 429), no WhatsApp number connected
+    (not_configured), a server fault or no answer: tried again in an hour."""
+    status = getattr(exc, 'status', None)
+    return (status is not None and 400 <= status < 500 and status not in WA_RETRY_STATUSES
+            and getattr(exc, 'code', None) != 'not_configured')
+
+
+def _wa_finish(person_id, claimed, done, error=None, retry=True, contact_id=None,
+               conversation_id=None, contact_changed=False, park=False, keep_assign=False):
+    """Write how a sync went -- only while the lease is still ours: a save in the meantime marked
+    them again, and the next sync (with the newer state) writes instead. True when written.
+    `park`: refused for a reason only a person can sort out (_wa_parks): the problem is kept and
+    nothing is tried again by itself; the next change to them (mark_wa_due) tries again, the
+    chat's hand-over too. `keep_assign`: done, but their chat still has to go to the owner once
+    the WhatsApp team link is set up; the next mark does it."""
+    now = datetime.utcnow()
+    vals = {'wa_sync_error': (error or '')[:300] or None}
+    if contact_id:
+        vals['wacrm_contact_id'] = contact_id
+    if conversation_id:
+        vals['wacrm_conversation_id'] = conversation_id
+    elif contact_changed:
+        vals['wacrm_conversation_id'] = None
+    if done:
+        vals.update(wacrm_sync_due_at=None, wacrm_quiet=False, wa_synced_at=now, wa_opt_in_due=False)
+        if not keep_assign:
+            vals.update(wacrm_assign_due=False, wacrm_assign_if_free=False)
+    elif park:
+        vals.update(wacrm_sync_due_at=None, wacrm_quiet=False)      # assign flags kept: the next mark finishes
+    else:
+        vals['wacrm_sync_due_at'] = now + WA_RETRY_AFTER if retry else now   # the quiet flag stays for the retry
+    n = (CrmPerson.query.filter(CrmPerson.id == person_id, CrmPerson.wacrm_sync_due_at == claimed)
+         .update(vals, synchronize_session=False))
+    if not n and done:
+        # another worker finished them while we worked: once more, so the newest state has the last word
+        (CrmPerson.query.filter(CrmPerson.id == person_id, CrmPerson.wacrm_sync_due_at.is_(None))
+         .update({'wacrm_sync_due_at': now}, synchronize_session=False))
+    db.session.commit()
+    return bool(n)
+
+
+class _WaProblem(Exception):
+    pass
+
+
+def _wa_fill_number(person, contact_id):
+    """Somebody we know only by their WhatsApp CRM contact (they wrote in without a number): the
+    number and name that contact has, kept on them -- not when somebody here has that number
+    already, which a person sorts out. (digits or '', the problem or None)."""
+    from app.services import wacrm
+    from app.services import phone as phone_svc
+    try:
+        data = wacrm.get_contact(contact_id) or {}
+    except wacrm.WacrmError as exc:
+        if exc.status == 404:
+            return '', None              # gone from the WhatsApp CRM: nothing more to find
+        raise
+    e164 = wa_e164(data.get('phone'))
+    if not e164:
+        return '', None                  # a WhatsApp user name with no number
+    other = CrmPerson.query.filter(CrmPerson.phone == e164, CrmPerson.id != person.id).first()
+    if other is not None:
+        return '', "Their WhatsApp number is person %d's here already" % other.id
+    person.phone = e164
+    person.country = (phone_svc.iso_for(e164) or '')[:2] or None
+    found = _wa_name(data.get('name'))
+    if found and not _real_name(person):
+        person.name = found
+    db.session.flush()
+    return _digits(e164), None
+
+
+def _wa_sync_person(person, source_tags, now=None):
+    """One person into step: their contact (made when new, and certainly theirs), its tags, name
+    and e-mail, then -- only when the owner changed here, or they wrote from a chat nobody has --
+    the chat to the owner. Somebody known only by their contact gets its number first.
+    'ok' | 'failed' | 'down' (the WhatsApp CRM did not answer) | 'skipped'."""
+    from app.services import wacrm, wacrm_team
+    claimed = _wa_claim(person, now)
+    if claimed is None:
+        return 'skipped'
+    pid, digits, name = person.id, _digits(person.phone), _real_name(person)
+    quiet = bool(person.wacrm_quiet)
+    before = person.wacrm_contact_id
+    if not digits and not before:
+        _wa_finish(pid, claimed, True)
+        return 'ok'
+    cid = conversation_id = pending = None
+    verified = waits = False
+    try:
+        if not digits:
+            # 0. somebody who wrote in before we had their number: the one their contact has
+            digits, problem = _wa_fill_number(person, before)
+            if not digits:
+                if problem:
+                    _wa_finish(pid, claimed, False, error=problem, park=True)
+                    return 'failed'
+                _wa_finish(pid, claimed, True)
+                return 'ok'
+            name = _real_name(person)
+        # 1. their contact, found by number (made when new) -- and certainly theirs
+        data = wacrm.find_or_create_contact(person.phone, name=name, email=person.email)
+        cid = str(data.get('id') or '') or None
+        if not cid:
+            raise _WaProblem('The WhatsApp CRM did not return their contact')
+        if data.get('phone') and not same_whatsapp_number(digits, data['phone']):
+            raise _WaProblem('WhatsApp matched a different number, ending %s' % _digits(data['phone'])[-4:])
+        holder = CrmPerson.query.filter(CrmPerson.wacrm_contact_id == cid, CrmPerson.id != pid).first()
+        if holder is not None:
+            raise _WaProblem('Same WhatsApp contact as person %d' % holder.id)
+        verified = True
+        # 2. the portal's tags, and the name and e-mail when they differ
+        patch = {}
+        have = [t.get('name') for t in data.get('tags') or [] if isinstance(t, dict) and t.get('name')]
+        untag = bool(person.wa_opt_in_due) and person.wa_opt_out_at is None
+        tags = _wa_tag_list(have, _wa_wanted_tags(person), source_tags,
+                            drop=(OPT_OUT_TAG,) if untag else ())
+        if tags is not None:
+            patch['tags'] = tags
+        if name and 'name' in data and (data.get('name') or '').strip() != name:
+            patch['name'] = name
+        if person.email and 'email' in data and (data.get('email') or '').strip().lower() != person.email.lower():
+            patch['email'] = person.email
+        if patch:
+            wacrm.update_contact(cid, quiet=quiet, **patch)
+        # 3. the chat goes to the owner: the owner changed here (it moves to them), or somebody
+        #    already here wrote from a chat we had not seen (only if nobody has it)
+        force = bool(person.wacrm_assign_due)
+        handover = force or bool(person.wacrm_assign_if_free)
+        waits = handover and not wacrm_team.enabled()   # no team link yet: the next mark hands it over
+        if handover and not waits:
+            lead = _wa_main_lead(person)
+            email = ((lead.owner.email or '') if lead is not None and lead.owner is not None else '').strip().lower()
+            if email:
+                r = wacrm_team.ensure_conversation(digits, name=name, email=person.email,
+                                                   create=True, assign_email=email)
+                if str(r.get('contact_id') or '') != cid:
+                    raise _WaProblem('WhatsApp gave two different contacts for this number')
+                conversation_id = str(r.get('conversation_id') or '') or None
+                if force and (r.get('assignee_email') or '').lower() != email:
+                    if r.get('assignment') == 'not_member':
+                        pending = NOT_MEMBER % email
+                    elif conversation_id:
+                        try:
+                            wacrm_team.assign_conversation(None, email, conversation_id=conversation_id)
+                        except wacrm_team.TeamError as exc:
+                            if exc.status != 422:
+                                raise
+                            pending = NOT_MEMBER % email
+    except (wacrm.WacrmError, wacrm_team.TeamError) as exc:
+        down = getattr(exc, 'status', 0) is None
+        _wa_finish(pid, claimed, False, error=WA_ERRORS.get(getattr(exc, 'code', None)) or str(exc),
+                   retry=not down, contact_id=cid if verified else None,
+                   conversation_id=conversation_id if verified else None,
+                   contact_changed=verified and before is not None and cid != before, park=_wa_parks(exc))
+        log.warning('WhatsApp CRM sync failed for person %s', pid)
+        return 'down' if down else 'failed'
+    except _WaProblem as exc:
+        _wa_finish(pid, claimed, False, error=str(exc), park=True)
+        log.warning('WhatsApp CRM sync refused for person %s: %s', pid, exc)
+        return 'failed'
+    except Exception:      # noqa: BLE001 -- one person must not stop the rest
         db.session.rollback()
-        log.warning('WhatsApp CRM contact sync failed for lead %s', lead.id, exc_info=True)
-    if assign and lead.owner is not None and wacrm_team.enabled():
+        log.exception('WhatsApp CRM sync broke for person %s', pid)
+        _wa_finish(pid, claimed, False, error='Something went wrong -- see the server log')
+        return 'failed'
+    if pending:
+        _wa_finish(pid, claimed, False, error=pending, contact_id=cid, conversation_id=conversation_id,
+                   contact_changed=before is not None and cid != before, park=True)
+        return 'failed'
+    _wa_finish(pid, claimed, True, contact_id=cid, conversation_id=conversation_id,
+               contact_changed=before is not None and cid != before, keep_assign=waits)
+    return 'ok'
+
+
+def run_wa_sync(ids=None, cleanups=(), limit=None, budget=None, now=None):
+    """Bring the people marked due into step with the WhatsApp CRM, one person at a time (see
+    mark_wa_due). `ids`: just these, straight after a save, in a background thread: it may wait
+    WA_LOCK_WAIT for another sync in this worker and spends up to WA_SYNC_BUDGET. None: the oldest
+    due, for the jobs runner, which waits at most WA_JOBS_LOCK_WAIT and spends up to
+    WA_JOBS_BUDGET, so the jobs request answers in time. Never sends a message. Counts for the
+    jobs report."""
+    from app.services import wacrm
+    out = {'crm_wa_synced': 0, 'crm_wa_failed': 0}
+    if not wa_writes_on():
+        return out                       # nothing is written while it is off; marks wait
+    jobs = ids is None
+    if not _wa_lock.acquire(timeout=WA_JOBS_LOCK_WAIT if jobs else WA_LOCK_WAIT):
+        return out                       # this worker is busy syncing; the marks stay for later
+    try:
+        with wacrm.short_timeouts():
+            source_tags = _wa_source_tags()
+            for contact_id in cleanups or ():
+                _wa_drop_tags(contact_id, source_tags)
+            if ids is not None and not ids:
+                return out
+            now = now or datetime.utcnow()
+            q = CrmPerson.query.filter(CrmPerson.wacrm_sync_due_at.isnot(None),
+                                       CrmPerson.wacrm_sync_due_at <= now)
+            if ids is not None:
+                q = q.filter(CrmPerson.id.in_(list(ids)))
+            people = (q.order_by(CrmPerson.wacrm_sync_due_at, CrmPerson.id).populate_existing()
+                      .limit(limit or (WA_INLINE_LIMIT if ids is not None else WA_SYNC_BATCH)).all())
+            started = monotonic()
+            if budget is None:
+                budget = WA_JOBS_BUDGET if jobs else WA_SYNC_BUDGET
+            for person in people:
+                if monotonic() - started > budget:
+                    break
+                result = _wa_sync_person(person, source_tags, now)
+                if result == 'ok':
+                    out['crm_wa_synced'] += 1
+                elif result in ('failed', 'down'):
+                    out['crm_wa_failed'] += 1
+                if result == 'down':
+                    break                # it is not answering: the rest wait for the next run
+    finally:
+        _wa_lock.release()
+    out['crm_wa_waiting'] = CrmPerson.query.filter(CrmPerson.wacrm_sync_due_at.isnot(None)).count()
+    return out
+
+
+def _wa_run_isolated(app, ids, cleanups):
+    with app.app_context():                       # its own session: the save is already committed
         try:
-            wacrm_team.assign_conversation(lead.person.phone.lstrip('+'), lead.owner.email.lower())
-        except Exception:    # noqa: BLE001 -- not a member there yet, or no conversation
-            log.info('WhatsApp CRM assignment skipped for lead %s', lead.id, exc_info=True)
+            run_wa_sync(ids, cleanups)
+        except Exception:      # noqa: BLE001 -- the marks stay; the jobs runner tries again
+            db.session.rollback()
+            log.warning('WhatsApp CRM sync after a save failed', exc_info=True)
+        finally:
+            db.session.remove()
 
 
-def _push_to_whatsapp_crm(lead):
-    sync_whatsapp(lead)
+@contextmanager
+def wa_sync_later():
+    """Saves inside this mark people for the WhatsApp CRM but start no sync of their own: the jobs
+    runner (run_wa_sync) brings them in, a few at a time. A catch-up that makes many leads must
+    not start a thread for each."""
+    db.session.info['wa_later'] = True
+    try:
+        yield
+    finally:
+        db.session.info.pop('wa_later', None)
+
+
+def _wa_after_commit(session):
+    """Straight after a save, the people it marked go to the WhatsApp CRM in a background thread,
+    so nobody waits for it (WA_SYNC_INLINE, in tests: here and now)."""
+    if session.get_nested_transaction() is not None:
+        return                                     # a savepoint: the real commit comes later
+    if session.info.get('wa_later'):
+        session.info.pop('wa_due', None)     # they stay marked: the jobs runner's run_wa_sync takes them
+    ids = session.info.pop('wa_due', None)
+    cleanups = session.info.pop('wa_cleanup', None)
+    if not ids and not cleanups:
+        return
+    app = current_app._get_current_object()
+    args = (app, sorted(ids or ()), list(cleanups or ()))
+    if app.config.get('WA_SYNC_INLINE'):
+        _wa_run_isolated(*args)
+    else:
+        try:
+            threading.Thread(target=_wa_run_isolated, args=args, daemon=True, name='wacrm-sync').start()
+        except Exception:      # noqa: BLE001 -- the save is done; its marks wait for the jobs runner
+            log.warning('WhatsApp CRM sync not started after a save; the jobs runner brings them in',
+                        exc_info=True)
+
+
+def _wa_after_rollback(session, previous_transaction):
+    if previous_transaction.parent is None:        # the whole save was undone (not a savepoint)
+        session.info.pop('wa_due', None)
+        session.info.pop('wa_cleanup', None)
+
+
+event.listen(db.session, 'after_commit', _wa_after_commit)
+event.listen(db.session, 'after_soft_rollback', _wa_after_rollback)
+
+
+# ======================================================================================= from the WhatsApp CRM
+
+def wa_person(contact_id=None, phone=None):
+    """The person a WhatsApp CRM event is about, or None: by their contact id, then by the WhatsApp
+    user id kept for people without a number, then by number -- exactly, else certainly the same
+    number (same_whatsapp_number) and only when that is one person. Never a guess. Writes nothing."""
+    cid = str(contact_id).strip()[:64] if contact_id else None
+    d = _digits(phone)
+    if cid:
+        holders = CrmPerson.query.filter_by(wacrm_contact_id=cid).order_by(CrmPerson.id).limit(5).all()
+        if len(holders) > 1:
+            log.warning('WhatsApp contact %s is on %d people here', cid, len(holders))
+            holders.sort(key=lambda p: (_digits(p.phone) != d, not same_whatsapp_number(p.phone, d), p.id))
+        if holders:
+            return holders[0]
+        hit = CrmIdentity.query.filter_by(kind='wacrm', value=cid).first()
+        if hit is not None:
+            return hit.person
+    if len(d) < 8:
+        return None
+    e164 = wa_e164(d)
+    p = CrmPerson.query.filter_by(phone=e164).first() if e164 else None
+    if p is not None:
+        return p
+    near = [p for p in CrmPerson.query.filter(CrmPerson.phone.like('%' + d[-8:])).limit(20).all()
+            if same_whatsapp_number(p.phone, d)]
+    if len(near) > 1:
+        log.warning('WhatsApp number ending %s could be %d people here; none was picked', d[-4:], len(near))
+    return near[0] if len(near) == 1 else None
+
+
+def wa_person_by_chat(conversation_id):
+    """The one person here holding this WhatsApp conversation, or None."""
+    if not conversation_id:
+        return None
+    rows = CrmPerson.query.filter_by(wacrm_conversation_id=str(conversation_id)).limit(2).all()
+    return rows[0] if len(rows) == 1 else None
+
+
+def wa_link(person, contact_id=None, conversation_id=None, phone=None, name=None):
+    """Keep what a WhatsApp CRM event says about somebody we have: their contact id (never one
+    another person here holds, never over a different one -- the sync then checks which is
+    theirs, and the chat is not taken from it), their chat, and the number and name we did not
+    have. No call. True when the chat is one we had not seen for them."""
+    from app.services import phone as phone_svc
+    cid = str(contact_id).strip()[:64] if contact_id else None
+    conv = str(conversation_id).strip()[:64] if conversation_id else None
+    recheck = False
+    if cid and person.wacrm_contact_id != cid:
+        held = CrmPerson.query.filter(CrmPerson.wacrm_contact_id == cid, CrmPerson.id != person.id).first()
+        if person.wacrm_contact_id is None and held is None:
+            person.wacrm_contact_id = cid
+        else:
+            recheck, conv = True, None
+    if not person.phone:
+        e164 = wa_e164(phone)
+        if e164 and not CrmPerson.query.filter(CrmPerson.phone == e164, CrmPerson.id != person.id).first():
+            person.phone = e164
+            person.country = (phone_svc.iso_for(e164) or '')[:2] or None
+            recheck = True
+    found = _wa_name(name)
+    if found and not _real_name(person):
+        person.name = found
+    new_chat = bool(conv) and person.wacrm_conversation_id != conv
+    if new_chat:
+        person.wacrm_conversation_id = conv
+    if recheck:
+        mark_wa_due(person)
+    return new_chat
+
+
+def wa_lead_for(person, template_name=None):
+    """Which open lead a WhatsApp message belongs to when they have several (two enquiries, one
+    chat): the one whose open step uses this template (a message sent from WhatsApp), else the one
+    we last wrote to on WhatsApp, else the newest. None when none is open."""
+    opens = [l for l in person.leads if l.status == 'open']
+    if template_name:
+        hits = [l for l in opens if l.open_task is not None and l.open_task.step is not None
+                and l.open_task.step.wa_template == template_name]
+        opens = hits or opens
+    if len(opens) <= 1:
+        return opens[0] if opens else None
+    last = dict(db.session.query(CrmTouchpoint.lead_id, func.max(CrmTouchpoint.created_at))
+                .filter(CrmTouchpoint.lead_id.in_([l.id for l in opens]), CrmTouchpoint.channel == 'whatsapp',
+                        CrmTouchpoint.direction == 'out')
+                .group_by(CrmTouchpoint.lead_id).all())
+    return max(opens, key=lambda l: (last.get(l.id) or datetime.min, l.created_at or datetime.min, l.id or 0))
+
+
+def is_stop_message(text):
+    """Whether the whole message only asks us to stop -- STOP, Unsubscribe, "Stop promotions" (the
+    button WhatsApp puts on marketing templates), "Don't message"... -- ignoring case, spaces and
+    punctuation. A longer message is somebody talking, not opting out."""
+    t = re.sub(r'[^\w\s]', '', (text or '').lower()).replace('_', ' ')
+    return ' '.join(t.split()) in WA_STOP_WORDS
+
+
+def _stop_note(text):
+    return 'They asked for no more WhatsApp messages ("%s"). %s' % (' '.join((text or '').split())[:40], WA_LEFT_OUT)
+
+
+def wa_opt_out(person, lead=None, note=None, at=None):
+    """They asked for no more WhatsApp messages (a STOP reply, or WhatsApp's own opt-out): kept on
+    the person, noted on their lead, and after the save their contact gets the "opted-out" tag,
+    which the WhatsApp CRM's broadcasts, automations and AI reply leave out. True when this is new."""
+    if person.wa_opt_out_at is not None:
+        return False
+    person.wa_opt_out_at = at or datetime.utcnow()
+    if lead is not None and note:
+        log_touch(lead, 'note', 'none', body=note, at=at)
+    if not mark_wa_due(person) and (person.phone or person.wacrm_contact_id):
+        # even while WhatsApp is off here: the tag waits, and goes once it is switched on
+        person.wacrm_sync_due_at = person.wacrm_sync_due_at or datetime.utcnow()
+    return True
+
+
+def wa_opt_in(person, lead=None, user=None):
+    """An admin opted them back in (they asked to hear from us again): the opt-out is cleared, a
+    note says who, and after the save their contact loses the "opted-out" tag -- the one tag the
+    sync never takes off by itself, so wa_opt_in_due asks for it once. True when this is new."""
+    if person.wa_opt_out_at is None:
+        return False
+    person.wa_opt_out_at = None
+    person.wa_opt_in_due = True
+    if lead is not None:
+        log_touch(lead, 'note', 'none', body=OPTED_IN_NOTE % (user.full_name if user else 'an admin'),
+                  activity=False)
+    if not mark_wa_due(person) and (person.phone or person.wacrm_contact_id):
+        person.wacrm_sync_due_at = person.wacrm_sync_due_at or datetime.utcnow()   # waits for writes on
+    return True
+
+
+def wa_body(text, content_type=None):
+    """What a WhatsApp message is kept as: its words, with the kind in front for a photo, document,
+    voice note and the like ("[image] look at this"), so the lead page can say "Photo"."""
+    t = (text or '').strip()
+    ct = (content_type or '').strip().lower()
+    if ct in WA_MEDIA_LABELS or ct in WA_REPLY_TYPES:
+        return '[%s] %s' % (ct, t) if t else '[%s]' % ct
+    return t or '[%s]' % (ct or 'message')
+
+
+def wa_media(body):
+    """What a kept body was, for the timeline: ('media', label, words), ('button', None, words),
+    ('template', label, '') or (None, None, body) for plain words."""
+    b = body or ''
+    m = _WA_PREFIX.match(b)
+    if m:
+        kind = m.group(1)
+        rest = b[m.end():]
+        if kind == 'template':
+            return 'template', 'Approved template', ''
+        if kind in WA_REPLY_TYPES:
+            return 'button', None, (rest or (m.group(2) or '')).strip()
+        label = WA_MEDIA_LABELS.get(kind) or ('Message' if kind == 'message' else kind.capitalize())
+        return 'media', label, rest.strip()
+    if b.startswith('Template: '):
+        return 'template', 'Approved template', ''
+    return None, None, b
+
+
+def record_whatsapp_in(contact_id=None, conversation_id=None, phone=None, name=None, wamid=None,
+                       text=None, content_type=None, at=None, chat_has_assignee=None):
+    """Somebody wrote to us on WhatsApp: the webhook's message.received, or the jobs runner
+    catching up on one it missed (`at`: when they wrote). On the right lead:
+
+      an open lead          their reply (record_reply), on the lead we last wrote to (wa_lead_for)
+      only closed leads     logged on the latest and its owner told -- or, when it closed over
+                            30 days ago, a new lead from the WhatsApp source. Never reopened.
+      nobody here           a new lead from the WhatsApp source (WACRM_SOURCE_KEY)
+      STOP and the like     logged, and they are opted out (wa_opt_out) instead of moving on
+
+    A chat we had not seen for somebody already here goes to their lead's owner after the save,
+    only if nobody in the WhatsApp CRM has it. Calls nothing outside; commits.
+    'logged' | 'closed' | 'new_lead' | 'created' | 'opted_out' | 'duplicate' | 'ignored' | 'failed'."""
+    if wamid and CrmTouchpoint.query.filter_by(external_id=wamid).first():
+        return 'duplicate'
+    cid = str(contact_id).strip()[:64] if contact_id else None
+    body = wa_body(text, content_type)
+    stop = is_stop_message(text)
+    when = at or datetime.utcnow()
+    person = wa_person(cid, phone)
+    if person is None:
+        return _wa_newcomer(cid, conversation_id, phone, name, wamid, body, stop, text, at)
+    new_chat = wa_link(person, cid, conversation_id, phone, name)
+    _wa_inbound.pop(_digits(person.phone), None)      # they just wrote: the next free text asks again
+    lead = wa_lead_for(person)
+    if lead is not None:
+        if stop:
+            log_touch(lead, 'whatsapp', 'in', body=body, external_id=wamid, at=at)
+            result = 'opted_out' if wa_opt_out(person, lead, _stop_note(text), at=at) else 'logged'
+        else:
+            record_reply(lead, body, channel='whatsapp', external_id=wamid, at=at)
+            result = 'logged'
+    else:
+        latest = max(person.leads, default=None,
+                     key=lambda l: (l.closed_at or l.last_activity_at or l.created_at or datetime.min, l.id or 0))
+        closed = latest.closed_at or latest.last_activity_at or when if latest is not None else None
+        if stop:
+            if latest is not None:
+                log_touch(latest, 'whatsapp', 'in', body=body, external_id=wamid, at=at)
+            wa_opt_out(person, latest, _stop_note(text), at=at)
+            result = 'opted_out'
+        elif latest is None or closed <= when - WA_NEW_LEAD_AFTER:
+            key = current_app.config.get('WACRM_SOURCE_KEY') or 'wa-india'
+            if capture_safely(key, person=person, channel='whatsapp', message=body, utm={},
+                              external_id=wamid, when=at) is None:
+                return 'failed'
+            result = 'new_lead'
+        else:
+            log_touch(latest, 'whatsapp', 'in', body=body, external_id=wamid, at=at)
+            _tell_closed_owner(latest)
+            result = 'closed'
+    if new_chat and not chat_has_assignee:
+        mark_wa_due(person, assign_if_free=True)
+    db.session.commit()
+    return result
+
+
+def _wa_newcomer(cid, conversation_id, phone, name, wamid, body, stop, text, at):
+    """Somebody the Sales CRM does not have: a lead from the WhatsApp source -- or, when all they
+    said is stop (to a WhatsApp CRM broadcast), no lead, but their no is kept on a person."""
+    e164 = wa_e164(phone)
+    if not (e164 or cid):
+        return 'ignored'
+    # a WhatsApp user id with no number still reaches them through the CRM
+    ids = [('wacrm', cid)] if cid else None
+    if stop:
+        person = upsert_person(e164, None, _wa_name(name), identities=ids)
+        wa_link(person, cid, conversation_id, phone)
+        wa_opt_out(person, at=at)
+        db.session.commit()
+        return 'opted_out'
+    key = current_app.config.get('WACRM_SOURCE_KEY') or 'wa-india'
+    lead = capture_safely(key, name=_wa_name(name), phone=e164, message=body, channel='whatsapp', utm={},
+                          external_id=wamid, identities=ids, when=at, sync=False)
+    if lead is None:
+        return 'failed'
+    wa_link(lead.person, cid, conversation_id, phone)
+    mark_wa_due(lead.person)      # their contact and tags, after the save -- the ids above are kept first
+    db.session.commit()
+    return 'created'
+
+
+def _tell_closed_owner(lead):
+    if not lead.owner_id:
+        return
+    from app.services import notify
+    notify.push(lead.owner_id, 'crm_lead', title='%s wrote on WhatsApp' % lead.person.display_name,
+                body='Their %s lead is closed (%s), so it was not reopened. Answer in the WhatsApp chat, '
+                     'or add a new lead if they want something new.'
+                     % (CRM_PRODUCT_LABELS.get(lead.product, lead.product), lead.status),
+                link=_lead_link(lead))
+
+
+def wa_failure_text(code=None, title=None, person=None):
+    """What to tell the agent when WhatsApp did not deliver their message: Meta's own reason
+    (error_code / error_title on the status event), in plain words for the common ones."""
+    if code == 131047:
+        return WA_WINDOW_CLOSED + WA_TRY_ELSE
+    if code == 131049:
+        if person is not None and us_number(person.phone):
+            return ('WhatsApp does not deliver marketing messages to this number (US numbers are paused by '
+                    'Meta). Call or e-mail them, or answer when they write.')
+        return ('WhatsApp held back this marketing message: Meta limits how many marketing messages one '
+                'person gets. Try again in a few days, or call them.')
+    if code == WA_OPT_OUT_CODE:
+        return ('They stopped marketing messages from us in WhatsApp, so they are marked as opted out. '
+                'Call them, or answer when they write.')
+    if (title or '').strip():
+        return 'WhatsApp says: %s.%s' % (str(title).strip().rstrip('.')[:160], WA_TRY_ELSE)
+    return 'Usually their last message is over 24 hours old.' + WA_TRY_ELSE
 
 
 # ======================================================================================= tasks
@@ -544,13 +1488,19 @@ def plan_next(lead, after_step=None, base=None):
 
 
 def complete_task(task, user=None, skipped=False, note=None):
-    if task.status != 'open':
+    """An open step, or one being sent (status "sending"). The next step is planned only while the
+    lead is still in this step's stage."""
+    if task.status not in ('open', 'sending'):
         return None
     task.status = 'skipped' if skipped else 'done'
     task.done_at = datetime.utcnow()
     task.done_by_id = getattr(user, 'id', None)
     task.note = (note or '')[:200] or None
     task.lead.last_activity_at = task.done_at
+    if task.step_id is None and task.code is None:
+        return None          # a follow-up made by hand ("Call back") plans nothing when it is done
+    if task.step is not None and task.lead.stage_id is not None and task.step.stage_id != task.lead.stage_id:
+        return None          # the lead moved on while it was being sent: its new stage has its own plan
     return plan_next(task.lead, after_step=task.step)
 
 
@@ -560,7 +1510,7 @@ def snooze_task(task, hours=24):
 
 # ======================================================================================= stages
 
-def move_stage(lead, stage, user=None, reason=None, fallout_reason=None, plan=True):
+def move_stage(lead, stage, user=None, reason=None, fallout_reason=None, plan=True, sync=True):
     if stage is None or stage.pipeline_id != lead.pipeline_id or stage.id == lead.stage_id:
         return False
     now = datetime.utcnow()
@@ -580,8 +1530,9 @@ def move_stage(lead, stage, user=None, reason=None, fallout_reason=None, plan=Tr
     db.session.flush()
     if plan:
         plan_next(lead, base=now)
-    # the stage tag on their WhatsApp contact follows (no assignment change: the owner did not)
-    sync_whatsapp(lead, assign=False)
+    # their WhatsApp contact's stage tag follows, once this is saved (the owner did not change)
+    if sync:
+        mark_wa_due(lead.person)
     return True
 
 
@@ -602,24 +1553,40 @@ def set_pipeline(lead, pipeline, user=None):
     lead.entered_stage_at = datetime.utcnow()
     db.session.flush()
     plan_next(lead)
+    mark_wa_due(lead.person)
 
 
 # ======================================================================================= touches
 
 def log_touch(lead, channel, direction='out', body=None, code=None, outcome=None, user=None,
-              status=None, external_id=None):
+              status=None, external_id=None, at=None, activity=True, via=None):
+    """`at`: when it happened, for one learnt about late (the jobs runner catching up on a WhatsApp
+    message); now otherwise. `activity` False: a line for the record (who looks after the lead, an
+    opt-in) that does not count as the lead being worked on. `via`: who sent an outbound message
+    (CRM_VIA); a person's own when `user` is given."""
+    when = at or datetime.utcnow()
+    via = via or ('person' if direction == 'out' and user is not None else None)
     tp = CrmTouchpoint(lead=lead, person_id=lead.person_id, channel=channel, direction=direction,
-                       body=(body or None), code=code, outcome=outcome, status=status,
-                       agent_id=getattr(user, 'id', None), external_id=external_id)
+                       body=(body or None), code=code, outcome=outcome, status=status, via=via,
+                       agent_id=getattr(user, 'id', None), external_id=external_id, created_at=when)
     db.session.add(tp)
-    lead.last_activity_at = datetime.utcnow()
+    if activity:
+        lead.last_activity_at = max(lead.last_activity_at or when, when) if at else when
+    if direction == 'out' and status != 'failed':
+        from app.services.crm_metrics import REPLY_CHANNELS
+        if channel in REPLY_CHANNELS:
+            # our answer ends their wait: the waiting bell may ring again next time, and a snooze is over
+            for l in lead.person.leads:
+                if l.waiting_alerted_at is not None or l.snoozed_until is not None:
+                    l.waiting_alerted_at = l.snoozed_until = None
     db.session.flush()
     return tp
 
 
-def record_reply(lead, text=None, channel='whatsapp', external_id=None):
-    """The person answered. Logged, and out of the first stage it promotes the lead."""
-    log_touch(lead, channel, 'in', body=text, external_id=external_id)
+def record_reply(lead, text=None, channel='whatsapp', external_id=None, at=None):
+    """The person answered. Logged, and out of the first stage it promotes the lead. `at`: when
+    they wrote, for a reply learnt about late."""
+    log_touch(lead, channel, 'in', body=text, external_id=external_id, at=at)
     lead.temperature = lead.temperature if lead.temperature in ('L',) else 'R'
     pipe = lead.pipeline
     if pipe and lead.stage and lead.status == 'open':
@@ -677,15 +1644,41 @@ def fill_values(lead, user=None):
     return values
 
 
-def fill(text, lead, user=None):
-    """Fill {name}, {agent} and the rest into a message for this lead."""
-    if not text:
-        return ''
-    values = fill_values(lead, user)
-
+def fill_with(text, values):
+    """Fill {name}, {agent} and the rest into a message from values already worked out."""
     def sub(m):
         return str(values.get(m.group(1), m.group(0)))
-    return re.sub(r'\{([a-z_]+)\}', sub, text)
+    return re.sub(r'\{([a-z_]+)\}', sub, text or '')
+
+
+def fill(text, lead, user=None):
+    """Fill {name}, {agent} and the rest into a message for this lead."""
+    return fill_with(text, fill_values(lead, user)) if text else ''
+
+
+def quick_replies_for(lead, user=None, limit=40):
+    """The ready answers filled in for this lead, theirs (the product) first: [(answer, words)]."""
+    values = fill_values(lead, user)
+    rows = CrmAnswer.query.all()
+    rows.sort(key=lambda a: (a.product not in (lead.product, 'GEN'), a.product != lead.product,
+                             (a.title or '').lower()))
+    return [(a, fill_with(a.body, values)) for a in rows[:limit]]
+
+
+def suggested_reply(lead, user=None):
+    """The ready answer that fits what they last wrote on WhatsApp, filled in for them, or None."""
+    from app.services import crm_answers
+    tp = (CrmTouchpoint.query.filter_by(person_id=lead.person_id, channel='whatsapp', direction='in')
+          .order_by(CrmTouchpoint.created_at.desc(), CrmTouchpoint.id.desc()).first())
+    if tp is None:
+        return None
+    _, _, words = wa_media(tp.body)
+    if not (words or '').strip():
+        return None
+    hit = crm_answers.suggest(words, lead.product, limit=1)
+    if not hit:
+        return None
+    return {'id': hit[0]['id'], 'title': hit[0]['title'], 'text': fill_with(hit[0]['body'], fill_values(lead, user))}
 
 
 def whatsapp_link(lead, text):
@@ -695,36 +1688,203 @@ def whatsapp_link(lead, text):
     return 'https://wa.me/%s?text=%s' % (digits, quote(text or ''))
 
 
+WA_SEND_STUCK = timedelta(minutes=15)     # a step still "sending" this long waits for a person to check the chat
+WA_AUTO_BUDGET = 60                       # seconds run_auto_steps may spend before it stops taking steps
+WA_AUTO_LATE = timedelta(hours=24)        # an automatic step overdue longer than this waits for a click
+WA_CONFIRM_FOR = timedelta(seconds=60)    # how long the WhatsApp CRM's "they last wrote at" is trusted
+# Canada's area codes (NANPA, with the reserved non-geographic ones): any other +1 number is treated
+# as the United States', where Meta does not deliver marketing templates
+CANADA_AREA_CODES = frozenset('''
+204 226 236 249 250 257 263 289 306 343 354 365 367 368 382 403 416 418 428 431 437 438 450 468
+474 506 514 519 548 579 581 584 587 600 604 613 622 633 639 644 647 655 672 677 683 688 705 709
+742 753 778 780 782 807 819 825 867 873 879 902 905 942'''.split())
+WA_OPTED_OUT = 'They asked for no more WhatsApp messages. Call or e-mail them, or answer when they write.'
+WA_US_MARKETING = 'WhatsApp does not deliver marketing templates to US numbers; call or e-mail instead.'
+WA_NEEDS_OK = 'Needs a click: they have not agreed to WhatsApp messages yet'
+WA_LATE = 'Was due %s; check before sending'
+WA_BLANKS = 'The approved template has %s, the follow-up has %s. Make them match in Set-up → Pipelines.'
+WA_WINDOW_CLOSED = 'Their last message is over 24 hours old, so WhatsApp only lets an approved template through.'
+WA_WINDOW_SHUT = ('Over 24 hours since they last wrote, so WhatsApp only lets an approved template '
+                  'through -- send it from your WhatsApp.')
+WA_NOT_SENDING = ('Sending from here is switched off (Set-up → WhatsApp connection). Start the chat '
+                  'in WhatsApp chats instead.')
+WA_MAYBE_SENT = 'WhatsApp did not answer, so it may have gone. Check their chat before you send it again.'
+WA_MAYBE_SENT_NOTE = 'May have gone: WhatsApp did not answer. Check the chat before sending again'
+SEND_TAKEN = 'This step is being sent already. Look again in a minute.'
+STEP_DONE = 'That step is done already. Reload the page to see what is next.'
+_wa_inbound = {}      # phone digits -> (asked at, their last message to us as the WhatsApp CRM has it, chat status)
+
 WINDOW_HOURS = 24
+# the lead page's words, all in one place
+MILESTONE_HINT = 'Records it and moves them to %s. Nothing is sent to the customer.'
+OWNER_LINE, NOBODY = 'Looked after by: %s → %s', 'Not given to anyone'
+OPTED_IN_NOTE = 'Opted back in to WhatsApp (by %s)'
+OPTED_IN_SAID = 'Opted back in. Their tag is removed in WhatsApp too.'
+OPTED_IN_LATER = 'Opted back in. Their tag comes off in WhatsApp once it is connected.'
+WA_LINE_OFF = 'WhatsApp is not connected for leads yet'
+WA_LINE_NO_PHONE = 'There is no phone number for them yet.'
+WA_LINE_OPEN = 'Chat open, %s left to write freely'
+WA_LINE_CLOSED = 'Only an approved template can go now'
+WA_LINE_NEVER = "They haven't written yet. WhatsApp only allows an approved template first."
+WA_LINE_OPTED_OUT = 'Opted out on %s. Send nothing unless they write.'
+WA_LINE_OPTED_OUT_OPEN = 'Opted out on %s, but they wrote since. Chat open, %s left to answer.'
+CHAT_STATUS = {'open': 'Open', 'pending': 'On hold', 'closed': 'Done'}      # shown as "Chat: Open"
+SYNC_OK, SYNC_WAITING, SYNC_PROBLEM = 'In step with WhatsApp', 'Waiting to sync', 'Not in step: %s'
+SYNC_NOT_ADDED = 'not added to WhatsApp yet'
+BOX_OFF = 'WhatsApp is not connected for leads yet.'
+BOX_CLOSED = "They haven't written in 24 hours, so WhatsApp only allows an approved template."
+BOX_OPTED_OUT_OPEN = 'They opted out. You can still answer while the chat is open.'
+SOCIAL_CLOSED = '%s allows replies only within 24 hours of their last message'
+WA_CHAT_CLOSED = 'WhatsApp says the chat has closed. Choose an approved template.'
+WA_WRONG_NUMBER = 'That chat belongs to another number. Nothing was sent.'
+WA_NO_CHAT = 'WhatsApp did not make their chat. Nothing was sent.'
+WA_NOT_APPROVED = 'That template is not approved by WhatsApp yet. Choose another.'
+WA_FILL_INS = 'Some fill-ins are empty. Fill them in first.'
+WA_WRITE_FIRST = 'Write the message first.'
+WA_PICK_TEMPLATE = 'Only an approved template can go now. Choose one in the message box.'
+CALL_BACK_TITLE = 'Call back'
+WROTE_CHANNELS = (('wa_other', 'WhatsApp (other number)'), ('telegram', 'Telegram'), ('sms', 'SMS'),
+                  ('instagram', 'Instagram'), ('facebook', 'Facebook'), ('email', 'E-mail'), ('call', 'Phone call'))
+WA_HISTORY_LIMIT = 50
+WA_MEDIA_LABELS = {'image': 'Photo', 'document': 'Document', 'audio': 'Voice note', 'video': 'Video',
+                   'location': 'Location', 'sticker': 'Sticker', 'contacts': 'Contact card'}
+WA_REPLY_TYPES = ('interactive', 'button')
+_WA_PREFIX = re.compile(r'^\[(image|document|audio|video|location|sticker|contacts|interactive|button|'
+                        r'template|reaction|unsupported|message)(?: ([^\]]*))?\]\s*', re.S)
 
 
-def whatsapp_window_open(lead, now=None):
+def us_number(phone):
+    """+1 and not Canada's: the rest of the North American plan counts as the US, the careful side."""
+    d = _digits(phone)
+    return len(d) == 11 and d[0] == '1' and d[1:4] not in CANADA_AREA_CODES
+
+
+def _blanks_text(n):
+    return '%d fill-in%s' % (n, '' if n == 1 else 's')
+
+
+def _us_marketing(lead, info):
+    """A marketing template (or one whose kind is not known) to a US number."""
+    return us_number(lead.person.phone) and (info.get('category') or 'MARKETING') == 'MARKETING'
+
+
+def _real_whatsapp_in(person_id):
+    """Their own WhatsApp messages here: the ones WhatsApp gave an id (the webhook, the catch-up)."""
+    return db.session.query(CrmTouchpoint.id).filter(
+        CrmTouchpoint.person_id == person_id, CrmTouchpoint.channel == 'whatsapp',
+        CrmTouchpoint.direction == 'in', CrmTouchpoint.external_id.isnot(None), CrmTouchpoint.external_id != '')
+
+
+def _wa_last_inbound(person):
+    """(known, when they last wrote or None) as the WhatsApp CRM has it -- found by their number the
+    way a send finds them; create=False writes nothing and ignores assign_email. Asked at most once
+    a minute per number. (False, None) when it cannot say."""
+    from app.services import wacrm, wacrm_team
+    digits = _digits(person.phone)
+    if not digits or not wacrm_team.enabled():
+        return False, None
+    now = datetime.utcnow()
+    hit = _wa_inbound.get(digits)
+    if hit is not None and now - hit[0] < WA_CONFIRM_FOR:
+        return True, hit[1]
+    try:
+        with wacrm.short_timeouts():
+            r = wacrm_team.ensure_conversation(digits, create=False) or {}
+    except wacrm_team.TeamError as exc:
+        log.info('WhatsApp CRM could not say when the number ending %s last wrote: %s', digits[-4:], exc)
+        return False, None
+    last = _parse_utc(r.get('last_inbound_at')) if r.get('conversation_id') else None
+    if len(_wa_inbound) > 500:
+        _wa_inbound.clear()
+    _wa_inbound[digits] = (now, last, r.get('status') if r.get('conversation_id') else None)
+    return True, last
+
+
+def _wa_cached_inbound(person, now=None):
+    """(known, last, chat status) from what the WhatsApp CRM said in the last minute; (False, None,
+    None) when nothing fresh is kept. No call."""
+    hit = _wa_inbound.get(_digits(person.phone))
+    if hit is not None and (now or datetime.utcnow()) - hit[0] < WA_CONFIRM_FOR:
+        return True, hit[1], (hit[2] if len(hit) > 2 else None)
+    return False, None, None
+
+
+def whatsapp_window_open(lead, now=None, confirm=False):
     """Whether they wrote on WhatsApp in the last 24 hours -- the only time WhatsApp lets a
-    business send free text. After that only an approved template goes through."""
+    business send free text. After that only an approved template goes through.
+
+    Only their real WhatsApp messages count, never a note, a form, a typed-in reply or a lead made
+    by hand; after they opted out, only what they wrote since. `confirm`: the WhatsApp CRM, which
+    keeps Meta's clock, is asked too (at most once a minute per number), just before free text goes."""
     now = now or datetime.utcnow()
-    last = (CrmTouchpoint.query.filter(CrmTouchpoint.person_id == lead.person_id,
-                                       CrmTouchpoint.channel == 'whatsapp', CrmTouchpoint.direction == 'in')
-            .order_by(CrmTouchpoint.created_at.desc()).first())
-    return bool(last and last.created_at and now - last.created_at < timedelta(hours=WINDOW_HOURS))
+    since = now - timedelta(hours=WINDOW_HOURS)
+    out_at = lead.person.wa_opt_out_at
+    if out_at is not None and out_at > since:
+        since = out_at          # after opting out only what they wrote since counts (not the STOP itself)
+    if _real_whatsapp_in(lead.person_id).filter(CrmTouchpoint.created_at > since).first() is None:
+        return False
+    if not confirm:
+        return True
+    known, last = _wa_last_inbound(lead.person)
+    # it cannot say: our own record (its server refuses free text outside the 24 hours anyway)
+    return (last is not None and last > since) if known else True
 
 
-def send_plan(lead, step=None):
+def _template_held(lead, name, step):
+    """Why an approved template is not used for them, or None: a marketing one to a US number, or
+    one with other blanks than the step's words make."""
+    from app.services import wa_templates
+    info = wa_templates.template_info(name)
+    if _us_marketing(lead, info):
+        return WA_US_MARKETING
+    have, want = info.get('variables'), wa_templates.blanks(step.body if step is not None else '')
+    if have is not None and have != want:
+        return WA_BLANKS % (_blanks_text(have), _blanks_text(want))
+    return None
+
+
+def send_plan(lead, step=None, confirm=False, by_hand=False, window_open=None):
     """How a WhatsApp message for this lead would go out, decided once for the button and the
-    automatic run alike: {'mode': 'template' | 'text' | 'link', 'template', 'reason'}.
+    automatic run alike: {'mode': 'template' | 'text' | 'link' | 'blocked', 'template', 'reason'}.
 
       template  the step has a template Meta approved: it goes, whenever they last wrote
       text      no approved template, but they wrote in the last 24 hours: free text goes
       link      neither (or the WhatsApp CRM is not sending): the agent's own WhatsApp opens
-    """
+      blocked   not on WhatsApp at all; the reason says what to do instead: they opted out and
+                have not written since, or a marketing template to a US number
+
+    Screens leave `confirm` off, so nothing is asked while a page draws; a send asks the WhatsApp
+    CRM when they last wrote (whatsapp_window_open). `by_hand`: a person presses Send in the lead
+    page's box, so "Keep leads in step" is enough (not only "...and send"). `window_open`: whether
+    their chat is open, already known (My day, from one batched query): nothing is asked."""
     from app.services import wa_templates
     name = step.wa_template if step is not None else None
-    if not (wa_can_send() and lead.person.phone):
-        return {'mode': 'link', 'template': name,
-                'reason': '' if lead.person.phone else 'There is no phone number for them.'}
-    if name and wa_templates.approved(name):
-        return {'mode': 'template', 'template': name, 'reason': ''}
-    if whatsapp_window_open(lead):
+    person = lead.person
+
+    def _window(confirm=confirm):
+        return window_open if window_open is not None else whatsapp_window_open(lead, confirm=confirm)
+    if not person.phone:
+        return {'mode': 'link', 'template': name, 'reason': 'There is no phone number for them.'}
+    opted_out = person.wa_opt_out_at is not None
+    if not (wa_writes_on() if by_hand else wa_can_send()):
+        if opted_out and not _window(False):
+            return {'mode': 'blocked', 'template': name, 'reason': WA_OPTED_OUT}
+        return {'mode': 'link', 'template': name, 'reason': ''}
+    held = None
+    if name and not opted_out and wa_templates.approved(name):
+        held = _template_held(lead, name, step)
+        if held is None:
+            return {'mode': 'template', 'template': name, 'reason': ''}
+    if _window():
         return {'mode': 'text', 'template': name, 'reason': ''}
+    if opted_out:
+        return {'mode': 'blocked', 'template': name, 'reason': WA_OPTED_OUT}
+    if held == WA_US_MARKETING:
+        return {'mode': 'blocked', 'template': name, 'reason': held}
+    if held:
+        return {'mode': 'link', 'template': name, 'reason': held}
+    if by_hand:
+        return {'mode': 'link', 'template': name, 'reason': WA_PICK_TEMPLATE}
     if name:
         status = wa_templates.statuses().get(name)
         why = ('its template "%s" is %s' % (name, status.lower())) if status else \
@@ -735,32 +1895,106 @@ def send_plan(lead, step=None):
             'reason': 'Over 24 hours since they last wrote, and %s -- send it from your WhatsApp.' % why}
 
 
-def send_step(lead, task, user=None, text=None):
+def _claim_send(task, now=None):
+    """Take a step for sending: committed before WhatsApp is called, so a second click, the other
+    worker or an overlapping jobs run finds it taken. `done_at` holds when it was taken, until it
+    is done. False when it was not open any more."""
+    n = (CrmTask.query.filter(CrmTask.id == task.id, CrmTask.status == 'open')
+         .update({'status': 'sending', 'done_at': now or datetime.utcnow()}, synchronize_session=False))
+    db.session.commit()
+    return bool(n)
+
+
+def _release_send(task, note=None):
+    """WhatsApp certainly did not send it: the step is open again (with why, when there is a why)."""
+    vals = {'status': 'open', 'done_at': None}
+    if note:
+        vals['note'] = note[:200]
+    (CrmTask.query.filter(CrmTask.id == task.id, CrmTask.status == 'sending')
+     .update(vals, synchronize_session=False))
+    db.session.commit()
+
+
+def _note_send(task, note):
+    (CrmTask.query.filter(CrmTask.id == task.id, CrmTask.status == 'sending')
+     .update({'note': note[:200]}, synchronize_session=False))
+    db.session.commit()
+
+
+def _wa_refusal(exc):
+    if getattr(exc, 'code', None) == 'window_closed':
+        return WA_WINDOW_CLOSED
+    return str(exc) or 'WhatsApp did not take it'
+
+
+def _wa_send(task, call):
+    """One send through the WhatsApp CRM, its step taken first (_claim_send). Everything it needs is
+    worked out before; only the call sits between the claim and the outcome.
+
+      'sent', wamid    done by the caller
+      'taken'          somebody else is sending (or sent) this step: nothing went
+      'unsure', exc    no answer, or a server fault after Meta: it may have gone, so the step stays
+                       "sending" for a person to check (stuck_sends) and is never sent again by itself
+      'down', exc      no connection was ever made: nothing went, the step is open as it was
+      'refused', exc   it said no (Meta refused, the 24 hours, a bad number): open again, with why
+    """
+    from app.services import wacrm
+    if task is not None and not _claim_send(task):
+        return 'taken', None
+    try:
+        return 'sent', call()
+    except wacrm.WacrmError as exc:
+        if (exc.status is None and exc.reached) or ((exc.status or 0) >= 500 and exc.code != 'meta_error'):
+            if task is not None:
+                _note_send(task, WA_MAYBE_SENT_NOTE)       # stays "sending": a person checks (stuck_sends)
+            log.warning('WhatsApp send for step %s may have gone: %s', getattr(task, 'id', None), exc)
+            return 'unsure', exc
+        if task is not None:
+            _release_send(task, None if exc.status is None else 'WhatsApp did not send it: %s' % _wa_refusal(exc))
+        return ('down' if exc.status is None else 'refused'), exc
+
+
+def _send_outcome(outcome, exc):
+    if outcome == 'taken':
+        return {'mode': 'taken', 'reason': SEND_TAKEN}
+    if outcome == 'unsure':
+        return {'mode': 'unsure', 'reason': WA_MAYBE_SENT}
+    return {'mode': 'down' if outcome == 'down' else 'failed', 'reason': _wa_refusal(exc)}
+
+
+def send_step(lead, task, user=None, text=None, plan=None, auto=False):
     """Carry out a WhatsApp step: through its approved template, as free text inside the 24-hour
-    window, or as a wa.me link otherwise. Logged and ticked off whichever it was.
-    Returns {'mode': 'sent' | 'link', 'url'?, 'via': 'template' | 'text', 'reason'?}."""
+    window, or as a wa.me link otherwise. Logged and ticked off once it went. `auto`: the jobs
+    runner, which never gets a link (nobody would press send).
+    Returns {'mode': 'sent' | 'link' | 'blocked' | 'taken' | 'unsure' | 'failed' | 'down',
+    'via'?: 'template' | 'text', 'url'?, 'reason'?}."""
     from app.services import wacrm, wa_templates
     step = task.step if task is not None else None
     body = text if text is not None else fill(step.body if step and step.body else (task.title if task else ''),
                                              lead, user)
-    plan = send_plan(lead, step)
+    plan = plan or send_plan(lead, step, confirm=True)
     code = task.code if task is not None else None
+    if plan['mode'] == 'blocked':
+        return {'mode': 'blocked', 'reason': plan['reason']}
     if plan['mode'] == 'template':
-        try:
-            external = wacrm.send_template(lead.person.phone, plan['template'], language=wa_templates.LANGUAGE,
-                                           params=wa_templates.params(step.body, fill_values(lead, user)))
-        except wacrm.WacrmError as exc:
-            plan = {'mode': 'link', 'reason': str(exc)}
-        else:
-            log_touch(lead, 'whatsapp', 'out', body=body, code=code, user=user, status='sent', external_id=external)
-            if task is not None:
-                complete_task(task, user=user)
-            db.session.commit()
-            return {'mode': 'sent', 'via': 'template'}
+        phone, name = lead.person.phone, plan['template']
+        params = wa_templates.params(step.body, fill_values(lead, user))      # worked out before the claim
+        outcome, value = _wa_send(task, lambda: wacrm.send_template(phone, name, language=wa_templates.LANGUAGE,
+                                                                     params=params))
+        if outcome != 'sent':
+            return _send_outcome(outcome, value)
+        log_touch(lead, 'whatsapp', 'out', body=body, code=code, user=user, status='sent', external_id=value,
+                  via='auto' if auto else None)
+        if task is not None:
+            complete_task(task, user=user)
+        db.session.commit()
+        return {'mode': 'sent', 'via': 'template'}
     if plan['mode'] == 'text':
-        result = send_whatsapp(lead, body, user=user, code=code, task=task)
+        result = send_whatsapp(lead, body, user=user, code=code, task=task, checked=True, auto=auto)
         result['via'] = 'text'
         return result
+    if auto:
+        return {'mode': 'failed', 'reason': plan.get('reason') or 'no approved template'}
     result = send_whatsapp_link(lead, body, user=user, code=code, task=task)
     if plan.get('reason'):
         result['reason'] = plan['reason']
@@ -776,33 +2010,419 @@ def send_whatsapp_link(lead, text, user=None, code=None, task=None):
     return {'mode': 'link', 'url': whatsapp_link(lead, text)}
 
 
-def send_whatsapp(lead, text, user=None, code=None, task=None):
-    """Send through the WhatsApp CRM when it is connected, otherwise hand back a wa.me link for
-    the agent's own WhatsApp. Either way the message is logged and the task ticked off.
+def send_whatsapp(lead, text, user=None, code=None, task=None, checked=False, auto=False):
+    """Free text through the WhatsApp CRM only while it is sending and they wrote in the last 24
+    hours, confirmed with it first unless send_plan just did (`checked`); otherwise a wa.me link
+    for the agent's own WhatsApp, logged and the task ticked off. Nothing at all to somebody who
+    opted out and has not written since. `auto`: the jobs runner, which never gets a link.
 
-    Returns {'mode': 'sent'} or {'mode': 'link', 'url': ...}.
+    Returns {'mode': 'sent'}, {'mode': 'link', 'url', 'reason'?}, or one that did not go
+    ('blocked' | 'taken' | 'unsure' | 'failed' | 'down', with 'reason').
     """
     from app.services import wacrm
+    person = lead.person
     result = {'mode': 'link', 'url': whatsapp_link(lead, text)}
-    status = 'opened'
-    external = None
-    if wa_can_send() and lead.person.phone:
-        try:
-            external = wacrm.send_text(lead.person.phone, text)
-            result, status = {'mode': 'sent'}, 'sent'
-        except wacrm.WacrmError as exc:
-            # outside the 24-hour window Meta wants a template; the agent's own WhatsApp still works
-            result['warning'] = str(exc)
-    log_touch(lead, 'whatsapp', 'out', body=text, code=code, user=user, status=status,
-              external_id=external)
+    if wa_can_send() and person.phone:
+        if checked or whatsapp_window_open(lead, confirm=True):
+            phone = person.phone
+            outcome, value = _wa_send(task, lambda: wacrm.send_text(phone, text))
+            if outcome != 'sent':
+                return _send_outcome(outcome, value)
+            log_touch(lead, 'whatsapp', 'out', body=text, code=code, user=user, status='sent', external_id=value,
+                      via='auto' if auto else None)
+            if task is not None:
+                complete_task(task, user=user)
+            db.session.commit()
+            return {'mode': 'sent'}
+        if person.wa_opt_out_at is not None:
+            return {'mode': 'blocked', 'reason': WA_OPTED_OUT}
+        result['reason'] = WA_WINDOW_SHUT
+    elif person.wa_opt_out_at is not None and not whatsapp_window_open(lead):
+        return {'mode': 'blocked', 'reason': WA_OPTED_OUT}
+    if auto:
+        return {'mode': 'failed', 'reason': result.get('reason') or WA_NOT_SENDING}
+    log_touch(lead, 'whatsapp', 'out', body=text, code=code, user=user, status='opened')
     if task is not None:
         complete_task(task, user=user)
     db.session.commit()
     return result
 
 
-def log_call(lead, outcome, note=None, user=None, task=None):
-    """A call and how it went. Returns the number of unanswered calls in a row."""
+class WaChatRefused(Exception):
+    """The lead page's chat could not be made safely. `kind`: no_phone | ambiguous | wrong_number |
+    invalid | failed | down. The message is the sentence for the agent."""
+    def __init__(self, message, kind='failed'):
+        super().__init__(message)
+        self.kind = kind
+
+
+def wa_ensure_chat(person, create=True, assign_email=None, now=None):
+    """Their contact and chat in the WhatsApp CRM (contract 1): made when missing (create), given to
+    assign_email only if nobody has it, and certainly theirs -- the number it answers for is theirs
+    by W1's rule (same_whatsapp_number: a contact saved without its country code is the same
+    number, a different number is refused), and no other person here holds that contact. The ids
+    are kept through wa_link. The dict ensure answered ({} when create=False found nothing).
+    Raises WaChatRefused. No commit."""
+    from app.services import wacrm_team
+    digits = _digits(person.phone)
+    if len(digits) < 8:
+        raise WaChatRefused(WA_LINE_NO_PHONE, 'no_phone')
+    try:
+        r = wacrm_team.ensure_conversation(digits, name=_real_name(person), email=person.email, create=create,
+                                           assign_email=(assign_email if create else None)) or {}
+    except wacrm_team.TeamError as exc:
+        if exc.code == 'ambiguous_contact' or exc.status == 409:
+            raise WaChatRefused(WA_ERRORS['ambiguous_contact'], 'ambiguous')
+        if exc.code == 'invalid_phone':
+            raise WaChatRefused(WA_ERRORS['invalid_phone'], 'invalid')
+        if exc.code == 'not_configured':
+            raise WaChatRefused(WA_ERRORS['not_configured'], 'failed')
+        raise WaChatRefused(str(exc) or 'WhatsApp did not answer', 'down' if exc.status is None else 'failed')
+    cid = str(r.get('contact_id') or '') or None
+    if cid is None:
+        if create:
+            raise WaChatRefused(WA_NO_CHAT, 'failed')
+        return r
+    if not r.get('contact_phone') or not same_whatsapp_number(digits, r['contact_phone']):
+        raise WaChatRefused(WA_WRONG_NUMBER, 'wrong_number')
+    if CrmPerson.query.filter(CrmPerson.wacrm_contact_id == cid, CrmPerson.id != person.id).first() is not None:
+        raise WaChatRefused(WA_WRONG_NUMBER, 'wrong_number')
+    wa_link(person, cid, r.get('conversation_id'), phone=r.get('contact_phone'))
+    _wa_inbound[digits] = (now or datetime.utcnow(),
+                           _parse_utc(r.get('last_inbound_at')) if r.get('conversation_id') else None,
+                           r.get('status') if r.get('conversation_id') else None)
+    return r
+
+
+def send_by_hand(lead, user, kind, text=None, template=None, params=None, task=None, answer=None):
+    """A message a person chose to send from the lead page's box (or the card beside WhatsApp chats):
+    free text inside the 24 hours, or an approved template. Works in "Keep leads in step" and "...and
+    send"; never in Off. The chat is ensured first and must be theirs (wa_ensure_chat); a follow-up it
+    carries out -- the one given, else the due WhatsApp follow-up with this template -- is taken before
+    it goes, so nothing goes twice, and ticked only once WhatsApp took it. Never a wa.me link.
+    {'mode': 'sent' | 'unsure' | 'off' | 'blocked' | 'taken' | 'window_closed' | 'wrong_number' |
+    'ambiguous' | 'invalid' | 'no_phone' | 'failed' | 'down', 'reason'?, 'via'?}"""
+    from app.services import wacrm, wa_templates
+    person = lead.person
+    now = datetime.utcnow()
+    if not wa_writes_on():
+        return {'mode': 'off', 'reason': BOX_OFF}
+    if not person.phone:
+        return {'mode': 'no_phone', 'reason': WA_LINE_NO_PHONE}
+    if task is None and kind == 'template':
+        due = lead.open_task
+        if (due is not None and due.channel == 'whatsapp' and due.step is not None
+                and due.step.wa_template and due.step.wa_template == template):
+            task = due
+    if task is not None and task.status != 'open':
+        return {'mode': 'taken', 'reason': SEND_TAKEN if task.status == 'sending' else STEP_DONE}
+    values = None
+    info = {}
+    if kind == 'template':
+        if person.wa_opt_out_at is not None:
+            return {'mode': 'blocked', 'reason': WA_OPTED_OUT}
+        if not template or not wa_templates.approved(template):
+            return {'mode': 'blocked', 'reason': WA_NOT_APPROVED}
+        info = wa_templates.template_info(template)
+        if _us_marketing(lead, info):
+            return {'mode': 'blocked', 'reason': WA_US_MARKETING}
+        if params is None and task is not None and task.step is not None and task.step.wa_template == template:
+            values = fill_values(lead, user)
+            params = wa_templates.params(task.step.body, values)
+        params = [str(p).strip() for p in params or []]
+        need = info.get('variables')
+        if (need is not None and len(params) != need) or any(not p for p in params):
+            return {'mode': 'blocked', 'reason': WA_FILL_INS}
+        words = wa_templates.template_text(template, params) or '[template %s]' % template
+    else:
+        text = (text or '').strip()
+        if not text and task is not None:
+            text = fill(task.step.body if task.step is not None and task.step.body else task.title, lead, user)
+        if not text:
+            return {'mode': 'blocked', 'reason': WA_WRITE_FIRST}
+        text = text[:4000]
+        words = text
+    email = ((lead.owner.email or '') if lead.owner is not None else '').strip() or None
+    try:
+        r = wa_ensure_chat(person, create=True, assign_email=email, now=now)
+    except WaChatRefused as exc:
+        db.session.rollback()
+        return {'mode': exc.kind, 'reason': str(exc)}
+    db.session.commit()              # the ids are kept even if nothing goes
+    digits = _digits(person.phone)
+    if kind == 'text':
+        out_at = person.wa_opt_out_at
+        if 'last_inbound_at' in r:
+            last = _parse_utc(r.get('last_inbound_at')) if r.get('conversation_id') else None
+            since = max(now - timedelta(hours=WINDOW_HOURS), out_at or datetime.min)
+            closed = last is None or last <= since
+            never = last is None
+        else:
+            closed, never = not whatsapp_window_open(lead), False     # an older WhatsApp CRM: our own record
+        if closed:
+            if out_at is not None:
+                return {'mode': 'blocked', 'reason': WA_OPTED_OUT}
+            return {'mode': 'window_closed', 'reason': WA_LINE_NEVER if never else WA_CHAT_CLOSED}
+    phone = person.phone
+    if kind == 'template':
+        language = info.get('language') or None
+        outcome, value = _wa_send(task, lambda: wacrm.send_template(phone, template, language=language,
+                                                                     params=params))
+    else:
+        outcome, value = _wa_send(task, lambda: wacrm.send_text(phone, text))
+    if outcome == 'refused' and getattr(value, 'code', None) == 'window_closed':
+        _wa_inbound.pop(digits, None)
+        return {'mode': 'window_closed', 'reason': WA_CHAT_CLOSED}
+    if outcome != 'sent':
+        return _send_outcome(outcome, value)
+    code = task.code if task is not None else (answer.code if answer is not None else None)
+    log_touch(lead, 'whatsapp', 'out', body=words, code=code, user=user, status='sent', external_id=value)
+    if answer is not None:
+        answer.use_count = (answer.use_count or 0) + 1
+    if task is not None:
+        complete_task(task, user=user)
+    db.session.commit()
+    return {'mode': 'sent', 'via': kind}
+
+
+def box_templates(lead, user=None):
+    """The approved templates for the lead page's box: {'known', 'error', 'items'}; each item is
+    {name, label, language, body, vars, fill, blocked, warn, chosen}. The next follow-up's template
+    (chosen) comes first with its fill-ins worked out. None at all for somebody who opted out."""
+    from app.services import wa_templates
+    known = wa_templates.heard()
+    out = {'known': known, 'error': wa_templates.error() if known else None, 'items': []}
+    if lead.person.wa_opt_out_at is not None or not known:
+        return out
+    values = fill_values(lead, user)
+    task = lead.open_task
+    step = task.step if task is not None and task.channel == 'whatsapp' else None
+    pick = step.wa_template if step is not None else None
+    kf = wa_templates.known_fills(values)
+    items = []
+    for t in wa_templates.approved_templates():
+        name, n = t['name'], t.get('variables')
+        warn = None
+        if name == pick:
+            fills = wa_templates.params(step.body, values)
+            if n is not None and wa_templates.blanks(step.body) != n:
+                warn = WA_BLANKS % (_blanks_text(n), _blanks_text(wa_templates.blanks(step.body)))
+        elif name in kf:
+            fills = list(kf[name]['fill'])
+        else:
+            fills = [values['name']] + [''] * max((n or 1) - 1, 0)
+        if n is not None:
+            fills = (fills + [''] * n)[:n]
+        label = kf[name]['title'] if name in kf else name.replace('_', ' ')
+        items.append({'name': name, 'label': label, 'language': t.get('language'), 'body': t.get('body') or '',
+                      'vars': n, 'fill': fills, 'warn': warn, 'chosen': name == pick,
+                      'blocked': WA_US_MARKETING if _us_marketing(lead, t) else None})
+    items.sort(key=lambda i: (not i['chosen'], i['label'].lower()))
+    out['items'] = items
+    return out
+
+
+# ======================================================================================= the lead page's strip
+
+def ist_day_text(dt):
+    d = dt + IST
+    return '%d %s' % (d.day, d.strftime('%b'))
+
+
+def wa_chat_state(lead, confirm=False, now=None):
+    """Where their WhatsApp chat stands, for the strip and the box -- from portal data, plus what
+    the WhatsApp CRM said in the last minute. `confirm` asks it (at most once a minute): only the
+    live endpoint does, never the page. {'mode', 'state', 'left', 'last_in', 'opted_out_at',
+    'chat_status'}; state: off | no_phone | opted_out_open | opted_out | open | never | closed."""
+    from app.services import crm_metrics
+    now = now or datetime.utcnow()
+    mode, person = wa_mode(), lead.person
+    digits = _digits(person.phone)
+    last = crm_metrics.last_touches([person.id])[person.id]['wa_last_in']
+    known, w_last, status = False, None, None
+    if digits and mode != 'off':
+        if confirm:
+            known, w_last = _wa_last_inbound(person)
+            status = (_wa_inbound.get(digits) or (0, 0, None))[2] if known else None
+        else:
+            known, w_last, status = _wa_cached_inbound(person, now)
+    if known:
+        last = w_last                       # the WhatsApp CRM keeps Meta's clock
+    out_at = person.wa_opt_out_at
+    since = max(now - timedelta(hours=WINDOW_HOURS), out_at or datetime.min)
+    open_ = last is not None and last > since
+    left = crm_metrics.window_left_hours(last, now) if open_ else 0
+    if mode == 'off':
+        state = 'off'
+    elif not digits:
+        state = 'no_phone'
+    elif out_at is not None and open_:
+        state = 'opted_out_open'
+    elif out_at is not None:
+        state = 'opted_out'
+    elif open_:
+        state = 'open'
+    elif last is None:
+        state = 'never'
+    else:
+        state = 'closed'
+    return {'mode': mode, 'state': state, 'left': int(round(left or 0)), 'last_in': last,
+            'opted_out_at': out_at, 'chat_status': status}
+
+
+def wa_line(wa):
+    """The sentence on the journey card's WhatsApp strip."""
+    st = wa['state']
+    left = '%dh' % wa['left'] if wa['left'] >= 1 else 'less than 1h'
+    when = ist_day_text(wa['opted_out_at']) if wa['opted_out_at'] else ''
+    return {'off': WA_LINE_OFF, 'no_phone': WA_LINE_NO_PHONE, 'open': WA_LINE_OPEN % left,
+            'closed': WA_LINE_CLOSED, 'never': WA_LINE_NEVER, 'opted_out': WA_LINE_OPTED_OUT % when,
+            'opted_out_open': WA_LINE_OPTED_OUT_OPEN % (when, left)}[st]
+
+
+def box_note(wa):
+    """The sentence above the message box ('' when the chat is open and nothing needs saying)."""
+    when = ist_day_text(wa['opted_out_at']) if wa['opted_out_at'] else ''
+    return {'off': BOX_OFF, 'no_phone': WA_LINE_NO_PHONE, 'opted_out': WA_LINE_OPTED_OUT % when,
+            'opted_out_open': BOX_OPTED_OUT_OPEN, 'open': '', 'closed': BOX_CLOSED,
+            'never': WA_LINE_NEVER}[wa['state']]
+
+
+def social_windows(lead, now=None):
+    """{channel: whether Meta still lets us answer there} for the Instagram / Messenger they wrote
+    on: they wrote in the last 24 hours. One query. Typed-in replies carry no id, so never count."""
+    chans = social_reply_channels(lead)
+    if not chans:
+        return {}
+    since = (now or datetime.utcnow()) - timedelta(hours=WINDOW_HOURS)
+    rows = dict(db.session.query(CrmTouchpoint.channel, func.max(CrmTouchpoint.created_at))
+                .filter(CrmTouchpoint.person_id == lead.person_id, CrmTouchpoint.channel.in_(chans),
+                        CrmTouchpoint.direction == 'in', CrmTouchpoint.external_id.isnot(None),
+                        CrmTouchpoint.external_id != '')
+                .group_by(CrmTouchpoint.channel).all())
+    return {ch: bool(rows.get(ch) and rows[ch] > since) for ch in chans}
+
+
+def _plain_sync_error(err):
+    return WA_ERRORS.get(WA_ERRORS_BEFORE.get(err, ''), err)
+
+
+def wa_sync_state(person, now=None):
+    """Whether they are in step with the WhatsApp CRM, for admins and the owner: {'state', 'text',
+    'retry'}, or None while writes are off or there is nothing to sync. No call."""
+    if not wa_writes_on() or not (person.phone or person.wacrm_contact_id):
+        return None
+    now = now or datetime.utcnow()
+    due, err = person.wacrm_sync_due_at, person.wa_sync_error
+    if err and (due is None or due > now + WA_LEASE):
+        return {'state': 'problem', 'text': SYNC_PROBLEM % _plain_sync_error(err), 'retry': True}
+    if due is not None:
+        return {'state': 'waiting', 'text': SYNC_WAITING, 'retry': False}
+    if person.wa_synced_at:
+        return {'state': 'ok', 'text': SYNC_OK, 'retry': False}
+    return {'state': 'problem', 'text': SYNC_PROBLEM % SYNC_NOT_ADDED, 'retry': True}
+
+
+# ======================================================================================= older messages
+
+def wa_import_history(lead, now=None):
+    """Their older WhatsApp messages onto the lead page, once: the latest WA_HISTORY_LIMIT of their chat
+    (GET /api/v1/conversations/{id}/messages), at the times they were written, each once (by its
+    WhatsApp id). Only for somebody whose chat we know and who has no WhatsApp message with an id here
+    yet. History only: no stage, temperature, follow-up or "last activity" change, nothing counted in the
+    numbers (status 'imported'). Taken first, so two tabs do not both do it; on any failure nothing is
+    kept and the next opening of the lead page tries again. How many came in, or None."""
+    from app.services import wacrm
+    person = lead.person
+    pid, conv = person.id, person.wacrm_conversation_id
+    if not conv or person.wa_history_at is not None or not wacrm.enabled():
+        return None
+    if db.session.query(CrmTouchpoint.id).filter(
+            CrmTouchpoint.person_id == pid, CrmTouchpoint.channel == 'whatsapp',
+            CrmTouchpoint.external_id.isnot(None), CrmTouchpoint.external_id != '').first() is not None:
+        return None
+    now = now or datetime.utcnow()
+    lead_id = lead.id
+    n = (CrmPerson.query.filter(CrmPerson.id == pid, CrmPerson.wa_history_at.is_(None))
+         .update({'wa_history_at': now}, synchronize_session=False))
+    db.session.commit()
+    if not n:
+        return None
+    try:
+        with wacrm.short_timeouts():
+            rows = wacrm.conversation_messages(conv, limit=WA_HISTORY_LIMIT)
+        rows = [r for r in reversed(list(rows or [])) if isinstance(r, dict)]
+        seen, keep = set(), []
+        for r in rows:
+            wamid = str(r.get('whatsapp_message_id') or '').strip()[:120]
+            at = _parse_utc(r.get('created_at'))
+            if wamid and at and wamid not in seen:
+                seen.add(wamid)
+                keep.append((wamid, at, r))
+        have = set()
+        if seen:
+            have = {w for (w,) in db.session.query(CrmTouchpoint.external_id)
+                    .filter(CrmTouchpoint.external_id.in_(sorted(seen)))}
+        person = db.session.get(CrmPerson, pid)
+        lead = db.session.get(CrmLead, lead_id)
+        target = wa_lead_for(person) or lead
+        added = 0
+        for wamid, at, r in keep:
+            if wamid in have:
+                continue
+            ct = r.get('content_type')
+            if ct == 'template':
+                body = r.get('content_text') or '[template %s]' % (r.get('template_name') or '')
+            else:
+                body = wa_body(r.get('content_text'), ct)
+            db.session.add(CrmTouchpoint(lead=target, person_id=pid, channel='whatsapp',
+                                         direction='in' if r.get('direction') == 'inbound' else 'out',
+                                         body=body[:4000], status='imported', via='import', external_id=wamid,
+                                         created_at=at))
+            added += 1
+        db.session.commit()
+        return added
+    except Exception:      # noqa: BLE001 -- history is a nicety: the next opening tries again
+        db.session.rollback()
+        log.info('Older WhatsApp messages not brought in for person %s', pid, exc_info=True)
+        (CrmPerson.query.filter(CrmPerson.id == pid, CrmPerson.wa_history_at == now)
+         .update({'wa_history_at': None}, synchronize_session=False))
+        db.session.commit()
+        return None
+
+
+def call_back_at(choice, at=None, now=None):
+    """When "Call back" is for, as UTC: 'in 1 hour', 'this evening' (6 pm India time, an hour from
+    now at the soonest), 'tomorrow morning' (10 am) or a time they picked ('at', as typed in
+    India: 2026-10-12T17:30). None when it does not parse or is not later than now."""
+    now = now or datetime.utcnow()
+    today = (now + IST).date()
+    if choice == '1h':
+        return now + timedelta(hours=1)
+    if choice == 'evening':
+        return max(datetime.combine(today, time(18, 0)) - IST, now + timedelta(hours=1))
+    if choice == 'morning':
+        return datetime.combine(today + timedelta(days=1), time(10, 0)) - IST
+    if choice == 'at':
+        try:
+            when = datetime.strptime((at or '').strip()[:16], '%Y-%m-%dT%H:%M') - IST
+        except ValueError:
+            return None
+        return when if when > now else None
+    return None
+
+
+def first_follow_up(lead):
+    """The open task when it is the first follow-up of the pipeline's first stage, else None."""
+    t = lead.open_task
+    if t is None or t.step is None or not lead.pipeline or lead.stage_id != lead.pipeline.first_stage.id:
+        return None
+    return t if t.step is _next_step(lead.stage) else None
+
+
+def log_call(lead, outcome, note=None, user=None, task=None, call_back_at=None):
+    """A call and how it went. Returns the number of unanswered calls in a row. `call_back_at`
+    (for "Call back"): a follow-up call goes on their list for then."""
     log_touch(lead, 'call', 'out', body=note, code=task.code if task else None, outcome=outcome,
               user=user)
     if outcome == 'connected':
@@ -815,46 +2435,118 @@ def log_call(lead, outcome, note=None, user=None, task=None):
         lead.temperature = 'DL'
     if task is not None and task.status == 'open':
         complete_task(task, user=user, note=outcome)
+    if outcome == 'call_back' and call_back_at and lead.status == 'open':
+        db.session.add(CrmTask(lead=lead, step=None, code=None, title=CALL_BACK_TITLE, channel='call', auto=False,
+                               due_at=call_back_at, owner_id=lead.owner_id or getattr(user, 'id', None)))
     db.session.commit()
     return no_answer_streak(lead)
 
 
 # ======================================================================================= jobs
 
-def run_auto_steps(now=None, limit=200):
-    """Send the steps marked automatic that are due -- only once the WhatsApp CRM is connected,
-    and only through an approved template or inside the 24-hour window Meta allows."""
-    from app.services import wacrm
+def run_auto_steps(now=None, limit=200, budget=None):
+    """Send the steps marked automatic that are due -- only once the WhatsApp CRM is sending, and
+    only through an approved template or inside the 24-hour window Meta allows. A step that should
+    not go by itself goes back on the owner's list, once, with why:
+
+      they opted out               never sent by itself
+      overdue by over a day        "Was due ...; check before sending" (switching sending on does
+                                   not send the backlog)
+      needs their OK               a first message (a template) to somebody who neither ticked
+                                   WhatsApp on a form nor wrote to us, while Set-up asks for it
+      WhatsApp would not take it   no approved template outside the 24 hours, a US number, other
+                                   blanks, or WhatsApp said no
+
+    Each step is taken before it goes (_wa_send), so an overlapping run never sends it twice; one
+    that may have gone waits for a person (stuck_sends), and the run stops. No new steps are taken
+    after WA_AUTO_BUDGET seconds: the rest go next run."""
     if not wa_can_send():
         return {'crm_auto_sent': 0}
     now = now or datetime.utcnow()
+    needs_ok = crm_settings()['wa_first_needs_ok']
+    started, budget = monotonic(), (WA_AUTO_BUDGET if budget is None else budget)
     sent = 0
     due = (CrmTask.query.filter(CrmTask.status == 'open', CrmTask.auto.is_(True),
                                 CrmTask.channel == 'whatsapp', CrmTask.due_at <= now)
            .order_by(CrmTask.due_at).limit(limit).all())
     for task in due:
-        lead = task.lead
-        if not lead.person.phone or lead.status == 'lost':
-            # nothing to send to, or nobody to send it to any more: off the list, not retried
-            task.status, task.done_at, task.note = 'skipped', now, 'Not sent automatically'
-            db.session.commit()
-            continue
+        if monotonic() - started > budget:
+            break                                          # the rest go next run
         try:
-            plan = send_plan(lead, task.step)
-            if plan['mode'] == 'link':
-                # nothing that WhatsApp will let us send by itself: back to the owner's list, once,
-                # with the reason, instead of being tried again every minute
-                task.auto = False
-                task.note = ('Not sent automatically: ' + (plan.get('reason') or 'no approved template'))[:200]
-                db.session.commit()
+            lead = task.lead
+            person = lead.person
+            if not person.phone or lead.status == 'lost':
+                # nothing to send to, or nobody to send it to any more: off the list, not retried
+                _auto_skip(task, now)
                 continue
-            result = send_step(lead, task)
-            if result.get('mode') == 'sent':
+            if person.wa_opt_out_at:
+                # they said stop: back to the owner's list, once, and never sent by itself
+                _auto_hold(task, 'Not sent automatically: they asked for no more WhatsApp messages')
+                continue
+            if task.due_at < now - WA_AUTO_LATE:
+                _auto_hold(task, WA_LATE % (task.due_at + IST).strftime('%d %b'))
+                continue
+            plan = send_plan(lead, task.step, confirm=True)
+            if plan['mode'] in ('link', 'blocked'):
+                # nothing that WhatsApp will let us send by itself: back to the owner's list, once,
+                # with the reason, instead of being tried again every run
+                _auto_hold(task, 'Not sent automatically: ' + (plan.get('reason') or 'no approved template'))
+                continue
+            if (plan['mode'] == 'template' and needs_ok and not person.consent_whatsapp
+                    and _real_whatsapp_in(person.id).first() is None):
+                _auto_hold(task, WA_NEEDS_OK)
+                continue
+            result = send_step(lead, task, plan=plan, auto=True)
+            mode = result.get('mode')
+            if mode == 'sent':
                 sent += 1
+            elif mode == 'failed':
+                _auto_hold(task, 'Not sent automatically: ' + (result.get('reason') or 'WhatsApp did not take it'))
+            elif mode in ('unsure', 'down'):
+                break               # WhatsApp is not answering properly: nothing more this run
         except Exception:      # noqa: BLE001 -- one bad number must not stop the rest
             db.session.rollback()
             log.warning('CRM auto step %s failed', task.id, exc_info=True)
-    return {'crm_auto_sent': sent}
+    return {'crm_auto_sent': sent, 'crm_sends_to_check': _stuck(now).count()}
+
+
+def _auto_hold(task, note):
+    """Back on the owner's list, never sent by itself -- only while it is still open."""
+    (CrmTask.query.filter(CrmTask.id == task.id, CrmTask.status == 'open')
+     .update({'auto': False, 'note': note[:200]}, synchronize_session=False))
+    db.session.commit()
+
+
+def _auto_skip(task, now):
+    (CrmTask.query.filter(CrmTask.id == task.id, CrmTask.status == 'open')
+     .update({'status': 'skipped', 'done_at': now, 'note': 'Not sent automatically'}, synchronize_session=False))
+    db.session.commit()
+
+
+def _stuck(now=None):
+    now = now or datetime.utcnow()
+    return CrmTask.query.filter(CrmTask.status == 'sending',
+                                or_(CrmTask.done_at.is_(None), CrmTask.done_at <= now - WA_SEND_STUCK))
+
+
+def stuck_sends(now=None, limit=100):
+    """Steps still "sending" WA_SEND_STUCK after they were taken -- the worker stopped mid-send, or
+    WhatsApp did not say whether it went. Never sent again by themselves: a person checks the chat
+    (settle_send). Oldest first, for Set-up."""
+    return _stuck(now).order_by(CrmTask.done_at).limit(limit).all()
+
+
+def settle_send(task, went, user=None):
+    """A person checked the chat of a step stuck "sending": it went (done, next step planned) or
+    it did not (back on the owner's list, never automatic again). False when it is not stuck."""
+    if task.status != 'sending':
+        return False
+    if went:
+        complete_task(task, user=user, note='Checked: it went')
+    else:
+        task.status, task.done_at, task.auto, task.note = 'open', None, False, 'Checked: it did not go'
+    db.session.commit()
+    return True
 
 
 def run_stage_automations(now=None, limit=500):
@@ -886,25 +2578,137 @@ def run_stage_automations(now=None, limit=500):
                 if heard:
                     continue
             reason = st.auto_reason or 'Moved automatically'
+            # an imported lead whose person is not in the WhatsApp CRM yet stays out of it until the
+            # backfill, a move by a person or a reply brings them in -- imports start no automations
+            unsynced = lead.imported and not lead.person.wacrm_contact_id
             move_stage(lead, target, reason=reason + ' (automatic)',
-                       fallout_reason=reason if target.kind == 'lost' else None)
+                       fallout_reason=reason if target.kind == 'lost' else None, sync=not unsynced)
             moved += 1
     db.session.commit()
     return {'crm_auto_moved': moved}
 
 
+def _wa_webhook_saved():
+    return crm_settings_raw().get('wacrm_webhook') or {}
+
+
+def wa_catch_up(now=None):
+    """Each jobs run: the last message of every WhatsApp chat that changed since the last run
+    (wacrm_team.activity), so a reply the webhook missed -- the CRM was down, or it had switched
+    us off -- still reaches its lead, at the time it was written. WA_CATCHUP_LIMIT chats a run;
+    the newest two minutes are left for the webhook. Only where "Connect replies" was done here.
+    Their WhatsApp contacts follow through the jobs runner's sync, not one thread each."""
+    from app.services import settings, wacrm, wacrm_team
+    if not (wacrm_team.enabled() and _wa_webhook_saved().get('id')):
+        return {}
+    now = now or datetime.utcnow()
+    state = dict(settings.get_setting(WA_CATCHUP_KEY) or {})
+    try:
+        with wacrm.short_timeouts():
+            page = wacrm_team.activity(state.get('since') or now - WA_CATCHUP_FIRST, limit=WA_CATCHUP_LIMIT)
+    except wacrm_team.TeamError as exc:
+        if exc.status == 422 and state.pop('since', None):
+            settings.set_setting(WA_CATCHUP_KEY, state)      # a place it no longer understands: the last day again
+        log.warning('WhatsApp CRM catch-up failed: %s', exc)
+        return {'crm_wa_caught_up': 'failed'}
+    items = page['items']
+    wamids = [(i.get('last_inbound') or {}).get('whatsapp_message_id') for i in items]
+    wamids = [w for w in wamids if w]
+    known = {r[0] for r in db.session.query(CrmTouchpoint.external_id)
+             .filter(CrmTouchpoint.external_id.in_(wamids)).all()} if wamids else set()
+    caught, cursor = 0, state.get('since')
+    with wa_sync_later():
+        for item in items:
+            last = _parse_utc(item.get('last_message_at'))
+            if last is not None and last > now - WA_CATCHUP_SETTLE:
+                break                     # still arriving: the webhook is on its way; the next run looks again
+            li = item.get('last_inbound') or {}
+            wamid, at = li.get('whatsapp_message_id'), _parse_utc(li.get('at'))
+            if wamid and at and wamid not in known:
+                try:
+                    r = record_whatsapp_in(contact_id=item.get('contact_id'),
+                                           conversation_id=item.get('conversation_id'),
+                                           phone=item.get('contact_phone'), name=item.get('contact_name'),
+                                           wamid=wamid, text=li.get('text'), content_type=li.get('content_type'),
+                                           at=at, chat_has_assignee=bool(item.get('assignee_email')))
+                    caught += r not in ('duplicate', 'ignored', 'failed')
+                    known.add(wamid)
+                except Exception:      # noqa: BLE001 -- one bad message must not stop the rest
+                    db.session.rollback()
+                    log.exception('WhatsApp CRM catch-up: message %s not stored', wamid)
+            cursor = item.get('last_message_at') or cursor
+    if cursor and cursor != state.get('since'):
+        state.update(since=cursor, at=now.isoformat(timespec='seconds'))
+        settings.set_setting(WA_CATCHUP_KEY, state)
+    return {'crm_wa_caught_up': caught}
+
+
+def wa_webhook_health(now=None):
+    """At most hourly: is our webhook still on in the WhatsApp CRM? It switches an address off
+    after 15 failed deliveries in a row, and then every reply is missed. Switched back on (not
+    while WhatsApp is off here) and the admins told -- once an incident, at most once a day.
+    Only where "Connect replies" was done here."""
+    from app.services import settings, wacrm
+    hook = _wa_webhook_saved()
+    if not (wacrm.enabled() and hook.get('id')):
+        return {}
+    now = now or datetime.utcnow()
+    state = dict(settings.get_setting(WA_HEALTH_KEY) or {})
+    checked = _parse_utc(state.get('checked_at'))
+    if checked is not None and now - checked < WA_HEALTH_EVERY:
+        return {}
+    state['checked_at'] = now.isoformat(timespec='seconds')
+    problem = None
+    try:
+        with wacrm.short_timeouts():
+            rows = wacrm.list_webhooks() or []
+            ours = (next((w for w in rows if str(w.get('id')) == str(hook['id'])), None)
+                    or next((w for w in rows if hook.get('url') and w.get('url') == hook['url']), None))
+            if ours is None:
+                problem = 'missing'
+            elif ours.get('is_active') is False:
+                problem = 'off'
+                if wa_writes_on():
+                    wacrm.switch_webhook_on(ours['id'])
+                    problem = 'switched_on'
+    except wacrm.WacrmError as exc:
+        log.warning('WhatsApp CRM webhook check failed: %s', exc)
+        if problem is None:
+            settings.set_setting(WA_HEALTH_KEY, state)
+            return {'crm_wa_webhook': 'unreachable'}
+    if problem is None:
+        state['problem'] = None
+    else:
+        told = _parse_utc(state.get('told_at'))
+        if state.get('problem') is None and (told is None or now - told >= WA_HEALTH_RETELL):
+            from app.services import notify
+            title, body = WA_HOOK_BELLS[problem]
+            for u in User.query.filter(User.is_admin.is_(True), User.is_active.is_(True)).all():
+                notify.push(u.id, 'crm_failed', title=title, body=body, link='/admin/crm/connection')
+            state['told_at'] = now.isoformat(timespec='seconds')
+        state['problem'] = problem
+    settings.set_setting(WA_HEALTH_KEY, state)      # commits the bells too
+    return {'crm_wa_webhook': problem or 'ok'}
+
+
 EVENTS = {
     # code: (what happened, the stage it moves the lead to, if the pipeline has it)
-    'Q': ('Quote sent', 'quoted'),
-    'PLS': ('Payment link sent', 'pipeline'),
+    'Q': ('I sent the quote', 'quoted'),
+    'PLS': ('I sent the payment link', 'pipeline'),
 }
+MILESTONES = frozenset(EVENTS)
+
+
+def owner_line(before, after):
+    return OWNER_LINE % (before.full_name if before else NOBODY, after.full_name if after else NOBODY)
 
 
 def mark_event(lead, code, user=None, note=None):
-    """A button on the lead: Quote sent (Q) / Payment link sent (PLS). Logged under its code, and
-    the lead moves forward to the matching stage -- never back. Returns the stage it moved to."""
+    """A button on the lead: I sent the quote (Q) / I sent the payment link (PLS). A person says they
+    did it: a system line under its code, never a WhatsApp message, and nothing goes to the customer.
+    The lead moves forward to the matching stage -- never back. Returns the stage it moved to."""
     label, stage_key = EVENTS[code]
-    log_touch(lead, 'whatsapp', 'out', body=note or label, code=code, user=user, status='sent')
+    log_touch(lead, 'system', 'none', body=note or label, code=code, user=user)
     target = next((s for s in (lead.pipeline.stages if lead.pipeline else []) if s.key == stage_key), None)
     moved = None
     if target is not None and lead.status == 'open' and lead.stage and target.position > lead.stage.position:
@@ -1029,7 +2833,14 @@ def record_social(ev):
                 person.identities.append(CrmIdentity(kind=k, value=v))
         lead = next((l for l in person.leads if l.status == 'open'), None) or (person.leads[0] if person.leads else None)
         if lead is not None:
+            from app.services import crm_metrics, notify
+            was_waiting = crm_metrics.waiting_on_us(crm_metrics.last_touches([person.id])[person.id])
             record_reply(lead, text, channel=channel, external_id=ev.get('external_id'))
+            if not was_waiting and lead.owner_id and lead.status == 'open':
+                # only the first message of a wait rings, so a run of messages is one bell
+                notify.push(lead.owner_id, 'crm_lead',
+                            title=SOCIAL_BELL % (first_name(person.display_name) or 'A customer', REPLY_LABELS[channel]),
+                            body=text[:90], link=_lead_link(lead) + '?via=' + channel)
             db.session.commit()
             return lead
     return capture(channel, name=name, identities=idents, message=text, channel=channel, utm={},
@@ -1038,27 +2849,559 @@ def record_social(ev):
 
 # ======================================================================================= numbers
 
-def board(pipeline, owner_id=None, q=None, limit_per_stage=60):
-    """Open leads of a pipeline by stage, newest activity first, for the board."""
-    query = CrmLead.query.filter(CrmLead.pipeline_id == pipeline.id)
+# ======================================================================================= the daily work
+
+# the daily work's words, all in one place
+REPLY_LABELS = {'whatsapp': 'WhatsApp', 'instagram': 'Instagram', 'facebook': 'Messenger'}
+ROLE_STEPS = (('cold', 'New'), ('prospect', 'Talking'), ('pipeline', 'Quoted'), ('customer', 'Won'), ('lost', 'Lost'))
+STEP_TIP = 'Step %d of %d: %s'
+MILESTONE_STAGES = {key: code for code, (_, key) in EVENTS.items()}       # {'quoted': 'Q', 'pipeline': 'PLS'} (until U5)
+MILESTONE_ASK = {'Q': 'Did you send the quote?', 'PLS': 'Did you send the payment link?'}
+STUCK_DEFAULT_HOURS = 72          # "Stuck in a stage" for a stage with no warning hours of its own
+TASK_OWN_WHATSAPP = "Open my WhatsApp (replies won't come here)"
+TASK_US_BLOCKED = "WhatsApp doesn't deliver promotions to US numbers"
+TASK_NO_EMAIL = 'There is no e-mail address for them yet.'
+TASK_NO_WORDS = 'This follow-up has no words of its own. Write them in the message box.'
+WAITING_ALERT_MINUTES = 15
+WAITING_ALERT_FROM = 7            # India time: the waiting bell rings from 07:00 to midnight
+WAITING_ALERT_MAX = timedelta(hours=24)   # an older wait does not ring (it is on My day anyway)
+WAITING_BELL = '%s is waiting for your reply (%s)'
+OWNER_BELL_CHAT = "%s's lead and WhatsApp chat are yours now"
+OWNER_BELL = "%s's lead is yours now"
+OWNER_BELL_EACH = 3               # up to this many leads at once: a bell each; more: one bell
+OWNER_BELL_MANY = '%d leads are yours now'
+OWNER_BELL_BY = 'Given to you by %s.'
+HAND_BELL = "%d of %s's leads are yours now"
+SOCIAL_BELL = '%s replied on %s'
+UNOWNED_BELL = 'New enquiry, not given to anyone'
+REPEAT_BELL = '%s sent another enquiry'
+SIGNOFF_LIMIT = 40                # open chats one press reaches
+SIGNOFF_BUDGET = 60               # seconds one press may spend; the rest go on the next press
+SIGNOFF_SAID, SIGNOFF_ALREADY, SIGNOFF_FAILED = 'Sent to %d.', ' %d had it already today.', ' %d could not go: %s.'
+SIGNOFF_NOBODY = 'Nobody on your leads has a chat open right now.'
+SIGNOFF_TIME = 'Ran out of time. Press it again for the rest'
+REACH_SOME, REACH_ALL, REACH_NONE = '%d of %d can get it (%s).', 'All %d can get it.', 'Nobody in this stage can get it yet.'
+REACH_NO_NUMBER = ('%d has no WhatsApp number', '%d have no WhatsApp number')
+REACH_OPTED = '%d opted out'
+REACH_NOT_YET = ('%d is not in WhatsApp yet', '%d are not in WhatsApp yet')
+BULK_GIVEN, BULK_MOVED = 'Gave %d lead%s to %s.', 'Moved %d lead%s to %s.'
+BULK_OTHER_PIPE = ' %d %s in another pipeline and stayed.'
+HAND_NOBODY = 'Nobody else can take their leads. Pick a person, or add somebody to Sales first.'
+HAND_NOBODY_TEAM = 'Nobody in that team can take their leads. Pick another team or a person.'
+TICK_LABELS = {'sent': 'Sent', 'delivered': 'Delivered', 'read': 'Read', 'failed': 'Not delivered',
+               'opened': 'From own WhatsApp', 'sending': 'Sending'}
+
+
+def _board_link(**args):
+    try:
+        from flask import url_for
+        return url_for('crm.board', **args)
+    except Exception:          # noqa: BLE001 -- outside a request (CLI, jobs)
+        return '/cs/crm/?view=list&owner=mine'
+
+
+# ------------------------------------------------------------------------------ My day's one button
+
+def task_plan(task, text, entry=None, now=None):
+    """The one button on a My day card, decided before the page draws -- with no call and no query:
+    `entry` is the person's crm_metrics.last_touches() value, the templates are what the WhatsApp CRM
+    last said (call it inside wa_templates.cache_only()). {'kind', 'label', 'template'?, 'reason'?,
+    'alt'?}; kind: template | text | open | own | call | email | done | blocked."""
+    from app.services import phone as phone_svc
+    now = now or datetime.utcnow()
+    lead, person = task.lead, task.lead.person
+    if task.channel == 'whatsapp':
+        if not person.phone:
+            return {'kind': 'blocked', 'reason': WA_LINE_NO_PHONE, 'alt': 'open'}
+        if task.step is None or not task.step.body:
+            # made by hand or from the sales sheet: its title is never sent as a message
+            return {'kind': 'open', 'label': 'Open and send', 'reason': TASK_NO_WORDS}
+        last_in = (entry or {}).get('wa_last_in')
+        window = bool(last_in and last_in > now - timedelta(hours=WINDOW_HOURS))
+        p = send_plan(lead, task.step, by_hand=True, window_open=window)
+        if p['mode'] == 'blocked':
+            return {'kind': 'blocked', 'reason': TASK_US_BLOCKED if p['reason'] == WA_US_MARKETING else p['reason'],
+                    'alt': 'call'}
+        if not wa_writes_on():
+            return {'kind': 'own', 'label': TASK_OWN_WHATSAPP}
+        if p['mode'] == 'template':
+            return {'kind': 'template', 'label': 'Send template', 'template': p['template']}
+        if p['mode'] == 'text':
+            if re.search(r'\{[a-z_]+\}', text or ''):
+                return {'kind': 'open', 'label': 'Open and send', 'reason': WA_FILL_INS}
+            return {'kind': 'text', 'label': 'Send'}
+        return {'kind': 'open', 'label': 'Open and send', 'reason': p.get('reason') or ''}
+    if task.channel == 'call':
+        if person.phone:
+            return {'kind': 'call', 'label': 'Call %s' % phone_svc.pretty(person.phone, person.phone)}
+        return {'kind': 'blocked', 'reason': WA_LINE_NO_PHONE, 'alt': 'open'}
+    if task.channel == 'email':
+        if person.email:
+            return {'kind': 'email', 'label': 'Write e-mail'}
+        return {'kind': 'blocked', 'reason': TASK_NO_EMAIL, 'alt': 'open'}
+    return {'kind': 'done', 'label': 'Done'}
+
+
+# ------------------------------------------------------------------------------ who looks after a lead
+
+def chat_follows(lead, marked):
+    """Whether their WhatsApp chat goes to this lead's owner after the save (U1's rule): it was marked,
+    the team link is on, and this is their most recently active open lead (_wa_main_lead)."""
+    from app.services import wacrm_team
+    if not (marked and lead.owner_id and wacrm_team.enabled()):
+        return False
+    main = _wa_main_lead(lead.person)
+    return main is not None and main.owner_id == lead.owner_id
+
+
+def tell_new_owner(lead, chat=False):
+    """The bell for whoever looks after a lead now: "Meera's lead and WhatsApp chat are yours now" --
+    "and WhatsApp chat" only when it really follows. No commit."""
+    from app.services import notify
+    stage = lead.stage.name if lead.stage else 'not in a pipeline yet'
+    notify.push(lead.owner_id, 'crm_assigned',
+                title=(OWNER_BELL_CHAT if chat else OWNER_BELL) % (first_name(lead.person.display_name) or 'A customer'),
+                body='%s · %s' % (CRM_PRODUCT_LABELS.get(lead.product, lead.product), stage), link=_lead_link(lead))
+
+
+def set_owner(lead, owner_id, by=None, ring=True, mark=True, chat=None):
+    """Give a lead to somebody (None: Not given to anyone): a line on its history, its open follow-ups
+    with it, and -- after the save, with `mark` -- its WhatsApp chat (mark_wa_due assign). Rings the new
+    owner when it was not their own doing (`by` is somebody else, or nobody). `chat`: whether the chat
+    is theirs, when the caller knows (an inbox assignment). (changed, chat follows). No commit."""
+    owner_id = owner_id or None
+    if owner_id == lead.owner_id:
+        return False, False
+    after = db.session.get(User, owner_id) if owner_id else None
+    log_touch(lead, 'system', 'none', body=owner_line(lead.owner, after), user=by, activity=False)
+    lead.owner = after
+    for t in lead.tasks:
+        if t.status == 'open':
+            t.owner_id = owner_id
+    marked = mark_wa_due(lead.person, assign=True) if mark else False
+    if chat is None:
+        chat = chat_follows(lead, marked)
+    if ring and owner_id and owner_id != getattr(by, 'id', None):
+        tell_new_owner(lead, chat=chat)
+    return True, chat
+
+
+def tell_given(items, by=None):
+    """Bells for leads given in one go (bulk "Give to…"): up to OWNER_BELL_EACH a person, a bell each;
+    more, one bell. `items`: [(lead, chat follows)]. Never the giver's own. No commit."""
+    from app.services import notify
+    by_owner = {}
+    for lead, chat in items:
+        if lead.owner_id and lead.owner_id != getattr(by, 'id', None):
+            by_owner.setdefault(lead.owner_id, []).append((lead, chat))
+    for uid, rows in by_owner.items():
+        if len(rows) <= OWNER_BELL_EACH:
+            for lead, chat in rows:
+                tell_new_owner(lead, chat=chat)
+        else:
+            notify.push(uid, 'crm_assigned', title=OWNER_BELL_MANY % len(rows),
+                        body=OWNER_BELL_BY % (by.full_name if by else 'WhatsApp'),
+                        link=_board_link(view='list', owner='mine'))
+
+
+def hand_over(user, to=None, team=None, by=None):
+    """Somebody leaves: their open leads and open follow-ups go to `to`, or one by one to whoever is
+    least busy (fewest open leads, as assign_owner) in `team` -- or among everybody who works leads.
+    Their chats follow (set_owner marks assign). Each receiver gets one bell. Raises ValueError
+    (HAND_NOBODY / HAND_NOBODY_TEAM) when nobody can take them. (leads, follow-ups) moved. No commit."""
+    from app.services import cs_access, notify
+    leads = (CrmLead.query.filter(CrmLead.owner_id == user.id, CrmLead.status == 'open')
+             .order_by(CrmLead.last_activity_at.desc()).all())
+    tasks = CrmTask.query.filter(CrmTask.owner_id == user.id, CrmTask.status == 'open').all()
+    if not leads and not tasks:
+        return 0, 0
+    if to is not None:
+        pool = [to]
+    elif team is not None:
+        pool = [u for u in cs_access.recipients('crm_board', limit=None) if u in team.users and u.id != user.id]
+        if not pool:
+            raise ValueError(HAND_NOBODY_TEAM)
+    else:
+        pool = [u for u in _owner_candidates(None) if u.id != user.id]
+        if not pool:
+            pool = [u for u in User.query.filter(User.is_admin.is_(True), User.is_active.is_(True)).all()
+                    if u.id != user.id]
+        if not pool:
+            raise ValueError(HAND_NOBODY)
+    ids = [u.id for u in pool]
+    loads = dict(db.session.query(CrmLead.owner_id, func.count(CrmLead.id))
+                 .filter(CrmLead.owner_id.in_(ids), CrmLead.status == 'open').group_by(CrmLead.owner_id).all())
+    got = {}
+    for lead in leads:
+        u = min(pool, key=lambda x: (loads.get(x.id, 0), x.id))
+        _changed, chat = set_owner(lead, u.id, by=by, ring=False)
+        loads[u.id] = loads.get(u.id, 0) + 1
+        got.setdefault(u.id, []).append((lead, chat))
+    for t in tasks:
+        if t.owner_id == user.id:
+            t.owner_id = t.lead.owner_id if t.lead.owner_id not in (None, user.id) else pool[0].id
+    for uid, rows in got.items():
+        if uid == getattr(by, 'id', None):
+            continue
+        if len(rows) == 1:
+            tell_new_owner(rows[0][0], chat=rows[0][1])
+        else:
+            notify.push(uid, 'crm_assigned',
+                        title=HAND_BELL % (len(rows), first_name(user.full_name) or user.email),
+                        body=OWNER_BELL_BY % (by.full_name if by else 'an admin'),
+                        link=_board_link(view='list', owner='mine'))
+    return len(leads), len(tasks)
+
+
+# ------------------------------------------------------------------------------ stuck in a stage
+
+def stuck_filter(now=None):
+    """SQL: an open lead with no stage move for its stage's warning hours (Set-up -> Pipelines), else
+    STUCK_DEFAULT_HOURS -- "Stuck in a stage". One query for the stages; use it in a filter."""
+    now = now or datetime.utcnow()
+    stages = CrmStage.query.filter_by(kind='open').all()
+    return and_(CrmLead.status == 'open',
+                or_(*[and_(CrmLead.stage_id == s.id,
+                           CrmLead.entered_stage_at <= now - timedelta(hours=s.sla_hours or STUCK_DEFAULT_HOURS))
+                      for s in stages] or [false()]))
+
+
+def stuck_for(lead, now=None):
+    """Hours since its last stage move when it is stuck (stuck_filter's rule), else None. No query."""
+    st = lead.stage
+    if lead.status != 'open' or st is None or st.kind != 'open' or not lead.entered_stage_at:
+        return None
+    hours = ((now or datetime.utcnow()) - lead.entered_stage_at).total_seconds() / 3600
+    return int(hours) if hours >= (st.sla_hours or STUCK_DEFAULT_HOURS) else None
+
+
+def stuck_text(hours):
+    return '%d hours' % hours if hours < 48 else '%d days' % (hours // 24)
+
+
+# ------------------------------------------------------------------------------ Leads: board and list
+
+def lead_load():
+    """The loader options for a list of leads: person (with identities), owner and stage in the same
+    trip, so a card or row never asks for them one lead at a time."""
+    return (joinedload(CrmLead.person).selectinload(CrmPerson.identities), joinedload(CrmLead.owner),
+            joinedload(CrmLead.stage))
+
+
+def lead_filter(pipeline=None, owner_id=None, q=None, chat=None, stage_id=None, closed_days=30,
+                follow=None, now=None):
+    """The leads Leads shows, as a query (none runs here): one pipeline (None: every pipeline -- the
+    list only); whose (a user id, 'none' for Not given to anyone, None for anyone); a search; the chat
+    filter ('waiting' | 'open' | 'nochat'); one stage; finished leads only from the last
+    `closed_days` days (None: all); follow='late': an open follow-up past due."""
+    from app.services import crm_metrics
+    now = now or datetime.utcnow()
+    query = CrmLead.query.join(CrmPerson, CrmPerson.id == CrmLead.person_id)
+    pids = select(CrmLead.person_id)
+    if pipeline is not None:
+        query = query.filter(CrmLead.pipeline_id == pipeline.id)
+        pids = pids.where(CrmLead.pipeline_id == pipeline.id)
     if owner_id == 'none':
         query = query.filter(CrmLead.owner_id.is_(None))
     elif owner_id:
         query = query.filter(CrmLead.owner_id == owner_id)
+    if stage_id:
+        query = query.filter(CrmLead.stage_id == stage_id)
+    if closed_days:
+        query = query.filter(or_(CrmLead.status == 'open',
+                                 CrmLead.closed_at >= now - timedelta(days=closed_days)))
+    if chat == 'waiting':
+        w = crm_metrics.waiting_rows(CrmTouchpoint.person_id.in_(pids)).subquery()
+        query = query.filter(CrmLead.person_id.in_(select(w.c.person_id)))
+    elif chat == 'open':
+        query = query.filter(CrmLead.person_id.in_(crm_metrics.window_open_people(
+            CrmTouchpoint.person_id.in_(pids), now)))
+    elif chat == 'nochat':
+        query = query.filter(CrmPerson.wacrm_conversation_id.is_(None))
+    if follow == 'late':
+        query = query.filter(CrmLead.id.in_(select(CrmTask.lead_id).where(CrmTask.status == 'open',
+                                                                          CrmTask.due_at < now)))
     if q:
         like = '%%%s%%' % q.strip()
-        query = query.join(CrmPerson).filter(or_(CrmPerson.name.ilike(like), CrmPerson.phone.ilike(like),
-                                                 CrmPerson.email.ilike(like)))
+        query = query.filter(or_(CrmPerson.name.ilike(like), CrmPerson.phone.ilike(like),
+                                 CrmPerson.email.ilike(like)))
+    return query
+
+
+def lead_cards(leads, now=None):
+    """What each card or row shows, for many leads in three queries (never one per lead): {lead id:
+    {'task', 'touch', 'chips': [(class, text, tooltip)], 'chat': (state, label), 'last_contact'}}."""
+    from app.services import crm_metrics, crm_timeline
+    now = now or datetime.utcnow()
+    ids = [l.id for l in leads]
+    if not ids:
+        return {}
+    tasks = {}
+    for t in (CrmTask.query.options(joinedload(CrmTask.step))
+              .filter(CrmTask.lead_id.in_(ids), CrmTask.status == 'open').order_by(CrmTask.due_at)):
+        tasks.setdefault(t.lead_id, t)
+    touches = crm_metrics.last_touches({l.person_id for l in leads})
+    last = dict(db.session.query(CrmTouchpoint.lead_id, func.max(CrmTouchpoint.created_at))
+                .filter(CrmTouchpoint.lead_id.in_(ids), CrmTouchpoint.direction.in_(('in', 'out')),
+                        CrmTouchpoint.channel != 'form').group_by(CrmTouchpoint.lead_id).all())
+    mode = wa_mode()
+    out = {}
+    for l in leads:
+        person, entry = l.person, touches.get(l.person_id) or {}
+        chips = []
+        waiting = window = nochat = tick = None
+        if crm_metrics.waiting_on_us(entry):
+            chips.append(('wait', 'Wrote, waiting on us', 'They wrote last and nobody has answered yet.'))
+            waiting = ('waiting', 'Waiting on us')
+        left = crm_metrics.window_left_hours(entry.get('wa_last_in'), now) if entry.get('wa_last_in') else None
+        if left:
+            hrs = '%dh' % left if left >= 1 else 'under 1h'
+            chips.append(('win', '24 h: %s left' % ('%dh' % left if left >= 1 else 'less than 1h'),
+                          'WhatsApp lets us write freely until then.'))
+            window = ('open', 'Open, %s left' % hrs)
+        if mode != 'off' and person.phone and not person.wacrm_conversation_id:
+            chips.append(('nochat', 'No chat yet', 'There is no WhatsApp chat with them yet.'))
+            nochat = ('nochat', 'No chat yet')
+        wl = entry.get('wa_last')
+        if wl and wl[0] == 'out' and wl[2] in crm_timeline.TICKS:
+            text = TICK_LABELS.get(wl[2], wl[2])
+            chips.append(('tick t-%s' % wl[2], text, 'Our last WhatsApp message: ' + text.lower()))
+            tick = ('tick', text)
+        if person.wa_opt_out_at is not None:
+            chips.append(('optout', 'Opted out', 'They asked for no more WhatsApp messages.'))
+        stuck = stuck_for(l, now)
+        if stuck is not None:
+            chips.append(('stuck', 'Stuck: %s in this stage' % stuck_text(stuck), 'No stage move for that long.'))
+        if person.wa_opt_out_at is not None:
+            chat = ('optout', 'Opted out')
+        else:
+            chat = waiting or window or nochat or tick or ('', '—')
+        out[l.id] = {'task': tasks.get(l.id), 'touch': entry, 'chips': chips, 'chat': chat,
+                     'last_contact': last.get(l.id)}
+    return out
+
+
+def board(pipeline, owner_id=None, q=None, chat=None, closed_days=30, hidden=(), limit_per_stage=60, now=None):
+    """Leads of a pipeline by stage, newest activity first: {'columns': [{'stage', 'leads', 'total'}],
+    'cards': lead_cards()}. Hidden stages are left out. A fixed number of queries whatever the size."""
+    base = lead_filter(pipeline, owner_id, q, chat, None, closed_days, None, now)
+    hidden = [int(h) for h in hidden or ()]
+    if hidden:
+        base = base.filter(CrmLead.stage_id.notin_(hidden))
+    totals = dict(base.with_entities(CrmLead.stage_id, func.count(CrmLead.id)).group_by(CrmLead.stage_id).all())
+    rn = func.row_number().over(partition_by=CrmLead.stage_id,
+                                order_by=(CrmLead.last_activity_at.desc(), CrmLead.id.desc()))
+    ranked = base.with_entities(CrmLead.id.label('id'), rn.label('rn')).subquery()
+    ids = [i for (i,) in db.session.query(ranked.c.id).filter(ranked.c.rn <= limit_per_stage)]
+    leads = CrmLead.query.options(*lead_load()).filter(CrmLead.id.in_(ids)).all() if ids else []
+    leads.sort(key=lambda l: (l.last_activity_at or datetime.min, l.id), reverse=True)
     columns = []
     for st in pipeline.stages:
-        sq = query.filter(CrmLead.stage_id == st.id)
-        if st.kind != 'open':
-            # finished leads: the recent ones only; the board is for work in progress
-            sq = sq.filter(CrmLead.closed_at >= datetime.utcnow() - timedelta(days=30))
-        total = sq.count()
-        leads = sq.order_by(CrmLead.last_activity_at.desc()).limit(limit_per_stage).all()
-        columns.append({'stage': st, 'leads': leads, 'total': total})
-    return columns
+        if st.id in hidden:
+            continue
+        columns.append({'stage': st, 'leads': [l for l in leads if l.stage_id == st.id],
+                        'total': totals.get(st.id, 0)})
+    return {'columns': columns, 'cards': lead_cards(leads, now)}
+
+
+def lead_list(pipeline=None, page=1, per_page=50, **filters):
+    """One page of the list view (no card limit): {'leads', 'cards', 'total', 'page', 'pages'}."""
+    query = lead_filter(pipeline, **filters)
+    total = query.count()
+    pages = max(1, -(-total // per_page))
+    page = max(1, min(page, pages))
+    leads = (query.options(*lead_load()).order_by(CrmLead.last_activity_at.desc(), CrmLead.id.desc())
+             .offset((page - 1) * per_page).limit(per_page).all())
+    return {'leads': leads, 'cards': lead_cards(leads, filters.get('now')), 'total': total, 'page': page,
+            'pages': pages}
+
+
+def stage_tags(stage, products):
+    """The WhatsApp tags that mark people in this stage: "<product>: <stage name>" per product (stage_tag)."""
+    return sorted({'%s: %s' % (p, stage.name) for p in products} or {'%s: %s' % (stage.pipeline.product, stage.name)})
+
+
+def stage_reach(pipeline, stages):
+    """Who "Message everyone in this stage" would reach, counted from portal data (two queries):
+    {stage id: {'text', 'reach', 'tags'}}. Everybody with a lead in the stage (open stages: open leads;
+    won / lost: every lead there, as the tag stays). Each person once: opted out, then no WhatsApp
+    number (no phone and no WhatsApp contact), then not in WhatsApp yet (a phone, no contact yet);
+    the rest can get it."""
+    ids = [s.id for s in stages]
+    if not ids:
+        return {}
+    P, L = CrmPerson, CrmLead
+    opted = P.wa_opt_out_at.isnot(None)
+    free = P.wa_opt_out_at.is_(None)
+    rows = (db.session.query(
+        L.stage_id, func.count(func.distinct(P.id)),
+        func.count(func.distinct(case((opted, P.id)))),
+        func.count(func.distinct(case((and_(free, P.phone.is_(None), P.wacrm_contact_id.is_(None)), P.id)))),
+        func.count(func.distinct(case((and_(free, P.phone.isnot(None), P.wacrm_contact_id.is_(None)), P.id)))))
+        .join(P, P.id == L.person_id)
+        .filter(L.pipeline_id == pipeline.id, L.stage_id.in_(ids)).group_by(L.stage_id).all())
+    counts = {r[0]: r[1:] for r in rows}
+    products = {}
+    for sid, product in db.session.query(L.stage_id, L.product).filter(
+            L.pipeline_id == pipeline.id, L.stage_id.in_(ids)).distinct():
+        products.setdefault(sid, set()).add(product)
+    out = {}
+    for st in stages:
+        people, opt, no_number, not_yet = counts.get(st.id, (0, 0, 0, 0))
+        reach = people - opt - no_number - not_yet
+        parts = []
+        if no_number:
+            parts.append(REACH_NO_NUMBER[0 if no_number == 1 else 1] % no_number)
+        if opt:
+            parts.append(REACH_OPTED % opt)
+        if not_yet:
+            parts.append(REACH_NOT_YET[0 if not_yet == 1 else 1] % not_yet)
+        if not people:
+            text = REACH_NONE
+        elif not parts:
+            text = REACH_ALL % people
+        else:
+            text = REACH_SOME % (reach, people, ', '.join(parts))
+        out[st.id] = {'text': text, 'reach': reach, 'tags': stage_tags(st, products.get(st.id, ()))}
+    return out
+
+
+# ------------------------------------------------------------------------------ the shift-end message
+
+def signoff_leads(user, now=None):
+    """The open chats the sign-off reaches: one lead per person (their most recently active), on
+    `user`'s open leads, whose WhatsApp chat is open (crm_metrics.window_open_people), with a phone and
+    not opted out. Two queries."""
+    from app.services import crm_metrics
+    mine = select(CrmLead.person_id).where(CrmLead.status == 'open', CrmLead.owner_id == user.id)
+    open_people = crm_metrics.window_open_people(CrmTouchpoint.person_id.in_(mine), now)
+    leads = (CrmLead.query.options(*lead_load()).join(CrmPerson, CrmPerson.id == CrmLead.person_id)
+             .filter(CrmLead.status == 'open', CrmLead.owner_id == user.id, CrmLead.person_id.in_(open_people),
+                     CrmPerson.phone.isnot(None), CrmPerson.wa_opt_out_at.is_(None))
+             .order_by(CrmLead.last_activity_at.desc(), CrmLead.id.desc()).all())
+    seen, out = set(), []
+    for l in leads:
+        if l.person_id not in seen:
+            seen.add(l.person_id)
+            out.append(l)
+    return out
+
+
+def send_signoff(user, text, now=None):
+    """The shift-end message to each of `user`'s open chats, their first name filled in, through
+    send_by_hand (the one safe path: the chat is checked to be theirs and still open before anything
+    goes). Somebody who got the sign-off from `user` today is skipped, so pressing it again only
+    reaches the rest. Stops after SIGNOFF_LIMIT chats or SIGNOFF_BUDGET seconds, or when WhatsApp stops
+    answering. {'sent': n, 'already': n, 'failed': [(name, reason)]}. Commits (send_by_hand does)."""
+    now = now or datetime.utcnow()
+    leads = signoff_leads(user, now)
+    out = {'sent': 0, 'already': 0, 'failed': []}
+    if not leads:
+        return out
+    start = datetime.combine((now + IST).date(), time.min) - IST
+    earlier = {}
+    for pid, code, body in (db.session.query(CrmTouchpoint.person_id, CrmTouchpoint.code, CrmTouchpoint.body)
+                            .filter(CrmTouchpoint.person_id.in_([l.person_id for l in leads]),
+                                    CrmTouchpoint.channel == 'whatsapp', CrmTouchpoint.direction == 'out',
+                                    CrmTouchpoint.agent_id == user.id, CrmTouchpoint.created_at >= start)):
+        earlier.setdefault(pid, []).append((code, body))
+    se = CrmAnswer.query.filter_by(code='SE').first()
+    began, tried = monotonic(), 0
+    for lead in leads:
+        words = fill(text, lead, user)
+        if any(code == 'SE' or body == words for code, body in earlier.get(lead.person_id, ())):
+            out['already'] += 1
+            continue
+        if tried >= SIGNOFF_LIMIT or monotonic() - began > SIGNOFF_BUDGET:
+            out['failed'].append((None, SIGNOFF_TIME))
+            break
+        tried += 1
+        r = send_by_hand(lead, user, 'text', text=words, answer=se)
+        if r['mode'] == 'sent':
+            out['sent'] += 1
+        elif r['mode'] in ('unsure', 'down'):
+            out['failed'].append((lead.person.display_name, r.get('reason') or ''))
+            break
+        else:
+            out['failed'].append((lead.person.display_name, r.get('reason') or ''))
+    return out
+
+
+def signoff_said(out):
+    """The sentence for a finished sign-off."""
+    if not out['sent'] and not out['failed'] and not out['already']:
+        return SIGNOFF_NOBODY
+    s = SIGNOFF_SAID % out['sent']
+    if out['already']:
+        s += SIGNOFF_ALREADY % out['already']
+    if out['failed']:
+        s += SIGNOFF_FAILED % (len(out['failed']), (out['failed'][0][1] or '').rstrip('.'))
+    return s
+
+
+# ------------------------------------------------------------------------------ the waiting bell
+
+def _waited(delta):
+    minutes = max(int(delta.total_seconds() // 60), 0)
+    return '%d min' % minutes if minutes < 60 else '%d h' % (minutes // 60)
+
+
+def run_waiting_alerts(now=None, limit=300):
+    """The bell for a customer waiting on us (crm_metrics: they wrote last on WhatsApp, Instagram or
+    Facebook and nobody has answered) longer than the 'crm' setting waiting_alert_minutes (15),
+    counted from their latest message: "Priya is waiting for your reply (15 min)". Once per wait, to
+    whoever looks after their most recently active lead that is not snoozed -- the admins when nobody
+    does; only from 07:00 to midnight India time; never while snoozed ("Remind me in 1 hour"). A wait
+    older than WAITING_ALERT_MAX does not ring. Taken with one UPDATE per person first, so two jobs
+    runs never ring twice; log_touch clears it when we write to them."""
+    from app.services import crm_metrics, notify
+    now = now or datetime.utcnow()
+    if (now + IST).hour < WAITING_ALERT_FROM:
+        return {'crm_waiting_alerts': 0}
+    minutes = crm_settings()['waiting_alert_minutes']
+    w = crm_metrics.waiting_rows(CrmTouchpoint.person_id.in_(
+        select(CrmLead.person_id).where(CrmLead.status == 'open'))).subquery()
+    rows = db.session.execute(
+        select(w.c.person_id, w.c.channel, w.c.created_at)
+        .where(w.c.created_at <= now - timedelta(minutes=minutes), w.c.created_at > now - WAITING_ALERT_MAX)
+        .order_by(w.c.created_at).limit(limit)).all()
+    if not rows:
+        return {'crm_waiting_alerts': 0}
+    by_person = {}
+    for l in (CrmLead.query.options(joinedload(CrmLead.person).selectinload(CrmPerson.identities))
+              .filter(CrmLead.person_id.in_([r.person_id for r in rows]), CrmLead.status == 'open')):
+        by_person.setdefault(l.person_id, []).append(l)
+    admins = None
+    rung = 0
+    for r in rows:
+        leads = by_person.get(r.person_id) or []
+        if not leads or any(l.waiting_alerted_at is not None for l in leads):
+            continue
+        free = [l for l in leads if l.snoozed_until is None or l.snoozed_until <= now]
+        if not free:
+            continue
+        lead = max(free, key=lambda l: (l.last_activity_at or l.created_at or datetime.min, l.id))
+        n = (CrmLead.query.filter(CrmLead.person_id == r.person_id, CrmLead.status == 'open',
+                                  CrmLead.waiting_alerted_at.is_(None))
+             .update({'waiting_alerted_at': now}, synchronize_session=False))
+        if not n:
+            continue
+        if lead.owner_id:
+            targets = [lead.owner_id]
+        else:
+            if admins is None:
+                admins = [u.id for u in User.query.filter(User.is_admin.is_(True), User.is_active.is_(True))]
+            targets = admins
+        for uid in targets:
+            notify.push(uid, 'crm_waiting',
+                        title=WAITING_BELL % (first_name(lead.person.display_name) or 'A customer',
+                                              _waited(now - r.created_at)),
+                        body='%s · on %s' % (CRM_PRODUCT_LABELS.get(lead.product, lead.product),
+                                             REPLY_LABELS.get(r.channel, r.channel)),
+                        link=_lead_link(lead) + '?via=' + r.channel)
+        rung += 1
+    db.session.commit()
+    return {'crm_waiting_alerts': rung}
 
 
 def insights(days=30):
@@ -1277,8 +3620,12 @@ def remove_lead(lead, user=None):
     db.session.delete(lead)
     db.session.flush()
     if person is not None and not CrmLead.query.filter_by(person_id=person.id).first():
+        # nobody left: the portal's tags come off their WhatsApp contact (contact and chat stay)
+        _wa_drop_tags_later(person.wacrm_contact_id, keep_for=person.id)
         CrmTouchpoint.query.filter_by(person_id=person.id).delete(synchronize_session=False)
         db.session.delete(person)
+    elif person is not None:
+        mark_wa_due(person)      # their tags follow the leads they still have
     try:
         ActivityEvent.log('crm_lead_removed', actor=user, lead_id=lead_id, name=name)
     except Exception:          # noqa: BLE001 -- the log is a courtesy

@@ -1,18 +1,27 @@
 {% extends 'cs/crm/_layout.html' %}
-{% set crm_tab = 'tracker' %}
 {% from 'cs/crm/_bits.html' import stage_pill, initials with context %}
-{% block crm_title %}Daily tracker{% endblock %}
+{% from '_page_head.html' import page_head %}
+{% block crm_title %}Team today{% endblock %}
 {% macro score(c) -%}
 {%- if c.score is none -%}<span class="muted small">nothing was due</span>
 {%- else -%}<span class="score"><span class="bar"><i class="{{ 'low' if c.score < 50 else 'mid' if c.score < 85 else '' }}" style="width:{{ c.score }}%"></i></span><b>{{ c.score }}%</b></span>{%- endif -%}
 {%- endmacro %}
 {% macro hm(dt) -%}{{ (dt + IST_OFFSET).strftime('%I:%M %p').lstrip('0') if dt else '—' }}{%- endmacro %}
+{% macro num(n, href) -%}
+{%- if n %}<a href="{{ href }}">{{ n }}</a>{% else %}<span class="muted">0</span>{% endif -%}
+{%- endmacro %}
+{% macro mins(m) -%}
+{%- if m is none -%}—{%- elif m < 60 -%}{{ m }} min{%- else -%}{{ m // 60 }} h {{ m % 60 }} min{%- endif -%}
+{%- endmacro %}
+{% macro th(label, tip) -%}
+<th>{{ label }} <span class="tt-i" tabindex="0" title="{{ tip }}" aria-label="{{ tip }}">ⓘ</span></th>
+{%- endmacro %}
 {% block crm %}
-<div class="page-head">
-  <div>
-    <h1>Daily tracker</h1>
-    <p class="lead-in">What each person had to do on a day, and what they did — follow-ups, messages, calls, inbox checks.</p>
-  </div>
+{{ page_head('Team today', 'fa-solid fa-people-line', "How each person's day is going. Click a name for their customer-by-customer list.",
+             help=['One row per person: what was due, what they did, who is waiting on them, and how fast they answered.',
+                   'Every number opens Leads, filtered to those people. Pick another day with the arrows or the date.'],
+             full_screen=True) }}
+<div class="ui-filters">
   <form class="daynav" method="GET">
     {% if person %}<input type="hidden" name="who" value="{{ person.user.id }}"/>{% endif %}
     <a class="cb sm" href="{{ crm_url('tracker', day=prev_day.isoformat(), who=person.user.id if person else None) }}" aria-label="Day before"><i class="fa-solid fa-chevron-left"></i></a>
@@ -29,24 +38,61 @@
       <div><h2>{{ 'Today' if day == today else day.strftime('%A %d %B') }} — the team</h2>
         <p class="muted small">Inbox check for the whole team: {{ '%d%%' % coverage.pct if coverage.pct is not none else 'not started yet' }} of half hours fully checked{% if coverage.missed %} · missed {{ coverage.missed|length }}{% endif %}</p></div></div>
   </div>
+  {% if team_note %}<p class="muted small">{{ team_note }}</p>{% endif %}
   <div class="table-wrap">
   <table class="crm-table">
-    <thead><tr><th>Person</th><th>Follow-ups done</th><th>Done / due</th><th>Missed</th><th>Messages</th><th>Calls</th><th>Moved on</th><th>Added</th><th>Inbox checks</th><th>Working</th></tr></thead>
+    <thead><tr>
+      <th>Person</th>
+      {{ th('Open leads', 'Leads they look after that are not won or lost yet. Right now.') }}
+      {{ th('Follow-ups done (of due)', 'Follow-ups due that day that they did, of all that were due.') }}
+      {{ th('Late', 'Their follow-ups past due and not done yet. Right now.') }}
+      {{ th('Waiting now', 'Customers on their leads who wrote last and have no answer yet. Right now.') }}
+      {{ th('WhatsApp replies received', 'WhatsApp messages customers sent on their leads that day.') }}
+      {{ th('Left unanswered at day end', 'Customers who wrote that day and had no answer when it ended (today: so far).') }}
+      {{ th('First reply time (median)', "How long customers waited for a person's answer that day; half waited less. Automatic replies are not counted.") }}
+      {{ th('Calls', 'Calls they logged that day.') }}
+      {{ th('Checks', 'Half hours they ticked on the half-hourly check that day.') }}
+      {{ th('Last active', 'Their last action in the Sales CRM that day (India time).') }}
+    </tr></thead>
     <tbody>
-    {% for u in staff %}{% set s = sheet[u.id] %}{% set c = s.counts %}
+    {% for u in staff %}{% set s = sheet[u.id] %}{% set c = s.counts %}{% set n = nums[u.id] %}
     <tr>
       <td><a class="nm" href="{{ crm_url('tracker', day=day.isoformat(), who=u.id) }}">{{ u.full_name }}</a>{% if u.is_admin %} <span class="chip">admin</span>{% endif %}</td>
-      <td>{{ score(c) }}</td>
-      <td>{{ c.done }} / {{ c.due }}</td>
-      <td>{% if c.missed %}<span class="chip bad">{{ c.missed }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
-      <td>{{ c.messages }}</td><td>{{ c.calls }}</td><td>{{ c.moves }}</td><td>{{ c.added }}</td>
-      <td>{{ c.slots }} half hour{{ 's' if c.slots != 1 }}</td>
-      <td class="muted">{% if s.first %}{{ hm(s.first) }} – {{ hm(s.last) }}{% else %}no activity{% endif %}</td>
+      <td>{{ num(n.open, crm_url('board', p='all', view='list', owner=u.id)) }}</td>
+      <td><a href="{{ crm_url('tracker', day=day.isoformat(), who=u.id) }}">{{ c.done }} of {{ c.due }}</a> {{ score(c) }}</td>
+      <td>{{ num(n.late, crm_url('board', p='all', view='list', owner=u.id, follow='late')) }}</td>
+      <td>{{ num(n.waiting, crm_url('board', p='all', view='list', owner=u.id, chat='waiting')) }}</td>
+      <td>{{ num(n.replies, crm_url('board', p='all', view='list', owner=u.id, chat='open')) }}</td>
+      <td>{{ num(n.unanswered, crm_url('board', p='all', view='list', owner=u.id, chat='waiting')) }}</td>
+      <td>{{ mins(n.first_reply) }}</td>
+      <td>{% if c.calls %}<a href="{{ crm_url('tracker', day=day.isoformat(), who=u.id) }}">{{ c.calls }}</a>{% else %}<span class="muted">0</span>{% endif %}</td>
+      <td>{% if c.slots %}<a href="{{ crm_url('tracker', day=day.isoformat(), who=u.id) }}">{{ c.slots }}</a>{% else %}<span class="muted">0</span>{% endif %}</td>
+      <td class="muted">{% if s.first %}{{ hm(s.last) }}{% else %}no activity{% endif %}</td>
     </tr>
     {% endfor %}
     </tbody>
   </table>
   </div>
+</section>
+
+{# ================================================================ how each follow-up went out #}
+<section class="card">
+  <div class="card-head"><div class="t"><span class="ico"><i class="fa-brands fa-whatsapp"></i></span>
+    <div><h2>How each follow-up went out</h2><p class="muted small">Each message counts once, at its latest tick.</p></div></div></div>
+  {% if steps %}
+  <div class="table-wrap">
+  <table class="crm-table">
+    <thead><tr><th>Follow-up</th><th>Sent</th><th>Delivered</th><th>Read</th><th>Not delivered</th>
+      {{ th('Opened in their own WhatsApp', "Sent from the person's own WhatsApp because WhatsApp was not connected for leads.") }}</tr></thead>
+    <tbody>
+    {% for r in steps %}
+    <tr><td>{{ r.pipeline }} · {{ r.title }}</td><td>{{ r.sent }}</td><td>{{ r.delivered }}</td><td>{{ r.read }}</td>
+      <td>{% if r.failed %}<span class="chip bad">{{ r.failed }}</span>{% else %}<span class="muted">0</span>{% endif %}</td><td>{{ r.opened }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p class="muted">No follow-ups went out on WhatsApp this day.</p>{% endif %}
 </section>
 
 {# ================================================================ one person #}
@@ -81,7 +127,7 @@
             {% set t = it.task %}
             <li>
               <span class="mark {{ it.state }}" title="{{ {'done': 'Done on time', 'late': 'Done late', 'missed': 'Missed', 'pending': 'Still to do', 'moved': 'Not needed: the lead moved on'}[it.state] }}">{{ {'done': '✓', 'late': '✓', 'missed': '✕', 'pending': '·', 'moved': '↷'}[it.state] }}</span>
-              <span>{{ t.code }} · {{ t.title }}</span>
+              <span>{{ t.code ~ ' · ' if t.code }}{{ t.title }}</span>
               <span class="muted small">{% if it.at %}{{ hm(it.at) }}{% else %}due {{ hm(t.due_at) }}{% endif %}</span>
             </li>
             {% endfor %}

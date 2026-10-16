@@ -143,23 +143,34 @@ def test_only_an_admin_can_change_access(client, db, agent):
 
 
 def test_the_screen_is_offered_for_agents_only(client, db, admin_user, agent, other_user):
+    """U2: the per-account 'N screens' link is gone from Users (roles live in Team members); the old
+    address still forwards there for staff and is never offered for a traveller."""
     login(client, 'admin@test.com')
     html = client.get('/admin/users').data.decode()
-    assert '/admin/users/%d/cs-access' % agent.id in html
-
+    assert '/admin/users/%d/cs-access' % agent.id not in html
     traveller = User.query.filter_by(email='alice@test.com').one()
     assert '/admin/users/%d/cs-access' % traveller.id not in html
+    r = client.get('/admin/users/%d/cs-access' % agent.id)
+    assert r.status_code == 302 and '/admin/workspace/members' in r.headers['Location']
 
 
 # ---------------------------------------------------------------------------
 # And the notifications about those screens
 # ---------------------------------------------------------------------------
 
-def test_an_agent_is_only_told_about_screens_they_have(client, db, admin_user):
+def _no_lead(monkeypatch):
+    """A contact message now becomes a lead and rings the lead's bell; the 'New contact message' bell is
+    only for enquiries that made no lead. These tests are about that fallback bell, so make no lead."""
+    from app.services import crm
+    monkeypatch.setattr(crm, 'capture_safely', lambda *a, **k: None)
+
+
+def test_an_agent_is_only_told_about_screens_they_have(client, db, admin_user, monkeypatch):
     """A notification is an instruction to go and look. Every agent used to get every one of
     them, including the ones whose link 403s for them."""
     from app.models import User, Notification
     from app import db as _db
+    _no_lead(monkeypatch)
 
     narrow = User(username='sahayak_only', email='sk@test.com', role='cs', is_active=True)
     narrow.set_password('x')
@@ -180,8 +191,9 @@ def test_an_agent_is_only_told_about_screens_they_have(client, db, admin_user):
     assert admin_user.id in told, 'admins are never restricted'
 
 
-def test_an_agent_with_no_limits_set_hears_everything(client, db, cs_user):
+def test_an_agent_with_no_limits_set_hears_everything(client, db, cs_user, monkeypatch):
     """Null means unrestricted, which is still the default and still everybody today."""
+    _no_lead(monkeypatch)
     from app.models import Notification
     assert cs_user.cs_access is None
     client.post('/contact-us', data={

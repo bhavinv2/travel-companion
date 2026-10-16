@@ -207,7 +207,8 @@ def test_cs_agent_works_the_crm_screens(app, client, cs_user):
     for admin_only in ('/cs/crm/insights', '/cs/crm/setup', '/cs/crm/tracker', '/admin/crm/insights'):
         assert client.get(admin_only).headers['Location'].endswith('/cs/crm/today'), admin_only
     page = client.get('/cs/crm/lead/%d' % lead.id).get_data(as_text=True)
-    assert 'Next step' in page and 'TI #2' in page                  # their next step, on the lead card
+    # U3: the full lead page calls it 'Next follow-up' ('Next step' is the compact inbox panel)
+    assert 'Next follow-up' in page and lead.open_task.code == 'TI #2'
     assert 'crm-reply' not in page                                   # replying is the WhatsApp inbox's job
     today = client.get('/cs/crm/today').get_data(as_text=True)
     assert 'Ramesh Kumar' in today
@@ -276,10 +277,15 @@ def test_setup_is_for_admins(app, client, cs_user, admin_user):
     assert client.get('/admin/crm/setup').status_code == 302
     client.post('/auth/logout')
     login(client, admin_user.email)
-    for tab in ('sources', 'pipelines', 'messages', 'answers', 'connect'):
-        assert client.get('/admin/crm/setup?tab=%s' % tab).status_code == 200, tab
-    assert client.get('/admin/crm/setup?tab=sources&edit=new').status_code == 200
-    assert client.get('/admin/crm/setup?tab=answers&edit=new').status_code == 200
+    # U2: Set-up is separate pages; the old ?tab= links redirect to the right one
+    for tab, where in (('sources', '/admin/crm/sources'), ('pipelines', '/admin/crm/pipelines'),
+                       ('messages', '/admin/crm/pipelines'), ('answers', '/admin/crm/quick-replies'),
+                       ('connect', '/admin/crm/connection')):
+        r = client.get('/admin/crm/setup?tab=%s' % tab)
+        assert r.status_code == 302 and where in r.headers['Location'], tab
+    for url in ('/admin/crm/pipelines', '/admin/crm/sources', '/admin/crm/sources?edit=new',
+                '/admin/crm/quick-replies', '/admin/crm/quick-replies?edit=new', '/admin/crm/data'):
+        assert client.get(url).status_code == 200, url
 
 
 def test_admin_edits_pipelines_steps_and_answers(app, client, admin_user):
@@ -319,7 +325,8 @@ def test_due_follow_ups_show_on_the_menu_badge(app, cs_user):
     from app.services import nav_badges
     ti_lead()
     nav_badges.forget()
-    assert nav_badges.unread(cs_user)['crm_board'] == 1
+    # U2: the menu badge moved from Leads to My day
+    assert nav_badges.unread(cs_user)['crm_today'] == 1
 
 
 # ============================================================================================ intake
@@ -401,14 +408,20 @@ def test_webhook_reply_moves_the_lead(app, client, monkeypatch):
 
 def test_webhook_from_a_new_number_creates_a_lead(app, client, monkeypatch):
     monkeypatch.setenv('WACRM_WEBHOOK_SECRET', SECRET)
-    monkeypatch.setattr(wacrm, 'get_contact', lambda cid: {'phone': '919000000009', 'name': 'Gopal'})
+    def no_call(cid):
+        raise AssertionError('the webhook must not call the WhatsApp CRM back')
+    monkeypatch.setattr(wacrm, 'get_contact', no_call)
+    # the number and name come with the event
     body = {'event': 'message.received', 'data': {'contact_id': 'c-9', 'whatsapp_message_id': 'wamid.9',
+                                                  'conversation_id': 'conv-9', 'contact_phone': '919000000009',
+                                                  'contact_name': 'Gopal',
                                                   'text': 'Do you have insurance for my parents?'}}
     raw, h = signed(body)
     assert client.post('/api/crm/wacrm-webhook', data=raw, headers=h).get_json()['created']
     lead = CrmLead.query.one()
     assert lead.source.key == 'wa-india' and lead.person.phone == '+919000000009'
-    assert lead.person.wacrm_contact_id == 'c-9'
+    assert lead.person.wacrm_contact_id == 'c-9' and lead.person.name == 'Gopal'
+    assert lead.person.wacrm_conversation_id == 'conv-9'
 
 
 def test_webhook_refuses_unsigned_calls(app, client, monkeypatch):
@@ -418,7 +431,7 @@ def test_webhook_refuses_unsigned_calls(app, client, monkeypatch):
 
 
 def test_automatic_steps_go_out_once_connected(app, monkeypatch):
-    lead = ti_lead()
+    lead = ti_lead(consent=True)
     assert crm.run_auto_steps() == {'crm_auto_sent': 0}          # not connected: nothing sent
     monkeypatch.setenv('WACRM_URL', 'https://crm.example')
     monkeypatch.setenv('WACRM_API_KEY', 'wacrm_live_test')

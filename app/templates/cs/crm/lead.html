@@ -1,45 +1,20 @@
 {% extends 'cs/crm/_layout.html' %}
-{% set crm_tab = 'board' %}
 {% from 'cs/crm/_bits.html' import stage_pill, when with context %}
 {% block crm_title %}{{ person.display_name }}{% endblock %}
 {% block crm %}
-{# One lead, laid out as the work is done: the conversation on the left -- the WhatsApp CRM's own
-   thread, where replies, quick replies, templates and voice notes are -- and on the right the lead
-   card: the next step, the stage, who looks after them and the trip (_lead_card.html, the same
-   card that sits beside the WhatsApp inbox). #}
+{# One lead as one screen: the header, the journey (with the WhatsApp line), then the conversation
+   -- every message and event in one timeline, with the message box under it -- beside the lead
+   card. The regions marked data-lead-live are swapped by crm.js every few seconds (_lead_live.html),
+   so nobody reloads. Photos, documents and voice notes: "Open full chat" (a drawer). #}
 <div data-lead-page data-lead="{{ lead.id }}" data-product="{{ lead.product }}" data-phone="{{ person.phone or '' }}"
+     data-live="{{ crm_url('live', lead_id=lead.id) }}" data-chat-src="{{ chat_url or '' }}"
      data-reasons='{{ ((lead.pipeline.fallout_reasons if lead.pipeline else []) or [])|tojson|forceescape }}'>
 
-<p style="margin:0 0 10px"><a href="{{ crm_url('board', p=lead.pipeline.key if lead.pipeline else None, owner='all') }}" class="muted" style="text-decoration:none">
-  <i class="fa-solid fa-arrow-left"></i> All leads</a></p>
+<p class="lead-back"><a href="{{ back_url }}" class="muted">
+  <i class="fa-solid fa-arrow-left"></i> {{ back_label }}</a></p>
 
 <section class="card lead-top">
-  <div class="lead-hero">
-    <div class="av">{{ (person.name or person.phone or '?')[:1]|upper }}</div>
-    <div class="id">
-      <h1>{{ person.display_name }} {{ stage_pill(lead, link=false) }}</h1>
-      <p class="sub">{{ PRODUCTS.get(lead.product, lead.product) }} · came in {{ when(lead.created_at, utcnow) }} from {{ lead.source.name if lead.source else 'unknown' }}
-        {%- if lead.owner %} · looked after by <b>{{ lead.owner.full_name }}</b>{% endif %}</p>
-    </div>
-    <div class="acts">
-      {% if person.phone %}<a class="cb" href="tel:{{ person.phone }}"><i class="fa-solid fa-phone"></i> {{ PHONE.pretty(person.phone) }}</a>{% endif %}
-      {% if person.email %}<a class="cb" href="mailto:{{ person.email }}" title="{{ person.email }}"><i class="fa-solid fa-envelope"></i> E-mail</a>{% endif %}
-      {% set ig = person.identity('instagram') %}{% set fb = person.identity('facebook') %}
-      {% if ig %}<a class="cb" href="https://www.instagram.com/{{ ig }}" target="_blank" rel="noopener"><i class="fa-brands fa-instagram"></i> {{ ig }}</a>{% endif %}
-      {% if fb %}<a class="cb" href="https://www.facebook.com/{{ fb }}" target="_blank" rel="noopener"><i class="fa-brands fa-facebook"></i> Facebook</a>{% endif %}
-      <details class="more-menu">
-        <summary class="cb" aria-label="More"><i class="fa-solid fa-ellipsis"></i> More</summary>
-        <div class="menu">
-          <button type="button" data-act="edit-person" data-name="{{ person.name or '' }}" data-email="{{ person.email or '' }}"
-                  data-phone="{{ person.phone or '' }}" data-instagram="{{ ig or '' }}" data-facebook="{{ fb or '' }}">
-            <i class="fa-solid fa-pen"></i><span>Edit their details<small>name, phone, e-mail, Instagram</small></span></button>
-          {% if has_moves %}<button type="button" data-act="undo"><i class="fa-solid fa-rotate-left"></i><span>Undo the last move<small>put them back in the stage before</small></span></button>{% endif %}
-          {% if lead.status != 'open' %}<button type="button" data-act="reopen"><i class="fa-solid fa-box-open"></i><span>Reopen<small>back to work, in their last open stage</small></span></button>{% endif %}
-          {% if can_remove %}<button type="button" class="danger" data-act="remove" data-name="{{ person.display_name }}"><i class="fa-solid fa-trash"></i><span>Remove from the Sales CRM<small>added by mistake — the record on the site stays</small></span></button>{% endif %}
-        </div>
-      </details>
-    </div>
-  </div>
+  {% include 'cs/crm/_lead_head.html' %}
   {% if not lead.pipeline %}
   <form method="POST" action="{{ crm_url('route_lead', lead_id=lead.id) }}" class="row lead-route">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -53,28 +28,21 @@
   {% endif %}
 </section>
 
+{% include 'cs/crm/_journey.html' %}
+
 <div class="lead-ws">
-  <div class="lead-chat">
-    {% if wa_embed %}
-    <iframe class="crm-wa-frame" src="{{ url_for('messaging.lead_chat', lead_id=lead.id) }}"
-            title="WhatsApp conversation with {{ person.name or 'this lead' }}"
-            allow="microphone; clipboard-write"></iframe>
-    {% else %}
-    <section class="card lead-chat-off">
-      <div class="t" style="display:flex;gap:12px;align-items:flex-start"><span class="ico wa"><i class="fa-brands fa-whatsapp"></i></span>
-        <div>
-          <h2 style="font-size:16px">Their WhatsApp conversation shows here</h2>
-          <p class="muted small" style="margin:4px 0 10px">{% if not person.phone %}There is no phone number for them yet — add one under More → Edit their details.
-            {% elif not wa_configured %}The WhatsApp CRM is not connected to the portal yet.
-            {% else %}Your role does not include WhatsApp — ask an admin to add the Inbox page to your role.{% endif %}</p>
-          {% if person.phone %}<a class="cb wa" href="https://wa.me/{{ person.phone|replace('+', '') }}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Open in your WhatsApp</a>{% endif %}
-        </div></div>
-    </section>
-    {% endif %}
+  <div class="lead-main">
+    {% include 'cs/crm/_timeline.html' %}
+    {% include 'cs/crm/_box.html' %}
   </div>
-  <aside class="lead-side">
+  <aside class="lead-side" data-lead-live="aside">
     {% include 'cs/crm/_lead_card.html' %}
   </aside>
+</div>
+
+<div class="lead-drawer" data-chat-drawer hidden role="dialog" aria-label="Full chat">
+  <div class="lead-drawer-head"><b>Full chat</b><button type="button" class="cb sm quiet" data-act="close-chat">Close</button></div>
+  <iframe data-chat-frame title="WhatsApp chat with {{ person.display_name }}" allow="microphone; clipboard-write"></iframe>
 </div>
 </div>
 {% endblock %}

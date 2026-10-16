@@ -1,14 +1,13 @@
 {% extends 'workspace/_layout.html' %}
 {% set ws_tab = 'ws_roles' %}
-{% block ws_title %}Roles & access{% endblock %}
+{% block ws_title %}Roles{% endblock %}
 {% block ws %}
 <div class="ws-head">
   <div>
-    <h1>Roles &amp; access</h1>
-    <p>A role is a list of pages. Make one for each kind of job, tick the pages it needs, and give it to people or teams.
-      Nothing about who sees what is fixed in the code.</p>
+    <h1>Roles</h1>
+    <p>What each kind of job can open. Tick the pages a role needs, then give it to people or teams.</p>
   </div>
-  <a class="ws-btn primary" href="{{ url_for('workspace.role', role_id=0) }}"><i class="fa-solid fa-plus"></i> New role</a>
+  <a class="cb primary" href="{{ url_for('workspace.role', role_id=0) }}"><i class="fa-solid fa-plus"></i> New role</a>
 </div>
 
 <div class="ws-roles">
@@ -21,8 +20,8 @@
     <div class="foot">
       <span class="ws-muted" style="font-size:13px">{{ used.get(r.id, 0) }} {{ 'person' if used.get(r.id, 0) == 1 else 'people' }}</span>
       <span style="display:flex;gap:6px">
-        <a class="ws-btn sm" href="{{ url_for('workspace.role', role_id=0, copy=r.id) }}" title="A new role starting from this one"><i class="fa-solid fa-copy"></i> Copy</a>
-        <a class="ws-btn sm" href="{{ url_for('workspace.role', role_id=r.id) }}"><i class="fa-solid fa-{{ 'eye' if r.system_key == 'admin' else 'pen' }}"></i> {{ 'View' if r.system_key == 'admin' else 'Change' }}</a>
+        <a class="cb sm" href="{{ url_for('workspace.role', role_id=0, copy=r.id) }}" title="A new role starting from this one"><i class="fa-solid fa-copy"></i> Copy</a>
+        <a class="cb sm" href="{{ url_for('workspace.role', role_id=r.id) }}"><i class="fa-solid fa-{{ 'eye' if r.system_key == 'admin' else 'pen' }}"></i> {{ 'View' if r.system_key == 'admin' else 'Change' }}</a>
       </span>
     </div>
   </div>

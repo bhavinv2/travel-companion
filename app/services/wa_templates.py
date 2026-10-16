@@ -17,10 +17,15 @@ the blanks -- so what is submitted to Meta and what is sent with it cannot drift
 """
 import csv
 import io
+import logging
 import re
+import threading
 import time
+from contextlib import contextmanager
 
 from app import db
+
+log = logging.getLogger(__name__)
 
 # per-person tokens -> template blanks; everything else is written into the template text
 VARIABLE_TOKENS = ('name', 'agent', 'product', 'departure', 'days', 'ends')
@@ -149,29 +154,102 @@ def candidates():
 
 # ------------------------------------------------------------------- what WhatsApp has
 
-_cache = {'at': 0.0, 'rows': None, 'error': None}
+_cache = {'at': 0.0, 'rows': None, 'info': None, 'error': None}
 CACHE_SECONDS = 60
+_local = threading.local()
+
+
+@contextmanager
+def cache_only():
+    """Inside: statuses() answers from what it last heard (maybe nothing) and never asks the
+    WhatsApp CRM -- for drawing a page without a network call."""
+    before = getattr(_local, 'cache_only', False)
+    _local.cache_only = True
+    try:
+        yield
+    finally:
+        _local.cache_only = before
 
 
 def statuses(force=False):
     """{template name: status} from the WhatsApp CRM (APPROVED, PENDING, DRAFT, REJECTED...).
     Asked at most once a minute; {} when it cannot be reached (and error() says why)."""
     from app.services import wacrm_team
+    if getattr(_local, 'cache_only', False):
+        return _cache['rows'] or {}
     now = time.monotonic()
     if not force and _cache['rows'] is not None and now - _cache['at'] < CACHE_SECONDS:
         return _cache['rows']
-    rows, error = {}, None
+    rows, info, error = {}, {}, None
     if wacrm_team.enabled():
         try:
             for t in wacrm_team.templates(status='ALL'):
                 if (t.get('language') or LANGUAGE).split('_')[0] == LANGUAGE or t.get('name') not in rows:
                     rows[t.get('name')] = (t.get('status') or '').upper()
+                    v = t.get('variables')
+                    info[t.get('name')] = {
+                        'status': (t.get('status') or '').upper(),
+                        'category': (t.get('category') or '').strip().upper() or None,
+                        'body': t.get('body') or '', 'language': t.get('language') or None,
+                        'variables': v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None}
         except wacrm_team.TeamError as exc:
             error = str(exc)
     else:
         error = 'The WhatsApp CRM is not connected.'
-    _cache.update(at=now, rows=rows, error=error)
+    _cache.update(at=now, rows=rows, info=info, error=error)
     return rows
+
+
+def template_info(name):
+    """What the WhatsApp CRM says about one template -- {status, category ('MARKETING', 'UTILITY'...),
+    variables (how many blanks it has)} -- from the same once-a-minute list as statuses(); {} when
+    it is not known."""
+    statuses()
+    return dict((_cache.get('info') or {}).get(name) or {})
+
+
+def heard():
+    """Whether the WhatsApp CRM's template list has been heard at all yet."""
+    return _cache['rows'] is not None
+
+
+def approved_templates():
+    """[{name, language, category, body, variables}] for the APPROVED templates, by name."""
+    statuses()
+    info = _cache.get('info') or {}
+    return [{'name': n, 'language': i.get('language'), 'category': i.get('category'), 'body': i.get('body') or '',
+             'variables': i.get('variables')}
+            for n, i in sorted(info.items()) if i.get('status') == 'APPROVED' and n]
+
+
+def template_text(name, params):
+    """An approved template's words with {{1}}, {{2}} ... filled in; '' when its body is not known."""
+    body = (template_info(name) or {}).get('body') or ''
+    return re.sub(r'\{\{(\d+)\}\}', lambda m: str(params[int(m.group(1)) - 1])
+                  if 0 < int(m.group(1)) <= len(params) else m.group(0), body)
+
+
+def known_fills(values):
+    """{template name: {'fill': [...], 'title'}} for templates the portal made from its own words:
+    WhatsApp follow-ups (step.wa_template or slug_name(code)) and ready messages with a code
+    (slug_name(code)); fill = params(body, values). Two queries."""
+    from app.models import CrmAnswer, CrmPlaybookStep
+    out = {}
+    for s in CrmPlaybookStep.query.filter(CrmPlaybookStep.channel == 'whatsapp',
+                                           CrmPlaybookStep.body.isnot(None)).all():
+        name = s.wa_template or slug_name(s.code)
+        if name and name not in out:
+            out[name] = {'fill': params(s.body, values), 'title': s.title}
+    for a in CrmAnswer.query.filter(CrmAnswer.code.isnot(None)).all():
+        name = slug_name(a.code)
+        if name and name not in out:
+            out[name] = {'fill': params(a.body, values), 'title': a.title}
+    return out
+
+
+def blanks(body):
+    """How many blanks ({{1}}, {{2}} ...) a step's words make: one per person token, counted once."""
+    return len(parts(body or '', static={})[1])
 
 
 def error():
@@ -183,7 +261,7 @@ def approved(name):
 
 
 def forget():
-    _cache.update(at=0.0, rows=None, error=None)
+    _cache.update(at=0.0, rows=None, info=None, error=None)
 
 
 # ------------------------------------------------------------------- putting them in
@@ -242,12 +320,117 @@ def quick_reply_text(body, static=None):
     return TOKEN.sub(sub, body or '')
 
 
-def push_quick_replies():
-    """Every ready answer (and ready message) into the WhatsApp CRM's quick replies, matched by
-    title, so agents pick them in the inbox where they reply. {created, updated}."""
+QUICK_KEY = 'crm_wa_quick'     # its own settings row, never "crm": a stale copy written back there could undo the switch
+QUICK_TITLES_MAX = 500
+QUICK_CONFLICT = '%d not copied: a WhatsApp button reply has the same title (%s). Rename one of them.'
+
+
+def _quick_items():
+    """Every quick reply as the WhatsApp CRM's quick replies take them. Built inside a request, so the links are the site's."""
     from app.models import CrmAnswer
-    from app.services import wacrm_team
     static = _static_values()
-    items = [{'title': ('%s · %s' % (a.code, a.title) if a.code else a.title)[:120],
-              'text': quick_reply_text(a.body, static)} for a in CrmAnswer.query.order_by(CrmAnswer.title).all()]
-    return wacrm_team.push_quick_replies(items) if items else {'created': 0, 'updated': 0}
+    return [{'title': ('%s · %s' % (a.code, a.title) if a.code else a.title).strip()[:120],
+             'text': quick_reply_text(a.body, static)} for a in CrmAnswer.query.order_by(CrmAnswer.title).all()]
+
+
+def quick_state():
+    """What the portal last put in the WhatsApp CRM's quick replies: {titles, conflicts, due, error, at}.
+    Read past the settings cache: both workers and a background thread write it."""
+    from app.models import AppSetting
+    row = db.session.get(AppSetting, QUICK_KEY, populate_existing=True)
+    v = row.value if row is not None and isinstance(row.value, dict) else {}
+    return {'titles': [t for t in v.get('titles') or [] if isinstance(t, str) and t.strip()],
+            'conflicts': [t for t in v.get('conflicts') or [] if isinstance(t, str)],
+            'due': bool(v.get('due')), 'error': v.get('error'), 'at': v.get('at')}
+
+
+def _save_quick_state(state):
+    from app.services import settings
+    settings.set_setting(QUICK_KEY, state)        # commits
+
+
+def conflict_words(titles):
+    shown = ', '.join(titles[:5]) + (', …' if len(titles) > 5 else '')
+    return QUICK_CONFLICT % (len(titles), shown)
+
+
+def push_quick_replies(items=None):
+    """Every quick reply into the WhatsApp CRM's quick replies, matched by title. The ones this portal
+    put there before and no longer has (renamed or removed here) go out with remove_titles, so nothing
+    the portal made stays there, locked, for good (contract 21). {created, updated, removed, conflicts}.
+    Raises wacrm_team.TeamError, leaving the change marked for the jobs runner; the caller checks
+    crm.wa_writes_on()."""
+    from datetime import datetime
+    from app.services import wacrm_team
+    items = _quick_items() if items is None else items
+    state = quick_state()
+    have = {i['title'].strip().lower() for i in items}
+    remove = [t for t in state['titles'] if t.strip().lower() not in have]
+    try:
+        out = (wacrm_team.push_quick_replies(items, remove_titles=remove) if (items or remove)
+               else {'created': 0, 'updated': 0, 'removed': 0, 'conflicts': []})
+    except wacrm_team.TeamError as exc:
+        if exc.status == 404:                    # a WhatsApp CRM without it: nothing to copy to, nothing waits
+            _save_quick_state(dict(state, due=False, error=None))
+        else:
+            _save_quick_state(dict(state, due=True, error=str(exc)[:250]))
+        raise
+    titles, seen = [], set()
+    for i in items:
+        k = i['title'].strip().lower()
+        if k not in seen:
+            seen.add(k)
+            titles.append(i['title'].strip())
+    _save_quick_state({'titles': titles[:QUICK_TITLES_MAX], 'conflicts': out['conflicts'], 'due': False, 'error': None,
+                       'at': datetime.utcnow().isoformat(timespec='seconds')})
+    return out
+
+
+def quick_replies_changed():
+    """A quick reply was saved or removed here, so WhatsApp's quick replies follow straight away in a
+    background thread (WA_SYNC_INLINE, in tests: here and now). Marked first, so the jobs runner tries
+    again if that fails. Nothing while the portal may not write to WhatsApp, as for contacts."""
+    from flask import current_app
+    from app.services import crm, wacrm_team
+    if not (crm.wa_writes_on() and wacrm_team.enabled()):
+        return
+    items = _quick_items()                       # here, in the request: the links are the site's
+    _save_quick_state(dict(quick_state(), due=True))
+    app = current_app._get_current_object()
+    if app.config.get('WA_SYNC_INLINE'):
+        _push_isolated(app, items)
+        return
+    try:
+        threading.Thread(target=_push_isolated, args=(app, items), daemon=True, name='wacrm-quick').start()
+    except Exception:      # noqa: BLE001 -- marked: the jobs runner copies them
+        log.warning('Quick replies not copied after a save; the jobs runner copies them', exc_info=True)
+
+
+def _push_isolated(app, items):
+    from app.services import wacrm
+    with app.app_context():                     # its own session: the save is already committed
+        try:
+            with wacrm.short_timeouts():
+                push_quick_replies(items)
+        except Exception:      # noqa: BLE001 -- still marked; the jobs runner tries again
+            db.session.rollback()
+            log.warning('Quick replies not copied to WhatsApp after a save', exc_info=True)
+        finally:
+            db.session.remove()
+
+
+def run_quick_replies():
+    """For the jobs runner: quick replies a save could not copy to WhatsApp, tried again while the
+    portal may write to WhatsApp. Only inside a request (POST /internal/jobs/run): from the command line
+    the links would come out as the bare site, so it waits for the next posted run.
+    {'crm_wa_quick': 'copied' | 'failed'}, or {} when nothing waits."""
+    from flask import has_request_context
+    from app.services import crm, wacrm, wacrm_team
+    if not (has_request_context() and crm.wa_writes_on() and wacrm_team.enabled()) or not quick_state()['due']:
+        return {}
+    try:
+        with wacrm.short_timeouts():
+            push_quick_replies()
+    except wacrm_team.TeamError:
+        return {'crm_wa_quick': 'failed'}
+    return {'crm_wa_quick': 'copied'}

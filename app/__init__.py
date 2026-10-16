@@ -210,6 +210,7 @@ def create_app(test_config=None):
     # the lead source a WhatsApp message from a number we have never seen is filed under
     app.config['CRM_INTAKE_ORIGINS'] = os.environ.get('CRM_INTAKE_ORIGINS', '')
     app.config['WACRM_SOURCE_KEY'] = os.environ.get('WACRM_SOURCE_KEY', 'wa-india')
+    app.config['WA_SYNC_INLINE'] = False   # tests: tell the WhatsApp CRM right after the commit, in this thread
     # Optional per-criterion overrides for the matching engine, e.g. {"route": 40, "date": 20}
     try:
         import json as _json

@@ -515,6 +515,15 @@ def contact_reply(mid):
 
     db.session.add(ContactReply(message_id=m.id, author_id=current_user.id,
                                 body=body, delivered=delivered))
+    # the lead this enquiry became: the e-mail is on its timeline, and the first follow-up is done
+    # only when the mail really went
+    from app.services import crm
+    lead = crm.lead_for_record('contact_message', m.id)
+    if lead is not None:
+        crm.log_touch(lead, 'email', 'out', body=body, user=current_user, status='sent' if delivered else 'failed')
+        first = crm.first_follow_up(lead) if delivered else None
+        if first is not None:
+            crm.complete_task(first, user=current_user, note='Answered by e-mail from Enquiries')
     m.mark_read(by=current_user)
     # Answering it is what "in progress" means; closing it stays a decision somebody makes.
     if m.status == 'new':

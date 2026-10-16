@@ -8,21 +8,26 @@
 
 .crm {
   color-scheme: light;
-  --c-blue: var(--coral, #2f80ed);
-  --c-blue-dark: var(--coral-dark, #1f5fc0);
-  --c-blue-soft: #eaf3fe;
-  --c-ink: var(--text, #0f2340);
-  --c-muted: #5b6b84;
-  --c-line: #e3eaf4;
-  --c-soft: #f6f9fd;
-  --c-card: #ffffff;
-  --c-ok: #16a34a;    --c-ok-soft: #e8f8ee;   --c-ok-ink: #166534;
-  --c-warn: #d97706;  --c-warn-soft: #fff4e0; --c-warn-ink: #92400e;
-  --c-bad: #dc2626;   --c-bad-soft: #fdecec;  --c-bad-ink: #991b1b;
-  --c-wa: #128c7e;
-  --r-new: #94a3b8; --r-cold: #64748b; --r-prospect: #2f80ed; --r-pipeline: #d97706; --r-customer: #16a34a; --r-lost: #dc2626;
+  /* the console's tokens (ui.css); the second value keeps a page readable without it */
+  --c-blue: var(--ui-primary, #1f6fd6);
+  --c-blue-dark: var(--ui-primary-hover, #1a5bb3);
+  --c-blue-soft: var(--ui-primary-soft, #eaf3fe);
+  --c-ink: var(--ui-ink, #0f2340);
+  --c-muted: var(--ui-muted, #5b6b84);
+  --c-line: var(--ui-line, #e3eaf4);
+  --c-soft: var(--ui-soft, #f6f9fd);
+  --c-card: var(--ui-card, #ffffff);
+  --c-ok: var(--ui-ok, #16a34a);      --c-ok-soft: var(--ui-ok-soft, #e8f8ee);     --c-ok-ink: var(--ui-ok-ink, #166534);
+  --c-warn: var(--ui-warn, #d97706);  --c-warn-soft: var(--ui-warn-soft, #fff4e0); --c-warn-ink: var(--ui-warn-ink, #92400e);
+  --c-bad: var(--ui-bad, #dc2626);    --c-bad-soft: var(--ui-bad-soft, #fdecec);   --c-bad-ink: var(--ui-bad-ink, #991b1b);
+  --c-wa: var(--ui-wa, #0e7a6e);
+  /* the kinds of stage (ui.css --r-*): cold lead = new, prospect = talking, pipeline = quoted, customer = won */
+  --r-cold: var(--r-new, #64748b); --r-prospect: var(--r-talking, #1f6fd6); --r-pipeline: var(--r-quoted, #d97706);
+  --r-customer: var(--r-won, #16a34a);
+  /* the names some templates use (the set-up pages, insights.html, checks.html, the lead page) */
+  --crm-blue: var(--c-blue); --crm-ok: var(--c-ok); --crm-bad: var(--c-bad); --crm-wa: var(--c-wa); --crm-line: var(--c-line);
   --radius-lg: 16px; --radius: 12px; --radius-sm: 8px;
-  --shadow-card: 0 1px 2px rgba(15, 35, 64, .04), 0 4px 14px rgba(15, 35, 64, .05);
+  --shadow-card: var(--ui-shadow, 0 1px 2px rgba(15, 35, 64, .04), 0 4px 14px rgba(15, 35, 64, .05));
   color: var(--c-ink);
   font-size: 15px;
 }
@@ -37,29 +42,13 @@
 .crm .hint { font-size: 13px; color: var(--c-muted); margin-top: 4px; }
 .crm code { font-size: 12.5px; color: var(--c-blue-dark); background: var(--c-blue-soft); padding: 1px 6px; border-radius: 4px; }
 
-/* ================================================================== the CRM's own menu */
-.crm-nav { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 22px; padding: 6px;
-  background: var(--c-card); border: 1px solid var(--c-line); border-radius: 14px; box-shadow: var(--shadow-card); }
-.crm-nav a { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 10px; font-weight: 600;
-  font-size: 14px; color: var(--c-muted); text-decoration: none; white-space: nowrap; }
-.crm-nav a:hover { background: var(--c-soft); color: var(--c-ink); }
-.crm-nav a.on { background: var(--c-blue); color: #fff; }
-.crm-nav a .n { background: var(--c-bad); color: #fff; border-radius: 999px; font-size: 11px; padding: 1px 7px; line-height: 16px; }
-.crm-nav a.on .n { background: #fff; color: var(--c-blue-dark); }
-.crm-nav a .n.warn { background: var(--c-warn); }
-.crm-nav .sep { width: 1px; height: 24px; background: var(--c-line); margin: 0 4px; }
-.crm-nav .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
-.crm-nav .icon-btn { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--c-line); background: #fff; color: var(--c-muted);
-  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 15px; }
-.crm-nav .icon-btn:hover { color: var(--c-blue-dark); border-color: var(--c-blue); }
-
 /* page title */
 .page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
 .page-head .lead-in { color: var(--c-muted); margin-top: 6px; font-size: 15px; max-width: 70ch; }
 .page-head .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
 /* ================================================================== building blocks */
-.card { background: var(--c-card); border: 1px solid var(--c-line); border-radius: var(--radius-lg); padding: 20px 22px;
+.card { background: var(--c-card); border: 1px solid var(--c-line); border-radius: var(--ui-radius-card, 12px); padding: 20px 22px;
   box-shadow: var(--shadow-card); margin-bottom: 16px; }
 .card.flat { box-shadow: none; background: var(--c-soft); }
 .card.tight { padding: 14px 16px; }
@@ -94,15 +83,16 @@
 .crm .cb.primary { background: var(--c-blue); border-color: var(--c-blue); color: #fff; }
 .crm .cb.primary:hover { background: var(--c-blue-dark); border-color: var(--c-blue-dark); color: #fff; }
 .crm .cb.wa { background: var(--c-wa); border-color: var(--c-wa); color: #fff; }
-.crm .cb.wa:hover { background: #0e7368; border-color: #0e7368; color: #fff; }
+.crm .cb.wa:hover { background: #0b665c; border-color: #0b665c; color: #fff; }
 .crm .cb.ok { background: var(--c-ok); border-color: var(--c-ok); color: #fff; }
 .crm .cb.ok:hover { background: #15803d; border-color: #15803d; color: #fff; }
-.crm .cb.bad { color: var(--c-bad); border-color: #f5c2c2; }
-.crm .cb.bad:hover { background: var(--c-bad-soft); }
-.crm .cb.ghost { background: transparent; border-color: transparent; color: var(--c-muted); }
-.crm .cb.ghost:hover { background: var(--c-soft); color: var(--c-ink); }
+/* ui.css's names too (.danger, .quiet, .lg): inside .crm this file's .cb comes later and would undo them */
+.crm .cb.bad, .crm .cb.danger { color: var(--c-bad); border-color: #f5c2c2; }
+.crm .cb.bad:hover, .crm .cb.danger:hover { background: var(--c-bad-soft); }
+.crm .cb.ghost, .crm .cb.quiet { background: transparent; border-color: transparent; color: var(--c-muted); }
+.crm .cb.ghost:hover, .crm .cb.quiet:hover { background: var(--c-soft); color: var(--c-ink); }
 .crm .cb.sm { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
-.crm .cb.big { padding: 13px 22px; font-size: 16px; border-radius: 12px; }
+.crm .cb.big, .crm .cb.lg { padding: 13px 22px; font-size: 16px; border-radius: 12px; }
 .crm .cb.block { width: 100%; }
 
 /* chips */
@@ -114,10 +104,9 @@
 .crm .chip.bad { background: var(--c-bad-soft); color: var(--c-bad-ink); border-color: transparent; }
 .crm .chip.info { background: var(--c-blue-soft); color: var(--c-blue-dark); border-color: transparent; }
 .crm .chip.stuck { background: var(--c-bad); color: #fff; border-color: transparent; }
-.crm .chip.p-TI { background: #e8f8ee; color: #166534; border-color: #c4ecd2; }
-.crm .chip.p-TC { background: var(--c-blue-soft); color: var(--c-blue-dark); border-color: #c9defb; }
-.crm .chip.p-SH { background: #fce7f3; color: #9d174d; border-color: #f9cfe4; }
-.crm .chip.p-GH, .crm .chip.p-VC { background: #ede9fe; color: #5b21b6; border-color: #ddd6fe; }
+/* a product: neutral outline and its icon, never a stage colour */
+.crm .chip.prod { background: var(--c-card); color: var(--c-ink); border-color: var(--c-line); }
+.crm .chip.prod i { color: var(--c-muted); font-size: 11px; }
 .crm button.chip, .crm a.chip { cursor: pointer; font-size: 13.5px; padding: 8px 14px; }
 .crm button.chip:hover, .crm a.chip:hover { border-color: var(--c-blue); }
 .crm button.chip.on, .crm a.chip.on { background: var(--c-blue); color: #fff; border-color: var(--c-blue); }
@@ -202,7 +191,7 @@ details.step > summary::-webkit-details-marker { display: none; }
 .crm-task .what .due { color: var(--c-muted); }
 .crm-task.late .what .due { color: var(--c-bad); font-weight: 600; }
 .crm-task .msg { margin-top: 8px; font-size: 13.5px; color: #33445f; background: var(--c-soft); border-radius: 10px; padding: 9px 12px;
-  white-space: pre-wrap; max-height: 4.8em; overflow: hidden; }
+  white-space: pre-wrap; }
 .crm-task .btns { display: flex; flex-direction: column; gap: 6px; min-width: 190px; }
 .crm-task .btns .row { flex-wrap: nowrap; }
 .crm-task .btns .row .cb { flex: 1; }
@@ -239,7 +228,7 @@ details.step > summary::-webkit-details-marker { display: none; }
 .crm-col.r-prospect { border-top-color: var(--r-prospect); }
 .crm-col.r-pipeline { border-top-color: var(--r-pipeline); }
 .crm-col.r-customer { border-top-color: var(--r-customer); background: #f4fbf6; }
-.crm-col.r-lost { border-top-color: var(--r-lost); background: #fdf6f6; }
+.crm-col.r-lost { border-top-color: var(--r-lost, #dc2626); background: #fdf6f6; }
 .crm-col header { padding: 12px 14px 8px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .crm-col header b { font-size: 15px; color: var(--c-ink); }
 .crm-col header span { font-size: 12.5px; color: var(--c-muted); font-weight: 600; }
@@ -503,7 +492,7 @@ svg.cols .axis { stroke: var(--c-line); stroke-width: 1; }
 /* ================================================================== set-up (admin) */
 .crm-stage { border: 1px solid var(--c-line); border-left: 5px solid var(--r-prospect); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; background: #fff; }
 .crm-stage.k-won { border-left-color: var(--r-customer); }
-.crm-stage.k-lost { border-left-color: var(--r-lost); }
+.crm-stage.k-lost { border-left-color: var(--r-lost, #dc2626); }
 .crm-stage form.line { display: grid; grid-template-columns: minmax(140px, 2fr) minmax(120px, 1fr) auto minmax(90px, 1fr) auto; gap: 8px; align-items: center; }
 @media (max-width: 900px) { .crm-stage form.line { grid-template-columns: 1fr 1fr; } }
 .crm-stage form.line .auto-line { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13.5px;
@@ -539,8 +528,8 @@ svg.cols .axis { stroke: var(--c-line); stroke-width: 1; }
 .crm-dialog .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 16px 0; }
 .crm-dialog .chip { display: inline-flex; align-items: center; padding: 9px 15px; border-radius: 999px; font-size: 14px; font-weight: 600;
   background: #f6f9fd; color: #0f2340; border: 1px solid #e3eaf4; cursor: pointer; text-transform: none; }
-.crm-dialog .chip:hover { background: #2f80ed; border-color: #2f80ed; color: #fff; }
-.crm-dialog .chip.danger:hover { background: #dc2626; border-color: #dc2626; }
+.crm-dialog .chip:hover { background: var(--ui-primary, #1f6fd6); border-color: var(--ui-primary, #1f6fd6); color: #fff; }
+.crm-dialog .chip.danger:hover { background: var(--ui-bad, #dc2626); border-color: var(--ui-bad, #dc2626); }
 .crm-dialog input[type=text], .crm-dialog input[type=email] { width: 100%; padding: 11px 13px; border: 1.5px solid #e3eaf4; border-radius: 10px;
   font: inherit; font-size: 15px; background: #fff; color: #0f2340; box-sizing: border-box; }
 .crm-dialog .lb { display: block; font-weight: 600; font-size: 14px; margin: 0 0 5px; }
@@ -549,7 +538,7 @@ svg.cols .axis { stroke: var(--c-line); stroke-width: 1; }
 .crm-dialog .row.end { justify-content: flex-end; }
 .crm-dialog .cb { display: inline-flex; align-items: center; gap: 6px; padding: 9px 15px; border-radius: 10px; font-weight: 600; font-size: 14px;
   border: 1.5px solid #e3eaf4; background: #fff; color: #0f2340; cursor: pointer; }
-.crm-dialog .cb.primary { background: #2f80ed; border-color: #2f80ed; color: #fff; }
+.crm-dialog .cb.primary { background: var(--ui-primary, #1f6fd6); border-color: var(--ui-primary, #1f6fd6); color: #fff; }
 .crm-dialog .cb.ghost { background: transparent; }
 .crm-dialog .cb.sm { padding: 7px 11px; font-size: 13px; }
 .crm-toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); background: #0f2340; color: #fff; padding: 12px 18px;
@@ -564,15 +553,10 @@ body.crm-focus .admin-page { grid-template-columns: 1fr !important; background: 
 body.crm-focus .admin-main.crm { padding: 18px 24px; max-width: none; }
 body.crm-focus .crm-board { grid-auto-columns: minmax(280px, 1fr); }
 
-/* The lead's WhatsApp conversation, from the WhatsApp CRM, inside the lead page */
-.crm-wa-frame { display: block; width: 100%; height: 560px; border: 1px solid var(--crm-line, #e3e8f0); border-radius: 12px; background: #fff; margin-bottom: 14px; }
-@media (max-width: 700px) { .crm-wa-frame { height: 70vh; } }
-
-/* ===== The lead page: the chat and the lead card side by side ===== */
+/* ===== The lead page: the conversation and the lead card side by side ===== */
 .lead-top { margin-bottom: 14px; }
 .lead-route { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--crm-line, #e3e8f0); align-items: center; gap: 10px; flex-wrap: wrap; }
 .lead-ws { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
-.lead-chat .crm-wa-frame { height: calc(100vh - 250px); min-height: 520px; margin: 0; }
 .lead-side { display: flex; flex-direction: column; gap: 0; }
 .lead-side .card { margin-bottom: 12px; }
 .msg-preview { white-space: pre-wrap; background: #f7f9fc; border: 1px solid var(--crm-line, #e3e8f0); border-radius: 10px;
@@ -581,12 +565,12 @@ body.crm-focus .crm-board { grid-auto-columns: minmax(280px, 1fr); }
 .lc-how.lc-template { color: #15803d; }
 .lc-how.lc-text { color: #1d4ed8; }
 .lc-how.lc-link { color: #9a5300; }
+.lc-how.lc-blocked { color: var(--c-bad-ink); }
 .lc-next textarea { width: 100%; margin-bottom: 8px; }
 .crm-journey.compact { flex-wrap: wrap; }
 .crm-journey.compact button { flex: 1 1 auto; min-width: 0; font-size: 12.5px; padding: 6px 8px; }
 @media (max-width: 1100px) {
   .lead-ws { grid-template-columns: 1fr; }
-  .lead-chat .crm-wa-frame { height: 70vh; }
 }
 
 /* a WhatsApp template's state (Set-up) */
@@ -595,3 +579,165 @@ body.crm-focus .crm-board { grid-auto-columns: minmax(280px, 1fr); }
 .tpl-st.tpl-pending { background: #e7f0fd; color: #1d4ed8; }
 .tpl-st.tpl-draft { background: #fff1db; color: #9a5300; }
 .tpl-st.tpl-rejected { background: #fde8e8; color: #b91c1c; }
+
+/* ===== The lead page, as one screen (header, journey, timeline + message box, lead card) ===== */
+.lead-back { margin: 0 0 10px; }
+.lead-back a { text-decoration: none; }
+.lead-hero .sub .lead-owner { display: inline-block; width: auto; max-width: 220px; padding: 2px 6px; font-size: 13.5px; }
+.lead-journey { margin-bottom: 14px; }
+.lead-milestones { gap: 8px; flex-wrap: wrap; }
+.lead-wa { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid var(--c-line); font-size: 13.5px; }
+.lead-wa .ico.wa { color: var(--c-wa); }
+.lead-sync { font-size: 13px; color: var(--c-muted); margin-left: auto; }
+.lead-sync.ok { color: var(--c-ok-ink); }
+.lead-sync.problem { color: var(--c-bad-ink); }
+.lead-sync.waiting { color: var(--c-warn-ink); }
+.lead-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.lead-tl { padding: 0; }
+.tl-scroll { max-height: calc(100vh - 380px); min-height: 320px; overflow-y: auto; padding: 14px 16px; }
+.tl-day { text-align: center; margin: 10px 0; }
+.tl-day span { display: inline-block; font-size: 12px; font-weight: 700; color: var(--c-muted); background: var(--c-soft);
+  border-radius: 999px; padding: 2px 10px; }
+.tl-msg { display: flex; margin: 6px 0; }
+.tl-msg.out { justify-content: flex-end; }
+.tl-bubble { max-width: min(78%, 560px); background: var(--c-soft); border-radius: 14px; padding: 8px 12px; font-size: 14px; }
+.tl-msg.out .tl-bubble { background: var(--c-ok-soft); }
+.tl-who { font-size: 12px; font-weight: 700; color: var(--c-muted); }
+.tl-via { font-size: 12px; color: var(--c-muted); }
+.tl-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.tl-media { font-weight: 600; }
+.tl-meta { display: flex; gap: 6px; justify-content: flex-end; align-items: center; font-size: 11.5px; color: var(--c-muted); }
+.tl-read { color: var(--c-blue); }
+.tl-fail { font-size: 12.5px; color: var(--c-bad-ink); margin-top: 2px; }
+.tl-note { font-size: 12px; color: var(--c-muted); margin-top: 2px; }
+.tl-full { display: inline-block; font-size: 12.5px; margin-top: 2px; }
+.tl-event { display: flex; gap: 8px; align-items: baseline; margin: 8px 0; color: var(--c-muted); font-size: 13px; }
+.tl-event small { display: block; font-size: 12px; }
+.tl-event time { margin-left: auto; font-size: 11.5px; white-space: nowrap; }
+.tl-more { text-align: center; font-size: 12.5px; color: var(--c-muted); margin-bottom: 8px; }
+.lead-box { padding: 12px 14px; }
+.box-on { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.box-on .chip.on { background: var(--c-blue); color: #fff; border-color: var(--c-blue); }
+.box-note { font-size: 13px; color: var(--c-muted); margin: 0 0 8px; }
+.box-note[hidden], .box-setup[hidden] { display: none; }
+.box-setup { font-size: 13px; }
+.lead-box textarea { width: 100%; }
+.box-bar { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; margin-top: 8px; }
+.box-qr { margin-right: auto; position: relative; }
+.box-qr summary { list-style: none; cursor: pointer; }
+.box-qr-menu { position: absolute; bottom: 100%; left: 0; z-index: 6; min-width: 240px; max-height: 260px; overflow-y: auto;
+  background: var(--c-card); border: 1px solid var(--c-line); border-radius: 10px; box-shadow: var(--shadow-card); padding: 4px; }
+.box-qr-menu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 8px;
+  font: inherit; font-size: 13.5px; cursor: pointer; }
+.box-qr-menu button:hover { background: var(--c-soft); }
+.box-fills { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; margin: 8px 0; }
+.box-tpl select { width: 100%; margin-top: 6px; }
+.lead-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(720px, 100vw); z-index: 60; display: flex; flex-direction: column;
+  background: var(--c-card); box-shadow: -8px 0 30px rgba(15, 35, 64, .18); }
+.lead-drawer[hidden] { display: none; }
+.lead-drawer-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--c-line); }
+.lead-drawer iframe { flex: 1; border: 0; width: 100%; }
+body.crm-drawer-open { overflow: hidden; }
+.lc-log details + details { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--c-line); }
+.replies-line { font-size: 14px; }
+/* beside the WhatsApp inbox */
+.lp-belongs { font-size: 13px; color: var(--c-muted); margin: 0 0 10px; }
+.lp-suggest { background: var(--c-soft); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+.lp-suggest p { font-size: 13.5px; margin: 4px 0 8px; }
+.lp-quick { margin-bottom: 10px; font-size: 13.5px; }
+.lp-quick summary { cursor: pointer; font-weight: 600; }
+.lp-quick .row { padding: 4px 0; gap: 8px; }
+/* the full-chat page that the drawer opens first */
+.lc-page { margin: 0; background: #fff; }
+.lc { padding: 18px; max-width: 760px; }
+.lc h2 { font-size: 16px; margin: 0 0 6px; display: flex; gap: 8px; align-items: center; }
+.lc p { margin: 0 0 12px; color: var(--c-muted); font-size: 14px; }
+.lc-flash { padding: 10px 12px; border-radius: 10px; margin-bottom: 12px; font-size: 14px; background: var(--c-blue-soft); border: 1px solid var(--c-line); }
+.lc-flash.danger, .lc-flash.warning { background: var(--c-bad-soft); color: var(--c-bad-ink); }
+.lc-flash.success { background: var(--c-ok-soft); color: var(--c-ok-ink); }
+@media (max-width: 700px) {
+  .tl-scroll { max-height: 60vh; min-height: 0; }
+  .tl-bubble { max-width: 88%; }
+  .lead-box { position: sticky; bottom: 0; z-index: 5; margin-bottom: 0; }
+  .lead-wa .lead-sync { margin-left: 0; }
+}
+
+
+/* ================================================================== the daily work: Leads, My day, Team today */
+.leads-top { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+.leads-filters .flt { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--c-muted); }
+.leads-filters .flt select { width: auto; max-width: 220px; }
+.quick-filters { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 0 0 10px; }
+.quick-filters .chip { font-size: 13px; padding: 5px 12px; }
+.crm-legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 0 0 12px; font-size: 12.5px; font-weight: 600; }
+.crm-legend .r-cold { color: var(--r-cold); }
+.crm-legend .r-prospect { color: var(--r-prospect); }
+.crm-legend .r-pipeline { color: var(--r-pipeline); }
+.crm-legend .r-customer { color: var(--r-customer); }
+.crm-legend .r-lost { color: var(--r-lost, #dc2626); }
+.crm-card .card-more { margin-left: auto; border: 0; background: transparent; color: var(--c-muted); font-size: 17px; line-height: 1;
+  padding: 2px 6px; border-radius: 6px; cursor: pointer; }
+.crm-card .card-more:hover { background: var(--c-soft); color: var(--c-ink); }
+.crm-card .meta .chip.wait { background: var(--c-bad-soft); color: var(--c-bad-ink); border-color: transparent; }
+.crm-card .meta .chip.win { background: var(--c-ok-soft); color: var(--c-ok-ink); border-color: transparent; }
+.crm-card .meta .chip.nochat { background: var(--c-soft); color: var(--c-muted); }
+.crm-card .meta .chip.optout { background: var(--c-bad); color: #fff; border-color: transparent; }
+.crm-card .meta .chip.tick { background: var(--c-soft); color: var(--c-muted); }
+.crm-card .meta .chip.tick.t-read i { color: var(--c-blue); }
+.crm-card .meta .chip.tick.t-failed { background: var(--c-bad-soft); color: var(--c-bad-ink); }
+.crm-col { position: relative; }
+.crm-col.outlined { outline: 3px solid var(--c-blue); outline-offset: 2px; }
+.crm-col header { position: relative; }
+.col-more { position: relative; margin-left: 4px; }
+.col-more > summary { list-style: none; cursor: pointer; padding: 0 6px; border-radius: 6px; font-size: 17px; color: var(--c-muted); }
+.col-more > summary::-webkit-details-marker { display: none; }
+.col-more[open] > summary, .col-more > summary:hover { background: var(--c-card); color: var(--c-ink); }
+.col-more .menu { position: absolute; right: 0; top: 100%; z-index: 20; min-width: 220px; background: var(--c-card); border: 1px solid var(--c-line);
+  border-radius: 10px; box-shadow: 0 8px 24px rgba(15, 35, 64, .16); padding: 6px; display: flex; flex-direction: column; }
+.col-more .menu a, .col-more .menu button { display: block; text-align: left; padding: 8px 10px; border: 0; background: transparent;
+  border-radius: 8px; font: inherit; font-size: 13.5px; color: var(--c-ink); text-decoration: none; cursor: pointer; }
+.col-more .menu a:hover, .col-more .menu button:hover { background: var(--c-soft); }
+.crm-col a.more { display: block; text-decoration: none; }
+.crm-col a.more:hover { color: var(--c-blue-dark); }
+.crm-list .table-wrap { overflow-x: auto; }
+.crm-list td.chk, .crm-list th.chk { width: 34px; }
+.crm-list .chat-waiting { color: var(--c-bad-ink); font-weight: 600; }
+.crm-list .chat-open { color: var(--c-ok-ink); }
+.crm-list .chat-optout { color: var(--c-bad); }
+.bulk-bar { position: sticky; bottom: 8px; display: flex; gap: 10px; align-items: center; margin-top: 10px; padding: 10px 14px;
+  background: var(--c-card); border: 1px solid var(--c-blue); border-radius: 12px; box-shadow: 0 6px 20px rgba(15, 35, 64, .14); }
+.bulk-bar[hidden] { display: none; }
+.pager { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+
+/* My day */
+.crm-wait { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px 14px;
+  border: 1px solid var(--c-line); border-left: 5px solid var(--c-bad); border-radius: 12px; background: #fff; margin-bottom: 10px; }
+.crm-wait .btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.crm-wait.gone { opacity: .4; pointer-events: none; }
+.crm-task .msg.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.crm-task .plan-note { margin: 6px 0 0; font-size: 12.5px; color: var(--c-warn-ink); }
+.crm-task .blocked { margin: 0; font-size: 13px; font-weight: 600; color: var(--c-warn-ink); }
+.crm-task .btns .quiet-row { flex-wrap: wrap; }
+.cb.quiet, .crm button.quiet { background: transparent; border-color: transparent; color: var(--c-muted); font-weight: 500; }
+.cb.quiet:hover { color: var(--c-ink); text-decoration: underline; }
+.linkish { border: 0; background: transparent; padding: 2px 0; font: inherit; font-size: 12.5px; color: var(--c-blue-dark); cursor: pointer; }
+.linkish:hover { text-decoration: underline; }
+.alert-ask { margin: 10px 0 0; font-size: 13px; color: var(--c-muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.alert-ask[hidden] { display: none; }
+.getting { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 4px; }
+.getting li.done { color: var(--c-muted); text-decoration: line-through; }
+.log-item .unit { color: var(--c-muted); font-size: 12.5px; margin-left: 6px; }
+.another-day { margin-top: 6px; font-size: 13.5px; }
+.another-day summary { cursor: pointer; color: var(--c-blue-dark); }
+.another-day form { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.crm-next-bar { display: none; }
+.tt-i { cursor: help; color: var(--c-muted); font-weight: 400; font-size: 12px; }
+@media (max-width: 640px) {
+  .pipes { flex-wrap: nowrap; overflow-x: auto; }
+  .crm-wait { grid-template-columns: 1fr; }
+  .crm-wait .btns { justify-content: flex-start; }
+  .crm-next-bar { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; padding: 14px 16px; text-align: center;
+    background: var(--c-blue); color: #fff; font-weight: 700; text-decoration: none; box-shadow: 0 -4px 16px rgba(15, 35, 64, .2); }
+  body:has(.crm-next-bar) { padding-bottom: 56px; }
+}

@@ -26,31 +26,20 @@
   <div class="pp-box">
     <i class="fa-solid fa-door-open"></i>
     <h1>Where would you like to go?</h1>
-    <p>Your account holds more than one role — pick the portal to continue with.</p>
+    <p>Your account can use the website and the staff pages.</p>
     <div class="pp-grid">
-      {% if 'user' in levels %}
       <a class="pp-card" href="{{ url_for('auth.choose_portal', to='traveller') }}">
-        <span class="pp-ic t"><i class="fa-solid fa-suitcase-rolling"></i></span>
-        <strong>Traveller</strong>
-        <small>My trips, matches &amp; inbox</small>
+        <span class="pp-ic t"><i class="fa-solid fa-globe"></i></span>
+        <strong>Website</strong>
+        <small>Your trips, matches and inbox</small>
       </a>
-      {% endif %}
-      {% if 'cs' in levels or 'admin' in levels %}
-      <a class="pp-card" href="{{ url_for('auth.choose_portal', to='cs') }}">
+      <a class="pp-card" href="{{ url_for('auth.choose_portal', to='staff') }}">
         <span class="pp-ic c"><i class="fa-solid fa-headset"></i></span>
-        <strong>CS Console</strong>
-        <small>Posts, match queue &amp; imports</small>
+        <strong>Staff</strong>
+        <small>The pages your role gives you</small>
       </a>
-      {% endif %}
-      {% if 'admin' in levels %}
-      <a class="pp-card" href="{{ url_for('auth.choose_portal', to='admin') }}">
-        <span class="pp-ic a"><i class="fa-solid fa-gauge-high"></i></span>
-        <strong>Admin Panel</strong>
-        <small>Users, options &amp; settings</small>
-      </a>
-      {% endif %}
     </div>
-    <p class="pp-note"><i class="fa-solid fa-circle-info"></i> You can switch portals any time from your profile menu.</p>
+    <p class="pp-note"><i class="fa-solid fa-circle-info"></i> You can switch any time from your profile menu (View: Website / Staff).</p>
   </div>
 </div>
 {% endblock %}

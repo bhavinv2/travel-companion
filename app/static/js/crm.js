@@ -1,8 +1,10 @@
 /* Sales CRM screens (/cs/crm). One file, delegated handlers, no framework.
 
-   Every button does the whole job in one click: "Send on WhatsApp" opens WhatsApp with the message
-   typed (or sends it, once the WhatsApp CRM is connected), logs it, ticks the step off and plans the
-   next one. The server decides all of that; this only collects what was clicked and shows the result. */
+   Every button does the whole job in one click: a follow-up's Send goes through the lead page's
+   message box (or, beside the WhatsApp inbox, straight away), is logged, ticks the step off and
+   plans the next one. The server decides all of that; this only collects what was clicked and
+   shows the result. The lead page keeps itself fresh: its [data-lead-live] regions are swapped
+   from <crm>/lead/<id>/live every few seconds, never over something half typed. */
 (function () {
   'use strict';
   var root = document.querySelector('[data-crm]');
@@ -56,6 +58,10 @@
   function reloadFor(el, ms) {
     var panel = el && el.closest && el.closest('[data-lead-panel]');
     if (panel && window.CRM_reloadPanel) { setTimeout(window.CRM_reloadPanel, ms || 400); return; }
+    if (el && el.closest && el.closest('[data-lead-page][data-live]')) {
+      setTimeout(function () { refreshLive(); }, Math.min(ms || 150, 300));
+      return;
+    }
     reloadSoon(ms);
   }
 
@@ -95,9 +101,12 @@
     try { return JSON.parse(el.dataset.reasons || '[]'); } catch (e) { return []; }
   }
 
-  /* Moving a lead. A finish line asks once: won to confirm, lost for why (the pipeline's buttons). */
+  /* Moving a lead. A finish line asks once: won to confirm, lost for why (the pipeline's buttons). A stage
+     with a milestone button asks "Did you send the quote?". `stage`: an element with data-stage, data-kind,
+     data-name (and data-milestone, data-ask), or a plain object with those names. */
   function moveLead(leadId, stage, reasonsSource) {
-    var kind = stage.dataset.kind, name = stage.dataset.name;
+    var info = stage.dataset || stage;
+    var kind = info.kind, name = info.name, milestone = info.milestone || '';
     var ask = Promise.resolve('');
     if (kind === 'lost') {
       var reasons = reasonsFrom(reasonsSource);
@@ -106,14 +115,20 @@
         reasons.map(function (r) { return { label: r, value: r }; }));
     } else if (kind === 'won') {
       ask = choose('Mark as won?', 'Moving to "' + name + '". Well done!', [{ label: 'Yes, won', value: 'won' }]);
+    } else if (milestone && kind === 'open') {
+      ask = choose(info.ask || 'Did you send it?', 'Moving to "' + name + '".',
+        [{ label: 'Yes, log it', value: 'yes' }, { label: 'No, just move', value: 'no' }]);
     }
     return ask.then(function (reason) {
       if (reason === null) return null;
-      return post('lead/' + leadId + '/move', { stage_id: +stage.dataset.stage, reason: kind === 'lost' ? reason : '' });
+      var body = { stage_id: +info.stage, reason: kind === 'lost' ? reason : '' };
+      if (milestone && kind === 'open') body.log_milestone = reason === 'yes';
+      return post('lead/' + leadId + '/move', body);
     }).then(function (d) {
       if (d === null) return null;
       if (!d._ok) { toast(d.error || 'Could not move it.', true); return null; }
-      toast(d.status === 'won' ? 'Won! 🎉 Moved to ' + d.stage : 'Moved to ' + d.stage, false,
+      var said = d.logged ? '. Logged: ' + (milestone === 'Q' ? 'I sent the quote' : 'I sent the payment link') : '';
+      toast(d.status === 'won' ? 'Won! 🎉 Moved to ' + d.stage : 'Moved to ' + d.stage + said, false,
             { label: 'Undo', run: function () { undoMove(leadId, reasonsSource); } });
       return d;
     });
@@ -153,24 +168,81 @@
   function taskAction(taskId, action, extra) {
     return post('task/' + taskId + '/' + action, extra || {}).then(function (d) {
       if (!d._ok) { toast(d.error || 'That did not work.', true); return null; }
-      toast(action === 'snooze' ? 'Moved to tomorrow' : action === 'skip' ? 'Skipped' : 'Done ✓' +
-        (d.next ? ' — next: ' + d.next.code : ''));
+      toast(action === 'snooze' ? 'Moved to tomorrow' : action === 'skip' ? 'Marked not needed' : 'Done ✓' +
+        (d.next ? ' Next: ' + (d.next.title || d.next.code) : ''));
       return d;
     });
   }
 
-  function logCall(leadId, outcome, taskId) {
-    return post('lead/' + leadId + '/call', { outcome: outcome, task_id: taskId || null }).then(function (d) {
+  function logCall(leadId, outcome, taskId, extra) {
+    var body = { outcome: outcome, task_id: taskId || null };
+    Object.keys(extra || {}).forEach(function (k) { body[k] = extra[k]; });
+    return post('lead/' + leadId + '/call', body).then(function (d) {
       if (!d._ok) { toast(d.error || 'Could not save the call.', true); return null; }
-      toast('Call saved');
+      toast(d.call_back ? 'Saved. Call them back ' + d.call_back + '.' : 'Call saved');
       return d;
     });
   }
 
   var OUTCOMES = [
     { label: 'Talked', value: 'connected' }, { label: 'No answer', value: 'no_answer' },
-    { label: 'Busy', value: 'busy' }, { label: 'Asked us to call back', value: 'call_back' },
-    { label: 'Switched off', value: 'switched_off' }, { label: 'Wrong number', value: 'wrong_number' }];
+    { label: 'Busy', value: 'busy' }, { label: 'Call back', value: 'call_back' },
+    { label: 'Wrong number', value: 'wrong_number' }, { label: 'Switched off', value: 'switched_off' }];
+
+  /* "Call back" asks when: a call goes on their follow-ups for then. Resolves {when, at} or null. */
+  function askCallBack() {
+    return choose('When?', 'A call goes on their follow-ups for then.', [
+      { label: 'In 1 hour', value: '1h' }, { label: 'This evening', value: 'evening' },
+      { label: 'Tomorrow morning', value: 'morning' }, { label: 'Pick a time', value: 'at' }
+    ]).then(function (v) {
+      if (!v) return null;
+      if (v !== 'at') return { when: v };
+      return new Promise(function (resolve) {
+        var box = dialog.querySelector('.in');
+        box.innerHTML = '<h3>Pick a time</h3><div class="stack" style="margin-top:10px">' +
+          '<input type="datetime-local" id="crm-cb-at" aria-label="Call back at"/>' +
+          '<div class="row end"><button type="button" class="cb ghost" data-close>Cancel</button>' +
+          '<button type="button" class="cb primary" data-save>Save</button></div></div>';
+        var done = false;
+        function finish(r) { if (done) return; done = true; dialog.close(); resolve(r); }
+        box.querySelector('[data-close]').onclick = function () { finish(null); };
+        box.querySelector('[data-save]').onclick = function () {
+          var at = document.getElementById('crm-cb-at').value;
+          if (!at) { toast('Pick a time.', true); return; }
+          finish({ when: 'at', at: at });
+        };
+        dialog.addEventListener('close', function once() { dialog.removeEventListener('close', once); finish(null); });
+        dialog.showModal();
+      });
+    });
+  }
+
+  /* A link that leaves the page (their WhatsApp, the mail program): when the person comes back,
+     ask whether it really went before anything is ticked. */
+  function askOnReturn(title, options) {
+    return new Promise(function (resolve) {
+      var t0 = Date.now(), away = false, asked = false, timer = null;
+      function ask() {
+        if (asked) return;
+        asked = true; cleanup();
+        choose(title, '', options).then(resolve);
+      }
+      function back() {
+        if (!away || asked || document.visibilityState === 'hidden') return;
+        setTimeout(ask, Math.max(0, 1200 - (Date.now() - t0)));
+      }
+      function gone() { away = true; }
+      function vis() { if (document.visibilityState === 'hidden') gone(); else back(); }
+      function cleanup() {
+        window.removeEventListener('blur', gone); window.removeEventListener('focus', back);
+        document.removeEventListener('visibilitychange', vis); clearTimeout(timer);
+      }
+      window.addEventListener('blur', gone); window.addEventListener('focus', back);
+      document.addEventListener('visibilitychange', vis);
+      timer = setTimeout(function () { if (!away) ask(); }, 3000);   // it never left: ask anyway
+    });
+  }
+  var YES_NO = [{ label: 'Yes', value: 'yes' }, { label: 'No', value: 'no' }];
 
   function afterCall(d, leadPage) {
     if (!d) return;
@@ -205,26 +277,92 @@
 
     if (card) {
       var tid = card.dataset.task, lid = card.dataset.lead;
-      if (act === 'send') {
+      var gone = function (d) { if (d) card.classList.add('gone'); };
+      if (act === 'tpl-send' || act === 'text-send') {
+        // one press, one send: the lead page's message route claims the step before anything goes
         e.preventDefault();
         b.disabled = true;
-        sendMessage(lid, b.dataset.text, tid, b.dataset.phone).then(function (d) {
+        var tpl = act === 'tpl-send';
+        post('lead/' + lid + '/message', tpl ? { kind: 'template', template: b.dataset.template, task_id: tid }
+                                             : { kind: 'text', text: b.dataset.text, task_id: tid }).then(function (d) {
           b.disabled = false;
-          if (d) card.classList.add('gone');
+          if (d._ok) {
+            toast(d.mode === 'unsure' ? (d.reason || 'WhatsApp did not answer. Check the chat.') : (tpl ? 'Template sent on WhatsApp' : 'Sent on WhatsApp'),
+                  d.mode === 'unsure');
+            card.classList.add('gone');
+            return;
+          }
+          var open = d.mode === 'window_closed'
+            ? { label: 'Open lead', run: function () { location.href = BASE + 'lead/' + lid + '?via=whatsapp'; } } : null;
+          toast(d.error || 'Could not send.', true, open);
         });
-      } else if (act === 'done' || act === 'snooze') {
-        taskAction(tid, act).then(function (d) { if (d) card.classList.add('gone'); });
+      } else if (act === 'wa-own') {
+        // their own WhatsApp (WhatsApp is not connected for leads): opened inside this click
+        var wl = waLink(card.dataset.phone, b.dataset.text || '');
+        if (wl) window.open(wl, '_blank', 'noopener');
+        askOnReturn('Did you send it?', YES_NO).then(function (v) {
+          if (v !== 'yes') return;
+          post('lead/' + lid + '/send', { text: b.dataset.text || '', task_id: tid }).then(function (d) {
+            if (!d._ok) { toast(d.error || 'Could not save.', true); return; }
+            toast('Saved as sent from your own WhatsApp.');
+            card.classList.add('gone');
+          });
+        });
+      } else if (act === 'mail-task') {
+        // the mail program opens; when they come back, ask before anything is ticked
+        var mbody = b.dataset.text || '';
+        b.href = 'mailto:' + (card.dataset.email || '') + '?body=' + encodeURIComponent(mbody);
+        askOnReturn('Did you send it?', YES_NO).then(function (v) {
+          if (v !== 'yes') return;
+          post('lead/' + lid + '/note', { text: mbody || 'E-mail sent', channel: 'email' }).then(function () {
+            taskAction(tid, 'done').then(gone);
+          });
+        });
+      } else if (act === 'done' || act === 'snooze' || act === 'skip') {
+        taskAction(tid, act).then(gone);
+      } else if (act === 'more-words') {
+        var words = card.querySelector('[data-words]');
+        var more = words.classList.toggle('clamp') === false;
+        b.textContent = more ? '▴ fewer words' : '▾ all the words';
       } else if (act === 'dial') {
         // let the tel: link ring, then ask how it went
         setTimeout(function () {
           choose('How did the call go?', '', OUTCOMES).then(function (v) {
-            if (!v) return;
-            logCall(lid, v, tid).then(function (d) { if (d) card.classList.add('gone'); });
+            if (!v) return null;
+            return (v === 'call_back' ? askCallBack() : Promise.resolve({})).then(function (extra) {
+              if (!extra) return;
+              logCall(lid, v, tid, extra).then(gone);
+            });
           });
         }, 400);
-      } else if (act === 'done-after') {
-        setTimeout(function () { taskAction(tid, 'done').then(function (d) { if (d) card.classList.add('gone'); }); }, 400);
       }
+      return;
+    }
+
+    var waitRow = b.closest('.crm-wait');
+    if (waitRow) {
+      if (act === 'lead-snooze') {
+        post('lead/' + waitRow.dataset.lead + '/snooze', {}).then(function (d) {
+          if (!d._ok) { toast(d.error || 'Could not do that.', true); return; }
+          toast('Hidden for an hour.');
+          waitRow.classList.add('gone');
+        });
+      }
+      return;
+    }
+
+    if (act === 'signoff') {
+      var n = +b.dataset.n || 0;
+      choose('Send this to ' + n + ' open chat' + (n === 1 ? '' : 's') + '?', '“' + (b.dataset.preview || '') + '”',
+             [{ label: 'Send to ' + n, value: 'yes' }]).then(function (v) {
+        if (v !== 'yes') return;
+        b.disabled = true;
+        post('today/signoff', { text: b.dataset.text || '' }).then(function (d) {
+          toast(d.message || d.error || 'Could not send.', !d._ok);
+          b.disabled = false;
+          reloadSoon(1500);
+        });
+      });
       return;
     }
 
@@ -233,32 +371,88 @@
       var phone = leadPage.dataset.phone || '';
       var q = function (sel) { return leadPage.querySelector(sel); };
       if (act === 'send-next') {
+        // beside the WhatsApp inbox: Instagram / Messenger from the card
         var next = q('[data-next]');
-        var edited = q('[data-next-text]');
         b.disabled = true;
-        // the words as they will go: what the agent changed, else the step's own (the button carries
-        // them for the "open your WhatsApp" case, which has to open inside this click)
-        sendMessage(leadId, edited && !edited.closest('[hidden]') ? edited.value : (b.dataset.text || ''),
-                    next && next.dataset.task, phone, b.dataset.via)
+        sendMessage(leadId, b.dataset.text || '', next && next.dataset.task, phone, b.dataset.via)
           .then(function (d) { b.disabled = false; if (d) reloadFor(leadPage, 900); });
-      } else if (act === 'edit-next') {
-        var box = q('[data-next-edit]');
-        if (box) { box.hidden = !box.hidden; if (!box.hidden) box.querySelector('textarea').focus(); }
+      } else if (act === 'send-step') {
+        // beside the WhatsApp inbox: the follow-up's template, or its words as free text
+        b.disabled = true;
+        post('lead/' + leadId + '/message', { kind: b.dataset.kind, template: b.dataset.template || null,
+                                              text: b.dataset.text || '', task_id: b.dataset.task || null }).then(function (d) {
+          b.disabled = false;
+          if (handleMessage(d, leadPage, b.dataset.kind)) reloadFor(leadPage, 900);
+        });
+      } else if (act === 'box-send') {
+        boxSend(b, leadPage);
+      } else if (act === 'fill-box') {
+        fillBox(b, leadPage);
+      } else if (act === 'wa-own') {
+        // their own WhatsApp (WhatsApp is not connected for leads): opened inside this click
+        var link = waLink(phone, b.dataset.text || '');
+        if (link) window.open(link, '_blank', 'noopener');
+        askOnReturn('Did you send it?', YES_NO).then(function (v) {
+          if (v !== 'yes') return;
+          post('lead/' + leadId + '/send', { text: b.dataset.text || '', task_id: b.dataset.task || null }).then(function (d) {
+            if (!d._ok) { toast(d.error || 'Could not save.', true); return; }
+            toast('Saved as sent from your own WhatsApp.'); reloadFor(leadPage);
+          });
+        });
+      } else if (act === 'compose') {
+        // contract 25: the WhatsApp CRM fills its box and answers nothing, so no "done" here -- they see it there
+        if (!(window.CRM_compose && window.CRM_compose(b.dataset.text || ''))) toast('Open the chat on the left first.', true);
+      } else if (act === 'open-chat') {
+        e.preventDefault();
+        openChat(leadPage);
+      } else if (act === 'close-chat') {
+        closeChat(leadPage);
+      } else if (act === 'opt-in') {
+        choose('Opt them back in to WhatsApp?', 'Only if they asked to hear from us again.',
+               [{ label: 'Yes, opt back in', value: 'yes' }]).then(function (v) {
+          if (v !== 'yes') return;
+          post('lead/' + leadId + '/opt-in', {}).then(function (d) {
+            if (!d._ok) { toast(d.error || 'Could not do that.', true); return; }
+            toast(d.message); refreshLive();
+          });
+        });
+      } else if (act === 'wa-retry') {
+        b.disabled = true;
+        post('lead/' + leadId + '/wa-retry', {}).then(function (d) {
+          b.disabled = false;
+          if (!d._ok) { toast(d.error || 'Could not do that.', true); return; }
+          toast('Trying again now.'); refreshLive(); setTimeout(refreshLive, 4000);
+        });
       } else if (act === 'done' || act === 'snooze' || act === 'skip') {
         taskAction(b.dataset.task, act).then(function (d) { if (d) reloadFor(leadPage); });
       } else if (act === 'mail') {
-        var nx = q('[data-next]');
-        var body = (q('[data-next-text]') || {}).value || b.dataset.text || '';
-        b.href = b.href.split('?')[0] + '?body=' + encodeURIComponent(body);
-        if (nx) setTimeout(function () { taskAction(nx.dataset.task, 'done').then(function (d) { if (d) reloadFor(leadPage); }); }, 400);
+        // the mail program opens; when they come back, ask before anything is ticked
+        var mbody = b.dataset.text || '';
+        b.href = b.href.split('?')[0] + '?body=' + encodeURIComponent(mbody);
+        if (b.dataset.task) {
+          askOnReturn('Did you send it?', YES_NO).then(function (v) {
+            if (v !== 'yes') return;
+            post('lead/' + leadId + '/note', { text: mbody || 'E-mail sent', channel: 'email' }).then(function () {
+              taskAction(b.dataset.task, 'done').then(function (d) { if (d) reloadFor(leadPage); });
+            });
+          });
+        }
       } else if (act === 'note') {
         var text = q('[data-note-text]').value.trim();
         if (!text) { toast('Write something first.', true); return; }
-        post('lead/' + leadId + '/note', {
-          text: text, channel: q('[data-note-ch]').value,
-          from_them: q('[data-note-in]').checked
-        }).then(function (d) {
+        post('lead/' + leadId + '/note', { text: text, channel: 'note' }).then(function (d) {
           if (!d._ok) { toast(d.error || 'Could not save.', true); return; }
+          q('[data-note-text]').value = '';
+          toast('Saved'); reloadFor(leadPage);
+        });
+      } else if (act === 'wrote') {
+        var chip = q('[data-wrote-ch].on');
+        var said = q('[data-wrote-text]').value.trim();
+        if (!chip) { toast('Pick where they wrote.', true); return; }
+        if (!said) { toast('Write what they said first.', true); return; }
+        post('lead/' + leadId + '/note', { text: said, channel: chip.dataset.wroteCh, from_them: true }).then(function (d) {
+          if (!d._ok) { toast(d.error || 'Could not save.', true); return; }
+          q('[data-wrote-text]').value = ''; chip.classList.remove('on');
           toast('Saved'); reloadFor(leadPage);
         });
       } else if (act === 'undo') {
@@ -300,77 +494,398 @@
     }
   });
 
+  /* -------------------------------------------------------------- the message box */
+  function handleMessage(d, leadPage, kind) {
+    // true when it went (or may have): the caller then clears the box and refreshes
+    if (d._ok && d.mode === 'unsure') { toast(d.reason || 'WhatsApp did not answer. Check the chat.', true); return true; }
+    if (d._ok) { toast(kind === 'template' ? 'Template sent on WhatsApp' : 'Sent on WhatsApp'); return true; }
+    var box = leadPage.querySelector('[data-box]');
+    if (d.mode === 'window_closed') {
+      if (box) { box.dataset.userMode = 'template'; syncBox(leadPage); }
+      toast(d.error || 'WhatsApp says the chat has closed. Choose an approved template.', true);
+      refreshLive();
+    } else if (d.mode === 'ambiguous') {
+      toast(d.error, true, { label: 'Open full chat', run: function () { openChat(leadPage); } });
+    } else {
+      toast(d.error || 'Could not send.', true);
+    }
+    return false;
+  }
+
+  function boxReset(box) {
+    var input = box.querySelector('[data-box-input]');
+    if (input) input.value = '';
+    box.querySelectorAll('[data-tpl-fills] input').forEach(function (i) { i.value = ''; });
+    delete box.dataset.task; delete box.dataset.answer; delete box.dataset.userMode; delete box.dataset.taskTemplate;
+    var tpl = box.querySelector('[data-lead-live="templates"]');
+    if (tpl) delete tpl.dataset.touched;
+  }
+
+  function boxSend(b, leadPage) {
+    var box = leadPage.querySelector('[data-box]');
+    if (!box) return;
+    var leadId = leadPage.dataset.lead, via = box.dataset.via || 'whatsapp', kind = b.dataset.kind;
+    var input = box.querySelector('[data-box-input]');
+    var task = box.dataset.task || null;
+    if (via !== 'whatsapp') {
+      var words = input.value.trim();
+      if (!words) { toast('Write the message first.', true); return; }
+      b.disabled = true;
+      sendMessage(leadId, words, task, '', via, box.dataset.answer).then(function (d) {
+        b.disabled = false;
+        if (d) { boxReset(box); refreshLive(); }
+      });
+      return;
+    }
+    var body;
+    if (kind === 'text') {
+      var text = input.value.trim();
+      if (!text) { toast('Write the message first.', true); return; }
+      body = { kind: 'text', text: text, task_id: task, answer_id: box.dataset.answer || null };
+    } else {
+      var sel = box.querySelector('[data-tpl]');
+      if (!sel) { toast('Choose an approved template first.', true); return; }
+      var opt = sel.options[sel.selectedIndex];
+      if (opt.dataset.blocked) { toast(opt.dataset.blocked, true); return; }
+      var params = [];
+      box.querySelectorAll('[data-tpl-fills] input').forEach(function (i) { params.push(i.value.trim()); });
+      body = { kind: 'template', template: sel.value, params: params, task_id: task };
+    }
+    b.disabled = true;
+    post('lead/' + leadId + '/message', body).then(function (d) {
+      b.disabled = false;
+      if (handleMessage(d, leadPage, body.kind)) { boxReset(box); refreshLive(); }
+    });
+  }
+
+  /* The follow-up's Send puts its message in the box; the agent presses Send there. */
+  function fillBox(b, leadPage) {
+    var box = leadPage.querySelector('[data-box]');
+    if (!box) return;
+    var via = b.dataset.via || 'whatsapp';
+    box.dataset.via = via;
+    if (b.dataset.task) box.dataset.task = b.dataset.task; else delete box.dataset.task;
+    function done() { syncBox(leadPage); box.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+    if (via === 'whatsapp' && b.dataset.kind === 'template') {
+      box.dataset.userMode = 'template';
+      syncBox(leadPage);
+      var sel = box.querySelector('[data-tpl]');
+      var opt = sel && Array.prototype.find.call(sel.options, function (o) { return o.value === b.dataset.template; });
+      if (sel && b.dataset.template && !opt) toast('That template is not approved yet. Choose another.', true);
+      if (opt) { sel.value = opt.value; box.dataset.taskTemplate = opt.value; }
+      renderFills(box);
+      var tp = box.querySelector('[data-lead-live="templates"]');
+      if (tp) tp.dataset.touched = '1';
+      done();
+      return;
+    }
+    var input = box.querySelector('[data-box-input]');
+    var put = function () {
+      input.value = b.dataset.text || '';
+      box.dataset.userMode = 'text';
+      done();
+      input.focus();
+    };
+    if (input.value.trim() && input.value.trim() !== (b.dataset.text || '').trim()) {
+      choose('Replace what you typed?', '', [{ label: 'Replace', value: 'yes' }]).then(function (v) { if (v === 'yes') put(); });
+    } else {
+      put();
+    }
+  }
+
+  function syncBox(leadPage) {
+    var box = leadPage.querySelector('[data-box]');
+    if (!box) return;
+    var tl = leadPage.querySelector('[data-lead-live="timeline"]');
+    var d = tl ? tl.dataset : {};
+    var via = box.dataset.via || 'whatsapp', st = d.waState || 'never', mode = box.dataset.userMode || '';
+    var showText = false, showTpl = false, note = '', setup = false, toTpl = false, toText = false;
+    if (via === 'instagram' || via === 'facebook') {
+      note = (via === 'instagram' ? d.igNote : d.fbNote) || '';
+      showText = !note;
+    } else if (st === 'off') {
+      note = d.waNote || ''; setup = true;
+    } else if (st === 'no_phone' || st === 'opted_out') {
+      note = d.waNote || '';
+    } else if (st === 'opted_out_open') {
+      showText = true; note = d.waNote || '';
+    } else if (st === 'open') {
+      if (mode === 'template') { showTpl = true; toText = true; } else { showText = true; toTpl = true; }
+    } else {
+      showTpl = true; note = d.waNote || '';
+    }
+    var set = function (sel, on) { var el = box.querySelector(sel); if (el) el.hidden = !on; };
+    set('[data-box-text]', showText); set('[data-box-tpl]', showTpl); set('[data-box-setup]', setup);
+    set('[data-box-text] [data-box-mode="template"]', toTpl); set('[data-box-tpl] [data-box-mode="text"]', toText);
+    var n = box.querySelector('[data-box-note]');
+    if (n) { n.textContent = note; n.hidden = !note; }
+    box.querySelectorAll('[data-box-via]').forEach(function (c) { c.classList.toggle('on', c.dataset.via === via); });
+    if (showTpl) renderFills(box);
+  }
+
+  /* the picked template's fill-ins, one box each, and a preview of the words as they will go */
+  function renderFills(box) {
+    var sel = box.querySelector('[data-tpl]');
+    var holder = box.querySelector('[data-tpl-fills]');
+    if (!sel || !holder) return;
+    var opt = sel.options[sel.selectedIndex];
+    if (!opt) return;
+    var body = opt.dataset.body || '';
+    var seen = [];
+    body.replace(/\{\{(\d+)\}\}/g, function (m, k) { if (seen.indexOf(+k) < 0) seen.push(+k); return m; });
+    var n = opt.dataset.vars !== '' && opt.dataset.vars != null ? +opt.dataset.vars : seen.length;
+    var fill = [];
+    try { fill = JSON.parse(opt.dataset.fill || '[]'); } catch (e) { fill = []; }
+    if (holder.dataset.for !== sel.value || holder.children.length !== n) {
+      holder.dataset.for = sel.value;
+      holder.innerHTML = '';
+      for (var i = 0; i < n; i++) {
+        var inp = document.createElement('input');
+        inp.type = 'text'; inp.maxLength = 200; inp.setAttribute('value', fill[i] || '');
+        inp.setAttribute('aria-label', 'Fill-in ' + (i + 1)); inp.placeholder = 'Fill-in ' + (i + 1);
+        holder.appendChild(inp);
+      }
+    }
+    var why = box.querySelector('[data-tpl-why]');
+    var send = box.querySelector('[data-box-tpl] [data-act="box-send"]');
+    var blocked = opt.dataset.blocked || '';
+    if (why) why.textContent = blocked || opt.dataset.warn || '';
+    if (send) send.disabled = !!blocked;
+    renderPreview(box);
+  }
+
+  function renderPreview(box) {
+    var sel = box.querySelector('[data-tpl]');
+    var pv = box.querySelector('[data-tpl-preview]');
+    if (!sel || !pv) return;
+    var opt = sel.options[sel.selectedIndex];
+    var vals = Array.prototype.map.call(box.querySelectorAll('[data-tpl-fills] input'), function (i) { return i.value; });
+    var seen = [];
+    var text = (opt.dataset.body || '').replace(/\{\{(\d+)\}\}/g, function (m, k) {
+      var at = +k - 1;
+      return vals[at] ? vals[at] : m;
+    });
+    pv.textContent = text;
+    if (seen.length) return;
+  }
+
+  /* -------------------------------------------------------------- the full chat drawer */
+  function openChat(leadPage) {
+    var drawer = leadPage.querySelector('[data-chat-drawer]');
+    var src = leadPage.dataset.chatSrc;
+    if (!drawer || !src) return;
+    var frame = drawer.querySelector('[data-chat-frame]');
+    if (frame && !frame.getAttribute('src')) frame.setAttribute('src', src);
+    drawer.hidden = false;
+    document.body.classList.add('crm-drawer-open');
+  }
+  function closeChat(leadPage) {
+    var drawer = leadPage.querySelector('[data-chat-drawer]');
+    if (drawer) drawer.hidden = true;
+    document.body.classList.remove('crm-drawer-open');
+  }
+
+  /* -------------------------------------------------------------- the lead page stays fresh */
+  var page = document.querySelector('[data-lead-page][data-live]');
+  var liveBusy = false, liveAgain = false, liveOff = false;
+
+  function refreshLive(first) {
+    if (!page || liveOff) return;
+    if (liveBusy) { liveAgain = true; return; }
+    liveBusy = true;
+    fetch(page.dataset.live + (first === true ? '?first=1' : ''), { credentials: 'same-origin', headers: { 'Accept': 'text/html' } })
+      .then(function (r) {
+        if (r.status === 404) { liveOff = true; return ''; }
+        return r.ok ? r.text() : '';
+      })
+      .then(function (html) { if (html) applyLive(page, html); })
+      .catch(function () { /* the next round tries again */ })
+      .then(function () {
+        liveBusy = false;
+        if (liveAgain) { liveAgain = false; refreshLive(); }
+      });
+  }
+  window.CRM_refreshLead = function () { refreshLive(); };
+
+  // something half typed or open in a region: leave that region as it is
+  function regionBusy(el) {
+    var a = document.activeElement;
+    if (a && el.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;
+    if (el.querySelector('details.more-menu[open], details.box-qr[open]')) return true;
+    if (el.dataset.touched === '1') return true;
+    if (el.querySelector('[data-wrote-ch].on')) return true;
+    var fields = el.querySelectorAll('textarea, input[type="text"], input[type="datetime-local"]');
+    for (var i = 0; i < fields.length; i++) if (fields[i].value !== fields[i].defaultValue) return true;
+    return false;
+  }
+
+  function applyLive(leadPage, html) {
+    var doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll('[data-lead-live]').forEach(function (fresh) {
+      var name = fresh.dataset.leadLive;
+      var old = leadPage.querySelector('[data-lead-live="' + name + '"]');
+      if (!old || old.outerHTML === fresh.outerHTML || regionBusy(old)) return;
+      var scroller = old.querySelector('[data-tl-scroll]');
+      var atBottom = scroller ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 40 : false;
+      var top = scroller ? scroller.scrollTop : 0;
+      var open = Array.prototype.map.call(old.querySelectorAll('details[open][data-fold]'), function (d) { return d.dataset.fold; });
+      var node = document.importNode(fresh, true);
+      old.replaceWith(node);
+      open.forEach(function (f) { var d = node.querySelector('details[data-fold="' + f + '"]'); if (d) d.open = true; });
+      var sc = node.querySelector('[data-tl-scroll]');
+      if (sc) sc.scrollTop = atBottom ? sc.scrollHeight : top;
+      bindLeadNodes(node, leadPage);
+    });
+    syncBox(leadPage);
+    var focusOn = document.body.classList.contains('crm-focus');
+    document.querySelectorAll('[data-focus]').forEach(function (b) {
+      b.innerHTML = focusOn ? '<i class="fa-solid fa-compress"></i>' : '<i class="fa-solid fa-expand"></i>';
+    });
+  }
+
   /* -------------------------------------------------------------- the lead card's own controls */
-  // Bound once per card: on the lead page at load, and in the panel beside the WhatsApp inbox
-  // every time a conversation's lead is loaded into it (window.CRM_bindLead).
+  // Two parts. bindLead hangs delegated listeners on the lead page once; bindLeadNodes touches only
+  // the nodes that were just swapped in (the live regions), so nothing is bound twice. Beside the
+  // WhatsApp inbox the card is replaced whole each time a conversation's lead is loaded
+  // (window.CRM_bindLead).
+  function bindLeadNodes(node, leadPage) {
+    if (node.querySelector && node.querySelector('[data-tpl]')) renderFills(leadPage.querySelector('[data-box]') || node);
+  }
+
   function bindLead(leadPage) {
+    if (leadPage.dataset.bound) return;
+    leadPage.dataset.bound = '1';
     var leadId = leadPage.dataset.lead;
 
-    leadPage.querySelectorAll('[data-journey] button').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        if (btn.classList.contains('now')) return;
-        moveLead(leadId, btn, leadPage).then(function (d) { if (d) reloadFor(leadPage, 2200); });
-      });
-    });
-
-    leadPage.querySelectorAll('[data-update]').forEach(function (el) {
-      el.addEventListener('change', function () {
-        var body = {}; body[el.dataset.update] = el.value;
-        post('lead/' + leadId + '/update', body).then(function (d) {
-          if (!d._ok) toast(d.error || 'Could not save.', true);
-          else {
-            toast(el.dataset.update === 'owner_id' ? 'Saved — their WhatsApp chat goes to them too' : 'Saved');
-            if (el.dataset.update === 'departure_date') reloadFor(leadPage);
-          }
-        });
-      });
-    });
-
-    leadPage.querySelectorAll('[data-temps] [data-temp]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var on = btn.classList.contains('on');
-        post('lead/' + leadId + '/update', { temperature: on ? '' : btn.dataset.temp }).then(function (d) {
-          if (!d._ok) { toast(d.error || 'Could not save.', true); return; }
-          leadPage.querySelectorAll('[data-temps] [data-temp]').forEach(function (x) { x.classList.remove('on'); });
-          if (!on) btn.classList.add('on');
-        });
-      });
-    });
-
-    leadPage.querySelectorAll('[data-call-outcomes]').forEach(function (group) {
-      group.addEventListener('click', function (e) {
-        var c = e.target.closest('[data-outcome]');
-        if (!c) return;
-        group.querySelectorAll('[data-outcome]').forEach(function (x) { x.disabled = true; });
-        logCall(leadId, c.dataset.outcome, group.dataset.task || null).then(function (d) { afterCall(d, leadPage); });
-      });
-    });
-
-    // Quote sent / Payment link sent
     leadPage.addEventListener('click', function (e) {
-      var b = e.target.closest('[data-act="event"]');
-      if (!b) return;
-      b.disabled = true;
-      post('lead/' + leadId + '/event', { code: b.dataset.code }).then(function (d) {
-        if (!d._ok) { b.disabled = false; toast(d.error || 'Could not save.', true); return; }
-        toast(d.stage ? 'Saved — moved to ' + d.stage : 'Saved');
-        reloadFor(leadPage);
-      });
-    });
-    // ready to buy?
-    leadPage.querySelectorAll('[data-likelihood] [data-lk]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var on = btn.classList.contains('on');
-        post('lead/' + leadId + '/update', { likelihood: on ? '' : btn.dataset.lk }).then(function (d) {
+      var btn = e.target.closest('[data-journey] button[data-stage]');
+      if (btn && leadPage.contains(btn)) {
+        if (btn.classList.contains('now')) return;
+        moveLead(leadId, btn, leadPage).then(function (d) { if (d) reloadFor(leadPage, 200); });
+        return;
+      }
+      var lk = e.target.closest('[data-likelihood] [data-lk]');
+      if (lk && leadPage.contains(lk)) {
+        var on = lk.classList.contains('on');
+        post('lead/' + leadId + '/update', { likelihood: on ? '' : lk.dataset.lk }).then(function (d) {
           if (!d._ok) { toast(d.error || 'Could not save.', true); return; }
           leadPage.querySelectorAll('[data-likelihood] [data-lk]').forEach(function (x) { x.classList.remove('on'); });
-          if (!on) btn.classList.add('on');
+          if (!on) lk.classList.add('on');
+          toast('Saved');
         });
-      });
+        return;
+      }
+      var oc = e.target.closest('[data-call-outcomes] [data-outcome]');
+      if (oc && leadPage.contains(oc)) {
+        var group = oc.closest('[data-call-outcomes]');
+        var outcome = oc.dataset.outcome;
+        group.querySelectorAll('[data-outcome]').forEach(function (x) { x.disabled = true; });
+        var again = function () { group.querySelectorAll('[data-outcome]').forEach(function (x) { x.disabled = false; }); };
+        (outcome === 'call_back' ? askCallBack() : Promise.resolve({})).then(function (extra) {
+          if (!extra) { again(); return; }
+          logCall(leadId, outcome, group.dataset.task || null, extra).then(function (d) {
+            if (!d) { again(); return; }
+            afterCall(d, leadPage);
+          });
+        });
+        return;
+      }
+      var wc = e.target.closest('[data-wrote-ch]');
+      if (wc && leadPage.contains(wc)) {
+        var was = wc.classList.contains('on');
+        wc.closest('[data-wrote-chips]').querySelectorAll('[data-wrote-ch]').forEach(function (x) { x.classList.remove('on'); });
+        if (!was) wc.classList.add('on');
+        return;
+      }
+      var ev = e.target.closest('[data-act="event"]');
+      if (ev && leadPage.contains(ev)) {
+        ev.disabled = true;
+        post('lead/' + leadId + '/event', { code: ev.dataset.code }).then(function (d) {
+          if (!d._ok) { ev.disabled = false; toast(d.error || 'Could not save.', true); return; }
+          toast(d.stage ? 'Saved. Moved to ' + d.stage : 'Saved');
+          reloadFor(leadPage);
+        });
+        return;
+      }
+      // the message box
+      var bv = e.target.closest('[data-box-via]');
+      if (bv && leadPage.contains(bv)) {
+        var bx = leadPage.querySelector('[data-box]');
+        bx.dataset.via = bv.dataset.via; delete bx.dataset.userMode; syncBox(leadPage);
+        return;
+      }
+      var bm = e.target.closest('[data-box-mode]');
+      if (bm && leadPage.contains(bm)) {
+        leadPage.querySelector('[data-box]').dataset.userMode = bm.dataset.boxMode; syncBox(leadPage);
+        return;
+      }
+      var qr = e.target.closest('[data-qr]');
+      if (qr && leadPage.contains(qr)) {
+        var ta = leadPage.querySelector('[data-box-input]');
+        ta.value = ta.value.trim() ? ta.value.replace(/\s+$/, '') + '\n' + qr.dataset.text : qr.dataset.text;
+        leadPage.querySelector('[data-box]').dataset.answer = qr.dataset.answer;
+        var menu = qr.closest('details');
+        if (menu) menu.open = false;
+        ta.focus();
+      }
     });
+
+    leadPage.addEventListener('change', function (e) {
+      var el = e.target;
+      if (el.matches && el.matches('[data-update]')) {
+        var body = {}; body[el.dataset.update] = el.value;
+        post('lead/' + leadId + '/update', body).then(function (d) {
+          if (!d._ok) { toast(d.error || 'Could not save.', true); return; }
+          toast(el.dataset.update === 'owner_id' && d.whatsapp ? 'Saved. Their WhatsApp chat goes to them too' : 'Saved');
+          if (el.dataset.update === 'owner_id') {
+            leadPage.querySelectorAll('[data-update="owner_id"]').forEach(function (x) { x.value = el.value; });
+            reloadFor(leadPage);
+          }
+          if (el.dataset.update === 'departure_date') reloadFor(leadPage);
+        });
+      } else if (el.matches && el.matches('[data-tpl]')) {
+        var box = leadPage.querySelector('[data-box]');
+        if (box.dataset.taskTemplate && box.dataset.taskTemplate !== el.value) {
+          delete box.dataset.task; delete box.dataset.taskTemplate;     // a different template is not that follow-up
+        }
+        var holder = box.querySelector('[data-tpl-fills]');
+        if (holder) delete holder.dataset.for;
+        renderFills(box);
+        var region = box.querySelector('[data-lead-live="templates"]');
+        if (region) region.dataset.touched = '1';
+      }
+    });
+
+    leadPage.addEventListener('input', function (e) {
+      if (e.target.closest && e.target.closest('[data-tpl-fills]')) {
+        var box = leadPage.querySelector('[data-box]');
+        renderPreview(box);
+        var region = box.querySelector('[data-lead-live="templates"]');
+        if (region) region.dataset.touched = '1';
+      }
+    });
+
+    bindLeadNodes(leadPage, leadPage);
+    var sc = leadPage.querySelector('[data-tl-scroll]');
+    if (sc) sc.scrollTop = sc.scrollHeight;
+    syncBox(leadPage);
   }
   window.CRM_bindLead = bindLead;
   document.querySelectorAll('[data-lead-page]').forEach(bindLead);
+  if (page) {
+    setTimeout(function () { refreshLive(true); }, 300);
+    setInterval(function () { if (document.visibilityState === 'visible') refreshLive(); }, 8000);
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') refreshLive(); });
+    // contract 10: the full-chat drawer says when a message appears in it; the page follows once the
+    // webhook has landed here instead of on the next 8-second turn
+    var activityT = null;
+    window.addEventListener('message', function (e) {
+      var f = document.querySelector('[data-chat-frame]');
+      if (!f || e.source !== f.contentWindow || !e.data || e.data.type !== 'wacrm:activity') return;
+      clearTimeout(activityT);
+      activityT = setTimeout(function () { refreshLive(); }, 1500);
+    });
+  }
 
   /* -------------------------------------------------------------- suggested answers */
   var asked = document.querySelector('[data-asked], [data-try-answers]');
@@ -462,20 +977,135 @@
     board.addEventListener('click', function (e) {
       if (moved && e.target.closest('.crm-card')) { e.preventDefault(); moved = false; }
     }, true);
+
+    // the buttons inside a card and a column's ⋯ menu: dragging is bound to the card, so they stop the
+    // click from opening the lead
+    var stages = [];
+    try { stages = JSON.parse(board.dataset.stages || '[]'); } catch (err) { stages = []; }
+    board.addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-act]');
+      if (!b) return;
+      e.preventDefault(); e.stopPropagation();
+      if (b.dataset.act === 'move-to') {
+        var card = b.closest('.crm-card'), here = card.closest('[data-drop]');
+        var name = (card.querySelector('.nm') || {}).textContent || 'this lead';
+        choose('Move ' + name + ' to…', '', stages.filter(function (s) { return String(s.stage) !== here.dataset.stage; })
+          .map(function (s) { return { label: s.name, value: s }; })).then(function (s) {
+          if (!s) return;
+          moveLead(card.dataset.lead, s, board).then(function (res) {
+            if (!res) return;
+            var to = board.querySelector('[data-drop][data-stage="' + s.stage + '"]');
+            if (to) to.insertBefore(card, to.firstChild); else card.remove();
+          });
+        });
+      } else if (b.dataset.act === 'stage-broadcast') {
+        var can = +b.dataset.can > 0;
+        choose('Message everyone in this stage', b.dataset.reach || '',
+               can ? [{ label: 'Open Broadcasts', value: 'go' }] : []).then(function (v) {
+          if (v === 'go') window.location.href = b.dataset.url;
+        });
+      }
+    }, true);
+
+    // How we sell links here: scroll to the stage and outline it
+    if (board.dataset.focusStage) {
+      var col = board.querySelector('[data-col="' + board.dataset.focusStage + '"]');
+      if (col) { col.classList.add('outlined'); col.scrollIntoView({ inline: 'center', block: 'nearest' }); }
+    }
+    // a phone with no saved choice starts on the list
+    if (board.dataset.viewAuto === '1' && window.matchMedia && window.matchMedia('(max-width: 640px)').matches
+        && board.dataset.listUrl) {
+      location.replace(board.dataset.listUrl);
+    }
+  }
+
+  /* -------------------------------------------------------------- the list: tick boxes, give, move */
+  var bulk = document.querySelector('[data-bulk]');
+  if (bulk) {
+    var bar = bulk.querySelector('[data-bulk-bar]'), count = bulk.querySelector('[data-bulk-count]');
+    var staff = [], lstages = [];
+    try { staff = JSON.parse(bulk.dataset.staff || '[]'); lstages = JSON.parse(bulk.dataset.stages || '[]'); } catch (err) { /* ignore */ }
+    var ticked = function () {
+      return Array.prototype.map.call(bulk.querySelectorAll('[data-bulk-one]:checked'), function (c) { return +c.value; });
+    };
+    var syncBulk = function () {
+      var n = ticked().length;
+      if (bar) bar.hidden = !n;
+      if (count) count.textContent = n + ' chosen';
+    };
+    bulk.addEventListener('change', function (e) {
+      if (e.target.matches('[data-bulk-all]')) {
+        bulk.querySelectorAll('[data-bulk-one]').forEach(function (c) { c.checked = e.target.checked; });
+      }
+      syncBulk();
+    });
+    var sendBulk = function (body) {
+      return post('leads/bulk', body).then(function (d) {
+        if (!d._ok) { toast(d.error || 'Could not do that.', true); return d; }
+        toast(d.message || 'Done');
+        reloadSoon(700);
+        return d;
+      });
+    };
+    bulk.addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-act]');
+      if (!b) return;
+      var ids = ticked();
+      if (!ids.length) return;
+      if (b.dataset.act === 'bulk-give') {
+        choose('Give them to…', '', staff.map(function (s) { return { label: s[1], value: s[0] }; })).then(function (v) {
+          if (v === null) return;
+          sendBulk({ lead_ids: ids, action: 'give', owner_id: v });
+        });
+      } else if (b.dataset.act === 'bulk-move') {
+        choose('Move them to…', '', lstages.map(function (s) { return { label: s.name, value: s }; })).then(function (s) {
+          if (!s) return;
+          var go = function (reason) {
+            return post('leads/bulk', { lead_ids: ids, action: 'move', stage_id: s.stage, reason: reason || '' }).then(function (d) {
+              if (!d._ok && d.need_reason) {
+                // a finish line: ask why once, with the pipeline's own reasons
+                var reasons = (d.reasons && d.reasons.length) ? d.reasons : ['No response', 'Not interested'];
+                return choose('Why did they fall out?', '', reasons.map(function (r) { return { label: r, value: r }; }))
+                  .then(function (r) { if (r) go(r); });
+              }
+              if (!d._ok) { toast(d.error || 'Could not do that.', true); return null; }
+              toast(d.message || 'Done');
+              reloadSoon(700);
+              return d;
+            });
+          };
+          go('');
+        });
+      }
+    });
+  }
+
+  /* -------------------------------------------------------------- phones: one fold open at a time on My day */
+  if (window.matchMedia && window.matchMedia('(max-width: 640px)').matches) {
+    var folds = document.querySelectorAll('details[data-acc]');
+    var firstFull = Array.prototype.find.call(folds, function (d) { return d.querySelector('.crm-task, .crm-wait, .chips'); });
+    folds.forEach(function (d) { if (d !== firstFull) d.removeAttribute('open'); });
   }
 
   /* -------------------------------------------------------------- focus mode */
+  // every [data-focus] button does it: a page header's Full screen button
   function setFocus(on) {
     document.body.classList.toggle('crm-focus', on);
-    var b = document.querySelector('[data-focus]');
-    if (b) b.innerHTML = on ? '<i class="fa-solid fa-compress"></i>' : '<i class="fa-solid fa-expand"></i>';
+    document.querySelectorAll('[data-focus]').forEach(function (b) {
+      b.innerHTML = on ? '<i class="fa-solid fa-compress"></i>' : '<i class="fa-solid fa-expand"></i>';
+    });
     try { localStorage.setItem('crm-focus', on ? '1' : ''); } catch (e) { /* private window */ }
   }
-  var focusBtn = document.querySelector('[data-focus]');
-  if (focusBtn) {
+  if (document.querySelector('[data-focus]')) {
     try { if (localStorage.getItem('crm-focus') === '1') setFocus(true); } catch (e) { /* ignore */ }
-    focusBtn.addEventListener('click', function () { setFocus(!document.body.classList.contains('crm-focus')); });
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('[data-focus]')) setFocus(!document.body.classList.contains('crm-focus'));
+    });
     document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && document.body.classList.contains('crm-drawer-open')) {
+        var lp = document.querySelector('[data-lead-page]');
+        if (lp) { closeChat(lp); return; }
+      }
       if (e.key === 'Escape' && document.body.classList.contains('crm-focus') && !document.querySelector('dialog[open]')) setFocus(false);
     });
   }
@@ -524,14 +1154,5 @@
     ta.value = ta.value.slice(0, s) + v.dataset.var + ta.value.slice(en);
     ta.focus();
     ta.selectionStart = ta.selectionEnd = s + v.dataset.var.length;
-  });
-  /* -------------------------------------------------------------- copy buttons (shift-end message) */
-  document.addEventListener('click', function (e) {
-    var b = e.target.closest('[data-copy]');
-    if (!b) return;
-    var src = b.parentElement.querySelector('[data-copy-text]');
-    var text = src ? src.textContent : '';
-    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(
-      function () { toast('Copied'); }, function () { toast('Select the text and copy it', true); });
   });
 })();

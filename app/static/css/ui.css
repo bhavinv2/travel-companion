@@ -1,0 +1,112 @@
+/* One look for the staff console and the WhatsApp screens inside it (design section 7).
+
+   Tokens, then the parts pages are built from:
+     .cb          buttons: .primary (one per page or card), plain (outline), .quiet, .danger (only
+                  inside "More" or a confirm), .wa (WhatsApp send only); sizes .sm / .lg; .icon
+     .ui-chip     chips: .ok / .warn / .bad / .info (status), .prod (a product: outline and icon,
+                  never a stage colour), .tag (grey; a lock icon inside when the portal keeps it),
+                  .fill (a blank still to fill in). Inside the Sales CRM, crm.css's .chip is the same.
+     .card        a card; .card-title is its title row (heading left, one action right)
+     .help-fold   "(?) How this works", a <details> under the page's helper line
+     .ui-head     the page header page_head() draws (_page_head.html); .ui-more is its "More"
+     .ui-toast    a short message, bottom centre (the script removes it after 4 s)
+     .ui-empty    an empty state: icon, one sentence, one button (_empty.html)
+
+   Loaded by base.html for staff. CSS lives in static files only: inside a template, a Jinja
+   comment opener right after a brace swallows the page. */
+:root {
+  --ui-primary: #1f6fd6; --ui-primary-hover: #1a5bb3; --ui-primary-soft: #eaf3fe;
+  --ui-ink: #0f2340; --ui-muted: #5b6b84; --ui-line: #e3eaf4; --ui-soft: #f6f9fd; --ui-card: #fff;
+  --ui-ok: #16a34a; --ui-ok-soft: #e8f8ee; --ui-ok-ink: #166534;
+  --ui-warn: #d97706; --ui-warn-soft: #fff4e0; --ui-warn-ink: #92400e;
+  --ui-bad: #dc2626; --ui-bad-soft: #fdecec; --ui-bad-ink: #991b1b;
+  --ui-wa: #0e7a6e;
+  /* what a stage means: pills, dots and the board legend only */
+  --r-new: #64748b; --r-talking: #1f6fd6; --r-quoted: #d97706; --r-won: #16a34a; --r-lost: #dc2626;
+  --ui-radius-card: 12px; --ui-radius: 8px; --ui-radius-chip: 999px;
+  --ui-shadow: 0 1px 2px rgba(15, 35, 64, .04), 0 4px 14px rgba(15, 35, 64, .05);
+  --ui-font: 'Inter', system-ui, -apple-system, sans-serif;
+  --ui-h1: 24px; --ui-h2: 18px; --ui-hint: 13px;
+}
+
+/* buttons */
+.cb { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px;
+  border-radius: var(--ui-radius); font: 600 14px/1.2 var(--ui-font); border: 1.5px solid var(--ui-line);
+  background: #fff; color: var(--ui-ink); cursor: pointer; text-decoration: none; white-space: nowrap;
+  transition: background .12s, border-color .12s; }
+.cb:hover { border-color: var(--ui-primary); color: var(--ui-primary-hover); }
+.cb:focus-visible { outline: 3px solid var(--ui-primary-soft); outline-offset: 1px; border-color: var(--ui-primary); }
+.cb:disabled, .cb[aria-disabled="true"] { opacity: .55; cursor: default; }
+.cb.primary { background: var(--ui-primary); border-color: var(--ui-primary); color: #fff; }
+.cb.primary:hover { background: var(--ui-primary-hover); border-color: var(--ui-primary-hover); color: #fff; }
+.cb.quiet { background: transparent; border-color: transparent; color: var(--ui-muted); }
+.cb.quiet:hover { background: var(--ui-soft); color: var(--ui-ink); }
+.cb.danger { color: var(--ui-bad); border-color: #f5c2c2; }
+.cb.danger:hover { background: var(--ui-bad-soft); color: var(--ui-bad-ink); border-color: var(--ui-bad); }
+.cb.wa { background: var(--ui-wa); border-color: var(--ui-wa); color: #fff; }
+.cb.wa:hover { background: #0b665c; border-color: #0b665c; color: #fff; }
+.cb.sm { padding: 7px 11px; font-size: 13px; }
+.cb.lg { padding: 13px 22px; font-size: 16px; border-radius: var(--ui-radius-card); }
+.cb.icon { padding: 0; width: 38px; height: 38px; }
+@media (max-width: 700px) { .cb { min-height: 44px; } .cb.icon { width: 44px; } }
+
+/* chips */
+.ui-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: var(--ui-radius-chip);
+  font: 600 12.5px/1.3 var(--ui-font); background: var(--ui-soft); color: var(--ui-ink); border: 1px solid var(--ui-line);
+  white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; text-decoration: none; }
+.ui-chip.ok { background: var(--ui-ok-soft); color: var(--ui-ok-ink); border-color: transparent; }
+.ui-chip.warn { background: var(--ui-warn-soft); color: var(--ui-warn-ink); border-color: transparent; }
+.ui-chip.bad { background: var(--ui-bad-soft); color: var(--ui-bad-ink); border-color: transparent; }
+.ui-chip.info { background: var(--ui-primary-soft); color: var(--ui-primary-hover); border-color: transparent; }
+.ui-chip.prod { background: var(--ui-card); }
+.ui-chip.prod i, .ui-chip.tag i { color: var(--ui-muted); }
+.ui-chip.tag { background: #eef1f5; color: #42506a; border-color: transparent; }
+.ui-chip.fill { background: var(--ui-warn-soft); color: var(--ui-warn-ink); border: 1px dashed var(--ui-warn); }
+
+/* cards */
+.card { background: var(--ui-card); border: 1px solid var(--ui-line); border-radius: var(--ui-radius-card);
+  padding: 20px 22px; box-shadow: var(--ui-shadow); margin-bottom: 16px; }
+.card-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.card-title h2 { margin: 0; font: 600 var(--ui-h2)/1.25 var(--ui-font); color: var(--ui-ink); display: flex; align-items: center; gap: 10px; }
+.card-title h2 i { color: var(--ui-primary); }
+
+/* the page header and its help */
+.ui-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+.ui-head h1.ui-title { margin: 0; font: 700 var(--ui-h1)/1.2 var(--ui-font); color: var(--ui-ink); display: flex; align-items: center; gap: 10px; letter-spacing: -.01em; }
+.ui-head h1.ui-title i { color: var(--ui-primary); font-size: .85em; }
+.ui-helper { margin: 6px 0 0; color: var(--ui-muted); font-size: 15px; max-width: 70ch; }
+.ui-head-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.help-fold { margin-top: 8px; font-size: 14px; color: var(--ui-muted); max-width: 70ch; }
+.help-fold > summary { cursor: pointer; font-weight: 600; color: var(--ui-primary-hover); list-style: none; display: inline-flex; gap: 6px; }
+.help-fold > summary::-webkit-details-marker { display: none; }
+.help-fold[open] > summary { margin-bottom: 6px; }
+.help-fold ul { margin: 0; padding-left: 18px; }
+.help-fold li + li { margin-top: 4px; }
+/* filters: one row under the header */
+.ui-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: -6px 0 16px; }
+.ui-more { position: relative; }
+.ui-more > summary { list-style: none; }
+.ui-more > summary::-webkit-details-marker { display: none; }
+.ui-more-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 220px; display: grid; padding: 6px;
+  background: #fff; border: 1px solid var(--ui-line); border-radius: var(--ui-radius-card); box-shadow: 0 12px 30px rgba(15, 35, 64, .14); }
+.ui-more-menu a { padding: 9px 12px; border-radius: var(--ui-radius); color: var(--ui-ink); text-decoration: none; font-size: 14px; }
+.ui-more-menu a:hover { background: var(--ui-soft); }
+.ui-more-menu a.danger { color: var(--ui-bad); }
+@media (max-width: 700px) {
+  /* phones: the main action is a full-width bar at the bottom, "More" a bottom sheet */
+  .ui-head-actions .cb.primary { position: fixed; left: 16px; right: 16px; bottom: 12px; z-index: 40; box-shadow: 0 8px 24px rgba(15, 35, 64, .25); }
+  .admin-main:has(.ui-head .cb.primary) { padding-bottom: 76px; }
+  .ui-more-menu { position: fixed; left: 0; right: 0; bottom: 0; top: auto; border-radius: 16px 16px 0 0; }
+}
+
+/* toast */
+.ui-toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 1000; display: flex; gap: 12px; align-items: center;
+  max-width: calc(100vw - 32px); padding: 12px 18px; border-radius: var(--ui-radius-card); background: var(--ui-ink); color: #fff;
+  font: 600 14px/1.4 var(--ui-font); box-shadow: 0 12px 30px rgba(15, 35, 64, .25); }
+.ui-toast.ok { background: var(--ui-ok-ink); }
+.ui-toast.bad { background: var(--ui-bad-ink); }
+
+/* empty state */
+.ui-empty { text-align: center; padding: 28px 16px; color: var(--ui-muted); }
+.ui-empty > i { display: block; font-size: 28px; color: var(--ui-primary); opacity: .8; margin-bottom: 10px; }
+.ui-empty p { margin: 0 auto 14px; max-width: 46ch; font-size: 15px; color: var(--ui-ink); }

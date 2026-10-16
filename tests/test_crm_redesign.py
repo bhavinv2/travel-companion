@@ -27,16 +27,16 @@ def ti_lead(phone='+919876543210', **kw):
 def test_customer_service_sees_only_the_days_work(app, client, cs_user):
     login(client, cs_user.email)
     page = client.get('/cs/crm/today').get_data(as_text=True)
-    for label in ('My day', 'Leads', 'Add a lead', 'Inbox check', 'How we sell'):
+    for label in ('My day', 'Leads', 'Add a lead', 'Half-hourly check', 'How we sell'):   # U2 renamed Inbox check
         assert label in page, label
-    for label in ('Daily tracker', 'Set-up', '>Dashboard'):
+    for label in ('Team today', 'Results', 'Where leads come from', 'Site dashboard'):
         assert label not in page, label
 
 
 def test_the_admin_sees_the_management_screens(app, client, admin_user):
     login(client, admin_user.email)
     page = client.get('/admin/crm/today').get_data(as_text=True)
-    assert 'Daily tracker' in page and 'Dashboard' in page and 'Set-up' in page
+    assert 'Team today' in page and 'Site dashboard' in page and 'Set-up' in page
     # an admin who opens a management screen in the CS console lands in the admin portal
     r = client.get('/cs/crm/setup?tab=answers')
     assert r.status_code == 307 and r.headers['Location'].endswith('/admin/crm/setup?tab=answers')
@@ -52,8 +52,9 @@ def test_my_day_in_steps(app, client, cs_user):
     _db.session.commit()
     login(client, cs_user.email)
     page = client.get('/cs/crm/today').get_data(as_text=True)
-    assert 'Check the inboxes' in page and 'Welcome the new leads' in page and 'Follow-ups for today' in page
-    welcome = page.split('Welcome the new leads', 1)[1].split('Follow-ups for today', 1)[0]
+    # U4: new section titles
+    assert 'Welcome new leads' in page and 'Follow-ups for today' in page and 'Half-hourly check' in page
+    welcome = page.split('Welcome new leads', 1)[1].split('Follow-ups for today', 1)[0]
     assert 'Ramesh Kumar' in welcome and 'Sunita Rao' not in welcome
     assert 'Sunita Rao' in page.split('Follow-ups for today', 1)[1]
     assert 'Before you finish' in page
@@ -85,7 +86,7 @@ def test_the_daily_tracker(app, client, admin_user, cs_user):
     client.post('/auth/logout')
     login(client, admin_user.email)
     page = client.get('/admin/crm/tracker').get_data(as_text=True)
-    assert 'Daily tracker' in page and cs_user.full_name in page
+    assert 'Team today' in page and cs_user.full_name in page
     page = client.get('/admin/crm/tracker?who=%d' % cs_user.id).get_data(as_text=True)
     assert 'Checklist, customer by customer' in page and 'Missed Person' in page and 'Hour by hour' in page
     assert client.get('/admin/crm/tracker?day=%s' % (today - timedelta(days=1)).isoformat()).status_code == 200

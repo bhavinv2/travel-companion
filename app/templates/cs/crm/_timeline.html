@@ -1,0 +1,35 @@
+{# The conversation: their messages and this lead's events in one stream, oldest first.
+   A live region (crm_timeline.build). The data-* on it tell the message box where the chat stands. #}
+{% from '_empty.html' import empty %}
+<section class="card lead-tl" data-lead-live="timeline" data-wa-state="{{ wa.state }}" data-wa-note="{{ box_note }}"
+         data-ig-note="{{ social_notes.get('instagram', '') }}" data-fb-note="{{ social_notes.get('facebook', '') }}">
+  <div class="tl-scroll" data-tl-scroll>
+    {% for it in stream %}
+    {% if it.kind == 'day' %}<div class="tl-day"><span>{{ it.label }}</span></div>
+    {% elif it.kind == 'more' %}<div class="tl-more">{{ it.text }}{% if chat_url %} <a href="{{ chat_url }}" data-act="open-chat" target="_blank" rel="noopener">Open full chat</a>{% endif %}</div>
+    {% elif it.kind == 'event' %}
+    <div class="tl-event"><i class="{{ it.icon }}" aria-hidden="true"></i>
+      <span>{{ it.text }}{% if it.detail %}<small>{{ it.detail }}</small>{% endif %}</span><time>{{ it.time }}</time></div>
+    {% else %}
+    <div class="tl-msg {{ it.side }}">
+      <div class="tl-bubble">
+        {% if it.who %}<div class="tl-who">{{ it.who }}</div>{% endif %}
+        {% if it.via_label %}<div class="tl-via"><i class="{{ it.icon }}" aria-hidden="true"></i> {{ it.via_label }}</div>{% endif %}
+        {% if it.media %}<div class="tl-media"><i class="fa-solid fa-paperclip" aria-hidden="true"></i> {{ it.media }}</div>{% endif %}
+        {% if it.text %}<div class="tl-text">{{ it.text }}</div>{% endif %}
+        {% if it.full_chat and chat_url %}<a class="tl-full" data-act="open-chat" href="{{ chat_url }}" target="_blank" rel="noopener">Open full chat</a>{% endif %}
+        <div class="tl-meta"><time>{{ it.time }}</time>
+          {% if it.tick == 'sent' %}<i class="fa-solid fa-check" role="img" aria-label="Sent"></i>
+          {% elif it.tick == 'delivered' %}<i class="fa-solid fa-check-double" role="img" aria-label="Delivered"></i>
+          {% elif it.tick == 'read' %}<i class="fa-solid fa-check-double tl-read" role="img" aria-label="Read"></i>
+          {% elif it.tick == 'sending' %}<i class="fa-regular fa-clock" role="img" aria-label="Sending"></i>{% endif %}</div>
+        {% if it.tick == 'failed' %}<div class="tl-fail">Not delivered: {{ it.fail }}</div>{% endif %}
+        {% if it.tick == 'opened' %}<div class="tl-note">Sent from their own WhatsApp</div>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+    {% else %}
+    {{ empty('fa-regular fa-comments', 'Nothing yet. Send an approved template to start the chat, or log a call.') }}
+    {% endfor %}
+  </div>
+</section>

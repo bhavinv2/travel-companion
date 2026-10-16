@@ -1,0 +1,56 @@
+{# Set-up -> Bring in & download: the sales sheet (read it, check, import) and old website enquiries. #}
+{% from 'cs/crm/setup/_macros.html' import csrf with context %}
+{% if preview %}
+<section class="card focus">
+  <h2><i class="fa-solid fa-file-excel"></i> {{ preview.name }}: {{ preview.total }} leads found</h2>
+  <table class="crm-table" style="margin-bottom:12px">
+    <thead><tr><th>Tab</th><th>Leads</th><th>With phone</th><th>E-mail only</th><th>Instagram / Facebook only</th></tr></thead>
+    <tbody>
+    {% for sheet, c in preview.stats.items() %}
+    <tr><td class="nm">{{ sheet }}</td><td>{{ c.get('rows', 0) }}</td><td>{{ c.get('with phone', 0) }}</td><td>{{ c.get('with e-mail', 0) }}</td><td>{{ c.get('Instagram / Facebook only', 0) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted">By product: {% for p, n in preview.products.items() %}<span class="chip p-{{ p }}">{{ PRODUCTS.get(p, p) }} {{ n }}</span> {% endfor %}</p>
+  {% if preview.kpi %}
+  <h3 style="margin-top:14px">Dashboard history from the KPI tabs</h3>
+  <p class="muted" style="margin:0 0 8px">These days go into the Sales dashboard, so its history starts where the sheet's does. Say whose each tab is:</p>
+  {% endif %}
+  <p class="hint">Each tab is a stage: Cold Leads, Prospects, Pipeline, Customer Engagement (won), Prospect / Pipeline Fallout (lost). Their messages (TC #1, CL #2…) go on the timeline with their dates, LS becomes how warm they are, the comment becomes a note, and a "Next follow-up" date becomes a task. Nobody is messaged. Rows already imported are skipped, so this is safe to run again.</p>
+  <form method="POST" action="{{ crm_url('import_confirm') }}" class="row">
+    {{ csrf() }}<input type="hidden" name="token" value="{{ preview.token }}"/>
+    {% for k in preview.kpi %}
+    <label class="check" style="width:100%"><b style="min-width:90px">{{ k.tab }}</b> {{ k.days }} days →
+      <select name="kpi_{{ k.tab|replace(' ', '_') }}" style="width:auto">
+        {% if k.team %}<option value="team" selected>The whole team</option>{% endif %}
+        <option value="">Leave out</option>
+        {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if k.guess == u.id }}>{{ u.full_name }}</option>{% endfor %}
+      </select></label>
+    {% endfor %}
+    <label class="lb" style="margin:0">Give the leads to</label>
+    <select name="owner" style="max-width:240px"><option value="">Share evenly across the team</option>
+      {% for u in staff %}<option value="{{ u.id }}">{{ u.full_name }}</option>{% endfor %}</select>
+    <button class="cb primary"><i class="fa-solid fa-file-import"></i> Import {{ preview.total }} leads</button>
+    <a class="cb ghost" href="{{ crm_url('data') }}">Cancel</a>
+  </form>
+</section>
+{% endif %}
+<section class="card">
+  <h2><i class="fa-solid fa-clock-rotate-left"></i> Enquiries from before the CRM</h2>
+  <p class="muted">Insurance quotes, contact messages, Sahayak bookings and applications, and trip posts that have not flown yet. Ones that are still live get their first follow-up; old ones arrive marked as expired, and a quote whose trip has passed arrives as fallen out. Safe to run again.</p>
+  <form method="POST" action="{{ crm_url('backfill') }}" class="row" data-busy>
+    {{ csrf() }}
+    <label class="lb" style="margin:0">Go back</label>
+    <select name="days" style="max-width:160px">{% for d in [30, 90, 180, 365] %}<option value="{{ d }}"{{ ' selected' if d == 180 }}>{{ d }} days</option>{% endfor %}</select>
+    <button class="cb primary"><i class="fa-solid fa-download"></i> Bring them in</button>
+  </form>
+</section>
+<section class="card">
+  <h2><i class="fa-solid fa-file-excel"></i> The sales sheet (Sales Process workbook)</h2>
+  <p class="muted">Choose the .xlsx file. You will see what is in it before anything is stored.</p>
+  <form method="POST" action="{{ crm_url('import_sheet') }}" enctype="multipart/form-data" class="row" data-busy>
+    {{ csrf() }}
+    <input type="file" name="sheet" accept=".xlsx" required style="max-width:360px"/>
+    <button class="cb primary"><i class="fa-solid fa-magnifying-glass"></i> Read it</button>
+  </form>
+</section>

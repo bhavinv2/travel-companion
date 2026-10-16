@@ -1,0 +1,11 @@
+{# An empty list or page teaches the next step: an icon, one sentence, at most one button.
+   icon: the full class ('fa-solid fa-inbox'); button: {'label', 'href', 'icon'?}. #}
+{% macro empty(icon, text, button=None) -%}
+<div class="ui-empty">
+  <i class="{{ icon }}" aria-hidden="true"></i>
+  <p>{{ text }}</p>
+  {%- if button %}
+  <a class="cb primary" href="{{ button.href }}">{% if button.icon %}<i class="{{ button.icon }}" aria-hidden="true"></i> {% endif %}{{ button.label }}</a>
+  {%- endif %}
+</div>
+{%- endmacro %}

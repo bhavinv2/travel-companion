@@ -18,6 +18,8 @@ Before any workspace exists, and for staff nobody has added to one yet, the old 
 an admin opens everything and a CS agent opens the console screens (narrowed by the cs_access
 list if an admin set one). That is also what ensure_defaults() writes down as roles, so the first
 workspace starts out exactly as the site already behaved.
+
+The menu groups pages by SECTIONS; MODULES stay the areas a workspace switches on.
 """
 import re
 
@@ -28,14 +30,16 @@ from app import db
 
 # ------------------------------------------------------------------------------- the pages
 
-def _page(key, label, icon, endpoints=(), admin=None, cs=None, args=None, nav=True, desc='', lit=(), deny=None):
+def _page(key, label, icon, endpoints=(), admin=None, cs=None, args=None, nav=True, desc='', lit=(), deny=None,
+          tip=''):
     """`admin` / `cs`: the endpoint the menu opens in that console (None: not in that console).
     `args`: the query string both links carry -- several menu lines are one screen filtered.
     `lit`: endpoints other pages share that should light THIS line (the lead page is "Leads",
-    though My day opens it too)."""
+    though My day opens it too). `tip`: the menu line's tooltip; `desc` is what the Roles screen
+    says about the page."""
     return {'key': key, 'label': label, 'icon': icon, 'endpoints': tuple(endpoints),
             'links': {'admin': admin, 'cs': cs}, 'args': dict(args or {}), 'nav': nav, 'desc': desc,
-            'lit': frozenset(lit), 'deny': deny}
+            'lit': frozenset(lit), 'deny': deny, 'tip': tip}
 
 
 def _both(*names):
@@ -49,7 +53,8 @@ VOICES = ('cs.voices', 'cs.contact_messages', 'cs.contact_status', 'cs.voice_rea
 
 # what a salesperson does to a lead, from My day or from the lead itself
 CRM_DAILY = _both('lead', 'move', 'route_lead', 'task_action', 'send', 'call', 'note', 'update',
-                  'suggest', 'answer_used', 'event', 'undo', 'reopen', 'remove')
+                  'suggest', 'answer_used', 'event', 'undo', 'reopen', 'remove', 'message', 'live', 'opt_in',
+                  'wa_retry', 'snooze_lead', 'bulk')
 
 MATCHES = ('matches.cs_match_queue', 'matches.cs_matches', 'matches.cs_notify', 'matches.cs_dismiss',
            'matches.cs_connected', 'matches.cs_mark_sent', 'matches.cs_intro_text', 'matches.trip_matches',
@@ -63,37 +68,60 @@ SCRAPER = tuple('scraper.' + n for n in (
 
 MODULES = [
     {'key': 'console', 'label': 'Overview', 'icon': 'fa-gauge',
-     'desc': 'The day at a glance: queues, notifications and numbers.',
+     'desc': 'Service to-do, notifications and the site dashboard.',
      'pages': [
-         _page('dashboard', 'Dashboard', 'fa-gauge', ['admin.dashboard'], admin='admin.dashboard',
-               desc='Numbers across every product.'),
-         _page('home', 'Queues', 'fa-inbox', ['cs.home'], cs='cs.home',
+         _page('dashboard', 'Site dashboard', 'fa-gauge', ['admin.dashboard'], admin='admin.dashboard',
+               desc='Numbers across every product on the site.', tip='Numbers across every product on the site.'),
+         _page('home', 'Service to-do', 'fa-inbox', ['cs.home'], cs='cs.home',
                desc='What is waiting for customer service.'),
          _page('notifications', 'Notifications', 'fa-bell',
                ['cs.notifications', 'cs.notifications_read', 'cs.notifications_send'], cs='cs.notifications'),
-         _page('metrics', 'Metrics', 'fa-chart-simple', ['cs.metrics'], cs='cs.metrics'),
      ]},
-    {'key': 'crm', 'label': 'Sales CRM', 'icon': 'fa-filter-circle-dollar',
-     'desc': 'Leads from every product, follow-ups, the inbox check and the sales numbers.',
+    {'key': 'crm', 'label': 'Sales', 'icon': 'fa-filter-circle-dollar',
+     'desc': 'Leads, follow-ups, contacts, quick replies, the half-hourly check, reports and set-up.',
      'pages': [
-         _page('crm_today', 'My day', 'fa-sun', _both('today', 'log_work') + CRM_DAILY,
-               admin='admin_crm.today', cs='crm.today'),
+         _page('crm_today', 'My day', 'fa-sun', _both('today', 'log_work', 'signoff') + CRM_DAILY,
+               admin='admin_crm.today', cs='crm.today',
+               tip="Today's follow-ups and customers waiting, in order."),
          _page('crm_board', 'Leads', 'fa-table-columns', _both('board') + CRM_DAILY,
-               admin='admin_crm.board', cs='crm.board', lit=_both('lead')),
+               admin='admin_crm.board', cs='crm.board', lit=_both('lead'),
+               tip='Every enquiry, by stage, for each product.'),
+         # Contacts becomes the portal's own page in U7. Until then it is off the menu: the WhatsApp CRM
+         # retires its /contacts inside the portal (contract 15), so a framed line would only bounce to
+         # Leads. The key stays, so roles, grants and the WhatsApp sign-in (wacrm_team.role_for) keep it.
+         _page('crm_people', 'Contacts', 'fa-address-book', ['messaging.contacts'],
+               admin='messaging.contacts', cs='messaging.contacts', nav=False,
+               desc='Not on the menu in this release. Until the Contacts page comes, people are found on Leads.',
+               tip='Everyone we can reach, one row per person.'),
          _page('crm_add', 'Add a lead', 'fa-user-plus', _both('add', 'add_from_record'),
-               admin='admin_crm.add', cs='crm.add'),
-         _page('crm_checks', 'Inbox check', 'fa-clipboard-check', _both('checks', 'check_tick'),
-               admin='admin_crm.checks', cs='crm.checks'),
-         _page('crm_process', 'How we sell', 'fa-diagram-project', _both('process'),
-               admin='admin_crm.process', cs='crm.process'),
-         _page('crm_tracker', 'Daily tracker', 'fa-list-check', _both('tracker'), admin='admin_crm.tracker',
-               desc="Each person's checklist and timeline, day by day."),
-         _page('crm_insights', 'Sales dashboard', 'fa-chart-line', _both('insights', 'insights_csv'),
-               admin='admin_crm.insights'),
-         _page('crm_setup', 'CRM set-up', 'fa-sliders',
-               _both('setup', 'save_source', 'save_pipeline', 'save_step', 'save_answer', 'save_whatsapp',
-                     'backfill', 'import_sheet', 'import_confirm', 'save_process', 'setup_templates'),
-               admin='admin_crm.setup', desc='Sources, pipelines, follow-up steps, ready messages, imports.'),
+               admin='admin_crm.add', cs='crm.add', nav=False, desc='The Add a lead button on Leads and My day.'),
+         _page('crm_checks', 'Half-hourly check', 'fa-clipboard-check', _both('checks', 'check_tick'),
+               admin='admin_crm.checks', cs='crm.checks', tip='Tick each inbox every half hour.'),
+         _page('crm_process', 'How we sell', 'fa-route', _both('process'),
+               admin='admin_crm.process', cs='crm.process',
+               tip="Our sales path per product, with today's numbers."),
+         _page('crm_quick', 'Quick replies', 'fa-bolt',
+               _both('quick_replies', 'save_answer', 'setup') + ('messaging.quick_replies',),
+               admin='admin_crm.quick_replies', cs='crm.quick_replies',
+               tip='Ready-made answers for every chat; edit them only here.'),
+         _page('crm_tracker', 'Team today', 'fa-people-line', _both('tracker'), admin='admin_crm.tracker',
+               desc="Each person's checklist and timeline, day by day.", tip="How each person's day is going."),
+         _page('crm_insights', 'Results', 'fa-chart-line', _both('insights') + ('messaging.overview',),
+               admin='admin_crm.insights',
+               tip='New leads, replies and customers won, by product, source and person.'),
+         _page('crm_pipelines', 'Pipelines', 'fa-diagram-project',
+               _both('pipelines', 'save_pipeline', 'save_step', 'setup_templates', 'setup'),
+               admin='admin_crm.pipelines', tip='Stages and follow-ups for each product.'),
+         _page('crm_sources', 'Where leads come from', 'fa-door-open',
+               _both('sources', 'save_source', 'save_process', 'setup'),
+               admin='admin_crm.sources', tip='Forms and channels, and who gets their leads.'),
+         _page('crm_connection', 'WhatsApp connection', 'fa-plug', _both('connection', 'save_whatsapp', 'setup'),
+               admin='admin_crm.connection', tip='Is WhatsApp linked, and what to fix if not.'),
+         _page('crm_data', 'Bring in & download', 'fa-file-arrow-up',
+               _both('data', 'backfill', 'import_sheet', 'import_confirm', 'setup'),
+               admin='admin_crm.data', tip='Bring in the sales sheet and old website enquiries.'),
+         _page('crm_export', 'Download lists of leads and contacts', 'fa-file-arrow-down', _both('insights_csv'),
+               admin='admin_crm.insights', nav=False, desc='The Download for Excel buttons.'),
      ]},
     {'key': 'companion', 'label': 'Travel Companion', 'icon': 'fa-plane-departure',
      'desc': 'Trip posts, matches and everything on the companion site.',
@@ -103,6 +131,8 @@ MODULES = [
                 'cs.reopen_post', 'cs.issue_claim_link', 'cs.log_manual_event', 'cs.check_duplicates'],
                cs='cs.posts'),
          _page('matches', 'Match queue', 'fa-handshake', MATCHES, cs='matches.cs_match_queue'),
+         _page('metrics', 'Match quality', 'fa-chart-simple', ['cs.metrics'], cs='cs.metrics',
+               desc='How matches turn out, and hints for the match weights.'),
          _page('new', 'New post', 'fa-plus', ['cs.new_post'], cs='cs.new_post'),
          _page('import', 'Import', 'fa-file-import', ['imports.import_page', 'imports.import_template'],
                cs='imports.import_page'),
@@ -150,31 +180,35 @@ MODULES = [
          _page('help_sahayak', 'Help & FAQ', 'fa-circle-question', ['admin.help_center_page'],
                admin='admin.help_center_page', args={'site': 'sahayak'}),
      ]},
-    {'key': 'whatsapp', 'label': 'WhatsApp', 'icon': 'fa-brands fa-whatsapp',
-     'desc': 'The WhatsApp CRM inside the portal: conversations, templates, broadcasts, auto-replies, '
-             'chatbot flows and the AI assistant.',
+    {'key': 'whatsapp', 'label': 'WhatsApp messaging', 'icon': 'fa-brands fa-whatsapp',
+     'desc': 'The WhatsApp screens inside the portal: chats, templates, broadcasts, tags, reply rules, chatbot, '
+             'AI replies and the number.',
      'pages': [
-         _page('wa_inbox', 'Inbox', 'fa-comments', ['messaging.inbox', 'messaging.lead_panel', 'messaging.lead_panel_make'], admin='messaging.inbox',
-               cs='messaging.inbox', desc='Every WhatsApp conversation, replies and assignments.'),
-         _page('wa_contacts', 'Contacts', 'fa-address-book', ['messaging.contacts'], admin='messaging.contacts',
-               cs='messaging.contacts'),
-         _page('wa_quick', 'Quick replies', 'fa-bolt', ['messaging.quick_replies'],
-               admin='messaging.quick_replies', cs='messaging.quick_replies'),
+         _page('wa_inbox', 'WhatsApp chats', 'fa-brands fa-whatsapp',
+               ['messaging.inbox', 'messaging.lead_panel', 'messaging.lead_panel_make'], admin='messaging.inbox',
+               cs='messaging.inbox', desc='Every WhatsApp conversation.',
+               tip='Every WhatsApp conversation; the lead shows beside the open chat.'),
+         _page('wa_templates', 'WhatsApp templates', 'fa-file-lines', ['messaging.templates'],
+               admin='messaging.templates', cs='messaging.templates',
+               desc='Messages WhatsApp has approved. Makes somebody a WhatsApp admin.',
+               tip='Messages WhatsApp has approved, for first messages and after 24 hours.'),
          _page('wa_broadcasts', 'Broadcasts', 'fa-bullhorn', ['messaging.broadcasts'],
-               admin='messaging.broadcasts', cs='messaging.broadcasts', desc='One approved template to many.'),
-         _page('wa_automations', 'Auto-replies', 'fa-wand-magic-sparkles', ['messaging.automations'],
+               admin='messaging.broadcasts', cs='messaging.broadcasts', desc='One approved template to many.',
+               tip='One approved message to many people.'),
+         _page('wa_tags', 'Tags', 'fa-tags', ['messaging.tags'], admin='messaging.tags', cs='messaging.tags',
+               desc='Makes somebody a WhatsApp admin.',
+               tip='Labels on contacts, used to pick who gets a broadcast or a reply rule.'),
+         _page('wa_automations', 'Reply rules', 'fa-reply-all', ['messaging.automations'],
                admin='messaging.automations', cs='messaging.automations',
-               desc='Welcome messages, keywords, out-of-hours and follow-ups.'),
-         _page('wa_flows', 'Chatbot flows', 'fa-sitemap', ['messaging.flows'], admin='messaging.flows',
-               cs='messaging.flows'),
-         _page('wa_templates', 'Templates', 'fa-file-lines', ['messaging.templates'], admin='messaging.templates',
-               cs='messaging.templates', desc='Approved WhatsApp templates (makes somebody a WhatsApp admin).'),
-         _page('wa_ai', 'AI assistant', 'fa-robot', ['messaging.ai'], admin='messaging.ai', cs='messaging.ai',
-               desc='Automatic replies written by AI (makes somebody a WhatsApp admin).'),
-         _page('wa_overview', 'WhatsApp dashboard', 'fa-chart-pie', ['messaging.overview'],
-               admin='messaging.overview', cs='messaging.overview'),
-         _page('wa_settings', 'WhatsApp settings', 'fa-plug', ['messaging.settings'], admin='messaging.settings',
-               cs='messaging.settings', desc='The number, tags and fields (makes somebody a WhatsApp admin).'),
+               desc='Welcome messages, keywords, out-of-hours and follow-ups.',
+               tip='Replies to keywords, first messages and out-of-hours.'),
+         _page('wa_flows', 'Chatbot', 'fa-sitemap', ['messaging.flows'], admin='messaging.flows',
+               cs='messaging.flows', tip='A menu of buttons that answers step by step.'),
+         _page('wa_ai', 'AI replies', 'fa-robot', ['messaging.ai'], admin='messaging.ai', cs='messaging.ai',
+               desc='Makes somebody a WhatsApp admin.', tip='AI answers from the documents you add here.'),
+         _page('wa_settings', 'WhatsApp number', 'fa-sim-card', ['messaging.settings'], admin='messaging.settings',
+               cs='messaging.settings', desc='Makes somebody a WhatsApp admin. Also opens Tags.',
+               tip='The number customers write to, and its Meta details.'),
      ]},
     {'key': 'site', 'label': 'Site settings', 'icon': 'fa-gear',
      'desc': 'Accounts, wording, dropdowns, notifications and colours for the whole site.',
@@ -189,7 +223,7 @@ MODULES = [
                 'admin.reset_options', 'admin.airports_search', 'admin.airports_add', 'admin.airports_delete',
                 'admin.airlines_search', 'admin.airlines_add', 'admin.airlines_delete'],
                admin='admin.options_page'),
-         _page('messages', 'Messages & e-mails', 'fa-envelope-open-text',
+         _page('messages', 'Trip post texts & e-mails', 'fa-envelope-open-text',
                ['admin.messages_page', 'admin.test_email', 'admin.save_message', 'admin.reset_message',
                 'admin.save_custom_snippets', 'admin.preview_message'],
                admin='admin.messages_page'),
@@ -206,32 +240,60 @@ MODULES = [
                nav=False, desc='The bin buttons on every list. Nothing deleted this way can be brought back.',
                deny='Only an admin can delete this.'),
      ]},
-    {'key': 'workspace', 'label': 'Workspace', 'icon': 'fa-people-group', 'required': True,
-     'desc': 'Members, teams, roles and the modules this workspace uses.',
+    {'key': 'workspace', 'label': 'Team', 'icon': 'fa-people-group', 'required': True,
+     'desc': 'Team members, teams, roles and the areas this workspace uses.',
      'pages': [
-         _page('ws_settings', 'Workspace settings', 'fa-building',
+         _page('ws_settings', 'Workspace', 'fa-building',
                ['workspace.overview', 'workspace.save_settings', 'workspace.whatsapp'],
-               admin='workspace.overview'),
-         _page('ws_members', 'Members', 'fa-user-gear',
+               admin='workspace.overview', tip='Business name and the areas you use.'),
+         _page('ws_members', 'Team members', 'fa-user-gear',
                ['workspace.members', 'workspace.add_member', 'workspace.member', 'workspace.save_member',
                 'workspace.remove_member', 'admin.cs_agents', 'admin.cs_screen_access'],
-               admin='workspace.members'),
+               admin='workspace.members', tip='Who works here, their role and teams.'),
          _page('ws_teams', 'Teams', 'fa-people-group',
                ['workspace.teams', 'workspace.team', 'workspace.save_team', 'workspace.delete_team'],
-               admin='workspace.teams'),
-         _page('ws_roles', 'Roles & access', 'fa-user-lock',
+               admin='workspace.teams', tip='Groups of people who share a role.'),
+         _page('ws_roles', 'Roles', 'fa-user-lock',
                ['workspace.roles', 'workspace.role', 'workspace.save_role', 'workspace.delete_role'],
-               admin='workspace.roles'),
+               admin='workspace.roles', tip='What each kind of job can open.'),
          _page('ws_all', 'All workspaces', 'fa-layer-group',
                ['workspace.all_workspaces', 'workspace.create_workspace'], admin='workspace.all_workspaces',
-               desc='Make new workspaces.'),
+               nav=False, desc='Make new workspaces (a tab on Workspace).'),
      ]},
+]
+
+# The menu, in order: each section is a heading in the staff menu with its pages in this order.
+# A page's area (its module above) still decides whether the workspace has it switched on; the
+# section only decides where its line sits. The one place the menu's order lives.
+SECTIONS = [
+    {'key': 'overview', 'label': 'Overview', 'icon': 'fa-gauge', 'pages': ('dashboard', 'home', 'notifications')},
+    {'key': 'sales', 'label': 'Sales', 'icon': 'fa-filter-circle-dollar',
+     'pages': ('crm_today', 'wa_inbox', 'crm_board', 'crm_people', 'crm_checks', 'crm_process', 'crm_add')},
+    {'key': 'messaging', 'label': 'Messaging', 'icon': 'fa-comments',
+     'pages': ('crm_quick', 'wa_templates', 'wa_broadcasts', 'wa_tags')},
+    {'key': 'automatic', 'label': 'Automatic messages', 'icon': 'fa-wand-magic-sparkles',
+     'pages': ('wa_automations', 'wa_flows', 'wa_ai')},
+    {'key': 'reports', 'label': 'Reports', 'icon': 'fa-chart-column', 'pages': ('crm_tracker', 'crm_insights')},
+    {'key': 'setup', 'label': 'Set-up', 'icon': 'fa-sliders',
+     'pages': ('crm_pipelines', 'crm_sources', 'crm_connection', 'wa_settings', 'crm_data', 'crm_export')},
+    {'key': 'team', 'label': 'Team', 'icon': 'fa-users',
+     'pages': ('ws_members', 'ws_teams', 'ws_roles', 'ws_settings', 'ws_all')},
+    {'key': 'companion', 'label': 'Travel Companion', 'icon': 'fa-plane-departure',
+     'pages': ('posts', 'matches', 'metrics', 'new', 'import', 'scraper', 'listings', 'voices_contact', 'voices_feedback',
+               'voices_report', 'landing', 'blog_list', 'blog', 'help')},
+    {'key': 'insurance', 'label': 'Travel Insurance', 'icon': 'fa-shield-heart',
+     'pages': ('insurance', 'voices_insurance', 'insurance_page', 'help_insurance')},
+    {'key': 'sahayak', 'label': 'Sahayak', 'icon': 'fa-house-medical',
+     'pages': ('sahayak', 'voices_sahayak', 'sahayak_services', 'help_sahayak')},
+    {'key': 'site', 'label': 'Site settings', 'icon': 'fa-gear',
+     'pages': ('voices_general', 'users', 'options', 'messages', 'notiflog', 'notify_switches', 'themes',
+               'delete_records')},
 ]
 
 # Endpoints anybody on the staff side may open, whatever their role: the plumbing behind
 # screens rather than screens (saved filters, the "what's new" button, switching workspace).
 STAFF_ANY = {
-    'cs.whats_new_api', 'workspace.switch', 'messaging.sso', 'messaging.lead_chat', 'messaging.lead_template', 'messaging.templates_json',
+    'cs.whats_new_api', 'workspace.switch', 'messaging.sso', 'messaging.lead_chat',
     'saved.manage', 'saved.open_filter', 'saved.save', 'saved.rename', 'saved.share', 'saved.delete', 'saved.move',
 }
 
@@ -241,6 +303,13 @@ for _m in MODULES:
         _p['module'] = _m['key']
         PAGES[_p['key']] = _p
 ALL_PAGES = frozenset(PAGES)
+SECTION_BY_KEY = {s['key']: s for s in SECTIONS}
+for _s in SECTIONS:
+    for _k in _s['pages']:
+        PAGES[_k]['section'] = _s['key']
+MENU_ORDER = tuple(k for s in SECTIONS for k in s['pages'])
+# every page sits in exactly one section, and no section names a page that does not exist
+assert sorted(MENU_ORDER) == sorted(PAGES), 'SECTIONS and MODULES disagree about the pages'
 MODULE_KEYS = [m['key'] for m in MODULES]
 REQUIRED_MODULES = {m['key'] for m in MODULES if m.get('required')}
 MODULE_BY_KEY = {m['key']: m for m in MODULES}
@@ -268,9 +337,32 @@ LEGACY_SCREEN_PAGES = {
 }
 # an agent nobody has narrowed: every console screen except the scraper, which was admin-only
 CS_DEFAULT_PAGES = frozenset(p for k, pages in LEGACY_SCREEN_PAGES.items() if k != 'scraper' for p in pages)
-# what a new workspace's Customer service role starts with: the console, plus the WhatsApp screens
-# an agent works in every day
-CS_ROLE_PAGES = CS_DEFAULT_PAGES | {'wa_inbox', 'wa_contacts', 'wa_quick'}
+# what a new workspace's Sales & service role starts with: the console, plus WhatsApp chats,
+# Contacts and Quick replies, which an agent works in every day
+CS_ROLE_PAGES = CS_DEFAULT_PAGES | {'wa_inbox', 'crm_people', 'crm_quick'}
+
+# page keys before the one menu (U2) -> what they became; read wherever role pages are read
+OLD_PAGE_KEYS = {'wa_contacts': ('crm_people',), 'wa_quick': ('crm_quick',),
+                 'crm_setup': ('crm_pipelines', 'crm_sources', 'crm_connection', 'crm_data', 'crm_export'),
+                 'wa_overview': ()}
+NEW_IN_ONE_MENU = frozenset({'crm_people', 'crm_quick', 'crm_pipelines', 'crm_sources', 'crm_connection',
+                             'crm_data', 'crm_export', 'wa_tags'})
+# keys a later step adds: kept in stored roles (a role save does not drop them), never shown
+RESERVED_PAGES = frozenset({'crm_auto'})
+# the Team lead role: Sales & service plus these
+TEAM_LEAD_EXTRA = frozenset({'crm_tracker', 'crm_insights', 'crm_auto', 'wa_broadcasts'})
+
+
+def expand_page_keys(keys):
+    """A stored list of page keys as today's pages: old keys become their new ones, and a list written
+    before Tags had its own line gets Tags with WhatsApp number. Unknown keys are dropped."""
+    keys = list(keys or [])
+    out = set()
+    for k in keys:
+        out.update(OLD_PAGE_KEYS.get(k, (k,)))
+    if 'wa_settings' in out and not set(keys) & NEW_IN_ONE_MENU:
+        out.add('wa_tags')
+    return frozenset(k for k in out if k in PAGES)
 
 
 def _legacy_pages(user):
@@ -365,12 +457,13 @@ def module_pages(module_keys):
 
 def role_pages(role):
     """A role's pages. The administrator's are every page there is, computed rather than stored,
-    so a screen added next month is not missing from the one role that must have everything."""
+    so a screen added next month is not missing from the one role that must have everything.
+    Keys stored before the one menu are read as the pages they became (expand_page_keys)."""
     if role is None:
         return frozenset()
     if role.system_key == 'admin':
         return ALL_PAGES
-    return frozenset(k for k in (role.pages or []) if k in PAGES)
+    return expand_page_keys(role.pages)
 
 
 def _member_pages(member):
@@ -511,30 +604,37 @@ def active_page(fallback=None):
 
 
 def nav(user, fallback_active=None):
-    """The staff menu: the modules switched on in this workspace, each with the pages this person
-    may open, the one being looked at marked. A module with nothing in it for them is left out."""
+    """The staff menu: SECTIONS in order, each with the pages this person may open whose area is
+    switched on in this workspace, the one being looked at marked. A section with nothing in it for
+    them is left out. `mark`: the line's badge is a "!" (services/nav_badges.MARKS); `sum`: its
+    number counts in the section's total."""
+    from app.services.nav_badges import MARKS
     ws = current_workspace(user)
+    on = set(enabled_modules(ws))
     allowed_pages = pages_for(user, ws)
     here = active_page(fallback_active)
     console = current_console(user)
     groups = []
-    for key in enabled_modules(ws):
-        m = MODULE_BY_KEY[key]
+    for sec in SECTIONS:
         items = []
-        for p in m['pages']:
-            if not p['nav'] or p['key'] not in allowed_pages:
+        for key in sec['pages']:
+            p = PAGES[key]
+            if not p['nav'] or p['module'] not in on or key not in allowed_pages:
                 continue
             url = page_url(p, console)
             if url:
-                items.append({'key': p['key'], 'label': p['label'], 'icon': p['icon'], 'url': url,
-                              'active': p['key'] == here, 'badge': p['key']})
-        # the follow-ups due are one number: on My day when both lines are there, not on both
-        if {'crm_today', 'crm_board'} <= {i['key'] for i in items}:
-            next(i for i in items if i['key'] == 'crm_board')['badge'] = None
+                items.append({'key': key, 'label': p['label'], 'icon': p['icon'], 'tip': p['tip'] or p['label'],
+                              'url': url, 'active': key == here, 'badge': key,
+                              'mark': key in MARKS, 'sum': key not in MARKS})
+        # the customers waiting are in My day's number too: the section's total counts them once
+        if any(i['key'] == 'crm_today' for i in items):
+            for i in items:
+                if i['key'] == 'wa_inbox':
+                    i['sum'] = False
         if items:
-            groups.append({'key': key, 'label': m['label'], 'icon': m['icon'], 'items': items,
+            groups.append({'key': sec['key'], 'label': sec['label'], 'icon': sec['icon'], 'items': items,
                            'open': any(i['active'] for i in items)})
-    # a short menu is shown whole; a long one opens only the module being worked in (the rest are
+    # a short menu is shown whole; a long one opens only the section being worked in (the rest are
     # one click away, and the menu remembers what was opened)
     if sum(len(gr['items']) for gr in groups) <= 12:
         for gr in groups:
@@ -543,30 +643,35 @@ def nav(user, fallback_active=None):
 
 
 def home_url(user):
-    """Where a staff account lands: the dashboard for an admin, the queues for customer service,
-    otherwise the first page their roles give them."""
-    if user.is_admin:
-        return url_for('admin.dashboard')
+    """Where a staff account lands: site owners on Results (the site dashboard when Sales is off),
+    people who work leads on My day, customer service on Service to-do, anybody else on the first
+    page in the menu their roles give them."""
+    if user.is_admin:                                          # a site owner
+        return url_for('admin_crm.insights' if 'crm' in enabled_modules(current_workspace(user))
+                       else 'admin.dashboard')
     pages = pages_for(user)
+    if 'crm_today' in pages:
+        return url_for('crm.today')
     if 'home' in pages:
         return url_for('cs.home')
     return _first_url(user, pages, MODULE_KEYS) or url_for('main.index')
 
 
 def _first_url(user, pages, module_keys):
+    """The first line in the menu, of a page in one of `module_keys`, that this person may open."""
     console = current_console(user)
-    for key in module_keys:
-        for p in MODULE_BY_KEY[key]['pages']:
-            if p['nav'] and p['key'] in pages:
-                url = page_url(p, console)
-                if url:
-                    return url
+    for key in MENU_ORDER:
+        p = PAGES[key]
+        if p['module'] in module_keys and p['nav'] and key in pages:
+            url = page_url(p, console)
+            if url:
+                return url
     return None
 
 
 def denied_url(user, endpoint):
     """Where somebody turned away from `endpoint` goes: the first thing they may open in the same
-    module (a salesperson refused the sales dashboard lands on My day), else their home."""
+    module (a salesperson refused Results lands on My day), else their home."""
     owners = ENDPOINT_PAGES.get(endpoint or '') or ()
     modules = [PAGES[k]['module'] for k in owners]
     return (_first_url(user, pages_for(user), [m for m in MODULE_KEYS if m in modules])
@@ -622,7 +727,8 @@ def _slug(name):
 
 
 def create_workspace(name, by=None, modules=None, description=None):
-    """A workspace with the two roles every one starts with, and its maker as the owner."""
+    """A workspace with the three roles every one starts with (Administrator, Sales & service and
+    Team lead), and its maker as the owner."""
     from app.models import Workspace, WorkspaceRole
     ws = Workspace(name=name.strip()[:120], slug=_slug(name), modules=modules,
                    description=(description or '').strip()[:255] or None,
@@ -630,10 +736,14 @@ def create_workspace(name, by=None, modules=None, description=None):
     db.session.add(ws)
     db.session.flush()
     db.session.add(WorkspaceRole(workspace_id=ws.id, name='Administrator', system_key='admin', pages=[],
-                                 description='Every page, including members, teams and roles.'))
-    db.session.add(WorkspaceRole(workspace_id=ws.id, name='Customer service', system_key='cs',
+                                 description='Every page, including team members, teams and roles.'))
+    db.session.add(WorkspaceRole(workspace_id=ws.id, name='Sales & service', system_key='cs',
                                  pages=sorted(CS_ROLE_PAGES),
-                                 description='The daily console: queues, posts, matches, leads and inboxes.'))
+                                 description='The daily work: My day, leads, contacts, WhatsApp chats, quick '
+                                             'replies, queues and posts.'))
+    db.session.add(WorkspaceRole(workspace_id=ws.id, name='Team lead', system_key=None,
+                                 pages=sorted(CS_ROLE_PAGES | TEAM_LEAD_EXTRA),
+                                 description='Sales & service, plus Team today, Results and Broadcasts.'))
     db.session.flush()
     if by is not None:
         add_member(ws, by, role=system_role(ws, 'admin'), owner=True, by=by, commit=False)
@@ -646,7 +756,7 @@ def system_role(ws, key):
 
 def ensure_defaults():
     """The first workspace, written down from how the site already behaves: every admin an
-    Administrator (the first one its owner), every CS agent Customer service -- or a role made
+    Administrator (the first one its owner), every CS agent Sales & service -- or a role made
     from the screens an admin had narrowed them to. Safe to call any number of times."""
     from sqlalchemy import or_
     from app.models import User, Workspace, WorkspaceRole, WorkspaceMember
@@ -691,9 +801,9 @@ def ensure_defaults():
     return ws
 
 
-LEGACY_LABELS = {'home': 'Queues', 'notifications': 'Notifications', 'metrics': 'Metrics', 'voices': 'User voices',
+LEGACY_LABELS = {'home': 'Service to-do', 'notifications': 'Notifications', 'metrics': 'Match quality', 'voices': 'User voices',
                  'posts': 'Posts', 'matches': 'Matches', 'new': 'New post', 'import': 'Import', 'scraper': 'Scraper',
-                 'insurance': 'Insurance', 'sahayak': 'Sahayak', 'crm_board': 'Sales CRM'}
+                 'insurance': 'Insurance', 'sahayak': 'Sahayak', 'crm_board': 'Sales'}
 
 
 def _mark_staff(user, staff):
@@ -747,12 +857,18 @@ def teams_of(member):
             if member.user in t.users]
 
 
-def remove_member(member, commit=True):
+def remove_member(member, commit=True, hand_over=None, by=None):
     """Out of the workspace and its teams. Never the owner: a workspace without one cannot be
-    run. Somebody left in no workspace at all stops being staff."""
+    run. Somebody left in no workspace at all stops being staff. `hand_over` ({'to', 'team'}):
+    their open leads and follow-ups go first (crm.hand_over); returns (leads, follow-ups) moved, or
+    None without it. A ValueError from the hand-over (nobody to take them) stops the removal."""
     if member.is_owner:
         raise ValueError('The owner cannot be removed from the workspace.')
     user, ws = member.user, member.workspace
+    moved = None
+    if hand_over is not None:
+        from app.services import crm
+        moved = crm.hand_over(user, to=hand_over.get('to'), team=hand_over.get('team'), by=by)
     set_teams(member, ())
     _removed(member)
     db.session.delete(member)
@@ -763,11 +879,12 @@ def remove_member(member, commit=True):
     if commit:
         db.session.commit()
     _cache().clear()
+    return moved
 
 
 def sync_account(user, by=None):
     """After an account's roles change on the Users screen: staff with no workspace join the first
-    one (as an Administrator or Customer service, by their level); somebody who is no longer staff
+    one (as an Administrator or Sales & service, by their level); somebody who is no longer staff
     leaves every workspace they were in."""
     from app.models import WorkspaceMember
     ws = default_workspace()
@@ -783,10 +900,13 @@ def sync_account(user, by=None):
     _cache().clear()
 
 
-def clean_pages(keys):
-    """What to store from the role form: known pages only, in menu order."""
+def clean_pages(keys, keep=()):
+    """What to store from the role form: known pages only, in menu order, plus the keys of `keep`
+    (what the role held) that a later step reserves -- the form cannot show them, so a save must
+    not drop them."""
     wanted = set(keys or [])
-    return [p['key'] for m in MODULES for p in m['pages'] if p['key'] in wanted]
+    out = [p['key'] for m in MODULES for p in m['pages'] if p['key'] in wanted]
+    return out + [k for k in (keep or ()) if k in RESERVED_PAGES and k not in out]
 
 
 def who_has(ws):
@@ -799,6 +919,24 @@ def who_has(ws):
         if t.role_id:
             counts[t.role_id] = counts.get(t.role_id, 0) + len(t.users)
     return counts
+
+
+# the order "Can open" names pages in: the menu's, with the day's work first and Overview last
+_SUMMARY_ORDER = tuple(k for s in SECTIONS if s['key'] != 'overview' for k in s['pages']) + SECTIONS[0]['pages']
+
+
+def can_open_summary(member, limit=3):
+    """"My day, WhatsApp chats, Leads +4": what a member can open, the day's work first. "Every page"
+    when that is everything the workspace has on; "Nothing yet" for nobody's pages."""
+    within = module_pages(enabled_modules(member.workspace))
+    pages = within if (member.user is not None and member.user.is_admin) else _member_pages(member)
+    labels = [PAGES[k]['label'] for k in _SUMMARY_ORDER if PAGES[k]['nav'] and k in pages]
+    if not labels:
+        return 'Nothing yet'
+    if pages >= {k for k in within if PAGES[k]['nav']}:
+        return 'Every page'
+    more = len(labels) - limit
+    return ', '.join(labels[:limit]) + (' +%d' % more if more > 0 else '')
 
 
 # The WhatsApp CRM keeps its own team; these tell it (services/wacrm_team.py, when linked).

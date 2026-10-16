@@ -1,0 +1,33 @@
+{# The top of the lead page: who they are, how they came in, who looks after them. A live region. #}
+{% from 'cs/crm/_bits.html' import stage_pill, when with context %}
+<div class="lead-hero" data-lead-live="head">
+  <div class="av">{{ (person.name or person.phone or '?')[:1]|upper }}</div>
+  <div class="id">
+    <h1>{{ person.display_name }} {{ stage_pill(lead, link=false) }}</h1>
+    <p class="sub">Asked about {{ PRODUCTS.get(lead.product, lead.product) }} · {{ when(lead.created_at, utcnow) }}
+      {%- if lead.source %} from “{{ lead.source.name }}”{% endif %} · Looked after by
+      <select class="lead-owner" data-update="owner_id" aria-label="Looked after by">
+        <option value="">Not given to anyone</option>
+        {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if lead.owner_id == u.id }}>{{ u.full_name }}{{ ' (you)' if u.id == current_user.id }}</option>{% endfor %}
+      </select></p>
+  </div>
+  <div class="acts">
+    {% if person.phone %}<a class="cb" href="tel:{{ person.phone }}"><i class="fa-solid fa-phone"></i> {{ PHONE.pretty(person.phone) }}</a>{% endif %}
+    {% if person.email %}<a class="cb" href="mailto:{{ person.email }}" title="{{ person.email }}"><i class="fa-solid fa-envelope"></i> E-mail</a>{% endif %}
+    {% set ig = person.identity('instagram') %}{% set fb = person.identity('facebook') %}
+    {% if ig %}<a class="cb" href="https://www.instagram.com/{{ ig }}" target="_blank" rel="noopener"><i class="fa-brands fa-instagram"></i> {{ ig }}</a>{% endif %}
+    {% if fb %}<a class="cb" href="https://www.facebook.com/{{ fb }}" target="_blank" rel="noopener"><i class="fa-brands fa-facebook"></i> Facebook</a>{% endif %}
+    <button type="button" class="cb quiet icon" data-focus title="Full screen (Esc to come back)" aria-label="Full screen (Esc to come back)"><i class="fa-solid fa-expand"></i></button>
+    <details class="more-menu">
+      <summary class="cb" aria-label="More"><i class="fa-solid fa-ellipsis"></i> More</summary>
+      <div class="menu">
+        <button type="button" data-act="edit-person" data-name="{{ person.name or '' }}" data-email="{{ person.email or '' }}"
+                data-phone="{{ person.phone or '' }}" data-instagram="{{ ig or '' }}" data-facebook="{{ fb or '' }}">
+          <i class="fa-solid fa-pen"></i><span>Edit their details<small>name, phone, e-mail, Instagram</small></span></button>
+        {% if has_moves %}<button type="button" data-act="undo"><i class="fa-solid fa-rotate-left"></i><span>Undo the last move<small>put them back in the stage before</small></span></button>{% endif %}
+        {% if lead.status != 'open' %}<button type="button" data-act="reopen"><i class="fa-solid fa-box-open"></i><span>Reopen<small>back to work, in their last open stage</small></span></button>{% endif %}
+        {% if can_remove %}<button type="button" class="danger" data-act="remove" data-name="{{ person.display_name }}"><i class="fa-solid fa-trash"></i><span>Remove from the Sales CRM<small>added by mistake — the record on the site stays</small></span></button>{% endif %}
+      </div>
+    </details>
+  </div>
+</div>

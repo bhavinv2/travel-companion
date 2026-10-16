@@ -118,13 +118,14 @@ def test_making_and_changing_a_role_on_the_screen(client, ws, admin_user, cs_use
     _db.session.expire_all()
     assert member(ws, cs_user).role_id == sales.id
     page = client.get('/admin/workspace/roles').data.decode()
-    assert 'Sales' in page and 'Customer service' in page
+    assert 'Sales' in page and 'Sales &amp; service' in page      # U2: 'Customer service' is now 'Sales & service'
 
 
 def test_a_role_cannot_be_made_twice_or_built_ins_deleted(client, ws, admin_user):
     login(client, 'admin@test.com')
-    client.post('/admin/workspace/roles/save', data={'name': 'customer SERVICE'})
-    assert WorkspaceRole.query.filter_by(workspace_id=ws.id).count() == 2
+    client.post('/admin/workspace/roles/save', data={'name': 'sales & SERVICE'})
+    # U2: three built-in roles now (Sales & service, Team lead, Administrator) -- the copy is refused
+    assert WorkspaceRole.query.filter_by(workspace_id=ws.id).count() == 3
     cs = access.system_role(ws, 'cs')
     client.post('/admin/workspace/roles/%d/delete' % cs.id)
     assert _db.session.get(WorkspaceRole, cs.id) is not None
@@ -192,7 +193,7 @@ def test_nobody_locks_themselves_out(client, ws, admin_user, cs_user):
 def test_a_role_can_hand_over_running_the_workspace(client, ws, cs_user):
     """Members and roles are pages like any other, so a manager can run the team without being
     a site admin."""
-    member(ws, cs_user).role = role(ws, 'Team lead', ['home', 'ws_members', 'ws_teams'])
+    member(ws, cs_user).role = role(ws, 'Desk manager', ['home', 'ws_members', 'ws_teams'])   # U2: 'Team lead' is a built-in role now
     _db.session.commit()
     login(client, 'cs@test.com')
     assert client.get('/admin/workspace/members').status_code == 200
@@ -275,7 +276,7 @@ def test_whatsapp_opens_signed_in_as_the_role_the_pages_give(client, ws, admin_u
     body, sig = unquote(token).split('.')
     payload = json.loads(base64.urlsafe_b64decode(body + '=' * (-len(body) % 4)))
     assert payload['purpose'] == 'sso' and payload['email'] == 'cs@test.com'
-    assert payload['role'] == 'agent' and payload['next'] == '/inbox' and payload['exp'] - payload['iat'] <= 300
+    assert payload['role'] == 'agent' and payload['next'] == '/inbox?mine=1&panel=portal' and payload['exp'] - payload['iat'] <= 300
     import hashlib, hmac
     good = base64.urlsafe_b64encode(hmac.new(b'x' * 40, body.encode(), hashlib.sha256).digest()).rstrip(b'=').decode()
     assert hmac.compare_digest(good, sig)
@@ -290,7 +291,7 @@ def test_a_reload_inside_the_frame_stays_where_it_was(client, ws, admin_user, mo
     monkeypatch.setenv('WACRM_URL', 'https://crm.example/wa')
     monkeypatch.setenv('WACRM_PORTAL_SECRET', 'x' * 40)
     login(client, 'admin@test.com')
-    for p, expected in (('/inbox?c=abc', '/inbox?c=abc'), ('//evil.example', '/inbox'), ('https://evil', '/inbox')):
+    for p, expected in (('/inbox?c=abc', '/inbox?c=abc&panel=portal'), ('//evil.example', '/inbox?mine=1&panel=portal'), ('https://evil', '/inbox?mine=1&panel=portal')):
         html = client.get('/admin/messaging/inbox', query_string={'p': p}).data.decode()
         token = html.split('/api/portal/sso?t=', 1)[1].split('"', 1)[0]
         from urllib.parse import unquote
@@ -356,4 +357,4 @@ def test_whatsapp_on_another_site_is_framed_from_there(client, ws, admin_user, m
     html = client.get('/admin/messaging/inbox').data.decode()
     assert 'src="https://studio.preventia360.com/crm/api/portal/sso?t=' in html
     assert 'var crmOrigin = "https://studio.preventia360.com" ||' in html
-    assert 'href="https://studio.preventia360.com/crm/inbox"' in html          # "New tab"
+    # (the old "New tab" link is gone from the frame page in the U3 rewrite)

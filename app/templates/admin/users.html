@@ -30,7 +30,7 @@
       {% endif %}
     </form>
     <p class="muted" style="font-size:13px;margin:-4px 0 10px">{{ total }} account{{ '' if total == 1 else 's' }} match.</p>
-    <p class="muted" style="font-size:13px">An account can hold several roles (e.g. traveller + CS). Roles and their access levels are defined under <a href="{{ url_for('admin.options_page') }}">Options &amp; dropdowns</a>.</p>
+    <p class="muted" style="font-size:13px">An account can hold several roles (e.g. traveller + staff). Staff are managed in <a href="{{ url_for('workspace.members') }}">Team members</a>. Site owners can open every page and change every setting.</p>
 
     <div class="bulk-select-bar" id="userBulkBar" style="display:none">
       <strong id="userBulkCount">0</strong> selected
@@ -64,6 +64,14 @@
             {% if user.id == current_user.id %}
               {% for k in user.role_keys %}<span class="badge-pill green">{{ role_labels.get(k, k) }}</span> {% endfor %}
               <br/><small class="muted">you — ask another admin to change your roles</small>
+              <br/><label class="owner-switch" title="Site owners can open every page and change every setting.">
+                <input type="checkbox" disabled{{ ' checked' if user.is_admin }}/> Site owner</label>
+            {% elif user.is_cs or user.id in member_of %}
+              {# staff: what they open is their role and teams in Team members; here only "Site owner" #}
+              {% for k in user.role_keys %}<span class="badge-pill green">{{ role_labels.get(k, k) }}</span> {% endfor %}
+              <br/><a href="{{ url_for('workspace.member', member_id=member_of[user.id]) if user.id in member_of else url_for('workspace.members', add=1, email=user.email) }}">Change in Team members</a>
+              <br/><label class="owner-switch" title="Site owners can open every page and change every setting.">
+                <input type="checkbox" data-owner="{{ user.id }}" data-roles='{{ user.role_keys|tojson|forceescape }}'{{ ' checked' if user.is_admin }}/> Site owner</label>
             {% else %}
               {# A multi-select: searchselect.js turns it into a dropdown with tick boxes and an
                  "N selected" label, and still dispatches change, so roles save exactly as before. #}
@@ -76,14 +84,6 @@
           </td>
           <td data-label="Active"><span class="badge-pill {{ 'green' if user.is_active else 'red' }}">{{ 'Active' if user.is_active else 'Inactive' }}</span></td>
           <td data-label="Actions">
-            {# Only for agents: an admin is never restricted and a traveller has no console. #}
-            {% if user.is_cs and not user.is_admin %}
-            <a class="btn-sm" href="{{ url_for('admin.cs_screen_access', user_id=user.id) }}"
-               title="Which console screens this agent can open">
-              <i class="fa-solid fa-user-lock"></i>
-              {{ 'All screens' if user.cs_access is none else (user.cs_access|length) ~ ' screens' }}
-            </a>
-            {% endif %}
             {% if user.id != current_user.id %}
             <button class="btn-sm" onclick="toggleUser({{ user.id }}, this)">
               {{ 'Disable' if user.is_active else 'Enable' }}
@@ -111,6 +111,26 @@ function toggleUser(userId, btn) {
       btn.textContent = d.is_active ? 'Disable' : 'Enable';
     });
 }
+// "Site owner": on adds the admin role; off takes every admin-level role away and keeps them staff
+const ADMIN_KEYS = {{ admin_keys|tojson }};
+document.addEventListener('change', e => {
+  const box = e.target.closest('[data-owner]');
+  if (!box) return;
+  let roles = JSON.parse(box.dataset.roles || '[]');
+  if (box.checked) {
+    if (!roles.includes('admin')) roles.push('admin');
+  } else {
+    roles = roles.filter(k => !ADMIN_KEYS.includes(k));
+    if (!roles.includes('cs')) roles.push('cs');
+  }
+  fetch(`/admin/users/${box.dataset.owner}/roles`, { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN}, body: JSON.stringify({ roles }) })
+    .then(r => r.json()).then(d => {
+      if (d.error) { box.checked = !box.checked; return showToast(d.error, 'danger'); }
+      box.dataset.roles = JSON.stringify(d.roles);
+      showToast(box.checked ? 'Site owner: they can open every page now.'
+                            : 'No longer a site owner. What they can open comes from Team members.', 'success');
+    });
+});
 function setRoles(userId) {
   const roles = [...document.getElementById(`roles-${userId}`).selectedOptions].map(o => o.value);
   fetch(`/admin/users/${userId}/roles`, { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN}, body: JSON.stringify({ roles }) })

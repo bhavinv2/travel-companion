@@ -508,7 +508,7 @@ def import_sheet(rows, owner_id=None, kpi=None, kpi_users=None):
         if stage is not None and lead.stage_id != stage.id and lead.status == 'open' and \
                 (stage.kind != 'open' or (lead.stage and stage.position > lead.stage.position)):
             # the same person on a later tab: they moved on
-            crm.move_stage(lead, stage, reason='Sales sheet: %s' % r['sheet'], plan=False,
+            crm.move_stage(lead, stage, reason='Sales sheet: %s' % r['sheet'], plan=False, sync=False,
                            fallout_reason='From the sales sheet' if stage.kind == 'lost' else None)
         if r.get('likelihood') and not lead.likelihood:
             lead.likelihood = r['likelihood']
@@ -519,7 +519,7 @@ def import_sheet(rows, owner_id=None, kpi=None, kpi_users=None):
             label = {'Q': 'Quote sent', 'PLS': 'Payment link sent'}.get(code, code)
             db.session.add(CrmTouchpoint(lead=lead, person_id=lead.person_id,
                                          channel='call' if code.startswith('CL') else 'whatsapp',
-                                         direction='out', code=code, status='imported', created_at=at,
+                                         direction='out', code=code, status='imported', via='import', created_at=at,
                                          body='%s (recorded in the sales sheet)' % label))
         for note in [r['comment']] + list(r.get('history') or []):
             if note:

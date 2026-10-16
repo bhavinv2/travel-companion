@@ -5,9 +5,12 @@ users and roles. The portal is where the team is managed, so this tells the CRM 
 (docs/portal-integration.md in the wacrm repo is the contract):
 
     a member whose pages include WhatsApp screens   -> a CRM member: 'admin' when they may manage
-                                                       templates, the AI assistant or settings,
+                                                       templates, tags, AI replies or the number,
                                                        otherwise 'agent'
     anybody else, or somebody removed               -> taken out of the CRM
+
+It is also told which of its screens each person may open (contract 14: `pages`, on the member and
+in every sign-in), so a link inside it cannot open a screen the person's roles leave out.
 
 Everything goes through the CRM's /api/portal endpoints with a short-lived signed token (the
 secret is WACRM_PORTAL_SECRET, shared with the CRM as PORTAL_SECRET). It is best effort: the CRM
@@ -28,16 +31,24 @@ from datetime import datetime
 import requests
 
 from app import db
+from app.services import wacrm
 
 log = logging.getLogger(__name__)
-TIMEOUT = (3.05, 10)
 
 # The WhatsApp pages that make somebody a CRM admin rather than an agent.
-ADMIN_PAGES = {'wa_templates', 'wa_ai', 'wa_settings'}
+ADMIN_PAGES = {'wa_templates', 'wa_ai', 'wa_settings', 'wa_tags'}
+
+# contract 14: the page keys the WhatsApp CRM knows; it drops any other
+PORTAL_PAGE_KEYS = ('wa_inbox', 'wa_broadcasts', 'wa_automations', 'wa_flows', 'wa_ai', 'wa_templates',
+                    'wa_tags', 'wa_quick', 'wa_settings')
 
 
 class TeamError(Exception):
-    pass
+    """`status`: the HTTP status (None when there was no answer at all); `code`: the CRM's error
+    code, e.g. "ambiguous_contact"."""
+    def __init__(self, message='', status=None, code=None):
+        super().__init__(message)
+        self.status, self.code = status, code
 
 
 # ------------------------------------------------------------------------------ settings
@@ -95,12 +106,43 @@ def make_token(purpose, ttl=120, **claims):
     return body + '.' + sig
 
 
-def sso_url(user, role, next_path='/inbox'):
-    """The address that signs `user` into the CRM as `role` and lands them on `next_path`."""
+def sso_url(user, role, next_path='/inbox', pages=None):
+    """The address that signs `user` into the CRM as `role` and lands them on `next_path`. `pages`:
+    the screens their roles give them (contract 14; default: worked out from their pages here). An
+    old WhatsApp CRM ignores the claim."""
     from urllib.parse import quote
     name = user.full_name or user.username or user.email
-    token = make_token('sso', email=user.email.lower(), name=name, role=role, next=next_path or '/inbox')
+    pages = wa_pages(user_pages(user)) if pages is None else list(pages)
+    token = make_token('sso', email=user.email.lower(), name=name, role=role, next=next_path or '/inbox',
+                       pages=pages)
     return '%s/api/portal/sso?t=%s' % (browser_base(), quote(token, safe=''))
+
+
+def wa_pages(pages):
+    """The page grants the WhatsApp CRM is told (contract 14): the person's wa_* pages, plus
+    wa_quick when they have the portal's Quick replies. Sorted, so a token reads the same each time."""
+    keys = {p for p in pages if p in PORTAL_PAGE_KEYS}
+    if 'crm_quick' in pages:
+        keys.add('wa_quick')
+    return sorted(keys)
+
+
+def member_pages(member):
+    """A member's portal pages; a site owner has every page."""
+    from app.services import access
+    return access.ALL_PAGES if member.user.is_admin else access._member_pages(member)
+
+
+def user_pages(user):
+    """The portal pages behind this person's WhatsApp access: their pages in the linked workspace
+    (the current one when none is linked yet)."""
+    from app.models import WorkspaceMember
+    from app.services import access
+    if user.is_admin:
+        return access.ALL_PAGES
+    ws = linked_workspace() or access.current_workspace(user)
+    m = WorkspaceMember.query.filter_by(workspace_id=ws.id, user_id=user.id).first() if ws else None
+    return access._member_pages(m) if m else frozenset()
 
 
 # ----------------------------------------------------------------------------- the API
@@ -110,7 +152,7 @@ def _api(method, path, payload=None, params=None):
         raise TeamError('The WhatsApp CRM is not connected (WACRM_URL / WACRM_PORTAL_SECRET).')
     try:
         r = requests.request(method, '%s/api/portal/%s' % (base_url(), path.lstrip('/')), json=payload,
-                             params=params, timeout=TIMEOUT,
+                             params=params, timeout=wacrm.timeout(),
                              headers={'Authorization': 'Portal ' + make_token('api', ttl=60),
                                       'Accept': 'application/json'})
     except requests.RequestException as exc:
@@ -119,11 +161,12 @@ def _api(method, path, payload=None, params=None):
         body = r.json()
     except ValueError:
         raise TeamError('The WhatsApp CRM answered with a web page, not data (HTTP %s) -- check WACRM_URL.'
-                        % r.status_code)
+                        % r.status_code, status=r.status_code)
     if r.status_code >= 400:
         err = body.get('error') if isinstance(body, dict) else None
+        code = err.get('code') if isinstance(err, dict) else (err if isinstance(err, str) else None)
         msg = (err.get('message') if isinstance(err, dict) else err) or ('HTTP %s' % r.status_code)
-        raise TeamError(str(msg)[:250])
+        raise TeamError(str(msg)[:250], status=r.status_code, code=code)
     return (body or {}).get('data') if isinstance(body, dict) else None
 
 
@@ -196,12 +239,12 @@ def status(ws):
 
 def role_for(member):
     """'admin' / 'agent' for somebody whose pages include WhatsApp screens, else None."""
-    from app.services import access
     if member.user is None or not member.user.is_active:
         return None
-    pages = access.ALL_PAGES if member.user.is_admin else access._member_pages(member)
-    wa = {p for p in pages if p.startswith('wa_')}
-    if not wa:
+    pages = member_pages(member)
+    wa = set(wa_pages(pages))
+    # until U7 makes Contacts the portal's own page, the Contacts line is the CRM's screen
+    if not wa and 'crm_people' not in pages:
         return None
     return 'admin' if (wa & ADMIN_PAGES or member.is_owner) else 'agent'
 
@@ -212,7 +255,8 @@ def _push(member):
     try:
         if want:
             _api('POST', 'members', {'email': member.user.email.lower(), 'role': want,
-                                     'name': member.user.full_name or member.user.username})
+                                     'name': member.user.full_name or member.user.username,
+                                     'pages': wa_pages(member_pages(member))})
         elif member.wacrm_role:
             _api('POST', 'members/remove', {'email': member.user.email.lower()})
         member.wacrm_role, member.wacrm_error = want, None
@@ -309,13 +353,21 @@ def push_template_drafts(items):
     return out
 
 
-def push_quick_replies(items):
-    """The ready answers as WhatsApp quick replies, matched by title. {created, updated}."""
-    out = {'created': 0, 'updated': 0}
-    for i in range(0, len(items), 200):
-        data = _api('POST', 'quick-replies', {'items': items[i:i + 200]}) or {}
-        out['created'] += int(data.get('created') or 0)
-        out['updated'] += int(data.get('updated') or 0)
+def push_quick_replies(items, remove_titles=None):
+    """The quick replies into the WhatsApp CRM, matched by title; remove_titles are taken out (ones the
+    portal put there and no longer has). At most 200 of each per request, so long lists go in parts.
+    {created, updated, removed, conflicts}: conflicts are titles a WhatsApp button reply already has,
+    left out there (contract 21)."""
+    out = {'created': 0, 'updated': 0, 'removed': 0, 'conflicts': []}
+    remove = [t for t in (remove_titles or []) if t]
+    for n in range(max((len(items) + 199) // 200, (len(remove) + 199) // 200)):
+        body = {'items': items[n * 200:(n + 1) * 200]}
+        if remove[n * 200:(n + 1) * 200]:
+            body['remove_titles'] = remove[n * 200:(n + 1) * 200]
+        data = _api('POST', 'quick-replies', body) or {}
+        for k in ('created', 'updated', 'removed'):
+            out[k] += int(data.get(k) or 0)
+        out['conflicts'] += [str(t) for t in (data.get('conflicts') or []) if t and str(t) not in out['conflicts']]
     return out
 
 
@@ -327,6 +379,41 @@ def conversation_info(conversation_id):
         return None
 
 
-def assign_conversation(phone_digits, email):
-    """Give the person's WhatsApp conversation to `email` (None: nobody). Best effort."""
-    return _api('POST', 'conversation/assign', {'phone': phone_digits, 'email': email})
+def ensure_conversation(phone_digits, name=None, email=None, create=True, assign_email=None):
+    """The person's contact and conversation in the WhatsApp CRM, made when missing (create=False:
+    only looked up). The number must match exactly, or be the same number saved without its
+    country code or trunk 0; name and e-mail are used only when the contact is made, never to
+    rename. assign_email gives the chat to that member only when nobody has it. Never sends
+    anything. {contact_id, conversation_id, contact_phone, contact_name, created_contact,
+    created_conversation, assignee_email, assignment, last_inbound_at, status}.
+    TeamError 409 (code ambiguous_contact) when two contacts could be the number."""
+    return _api('POST', 'conversation/ensure', {
+        'phone': ''.join(ch for ch in str(phone_digits or '') if ch.isdigit()),
+        'name': name or None, 'email': email or None, 'create': bool(create),
+        'assign_email': (assign_email or '').strip().lower() or None}) or {}
+
+
+def activity(since, limit=100):
+    """Conversations with a message after `since` (a naive UTC datetime, or an ISO string), oldest
+    first: {items: [...], next_since} -- next_since is where to carry on, None when that was all."""
+    if isinstance(since, datetime):
+        since = since.replace(microsecond=0).isoformat() + 'Z'
+    data = _api('GET', 'conversations/activity',
+                params={'since': since, 'limit': max(1, min(int(limit), 200))}) or {}
+    return {'items': list(data.get('items') or []), 'next_since': data.get('next_since')}
+
+
+def automations():
+    """The WhatsApp CRM's automations: [{id, name, active, trigger_type, trigger_tags, sends}];
+    `sends` when a step messages the customer -- checked before tags are switched on."""
+    return list((_api('GET', 'automations') or {}).get('items') or [])
+
+
+def assign_conversation(phone_digits, email, conversation_id=None, only_if_unassigned=False):
+    """Give the person's WhatsApp conversation -- found by number, or by its id -- to `email`
+    (None: nobody). only_if_unassigned leaves a chat somebody already has alone."""
+    body = {'conversation_id': str(conversation_id)} if conversation_id else {'phone': phone_digits}
+    body['email'] = email
+    if only_if_unassigned:
+        body['only_if_unassigned'] = True
+    return _api('POST', 'conversation/assign', body)

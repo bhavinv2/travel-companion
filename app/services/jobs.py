@@ -144,14 +144,60 @@ def run_all():
     out.update(run_retention())
     out['scrape_stale_recovered'] = scraper_worker.recover_stale_runs()
     out['scrape_runs_started'] = scraper_worker.enqueue_scheduled()
-    # Sales CRM: the follow-ups marked automatic, once the WhatsApp CRM is connected
     from app.services import crm
+    # Sales CRM <- WhatsApp CRM first: our webhook back on if the CRM switched it off, and the
+    # replies it missed brought in -- so nothing below sends, or moves a lead for "no reply",
+    # as if they had not written
+    try:
+        out.update(crm.wa_webhook_health())
+    except Exception:          # noqa: BLE001
+        from app import db
+        db.session.rollback()
+        out['crm_wa_webhook'] = 'failed'
+    try:
+        out.update(crm.wa_catch_up())
+    except Exception:          # noqa: BLE001
+        from app import db
+        db.session.rollback()
+        out['crm_wa_caught_up'] = 'failed'
+    # Sales CRM: the follow-ups marked automatic, once the WhatsApp CRM is sending. Each step is
+    # taken before it goes, so an overlapping run (cron and "flask run-jobs") or a worker stopped
+    # mid-send never sends one twice; the run stops taking steps after a minute, and a step that
+    # may have gone is left for a person to check (crm.stuck_sends)
     try:
         out.update(crm.run_auto_steps())
-        out.update(crm.run_stage_automations())
-        out.update(crm.run_sla_alerts())
     except Exception:          # noqa: BLE001 -- one job failing must not stop the others reporting
         from app import db
         db.session.rollback()
         out['crm_auto_sent'] = 'failed'
+    try:
+        out.update(crm.run_stage_automations())
+        out.update(crm.run_sla_alerts())
+    except Exception:          # noqa: BLE001
+        from app import db
+        db.session.rollback()
+        out['crm_auto_moved'] = 'failed'
+    # Sales CRM: somebody waiting on us longer than 15 minutes rings whoever looks after them (07:00-24:00 India)
+    try:
+        out.update(crm.run_waiting_alerts())
+    except Exception:          # noqa: BLE001
+        from app import db
+        db.session.rollback()
+        out['crm_waiting_alerts'] = 'failed'
+    # Sales CRM -> WhatsApp CRM: whoever is still marked (a save whose sync failed, the backfill),
+    # a few at a time; never a message
+    try:
+        out.update(crm.run_wa_sync())
+    except Exception:          # noqa: BLE001
+        from app import db
+        db.session.rollback()
+        out['crm_wa_synced'] = 'failed'
+    # Sales CRM -> WhatsApp CRM: quick replies a save could not copy there
+    try:
+        from app.services import wa_templates
+        out.update(wa_templates.run_quick_replies())
+    except Exception:          # noqa: BLE001
+        from app import db
+        db.session.rollback()
+        out['crm_wa_quick'] = 'failed'
     return out

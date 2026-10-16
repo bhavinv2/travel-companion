@@ -604,6 +604,8 @@ label .opt { text-transform: none; letter-spacing: 0; font-weight: 500; font-siz
 .badge-pill.green { background: #dcfce7; color: #16a34a; }
 .badge-pill.red { background: #fee2e2; color: #dc2626; }
 .badge-pill.yellow { background: #fef3c7; color: #d97706; }
+/* Users: the one switch a staff row has (the rest is in Team members) */
+.owner-switch { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; margin-top: 6px; }
 .btn-sm { background: white; border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
 .btn-sm:hover { border-color: var(--coral); color: var(--coral); }
 .btn-sm.danger { border-color: #dc2626; color: #dc2626; }
@@ -2811,6 +2813,8 @@ body:has(.td-panel.is-sheet:not([hidden])) .chat-toggle { opacity: 0; pointer-ev
   border-radius: 10px; background: #e5484d; color: #fff;
   font-size: 11px; font-weight: 700; line-height: 1;
 }
+/* "!" -- something to do now (the half-hourly check), not a count */
+.admin-sidebar nav a .nav-badge[data-mark] { background: var(--ui-warn, #d97706); }
 .admin-page.is-rail .admin-sidebar nav a .nav-badge {
   display: block;                        /* the rule above hides every span in the rail */
   position: absolute; top: 7px; right: 12px; margin: 0;
@@ -3273,8 +3277,10 @@ a.stat-card:hover { box-shadow: 0 8px 22px rgba(12,35,64,.12); transform: transl
    The traveller-facing reskin (amber/navy + Fraunces/Jakarta) is applied via :root; the whole
    console lives inside .admin-page, so overriding the tokens + fonts here scopes it out cleanly. */
 .admin-page {
-  --coral: #2f80ed; --coral-dark: #1f5fc0; --coral-light: #eaf4fd; --coral-dark-text: #1f5fc0;
-  --accent: #2f80ed; --accent-light: #eaf4fd;
+  /* the console's blue comes from ui.css's tokens (one look); the second value is the same blue */
+  --coral: var(--ui-primary, #1f6fd6); --coral-dark: var(--ui-primary-hover, #1a5bb3);
+  --coral-light: var(--ui-primary-soft, #eaf3fe); --coral-dark-text: var(--ui-primary-hover, #1a5bb3);
+  --accent: var(--ui-primary, #1f6fd6); --accent-light: var(--ui-primary-soft, #eaf3fe);
   --bg: #f4f9ff; --border: #d7e6f6; --text: #0f2340; --muted: #4a6080;
   --font-head: 'Poppins', sans-serif; --font-body: 'Inter', sans-serif;
   font-family: var(--font-body); color: var(--text);

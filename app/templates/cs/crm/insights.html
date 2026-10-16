@@ -1,6 +1,6 @@
 {% extends 'cs/crm/_layout.html' %}
-{% set crm_tab = 'insights' %}
-{% block crm_title %}Sales dashboard{% endblock %}
+{% from '_page_head.html' import page_head %}
+{% block crm_title %}Results{% endblock %}
 
 {% macro num(v, key='') -%}
 {%- if v is none or v == '' -%}–{%- elif key == 'response_time' -%}{{ '%.1f'|format(v) }}{%- else -%}{{ v|int }}{%- endif -%}
@@ -38,22 +38,23 @@
 {%- endmacro %}
 
 {% block crm %}
-<div class="page-head">
-  <div>
-    <h1>{{ person.full_name ~ "'s numbers" if person else 'Sales dashboard' }}</h1>
-    <p class="muted" style="margin:4px 0 0">Last {{ days }} days{{ ', compared with the %d days before' % days }}. Counted from the CRM as the team works — nothing to fill in except "Log today's work".</p>
-  </div>
-  <div class="actions">
-    <form method="GET" class="row" style="gap:6px">
-      <input type="hidden" name="days" value="{{ days }}"/>
-      <select name="who" onchange="this.form.submit()" aria-label="Whose numbers" style="width:auto">
-        <option value="">The whole team</option>
-        {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if person and person.id == u.id }}>{{ u.full_name }}</option>{% endfor %}
-      </select>
-    </form>
-    <div class="chips">{% for d in [7, 30, 90] %}<a class="chip{{ ' on' if days == d }}" href="{{ crm_url('insights', days=d, who=person.id if person else None) }}">{{ d }} days</a>{% endfor %}</div>
-  </div>
+{{ page_head(person.full_name ~ "'s results" if person else 'Results', 'fa-solid fa-chart-line',
+             'How sales are going: new leads, replies and customers won, by product, source and person.',
+             help=['Counted from the CRM as the team works. The few numbers it cannot count are logged at the end of the day.',
+                   'Compare 7, 30 or 90 days with the days before, for the whole team or one person.'],
+             primary=({'label': 'Download for Excel', 'href': crm_url('insights_csv', days=days), 'icon': 'fa-solid fa-file-csv'} if CAN('crm_export') else None),
+             full_screen=True) }}
+<div class="ui-filters">
+  <form method="GET" class="row" style="gap:6px">
+    <input type="hidden" name="days" value="{{ days }}"/>
+    <select name="who" onchange="this.form.submit()" aria-label="Whose numbers" style="width:auto">
+      <option value="">The whole team</option>
+      {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if person and person.id == u.id }}>{{ u.full_name }}</option>{% endfor %}
+    </select>
+  </form>
+  <div class="chips">{% for d in [7, 30, 90] %}<a class="chip{{ ' on' if days == d }}" href="{{ crm_url('insights', days=d, who=person.id if person else None) }}">{{ d }} days</a>{% endfor %}</div>
 </div>
+<p class="muted" style="margin:-8px 0 14px">Last {{ days }} days{{ ', compared with the %d days before' % days }}. Counted from the CRM as the team works — nothing to fill in except "Log today's work".</p>
 
 {# ------------------------------------------------------------------ the headline numbers #}
 <div class="kpi-cards">
@@ -98,7 +99,7 @@
     {% for group, rows in groups if group == 'Messages sent' %}{% for key, label, how, vals, total in rows if key != 'msg_total' and total %}{% set _ = msg_rows.append((label, total)) %}{% endfor %}{% endfor %}
     {{ bars(msg_rows|sort(attribute=1, reverse=true)) }}
   </section>
-  <section class="card"><h2>Why leads fell out</h2>{{ bars(data.reasons, '#dc2626') }}</section>
+  <section class="card"><h2>Why leads fell out</h2>{{ bars(data.reasons, 'var(--ui-bad)') }}</section>
   <section class="card"><h2>Marketing</h2>
     <div class="mini-tiles">
       {% for group, rows in groups if group in ('Marketing', 'Lead source points') %}{% for key, label, how, vals, total in rows if key != 'response_time' %}
@@ -113,7 +114,6 @@
 <section class="card">
   <div class="row between" style="margin-bottom:10px">
     <h2 style="margin:0">The team</h2>
-    <a class="cb sm" href="{{ crm_url('insights_csv', days=days) }}"><i class="fa-solid fa-file-csv"></i> Download for Excel</a>
   </div>
   <div style="overflow-x:auto">
   <table class="crm-table">

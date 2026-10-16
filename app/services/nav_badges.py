@@ -18,6 +18,14 @@ new to you.
                                              the queue is grouped
     notifications       not read          -- this agent's own, which is the one count here
                                              that is personal rather than a shared queue
+    crm_today           this person's follow-ups due now + the customers waiting on their leads
+                                             (crm_metrics.waiting_count)
+    wa_inbox            the customers waiting on their leads (the same people as above)
+    crm_checks          1 while this half hour's inboxes are not all ticked -- shown as "!"
+                                             (MARKS), never added into a total
+    crm_sources         lead sources nobody has set up yet
+    _tips               the tooltip naming each count's scope ("2 follow-ups due + 1 customer
+                                             waiting on your leads")
 
 Keyed by the menu's page keys (services/access.py), plus 'voices' for the voices screen, whose tabs have
 one line for the whole screen rather than one per slice.
@@ -29,6 +37,9 @@ can each ask.
 """
 
 from app import db
+
+# lines whose badge is a "!" rather than a number
+MARKS = frozenset({'crm_checks'})
 
 
 def _by(column, model, *filters):
@@ -84,13 +95,34 @@ def _compute(user):
     if getattr(user, 'is_authenticated', False):
         out['notifications'] = Notification.query.filter_by(
             user_id=user.id, is_read=False).count()
-        # Sales CRM: this agent's follow-ups that are due now -- the to-do list, not a read mark
-        from datetime import datetime
-        from app.models import CrmTask
-        out['crm_board'] = CrmTask.query.filter(
-            CrmTask.status == 'open', CrmTask.owner_id == user.id,
-            CrmTask.due_at <= datetime.utcnow()).count()
-        out['crm_today'] = out['crm_board']          # the same count on the admin portal's menu
+        # Sales: the to-do list, not read marks -- and only for the lines this person has, so a
+        # traveller or the Sahayak desk pays for no CRM query
+        from app.services import access
+        pages = access.pages_for(user)
+        tips = {}
+        if pages & {'crm_today', 'wa_inbox'}:
+            from datetime import datetime
+            from app.models import CrmTask
+            from app.services import crm_metrics
+            due = CrmTask.query.filter(CrmTask.status == 'open', CrmTask.owner_id == user.id,
+                                       CrmTask.due_at <= datetime.utcnow()).count()
+            waiting = crm_metrics.waiting_count(user.id)
+            out['crm_today'] = due + waiting
+            tips['crm_today'] = ' + '.join(x for x in (
+                '%d follow-up%s due' % (due, '' if due == 1 else 's') if due else '',
+                '%d customer%s waiting on your leads' % (waiting, '' if waiting == 1 else 's') if waiting else '') if x)
+            out['wa_inbox'] = waiting
+            tips['wa_inbox'] = '%d chat%s waiting on your leads' % (waiting, '' if waiting == 1 else 's')
+        if 'crm_checks' in pages:
+            from app.services import crm, crm_reports
+            out['crm_checks'] = 0 if crm_reports.current_slot_done(crm.crm_settings()['check_channels']) else 1
+            tips['crm_checks'] = "This half hour's inboxes are not ticked yet"
+        if 'crm_sources' in pages:
+            from app.models import CrmSource
+            n = CrmSource.query.filter_by(status='unrouted').count()
+            out['crm_sources'] = n
+            tips['crm_sources'] = '%d not set up' % n
+        out['_tips'] = tips
     return out
 
 
@@ -114,6 +146,11 @@ def unread(user=None):
         except Exception:                        # noqa: BLE001 -- see the docstring
             cache[key] = {}
     return cache[key]
+
+
+def tips(user=None):
+    """{sidebar key: the tooltip that says what its number counts}."""
+    return unread(user).get('_tips', {})
 
 
 def forget():

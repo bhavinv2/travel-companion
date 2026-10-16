@@ -25,53 +25,63 @@ from app.models import (CrmActivity, CrmLead, CrmPipeline, CrmSource, CrmStage, 
 
 IST = timedelta(hours=5, minutes=30)
 
-# (group, [(key, label, how)]) -- the rows of the KPI tab, in its order. how: auto / manual
+# (group, [(key, label, how, question, unit)]) -- the rows of the KPI tab, in its order. how: auto / manual;
+# question and unit: what My day asks for a hand-entered row ("How many posts ...?", "posts")
 GROUPS = [
     ('Lead source points', [
-        ('src_fb', 'Facebook groups', 'auto'),
-        ('src_wa', 'WhatsApp groups', 'auto'),
-        ('src_tg', 'Telegram groups', 'manual'),
-        ('src_web', 'Internet', 'auto'),
+        ('src_fb', 'Facebook groups', 'auto', None, None),
+        ('src_wa', 'WhatsApp groups', 'auto', None, None),
+        ('src_tg', 'Telegram groups', 'manual',
+         'How many posts did you share in Telegram groups today?', 'posts'),
+        ('src_web', 'Internet', 'auto', None, None),
     ]),
     ('Leads', [
-        ('cold', 'Cold leads', 'auto'),
-        ('cold_web', 'Cold leads from the website', 'auto'),
-        ('cold_to_prospect', 'Cold lead → prospect', 'auto'),
-        ('prospects', 'Prospects', 'auto'),
-        ('prospect_fallout', 'Prospect fallout', 'auto'),
-        ('prospect_to_pipeline', 'Prospect → pipeline', 'auto'),
-        ('pipeline', 'Pipeline', 'auto'),
-        ('pipeline_fallout', 'Pipeline fallout', 'auto'),
-        ('customers', 'Pipeline → customer', 'auto'),
-        ('upsell', 'Customer upsell', 'auto'),
+        ('cold', 'Cold leads', 'auto', None, None),
+        ('cold_web', 'Cold leads from the website', 'auto', None, None),
+        ('cold_to_prospect', 'Cold lead → prospect', 'auto', None, None),
+        ('prospects', 'Prospects', 'auto', None, None),
+        ('prospect_fallout', 'Prospect fallout', 'auto', None, None),
+        ('prospect_to_pipeline', 'Prospect → pipeline', 'auto', None, None),
+        ('pipeline', 'Pipeline', 'auto', None, None),
+        ('pipeline_fallout', 'Pipeline fallout', 'auto', None, None),
+        ('customers', 'Pipeline → customer', 'auto', None, None),
+        ('upsell', 'Customer upsell', 'auto', None, None),
+        ('quotes_sent', 'Quotes sent', 'auto', None, None),
+        ('payment_links_sent', 'Payment links sent', 'auto', None, None),
     ]),
     ('Messages sent', [
-        ('msg_total', 'All messages', 'auto'),
-        ('msg_prospect', 'To cold leads and prospects', 'auto'),
-        ('msg_ce', 'Customer engagement', 'auto'),
-        ('msg_prospect_fallout', 'Prospect fallout', 'auto'),
-        ('msg_pi', 'Pipeline', 'auto'),
-        ('msg_pipeline_fallout', 'Pipeline fallout', 'auto'),
-        ('msg_bw', 'Birthday wishes', 'auto'),
-        ('msg_er', 'Expiration reminders', 'auto'),
-        ('msg_fm', 'Festival and occasion messages', 'auto'),
-        ('msg_mkt', 'WhatsApp marketing', 'auto'),
+        ('msg_total', 'All messages', 'auto', None, None),
+        ('msg_prospect', 'To cold leads and prospects', 'auto', None, None),
+        ('msg_ce', 'Customer engagement', 'auto', None, None),
+        ('msg_prospect_fallout', 'Prospect fallout', 'auto', None, None),
+        ('msg_pi', 'Pipeline', 'auto', None, None),
+        ('msg_pipeline_fallout', 'Pipeline fallout', 'auto', None, None),
+        ('msg_bw', 'Birthday wishes', 'auto', None, None),
+        ('msg_er', 'Expiration reminders', 'auto', None, None),
+        ('msg_fm', 'Festival and occasion messages', 'auto', None, None),
+        ('msg_mkt', 'WhatsApp marketing', 'auto', None, None),
     ]),
     ('Marketing', [
-        ('blogs', 'Blogs published', 'auto'),
-        ('tc_posts', 'Travel companion leads', 'auto'),
-        ('ads_total', 'Total ads (trip posts)', 'auto'),
-        ('ads_users', 'Ads posted by users', 'auto'),
-        ('ads_self', 'Self ad posts (by the team)', 'auto'),
-        ('google_reviews', 'Google reviews', 'manual'),
-        ('ti_site', 'Travel insurance site', 'manual'),
-        ('response_time', 'Response time (hours to first message)', 'auto'),
-        ('wordpress', 'WordPress website', 'manual'),
-        ('nps', 'NRI Parent Service', 'manual'),
-        ('p360', 'P360', 'manual'),
+        ('blogs', 'Blogs published', 'auto', None, None),
+        ('tc_posts', 'Travel companion leads', 'auto', None, None),
+        ('ads_total', 'Total ads (trip posts)', 'auto', None, None),
+        ('ads_users', 'Ads posted by users', 'auto', None, None),
+        ('ads_self', 'Self ad posts (by the team)', 'auto', None, None),
+        ('google_reviews', 'Google reviews', 'manual',
+         'How many Google reviews did we get from your customers today?', 'reviews'),
+        ('ti_site', 'Travel insurance site', 'manual',
+         'How many updates did you make to the travel insurance site today?', 'updates'),
+        ('response_time', 'Response time (hours to first message)', 'auto', None, None),
+        ('wordpress', 'WordPress website', 'manual',
+         'How many updates did you make to the WordPress website today?', 'updates'),
+        ('nps', 'NRI Parent Service', 'manual',
+         'How many posts did you make for NRI Parent Service today?', 'posts'),
+        ('p360', 'P360', 'manual',
+         'How many posts did you make for P360 today?', 'posts'),
     ]),
 ]
-METRICS = {k: (label, how) for _, rows in GROUPS for k, label, how in rows}
+METRICS = {k: (label, how) for _, rows in GROUPS for k, label, how, _q, _u in rows}
+QUESTIONS = {k: (q, u) for _, rows in GROUPS for k, _l, how, q, u in rows if how == 'manual'}
 MANUAL = [k for k, (_, how) in METRICS.items() if how == 'manual']
 AVERAGED = {'response_time'}             # a day's value is a median, the period's is their mean
 WEBSITE_KINDS = ('form', 'popup', 'api')
@@ -190,10 +200,18 @@ def compute(first, last, user_id=None):
                  db.or_(CrmTouchpoint.status.is_(None), CrmTouchpoint.status != 'imported'),
                  CrmTouchpoint.created_at >= since, CrmTouchpoint.created_at < until))
     for when, code, agent, channel, stage_id in q:
-        if not mine(agent):
-            continue
+        if not mine(agent) or code in ('Q', 'PLS'):
+            continue                 # the lead page's milestone buttons have their own rows below
         add('msg_total', when)
         add(message_row(code, roles.get(stage_id), keys.get(stage_id)), when)
+
+    # ---- the lead page's milestone buttons ("I sent the quote" / "I sent the payment link")
+    for when, code, agent in (db.session.query(CrmTouchpoint.created_at, CrmTouchpoint.code, CrmTouchpoint.agent_id)
+                              .filter(CrmTouchpoint.code.in_(('Q', 'PLS')),
+                                      db.or_(CrmTouchpoint.status.is_(None), CrmTouchpoint.status != 'imported'),
+                                      CrmTouchpoint.created_at >= since, CrmTouchpoint.created_at < until)):
+        if mine(agent):
+            add('quotes_sent' if code == 'Q' else 'payment_links_sent', when)
 
     # ---- trip posts and blogs
     from app.models import Blog, CompanionRequest
@@ -218,7 +236,9 @@ def compute(first, last, user_id=None):
 
     # ---- how fast the first message went out, per day the lead came in
     first_out = (db.session.query(CrmTouchpoint.lead_id, db.func.min(CrmTouchpoint.created_at).label('t'))
-                 .filter(CrmTouchpoint.direction == 'out').group_by(CrmTouchpoint.lead_id).subquery())
+                 .filter(CrmTouchpoint.direction == 'out',
+                         db.or_(CrmTouchpoint.status.is_(None), CrmTouchpoint.status != 'imported'))
+                 .group_by(CrmTouchpoint.lead_id).subquery())
     waits = defaultdict(list)
     for created, owner, t in (db.session.query(CrmLead.created_at, CrmLead.owner_id, first_out.c.t)
                               .join(first_out, first_out.c.lead_id == CrmLead.id)
@@ -249,7 +269,7 @@ def message_row(code, role, stage_key):
     prefix = CODE.match(code or '')
     prefix = prefix.group(0) if prefix else ''
     fixed = {'TC': 'msg_prospect', 'TI': 'msg_prospect', 'CL': 'msg_prospect', 'GEN': 'msg_prospect',
-             'PI': 'msg_pi', 'Q': 'msg_pi', 'PLS': 'msg_pi', 'CE': 'msg_ce', 'SH': 'msg_ce', 'NR': 'msg_prospect',
+             'PI': 'msg_pi', 'CE': 'msg_ce', 'SH': 'msg_ce', 'NR': 'msg_prospect',
              'BW': 'msg_bw', 'ER': 'msg_er', 'FM': 'msg_fm', 'OM': 'msg_fm', 'PM': 'msg_mkt'}
     if prefix in fixed:
         return fixed[prefix]
@@ -265,7 +285,7 @@ def table(first, last, user_id=None):
     out = []
     for group, rows in GROUPS:
         lines = []
-        for key, label, how in rows:
+        for key, label, how, _q, _u in rows:
             vals = [grid[key].get(d) for d in days]
             nums = [v for v in vals if v]
             if key in AVERAGED:
@@ -278,6 +298,14 @@ def table(first, last, user_id=None):
 
 
 # ============================================================================================ entries
+
+def question(key, day, today):
+    """The question My day asks for a hand-entered row: as written for today, "... on 3 Oct?" for another day."""
+    q = QUESTIONS[key][0]
+    if day == today:
+        return q
+    return q.replace(' today?', ' on %d %s?' % (day.day, day.strftime('%b')))
+
 
 def entries(day, user_id):
     return {a.metric: a.count for a in CrmActivity.query.filter_by(day=day, user_id=user_id, source='manual')}

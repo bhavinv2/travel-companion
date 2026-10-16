@@ -1,0 +1,18 @@
+{# The approved templates for the message box. A live region of its own (it fills in once the
+   WhatsApp CRM's list is heard), inside the box. Needs: tpl. #}
+<div class="box-tpl-pick" data-lead-live="templates">
+  {% if not tpl.known %}<p class="muted small">Loading approved templates…</p>
+  {% elif tpl.error %}<p class="muted small">The templates could not be loaded. Try again in a minute.</p>
+  {% elif not tpl['items'] %}<p class="muted small">{{ 'They opted out, so no template can go.' if person.wa_opt_out_at else 'No approved templates yet. They are made in WhatsApp templates.' }}</p>
+  {% else %}
+  <select data-tpl aria-label="Choose an approved template">
+    {% for t in tpl['items'] %}
+    <option value="{{ t.name }}" data-lang="{{ t.language or '' }}" data-body="{{ t.body }}" data-vars="{{ t.vars if t.vars is not none else '' }}"
+            data-fill='{{ t.fill|tojson|forceescape }}' data-blocked="{{ t.blocked or '' }}" data-warn="{{ t.warn or '' }}"{{ ' selected' if t.chosen }}>{{ t.label }}</option>
+    {% endfor %}
+  </select>
+  <div class="box-fills" data-tpl-fills></div>
+  <div class="msg-preview" data-tpl-preview></div>
+  <p class="box-note" data-tpl-why></p>
+  {% endif %}
+</div>

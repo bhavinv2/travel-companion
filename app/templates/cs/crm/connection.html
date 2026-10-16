@@ -1,0 +1,12 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% block crm_title %}WhatsApp connection{% endblock %}
+{% block crm %}
+{{ page_head('WhatsApp connection', 'fa-solid fa-plug',
+             'Whether the Sales CRM and WhatsApp are talking to each other, and what to fix if not.',
+             help=['First check the key works, then choose what the Sales CRM does with WhatsApp.',
+                   'Off writes nothing to WhatsApp. Leave it off on a test or laptop copy of the site.',
+                   'Connect replies so WhatsApp tells us when someone writes or a message is delivered.'],
+             full_screen=True) }}
+{% include 'cs/crm/setup/_connect.html' %}
+{% endblock %}

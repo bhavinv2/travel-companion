@@ -21,6 +21,13 @@ from app.models import ContactMessage, Feedback, MatchReport, StaffRead, User  #
 from app.services import nav_badges  # noqa: E402
 
 
+def _checks_done(monkeypatch):
+    """The Half-hourly check line shows a '!' while this half hour's inboxes are not ticked (U2),
+    which depends on the time of day. These tests are about the enquiry counts, so tick it first."""
+    from app.services import crm_reports
+    monkeypatch.setattr(crm_reports, 'current_slot_done', lambda channels: True)
+
+
 def enquiry(topic, status='new', name='Asha'):
     _db.session.add(ContactMessage(name=name, email='a@example.com', topic=topic,
                                    status=status, message='please call me'))
@@ -90,7 +97,8 @@ def test_the_cs_line_carries_every_slice(client, db, app, user):
     assert n['voices'] == 4
 
 
-def test_nothing_waiting_means_no_badge(client, db, admin_user):
+def test_nothing_waiting_means_no_badge(client, db, admin_user, monkeypatch):
+    _checks_done(monkeypatch)
     login(client, 'admin@test.com')
     nav = sidebar(client, '/admin/listings')
     assert not shows_badge(nav)
@@ -176,7 +184,8 @@ def test_the_notifications_line_counts_this_agents_own(client, db, cs_user, app)
     assert not shows_badge(nav.split('Contact us', 1)[1].split('</a>', 1)[0])
 
 
-def test_one_agents_notifications_are_not_anothers(client, db, cs_user, admin_user):
+def test_one_agents_notifications_are_not_anothers(client, db, cs_user, admin_user, monkeypatch):
+    _checks_done(monkeypatch)
     from app.models import Notification
 
     _db.session.add(Notification(user_id=cs_user.id, type='cs_escalation', title='a',

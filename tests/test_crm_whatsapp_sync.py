@@ -111,7 +111,7 @@ def test_the_send_button_picks_template_text_or_link(app, sending):
     plan = crm.send_plan(lead, task.step)
     assert plan['mode'] == 'link' and 'pending' in plan['reason']
     # they write on WhatsApp: inside 24 hours free text goes
-    crm.record_reply(lead, 'Yes please', channel='whatsapp')
+    crm.record_reply(lead, 'Yes please', channel='whatsapp', external_id='wamid.r1')
     _db.session.commit()
     assert crm.send_plan(lead, task.step)['mode'] == 'text'
     # an approved template goes whenever they last wrote
@@ -148,16 +148,43 @@ def test_the_stage_follows_onto_their_contact(app, sending):
     calls, _ = sending
     lead = ti_lead()
     crm.move_stage(lead, stage('ti-standard', 'prospect'))
+    _db.session.commit()                                          # told to the WhatsApp CRM after the save
     patches = [c for c in calls if c[0] == 'PATCH']
     assert patches[-1][2] == {'tags': sorted(['vip', 'ti', 'TI: Prospect'])}   # the old stage tag replaced
 
 
-def test_the_owner_gets_the_conversation(app, client, sending, cs_user, admin_user):
+def test_the_owner_gets_the_conversation(app, client, sending, cs_user, admin_user, monkeypatch):
     _, portal = sending
+    answer = {'assignment': 'assigned', 'assignee_email': None}
+    team_api = wacrm_team._api
+
+    def fake_api(method, path, payload=None, params=None):
+        if path == 'conversation/ensure':
+            portal.append((method, path, payload))
+            return {'contact_id': 'c-1', 'conversation_id': 'conv-1', 'contact_phone': '919876543210',
+                    'assignee_email': answer['assignee_email'] or payload['assign_email'],
+                    'assignment': answer['assignment']}
+        return team_api(method, path, payload, params)
+    monkeypatch.setattr(wacrm_team, '_api', fake_api)
+    other = make_user('o@test.com', 'other', role='cs')
     lead = ti_lead()
+    first, second = (other, cs_user) if lead.owner_id == cs_user.id else (cs_user, other)
+    del portal[:]
     login(client, admin_user.email)
-    client.post('/admin/crm/lead/%d/update' % lead.id, json={'owner_id': cs_user.id})
-    assert ('POST', 'conversation/assign', {'phone': '919876543210', 'email': 'cs@test.com'}) in portal
+    # the chat was free: WhatsApp gives it to the new owner itself, nothing more to do
+    client.post('/admin/crm/lead/%d/update' % lead.id, json={'owner_id': first.id})
+    assert ('POST', 'conversation/ensure', {'phone': '919876543210', 'name': 'Ramesh Kumar', 'email': None,
+                                            'create': True, 'assign_email': first.email}) in portal
+    assert not [p for p in portal if p[1] == 'conversation/assign']
+    _db.session.expire_all()
+    person = _db.session.get(CrmLead, lead.id).person
+    assert person.wacrm_conversation_id == 'conv-1' and not person.wacrm_assign_due
+    # somebody else had the chat: it is moved to the new owner
+    answer.update(assignment='kept', assignee_email='x@else.com')
+    client.post('/admin/crm/lead/%d/update' % lead.id, json={'owner_id': second.id})
+    assert ('POST', 'conversation/assign', {'conversation_id': 'conv-1', 'email': second.email}) in portal
+    _db.session.expire_all()
+    assert not _db.session.get(CrmLead, lead.id).person.wacrm_assign_due
 
 
 def test_reassigning_in_the_inbox_changes_the_owner(app, client, sending, cs_user, monkeypatch):
@@ -263,7 +290,7 @@ def test_templates_and_quick_replies_go_to_whatsapp_from_set_up(app, client, sen
     _, portal = sending
     crm.ensure_defaults()
     login(client, admin_user.email)
-    page = client.get('/admin/crm/setup?tab=templates').get_data(as_text=True)
+    page = client.get('/admin/crm/pipelines?show=templates').get_data(as_text=True)   # U2: its own page now
     assert 'nri_ti_1' in page and 'With Meta' in page and 'Approved' in page
     r = client.get('/admin/crm/setup/templates/csv')
     assert r.headers['Content-Type'].startswith('text/csv') and b'nri_ti_1' in r.data
