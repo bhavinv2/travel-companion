@@ -6,8 +6,9 @@
    rather than thirty links with most of them refused. Each line's badge comes from
    services/nav_badges.py, with a tooltip saying what it counts; a "!" is never added to a total.
 
-   Sections fold; the one being worked in is open, and whatever else was opened stays open
-   (static/js/main.js, "staff menu"). "Find a page" narrows the whole menu as you type, AND
+   Sections fold; a big one (Sales CRM, Travel Companion) folds again into sub-menus. The one being
+   worked in is open, and whatever else was opened stays open (static/js/main.js, "staff menu").
+   "Find a page" narrows the whole menu as you type, AND
    (static/js/main.js, same handler) asks the Sales CRM's /find for matching trips, people,
    insurance quotes, contact messages and Sahayak bookings -- the same global record search
    the header's "Find a person" box already uses (_find_person.html), so one box now covers
@@ -16,6 +17,24 @@
 {% set ws = WORKSPACE() %}
 {% set waiting = NAV_BADGES() %}
 {% macro ic(icon) %}{{ icon if ' ' in icon else 'fa-solid ' ~ icon }}{% endmacro %}
+{% macro waiting_in(items) -%}
+{%- set ns = namespace(total=0) -%}
+{%- for item in items if item.badge and item.sum %}{% set ns.total = ns.total + (waiting.get(item.badge, 0) or 0) %}{% endfor -%}
+{{ ns.total }}
+{%- endmacro %}
+{% macro sum_chip(total) -%}
+<span class="sn-sum" aria-label="{{ total }} waiting"{{ ' hidden' if not total }}>{{ total if total < 100 else '99+' }}</span>
+{%- endmacro %}
+{% macro line(item) -%}
+{%- set n = waiting.get(item.badge, 0) if item.badge else 0 -%}
+{%- set tip = (waiting.get('_tips') or {}).get(item.badge) -%}
+<a href="{{ item.url }}" class="{{ 'active' if item.active }}" data-title="{{ item.label }}" data-tip="{{ item.tip }}"
+   title="{{ item.tip }}{{ ' — %d waiting' % n if n and not tip }}"{{ ' aria-current="page"' if item.active }}>
+  <i class="{{ ic(item.icon) }}"></i> <span>{{ item.label }}</span>
+  {# the count when the rail is open, a bare dot when it is collapsed to icons #}
+  <span class="nav-badge" data-badge="{{ item.badge or '' }}"{{ ' data-mark' if item.mark }}{% if tip %} title="{{ tip }}"{% endif %} aria-label="{{ tip or ('%d not read' % n) }}"{{ ' hidden' if not n }}>{{ '!' if item.mark else (n if n < 100 else '99+') }}</span>
+</a>
+{%- endmacro %}
 <aside class="admin-sidebar staff-nav">
   <h3 title="{{ ws.name if ws else '' }}">{{ ws.name if ws else ('Admin Panel' if current_user.is_admin else 'CS Console') }}</h3>
   <button type="button" class="rail-toggle" data-rail-toggle
@@ -40,26 +59,26 @@
     </label>
     <div class="sn-global-results" data-nav-results role="listbox" hidden></div>
     {% for g in groups %}
-    {% set ns = namespace(total=0) %}
-    {% for item in g['items'] if item.badge and item.sum %}{% set ns.total = ns.total + (waiting.get(item.badge, 0) or 0) %}{% endfor %}
-    {% set total = ns.total %}
-    <div class="sn-group{{ ' open' if g.open }}" data-group="{{ g.key }}">
+    <div class="sn-group{{ ' open' if g.open }}{{ ' has-subs' if g.subs }}" data-group="{{ g.key }}">
       <button type="button" class="sn-head" data-group-toggle aria-expanded="{{ 'true' if g.open else 'false' }}"
               title="{{ g.label }}">
         <i class="{{ ic(g.icon) }}"></i><span>{{ g.label }}</span>
-        <span class="sn-sum" aria-label="{{ total }} waiting"{{ ' hidden' if not total }}>{{ total if total < 100 else '99+' }}</span>
+        {{ sum_chip(waiting_in(g['items'])|int) }}
         <i class="fa-solid fa-chevron-down sn-caret" aria-hidden="true"></i>
       </button>
       <div class="sn-items">
-        {% for item in g['items'] %}
-        {% set n = waiting.get(item.badge, 0) if item.badge else 0 %}
-        {% set tip = (waiting.get('_tips') or {}).get(item.badge) %}
-        <a href="{{ item.url }}" class="{{ 'active' if item.active }}" data-title="{{ item.label }}" data-tip="{{ item.tip }}"
-           title="{{ item.tip }}{{ ' — %d waiting' % n if n and not tip }}"{{ ' aria-current="page"' if item.active }}>
-          <i class="{{ ic(item.icon) }}"></i> <span>{{ item.label }}</span>
-          {# the count when the rail is open, a bare dot when it is collapsed to icons #}
-          <span class="nav-badge" data-badge="{{ item.badge or '' }}"{{ ' data-mark' if item.mark }}{% if tip %} title="{{ tip }}"{% endif %} aria-label="{{ tip or ('%d not read' % n) }}"{{ ' hidden' if not n }}>{{ '!' if item.mark else (n if n < 100 else '99+') }}</span>
-        </a>
+        {% for s in g.subs %}
+        <div class="sn-sub{{ ' open' if s.open }}" data-sub="{{ s.key }}">
+          <button type="button" class="sn-subhead" data-sub-toggle aria-expanded="{{ 'true' if s.open else 'false' }}"
+                  title="{{ s.label }}">
+            <i class="{{ ic(s.icon) }}"></i><span>{{ s.label }}</span>
+            {{ sum_chip(waiting_in(s['items'])|int) }}
+            <i class="fa-solid fa-chevron-down sn-caret" aria-hidden="true"></i>
+          </button>
+          <div class="sn-subitems">{% for item in s['items'] %}{{ line(item) }}{% endfor %}</div>
+        </div>
+        {% else %}
+        {% for item in g['items'] %}{{ line(item) }}{% endfor %}
         {% endfor %}
       </div>
     </div>

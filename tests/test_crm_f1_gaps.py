@@ -228,11 +228,10 @@ def test_the_tags_screen_warns_about_the_tags_the_sales_crm_writes():
 # ---------------------------------------------------------------- G11: every menu line explains itself
 
 def test_every_menu_line_has_a_tooltip_and_a_label():
-    """The Sales, Messaging, Reports, Set-up and Team lines (the redesigned ones) each explain themselves;
-    the older site lines fall back to their label."""
-    new_sections = ('sales', 'messaging', 'automatic', 'reports', 'setup', 'team')
+    """The Sales CRM and Team lines, and the sales reports now in Overview (the redesigned ones), each
+    explain themselves; the older site lines fall back to their label."""
     for key, p in access.PAGES.items():
-        if p['nav'] and p['section'] in new_sections:
+        if p['nav'] and (p['section'] in ('sales', 'team') or p['module'] in ('crm', 'whatsapp')):
             assert p['tip'].strip(), '%s has no tooltip' % key
             assert p['label'].strip(), key
 

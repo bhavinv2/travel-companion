@@ -3405,20 +3405,25 @@ function wireBulkSelect(headId, rowSelector, onChange) {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { saved = {}; }
 
-  nav.querySelectorAll('.sn-group').forEach(function (g) {
-    const key = g.dataset.group;
-    const head = g.querySelector('[data-group-toggle]');
-    if (!g.classList.contains('open') && saved[key]) {
-      g.classList.add('open');
+  // a section, and a sub-menu inside a big section (Sales CRM > Daily work), fold the same way
+  function fold(el, key, head) {
+    if (!el.classList.contains('open') && saved[key]) {
+      el.classList.add('open');
       head.setAttribute('aria-expanded', 'true');
     }
     head.addEventListener('click', function () {
-      const open = !g.classList.contains('open');
-      g.classList.toggle('open', open);
+      const open = !el.classList.contains('open');
+      el.classList.toggle('open', open);
       head.setAttribute('aria-expanded', open ? 'true' : 'false');
       saved[key] = open;
       try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) { /* not remembered */ }
     });
+  }
+  nav.querySelectorAll('.sn-group').forEach(function (g) {
+    fold(g, g.dataset.group, g.querySelector('[data-group-toggle]'));
+  });
+  nav.querySelectorAll('.sn-sub').forEach(function (s) {
+    fold(s, 'sub:' + s.dataset.sub, s.querySelector('[data-sub-toggle]'));
   });
 
   const find = nav.querySelector('[data-nav-find]');
@@ -3433,9 +3438,15 @@ function wireBulkSelect(headId, rowSelector, onChange) {
       const groupName = (g.querySelector('.sn-head span') || {}).textContent || '';
       const wholeGroup = q && groupName.toLowerCase().indexOf(q) !== -1;
       g.querySelectorAll('.sn-items a').forEach(function (a) {
-        const hit = !q || wholeGroup || (a.dataset.title || '').toLowerCase().indexOf(q) !== -1;
+        const sub = a.closest('.sn-sub');
+        const subName = sub ? ((sub.querySelector('.sn-subhead span') || {}).textContent || '') : '';
+        const hit = !q || wholeGroup || (subName && subName.toLowerCase().indexOf(q) !== -1)
+          || (a.dataset.title || '').toLowerCase().indexOf(q) !== -1;
         a.classList.toggle('no-hit', !hit);
         if (hit) { groupHit = true; hits += 1; }
+      });
+      g.querySelectorAll('.sn-sub').forEach(function (s) {
+        s.classList.toggle('has-hit', !!s.querySelector('a:not(.no-hit)'));
       });
       g.classList.toggle('has-hit', groupHit);
     });

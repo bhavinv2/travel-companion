@@ -17,8 +17,8 @@ from app import db as _db
 from app.models import Workspace, WorkspaceMember, WorkspaceRole
 from app.services import access
 
-SECTION_ORDER = ['overview', 'sales', 'messaging', 'automatic', 'reports', 'setup', 'team', 'companion',
-                 'insurance', 'sahayak', 'site']
+SECTION_ORDER = ['overview', 'sales', 'companion', 'insurance', 'sahayak', 'team', 'site']
+SALES_SUBS = ['daily', 'messaging', 'automatic', 'setup']
 
 
 def labels(groups):
@@ -37,6 +37,17 @@ def test_every_page_is_in_exactly_one_section_in_the_agreed_order():
     listed = [k for s in access.SECTIONS for k in s['pages']]
     assert len(listed) == len(set(listed)) and set(listed) == set(access.PAGES)
     assert all(access.PAGES[k]['section'] == s['key'] for s in access.SECTIONS for k in s['pages'])
+    sales = next(s for s in access.SECTIONS if s['key'] == 'sales')
+    assert [sub['key'] for sub in sales['subs']] == SALES_SUBS
+    for s in access.SECTIONS:
+        if 'subs' in s:                    # a sub-menu's pages are its section's pages, in order, once each
+            assert s['pages'] == tuple(k for sub in s['subs'] for k in sub['pages'])
+
+
+def test_every_dashboard_and_report_is_in_overview():
+    for key in ('dashboard', 'crm_insights', 'crm_tracker', 'metrics'):
+        assert access.PAGES[key]['section'] == 'overview', key
+    assert access.PAGES['crm_flow']['sub'] == 'daily' and access.PAGES['wa_flows']['sub'] == 'automatic'
 
 
 def test_the_old_page_keys_are_gone_and_the_new_ones_exist():
@@ -57,14 +68,14 @@ def test_the_area_labels_and_the_wording_of_the_main_lines():
             'crm_checks': 'Half-hourly check', 'crm_process': 'How we sell', 'crm_quick': 'Quick replies',
             'wa_templates': 'WhatsApp templates', 'wa_broadcasts': 'Broadcasts', 'wa_tags': 'Tags',
             'wa_automations': 'Reply rules', 'wa_flows': 'Chatbot', 'wa_ai': 'AI replies', 'crm_tracker': 'Team today',
-            'crm_insights': 'Results', 'crm_pipelines': 'Pipelines', 'crm_sources': 'Where leads come from',
+            'crm_insights': 'Sales results', 'crm_pipelines': 'Pipelines', 'crm_sources': 'Where leads come from',
             'crm_connection': 'WhatsApp connection', 'wa_settings': 'WhatsApp number',
             'ws_members': 'Team members', 'ws_roles': 'Roles', 'ws_settings': 'Workspace',
             'dashboard': 'Site dashboard', 'home': 'Service to-do', 'metrics': 'Match quality',
             'messages': 'Trip post texts & e-mails', 'crm_add': 'Add a lead'}
     for key, label in want.items():
         assert access.PAGES[key]['label'] == label, key
-    assert access.PAGES['metrics']['section'] == 'companion'
+    assert access.PAGES['metrics']['module'] == 'companion' and access.PAGES['metrics']['section'] == 'overview'
     assert access.PAGES['wa_tags']['module'] == 'whatsapp'
 
 
@@ -104,9 +115,15 @@ def test_an_agent_sees_the_days_work_and_nothing_to_manage(app, cs_user):
     flat = [l for ls in labels(_nav_for(app, cs_user)).values() for l in ls]
     for line in ('My day', 'Leads', 'Half-hourly check', 'How we sell'):
         assert line in flat, line
-    for line in ('Team today', 'Results', 'Where leads come from', 'Pipelines', 'WhatsApp connection', 'Roles',
+    for line in ('Team today', 'Sales results', 'Where leads come from', 'Pipelines', 'WhatsApp connection', 'Roles',
                  'Team members', 'Tags', 'Broadcasts'):
         assert line not in flat, line
+
+
+def test_one_sub_menu_is_shown_as_plain_lines(app, cs_user):
+    """An agent's Sales CRM is only Daily work: a "Daily work" heading over all of it would be one click too many."""
+    sales = next(g for g in _nav_for(app, cs_user) if g['key'] == 'sales')
+    assert sales['subs'] == [] and 'Visual flow' in [i['label'] for i in sales['items']]
 
 
 def _nav_for(app, user):
@@ -120,13 +137,18 @@ def test_the_administrator_sees_every_section_in_order(app, admin_user):
     groups = _nav_for(app, admin_user)
     keys = [g['key'] for g in groups]
     assert keys == [k for k in SECTION_ORDER if k in keys]
-    for k in ('overview', 'sales', 'messaging', 'automatic', 'reports', 'setup', 'team'):
+    for k in ('overview', 'sales', 'team'):
         assert k in keys, k
+    sales = next(g for g in groups if g['key'] == 'sales')
+    assert [s['key'] for s in sales['subs']] == ['sales.' + k for k in SALES_SUBS]
+    assert [i['label'] for i in sales['subs'][0]['items']][:2] == ['Visual flow', 'My day']
+    overview = [i['label'] for i in next(g for g in groups if g['key'] == 'overview')['items']]
+    assert {'Site dashboard', 'Sales results', 'Team today', 'Match quality'} <= set(overview)
     flat = [l for ls in labels(groups).values() for l in ls]
     for line in ('Dashboard', 'Queues', 'Promotion'):
         assert line not in flat
     for line in ('Site dashboard', 'My day', 'Leads', 'Tags', 'Reply rules', 'Chatbot', 'AI replies', 'Team today',
-                 'Results', 'Pipelines', 'Where leads come from', 'WhatsApp connection', 'WhatsApp number',
+                 'Sales results', 'Pipelines', 'Where leads come from', 'WhatsApp connection', 'WhatsApp number',
                  'Team members', 'Teams', 'Roles', 'Workspace'):
         assert line in flat, line
     # lines with no menu entry: reachable from the page that needs them

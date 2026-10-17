@@ -109,7 +109,7 @@ MODULES = [
                tip='Ready-made answers for every chat; edit them only here.'),
          _page('crm_tracker', 'Team today', 'fa-people-line', _both('tracker'), admin='admin_crm.tracker',
                desc="Each person's checklist and timeline, day by day.", tip="How each person's day is going."),
-         _page('crm_insights', 'Results', 'fa-chart-line', _both('insights') + ('messaging.overview',),
+         _page('crm_insights', 'Sales results', 'fa-chart-line', _both('insights') + ('messaging.overview',),
                admin='admin_crm.insights',
                tip='New leads, replies and customers won, by product, source and person.'),
          _page('crm_auto', 'What goes out by itself', 'fa-list-check', _both('automatic'), admin='admin_crm.automatic',
@@ -276,37 +276,44 @@ MODULES = [
      ]},
 ]
 
-# The menu, in order: each section is a heading in the staff menu with its pages in this order.
-# A page's area (its module above) still decides whether the workspace has it switched on; the
-# section only decides where its line sits. The one place the menu's order lives.
+# The menu, in order: one heading per area, each with its pages in this order -- or, for a big area,
+# `subs`: sub-menus that fold again, each with its pages. Every dashboard and report sits in Overview,
+# whatever it is about, so the numbers are in one place. A page's area (its module above) still decides
+# whether the workspace has it switched on; the section only decides where its line sits. The one place
+# the menu's order lives.
 SECTIONS = [
     {'key': 'overview', 'label': 'Overview', 'icon': 'fa-gauge',
-     'pages': ('dashboard', 'home', 'notifications', 'voices_general')},
-    {'key': 'sales', 'label': 'Sales', 'icon': 'fa-filter-circle-dollar',
-     'pages': ('crm_today', 'wa_inbox', 'crm_board', 'crm_people', 'crm_flow', 'crm_checks', 'crm_process',
-               'crm_add')},
-    {'key': 'messaging', 'label': 'Messaging', 'icon': 'fa-comments',
-     'pages': ('crm_quick', 'wa_templates', 'wa_broadcasts', 'wa_tags')},
-    {'key': 'automatic', 'label': 'Automatic messages', 'icon': 'fa-wand-magic-sparkles',
-     'pages': ('crm_auto', 'wa_automations', 'wa_flows', 'wa_ai')},
-    {'key': 'reports', 'label': 'Reports', 'icon': 'fa-chart-column', 'pages': ('crm_tracker', 'crm_insights')},
-    {'key': 'setup', 'label': 'Set-up', 'icon': 'fa-sliders',
-     'pages': ('crm_pipelines', 'crm_sources', 'crm_connection', 'wa_settings', 'crm_data', 'crm_export')},
-    {'key': 'team', 'label': 'Team', 'icon': 'fa-users',
-     'pages': ('ws_members', 'ws_teams', 'ws_roles', 'ws_settings', 'ws_all')},
-    {'key': 'companion', 'label': 'Travel Companion', 'icon': 'fa-plane-departure',
-     'pages': ('posts', 'matches', 'metrics', 'new', 'import', 'scraper', 'listings', 'voices_contact', 'voices_feedback',
-               'voices_report', 'landing', 'blog_list', 'blog', 'help')},
+     'pages': ('dashboard', 'crm_insights', 'crm_tracker', 'metrics', 'home', 'notifications', 'voices_general')},
+    {'key': 'sales', 'label': 'Sales CRM', 'icon': 'fa-filter-circle-dollar', 'subs': (
+        {'key': 'daily', 'label': 'Daily work', 'icon': 'fa-sun',
+         'pages': ('crm_flow', 'crm_today', 'wa_inbox', 'crm_board', 'crm_people', 'crm_checks', 'crm_process',
+                   'crm_add')},
+        {'key': 'messaging', 'label': 'Messaging', 'icon': 'fa-comments',
+         'pages': ('crm_quick', 'wa_templates', 'wa_broadcasts', 'wa_tags')},
+        {'key': 'automatic', 'label': 'Automatic messages', 'icon': 'fa-wand-magic-sparkles',
+         'pages': ('crm_auto', 'wa_automations', 'wa_flows', 'wa_ai')},
+        {'key': 'setup', 'label': 'Set-up', 'icon': 'fa-sliders',
+         'pages': ('crm_pipelines', 'crm_sources', 'crm_connection', 'wa_settings', 'crm_data', 'crm_export')},
+    )},
+    {'key': 'companion', 'label': 'Travel Companion', 'icon': 'fa-plane-departure', 'subs': (
+        {'key': 'posts', 'label': 'Posts & matches', 'icon': 'fa-list',
+         'pages': ('posts', 'matches', 'new', 'import', 'scraper', 'listings')},
+        {'key': 'voices', 'label': 'Inbox', 'icon': 'fa-envelope',
+         'pages': ('voices_contact', 'voices_feedback', 'voices_report')},
+        {'key': 'website', 'label': 'Website', 'icon': 'fa-globe', 'pages': ('landing', 'blog_list', 'blog', 'help')},
+    )},
     {'key': 'insurance', 'label': 'Travel Insurance', 'icon': 'fa-shield-heart',
      'pages': ('insurance', 'voices_insurance', 'insurance_page', 'help_insurance')},
     {'key': 'sahayak', 'label': 'Sahayak', 'icon': 'fa-house-medical',
      'pages': ('sahayak', 'voices_sahayak', 'sahayak_services', 'help_sahayak')},
+    {'key': 'team', 'label': 'Team', 'icon': 'fa-users',
+     'pages': ('ws_members', 'ws_teams', 'ws_roles', 'ws_settings', 'ws_all')},
     {'key': 'site', 'label': 'Site settings', 'icon': 'fa-gear',
-     # genuine configuration only -- voices_general ("Contact us, all services") moved to Overview:
-     # it's a daily support inbox a CS agent may reasonably have, and sitting in a section called
-     # "Site settings" made it look like configuration access nobody actually gave them.
      'pages': ('users', 'options', 'messages', 'notiflog', 'notify_switches', 'themes', 'delete_records')},
 ]
+for _s in SECTIONS:
+    if 'subs' in _s:
+        _s['pages'] = tuple(k for sub in _s['subs'] for k in sub['pages'])
 
 # Endpoints anybody on the staff side may open, whatever their role: the plumbing behind
 # screens rather than screens (saved filters, the "what's new" button, switching workspace).
@@ -325,6 +332,9 @@ SECTION_BY_KEY = {s['key']: s for s in SECTIONS}
 for _s in SECTIONS:
     for _k in _s['pages']:
         PAGES[_k]['section'] = _s['key']
+    for _sub in _s.get('subs', ()):
+        for _k in _sub['pages']:
+            PAGES[_k]['sub'] = _sub['key']
 MENU_ORDER = tuple(k for s in SECTIONS for k in s['pages'])
 # every page sits in exactly one section, and no section names a page that does not exist
 assert sorted(MENU_ORDER) == sorted(PAGES), 'SECTIONS and MODULES disagree about the pages'
@@ -634,7 +644,9 @@ def nav(user, fallback_active=None):
     """The staff menu: SECTIONS in order, each with the pages this person may open whose area is
     switched on in this workspace, the one being looked at marked. A section with nothing in it for
     them is left out. `mark`: the line's badge is a "!" (services/nav_badges.MARKS); `sum`: its
-    number counts in the section's total."""
+    number counts in the section's total. `subs`: a section's sub-menus that have lines for them --
+    none when only one would (a sub-heading over everything they have is one click too many);
+    `items` always lists every line of the section."""
     from app.services.nav_badges import MARKS
     ws = current_workspace(user)
     on = set(enabled_modules(ws))
@@ -659,13 +671,21 @@ def nav(user, fallback_active=None):
                 if i['key'] == 'wa_inbox':
                     i['sum'] = False
         if items:
+            subs = []
+            for sub in sec.get('subs', ()):
+                lines = [i for i in items if PAGES[i['key']]['sub'] == sub['key']]
+                if lines:
+                    subs.append({'key': '%s.%s' % (sec['key'], sub['key']), 'label': sub['label'], 'icon': sub['icon'],
+                                 'items': lines, 'open': any(i['active'] for i in lines)})
             groups.append({'key': sec['key'], 'label': sec['label'], 'icon': sec['icon'], 'items': items,
-                           'open': any(i['active'] for i in items)})
+                           'subs': subs if len(subs) > 1 else [], 'open': any(i['active'] for i in items)})
     # a short menu is shown whole; a long one opens only the section being worked in (the rest are
     # one click away, and the menu remembers what was opened)
     if sum(len(gr['items']) for gr in groups) <= 12:
         for gr in groups:
             gr['open'] = True
+            for s in gr['subs']:
+                s['open'] = True
     return groups
 
 
