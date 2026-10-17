@@ -231,7 +231,7 @@ def test_the_inbox_panel_shows_the_conversations_lead(app, client, sending, cs_u
     lead = ti_lead()
     login(client, cs_user.email)
     html = client.get('/admin/messaging/lead-panel?conversation=conv-7&phone=919876543210').get_data(as_text=True)
-    assert 'data-lead-panel' not in html and 'data-lead-page' in html and 'Next step' in html and 'Ramesh' in html
+    assert 'data-lead-panel' not in html and 'data-lead-page' in html and 'Next follow-up' in html and 'Ramesh' in html
     _db.session.expire_all()
     assert _db.session.get(CrmLead, lead.id).person.wacrm_conversation_id == 'conv-7'
     # the inbox page carries the panel for somebody who works leads
@@ -266,7 +266,7 @@ def test_somebody_new_on_whatsapp_becomes_a_lead_from_the_inbox(app, client, sen
     assert 'Not a sales lead yet' in html and 'Make Asha a lead' in html
     r = client.post('/admin/messaging/lead-panel/make',
                     data={'wa_phone': '919000000077', 'name': 'Asha', 'conversation': 'conv-9'}, follow_redirects=True)
-    assert 'Next step' in r.get_data(as_text=True) or 'Nothing planned' in r.get_data(as_text=True)
+    assert 'Next follow-up' in r.get_data(as_text=True) or 'Nothing planned' in r.get_data(as_text=True)
     lead = CrmLead.query.join(CrmLead.person).filter_by(phone='+919000000077').one()
     assert lead.person.wacrm_conversation_id == 'conv-9' and lead.created_by_id == cs_user.id
 
@@ -291,7 +291,7 @@ def test_templates_and_quick_replies_go_to_whatsapp_from_set_up(app, client, sen
     crm.ensure_defaults()
     login(client, admin_user.email)
     page = client.get('/admin/crm/pipelines?show=templates').get_data(as_text=True)   # U2: its own page now
-    assert 'nri_ti_1' in page and 'With Meta' in page and 'Approved' in page
+    assert 'nri_ti_1' in page and 'Waiting for WhatsApp' in page and 'Approved' in page
     r = client.get('/admin/crm/setup/templates/csv')
     assert r.headers['Content-Type'].startswith('text/csv') and b'nri_ti_1' in r.data
     client.post('/admin/crm/setup/templates/drafts')
@@ -299,9 +299,13 @@ def test_templates_and_quick_replies_go_to_whatsapp_from_set_up(app, client, sen
     assert all({'name', 'category', 'language', 'body', 'sample_values'} <= set(i) for i in sent)
     ti1 = next(s for s in stage('ti-standard', 'cold').steps if s.code == 'TI #1')
     assert ti1.wa_template == 'nri_ti_1'                          # the step now uses its template
-    client.post('/admin/crm/setup/templates/quick-replies')
-    items = [p for p in portal if p[1] == 'quick-replies'][0][2]['items']
-    assert any(i['title'].startswith('BW · ') and '{{contact.first_name}}' in i['text'] for i in items)
+    client.post('/admin/crm/quick-replies/push')          # U8: the copy card became Push all to WhatsApp
+    pushes = [p for p in portal if p[1] == 'quick-replies']
+    assert any(' · ' in i['title'] for i in pushes[0][2]['items'])   # first the old coded rows are adopted ...
+    assert any(t.startswith('BW · ') for t in pushes[-1][2].get('remove_titles') or [])   # ... then removed
+    items = pushes[-1][2]['items']
+    assert not [i['title'] for i in items if ' · ' in i['title']]    # U8: titles go without the code
+    assert any('{{contact.first_name}}' in i['text'] for i in items)
     assert all('{name}' not in i['text'] and '{agent}' not in i['text'] for i in items)
 
 

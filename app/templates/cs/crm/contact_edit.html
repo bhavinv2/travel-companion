@@ -1,0 +1,29 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_phone_field.html' import phone_field with context %}
+{% from '_page_head.html' import page_head %}
+{% block crm_title %}Edit details{% endblock %}
+{% block crm %}
+{{ page_head('Edit details', 'fa-solid fa-pen',
+             'Their name and how to reach them. A new phone number starts a new WhatsApp chat on that number; the old chat stays in WhatsApp.') }}
+<form method="POST" class="card crm-form" style="max-width:700px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  <input type="hidden" name="next" value="{{ back }}"/>
+  <div><label class="lb" for="ce-name">Name</label>
+    <input type="text" id="ce-name" name="name" value="{{ form.get('name', '') }}" maxlength="120"/></div>
+  <div>{{ phone_field('phone', value=form.get('phone', ''), iso=form.get('phone_cc', ''), label='Phone / WhatsApp') }}
+    {% if errors.phone %}<p class="err">{{ errors.phone }}</p>{% endif %}</div>
+  <div><label class="lb" for="ce-email">E-mail <small class="muted">(optional)</small></label>
+    <input type="email" id="ce-email" name="email" value="{{ form.get('email', '') }}" maxlength="255"/>
+    {% if errors.email %}<p class="err">{{ errors.email }}</p>{% endif %}</div>
+  <div><label class="lb" for="ce-ig">Instagram <small class="muted">(optional)</small></label>
+    <input type="text" id="ce-ig" name="instagram" value="{{ form.get('instagram', '') }}" maxlength="200" placeholder="@their.handle"/>
+    {% if errors.instagram %}<p class="err">{{ errors.instagram }}</p>{% endif %}</div>
+  <div><label class="lb" for="ce-fb">Facebook <small class="muted">(optional)</small></label>
+    <input type="text" id="ce-fb" name="facebook" value="{{ form.get('facebook', '') }}" maxlength="200" placeholder="facebook.com/…"/>
+    {% if errors.facebook %}<p class="err">{{ errors.facebook }}</p>{% endif %}</div>
+  <div class="full row between">
+    <button class="cb primary">Save</button>
+    <a class="cb ghost" href="{{ back }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

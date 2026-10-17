@@ -1,0 +1,7 @@
+{# "What do they want?" on a lead in a catch-all pipeline (crm.product_choices): one click gives the lead
+   its product and, when that product has its own pipeline, moves it there. crm.js: data-act="set-product". #}
+<div class="ask-product" data-ask-product>
+  <span class="lbl">What do they want?</span>
+  {% for c in choices %}<button type="button" class="cb sm" data-act="set-product" data-product="{{ c.code }}" title="{{ c.tip }}"><i class="fa-solid {{ c.icon }}" aria-hidden="true"></i> {{ c.name }}</button>{% endfor %}
+  <button type="button" class="cb sm quiet" data-act="set-product" data-product="" title="They stay in {{ lead.pipeline.name }}.">Something else</button>
+</div>

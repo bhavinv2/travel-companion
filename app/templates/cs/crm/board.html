@@ -24,13 +24,12 @@
 
 <div class="leads-top">
 <nav class="pipes" aria-label="Product">
-  {% set icons = {'TI': 'fa-shield-heart', 'TC': 'fa-plane-departure', 'SH': 'fa-house-medical', 'GEN': 'fa-comments'} %}
   {% if view == 'list' %}
   <a href="{{ link(p='all', page=None, stage=None) }}" class="{{ 'on' if p_key == 'all' }}"><i class="fa-solid fa-layer-group"></i> All</a>
   {% endif %}
   {% for p in pipelines %}
   <a href="{{ link(p=p.key, page=None, stage=None) }}" class="{{ 'on' if pipe and p.id == pipe.id }}">
-    <i class="fa-solid {{ icons.get(p.product, 'fa-user-nurse' if 'nurse' in p.key else 'fa-layer-group') }}"></i> {{ p.name }} <span class="c">{{ counts.get(p.id, 0) }}</span></a>
+    <i class="fa-solid {{ CRM_PRODUCT_ICON(p.product) }}"></i> {{ p.name }}{% if not p.is_active %} <small class="muted">not taking new leads</small>{% endif %} <span class="c">{{ counts.get(p.id, 0) }}</span></a>
   {% endfor %}
 </nav>
 <div class="seg" role="group" aria-label="How to look at the leads">
@@ -95,7 +94,7 @@
   {% for col in columns %}
   <div class="ss r-{{ CRM_ROLE_OF(col.stage) }}">
     <b>{{ col.total }}</b><span>{{ col.stage.name }}</span>
-    {% if col.stage.auto_kind and col.stage.auto_to %}<i class="fa-solid fa-robot" title="Moves by itself: {{ col.stage.auto_days }} day{{ 's' if col.stage.auto_days != 1 }} {{ 'without a reply' if col.stage.auto_kind == 'no_reply' else 'after travel' }} → {{ col.stage.auto_to.name }}"></i>{% endif %}
+    {% if col.stage.auto_kind and col.stage.auto_to %}<i class="fa-solid fa-robot" title="Moves by itself: {{ AUTO_TEXT(col.stage) }}"></i>{% endif %}
   </div>
   {% endfor %}
 </div>
@@ -125,7 +124,7 @@
       </details>
     </header>
     <div class="drop" data-drop data-stage="{{ st.id }}" data-kind="{{ st.kind }}" data-name="{{ st.name }}"
-         data-milestone="{{ MILESTONE_STAGES.get(st.key, '') }}" data-ask="{{ MILESTONE_ASK.get(MILESTONE_STAGES.get(st.key), '') }}">
+         data-milestone="{{ st.button_code if st.button_label else '' }}" data-ask="{{ MILESTONE_ASK(st) }}">
       {% for l in col.leads %}
       {% set cd = cards.get(l.id) %}
       {% set t = cd.task if cd else none %}
@@ -200,9 +199,10 @@
 {% set first = (listing.page - 1) * 50 + 1 %}
 <p class="pager muted">Showing {{ first }}–{{ first + rows|length - 1 }} of {{ listing.total }}
   {% if listing.page > 1 %}<a class="cb sm" href="{{ link(page=listing.page - 1) }}">‹ Previous</a>{% endif %}
-  {% if listing.page < listing.pages %}<a class="cb sm" href="{{ link(page=listing.page + 1) }}">Next ›</a>{% endif %}</p>
+  {% if listing.page < listing.pages %}<a class="cb sm" href="{{ link(page=listing.page + 1) }}">Next ›</a>{% endif %}
+  {% if can_export %} <a class="cb quiet sm" href="{{ crm_url('export_leads', p=p_key, owner=owner, chat=chat or None, win=win, stage=stage_id or None, q=q or None) }}"><i class="fa-solid fa-file-csv"></i> Download this list</a>{% endif %}</p>
 {% else %}
-<p class="pager muted">Showing {{ listing.total }} of {{ listing.total }}</p>
+<p class="pager muted">Showing {{ listing.total }} of {{ listing.total }}{% if can_export %} <a class="cb quiet sm" href="{{ crm_url('export_leads', p=p_key, owner=owner, chat=chat or None, win=win, stage=stage_id or None, q=q or None) }}"><i class="fa-solid fa-file-csv"></i> Download this list</a>{% endif %}</p>
 {% endif %}
 {% endif %}
 {% endif %}

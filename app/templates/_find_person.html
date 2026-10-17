@@ -1,0 +1,11 @@
+{# Find a person (E25): the box in the header of every staff page. It asks <crm>/find as you type and lists
+   up to 8 people; Enter opens Contacts (or Leads, for someone who has no Contacts page), filtered. #}
+{% set to_contacts = CAN('crm_people') %}
+<form class="find-person" role="search" method="GET" action="{{ crm_url('contacts') if to_contacts else crm_url('board') }}"
+      data-find="{{ crm_url('find') }}" data-add="{{ crm_url('add') if CAN('crm_add') else '' }}"
+      data-all="{{ 'Show everyone found on Contacts' if to_contacts else 'Show them on Leads' }}">
+  {% if not to_contacts %}<input type="hidden" name="p" value="all"/><input type="hidden" name="view" value="list"/><input type="hidden" name="owner" value="all"/>{% endif %}
+  <button type="button" class="fp-open" aria-label="Find a person"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></button>
+  <input type="search" name="q" maxlength="80" autocomplete="off" placeholder="Find a person — name, phone or e-mail" aria-label="Find a person — name, phone or e-mail"/>
+  <div class="fp-list" role="listbox" hidden></div>
+</form>

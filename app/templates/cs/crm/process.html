@@ -40,17 +40,17 @@
         <span class="cnt">{{ open_counts.get(st.id, 0) if st.kind == 'open' else closed_counts.get(st.id, 0) }}</span>
         <b>{{ st.name }}</b>
         <small>{{ 'now' if st.kind == 'open' else 'last 30 days' }}{% if st.on_reply %} · a reply lands here{% endif %}</small>
-        {% if st.steps %}<span class="codes">{% for s in st.steps %}<i title="{{ s.title }}">{{ s.code }}</i>{% endfor %}</span>{% endif %}
-        {% if st.auto_kind and st.auto_to %}<span class="auto"><i class="fa-solid fa-robot"></i> {{ st.auto_days }} day{{ 's' if st.auto_days != 1 }} {{ 'without a reply' if st.auto_kind == 'no_reply' else 'after travel' }} → {{ st.auto_to.name }}</span>{% endif %}
       </a>
       {% endfor %}
     </div>
+    <div class="proc-plan">{% for st in opens + wins + losses if st.steps or (st.auto_kind and st.auto_to) %}
+      <div><b>{{ st.name }}</b><ul>{% for s in st.steps %}<li>{{ STEP_SENTENCE(s) }}</li>{% endfor %}
+      {% if st.auto_kind and st.auto_to %}<li class="auto"><i class="fa-solid fa-robot"></i> {{ AUTO_SENTENCE(st) }}</li>{% endif %}</ul></div>{% endfor %}</div>
     {% if losses %}
     <div class="proc-loss">
       {% for st in losses %}
       <a class="proc-stage lost" href="{{ crm_url('board', p=p.key, stage=st.id, owner='all', view='board') }}">
         <span class="cnt">{{ closed_counts.get(st.id, 0) }}</span><b>{{ st.name }}</b><small>fell out, last 30 days</small>
-        {% if st.steps %}<span class="codes">{% for s in st.steps %}<i title="{{ s.title }}">{{ s.code }}</i>{% endfor %}</span>{% endif %}
       </a>
       {% endfor %}
     </div>
@@ -61,8 +61,8 @@
 
 {# ------------------------------------------------------------------ 3. lead channels #}
 <section class="card">
-  <div class="proc-h"><span class="proc-n">3</span><div><h2 style="margin:0">Lead channels</h2>
-    <p class="muted" style="margin:2px 0 0">The {{ channels|length }} ways we find people, who owns each, and where it stands.</p></div></div>
+  <div class="proc-h"><span class="proc-n">3</span><div><h2 style="margin:0">Marketing activities</h2>
+    <p class="muted" style="margin:2px 0 0">The {{ channels|length }} ways we find people, who does each, and where it stands.</p></div></div>
   <div class="legend-row">
     <span><i class="sw live"></i> Running</span><span><i class="sw work"></i> Needs work</span><span><i class="sw idle"></i> Not started</span>
   </div>
@@ -76,16 +76,7 @@
     {% endfor %}
   </div>
   {% if CAN('crm_sources') %}
-  <details style="margin-top:12px">
-    <summary class="muted" style="cursor:pointer">Edit the channels</summary>
-    <form method="POST" action="{{ crm_url('save_process') }}" class="stack" style="margin-top:8px">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="what" value="channels"/>
-      <textarea name="channels" rows="10">{% for c in channels %}{{ c|join(' | ') }}
-{% endfor %}</textarea>
-      <p class="hint">One per line: platform | activity | owner | where it stands. Where it stands as Ongoing shows as running.</p>
-      <div><button class="cb primary">Save</button></div>
-    </form>
-  </details>
+  <p style="margin-top:12px"><a class="cb quiet sm" href="{{ crm_url('sources', tab='activities') }}">Change in Set-up</a></p>
   {% endif %}
 </section>
 

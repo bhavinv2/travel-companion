@@ -1,5 +1,6 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_phone_field.html' import phone_field with context %}
+{% from 'cs/crm/_details.html' import detail_input with context %}
 {% from 'cs/crm/_bits.html' import stage_pill with context %}
 {% from '_page_head.html' import page_head %}
 {% block crm_title %}Add a lead{% endblock %}
@@ -53,15 +54,31 @@
 
 {% else %}
 {# ---------------------------------------------------------------- someone new #}
-<form method="POST" class="card" style="max-width:900px" data-add-lead>
+{% if ask %}
+<section class="card ask-card" style="max-width:900px">
+  <p><b>{{ ask.text }}</b></p>
+  <div class="row">
+    {% if ask.kind == 'dup' %}
+    <button class="cb primary" form="add-form" name="dup" value="same">{{ ask.add }}</button>
+    <button class="cb" form="add-form" name="dup" value="new">{{ ask.other }}</button>
+    {% else %}
+    <button class="cb primary" form="add-form" name="dnc" value="ok">{{ ask.yes }}</button>
+    <a class="cb ghost" href="{{ crm_url('add') }}">Cancel</a>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+<form method="POST" id="add-form" class="card" style="max-width:900px" data-add-lead>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  {% if form.get('person_id') %}<input type="hidden" name="person_id" value="{{ form.get('person_id') }}"/>{% endif %}
   <div class="stack">
     <div>
-      <span class="lb">1. What are they interested in?</span>
+      <span class="lb">1. What do they want?</span>
       <div class="choice-tiles">
-        {% for code, label in PRODUCTS.items() %}
-        <label><input type="radio" name="product" value="{{ code }}"{{ ' checked' if (form.get('product') or 'TI') == code }}/> {{ label }}</label>
+        {% for p in tiles %}
+        <label><input type="radio" name="product" value="{{ p.code }}"{{ ' checked' if chosen == p.code }}/> <i class="fa-solid {{ p.icon }}" aria-hidden="true"></i> {{ p.name }}</label>
         {% endfor %}
+        <label><input type="radio" name="product" value=""{{ ' checked' if chosen == '' and form.get('product') is not none }}/> Something else</label>
       </div>
     </div>
     <div>
@@ -79,6 +96,12 @@
         <div><label class="lb" for="a-dep">Travel date <small class="muted">(if they know it)</small></label>
           <input type="date" id="a-dep" name="departure_date" value="{{ form.get('departure_date', '') }}"/></div>
       </div>
+      {% for code, flds in add_fields.items() if flds %}
+      <div class="add-fields crm-form" data-add-fields="{{ code }}"{{ ' hidden' if chosen != code }}>
+        {% for f in flds %}<div><label class="lb">{{ f.label }}{% if f.required %} <small class="muted">(needed)</small>{% endif %}</label>
+          {{ detail_input(f, form.get('detail__%s__%s' % (code or 'none', f.key)), attrs='name="detail__' ~ (code or 'none') ~ '__' ~ f.key ~ '"') }}</div>{% endfor %}
+      </div>
+      {% endfor %}
       <p class="hint">A phone number, an e-mail or an Instagram / Facebook handle — at least one, so we can follow up.</p>
     </div>
     <div class="crm-form">
@@ -87,10 +110,16 @@
           <option value="">Choose…</option>
           {% for s in sources %}<option value="{{ s.key }}"{{ ' selected' if form.get('source') == s.key }}>{{ s.name }}</option>{% endfor %}
         </select></div>
-      <div><span class="lb">4. Who follows up?</span>
+      <div><span class="lb">4. Who looks after them?</span>
+        {% set oc = form.get('owner') or 'me' %}
         <div class="choice-tiles">
-          <label><input type="radio" name="owner" value="me" checked/> Me</label>
-          <label><input type="radio" name="owner" value="auto"/> Share it out</label>
+          <label><input type="radio" name="owner" value="me"{{ ' checked' if oc == 'me' }}/> Me</label>
+          <label><input type="radio" name="owner" value="auto"{{ ' checked' if oc == 'auto' }}/> Whoever is least busy</label>
+          <label><input type="radio" name="owner" value="pick"{{ ' checked' if oc == 'pick' }}/> This person:
+            <select name="owner_id" data-owner-pick aria-label="Choose who looks after them">
+              <option value="">Choose…</option>
+              {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if form.get('owner_id') == u.id|string }}>{{ u.full_name }}{{ ' (you)' if u.id == current_user.id }}</option>{% endfor %}
+            </select></label>
         </div></div>
     </div>
     <div><label class="lb" for="a-note">5. What did they say or ask?</label>
@@ -100,3 +129,4 @@
 </form>
 {% endif %}
 {% endblock %}
+{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/crm-people.js') }}" defer></script>{% endblock %}

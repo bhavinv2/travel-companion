@@ -4,10 +4,12 @@ How a lead moves, in one place:
 
   capture()      every form, pop-up, chat and import calls this with its lead-source key. The source
                  (set up on screen, Sales CRM -> Setup) says which product and pipeline the lead
-                 starts in and who owns it. An unknown key is not an error: the lead is kept, and
+                 starts in and who owns it; the pipeline comes first, then the same person asking
+                 again in that pipeline is the same lead. An unknown key is not an error: the lead is kept, and
                  the source appears as "unrouted" for an admin to set up once.
   plan_next()    puts the next playbook step of the lead's stage on someone's list as a task, due by
-                 its trigger -- hours after the stage began, or days before the trip departs.
+                 its trigger -- hours after the last step, or days before / after a date of the lead
+                 (the trip, the cover ending, a date detail). A missing date plans nothing: it waits.
   move_stage()   records who moved it and why, closes the old stage's open task, and plans the
                  first step of the new one.
   record_reply() a reply from the person. Out of a pipeline's first stage it moves the lead to the
@@ -27,6 +29,8 @@ Nothing here commits halfway: each public function leaves the session flushed an
 capture_safely() is what the public forms call, so a CRM fault can never cost somebody the
 enquiry they just sent.
 """
+import hashlib
+import json
 import logging
 import re
 import threading
@@ -35,15 +39,16 @@ from datetime import datetime, date, time, timedelta
 from time import monotonic
 from urllib.parse import quote
 
-from flask import current_app, request
+from flask import current_app, has_app_context, request
 from sqlalchemy import and_, case, event, false, func, or_, select
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.orm.exc import ObjectDeletedError
 
 from app import db
-from app.models import (CrmAnswer, CrmIdentity, CrmLead, CrmPerson, CrmPipeline, CrmPlaybookStep,
+from app.models import (CrmAnswer, CrmField, CrmIdentity, CrmLead, CrmPerson, CrmPipeline, CrmPlaybookStep,
                         CrmSource, CrmStage, CrmStageChange, CrmTask, CrmTouchpoint, User,
-                        CRM_CHECK_CHANNELS, CRM_PRODUCT_LABELS, CRM_PRODUCTS)
+                        CRM_CHANNEL_LABELS, CRM_CHECK_CHANNELS, CRM_DATE_FIELDS, CRM_LEGACY_TRIGGERS, ROLE_MEANS)
+from app.services import crm_products
 
 log = logging.getLogger(__name__)
 
@@ -54,10 +59,15 @@ UTM_KEYS = ('utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content
             'fbclid', 'referrer', 'landing')
 NO_ANSWER_LIMIT = 3          # CL #3: the third unanswered call is the last
 SETTINGS_KEY = 'crm'
-WA_MODES = {'off': 'Off -- nothing goes to WhatsApp',
-            'contacts': 'Keep leads in step -- agents send from the chat',
-            'send': 'Keep leads in step and send -- follow-ups also go from here'}
+WA_MODES = {'off': 'Not yet', 'contacts': 'Keep contacts in step', 'send': 'Keep in step and send follow-ups'}
+WA_MODE_SAYS = {
+    'off': 'Nothing is written to WhatsApp. Leads stay here only.',
+    'contacts': ('Every lead becomes a WhatsApp contact with its stage tag, and its chat goes to whoever looks '
+                 'after it. Nothing is sent by itself; people send from the lead page or WhatsApp chats.'),
+    'send': ('As above, and follow-ups marked “Goes by itself” are sent when due (only those due in the last '
+             '24 hours; older ones wait for a click).')}
 WA_FIRST_OK_LABEL = 'Automatic first messages need their OK'
+WA_FIRST_OK_SAYS = 'Waits until they tick “Send my quote and updates on WhatsApp” or write to us first.'
 
 
 # ======================================================================================= settings
@@ -66,13 +76,59 @@ def crm_settings():
     """The CRM's own switches, set on screen (Set-up → WhatsApp connection)."""
     from app.services import settings
     s = settings.get_setting(SETTINGS_KEY) or {}
+    rows = check_rows(s.get('check_channels'))
     return {'whatsapp_mode': s.get('whatsapp_mode') if s.get('whatsapp_mode') in WA_MODES else 'off',
-            'check_channels': list(s.get('check_channels') or CRM_CHECK_CHANNELS),
+            # check_rows: every inbox on the half-hourly check; check_channels: the names a person ticks
+            # (an inbox that ticks itself right now is left out)
+            'check_rows': rows,
+            'check_channels': [r['name'] for r in rows if not check_ticks_itself(r)],
             # an automatic step that would be somebody's first WhatsApp message waits for a click unless
             # they agreed (a form's tick) or wrote to us -- Set-up -> Connect; on unless switched off
             'wa_first_needs_ok': s.get('wa_first_needs_ok') is not False,
             # the waiting bell goes after this many minutes of a customer waiting on us
             'waiting_alert_minutes': _minutes(s.get('waiting_alert_minutes'))}
+
+
+# an old list of names read as inbox rows: the USA WhatsApp inbox lives on a phone, so it is renamed
+CHECK_RENAMED = {'USA WhatsApp': 'USA WhatsApp (on the phone)'}
+# lower name -> (source key, ticks itself); None = the WhatsApp source (config WACRM_SOURCE_KEY)
+CHECK_GUESS = {'ind whatsapp': (None, True), 'usa whatsapp': ('wa-usa', False), 'tawk': ('tawk', False),
+               'fb messenger': ('facebook', False), 'instagram messenger': ('instagram', False),
+               'telegram': ('telegram', False), 'india call': ('call', False), 'usa call': ('call', False)}
+
+
+def wa_replies_linked():
+    """WhatsApp replies reach us (the replies link is set up), so we know who is waiting there."""
+    from app.services import wacrm
+    return bool(wacrm.enabled() and _wa_webhook_saved().get('id'))
+
+
+def check_ticks_itself(row):
+    """An inbox row that ticks itself right now: automatic, the WhatsApp source, and replies arriving."""
+    return bool(row.get('auto') and row.get('source_key') == current_app.config.get('WACRM_SOURCE_KEY', 'wa-india')
+                and wa_replies_linked())
+
+
+def check_rows(raw=None):
+    """The inboxes to check as rows [{name, source_key, auto}], from the stored rows or an old list of
+    names. Names are unique ignoring case, at most 30."""
+    wa_key = current_app.config.get('WACRM_SOURCE_KEY', 'wa-india') if has_app_context() else 'wa-india'
+    out, seen = [], set()
+    for item in (raw if raw else CRM_CHECK_CHANNELS):
+        if isinstance(item, dict):
+            name = str(item.get('name') or '').strip()[:40]
+            src, auto = (item.get('source_key') or None), bool(item.get('auto'))
+        else:
+            name = str(item or '').strip()
+            guess = CHECK_GUESS.get(name.lower(), (None, False))
+            name = CHECK_RENAMED.get(name, name)[:40]
+            src = wa_key if name.lower() == 'ind whatsapp' else guess[0]
+            auto = guess[1]
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        out.append({'name': name, 'source_key': src, 'auto': auto})
+    return out[:30]
 
 
 def _minutes(v):
@@ -108,7 +164,7 @@ def wa_can_send():
 
 def wa_writes_on():
     """Whether the portal may write to the WhatsApp CRM: contacts, chats, tags, quick replies,
-    templates, tag rules. Only on "Keep leads in step" (or "... and send"), with it connected.
+    templates, tag rules. Only on "Keep contacts in step" (or "Keep in step and send follow-ups"), with it connected.
     Reading is always allowed. The team sync (members, sign-in, workspace) does not ask this."""
     from app.services import wacrm
     return wa_mode() in ('contacts', 'send') and wacrm.enabled()
@@ -126,36 +182,53 @@ def ensure_defaults():
     changed = False
     if not db.session.query(CrmPipeline.id).first():
         automations = []
+        codes = set(crm_products.codes())
         for key, name, product, reasons, stages in d.PIPELINES:
-            p = CrmPipeline(key=key, name=name, product=product, fallout_reasons=reasons)
+            p = CrmPipeline(key=key, name=name, product=product, fallout_reasons=reasons,
+                            catch_all=key in d.CATCH_ALL)
             db.session.add(p)
             for pos, stage_def in enumerate(stages):
                 skey, sname, kind, on_reply, sla, steps = stage_def[:6]
                 st = CrmStage(key=skey, name=sname, kind=kind, on_reply=on_reply, sla_hours=sla,
                               position=pos)
+                if skey in d.MILESTONES:
+                    st.button_label, st.button_code = d.MILESTONES[skey]
                 p.stages.append(st)
                 for spos, (code, title, channel, trig, val, auto, body) in enumerate(steps):
+                    trig, field, val = d.seed_trigger(trig, val)
                     st.steps.append(CrmPlaybookStep(code=code, title=title, channel=channel,
-                                                    trigger=trig, trigger_value=val, auto=auto,
-                                                    body=body, position=spos))
+                                                    trigger=trig, trigger_field=field, trigger_value=val,
+                                                    auto=auto, body=body, position=spos,
+                                                    kind=d.step_kind(code, codes)))
                 if len(stage_def) > 6 and stage_def[6]:
                     automations.append((p, st, stage_def[6]))
+            for st in p.stages:
+                st.means = ROLE_MEANS[st.derived_role()]
         db.session.flush()
         for p, st, (akind, adays, to_key, reason) in automations:
             target = next((s for s in p.stages if s.key == to_key), None)
             if target is not None:
-                st.auto_kind, st.auto_days, st.auto_to, st.auto_reason = akind, adays, target, reason
+                akind, afield = d.seed_auto(akind)
+                st.auto_kind, st.auto_field, st.auto_days, st.auto_to, st.auto_reason = (
+                    akind, afield, adays, target, reason)
         changed = True
+    # a seed whose title a quick reply already has is skipped: titles are unique (WhatsApp matches by title)
+    titles = {(t or '').strip().lower() for (t,) in db.session.query(CrmAnswer.title).all()}
     if not db.session.query(CrmAnswer.id).filter(CrmAnswer.code.is_(None)).first():
         for product, title, keywords, body in d.ANSWERS:
-            db.session.add(CrmAnswer(product=product, title=title, keywords=keywords, body=body))
+            if title.strip().lower() not in titles:
+                titles.add(title.strip().lower())
+                db.session.add(CrmAnswer(product=product, title=title, keywords=keywords, body=body))
         changed = True
     if not db.session.query(CrmAnswer.id).filter(CrmAnswer.code.isnot(None)).first():
         for product, code, title, body in d.QUICK_MESSAGES:
-            db.session.add(CrmAnswer(product=product, code=code, title=title, body=body))
+            if title.strip().lower() not in titles:
+                titles.add(title.strip().lower())
+                db.session.add(CrmAnswer(product=product, code=code, title=title, body=body))
         changed = True
     if changed:
         db.session.flush()
+    changed = crm_products.ensure_seeded() or changed
     have = {k for (k,) in db.session.query(CrmSource.key).all()}
     pipes = {p.key: p for p in CrmPipeline.query.all()}
     for key, name, kind, product, pkey, pages, status in d.SOURCES:
@@ -165,14 +238,6 @@ def ensure_defaults():
             changed = True
     if changed:
         db.session.commit()
-
-
-def pipeline_for_product(product):
-    from app.services.crm_defaults import PRODUCT_PIPELINE
-    key = PRODUCT_PIPELINE.get(product or 'GEN', 'general')
-    return (CrmPipeline.query.filter_by(key=key, is_active=True).first()
-            or CrmPipeline.query.filter_by(product=product, is_active=True).first()
-            or CrmPipeline.query.filter_by(key='general').first())
 
 
 def source(key):
@@ -281,15 +346,22 @@ def utm_from_request():
 
 
 def _owner_candidates(src):
-    """Who may own a lead from `src`: its team, or every CS agent whose console has the CRM."""
+    """Who may own a lead from `src`: its Workspace team ({'team_id'}), or the people ticked, else every
+    agent whose console has the CRM, else an admin."""
+    from app.models import WorkspaceTeam
     from app.services import cs_access
     staff = cs_access.recipients('crm_board', limit=None)
-    team = {int(i) for i in (src.team or [])} if src else set()
-    if team:
-        users = [u for u in staff if u.id in team]
-    else:
-        # the agents; an admin only when there is nobody else to give it to
-        users = [u for u in staff if not u.is_admin]
+    team = src.team if src else None
+    ids = set()
+    if isinstance(team, dict):
+        tid = team.get('team_id')
+        t = db.session.get(WorkspaceTeam, int(tid)) if str(tid or '').isdigit() else None
+        ids = {u.id for u in t.users} if t is not None else set()
+    elif team:
+        ids = {int(i) for i in team if str(i).isdigit()}
+    users = [u for u in staff if u.id in ids] if ids else []
+    if not users:
+        users = [u for u in staff if not u.is_admin]       # nobody of theirs can take it: anyone in sales
     return users or [u for u in staff if u.is_admin]
 
 
@@ -318,16 +390,63 @@ def _summary(details, message=None):
     return '\n'.join(lines)[:4000] or None
 
 
+def pipeline_for(src, product, start_stage=None):
+    """(pipeline, start stage) for a new enquiry from this source about this product: the source's pipeline;
+    a catch-all one passes a lead with a known product on to that product's own pipeline; a pipeline not
+    taking new leads passes them on to the product's pipeline (else the catch-all) and keeps them only when
+    no other would. An importer's start stage says it outright."""
+    pipe = src.pipeline if src.status != 'unrouted' else None
+    if start_stage is None and pipe is not None and pipe.catch_all and product != pipe.product:
+        better = crm_products.default_pipeline(product)
+        if better is not None and not better.catch_all:
+            pipe, start_stage = better, better.first_stage
+    if start_stage is None and pipe is not None and not pipe.is_active:
+        better = crm_products.default_pipeline(product)
+        if better is not None and better.id != pipe.id and better.is_active:
+            pipe, start_stage = better, better.first_stage
+    if start_stage is not None:
+        pipe = start_stage.pipeline
+    return pipe, start_stage
+
+
+def start_waiting_leads(src, user=None):
+    """Leads that waited while this source was unrouted start its pipeline now (the first stage's follow-up
+    is planned, an owner is chosen). No commit. How many started."""
+    if src.pipeline is None:
+        return 0
+    waiting = CrmLead.query.filter(CrmLead.source_id == src.id, CrmLead.pipeline_id.is_(None),
+                                   CrmLead.status == 'open').all()
+    for lead in waiting:
+        set_pipeline(lead, src.pipeline, user=user)
+        if not lead.owner_id:
+            owner = assign_owner(src)
+            set_owner(lead, owner.id if owner is not None else None, by=user)
+    return len(waiting)
+
+
+class DoNotContact(Exception):
+    """capture(refuse_dnc=True) for somebody erased at their request: nothing was saved."""
+
+
+CONSENT_NOTE = 'Agreed to WhatsApp messages (%s)'
+
+
+def ticked(value):
+    """A form's tick box as True / False: from a form post ('on', '1') or JSON (true)."""
+    return value is True or str(value or '').strip().lower() in ('1', 'on', 'true', 'yes')
+
+
 def capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, product=None,
             details=None, message=None, ref=None, utm=None, departure_date=None, consent=None,
             user_id=None, channel='form', when=None, identities=None, ends_on=None,
             created_by_id=None, start_stage=None, plan=True, notify=True, temperature=None,
             fallout_reason=None, external_id=None, sync=True, imported=False, likelihood=None,
-            person=None, note=None):
+            person=None, note=None, refuse_dnc=False, consent_from=None):
     """Record an enquiry as a lead. Returns the lead, or None when there is nobody to reach.
 
-    The same person asking about the same product again within the source's window is the same
-    lead: the new enquiry is added to its timeline rather than starting a second card.
+    The same person asking again within the source's window, about anything that goes to the same
+    pipeline, is the same lead: the new enquiry is added to its timeline rather than starting a
+    second card.
 
     `identities` reach somebody without a phone or e-mail: [('instagram', 'handle'), ...].
     The importers pass `start_stage` (where the lead already is), plan=False, notify=False and
@@ -336,6 +455,8 @@ def capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, pro
     `person`: somebody already here (a WhatsApp message long after their last lead closed): no lookup.
     `note`: a lead made by hand from somebody's WhatsApp chat: this note (by `created_by_id`) is
     logged instead of a message from them, so it never opens WhatsApp's 24 hours or counts as a reply.
+    `refuse_dnc`: an importer (raises DoNotContact for an erased person); otherwise a match is an enquiry
+    they made themselves and clears the entry. `consent_from`: the form, for the note when `consent` is new.
     """
     ensure_defaults()
     key = (source_key or '').strip().lower()
@@ -343,44 +464,57 @@ def capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, pro
         key = 'unknown'
     src = source(key)
     new_source = src is None
-    if new_source:
-        # a page nobody has set up yet: keep the lead, and let an admin choose its pipeline once
-        src = CrmSource(key=key, name=key.replace('-', ' ').capitalize(), kind='api' if channel == 'form' else 'chat',
-                        product=product if product in CRM_PRODUCTS else 'GEN', status='unrouted')
-        db.session.add(src)
-        db.session.flush()
-
+    code = crm_products.by_code(product)
     e164 = normalise_phone(phone, phone_cc)
     email = (email or '').strip().lower() or None
     if email and ('@' not in email or email.startswith('no-email@')):
         email = None
     identities = [(k, clean_identity(k, v)) for k, v in (identities or [])]
     identities = [(k, v) for k, v in identities if v]
+    hits = []
     if person is None:
         if not e164 and not email and not identities:
             return None
-        person = upsert_person(e164, email, (name or '').strip() or None, user_id=user_id, consent=consent,
-                               identities=identities)
+        if e164 or email:
+            from app.services import crm_people
+            hits = crm_people.dnc_find(e164, email)
+            if hits and refuse_dnc:
+                raise DoNotContact()
+    if new_source:
+        # a page nobody has set up yet: keep the lead, and let an admin choose its pipeline once
+        src = CrmSource(key=key, name=key.replace('-', ' ').capitalize(), kind='api' if channel == 'form' else 'chat',
+                        product=code.code if code else crm_products.general_code(), status='unrouted')
+        db.session.add(src)
+        db.session.flush()
 
-    product = product if product in CRM_PRODUCTS else src.product
+    consent_new = False
+    if person is None:
+        person = upsert_person(e164, email, (name or '').strip() or None, user_id=user_id, consent=None,
+                               identities=identities)
+    if consent:
+        consent_new = not person.consent_whatsapp
+        person.consent_whatsapp = True
+    if hits and not refuse_dnc:
+        from app.services import crm_people
+        crm_people.dnc_forget(hits, source=key)
+
+    product = code.code if code else src.product
     now = when or datetime.utcnow()
     details = {k: v for k, v in (details or {}).items() if v not in (None, '', [], {})}
     utm = utm if utm is not None else utm_from_request()
 
+    # 1. which pipeline: the source's; a catch-all source with a known product passes it on to that
+    #    product's own pipeline; an importer's start stage says it outright
+    pipe, start_stage = pipeline_for(src, product, start_stage)
+    # 2. the same person asking again within the source's days, in THIS pipeline, is the same lead
     since = now - timedelta(days=max(src.dedupe_days or 0, 0))
-    lead = (CrmLead.query.filter(CrmLead.person_id == person.id, CrmLead.product == product,
-                                 CrmLead.status == 'open', CrmLead.last_activity_at >= since)
-            .order_by(CrmLead.last_activity_at.desc()).first())
+    q = CrmLead.query.filter(CrmLead.person_id == person.id, CrmLead.status == 'open',
+                             CrmLead.last_activity_at >= since)
+    q = (q.filter(CrmLead.pipeline_id == pipe.id) if pipe is not None
+         else q.filter(CrmLead.pipeline_id.is_(None), CrmLead.product == product))
+    lead = q.order_by(CrmLead.last_activity_at.desc()).first()
     created = lead is None
     if created:
-        pipe = src.pipeline if src.status != 'unrouted' else None
-        if start_stage is None and pipe is not None and pipe.product == 'GEN' and product not in (None, 'GEN'):
-            # a catch-all source (Instagram, a call) with a known product: that product's pipeline
-            better = pipeline_for_product(product)
-            if better is not None and better.product != 'GEN':
-                start_stage = better.first_stage
-        if start_stage is not None:
-            pipe = start_stage.pipeline
         stage = start_stage or (pipe.first_stage if pipe else None)
         lead = CrmLead(person=person, product=product, source=src, pipeline=pipe, stage=stage,
                        status=stage.kind if stage else 'open',
@@ -407,6 +541,9 @@ def capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, pro
         if utm and not lead.utm:
             lead.utm = utm
         lead.last_activity_at = max(lead.last_activity_at or now, now)
+        # a general enquiry that now names a product (its own pipeline is this one: Gift Health in General)
+        if pipe is not None and pipe.catch_all and lead.product == pipe.product and product != pipe.product:
+            lead.product = product
 
     if note:
         db.session.add(CrmTouchpoint(lead=lead, person_id=person.id, channel='note', direction='none',
@@ -415,6 +552,9 @@ def capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, pro
         db.session.add(CrmTouchpoint(lead=lead, person_id=person.id, channel=channel, direction='in',
                                      body=_summary(details, message), code=None, created_at=now,
                                      external_id=external_id))
+    if consent_new:
+        db.session.add(CrmTouchpoint(lead=lead, person_id=person.id, channel='note', direction='none',
+                                     body=CONSENT_NOTE % (consent_from or src.name), created_at=now))
     src.lead_count = (src.lead_count or 0) + 1
     src.last_lead_at = max(src.last_lead_at or now, now)
     if created and plan and src.status == 'live' and lead.status == 'open':
@@ -444,7 +584,7 @@ def _tell_owner(lead, new_source=False):
     nobody has set up sends one. Best effort: a notification never undoes a lead."""
     from app.services import notify
     try:
-        what = '%s · %s' % (CRM_PRODUCT_LABELS.get(lead.product, lead.product),
+        what = '%s · %s' % (crm_products.labels().get(lead.product, lead.product),
                             lead.source.name if lead.source else 'unknown source')
         if lead.owner_id:
             notify.push(lead.owner_id, 'crm_lead', title='New lead: %s' % lead.person.display_name,
@@ -468,6 +608,8 @@ def capture_safely(source_key, **kw):
     """capture() for the public forms: whatever goes wrong here, the enquiry is already saved."""
     try:
         return capture(source_key, **kw)
+    except DoNotContact:
+        raise              # an importer asked to be told; never raised for a form
     except Exception:        # noqa: BLE001 -- a CRM fault must never cost somebody their enquiry
         db.session.rollback()
         current_app.logger.exception('CRM capture failed for source %r', source_key)
@@ -522,10 +664,18 @@ def trip_claimed(trip):
         return None
 
 
+def tag_prefix(lead):
+    """The first part of the lead's stage tag: its pipeline's own label ("TI renewals") when it has
+    one, else the lead's product code ("TI") -- what every pipeline used before U5, so no tag changed."""
+    pipe = lead.pipeline
+    label = (pipe.tag_label or '').strip() if pipe is not None and pipe.tag_mode == 'own' else ''
+    return label or lead.product
+
+
 def stage_tag(lead):
-    """The contact tag for where this lead is: "TI: Prospect". The product prefix keeps two
-    enquiries by one person (insurance and companion) from overwriting each other's stage."""
-    return '%s: %s' % (lead.product, lead.stage.name) if lead.stage else None
+    """The contact tag for where this lead is: "TI: Prospect". The prefix keeps two enquiries by
+    one person (insurance and companion) from overwriting each other's stage."""
+    return '%s: %s' % (tag_prefix(lead), lead.stage.name) if lead.stage else None
 
 
 OPT_OUT_TAG = 'opted-out'
@@ -539,11 +689,10 @@ WA_JOBS_LOCK_WAIT = 1         # the jobs runner does not wait: a busy worker lea
 WA_RETRY_STATUSES = frozenset({401, 403, 404, 408, 429})   # refusals that are not about this person
 WA_RETIRED_TAGS_KEY = 'wa_retired_tags'   # 'crm' setting: tags a source used to add (newest first)
 WA_RETIRED_MAX = 200
-WA_COMPOSE = False   # contract 25 ("Put it in the chat", portal:compose): on once the WhatsApp CRM fills its box (X4, release 2)
 WA_WRITES_OFF = 'WhatsApp is not connected for leads yet. Change it in Set-up → WhatsApp connection.'
 WA_BACKFILL_SAID = ('Bringing %d %s into WhatsApp: they become contacts with their tags, a few at a time. '
                     'Nothing is sent to them.')
-WA_BACKFILL_NONE = 'Everybody with an open lead and a phone is in WhatsApp already, or on the way.'
+WA_BACKFILL_NONE = 'Everybody with a lead and a phone is in WhatsApp already, or on the way.'
 # W1's strict phone rule (wacrm src/lib/whatsapp/phone-utils.ts phoneMatchKind)
 WA_NEAR_DIGITS = 8            # the shorter side of any match that is not exact
 WA_LOCAL_DIGITS = 10          # the longest number read as "saved without its country code"
@@ -744,14 +893,62 @@ def change_phone(person, e164):
     return True
 
 
-def stage_renamed(stage):
-    """A stage's new name reaches the tags: everybody with an open lead in it, and anybody already
-    in the WhatsApp CRM whose lead finished there. Returns how many were marked."""
-    people = (CrmPerson.query.join(CrmLead, CrmLead.person_id == CrmPerson.id)
-              .filter(CrmLead.stage_id == stage.id,
-                      or_(CrmLead.status == 'open', CrmPerson.wacrm_contact_id.isnot(None)))
-              .distinct().all())
-    return sum(1 for p in people if mark_wa_due(p))
+def _stage_renames(stage, old_name):
+    """[{'from': 'TI: Cold lead', 'to': 'TI: Fresh lead'}] for each prefix the stage's tags use (its
+    leads' products, or the pipeline's own label) -- not for a name another stage with the same prefix
+    also has (two Sahayak pipelines with a "Confirmed"): that one is re-tagged instead."""
+    pipe = stage.pipeline
+
+    def prefixes(st):
+        pp = st.pipeline
+        if pp is not None and pp.tag_mode == 'own' and (pp.tag_label or '').strip():
+            return {pp.tag_label.strip()}
+        found = {p for (p,) in db.session.query(CrmLead.product).filter(CrmLead.stage_id == st.id).distinct() if p}
+        return found | ({pp.product} if pp is not None else set())
+
+    mine = prefixes(stage)
+    shared = set()
+    for o in CrmStage.query.filter(func.lower(CrmStage.name) == (old_name or '').lower(),
+                                   CrmStage.id != stage.id).all():
+        shared |= {x.lower() for x in prefixes(o)}
+    return [{'from': '%s: %s' % (x, old_name), 'to': '%s: %s' % (x, stage.name)}
+            for x in sorted(mine) if x.lower() not in shared and pipe is not None]
+
+
+def _stage_people(stage):
+    """Everybody with an open lead in the stage, and anybody already in the WhatsApp CRM whose lead finished there."""
+    return (CrmPerson.query.join(CrmLead, CrmLead.person_id == CrmPerson.id)
+            .filter(CrmLead.stage_id == stage.id,
+                    or_(CrmLead.status == 'open', CrmPerson.wacrm_contact_id.isnot(None)))
+            .distinct().all())
+
+
+def stages_renamed(pairs):
+    """Several stages renamed in one save (the pipeline editor): [(stage, old name)]. All the tags are renamed
+    in place in the WhatsApp CRM in ONE call, before anybody is marked; then each person is brought into step
+    quietly. Returns how many were marked."""
+    pairs = [(st, old) for st, old in pairs if old and old != st.name]
+    if not pairs:
+        return 0
+    people = {}
+    for st, _old in pairs:
+        for p in _stage_people(st):
+            people[p.id] = p
+    if wa_writes_on():
+        # before any mark: its commit (the rule push saves a setting) must start no sync
+        wa_rename_tags([r for st, old in pairs for r in _stage_renames(st, old)])
+    return sum(1 for p in people.values() if mark_wa_due(p, quiet=True))
+
+
+def stage_renamed(stage, old_name=None):
+    """A stage's new name reaches the tags: renamed in place in the WhatsApp CRM first, then everybody
+    with an open lead in it, and anybody already in the WhatsApp CRM whose lead finished there, is
+    brought into step quietly (contract 19: no "tag added" automations). Returns how many were marked."""
+    people = _stage_people(stage)
+    if old_name and wa_writes_on():
+        # before any mark: its commit (the rule push saves a setting) must start no sync
+        wa_rename_tags(_stage_renames(stage, old_name))
+    return sum(1 for p in people if mark_wa_due(p, quiet=True))
 
 
 def _wa_mark_quietly(people, now=None, phone_only=False):
@@ -770,15 +967,232 @@ def _wa_mark_quietly(people, now=None, phone_only=False):
                     synchronize_session=False))
 
 
+WA_RULE_KEY = 'crm_wa_tag_rule'            # its own settings row: pushed_at, hash, error, due, old
+WA_RULE_EVERY = timedelta(hours=24)
+WA_RULE_MAX = 300                          # entries per map (contract)
+WA_RULE_BUDGET = 1500                      # characters of the compact rule: the WhatsApp CRM keeps all its
+                                           # portal rules in 3000 (with quick-reply fingerprints)
+WA_RULE_RETIRED = 20                       # retired prefixes sent at most
+WA_OLD_TAG, WA_OPTED_OUT_LABEL, WA_SOURCE_LABEL = 'Old tag', 'Opted out', 'Source: %s'
+
+
+def wa_tag_rule():
+    """{'prefixes': {...}, 'names': {...}} -- which tags are the Sales CRM's, for PUT /api/portal/managed-tags:
+    prefixes: each product code -> its name, each pipeline's own tag label -> the pipeline's name, recent
+    retired prefixes -> "Old tag"; names: "opted-out" -> "Opted out", each product tag (lower-case code) ->
+    its name, each source tag -> "Source: <source name>", then retired source tags -> "Old tag" while it
+    fits WA_RULE_BUDGET (the last retired names go first, then retired prefixes). Keys are merged
+    ignoring case; a product wins over a label of the same letters."""
+    raw = crm_settings_raw()
+    pref = {}                                  # lower -> (key, label)
+    retired_p = [str(x).strip() for x in (raw.get(WA_RETIRED_PREFIXES_KEY) or []) if str(x).strip()]
+    retired_p = retired_p[:WA_RULE_RETIRED]
+    for x in retired_p:
+        pref[x.lower()] = (x, WA_OLD_TAG)
+    for pipe in CrmPipeline.query.order_by(CrmPipeline.id).all():
+        label = (pipe.tag_label or '').strip()
+        if pipe.tag_mode == 'own' and label:
+            pref[label.lower()] = (label, (pipe.name or label)[:100])
+    for prod in crm_products.all():
+        pref[prod.code.lower()] = (prod.code, (prod.name or prod.code)[:100])
+    names = {OPT_OUT_TAG: WA_OPTED_OUT_LABEL}
+    for prod in crm_products.all():
+        names[prod.code.lower()] = (prod.name or prod.code)[:100]
+    seen = {k.lower() for k in names}
+    for src in CrmSource.query.order_by(CrmSource.name, CrmSource.id).all():
+        for t in src.crm_tags or []:
+            t = str(t or '').strip()
+            if t and t.lower() not in seen:
+                names[t] = WA_SOURCE_LABEL % (src.name or src.key)[:90]
+                seen.add(t.lower())
+    retired_n = []
+    for t in raw.get(WA_RETIRED_TAGS_KEY) or []:
+        t = str(t or '').strip()
+        if t and t.lower() not in seen:
+            names[t] = WA_OLD_TAG
+            retired_n.append(t)
+            seen.add(t.lower())
+
+    def build():
+        return {'prefixes': dict([(k, l) for k, l in pref.values()][:WA_RULE_MAX]),
+                'names': dict(list(names.items())[:WA_RULE_MAX])}
+    rule = build()
+    while len(json.dumps(rule, separators=(',', ':'))) > WA_RULE_BUDGET:
+        if retired_n:
+            names.pop(retired_n.pop(), None)
+        elif retired_p:
+            pref.pop(retired_p.pop().lower(), None)
+        else:
+            break
+        rule = build()
+    return rule
+
+
+def _wa_rule_hash(rule):
+    return hashlib.sha1(json.dumps(rule, sort_keys=True).encode('utf-8')).hexdigest()
+
+
+def wa_push_tag_rule(now=None):
+    """Tell the WhatsApp CRM the Sales-tag rule now. Only while writes are on and the team link is set
+    up. True: it took it; False: refused or no answer (logged; kept due for the jobs runner, except a
+    refusal only a person can fix); None: nothing sent (off, not connected, an old WhatsApp CRM -- 404,
+    logged and ignored). Saves its own settings row (commits)."""
+    from app.services import settings, wacrm, wacrm_team
+    if not (wa_writes_on() and wacrm_team.enabled()):
+        return None
+    now = now or datetime.utcnow()
+    rule = wa_tag_rule()
+    state = dict(settings.get_setting(WA_RULE_KEY) or {})
+    result = False
+    try:
+        with wacrm.short_timeouts():
+            wacrm_team.put_managed_tags(rule['prefixes'], rule['names'])
+        state.update(pushed_at=now.isoformat(timespec='seconds'), hash=_wa_rule_hash(rule), error=None,
+                     due=False, old=False)
+        result = True
+    except wacrm_team.TeamError as exc:
+        if exc.status == 404:
+            log.info('The WhatsApp CRM does not know the Sales-tag rule yet (older version)')
+            state.update(pushed_at=now.isoformat(timespec='seconds'), old=True, due=False)
+            result = None
+        else:
+            log.warning('The WhatsApp CRM did not take the Sales-tag rule: %s', exc)
+            state.update(error=str(exc)[:200],
+                         due=exc.status is None or exc.status >= 500 or exc.status in WA_RETRY_STATUSES)
+    settings.set_setting(WA_RULE_KEY, state)
+    return result
+
+
+def wa_tag_rule_changed():
+    """After a set-up save (products, pipeline tags, stages, source tags) or switching writes on: push
+    the rule when it is not what the WhatsApp CRM last took. Never raises (a save must not fail on it)."""
+    from app.services import settings, wacrm_team
+    try:
+        if not (wa_writes_on() and wacrm_team.enabled()):
+            return None
+        state = settings.get_setting(WA_RULE_KEY) or {}
+        if state.get('hash') == _wa_rule_hash(wa_tag_rule()) and not state.get('error') and not state.get('old'):
+            return True
+        return wa_push_tag_rule()
+    except Exception:          # noqa: BLE001
+        db.session.rollback()
+        log.warning('Sales-tag rule push failed', exc_info=True)
+        return False
+
+
+def wa_tag_rule_daily(now=None):
+    """The jobs runner: again once a day (or when it is due, or the rule changed) -- only where a push
+    happened before or replies are connected here ("Connect replies"), so nothing is written to a
+    WhatsApp CRM nobody linked. {'crm_wa_tag_rule': 'ok' | 'failed' | 'old'} or {}."""
+    from app.services import settings, wacrm_team
+    if not (wa_writes_on() and wacrm_team.enabled()):
+        return {}
+    now = now or datetime.utcnow()
+    state = settings.get_setting(WA_RULE_KEY) or {}
+    if not (state.get('pushed_at') or _wa_webhook_saved().get('id')):
+        return {}
+    last = _parse_utc(state.get('pushed_at')) if state.get('pushed_at') else None
+    if not (state.get('due') or last is None or now - last >= WA_RULE_EVERY
+            or state.get('hash') != _wa_rule_hash(wa_tag_rule())):
+        return {}
+    r = wa_push_tag_rule(now)
+    return {'crm_wa_tag_rule': 'ok' if r else 'old' if r is None else 'failed'}
+
+
+def wa_rename_tags(renames):
+    """Rename Sales tags in the WhatsApp CRM in place (ids, rules and broadcasts keep pointing at them):
+    the rule is pushed first when it may not have it (renames of tags it does not count as Sales tags are
+    skipped "not_managed"). {'renamed': [...], 'skipped': [...]} or None when it could not ask (off, not
+    connected, an older WhatsApp CRM -- 404 -- or no answer). Logged, never raised; the caller re-marks
+    the people either way, which is the re-tag fallback."""
+    from app.services import wacrm, wacrm_team
+    if not renames or not (wa_writes_on() and wacrm_team.enabled()):
+        return None
+    wa_tag_rule_changed()
+    try:
+        with wacrm.short_timeouts():
+            out = wacrm_team.rename_tags(renames)
+    except wacrm_team.TeamError as exc:
+        if exc.status == 404:
+            log.info('The WhatsApp CRM cannot rename tags in place (older version): re-tagged instead')
+        else:
+            log.warning('The WhatsApp CRM did not rename tags: %s', exc)
+        return None
+    if out.get('skipped'):
+        log.info('%d tag rename(s) skipped by the WhatsApp CRM: %s', len(out['skipped']),
+                 ', '.join('%s (%s)' % (x.get('from'), x.get('reason')) for x in out['skipped'][:10]))
+    return out
+
+
+def pipeline_tag_changed(pipe, old_mode, old_label, actor=None):
+    """A pipeline's WhatsApp tag changed (U6 "Change WhatsApp tag"): the old prefix is retired (still the
+    portal's, so leftovers come off), the rule is pushed, every "<old>: <stage>" is renamed in place to
+    "<new>: <stage>" where that is one-to-one, then everybody with a lead in it is re-marked quietly
+    (jobs runner). Call it after setting pipe.tag_mode / tag_label, before the commit. {'renamed', 'marked'}."""
+    old_label = (old_label or '').strip()
+    products = sorted({p for (p,) in db.session.query(CrmLead.product).filter(CrmLead.pipeline_id == pipe.id)
+                       .distinct() if p}) or [pipe.product]
+    old = [old_label] if old_mode == 'own' and old_label else products
+    label = (pipe.tag_label or '').strip()
+    new = [label] if pipe.tag_mode == 'own' and label else products
+    gone = {n.lower() for n in new}
+    wa_retire_prefixes([o for o in old if o.lower() not in gone], actor)
+    renames = []
+    if len(new) == 1 and len(old) >= 1:
+        for st in pipe.stages:
+            for o in old:
+                if o.lower() != new[0].lower():
+                    renames.append({'from': '%s: %s' % (o, st.name), 'to': '%s: %s' % (new[0], st.name)})
+        if len(old) > 1:
+            renames = []                   # several old prefixes into one: not one-to-one
+    res = wa_rename_tags(renames) if renames else None
+    marked = wa_mark_pipeline(pipe)
+    return {'renamed': len((res or {}).get('renamed') or []), 'marked': marked}
+
+
+def wa_mark_pipeline(pipe, now=None):
+    """Everybody with a lead in the pipeline (open, or already in the WhatsApp CRM) is brought into step
+    quietly by the jobs runner -- after a tag change or a product change. No commit. How many were marked."""
+    return _wa_mark_quietly(select(CrmLead.person_id).where(
+        CrmLead.pipeline_id == pipe.id,
+        or_(CrmLead.status == 'open',
+            CrmLead.person_id.in_(select(CrmPerson.id).where(CrmPerson.wacrm_contact_id.isnot(None))))), now)
+
+
+def wa_tag_clashes(prefix=None, names=()):
+    """Tags made in the WhatsApp CRM that a new product code, own tag label or source tag would make the
+    Sales CRM's (F56): [{'name', 'contacts'}] the rule does not cover yet -- "<prefix>", "<prefix>: ..."
+    or one of `names` (ignoring case). [] when it cannot ask (writes off, not connected, older version)."""
+    from app.services import wacrm, wacrm_team
+    if not (wa_writes_on() and wacrm_team.enabled()):
+        return []
+    try:
+        with wacrm.short_timeouts():
+            items = wacrm_team.list_tags()
+    except wacrm_team.TeamError:
+        return []
+    pre = (prefix or '').strip().lower()
+    want = {str(n).strip().lower() for n in names or () if str(n).strip()}
+    out = []
+    for item in items:
+        n = (item.get('name') or '').strip()
+        low = n.lower()
+        if item.get('managed'):
+            continue
+        if low in want or (pre and (low == pre or low.startswith(pre + ': '))):
+            out.append({'name': n, 'contacts': item.get('contacts') or 0})
+    return out
+
+
 def wa_backfill(now=None):
-    """Bring everybody with an open lead and a phone (imported ones too) into the WhatsApp CRM,
-    quietly: their contact and its tags only, without starting its tag automations. No chat is
+    """Bring everybody with a lead and a phone -- open leads and won and lost customers, imported ones too --
+    into the WhatsApp CRM, quietly: their contact and its tags only, without starting its tag automations. No chat is
     made and nothing is sent. This only marks them; the jobs runner does the work, WA_SYNC_BATCH a
     run. Somebody whose last sync was refused (a person had to sort it out) is tried again.
     Returns how many were marked."""
     if not wa_writes_on():
         return 0
-    n = _wa_mark_quietly(select(CrmLead.person_id).where(CrmLead.status == 'open'), now, phone_only=True)
+    n = _wa_mark_quietly(select(CrmLead.person_id), now, phone_only=True)
     db.session.commit()
     return n
 
@@ -819,28 +1233,69 @@ def wa_retire_tags(removed, actor=None):
     return out
 
 
-def _wa_is_portal_tag(name, source_tags):
+WA_RETIRED_PREFIXES_KEY = 'wa_retired_prefixes'   # 'crm' setting: stage-tag prefixes no longer used (newest first)
+WA_RETIRED_PREFIX_MAX = 50
+
+
+def _wa_rule():
+    """What makes a tag the portal's, lower case: (product codes -- the bare product tags --, the first
+    parts of stage tags: every code, every own label, the retired prefixes). The seed's codes without an
+    app context."""
+    codes = frozenset(c.lower() for c in crm_products.codes())
+    if not has_app_context():
+        return codes, codes
+    old = {str(x).strip().lower() for x in crm_settings_raw().get(WA_RETIRED_PREFIXES_KEY) or [] if str(x).strip()}
+    return codes, frozenset(x for x in _wa_live_prefixes() | old if x)
+
+
+def _wa_live_prefixes():
+    """Every product code and every own tag label in use, lower case."""
+    labels = {(l or '').strip().lower() for (l,) in db.session.query(CrmPipeline.tag_label)
+              .filter(CrmPipeline.tag_mode == 'own', CrmPipeline.tag_label.isnot(None))}
+    return frozenset(c.lower() for c in crm_products.codes()) | labels
+
+
+def wa_retire_prefixes(old, actor=None):
+    """Stage-tag prefixes no longer used (a pipeline's changed tag) stay the portal's, so the sync keeps
+    taking those tags off. Never a live prefix, newest first, at most WA_RETIRED_PREFIX_MAX. Saves --
+    which commits -- only when the list changes. Returns the list."""
+    live = _wa_live_prefixes()
+    cur = [str(x).strip() for x in (crm_settings_raw().get(WA_RETIRED_PREFIXES_KEY) or []) if str(x).strip()]
+    out, seen = [], set()
+    for x in [str(o).strip() for o in (old or ()) if str(o).strip()] + cur:
+        if x.lower() not in live and x.lower() not in seen:
+            out.append(x)
+            seen.add(x.lower())
+    out = out[:WA_RETIRED_PREFIX_MAX]
+    if out != cur:
+        save_settings(actor, **{WA_RETIRED_PREFIXES_KEY: out})
+    return out
+
+
+def _wa_is_portal_tag(name, source_tags, rule=None):
     """`source_tags` comes from _wa_source_tags(), retired tags included."""
     n = (name or '').strip().lower()
     if n == OPT_OUT_TAG:
         return False                     # never taken off by the portal
-    products = [p.lower() for p in CRM_PRODUCTS]
-    return n in products or any(n.startswith(p + ': ') for p in products) or n in source_tags
+    codes, prefixes = rule or _wa_rule()
+    return n in codes or any(n.startswith(x + ': ') for x in prefixes) or n in source_tags
 
 
 def _wa_wanted_tags(person):
-    """The tags the portal puts on their contact: per product, the product ("ti") and where its
-    lead is ("TI: Prospect") -- the open lead, else the latest finished one, so Won / Lost stays
-    visible; every lead's source tags; and "opted-out" once they opted out."""
+    """The tags the portal puts on their contact: the product ("ti") of each lead, and per stage-tag
+    prefix (the product code, or the pipeline's own label) where its lead is ("TI: Prospect") -- the
+    open lead, else the latest finished one, so Won / Lost stays visible; every lead's source tags;
+    and "opted-out" once they opted out."""
     def rank(l):
         return (l.status == 'open', l.last_activity_at or l.created_at or datetime.min, l.id or 0)
     best, want = {}, set()
     for lead in person.leads:
-        if lead.product not in best or rank(lead) > rank(best[lead.product]):
-            best[lead.product] = lead
+        prefix = tag_prefix(lead)
+        if prefix not in best or rank(lead) > rank(best[prefix]):
+            best[prefix] = lead
         want |= {t for t in ((lead.source.crm_tags or []) if lead.source else []) if t}
-    for product, lead in best.items():
-        want.add(product.lower())
+    want |= {l.product.lower() for l in person.leads}
+    for prefix, lead in best.items():
         st = stage_tag(lead)
         if st:
             want.add(st)
@@ -849,25 +1304,27 @@ def _wa_wanted_tags(person):
     return want
 
 
-def _wa_tag_list(have, want, source_tags, drop=()):
+def _wa_tag_list(have, want, source_tags, drop=(), rule=None):
     """The contact's new tag list, or None when nothing changes. Tags set by hand in the WhatsApp
     CRM stay; a portal tag that no longer fits goes. Compared ignoring case, as it does. `drop`:
     names that go whatever else is true (the "opted-out" tag after an admin opted them back in)."""
+    rule = rule or _wa_rule()
     drop_l = {d.lower() for d in drop}
     want_l = {w.lower(): w for w in want if w.lower() not in drop_l}
     have_l = {h.lower() for h in have}
     final = [h for h in have if h.lower() not in drop_l
-             and (h.lower() in want_l or not _wa_is_portal_tag(h, source_tags))]
+             and (h.lower() in want_l or not _wa_is_portal_tag(h, source_tags, rule))]
     final += [w for k, w in want_l.items() if k not in have_l]
     return None if {f.lower() for f in final} == have_l else sorted(final)
 
 
-def _wa_drop_tags(contact_id, source_tags):
+def _wa_drop_tags(contact_id, source_tags, rule=None):
     from app.services import wacrm
+    rule = rule or _wa_rule()
     try:
         data = wacrm.get_contact(contact_id) or {}
         have = [t.get('name') for t in data.get('tags') or [] if isinstance(t, dict) and t.get('name')]
-        keep = [t for t in have if not _wa_is_portal_tag(t, source_tags)]
+        keep = [t for t in have if not _wa_is_portal_tag(t, source_tags, rule)]
         if len(keep) != len(have):
             wacrm.update_contact(contact_id, tags=sorted(keep))
     except Exception:      # noqa: BLE001 -- best effort; the contact keeps its old tags
@@ -972,7 +1429,7 @@ def _wa_fill_number(person, contact_id):
     return _digits(e164), None
 
 
-def _wa_sync_person(person, source_tags, now=None):
+def _wa_sync_person(person, source_tags, now=None, rule=None):
     """One person into step: their contact (made when new, and certainly theirs), its tags, name
     and e-mail, then -- only when the owner changed here, or they wrote from a chat nobody has --
     the chat to the owner. Somebody known only by their contact gets its number first.
@@ -1016,7 +1473,7 @@ def _wa_sync_person(person, source_tags, now=None):
         have = [t.get('name') for t in data.get('tags') or [] if isinstance(t, dict) and t.get('name')]
         untag = bool(person.wa_opt_in_due) and person.wa_opt_out_at is None
         tags = _wa_tag_list(have, _wa_wanted_tags(person), source_tags,
-                            drop=(OPT_OUT_TAG,) if untag else ())
+                            drop=(OPT_OUT_TAG,) if untag else (), rule=rule)
         if tags is not None:
             patch['tags'] = tags
         if name and 'name' in data and (data.get('name') or '').strip() != name:
@@ -1092,8 +1549,9 @@ def run_wa_sync(ids=None, cleanups=(), limit=None, budget=None, now=None):
     try:
         with wacrm.short_timeouts():
             source_tags = _wa_source_tags()
+            rule = _wa_rule()
             for contact_id in cleanups or ():
-                _wa_drop_tags(contact_id, source_tags)
+                _wa_drop_tags(contact_id, source_tags, rule)
             if ids is not None and not ids:
                 return out
             now = now or datetime.utcnow()
@@ -1109,7 +1567,7 @@ def run_wa_sync(ids=None, cleanups=(), limit=None, budget=None, now=None):
             for person in people:
                 if monotonic() - started > budget:
                     break
-                result = _wa_sync_person(person, source_tags, now)
+                result = _wa_sync_person(person, source_tags, now, rule=rule)
                 if result == 'ok':
                     out['crm_wa_synced'] += 1
                 elif result in ('failed', 'down'):
@@ -1429,7 +1887,7 @@ def _tell_closed_owner(lead):
     notify.push(lead.owner_id, 'crm_lead', title='%s wrote on WhatsApp' % lead.person.display_name,
                 body='Their %s lead is closed (%s), so it was not reopened. Answer in the WhatsApp chat, '
                      'or add a new lead if they want something new.'
-                     % (CRM_PRODUCT_LABELS.get(lead.product, lead.product), lead.status),
+                     % (crm_products.labels().get(lead.product, lead.product), lead.status),
                 link=_lead_link(lead))
 
 
@@ -1454,14 +1912,86 @@ def wa_failure_text(code=None, title=None, person=None):
 
 # ======================================================================================= tasks
 
+WAIT_NOTE = 'Waiting for the date'                 # a follow-up whose date was taken away (skipped, re-planned later)
+DATE_PHRASES = {'departure_date': 'the travel date', 'ends_on': 'the date the cover ends'}
+WAIT_TITLE = 'Needs %s'                             # "Needs the travel date"
+WAIT_FOR_DATE = 'Add %s to plan %d follow-up%s'     # "Add the travel date to plan 1 follow-up"
+REPLAN_MOVED = '%d follow-up%s moved to %s'         # "2 follow-ups moved to 10 Nov"
+REPLAN_MOVED_MANY = '%d follow-ups moved; the next is on %s'
+REPLAN_PLANNED = '%d follow-up%s planned for %s'
+REPLAN_WAITS = '%d follow-up%s now wait%s for %s'   # "1 follow-up now waits for the travel date"
+
+
+def lead_fields(pipeline):
+    """The details asked in this pipeline (CrmField rows for every pipeline, and its own), one per key,
+    the pipeline's own winning; in order."""
+    q = CrmField.query
+    if pipeline is not None:
+        q = q.filter(or_(CrmField.pipeline_id.is_(None), CrmField.pipeline_id == pipeline.id))
+    else:
+        q = q.filter(CrmField.pipeline_id.is_(None))
+    out = {}
+    for f in q.order_by(CrmField.position, CrmField.id).all():
+        if f.key not in out or f.pipeline_id is not None:
+            out[f.key] = f
+    return list(out.values())
+
+
+def date_fields(pipeline):
+    """[(key, label)] of every date a follow-up or a move can count from: the trip's two, then the
+    date details of the pipeline."""
+    return list(CRM_DATE_FIELDS.items()) + [(f.key, f.label) for f in lead_fields(pipeline) if f.type == 'date']
+
+
+def date_phrase(field, pipeline=None):
+    """"the travel date" -- the words for a date in a sentence."""
+    if field in DATE_PHRASES:
+        return DATE_PHRASES[field]
+    f = next((f for f in lead_fields(pipeline) if f.key == field), None)
+    if f is not None and f.label:
+        return 'the ' + f.label[:1].lower() + f.label[1:]
+    return 'the ' + (field or 'date').replace('_', ' ')
+
+
+def lead_date(lead, field):
+    """A date of the lead: the trip's two are columns, any other is a detail ("YYYY-MM-DD"). None when
+    missing or not a date."""
+    if field in CRM_DATE_FIELDS:
+        return getattr(lead, field, None)
+    v = (lead.details or {}).get(field)
+    try:
+        return datetime.strptime(str(v), '%Y-%m-%d').date() if v else None
+    except ValueError:
+        return None
+
+
+def step_date_field(step):
+    """Which date a step counts from, or None (hours after the last step). Reads the old trigger
+    names too: rows from before s5crm009."""
+    trig = getattr(step, 'trigger', None)
+    if trig == 'date_offset':
+        return getattr(step, 'trigger_field', None) or 'departure_date'
+    return CRM_LEGACY_TRIGGERS.get(trig)
+
+
+def step_offset_days(step):
+    """Days from the date: negative is before it."""
+    v = step.trigger_value or 0
+    if step.trigger == 'date_offset':
+        return v
+    return -v if step.trigger in CRM_LEGACY_TRIGGERS else 0
+
+
 def _due(step, lead, base):
-    if step.trigger in ('before_departure_days', 'before_end_days'):
-        anchor = lead.departure_date if step.trigger == 'before_departure_days' else lead.ends_on
-        if anchor:
-            day = anchor - timedelta(days=step.trigger_value or 0)
-            at = datetime.combine(day, time(9, 0)) - IST      # 9 am in India
-            return max(at, base)
-        return base + timedelta(hours=24)
+    """When a follow-up is due: hours after `base`, or 9 am India time N days before / after a date of
+    the lead -- never before `base`. None when that date is missing: it waits for it (no 24-hour guess)."""
+    field = step_date_field(step)
+    if field:
+        anchor = lead_date(lead, field)
+        if anchor is None:
+            return None
+        at = datetime.combine(anchor + timedelta(days=step_offset_days(step)), time(9, 0)) - IST   # 9 am in India
+        return max(at, base)
     return base + timedelta(hours=step.trigger_value or 0)
 
 
@@ -1473,18 +2003,225 @@ def _next_step(stage, after=None):
 
 
 def plan_next(lead, after_step=None, base=None):
-    """Put the stage's next step on the owner's list. Returns the task, or None at the end."""
+    """Put the stage's next step on the owner's list. Returns the task, or None at the end -- or while
+    the next one waits for a date the lead does not have yet."""
     if lead.source and lead.source.status == 'paused':
         return None
     step = _next_step(lead.stage, after_step)
     if step is None:
         return None
     base = base or datetime.utcnow()
+    due = _due(step, lead, base)
+    if due is None:
+        return None
     task = CrmTask(lead=lead, step=step, code=step.code, title=step.title, channel=step.channel,
-                   auto=bool(step.auto), due_at=_due(step, lead, base), owner_id=lead.owner_id)
+                   auto=bool(step.auto), due_at=due, owner_id=lead.owner_id)
     db.session.add(task)
     db.session.flush()
     return task
+
+
+def _pending_step(lead):
+    """(step done last, the step that comes next) for a lead with nothing open or being sent in its
+    stage, from its loaded tasks; None when there is no stage, something is open, or its source is paused."""
+    if lead.stage is None or (lead.source and lead.source.status == 'paused'):
+        return None
+    if any(t.status in ('open', 'sending') for t in lead.tasks):
+        return None
+    since = lead.entered_stage_at or datetime.min
+    done = [t for t in lead.tasks if t.step is not None and t.step.stage_id == lead.stage_id
+            and (t.created_at or datetime.min) >= since and t.note != WAIT_NOTE]
+    after = max(done, key=lambda t: (t.created_at or datetime.min, t.id or 0)).step if done else None
+    step = _next_step(lead.stage, after)
+    return (after, step) if step is not None else None
+
+
+def _waiting(lead):
+    """(step done last, the next step, the date it needs) when the next follow-up waits for a date."""
+    pend = _pending_step(lead)
+    if pend is None:
+        return None
+    after, step = pend
+    field = step_date_field(step)
+    if field and lead_date(lead, field) is None:
+        return after, step, field
+    return None
+
+
+def waiting_line(lead):
+    """{'title', 'text', 'field', 'label'} for the lead card when the next follow-up needs a date the
+    lead lacks ("Needs the travel date" / "Add the travel date to plan 1 follow-up"), else None."""
+    w = _waiting(lead)
+    if w is None:
+        return None
+    _after, step, field = w
+    n = sum(1 for s in lead.stage.steps if s.position >= step.position and step_date_field(s) == field)
+    phrase = date_phrase(field, lead.pipeline)
+    return {'title': WAIT_TITLE % phrase, 'text': WAIT_FOR_DATE % (phrase, n, '' if n == 1 else 's'),
+            'field': field, 'label': CRM_DATE_FIELDS.get(field)}
+
+
+def _day_text(dt):
+    d = (dt + IST).date()
+    return '%d %s' % (d.day, d.strftime('%b'))
+
+
+def replan_dates(lead, fields, now=None):
+    """Dates of this lead changed (departure_date, ends_on, a date detail): every open follow-up that counts
+    from one gets its new time; one whose date was taken away waits again (skipped as WAIT_NOTE); one that
+    waited is planned now. Moves by themselves read the date at each jobs run, so they follow anyway.
+    Conditional UPDATEs: a follow-up being sent (status "sending") is never touched. The toast, or None."""
+    now = now or datetime.utcnow()
+    moved, planned, waiting, wait_field = [], [], 0, None
+    for t in list(lead.tasks):
+        if t.status != 'open' or t.step is None or step_date_field(t.step) not in fields:
+            continue
+        due = _due(t.step, lead, now)
+        if due is None:
+            n = (CrmTask.query.filter(CrmTask.id == t.id, CrmTask.status == 'open')
+                 .update({'status': 'skipped', 'done_at': now, 'note': WAIT_NOTE}, synchronize_session=False))
+            if n:
+                waiting += 1
+                wait_field = step_date_field(t.step)
+        elif due != t.due_at:
+            n = (CrmTask.query.filter(CrmTask.id == t.id, CrmTask.status == 'open')
+                 .update({'due_at': due}, synchronize_session=False))
+            if n:
+                moved.append(due)
+        db.session.expire(t)
+    pend = _pending_step(lead)
+    if pend is not None:
+        after, step = pend
+        if step_date_field(step) in fields and _due(step, lead, now) is not None:
+            t = plan_next(lead, after_step=after, base=now)
+            if t is not None:
+                planned.append(t.due_at)
+    if moved:
+        everything = moved + planned
+        days = {_day_text(d) for d in everything}
+        if len(days) == 1:
+            return REPLAN_MOVED % (len(everything), '' if len(everything) == 1 else 's', days.pop())
+        return REPLAN_MOVED_MANY % (len(everything), _day_text(min(everything)))
+    if planned:
+        return REPLAN_PLANNED % (len(planned), '' if len(planned) == 1 else 's', _day_text(min(planned)))
+    if waiting:
+        return REPLAN_WAITS % (waiting, '' if waiting == 1 else 's', 's' if waiting == 1 else '',
+                               date_phrase(wait_field, lead.pipeline))
+    return None
+
+
+def uses_date(pipeline, field):
+    """Whether a follow-up or a move by itself of this pipeline counts from `field` (one query)."""
+    if pipeline is None:
+        return False
+    if any(st.auto_field == field for st in pipeline.stages):
+        return True
+    return (db.session.query(CrmPlaybookStep.id).join(CrmStage, CrmStage.id == CrmPlaybookStep.stage_id)
+            .filter(CrmStage.pipeline_id == pipeline.id, CrmPlaybookStep.trigger == 'date_offset',
+                    CrmPlaybookStep.trigger_field == field).first() is not None)
+
+
+def next_step_code(pipeline, kind):
+    """A new follow-up's code: its kind's prefix (PI, CE, BW, FM, PM, ER, PF; FU for other), or for a
+    first contact the pipeline's product code, with the next free number in that pipeline ("TI #5")."""
+    from app.services.crm_defaults import STEP_KIND_CODES
+    prefix = STEP_KIND_CODES.get(kind) or (pipeline.product if pipeline else crm_products.general_code())
+    pat = re.compile(r'^%s(?:\s*#\s*(\d+))?$' % re.escape(prefix), re.I)
+    used = [int(m.group(1) or 1) for st in (pipeline.stages if pipeline else []) for s_ in st.steps
+            for m in [pat.match((s_.code or '').strip())] if m]
+    return '%s #%d' % (prefix, max(used) + 1 if used else 1)
+
+
+def _plural(n):
+    return '' if n == 1 else 's'
+
+
+def _date_words(field, pipeline, n):
+    """The words after the days: "before they travel", "after the cover ends", "on <label>"."""
+    sign = 'before' if n < 0 else 'after' if n > 0 else 'on'
+    if field == 'departure_date':
+        return {'before': 'before they travel', 'after': 'after they travel', 'on': 'on the day they travel'}[sign]
+    if field == 'ends_on':
+        return {'before': 'before the cover ends', 'after': 'after the cover ends',
+                'on': 'on the day the cover ends'}[sign]
+    f = next((f for f in lead_fields(pipeline) if f.key == field), None)
+    label = f.label if f is not None else (field or 'the date').replace('_', ' ')
+    return '%s %s' % (sign, label)
+
+
+def step_when(step):
+    """When a follow-up happens, in words: "right away", "2 days after the last follow-up",
+    "3 days before they travel"."""
+    field = step_date_field(step)
+    if field:
+        n = step_offset_days(step)
+        pipe = step.stage.pipeline if getattr(step, 'stage', None) is not None else None
+        words = _date_words(field, pipe, n)
+        return words if n == 0 else '%d day%s %s' % (abs(n), _plural(abs(n)), words)
+    v = step.trigger_value or 0
+    if v == 0:
+        return 'right away'
+    if v % 24 == 0:
+        return '%d day%s after the last follow-up' % (v // 24, _plural(v // 24))
+    return '%d hour%s after the last follow-up' % (v, _plural(v))
+
+
+def step_sentence(step):
+    """A follow-up in words, for How we sell: 'WhatsApp “Welcome” right away, goes by itself'."""
+    out = '%s “%s” %s' % (CRM_CHANNEL_LABELS.get(step.channel, step.channel), step.title, step_when(step))
+    return out + (', goes by itself' if step.auto and step.channel == 'whatsapp' else '')
+
+
+def auto_sentence(stage):
+    """What a stage does by itself, in words: 'moves by itself after 3 days with no reply, to Closed'."""
+    kind, days = stage.auto_kind, stage.auto_days or 0
+    if kind == 'departed':
+        kind = 'after_date'
+    to = stage.auto_to.name if stage.auto_to else ''
+    if kind == 'no_reply':
+        return 'moves by itself after %d day%s with no reply, to %s' % (days, _plural(days), to)
+    if kind == 'in_stage':
+        return 'moves by itself after %d day%s in this stage, to %s' % (days, _plural(days), to)
+    field = stage.auto_field or 'departure_date'
+    when = (_date_words(field, stage.pipeline, 0) if days == 0
+            else '%d day%s %s' % (days, _plural(days), _date_words(field, stage.pipeline, 1)))
+    return 'moves by itself %s, to %s' % (when, to)
+
+
+def auto_move_words(stage):
+    """When a stage moves its leads by itself: "after 3 days with no reply", "after 7 days in this stage",
+    "2 days after they travel"."""
+    kind, days = stage.auto_kind, stage.auto_days or 0
+    if kind == 'departed':
+        kind = 'after_date'
+    if kind == 'no_reply':
+        return 'after %d day%s with no reply' % (days, _plural(days))
+    if kind == 'in_stage':
+        return 'after %d day%s in this stage' % (days, _plural(days))
+    field = stage.auto_field or 'departure_date'
+    if days == 0:
+        return _date_words(field, stage.pipeline, 0)
+    return '%d day%s %s' % (days, _plural(days), _date_words(field, stage.pipeline, 1))
+
+
+def auto_text(stage):
+    """What a stage does by itself, in words: "7 days without a reply → Closed"."""
+    kind, field = stage.auto_kind, stage.auto_field or 'departure_date'
+    if kind == 'departed':
+        kind = 'after_date'
+    days = stage.auto_days or 0
+    if kind == 'no_reply':
+        words = 'without a reply'
+    elif kind == 'in_stage':
+        words = 'in this stage'
+    elif field == 'departure_date':
+        words = 'after travel'
+    elif field == 'ends_on':
+        words = 'after the cover ends'
+    else:
+        f = next((f for f in lead_fields(stage.pipeline) if f.key == field), None)
+        words = 'after %s' % (f.label if f is not None else field.replace('_', ' '))
+    return '%d day%s %s → %s' % (days, _plural(days), words, stage.auto_to.name if stage.auto_to else '')
 
 
 def complete_task(task, user=None, skipped=False, note=None):
@@ -1611,6 +2348,87 @@ def no_answer_streak(lead):
     return n
 
 
+# ======================================================================================= lead details
+
+def clean_detail(field, value):
+    """(value, why) for a lead detail typed on screen: the value worked out for the field's type, or why not."""
+    t = field.type
+    if t == 'date':
+        v = value.strip() if isinstance(value, str) else ('' if value is None else str(value))
+        try:
+            if v:
+                datetime.strptime(v, '%Y-%m-%d')
+        except ValueError:
+            return None, 'Use a real date.'
+        return v, None
+    if t == 'number':
+        try:
+            return (float(value) if str(value if value is not None else '').strip() != '' else ''), None
+        except (TypeError, ValueError):
+            return None, 'Use a number.'
+    if t == 'choice':
+        v = value.strip() if isinstance(value, str) else ''
+        if v and v not in (field.options or []):
+            return None, 'Choose one of the choices.'
+        return v, None
+    if t == 'yesno':
+        if isinstance(value, bool):
+            return value, None
+        word = str(value if value is not None else '').strip().lower()
+        if word in ('yes', 'true', '1', 'on'):
+            return True, None
+        if word in ('no', 'false', '0', 'off'):
+            return False, None
+        return '', None
+    return str(value if value is not None else '').strip()[:300], None
+
+
+def detail_text(field, value):
+    """A lead detail as it reads on the card."""
+    if value in (None, '', [], {}):
+        return '—'
+    if field.type == 'date':
+        try:
+            d = datetime.strptime(str(value), '%Y-%m-%d')
+            return '%d %s %d' % (d.day, d.strftime('%b'), d.year)
+        except ValueError:
+            return str(value)
+    if field.type == 'yesno':
+        return 'Yes' if value is True or str(value).lower() in ('yes', 'true', '1') else 'No'
+    if field.type == 'number':
+        try:
+            return '%g' % float(value)
+        except (TypeError, ValueError):
+            return str(value)
+    return str(value)
+
+
+def card_fields(lead):
+    """[(field, value)] the lead card shows: the pipeline's details marked "Show on the lead card"."""
+    have = lead.details or {}
+    return [(f, have.get(f.key)) for f in lead_fields(lead.pipeline) if f.on_card]
+
+
+def other_details(lead):
+    """[(label, value)] of the details a lead has that no field of its pipeline shows on the card."""
+    fields = {f.key: f for f in lead_fields(lead.pipeline)}
+    shown = {f.key for f in fields.values() if f.on_card}
+    out = []
+    for k, v in (lead.details or {}).items():
+        if k.startswith('_') or k in shown:
+            continue
+        f = fields.get(k)
+        out.append((f.label if f is not None else k.replace('_', ' ').capitalize(), v))
+    return out
+
+
+def add_fields(tiles):
+    """{product code: [fields asked when adding a lead]} for the tiles on Add a lead; '' is "Something else"."""
+    out = {p.code: [f for f in lead_fields(crm_products.default_pipeline(p.code)) if f.on_add] for p in tiles}
+    out[''] = [f for f in lead_fields(crm_products.default_pipeline(None)) if f.on_add]
+    return out
+
+
 # ======================================================================================= messages
 
 def first_name(text):
@@ -1626,7 +2444,7 @@ def fill_values(lead, user=None):
         'name': first_name(lead.person.name) or 'there',
         'agent': first_name(getattr(owner, 'first_name', None) or getattr(owner, 'username', None))
                  or 'the NRI Parent Service team',
-        'product': CRM_PRODUCT_LABELS.get(lead.product, '').lower(),
+        'product': crm_products.labels().get(lead.product, '').lower(),
         'departure': lead.departure_date.strftime('%d %b') if lead.departure_date else 'soon',
         'days': lead.days_to_departure if lead.days_to_departure is not None else 'a few',
         'ends': lead.ends_on.strftime('%d %b') if lead.ends_on else 'soon',
@@ -1837,7 +2655,7 @@ def _template_held(lead, name, step):
     info = wa_templates.template_info(name)
     if _us_marketing(lead, info):
         return WA_US_MARKETING
-    have, want = info.get('variables'), wa_templates.blanks(step.body if step is not None else '')
+    have, want = info.get('variables'), (wa_templates.step_blanks(step) if step is not None else 0)
     if have is not None and have != want:
         return WA_BLANKS % (_blanks_text(have), _blanks_text(want))
     return None
@@ -1855,7 +2673,7 @@ def send_plan(lead, step=None, confirm=False, by_hand=False, window_open=None):
 
     Screens leave `confirm` off, so nothing is asked while a page draws; a send asks the WhatsApp
     CRM when they last wrote (whatsapp_window_open). `by_hand`: a person presses Send in the lead
-    page's box, so "Keep leads in step" is enough (not only "...and send"). `window_open`: whether
+    page's box, so "Keep contacts in step" is enough (not only "send follow-ups"). `window_open`: whether
     their chat is open, already known (My day, from one batched query): nothing is asked."""
     from app.services import wa_templates
     name = step.wa_template if step is not None else None
@@ -1978,11 +2796,13 @@ def send_step(lead, task, user=None, text=None, plan=None, auto=False):
         return {'mode': 'blocked', 'reason': plan['reason']}
     if plan['mode'] == 'template':
         phone, name = lead.person.phone, plan['template']
-        params = wa_templates.params(step.body, fill_values(lead, user))      # worked out before the claim
+        params = wa_templates.step_params(step, fill_values(lead, user))      # worked out before the claim
         outcome, value = _wa_send(task, lambda: wacrm.send_template(phone, name, language=wa_templates.LANGUAGE,
                                                                      params=params))
         if outcome != 'sent':
             return _send_outcome(outcome, value)
+        # the timeline shows the approved words, filled in with the values that went
+        body = wa_templates.template_text(name, params) or body
         log_touch(lead, 'whatsapp', 'out', body=body, code=code, user=user, status='sent', external_id=value,
                   via='auto' if auto else None)
         if task is not None:
@@ -2096,8 +2916,8 @@ def wa_ensure_chat(person, create=True, assign_email=None, now=None):
 
 def send_by_hand(lead, user, kind, text=None, template=None, params=None, task=None, answer=None):
     """A message a person chose to send from the lead page's box (or the card beside WhatsApp chats):
-    free text inside the 24 hours, or an approved template. Works in "Keep leads in step" and "...and
-    send"; never in Off. The chat is ensured first and must be theirs (wa_ensure_chat); a follow-up it
+    free text inside the 24 hours, or an approved template. Works in "Keep contacts in step" and "Keep in
+    step and send follow-ups"; never in Not yet. The chat is ensured first and must be theirs (wa_ensure_chat); a follow-up it
     carries out -- the one given, else the due WhatsApp follow-up with this template -- is taken before
     it goes, so nothing goes twice, and ticked only once WhatsApp took it. Never a wa.me link.
     {'mode': 'sent' | 'unsure' | 'off' | 'blocked' | 'taken' | 'window_closed' | 'wrong_number' |
@@ -2128,7 +2948,7 @@ def send_by_hand(lead, user, kind, text=None, template=None, params=None, task=N
             return {'mode': 'blocked', 'reason': WA_US_MARKETING}
         if params is None and task is not None and task.step is not None and task.step.wa_template == template:
             values = fill_values(lead, user)
-            params = wa_templates.params(task.step.body, values)
+            params = wa_templates.step_params(task.step, values)
         params = [str(p).strip() for p in params or []]
         need = info.get('variables')
         if (need is not None and len(params) != need) or any(not p for p in params):
@@ -2204,9 +3024,9 @@ def box_templates(lead, user=None):
         name, n = t['name'], t.get('variables')
         warn = None
         if name == pick:
-            fills = wa_templates.params(step.body, values)
-            if n is not None and wa_templates.blanks(step.body) != n:
-                warn = WA_BLANKS % (_blanks_text(n), _blanks_text(wa_templates.blanks(step.body)))
+            fills = wa_templates.step_params(step, values)
+            if n is not None and wa_templates.step_blanks(step) != n:
+                warn = WA_BLANKS % (_blanks_text(n), _blanks_text(wa_templates.step_blanks(step)))
         elif name in kf:
             fills = list(kf[name]['fill'])
         else:
@@ -2452,6 +3272,7 @@ def run_auto_steps(now=None, limit=200, budget=None):
       they opted out               never sent by itself
       overdue by over a day        "Was due ...; check before sending" (switching sending on does
                                    not send the backlog)
+      they are waiting for us      they wrote after it was planned: it waits (a person answers first)
       needs their OK               a first message (a template) to somebody who neither ticked
                                    WhatsApp on a form nor wrote to us, while Set-up asks for it
       WhatsApp would not take it   no approved template outside the 24 hours, a US number, other
@@ -2469,6 +3290,8 @@ def run_auto_steps(now=None, limit=200, budget=None):
     due = (CrmTask.query.filter(CrmTask.status == 'open', CrmTask.auto.is_(True),
                                 CrmTask.channel == 'whatsapp', CrmTask.due_at <= now)
            .order_by(CrmTask.due_at).limit(limit).all())
+    from app.services import crm_metrics
+    touches = crm_metrics.last_touches({t.lead.person_id for t in due})
     for task in due:
         if monotonic() - started > budget:
             break                                          # the rest go next run
@@ -2486,6 +3309,9 @@ def run_auto_steps(now=None, limit=200, budget=None):
             if task.due_at < now - WA_AUTO_LATE:
                 _auto_hold(task, WA_LATE % (task.due_at + IST).strftime('%d %b'))
                 continue
+            last = (touches.get(person.id) or {}).get('reply_last')
+            if last and last[1] == 'in' and last[2] > (task.created_at or datetime.min):
+                continue      # they wrote after it was planned and nobody answered: it waits for a person (next run again)
             plan = send_plan(lead, task.step, confirm=True)
             if plan['mode'] in ('link', 'blocked'):
                 # nothing that WhatsApp will let us send by itself: back to the owner's list, once,
@@ -2508,6 +3334,18 @@ def run_auto_steps(now=None, limit=200, budget=None):
             db.session.rollback()
             log.warning('CRM auto step %s failed', task.id, exc_info=True)
     return {'crm_auto_sent': sent, 'crm_sends_to_check': _stuck(now).count()}
+
+
+def auto_send_preview(now=None):
+    """What switching to "Keep in step and send follow-ups" would do now: {'now': open follow-ups marked to go
+    by themselves that are due and were due within WA_AUTO_LATE (run_auto_steps may send them; each still checks
+    the template, their OK and that they are not waiting on us), 'older': due longer ago (run_auto_steps puts
+    those back on the owner's list and never sends them)}. Two counts."""
+    now = now or datetime.utcnow()
+    q = CrmTask.query.filter(CrmTask.status == 'open', CrmTask.auto.is_(True), CrmTask.channel == 'whatsapp',
+                             CrmTask.due_at <= now)
+    recent = q.filter(CrmTask.due_at >= now - WA_AUTO_LATE).count()
+    return {'now': recent, 'older': q.filter(CrmTask.due_at < now - WA_AUTO_LATE).count()}
 
 
 def _auto_hold(task, note):
@@ -2551,25 +3389,37 @@ def settle_send(task, went, user=None):
 
 def run_stage_automations(now=None, limit=500):
     """The stages that move leads by themselves (Set-up -> Pipelines): after N days with no reply
-    from them, or N days after the trip starts. The reason is recorded like a person's move."""
+    from them, N days in the stage, or N days after a date of the lead (the trip, the cover ending, a
+    date detail). In the last two only forward -- never back to an earlier open stage -- and a closed
+    lead never moves. The reason is recorded like a person's move."""
     now = now or datetime.utcnow()
     today = (now + IST).date()
     moved = 0
     for st in CrmStage.query.filter(CrmStage.auto_kind.isnot(None), CrmStage.auto_to_id.isnot(None)).all():
-        days = max(st.auto_days or 0, 0)
-        target = st.auto_to
+        days, target, kind = max(st.auto_days or 0, 0), st.auto_to, st.auto_kind
         if target is None or target.pipeline_id != st.pipeline_id or target.id == st.id:
             continue
+        field = st.auto_field or 'departure_date'
+        if kind == 'departed':                 # rows from before s5crm009 (none after it)
+            kind, field = 'after_date', 'departure_date'
+        if kind in ('in_stage', 'after_date') and not (target.kind != 'open' or target.position > st.position):
+            continue                           # forward only: no loops
         q = CrmLead.query.filter(CrmLead.stage_id == st.id, CrmLead.status == 'open')
-        if st.auto_kind == 'no_reply':
+        if kind in ('no_reply', 'in_stage'):
             q = q.filter(CrmLead.entered_stage_at <= now - timedelta(days=days))
-        elif st.auto_kind == 'departed':
-            q = q.filter(CrmLead.departure_date.isnot(None),
-                         CrmLead.departure_date <= today - timedelta(days=days))
+        elif kind == 'after_date' and field in CRM_DATE_FIELDS:
+            col = getattr(CrmLead, field)
+            q = q.filter(col.isnot(None), col <= today - timedelta(days=days))
+        elif kind == 'after_date':
+            q = q.filter(CrmLead.details.isnot(None))
         else:
             continue
         for lead in q.limit(limit).all():
-            if st.auto_kind == 'no_reply':
+            if kind == 'after_date' and field not in CRM_DATE_FIELDS:
+                d = lead_date(lead, field)
+                if d is None or d > today - timedelta(days=days):
+                    continue
+            if kind == 'no_reply':
                 heard = (CrmTouchpoint.query.filter(CrmTouchpoint.lead_id == lead.id,
                                                     CrmTouchpoint.direction == 'in',
                                                     CrmTouchpoint.channel != 'form',
@@ -2691,51 +3541,242 @@ def wa_webhook_health(now=None):
     return {'crm_wa_webhook': problem or 'ok'}
 
 
-EVENTS = {
-    # code: (what happened, the stage it moves the lead to, if the pipeline has it)
-    'Q': ('I sent the quote', 'quoted'),
-    'PLS': ('I sent the payment link', 'pipeline'),
-}
-MILESTONES = frozenset(EVENTS)
+WA_RULES_KEY = 'crm_wa_rules'         # own settings row: checked_at, seen_at, conflicts [{id, name, why}], told [id], old
+WA_RULES_EVERY = timedelta(hours=24)
+RULE_STRIP_ONE = '⚠ 1 reply rule may repeat our follow-ups: “%s”'
+RULE_STRIP_MANY = '⚠ %d reply rules may repeat our follow-ups: %s'
+RULE_BELL = 'A reply rule may repeat our follow-ups'
+RULE_BELL_BODY = '“%s” %s. Pause it in Reply rules, or check it does not repeat a follow-up.'
+
+
+def is_sales_tag(name):
+    """A tag the Sales CRM writes (contract 16's rule as this portal keeps it): a product, a stage tag, a source
+    tag (retired ones too) or "opted-out"."""
+    n = (name or '').strip().lower()
+    return n == OPT_OUT_TAG or _wa_is_portal_tag(n, _wa_source_tags())
+
+
+def rule_conflict(item):
+    """Why a WhatsApp reply rule may repeat our follow-ups, in words, or None: it is on, it sends a message
+    (contract 4 `sends`), and it starts when a Sales tag is added, a chat is given to someone, a new contact is
+    made, or on a schedule for everyone or for people with a Sales tag (a schedule on free tags only is left out:
+    nothing the Sales CRM does adds people to it)."""
+    if not (item.get('active') and item.get('sends')):
+        return None
+    kind = item.get('trigger_type')
+    tags = [str(t) for t in item.get('trigger_tags') or []]
+    sales = next((t for t in tags if is_sales_tag(t)), None)
+    if kind == 'tag_added' and sales:
+        return 'sends when “%s” is added' % sales
+    if kind == 'time_based':
+        if not tags:
+            return 'sends on a schedule to everyone'
+        if sales:
+            return 'sends on a schedule to people tagged “%s”' % sales
+        return None
+    if kind == 'conversation_assigned':
+        return 'sends when a chat is given to someone'
+    if kind == 'new_contact_created':
+        return 'sends when a new contact is made'
+    return None
+
+
+def rule_conflicts(items):
+    """[{'id', 'name', 'why'}] for the reply rules rule_conflict flags, in the WhatsApp CRM's order."""
+    out = []
+    for item in items or []:
+        why = rule_conflict(item)
+        if why:
+            out.append({'id': str(item.get('id')), 'name': str(item.get('name') or ''), 'why': why})
+    return out
+
+
+def rule_strip(conflicts):
+    """The one-line warning for a list of conflicts: RULE_STRIP_ONE / RULE_STRIP_MANY (three names, then ...)."""
+    if not conflicts:
+        return ''
+    if len(conflicts) == 1:
+        return RULE_STRIP_ONE % conflicts[0]['name']
+    shown = ', '.join('“%s”' % c['name'] for c in conflicts[:3]) + (' …' if len(conflicts) > 3 else '')
+    return RULE_STRIP_MANY % (len(conflicts), shown)
+
+
+def remember_rule_conflicts(items, now=None):
+    """A page just read the reply rules: keep their conflicts for the Reply rules frame (no bell; the daily
+    check rings). Saves its row (commits). Returns the conflicts."""
+    from app.services import settings
+    now = now or datetime.utcnow()
+    conflicts = rule_conflicts(items)
+    state = dict(settings.get_setting(WA_RULES_KEY) or {})
+    state.update(conflicts=conflicts, seen_at=now.isoformat(timespec='seconds'), old=False)
+    settings.set_setting(WA_RULES_KEY, state)
+    return conflicts
+
+
+def known_rule_conflicts():
+    """The conflicts last seen (a page or the daily check), without asking the WhatsApp CRM: (conflicts, when)."""
+    from app.services import settings
+    state = settings.get_setting(WA_RULES_KEY) or {}
+    conflicts = [c for c in state.get('conflicts') or [] if isinstance(c, dict) and c.get('id')]
+    return conflicts, _parse_utc(state.get('seen_at'))
+
+
+def check_automation_conflicts(now=None):
+    """The jobs runner, once a day: read the WhatsApp CRM's reply rules (contract 4) and ring the admins once for
+    each NEW rule that may repeat our follow-ups (RULE_BELL). Only where the WhatsApp team link is set up.
+    {} when it is not time yet or not connected; {'crm_reply_rules': n | 'old' | 'failed'}."""
+    from app.services import notify, settings, wacrm, wacrm_team
+    if not (wacrm_team.enabled() and wacrm_team.linked_workspace() is not None):
+        return {}
+    now = now or datetime.utcnow()
+    state = dict(settings.get_setting(WA_RULES_KEY) or {})
+    checked = _parse_utc(state.get('checked_at'))
+    if checked is not None and now - checked < WA_RULES_EVERY:
+        return {}
+    try:
+        with wacrm.short_timeouts():
+            items = wacrm_team.automations()
+    except wacrm_team.TeamError as exc:
+        if exc.status == 404:                    # an older WhatsApp CRM: no list, nothing to ring about
+            state.update(old=True, checked_at=now.isoformat(timespec='seconds'))
+            settings.set_setting(WA_RULES_KEY, state)
+            return {'crm_reply_rules': 'old'}
+        log.warning('Reply rules not read from the WhatsApp CRM: %s', exc)
+        return {'crm_reply_rules': 'failed'}     # checked_at stays: the next run tries again
+    conflicts = rule_conflicts(items)
+    told = {str(i) for i in state.get('told') or []}
+    admins = User.query.filter(User.is_admin.is_(True), User.is_active.is_(True)).all()
+    for c in conflicts:
+        if c['id'] in told:
+            continue
+        for u in admins:
+            notify.push(u.id, 'crm_rules', title=RULE_BELL, body=RULE_BELL_BODY % (c['name'], c['why']),
+                        link='/admin/crm/automatic')
+    state.update(checked_at=now.isoformat(timespec='seconds'), seen_at=now.isoformat(timespec='seconds'),
+                 conflicts=conflicts, told=[c['id'] for c in conflicts], old=False)
+    settings.set_setting(WA_RULES_KEY, state)      # commits the bells too
+    return {'crm_reply_rules': len(conflicts)}
+
+
+LEGACY_MILESTONES = {'Q': 'I sent the quote', 'PLS': 'I sent the payment link'}  # old rows (WhatsApp "out" until U3)
 
 
 def owner_line(before, after):
     return OWNER_LINE % (before.full_name if before else NOBODY, after.full_name if after else NOBODY)
 
 
+def milestones(lead):
+    """The lead page's buttons, one per stage with a "Button on the lead": [(code, label, stage name)]."""
+    return [(s.button_code, s.button_label, s.name) for s in (lead.pipeline.stages if lead.pipeline else [])
+            if s.button_label and s.button_code]
+
+
+def milestone_stage(pipeline, code):
+    """The stage of this pipeline whose button has this code, or None."""
+    c = (code or '').strip().upper()
+    if not c:
+        return None
+    return next((s for s in (pipeline.stages if pipeline else []) if s.button_label
+                 and (s.button_code or '').upper() == c), None)
+
+
+def milestone_ask(stage):
+    """What moving into a stage with a button asks first: "Did you send the quote?" for "I sent the quote",
+    else 'Log “<label>” too?'. '' without a button."""
+    label = (getattr(stage, 'button_label', None) or '').strip()
+    if not label or not getattr(stage, 'button_code', None):
+        return ''
+    if label.lower().startswith('i sent '):
+        return 'Did you send %s?' % label[7:].rstrip(' .?!')
+    return 'Log “%s” too?' % label
+
+
 def mark_event(lead, code, user=None, note=None):
-    """A button on the lead: I sent the quote (Q) / I sent the payment link (PLS). A person says they
-    did it: a system line under its code, never a WhatsApp message, and nothing goes to the customer.
-    The lead moves forward to the matching stage -- never back. Returns the stage it moved to."""
-    label, stage_key = EVENTS[code]
-    log_touch(lead, 'system', 'none', body=note or label, code=code, user=user)
-    target = next((s for s in (lead.pipeline.stages if lead.pipeline else []) if s.key == stage_key), None)
+    """A button on the lead: a person says they did it. A system line under the stage's code -- never a
+    WhatsApp message, nothing goes to the customer -- and the lead moves forward to that stage, never back.
+    Returns the stage it moved to. ValueError for a code no stage of the lead's pipeline has."""
+    stage = milestone_stage(lead.pipeline, code)
+    if stage is None:
+        raise ValueError(code)
+    log_touch(lead, 'system', 'none', body=('%s: %s' % (stage.button_label, note)) if note else stage.button_label,
+              code=stage.button_code, user=user)
     moved = None
-    if target is not None and lead.status == 'open' and lead.stage and target.position > lead.stage.position:
-        move_stage(lead, target, user=user, reason=label)
-        moved = target
+    if lead.status == 'open' and lead.stage and stage.position > lead.stage.position:
+        move_stage(lead, stage, user=user, reason=stage.button_label)
+        moved = stage
     db.session.commit()
     return moved
 
 
-def ready_message_code(lead, text, user=None):
-    """The ready message (BW, FM, HJ...) `text` is, as a quick reply picked in the WhatsApp inbox
-    would read for this lead -- so it is counted under its code like one sent from here. None when
-    it is not one of them (or was changed before sending)."""
+def answer_kind(a):
+    """A quick reply's "Type (for the numbers)": '' for a plain answer (no code), else the kind its code reads as
+    (crm_defaults.step_kind)."""
+    if not a.code:
+        return ''
+    from app.services import crm_defaults
+    return crm_defaults.step_kind(a.code, set(crm_products.codes()))
+
+
+def answer_code(kind, product, current=None, exclude_id=None):
+    """The code a quick reply gets for this type: None for a plain answer; its own code while the type still
+    reads the same (HJ stays HJ under Other); else the kind's prefix (crm_defaults.STEP_KIND_CODES; a first
+    contact uses the product's code), bare when no other reply has it, else "BW #2", "BW #3" ... Unknown kinds
+    keep `current`."""
+    if not kind:
+        return None
+    from app.models import CRM_STEP_KINDS
+    from app.services import crm_defaults
+    if kind not in CRM_STEP_KINDS:
+        return current
+    if current and crm_defaults.step_kind(current, set(crm_products.codes())) == kind:
+        return current
+    prefix = (product or crm_products.general_code()) if kind == 'first' else crm_defaults.STEP_KIND_CODES.get(kind, 'FU')
+    taken = {(c or '').strip().upper() for (c,) in db.session.query(CrmAnswer.code)
+             .filter(CrmAnswer.code.isnot(None), CrmAnswer.id != (exclude_id or -1)).all()}
+    if prefix.upper() not in taken:
+        return prefix
+    n = 2
+    while '%s #%d' % (prefix, n) in {t for t in taken}:
+        n += 1
+    return '%s #%d' % (prefix, n)
+
+
+def quick_reply_used(lead, text, user=None):
+    """The quick reply `text` is, as WhatsApp chats fill it in for this lead -- their first name (or "there") and
+    the first name of whoever sent it or of whoever looks after the lead (or "there") -- with its use counted.
+    None when it is none of them, or it was changed before it went. Replies with a lead-only fill-in are not in
+    WhatsApp and are skipped."""
     from app.services import wa_templates
     said = ' '.join((text or '').split())
     if not said:
         return None
-    values = fill_values(lead, user)
-    first = values.get('name') or 'there'
-    agent = values.get('agent') or ''
-    for a in CrmAnswer.query.filter(CrmAnswer.code.isnot(None)).all():
-        body = wa_templates.quick_reply_text(a.body)
-        body = body.replace('{{contact.first_name}}', first).replace('{{agent.first_name}}', agent)
-        if ' '.join(body.split()) == said:
-            a.use_count = (a.use_count or 0) + 1
-            return a.code
+    contact = {first_name(lead.person.name) or 'there', 'there'}
+    agents = {'there'}
+    for u in (lead.owner, user):
+        if u is None:
+            continue
+        for v in (first_name(getattr(u, 'first_name', None) or getattr(u, 'username', None)),
+                  first_name(getattr(u, 'full_name', None))):
+            if v:
+                agents.add(v)
+    static = wa_templates._static_values()
+    for a in CrmAnswer.query.all():
+        if wa_templates.lead_only(a.body):
+            continue
+        body = wa_templates.quick_reply_text(a.body, static)
+        for c in contact:
+            for g in agents:
+                filled = body.replace('{{contact.first_name}}', c).replace('{{agent.first_name}}', g)
+                if ' '.join(filled.split()) == said:
+                    a.use_count = (a.use_count or 0) + 1
+                    return a
     return None
+
+
+def ready_message_code(lead, text, user=None):
+    """The code of the quick reply `text` is (quick_reply_used), so it counts under that code; None otherwise."""
+    a = quick_reply_used(lead, text, user)
+    return a.code if a is not None else None
 
 
 def quick_messages(product=None):
@@ -2855,8 +3896,6 @@ def record_social(ev):
 REPLY_LABELS = {'whatsapp': 'WhatsApp', 'instagram': 'Instagram', 'facebook': 'Messenger'}
 ROLE_STEPS = (('cold', 'New'), ('prospect', 'Talking'), ('pipeline', 'Quoted'), ('customer', 'Won'), ('lost', 'Lost'))
 STEP_TIP = 'Step %d of %d: %s'
-MILESTONE_STAGES = {key: code for code, (_, key) in EVENTS.items()}       # {'quoted': 'Q', 'pipeline': 'PLS'} (until U5)
-MILESTONE_ASK = {'Q': 'Did you send the quote?', 'PLS': 'Did you send the payment link?'}
 STUCK_DEFAULT_HOURS = 72          # "Stuck in a stage" for a stage with no warning hours of its own
 TASK_OWN_WHATSAPP = "Open my WhatsApp (replies won't come here)"
 TASK_US_BLOCKED = "WhatsApp doesn't deliver promotions to US numbers"
@@ -2961,7 +4000,7 @@ def tell_new_owner(lead, chat=False):
     stage = lead.stage.name if lead.stage else 'not in a pipeline yet'
     notify.push(lead.owner_id, 'crm_assigned',
                 title=(OWNER_BELL_CHAT if chat else OWNER_BELL) % (first_name(lead.person.display_name) or 'A customer'),
-                body='%s · %s' % (CRM_PRODUCT_LABELS.get(lead.product, lead.product), stage), link=_lead_link(lead))
+                body='%s · %s' % (crm_products.labels().get(lead.product, lead.product), stage), link=_lead_link(lead))
 
 
 def set_owner(lead, owner_id, by=None, ring=True, mark=True, chat=None):
@@ -3122,9 +4161,10 @@ def lead_filter(pipeline=None, owner_id=None, q=None, chat=None, stage_id=None, 
         query = query.filter(CrmLead.id.in_(select(CrmTask.lead_id).where(CrmTask.status == 'open',
                                                                           CrmTask.due_at < now)))
     if q:
-        like = '%%%s%%' % q.strip()
-        query = query.filter(or_(CrmPerson.name.ilike(like), CrmPerson.phone.ilike(like),
-                                 CrmPerson.email.ilike(like)))
+        from app.services import crm_people
+        cond = crm_people.person_match(q)
+        if cond is not None:
+            query = query.filter(cond)
     return query
 
 
@@ -3217,7 +4257,12 @@ def lead_list(pipeline=None, page=1, per_page=50, **filters):
 
 
 def stage_tags(stage, products):
-    """The WhatsApp tags that mark people in this stage: "<product>: <stage name>" per product (stage_tag)."""
+    """The WhatsApp tags that mark people in this stage: "<prefix>: <stage name>" per product, or the
+    pipeline's own label (stage_tag)."""
+    pipe = stage.pipeline
+    label = (pipe.tag_label or '').strip() if pipe is not None and pipe.tag_mode == 'own' else ''
+    if label:
+        return ['%s: %s' % (label, stage.name)]
     return sorted({'%s: %s' % (p, stage.name) for p in products} or {'%s: %s' % (stage.pipeline.product, stage.name)})
 
 
@@ -3396,7 +4441,7 @@ def run_waiting_alerts(now=None, limit=300):
             notify.push(uid, 'crm_waiting',
                         title=WAITING_BELL % (first_name(lead.person.display_name) or 'A customer',
                                               _waited(now - r.created_at)),
-                        body='%s · on %s' % (CRM_PRODUCT_LABELS.get(lead.product, lead.product),
+                        body='%s · on %s' % (crm_products.labels().get(lead.product, lead.product),
                                              REPLY_LABELS.get(r.channel, r.channel)),
                         link=_lead_link(lead) + '?via=' + r.channel)
         rung += 1
@@ -3404,62 +4449,64 @@ def run_waiting_alerts(now=None, limit=300):
     return {'crm_waiting_alerts': rung}
 
 
-def insights(days=30):
-    since = datetime.utcnow() - timedelta(days=days)
-    new_by_source = (db.session.query(CrmSource.name, func.count(CrmLead.id))
-                     .join(CrmLead, CrmLead.source_id == CrmSource.id)
-                     .filter(CrmLead.created_at >= since)
-                     .group_by(CrmSource.name).order_by(func.count(CrmLead.id).desc()).all())
-    by_product = dict(db.session.query(CrmLead.product, func.count(CrmLead.id))
-                      .filter(CrmLead.created_at >= since).group_by(CrmLead.product).all())
-    won = CrmLead.query.filter(CrmLead.status == 'won', CrmLead.closed_at >= since).count()
-    lost = CrmLead.query.filter(CrmLead.status == 'lost', CrmLead.closed_at >= since).count()
-    created = CrmLead.query.filter(CrmLead.created_at >= since).count()
-    reasons = (db.session.query(CrmLead.fallout_reason, func.count(CrmLead.id))
-               .filter(CrmLead.status == 'lost', CrmLead.closed_at >= since,
-                       CrmLead.fallout_reason.isnot(None))
-               .group_by(CrmLead.fallout_reason).order_by(func.count(CrmLead.id).desc()).all())
-    moves = (db.session.query(CrmStage.name, CrmPipeline.name, func.count(CrmStageChange.id))
-             .join(CrmStage, CrmStage.id == CrmStageChange.to_stage_id)
-             .join(CrmPipeline, CrmPipeline.id == CrmStage.pipeline_id)
-             .filter(CrmStageChange.created_at >= since)
-             .group_by(CrmStage.name, CrmPipeline.name, CrmStage.position)
-             .order_by(CrmPipeline.name, CrmStage.position).all())
-    owners = (db.session.query(User.username, func.count(CrmTask.id))
-              .join(CrmTask, CrmTask.done_by_id == User.id)
-              .filter(CrmTask.status == 'done', CrmTask.done_at >= since)
-              .group_by(User.username).order_by(func.count(CrmTask.id).desc()).all())
-    overdue = CrmTask.query.filter(CrmTask.status == 'open', CrmTask.due_at < datetime.utcnow()).count()
-    messages = CrmTouchpoint.query.filter(CrmTouchpoint.direction == 'out',
-                                          CrmTouchpoint.created_at >= since).count()
-    replies = CrmTouchpoint.query.filter(CrmTouchpoint.direction == 'in',
-                                         CrmTouchpoint.channel != 'form',
-                                         CrmTouchpoint.created_at >= since).count()
-    return {'days': days, 'created': created, 'won': won, 'lost': lost, 'overdue': overdue,
-            'messages': messages, 'replies': replies, 'new_by_source': new_by_source,
-            'by_product': by_product, 'reasons': reasons, 'moves': moves, 'owners': owners}
-
-
 # ======================================================================================= where a lead is
 
 def stage_role(stage):
-    """cold / prospect / pipeline / customer / lost -- the pipeline symbol shown everywhere."""
-    if stage is None:
-        return 'new'
-    if stage.kind == 'won':
-        return 'customer'
-    if stage.kind == 'lost':
-        return 'lost'
-    stages = sorted(stage.pipeline.stages, key=lambda s: s.position) if stage.pipeline else [stage]
-    opens = [s for s in stages if s.kind == 'open']
-    reply = next((s for s in stages if s.on_reply), None)
-    if opens and stage.id == opens[0].id:
-        return 'cold'
-    if reply is not None and stage.id == reply.id:
-        return 'prospect'
-    if reply is not None and stage.position < reply.position:
-        return 'cold'
-    return 'pipeline'
+    """cold / prospect / pipeline / customer / lost -- the pipeline symbol shown everywhere. From "This
+    stage means"; worked out from where it sits for a stage saved without one."""
+    return 'new' if stage is None else stage.role
+
+
+def derive_means(stage):
+    """"This stage means" for a stage saved without one, from where it sits."""
+    return stage.stage_means
+
+
+ASKED_KEY = '_asked'             # details: "Something else" was the answer on the catch-all line
+PRODUCT_MOVED, PRODUCT_SET, PRODUCT_KEPT = 'Moved to %s.', 'Saved: %s.', 'Kept in %s.'
+ASK_MOVES, ASK_STAYS = 'Moves them to %s, with its follow-ups.', 'Keeps them here, as %s.'
+
+
+def asks_product(lead):
+    """An open lead in a catch-all pipeline that only knows it as the pipeline's own product (General),
+    and nobody chose Something else: the page asks "What do they want?"."""
+    p = lead.pipeline
+    return bool(p is not None and p.catch_all and lead.status == 'open' and lead.product == p.product
+                and not (lead.details or {}).get(ASKED_KEY))
+
+
+def product_choices(lead):
+    """The tiles for that question, [{'code', 'name', 'icon', 'tip'}], or None when it is not asked."""
+    if not asks_product(lead):
+        return None
+    out = []
+    for p in crm_products.tiles():
+        target = crm_products.default_pipeline(p.code)
+        moves = target is not None and target.id != lead.pipeline_id and not target.catch_all
+        out.append({'code': p.code, 'name': p.name, 'icon': p.icon,
+                    'tip': ASK_MOVES % target.name if moves else ASK_STAYS % p.name})
+    return out
+
+
+def set_product(lead, code, user=None):
+    """The answer to "What do they want?" (or the product changed): the lead takes the product and, when
+    that product has its own pipeline, moves there (set_pipeline: first stage, its follow-ups; the history
+    stays). '' is Something else: it stays, and the question is not asked again. (toast words, moved).
+    ValueError for a product that is not offered."""
+    if not (code or '').strip():
+        lead.details = {**(lead.details or {}), ASKED_KEY: 'other'}
+        return PRODUCT_KEPT % (lead.pipeline.name if lead.pipeline else 'General'), False
+    prod = crm_products.by_code(code)
+    if prod is None or not prod.offered:
+        raise ValueError(code)
+    lead.product = prod.code
+    target = crm_products.default_pipeline(prod.code)
+    if (target is not None and target.id != lead.pipeline_id and not target.catch_all
+            and target.is_active and target.first_stage is not None):
+        set_pipeline(lead, target, user=user)
+        return PRODUCT_MOVED % target.name, True
+    mark_wa_due(lead.person)
+    return PRODUCT_SET % prod.name, False
 
 
 ROLE_LABELS = {'new': 'Not routed', 'cold': 'Cold lead', 'prospect': 'Prospect', 'pipeline': 'Pipeline',
@@ -3502,7 +4549,7 @@ def lead_from_record(kind, record_id, user=None):
     if r is None:
         return None, False
     by = getattr(user, 'id', None)
-    common = dict(utm={}, created_by_id=by, notify=False)
+    common = dict(utm={}, created_by_id=by, notify=False, refuse_dnc=True)
     if kind == 'insurance_quote':
         ages = ', '.join(str(t.get('age')) for t in (r.travellers or []) if isinstance(t, dict))
         lead = capture('ti-quote', name=r.name, phone=r.phone, email=r.email, product='TI', user_id=r.user_id,
@@ -3570,10 +4617,19 @@ def search_records(q, limit=8):
               .order_by(User.id.desc()).limit(limit)):
         out.append(('user', r.id, r.full_name, '%s · %s' % (r.email, r.phone or ''), r.created_at if hasattr(r, 'created_at') else None,
                     'Site account'))
+    # one query per kind for the leads these records already became (newest lead wins)
+    by_type = {}
+    for kind, rid, *_ in out:
+        by_type.setdefault(RECORD_KINDS[kind][0], set()).add(rid)
+    leads = {}
+    for ref_type, ids in by_type.items():
+        for ld in (CrmLead.query.filter(CrmLead.ref_type == ref_type, CrmLead.ref_id.in_(ids))
+                   .order_by(CrmLead.created_at.desc())):
+            leads.setdefault((ref_type, ld.ref_id), ld)
     rows = []
     for kind, rid, title, sub, when, what in out:
         rows.append({'kind': kind, 'id': rid, 'title': title or '—', 'sub': sub, 'when': when, 'what': what,
-                     'label': RECORD_KINDS[kind][1], 'lead': lead_for_record(kind, rid)})
+                     'label': RECORD_KINDS[kind][1], 'lead': leads.get((RECORD_KINDS[kind][0], rid))})
     rows.sort(key=lambda r: r['when'] or datetime.min, reverse=True)
     return rows
 
@@ -3611,8 +4667,8 @@ def can_remove(lead, user):
 
 
 def remove_lead(lead, user=None):
-    """Take a lead out of the CRM (added by mistake). Its person goes too when nothing else of
-    theirs is left. The record it came from on the site is not touched."""
+    """Take a lead out of the Sales CRM (added by mistake). The contact stays (Contacts) with their other
+    enquiries and their own timeline items; the record it came from on the site is not touched."""
     from app.models import ActivityEvent
     person = lead.person
     name = person.display_name if person else '?'
@@ -3620,10 +4676,11 @@ def remove_lead(lead, user=None):
     db.session.delete(lead)
     db.session.flush()
     if person is not None and not CrmLead.query.filter_by(person_id=person.id).first():
-        # nobody left: the portal's tags come off their WhatsApp contact (contact and chat stay)
+        # no enquiry left: the portal's tags come off their WhatsApp contact (contact and chat stay), and
+        # nothing more goes to WhatsApp for them until they have an enquiry again
         _wa_drop_tags_later(person.wacrm_contact_id, keep_for=person.id)
-        CrmTouchpoint.query.filter_by(person_id=person.id).delete(synchronize_session=False)
-        db.session.delete(person)
+        person.wacrm_sync_due_at = None
+        person.wacrm_assign_due = person.wacrm_assign_if_free = False
     elif person is not None:
         mark_wa_due(person)      # their tags follow the leads they still have
     try:

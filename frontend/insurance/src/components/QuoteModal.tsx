@@ -57,6 +57,7 @@ export default function QuoteModal() {
         email: form.email,
         phone: form.phone.trim(),
         phoneCc: form.cc,
+        waConsent: form.waConsent,
       });
       if (cancelled) return;
       if (res.url) {
@@ -226,6 +227,10 @@ export default function QuoteModal() {
               <label className="consent">
                 <input type="checkbox" checked={form.consent} onChange={(e) => setForm({ consent: e.target.checked })} />
                 I agree to be contacted about my quote and accept the <a href="#about">Privacy Policy</a>.
+              </label>
+              <label className="consent">
+                <input type="checkbox" checked={form.waConsent} onChange={(e) => setForm({ waConsent: e.target.checked })} />
+                Send my quote and updates on WhatsApp
               </label>
               <div className="modal-ft">
                 <button className="btn btn-o" type="button" onClick={() => goStep(1)}>

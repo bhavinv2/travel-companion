@@ -15,7 +15,7 @@
     <p>“{{ suggested.text|truncate(180) }}”</p>
     <button type="button" class="cb sm" data-act="compose" data-text="{{ suggested.text }}">Put it in the chat</button></div>
   {% endif %}
-  {% if quick and WA_COMPOSE %}
+  {% if quick %}
   <details class="lp-quick"><summary>Quick replies for {{ (person.name or '').split(' ')[0] or 'them' }} ▾</summary>
     {% for a, text in quick %}<div class="row between"><span>{{ a.title }}</span>
       <button type="button" class="cb sm" data-act="compose" data-text="{{ text }}">Put it in the chat</button></div>{% endfor %}
@@ -32,7 +32,9 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <input type="hidden" name="wa_phone" value="{{ phone }}"/><input type="hidden" name="name" value="{{ name }}"/>
     <input type="hidden" name="conversation" value="{{ conversation }}"/>
-    <button class="cb primary"><i class="fa-solid fa-plus"></i> Make {{ name or 'them' }} a lead</button>
+    {% if tiles %}<span class="lbl">What do they want?</span>
+    <div class="lp-tiles">{% for p in tiles %}<button class="cb sm" name="product" value="{{ p.code }}" title="Makes them a {{ p.name }} lead."><i class="fa-solid {{ p.icon }}" aria-hidden="true"></i> {{ p.name }}</button>{% endfor %}</div>{% endif %}
+    <button class="cb primary" title="Something else, or not sure yet: they start in General enquiry."><i class="fa-solid fa-plus"></i> Make {{ name or 'them' }} a lead</button>
   </form>
   {% endif %}
 </section>

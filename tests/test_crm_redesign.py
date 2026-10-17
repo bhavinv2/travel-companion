@@ -74,9 +74,11 @@ def test_the_daily_tracker(app, client, admin_user, cs_user):
     login(client, cs_user.email)
     client.post('/cs/crm/lead/%d/send' % lead.id, json={'text': 'Hello', 'task_id': lead.open_task.id})
     missed = ti_lead(phone='+919876543299', name='Missed Person')
-    missed.open_task.due_at = datetime.utcnow() - timedelta(hours=2)
-    _db.session.commit()
     today = (datetime.utcnow() + crm.IST).date()
+    # overdue but still inside today's India day: "2 hours ago" falls on yesterday between midnight and 02:00 IST
+    day_start = datetime.combine(today, datetime.min.time()) - crm.IST
+    missed.open_task.due_at = max(datetime.utcnow() - timedelta(hours=2), day_start + timedelta(seconds=1))
+    _db.session.commit()
     sheet = crm_reports.day_sheet(today, [cs_user])[cs_user.id]
     assert sheet['counts']['done'] == 1 and sheet['counts']['missed'] == 1 and sheet['counts']['messages'] == 1
     states = {lead_.person.name: [i['state'] for i in items] for lead_, items in sheet['checklist']}
@@ -159,7 +161,7 @@ def test_remove_a_lead_added_by_mistake(app, client, cs_user):
     lead.owner_id = cs_user.id
     _db.session.commit()
     d = client.post('/cs/crm/lead/%d/remove' % lead.id).get_json()
-    assert d['success'] and CrmLead.query.count() == 0 and CrmPerson.query.count() == 0
+    assert d['success'] and CrmLead.query.count() == 0 and CrmPerson.query.count() == 1      # the contact stays (release 2)
 
 
 # ============================================================================================ the pipeline symbol everywhere

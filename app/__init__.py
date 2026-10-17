@@ -488,6 +488,9 @@ def create_app(test_config=None):
     from app.routes.scraper import scraper_bp
     from app.routes.saved_views import saved_bp
     from app.routes.crm import crm_bp, crm_public_bp
+    from app.routes import crm_setup  # noqa: F401 -- Set-up -> Pipelines: its rules are on crm_bp, before it is registered
+    from app.routes import crm_wa  # noqa: F401 -- Quick replies, WhatsApp connection, What goes out by itself: rules on crm_bp, before it is registered
+    from app.routes import crm_people  # noqa: F401 -- Contacts, Find a person, downloads and imports: rules on crm_bp, before it is registered
 
     app.register_blueprint(main_bp)
     app.register_blueprint(insurance_bp)

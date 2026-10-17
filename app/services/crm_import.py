@@ -23,7 +23,7 @@ import xml.etree.ElementTree as ET
 
 from app import db
 from app.models import (CrmLead, CrmPipeline, CrmStage, CrmTask, CrmTouchpoint, CONTACT_TOPICS)
-from app.services import crm
+from app.services import crm, crm_products
 
 NS = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
 RNS = '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}'
@@ -40,12 +40,27 @@ def _stage(pipe_key, stage_key):
             .filter(CrmPipeline.key == pipe_key, CrmStage.key == stage_key).first())
 
 
+def _sheet_stage(pipe, sheet):
+    """The stage a tab's rows are in: the one SHEETS names for the pipelines the sheet knew, else the
+    first stage whose "This stage means" fits the tab."""
+    key = SHEETS.get(sheet, {}).get(pipe.key)
+    if key:
+        found = _stage(pipe.key, key)
+        if found is not None:
+            return found
+    want = SHEET_MEANS.get(sheet)
+    return next((s for s in pipe.stages if s.stage_means == want), None)
+
+
 def _first_lost(pipe_key):
     p = CrmPipeline.query.filter_by(key=pipe_key).first()
     return next((s for s in p.stages if s.kind == 'lost'), None) if p else None
 
 
 # ============================================================================================ site
+
+DNC = object()          # capture() refused somebody on the do-not-contact list
+
 
 def backfill(days=180, now=None):
     """The site's enquiries of the last `days` days as leads. Returns a Counter of what happened.
@@ -63,8 +78,18 @@ def backfill(days=180, now=None):
     today = date.today()
     out = Counter()
 
+    def cap(fn, *args, **kw):
+        """An import never brings back somebody who asked to be erased."""
+        try:
+            return fn(*args, refuse_dnc=True, **kw)
+        except crm.DoNotContact:
+            return DNC
+
     def done(lead, key):
-        out[key if lead else 'unreachable'] += 1
+        if lead is DNC:
+            out['do not contact'] += 1
+        else:
+            out[key if lead else 'unreachable'] += 1
 
     for q in (InsuranceQuote.query.filter(InsuranceQuote.created_at >= since)
               .order_by(InsuranceQuote.created_at)):
@@ -73,15 +98,15 @@ def backfill(days=180, now=None):
             continue
         past = q.start_date and q.start_date < today
         ages = ', '.join(str(t.get('age')) for t in (q.travellers or []) if isinstance(t, dict))
-        lead = crm.capture(
-            'ti-quote', phone=q.phone, email=q.email, product='TI', user_id=q.user_id,
+        lead = cap(
+            crm.capture, 'ti-quote', phone=q.phone, email=q.email, product='TI', user_id=q.user_id,
             departure_date=q.start_date, ends_on=q.end_date, ref=('insurance_quotes', q.id),
             when=q.created_at, utm={}, plan=not past, notify=False, sync=False, imported=True,
             start_stage=_first_lost('ti-standard') if past else None,
             fallout_reason='Trip date passed' if past else None,
             details={'plan': q.insurance_type, 'travellers_ages': ages, 'citizenship': q.citizenship,
                      'destination': q.destination, 'quote': q.status})
-        if lead is not None and past:
+        if lead is not None and lead is not DNC and past:
             lead.closed_at = datetime.combine(q.start_date, time(0))
         done(lead, 'insurance quotes')
 
@@ -102,7 +127,7 @@ def backfill(days=180, now=None):
         else:
             key = 'contact-%s' % (m.topic if m.topic in CONTACT_TOPICS else 'general')
         old = m.created_at and m.created_at < fresh
-        lead = crm.capture(key, name=m.name, phone=m.phone, email=m.email,
+        lead = cap(crm.capture, key, name=m.name, phone=m.phone, email=m.email,
                            product=TOPIC_PRODUCT.get(m.topic), message=text, user_id=m.user_id,
                            ref=('contact_messages', m.id), when=m.created_at, utm={},
                            plan=not old, notify=False, sync=False, imported=True,
@@ -116,7 +141,7 @@ def backfill(days=180, now=None):
             out['already'] += 1
             continue
         st = _stage('sahayak-visit', stage_for.get(b.status, 'new'))
-        lead = crm.capture('sh-booking', name=b.contact_name or b.patient_name, phone=b.phone, email=b.email,
+        lead = cap(crm.capture, 'sh-booking', name=b.contact_name or b.patient_name, phone=b.phone, email=b.email,
                            product='SH', ref=('sahayak_bookings', b.id), user_id=b.user_id,
                            when=b.created_at, utm={}, start_stage=st, notify=False, sync=False, imported=True,
                            plan=b.status == 'new' and b.created_at >= fresh,
@@ -133,7 +158,7 @@ def backfill(days=180, now=None):
             out['already'] += 1
             continue
         key = 'tc-import' if t.import_key else ('tc-cs-post' if t.created_by_id and not t.user_id else 'tc-trip-post')
-        lead = crm.capture_trip(t, key, when=t.created_at, utm={}, notify=False, sync=False, imported=True)
+        lead = cap(crm.capture_trip, t, key, when=t.created_at, utm={}, notify=False, sync=False, imported=True)
         done(lead, 'trip posts')
     db.session.commit()
     return out
@@ -155,6 +180,9 @@ SHEETS = {
     'Prospect Fallout': {'ti-standard': 'prospect_fallout', 'tc-companion': 'closed', 'general': 'closed',
                          'sahayak-visit': 'cancelled'},
 }
+# tab -> "This stage means", for a pipeline the SHEETS map does not know (one made on screen)
+SHEET_MEANS = {'Cold Leads': 'new', 'Prospects': 'talking', 'Pipeline': 'quoted',
+               'Customer Engagement': 'won', 'Pipeline Fallout': 'lost', 'Prospect Fallout': 'lost'}
 DEFAULT_PRODUCT = {'Cold Leads': 'TC', 'Prospects': 'TC'}           # the others are insurance
 ENQ_PRODUCT = {'TC': 'TC', 'TI': 'TI', 'TC+TI': 'TI', 'TC+TI+VC': 'TI', 'VC': 'VC', 'GH': 'GH',
                'S': 'SH', 'H+': 'GEN', 'ENQ.': 'GEN'}
@@ -485,23 +513,26 @@ def import_sheet(rows, owner_id=None, kpi=None, kpi_users=None):
     `kpi_users` says whose each KPI tab is: {'KPI': None (the team), 'HB KPI': user id, ...}; a tab
     with no person chosen is left out."""
     from app.services import crm_kpi
-    from app.services.crm_defaults import PRODUCT_PIPELINE
     crm.ensure_defaults()
     out = Counter()
     for r in rows:
         if _linked('sales_sheet', r['ref']):
             out['already'] += 1
             continue
-        pipe_key = PRODUCT_PIPELINE.get(r['product'], 'general')
-        stage = _stage(pipe_key, SHEETS[r['sheet']].get(pipe_key, 'new'))
+        pipe = crm_products.default_pipeline(r['product'])
+        stage = _sheet_stage(pipe, r['sheet']) if pipe is not None else None
         when = datetime.combine(r['date'], time(6, 0)) if r['date'] else datetime.utcnow()
-        lead = crm.capture(r['source'], name=r['name'], phone=r['phone'], email=r['email'],
-                           identities=r['identities'], product=r['product'], details=r['details'],
-                           departure_date=r['departure'], ends_on=r['ends'], when=when, utm={},
-                           ref=('sales_sheet', r['ref']), start_stage=stage, plan=False, notify=False,
-                           sync=False, imported=True, temperature=r['temperature'],
-                           likelihood=r.get('likelihood'),
-                           fallout_reason='From the sales sheet' if stage and stage.kind == 'lost' else None)
+        try:
+            lead = crm.capture(r['source'], name=r['name'], phone=r['phone'], email=r['email'],
+                               identities=r['identities'], product=r['product'], details=r['details'],
+                               departure_date=r['departure'], ends_on=r['ends'], when=when, utm={},
+                               ref=('sales_sheet', r['ref']), start_stage=stage, plan=False, notify=False,
+                               sync=False, imported=True, temperature=r['temperature'],
+                               likelihood=r.get('likelihood'), refuse_dnc=True,
+                               fallout_reason='From the sales sheet' if stage and stage.kind == 'lost' else None)
+        except crm.DoNotContact:
+            out['do not contact'] += 1
+            continue
         if lead is None:
             out['unreachable'] += 1
             continue

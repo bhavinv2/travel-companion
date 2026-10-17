@@ -486,6 +486,7 @@
             <span class="tick-label notranslate">{{ _('I agree that NRI Parent Service may share these contact details with travel companions matched to this trip.') }} <a href="{{ url_for('main.privacy') }}" target="_blank">{{ _('Privacy Policy') }}</a></span>
           </label>
           <small class="muted notranslate">{{ _('You can always be reached through in-app chat, even without ticking this.') }}</small>
+          {% from '_wa_consent.html' import wa_consent %}{{ wa_consent('waConsent') }}
         {% else %}
           <p class="muted notranslate"><i class="fa-solid fa-lock"></i> {{ _('Sign in to add contact details. We only share them with matched companions you approve.') }}</p>
         {% endif %}

@@ -279,7 +279,7 @@ def test_per_person_numbers(app, client, cs_user, admin_user):
     client.post('/auth/logout')
     login(client, admin_user.email)
     page = client.get('/admin/crm/insights?who=%d' % cs_user.id).get_data(as_text=True)
-    assert 'Csagent&#39;s results' in page and 'Day by day' in page and 'Messages by kind' in page
+    assert 'Csagent&#39;s results' in page and 'Messages, by who sent them' in page
     csv = client.get('/admin/crm/insights.csv?days=7')
     assert csv.headers['Content-Type'].startswith('text/csv') and b'Messages sent' in csv.data
 
@@ -426,7 +426,7 @@ def test_importing_the_sales_workbook(app, client, admin_user, cs_user):
 
 def test_backfill_button_and_import_tab(app, client, admin_user, cs_user):
     login(client, admin_user.email)
-    assert b'Enquiries from before the CRM' in client.get('/admin/crm/data').data
+    assert b'Old website enquiries' in client.get('/admin/crm/data').data
     r = client.post('/admin/crm/setup/backfill', data={'days': 90}, follow_redirects=True)
     assert b'Brought in 0 past enquiries' in r.data
     client.post('/auth/logout')

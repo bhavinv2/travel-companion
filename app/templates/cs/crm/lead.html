@@ -46,3 +46,5 @@
 </div>
 </div>
 {% endblock %}
+
+{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/crm-people.js') }}" defer></script>{% endblock %}

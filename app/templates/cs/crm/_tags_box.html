@@ -1,0 +1,11 @@
+{# One person's tags, on the contact page and the lead card: the Sales tags, locked (the Sales CRM sets them from the
+   stage, product and source), and their own tags, which crm-people.js loads from WhatsApp after the page has drawn
+   (contact_tags) and lets people take off and add. Needs: person, sales_tags. #}
+<div class="chips">
+  {% for t in sales_tags %}<span class="ui-chip tag locked" title="Set by the Sales CRM. Change the stage or source instead."><i class="fa-solid fa-lock" aria-hidden="true"></i> {{ t }} <small>automatic</small></span>{% else %}<span class="muted">No Sales tags yet.</span>{% endfor %}
+</div>
+<div data-tags data-url="{{ crm_url('contact_tags', person_id=person.id) }}">
+  <div class="chips" data-free><span class="muted" data-loading>Loading tags from WhatsApp…</span></div>
+  <button type="button" class="cb sm" data-act="tag-add" hidden>+ tag</button>
+  <p class="hint" data-note></p>
+</div>

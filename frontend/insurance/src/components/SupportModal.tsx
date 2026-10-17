@@ -43,6 +43,7 @@ export default function SupportModal() {
   const [topic, setTopic] = useState(TOPICS[0]);
   const [via, setVia] = useState<(typeof VIA)[number]>('WhatsApp');
   const [message, setMessage] = useState('');
+  const [waConsent, setWaConsent] = useState(false);
   const first = useRef<HTMLInputElement>(null);
 
   // The button lives in the server-rendered navbar, so the two are wired together here rather
@@ -107,6 +108,7 @@ export default function SupportModal() {
           subject: topic,
           preferred: via,
           message,
+          wa_consent: waConsent,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -211,6 +213,11 @@ export default function SupportModal() {
                         placeholder="Two parents visiting us in Dallas in November — which plan covers a heart condition?"
                         value={message} onChange={(e) => setMessage(e.target.value)} />
             </p>
+
+            <label className="consent">
+              <input type="checkbox" checked={waConsent} onChange={(e) => setWaConsent(e.target.checked)} />
+              Send my quote and updates on WhatsApp
+            </label>
 
             {error && <p className="spop-err" role="alert">{error}</p>}
 

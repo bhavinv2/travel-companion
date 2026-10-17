@@ -1,12 +1,122 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
+{% from 'cs/crm/setup/_macros.html' import csrf with context %}
 {% block crm_title %}WhatsApp connection{% endblock %}
 {% block crm %}
 {{ page_head('WhatsApp connection', 'fa-solid fa-plug',
              'Whether the Sales CRM and WhatsApp are talking to each other, and what to fix if not.',
-             help=['First check the key works, then choose what the Sales CRM does with WhatsApp.',
-                   'Off writes nothing to WhatsApp. Leave it off on a test or laptop copy of the site.',
-                   'Connect replies so WhatsApp tells us when someone writes or a message is delivered.'],
+             help=['The checks at the top say whether WhatsApp can be reached, replies arrive and the team can sign in.',
+                   'Not yet writes nothing to WhatsApp. Leave it there on a test or laptop copy of the site.',
+                   'Keep contacts in step first, pause the reply rules listed, then add the existing leads and customers.',
+                   'Switch to sending follow-ups once the follow-up templates show Approved.'],
+             primary={'label': 'Check again', 'href': crm_url('connection'), 'icon': 'fa-solid fa-rotate'},
              full_screen=True) }}
-{% include 'cs/crm/setup/_connect.html' %}
+
+{# the live checks load after the page has drawn (static/js/crm-connection.js) #}
+<section class="card" data-conn-checks data-src="{{ crm_url('connection_checks') }}">
+  <p class="muted">Checking the connection…</p>
+</section>
+
+{% if confirm %}
+<section class="card warn">
+  <h2>Switch on sending follow-ups?</h2>
+  {% if confirm.now %}<p>{% if confirm.now == 1 %}1 follow-up marked “Goes by itself” can go now: it was due in the last 24 hours.{% else %}{{ confirm.now }} follow-ups marked “Goes by itself” can go now: they were due in the last 24 hours.{% endif %}</p>{% endif %}
+  {% if confirm.older %}<p>{% if confirm.older == 1 %}1 older one will not go by itself: it goes back on the list of whoever looks after the lead.{% else %}{{ confirm.older }} older ones will not go by themselves: they go back on the list of whoever looks after the lead.{% endif %}</p>{% endif %}
+  <p class="muted">Each still checks first: an approved template, their OK, and that they are not waiting for our reply.</p>
+  <form method="POST" action="{{ crm_url('save_whatsapp') }}" class="row" style="gap:10px">{{ csrf() }}
+    <input type="hidden" name="action" value="mode"/><input type="hidden" name="mode" value="send"/>
+    <input type="hidden" name="confirm" value="1"/><input type="hidden" name="first_ok_sent" value="1"/>
+    {% if confirm.first_ok %}<input type="hidden" name="first_ok" value="1"/>{% endif %}
+    <button class="cb primary">Yes, switch on sending</button>
+    <a class="cb quiet" href="{{ crm_url('connection') }}">Not now</a>
+  </form>
+</section>
+{% endif %}
+
+{# ------------------------------------------------------------------ what the Sales CRM does with WhatsApp #}
+<section class="card">
+  <h2>What should the Sales CRM do with WhatsApp?</h2>
+  {% if not wa_enabled %}<p class="hint">This server has no WhatsApp address and key yet, so it stays on Not yet whatever is chosen here.</p>{% endif %}
+  <form method="POST" action="{{ crm_url('save_whatsapp') }}" class="stack">{{ csrf() }}<input type="hidden" name="action" value="mode"/>
+    {% for key, label in WA_MODES.items() %}
+    <label class="check"><input type="radio" name="mode" value="{{ key }}"{{ ' checked' if wa_mode_saved == key }}/> <b>{{ label }}</b> — {{ WA_MODE_SAYS[key] }}</label>
+    {% endfor %}
+    <input type="hidden" name="first_ok_sent" value="1"/>
+    <label class="check"><input type="checkbox" name="first_ok" value="1"{{ ' checked' if first_ok }}/> <b>{{ WA_FIRST_OK_LABEL }}</b> — {{ WA_FIRST_OK_SAYS }}</label>
+    <div><button class="cb primary sm">Save</button></div>
+  </form>
+  <div data-conn-rules></div>
+  <form method="POST" action="{{ crm_url('save_whatsapp') }}" style="margin-top:14px"
+        data-confirm="Make a WhatsApp contact for every lead and customer with a phone? Nobody is messaged.">{{ csrf() }}
+    <input type="hidden" name="action" value="backfill"/>
+    <button class="cb"><i class="fa-solid fa-user-plus"></i> Add existing leads and customers to WhatsApp</button>
+    <p class="hint">Makes a WhatsApp contact for every open lead with a phone, and for won and lost customers. Nobody is messaged.</p>
+  </form>
+</section>
+
+{# ------------------------------------------------------------------ needs attention #}
+<section class="card">
+  {% if needs.count %}
+  <h2>Needs attention ({{ needs.count }})</h2>
+  <ul class="conn-attn">
+    {% for r in needs.sync %}
+    <li><span><b>{{ r.person.display_name }}</b> — {{ r.reason }}</span>
+      <form method="POST" action="{{ crm_url('connection_retry', person_id=r.person.id) }}">{{ csrf() }}<button class="cb sm">Try again</button></form>
+      {% if r.lead %}<a class="cb sm quiet" href="{{ crm_url('lead', lead_id=r.lead.id) }}">Open lead</a>
+      {% else %}<a class="cb sm quiet" href="{{ crm_url('contact', person_id=r.person.id) }}">Open contact</a>{% endif %}</li>
+    {% endfor %}
+    {% for r in needs.stuck %}{% set t = r.task %}
+    <li><span>Follow-up “{{ t.title }}” for {{ t.lead.person.display_name }} has been sending for
+        {% if r.minutes is none %}a while{% elif r.minutes >= 60 %}{{ r.minutes // 60 }} h {{ r.minutes % 60 }} min{% else %}{{ r.minutes }} min{% endif %}</span>
+      <form method="POST" action="{{ crm_url('connection_settle', task_id=t.id) }}">{{ csrf() }}<input type="hidden" name="went" value="1"/><button class="cb sm">It went: mark done</button></form>
+      <form method="POST" action="{{ crm_url('connection_settle', task_id=t.id) }}">{{ csrf() }}<input type="hidden" name="went" value="0"/><button class="cb sm">It didn't: back to open</button></form></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <h2>Needs attention</h2>
+  <p class="muted">Nothing needs attention.</p>
+  {% endif %}
+</section>
+
+{# ------------------------------------------------------------------ folds #}
+<details class="card conn-fold">
+  <summary><i class="fa-brands fa-instagram"></i> Instagram &amp; Facebook</summary>
+  {% if meta_ready %}
+  <p><span class="chip ok">Connected</span> Messages and comments on the Page and its Instagram account arrive as replies or new leads, and "Send" on a lead answers them there.</p>
+  {% else %}
+  <p><span class="chip due">Not connected</span> Until it is: on the lead page, open <b>They wrote to us…</b>, pick Instagram or Facebook and paste their message.</p>
+  {% endif %}
+  <ol class="steps-howto" style="margin-top:10px">
+    <li>In <b>Meta for Developers</b>, create an app (type Business) and add <b>Messenger</b> and <b>Instagram</b>. Link the Facebook Page to the Instagram account in the Page settings.</li>
+    <li>Generate a <b>Page access token</b> for the Page, and copy the app's <b>App secret</b>. Choose any long random text as the <b>verify token</b>.</li>
+    <li>Put them on the server as <code>META_PAGE_TOKEN</code>, <code>META_APP_SECRET</code> and <code>META_VERIFY_TOKEN</code>{% if meta_verify %} <span class="chip ok">verify token set</span>{% endif %}.</li>
+    <li>In the app's webhook settings use <code>{{ meta_url }}</code> with the same verify token, and subscribe the Page to <b>messages</b> and <b>feed</b>, and Instagram to <b>messages</b> and <b>comments</b>.</li>
+    <li>Meta reviews the app before it works for the public (permissions <i>pages_messaging</i>, <i>instagram_manage_messages</i>, <i>pages_read_engagement</i>, <i>instagram_manage_comments</i>). Until then it works for the Page's own admins, which is enough to test.</li>
+  </ol>
+</details>
+
+{% if linked %}
+<details class="card conn-fold">
+  <summary>Advanced: Disconnect this workspace</summary>
+  <p class="muted">Stops keeping the WhatsApp team in step with this workspace. Nobody loses access.</p>
+  <form method="POST" action="{{ crm_url('connection_team', action='unlink') }}"
+        data-confirm="Stop keeping the WhatsApp team in step with this workspace? Nobody loses access.">{{ csrf() }}
+    <button class="cb danger sm">Disconnect this workspace</button></form>
+</details>
+{% endif %}
+
+<details class="card conn-fold">
+  <summary>For the developer (keys, addresses)</summary>
+  <p>Replies link: <code>{{ webhook_url }}</code> {% if wa_secret %}<span class="chip ok">Connected{% if wa_hook.at %} {{ wa_hook.at[:10] }}{% endif %}</span>{% else %}<span class="chip due">Not yet</span>{% endif %}</p>
+  <form method="POST" action="{{ crm_url('save_whatsapp') }}" style="display:inline">{{ csrf() }}<input type="hidden" name="action" value="webhook"/>
+    <button class="cb sm{{ '' if wa_secret else ' primary' }}">{{ 'Connect again' if wa_hook.id else 'Connect replies' }}</button></form>
+  <p class="hint">Tells WhatsApp to send every reply and delivery to this address. Works from the live site only.</p>
+  <form method="POST" action="{{ crm_url('save_whatsapp') }}" style="display:inline">{{ csrf() }}<input type="hidden" name="action" value="test"/>
+    <button class="cb sm"><i class="fa-solid fa-plug-circle-check"></i> Test the connection</button></form>
+  <p class="hint">Reads who the key belongs to. Sends nothing.</p>
+  {% if not wa_secret %}<p class="hint bad">⚠ There is no replies secret yet, so replies from WhatsApp are refused. Press Connect replies, or set WACRM_WEBHOOK_SECRET.</p>{% endif %}
+  <ul class="conn-env">{% for name, on in env.items() %}<li><code>{{ name }}</code> — {{ 'set' if on else 'not set' }}</li>{% endfor %}</ul>
+  <p class="hint">Forms on other websites send leads to <code>{{ intake_url }}</code> (list those sites in <code>CRM_INTAKE_ORIGINS</code>); the form script is <code>{{ snippet_url }}</code>.</p>
+</details>
 {% endblock %}
+{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/crm-connection.js') }}" defer></script>{% endblock %}

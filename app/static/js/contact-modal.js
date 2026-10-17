@@ -43,6 +43,8 @@
         message: $('#cm-msg').value, topic: $('#cm-topic').value,
         via: (f.querySelector('[name=cm-via]:checked') || {}).value || '',
         language: $('#cm-lang').value, time: $('#cm-time').value, zone: $('#cm-tz').value,
+        // the tick is never set for them
+        wa_consent: !!($('#cm-wa') || {}).checked,
       };
       const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
       try {

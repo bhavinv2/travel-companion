@@ -54,7 +54,7 @@ VOICES = ('cs.voices', 'cs.contact_messages', 'cs.contact_status', 'cs.voice_rea
 # what a salesperson does to a lead, from My day or from the lead itself
 CRM_DAILY = _both('lead', 'move', 'route_lead', 'task_action', 'send', 'call', 'note', 'update',
                   'suggest', 'answer_used', 'event', 'undo', 'reopen', 'remove', 'message', 'live', 'opt_in',
-                  'wa_retry', 'snooze_lead', 'bulk')
+                  'wa_retry', 'snooze_lead', 'bulk', 'find', 'contact', 'contact_edit', 'contact_tags')
 
 MATCHES = ('matches.cs_match_queue', 'matches.cs_matches', 'matches.cs_notify', 'matches.cs_dismiss',
            'matches.cs_connected', 'matches.cs_mark_sent', 'matches.cs_intro_text', 'matches.trip_matches',
@@ -86,17 +86,16 @@ MODULES = [
          _page('crm_board', 'Leads', 'fa-table-columns', _both('board') + CRM_DAILY,
                admin='admin_crm.board', cs='crm.board', lit=_both('lead'),
                tip='Every enquiry, by stage, for each product.'),
-         # Contacts becomes the portal's own page in U7. Until then it is off the menu: the WhatsApp CRM
-         # retires its /contacts inside the portal (contract 15), so a framed line would only bounce to
-         # Leads. The key stays, so roles, grants and the WhatsApp sign-in (wacrm_team.role_for) keep it.
-         _page('crm_people', 'Contacts', 'fa-address-book', ['messaging.contacts'],
-               admin='messaging.contacts', cs='messaging.contacts', nav=False,
-               desc='Not on the menu in this release. Until the Contacts page comes, people are found on Leads.',
+         _page('crm_people', 'Contacts', 'fa-address-book',
+               _both('contacts', 'contact', 'contact_edit', 'contact_tags', 'find') + ('messaging.contacts',),
+               admin='admin_crm.contacts', cs='crm.contacts', lit=_both('contact', 'contact_edit'),
+               desc='Everyone we can reach, one row per person, and each contact page.',
                tip='Everyone we can reach, one row per person.'),
          _page('crm_add', 'Add a lead', 'fa-user-plus', _both('add', 'add_from_record'),
                admin='admin_crm.add', cs='crm.add', nav=False, desc='The Add a lead button on Leads and My day.'),
          _page('crm_checks', 'Half-hourly check', 'fa-clipboard-check', _both('checks', 'check_tick'),
-               admin='admin_crm.checks', cs='crm.checks', tip='Tick each inbox every half hour.'),
+               admin='admin_crm.checks', cs='crm.checks',
+               tip='Tick each inbox every half hour; connected ones tick themselves.'),
          _page('crm_process', 'How we sell', 'fa-route', _both('process'),
                admin='admin_crm.process', cs='crm.process',
                tip="Our sales path per product, with today's numbers."),
@@ -109,19 +108,29 @@ MODULES = [
          _page('crm_insights', 'Results', 'fa-chart-line', _both('insights') + ('messaging.overview',),
                admin='admin_crm.insights',
                tip='New leads, replies and customers won, by product, source and person.'),
+         _page('crm_auto', 'What goes out by itself', 'fa-list-check', _both('automatic'), admin='admin_crm.automatic',
+               desc='Every automatic message in one list, with where to change it.',
+               tip='Every automatic message in one list, with where to change it.'),
          _page('crm_pipelines', 'Pipelines', 'fa-diagram-project',
-               _both('pipelines', 'save_pipeline', 'save_step', 'setup_templates', 'setup'),
+               _both('pipelines', 'pipeline_new', 'pipeline_edit', 'pipeline_save', 'pipeline_active',
+                     'pipeline_tag_check', 'pipeline_tag', 'tag_check', 'save_product', 'product_offered',
+                     'template_draft', 'save_pipeline', 'save_step', 'setup_templates', 'setup'),
                admin='admin_crm.pipelines', tip='Stages and follow-ups for each product.'),
          _page('crm_sources', 'Where leads come from', 'fa-door-open',
-               _both('sources', 'save_source', 'save_process', 'setup'),
-               admin='admin_crm.sources', tip='Forms and channels, and who gets their leads.'),
-         _page('crm_connection', 'WhatsApp connection', 'fa-plug', _both('connection', 'save_whatsapp', 'setup'),
+               _both('sources', 'save_source', 'save_process', 'setup', 'save_inboxes', 'save_activities',
+                     'source_tag_check'),
+               admin='admin_crm.sources', tip='Forms and channels, who gets their leads, the inboxes to check.'),
+         _page('crm_connection', 'WhatsApp connection', 'fa-plug',
+               _both('connection', 'save_whatsapp', 'setup', 'connection_checks', 'connection_team',
+                     'connection_retry', 'connection_settle', 'quick_replies_push', 'quick_replies_import'),
                admin='admin_crm.connection', tip='Is WhatsApp linked, and what to fix if not.'),
          _page('crm_data', 'Bring in & download', 'fa-file-arrow-up',
-               _both('data', 'backfill', 'import_sheet', 'import_confirm', 'setup'),
-               admin='admin_crm.data', tip='Bring in the sales sheet and old website enquiries.'),
-         _page('crm_export', 'Download lists of leads and contacts', 'fa-file-arrow-down', _both('insights_csv'),
-               admin='admin_crm.insights', nav=False, desc='The Download for Excel buttons.'),
+               _both('data', 'backfill', 'import_sheet', 'import_confirm', 'setup', 'import_csv',
+                     'import_csv_confirm', 'wa_contacts_import', 'wa_notes_import'),
+               admin='admin_crm.data', tip='Import lists and old enquiries; download lists.'),
+         _page('crm_export', 'Download lists of leads and contacts', 'fa-file-arrow-down', _both('insights_csv', 'export_leads', 'export_contacts'),
+               admin='admin_crm.insights', nav=False,
+               desc='Download this list on Leads and Contacts, and the downloads on Bring in & download.'),
      ]},
     {'key': 'companion', 'label': 'Travel Companion', 'icon': 'fa-plane-departure',
      'desc': 'Trip posts, matches and everything on the companion site.',
@@ -236,8 +245,9 @@ MODULES = [
          _page('themes', 'Colour themes', 'fa-palette', ['admin.themes_page'], admin='admin.themes_page'),
          _page('delete_records', 'Delete records permanently', 'fa-trash-can',
                ['admin.hard_delete', 'admin.hard_delete_bulk', 'admin.delete_user', 'admin.bulk_delete_users',
-                'admin.delete_listing', 'admin.bulk_delete_listings'],
-               nav=False, desc='The bin buttons on every list. Nothing deleted this way can be brought back.',
+                'admin.delete_listing', 'admin.bulk_delete_listings', 'crm.contact_erase', 'admin_crm.contact_erase'],
+               nav=False, desc=('The bin buttons on every list, and Erase this person on a contact page. '
+                                'Nothing deleted this way can be brought back.'),
                deny='Only an admin can delete this.'),
      ]},
     {'key': 'workspace', 'label': 'Team', 'icon': 'fa-people-group', 'required': True,
@@ -272,7 +282,7 @@ SECTIONS = [
     {'key': 'messaging', 'label': 'Messaging', 'icon': 'fa-comments',
      'pages': ('crm_quick', 'wa_templates', 'wa_broadcasts', 'wa_tags')},
     {'key': 'automatic', 'label': 'Automatic messages', 'icon': 'fa-wand-magic-sparkles',
-     'pages': ('wa_automations', 'wa_flows', 'wa_ai')},
+     'pages': ('crm_auto', 'wa_automations', 'wa_flows', 'wa_ai')},
     {'key': 'reports', 'label': 'Reports', 'icon': 'fa-chart-column', 'pages': ('crm_tracker', 'crm_insights')},
     {'key': 'setup', 'label': 'Set-up', 'icon': 'fa-sliders',
      'pages': ('crm_pipelines', 'crm_sources', 'crm_connection', 'wa_settings', 'crm_data', 'crm_export')},
@@ -348,7 +358,7 @@ OLD_PAGE_KEYS = {'wa_contacts': ('crm_people',), 'wa_quick': ('crm_quick',),
 NEW_IN_ONE_MENU = frozenset({'crm_people', 'crm_quick', 'crm_pipelines', 'crm_sources', 'crm_connection',
                              'crm_data', 'crm_export', 'wa_tags'})
 # keys a later step adds: kept in stored roles (a role save does not drop them), never shown
-RESERVED_PAGES = frozenset({'crm_auto'})
+RESERVED_PAGES = frozenset()
 # the Team lead role: Sales & service plus these
 TEAM_LEAD_EXTRA = frozenset({'crm_tracker', 'crm_insights', 'crm_auto', 'wa_broadcasts'})
 
@@ -743,7 +753,7 @@ def create_workspace(name, by=None, modules=None, description=None):
                                              'replies, queues and posts.'))
     db.session.add(WorkspaceRole(workspace_id=ws.id, name='Team lead', system_key=None,
                                  pages=sorted(CS_ROLE_PAGES | TEAM_LEAD_EXTRA),
-                                 description='Sales & service, plus Team today, Results and Broadcasts.'))
+                                 description='Sales & service, plus Team today, Results, What goes out by itself and Broadcasts.'))
     db.session.flush()
     if by is not None:
         add_member(ws, by, role=system_role(ws, 'admin'), owner=True, by=by, commit=False)

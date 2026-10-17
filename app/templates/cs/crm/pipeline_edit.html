@@ -1,0 +1,83 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% from 'cs/crm/setup/_editor.html' import stage_card, step_row with context %}
+{% block crm_title %}{{ pipe.name }}{% endblock %}
+{% block crm %}
+<p><a href="{{ crm_url('pipelines') }}">← Pipelines</a></p>
+{{ page_head(pipe.name, 'fa-solid fa-diagram-project',
+             'Its stages, the follow-ups each stage plans, and the details asked. Change what you need, then press Save changes once.',
+             help=['Each stage is a step on the way to a sale. Drag ⠿ or use ↑ ↓ to put them in order.',
+                   'When a lead enters a stage, its first follow-up is planned; doing one plans the next.',
+                   'Nothing changes until you press Save changes.'],
+             full_screen=True) }}
+{% if snippet %}
+<section class="card"><h2>Copy this for your developer</h2><pre class="copy"><code>{{ snippet }}</code></pre></section>
+{% endif %}
+
+<form class="pe" data-pipe-editor data-leave-title="Leave without saving?" data-leave-line="Your changes to this pipeline are lost." novalidate>
+  <div class="pe-err top" data-err="_"></div>
+  <section class="card pe-head">
+    <div class="pe-line">
+      <input data-h="name" maxlength="80" aria-label="Name" value="{{ pipe.name }}"/>
+      <label class="pe-switch"><input type="checkbox" role="switch" data-h="is_active"{{ ' checked' if pipe.is_active }}/> <span data-switch-text data-on="Taking new leads" data-off="Not taking new leads">{{ 'Taking new leads' if pipe.is_active else 'Not taking new leads' }}</span></label>
+      <button type="button" class="cb primary pe-save" data-act="save">Save changes</button>
+    </div>
+    <div class="pe-err" data-err="name"></div>
+    <div class="pe-line">
+      <label>Product <select data-h="product" aria-label="Product">{% for code, label in PRODUCTS.items() %}<option value="{{ code }}"{{ ' selected' if code == pipe.product }}>{{ label }}</option>{% endfor %}</select></label>
+      <span>WhatsApp tag: “<span data-tag-text>{{ tag_text }}</span>” <button type="button" class="cb sm" data-act="tag">Change WhatsApp tag</button></span>
+      <label class="check"><input type="checkbox" data-h="catch_all"{{ ' checked' if pipe.catch_all }}/> Catch-all</label> <span class="hint">Pass leads with a known product on to that product's pipeline</span>
+    </div>
+    <div class="pe-err" data-err="product"></div>
+    <div class="pe-err" data-err="catch_all"></div>
+    <div class="pe-block"><span class="lb">Reasons for losing a lead</span>
+      <div class="pe-chips" data-reasons>{% for r in reasons %}<span class="pe-chip" data-reason="{{ r }}">{{ r }} <button type="button" data-act="reason-remove" aria-label="Remove {{ r }}">×</button></span>{% endfor %}</div>
+      <input data-reason-new maxlength="80" placeholder="Add a reason" aria-label="Add a reason"/> <button type="button" class="cb sm" data-act="reason-add" aria-label="Add the reason">+</button>
+      <div class="pe-err" data-err="reasons"></div></div>
+    <div class="pe-block"><span class="lb">Lead details asked</span>
+      <div class="pe-chips" data-fields>
+        <span class="pe-chip fixed">Travels on · date</span><span class="pe-chip fixed">Cover ends · date</span>
+        {% for f in global_fields %}<span class="pe-chip fixed" title="Asked in every pipeline">{{ f.label }} · {{ FIELD_TYPES[f.type] }}</span>{% endfor %}
+        {% for f in fields %}<button type="button" class="pe-chip" data-ref="f{{ f.id }}" data-field='{{ {"id": f.id, "ref": "f%d"|format(f.id), "key": f.key, "label": f.label, "type": f.type, "options": f.options or [], "on_card": f.on_card, "on_add": f.on_add, "required": f.required}|tojson }}'>{{ f.label }} · {{ FIELD_TYPES[f.type] }}</button>{% endfor %}
+      </div>
+      <button type="button" class="cb sm" data-act="field-add"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add a detail</button>
+      <div class="pe-err" data-err="fields"></div>
+      <div class="pe-field-panel" data-field-panel hidden>
+        <label class="lb">Label <input data-f="label" maxlength="80"/></label>
+        <label class="lb">Type <select data-f="type">{% for k, label in FIELD_TYPES.items() %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</select></label>
+        <label class="lb" data-f-choices hidden>Choices <small class="muted">one per line</small><textarea data-f="options" rows="3"></textarea></label>
+        <label class="check"><input type="checkbox" data-f="on_card"/> Show on the lead card</label>
+        <label class="check"><input type="checkbox" data-f="on_add"/> Ask when adding a lead</label>
+        <label class="check"><input type="checkbox" data-f="required"/> Required</label>
+        <div class="pe-err" data-f-err></div>
+        <div class="row end"><button type="button" class="cb danger sm" data-act="field-remove">Remove this detail</button>
+          <button type="button" class="cb quiet sm" data-act="field-cancel">Cancel</button>
+          <button type="button" class="cb primary sm" data-act="field-done">Done</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Stages <small class="muted">(drag ⠿ or use ↑↓)</small></h2>
+    <ol class="pe-stages" data-stages>{% for st in stages %}{{ stage_card(st, loop.index, lead_counts.get(st.id, (0, 0))) }}{% endfor %}</ol>
+    <button type="button" class="cb" data-act="add-stage"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add a stage</button>
+  </section>
+</form>
+
+{% include 'cs/crm/setup/_step_drawer.html' %}
+
+<template data-clone="stage">{{ stage_card(none, 0, (0, 0)) }}</template>
+<template data-clone="step">{{ step_row(none, 0) }}</template>
+<template data-clone="tag-dialog">
+  <h3>Change WhatsApp tag</h3>
+  <label class="check"><input type="radio" name="tag-mode" value="product"/> The product code: '{{ pipe.product }}'</label>
+  <label class="check"><input type="radio" name="tag-mode" value="own"/> Its own tag: <input type="text" data-tag-label maxlength="30" aria-label="Its own tag" placeholder="e.g. TI renewals"/></label>
+  <p class="tag-preview" data-tag-preview></p>
+  <p data-tag-said class="muted"></p>
+  <p class="pe-err" data-tag-err></p>
+  <label class="check" data-tag-take hidden><input type="checkbox"/> {{ TAKE_OVER }}</label>
+  <div class="row end"><button type="button" class="cb quiet" data-close>Cancel</button> <button type="button" class="cb primary" data-tag-go>Change it</button></div>
+</template>
+<script type="application/json" id="pe-data">{{ data|tojson }}</script>
+{% endblock %}
+{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/crm-setup.js') }}" defer></script>{% endblock %}

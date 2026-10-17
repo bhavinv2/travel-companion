@@ -2354,3 +2354,4 @@ body.lock{overflow:hidden}
    the top of every popup -- the booking form's title and the finder's picture were cut off. */
 .bk-wrap,.fm-wrap,.cov-wrap{z-index:1100}
 @media (max-width:760px){.fm{height:100vh;height:100dvh;max-height:100dvh}}
+.consent{display:flex;gap:10px;align-items:flex-start;margin-top:12px;font-size:14px;line-height:1.5}.consent input{width:18px;height:18px;margin-top:3px}

@@ -762,6 +762,15 @@ def themes_page():
                            preview={t['key']: theming.variables(t) for t in items})
 
 
+def _quick_replies_follow():
+    """The Help & FAQ answers are quick replies in WhatsApp chats too: they follow a save (never fails it)."""
+    try:
+        from app.services import wa_templates
+        wa_templates.quick_replies_changed()
+    except Exception:      # noqa: BLE001
+        current_app.logger.warning('Quick replies not refreshed after a help-page save', exc_info=True)
+
+
 @admin_bp.route('/help', methods=['GET', 'POST'])
 @login_required
 @admin_required
@@ -794,6 +803,7 @@ def help_center_page():
             help_center.reset(current_user, site=site)
             ActivityEvent.log('help_center_reset', actor=current_user, site=site)
             db.session.commit()
+            _quick_replies_follow()
             flash('%s questions restored to the ones we ship.' % label, 'success')
             return redirect(here)
 
@@ -805,6 +815,7 @@ def help_center_page():
                               categories=len(help_center.categories(site)),
                               faqs=len(help_center.faqs(site)))
             db.session.commit()
+            _quick_replies_follow()
             flash('%s questions saved — the public page is already showing them.' % label, 'success')
             return redirect(here)
         for e in errors:

@@ -242,6 +242,7 @@ def book():
     crm.capture_safely('sh-booking', name=booking.contact_name or booking.patient_name, phone=booking.phone,
                        email=booking.email, product='SH', message=get('notes', 2000) or None,
                        ref=('sahayak_bookings', booking.id), user_id=booking.user_id,
+                       consent=crm.ticked(data.get('wa_consent')), consent_from='Sahayak booking form',
                        details={'service': service['name'], 'for': booking.patient_name,
                                 'age': booking.patient_age, 'pin_code': booking.pincode,
                                 'address': booking.address,

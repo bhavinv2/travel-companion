@@ -528,8 +528,9 @@ def test_capture_moves_replies_and_backfill_never_make_a_chat(app, client, wa, m
     crm.move_stage(lead, stage('ti-standard', 'customer'))
     _db.session.commit()
     ti_lead('+919000000077', name='Asha', plan=False, notify=False, sync=False, imported=True)
-    assert crm.wa_backfill() == 1
-    assert crm.run_wa_sync()['crm_wa_synced'] == 1
+    # U8: the backfill now covers won and lost customers too (the first lead is a customer by now)
+    assert crm.wa_backfill() == 2
+    assert crm.run_wa_sync()['crm_wa_synced'] == 2
     assert not [p for p in wa.portal if p[1].startswith('conversation')]
     assert not CrmPerson.query.filter(CrmPerson.wacrm_assign_due.is_(True)).count()
 
@@ -850,7 +851,7 @@ def test_removing_a_lead_drops_only_its_product_tags(app, client, wa, admin_user
     client.post('/admin/crm/lead/%d/remove' % ti_id)
     assert wa.calls == [('GET', '/api/v1/contacts/c-1', None),
                         ('PATCH', '/api/v1/contacts/c-1', {'tags': ['opted-out', 'vip']})]
-    assert fresh_person(pid) is None and wa.by_id('c-1') is not None          # the contact itself stays
+    assert fresh_person(pid) is not None and wa.by_id('c-1') is not None      # the contact stays, here and in WhatsApp (release 2)
 
 
 def test_removing_the_last_lead_can_leave_a_contact_with_no_tags(app, client, wa, admin_user):
@@ -958,7 +959,8 @@ def test_a_renamed_stage_retags_its_people(app, client, wa, admin_user):
     del wa.calls[:]
     client.post('/admin/crm/setup/pipeline', data={'pipeline': 'ti-standard', 'action': 'stage', 'op': 'save',
                                                     'stage_id': cold.id, 'name': 'Fresh lead', 'kind': 'open'})
-    assert ('PATCH', '/api/v1/contacts/c-1', {'tags': ['TI: Fresh lead', 'ti']}) in wa.calls
+    # a rename is a quiet re-tag (contract 19): no "tag added" automations fire
+    assert ('PATCH', '/api/v1/contacts/c-1', {'tags': ['TI: Fresh lead', 'ti'], 'dispatch_tag_events': False}) in wa.calls
     assert not [c for c in wa.calls if c[1] == '/api/v1/contacts/c-2']       # not in that stage
     # where a finished lead stays: its people follow too
     won = stage('ti-standard', 'customer')
@@ -982,11 +984,12 @@ def test_imports_stay_quiet_until_the_backfill(app, wa):
                 start_stage=stage('ti-standard', 'prospect_fallout'), **quiet)
     crm.capture('ti-quote', name='Mail Only', email='m@example.com', **quiet)
     assert wa.calls == [] and wa.portal == [] and due_people() == []
-    assert crm.wa_backfill() == 1                                  # open, with a phone
+    assert crm.wa_backfill() == 2                  # U8: the open one and the lost one, both with a phone
     assert wa.calls == []                                          # marking is all it does: no burst
-    assert crm.run_wa_sync() == {'crm_wa_synced': 1, 'crm_wa_failed': 0, 'crm_wa_waiting': 0}
-    assert [c[:2] for c in wa.calls] == [('POST', '/api/v1/contacts'), ('PATCH', '/api/v1/contacts/c-1')]
-    assert wa.portal == [] and wa.tags() == ['TI: Prospect', 'ti']
+    assert crm.run_wa_sync() == {'crm_wa_synced': 2, 'crm_wa_failed': 0, 'crm_wa_waiting': 0}
+    assert [c[:2] for c in wa.calls][:2] == [('POST', '/api/v1/contacts'), ('PATCH', '/api/v1/contacts/c-1')]
+    assert not [c for c in wa.calls if c[1] == '/api/v1/messages']      # never a message
+    assert wa.portal == []
     assert not CrmPerson.query.filter_by(phone=PHONE).one().wacrm_assign_due
 
 
@@ -997,10 +1000,10 @@ def test_the_sales_sheet_import_stays_quiet_until_the_backfill(app, wa, cs_user)
     crm_import.import_sheet(rows, owner_id=cs_user.id)              # owners too: still nothing for WhatsApp
     assert CrmLead.query.count() == 6
     assert wa.calls == [] and wa.portal == [] and due_people() == []
-    open_with_phone = {l.person_id for l in CrmLead.query.filter_by(status='open').all() if l.person.phone}
-    assert crm.wa_backfill() == len(open_with_phone) > 0
+    with_phone = {l.person_id for l in CrmLead.query.all() if l.person.phone}     # U8: won and lost too
+    assert crm.wa_backfill() == len(with_phone) > 0
     out = crm.run_wa_sync()
-    assert out['crm_wa_synced'] == len(open_with_phone) and out['crm_wa_waiting'] == 0
+    assert out['crm_wa_synced'] == len(with_phone) and out['crm_wa_waiting'] == 0
     assert wa.portal == []
 
 
@@ -1166,12 +1169,11 @@ def test_mode_labels_say_what_happens(app, client, wa, admin_user):
     login(client, admin_user.email)
     page = client.post('/admin/crm/setup/whatsapp', data={'action': 'mode', 'mode': 'contacts'},
                        follow_redirects=True).get_data(as_text=True)
-    assert 'WhatsApp CRM: Keep leads in step.' in page
+    assert 'Saved: Keep contacts in step.' in page          # U8 rewrote the labels
     page = client.get('/admin/crm/connection').get_data(as_text=True)
-    assert 'Off — nothing goes to WhatsApp' in page
-    assert 'Keep leads in step — agents send from the chat' in page
-    assert 'Keep leads in step and send — follow-ups also go from here' in page
-    assert 'automations that start on a tag will start too' in page
+    for label in crm.WA_MODES.values():
+        assert label in page
+    assert crm.WA_MODES['off'] == 'Not yet' and 'Nothing is written to WhatsApp' in page
     assert crm.wa_mode() == 'contacts' and not crm.wa_can_send()
     client.post('/admin/crm/setup/whatsapp', data={'action': 'mode', 'mode': 'send'})
     assert crm.wa_can_send()

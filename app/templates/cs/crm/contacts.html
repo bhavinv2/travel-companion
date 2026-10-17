@@ -1,0 +1,75 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% from '_empty.html' import empty with context %}
+{% from 'cs/crm/_bits.html' import when with context %}
+{% block crm_title %}Contacts{% endblock %}
+{% block crm %}
+{% set more = [] %}
+{% if can_import %}{% set _ = more.append({'label': 'Import a list', 'href': crm_url('data') ~ '#import', 'icon': 'fa-solid fa-file-arrow-up'}) %}{% endif %}
+{% if can_export %}{% set _ = more.append({'label': 'Download this list', 'href': crm_url('export_contacts', tag=f.tag or None, wa=f.wa or None, enq=f.enq or None, owner=f.owner or None, q=f.q or None), 'icon': 'fa-solid fa-file-csv'}) %}{% endif %}
+{{ page_head('Contacts', 'fa-solid fa-address-book',
+             'Everyone we can reach, one row per person. Click a name to see or change their details. Enquiries are worked on Leads.',
+             help=['Click a name to see their details, permission, tags and every enquiry.',
+                   'WhatsApp shows whether their chat is open, they are waiting on us, or they opted out.',
+                   "Tag finds the tags the Sales CRM adds: product, source and opted out. Tags made in WhatsApp are on each contact's page."],
+             primary=({'label': '+ Add a lead', 'href': crm_url('add')} if CAN('crm_add') else None),
+             more=(more or None), full_screen=True) }}
+
+{% if not has_any %}
+<div class="card">{{ empty('fa-solid fa-address-book', crm_people.CONTACTS_EMPTY, {'label': '+ Add a lead', 'href': crm_url('add')} if CAN('crm_add') else None) }}</div>
+{% else %}
+<form class="toolbar leads-filters ui-filters" method="GET">
+  <label class="flt">Tag
+    <select name="tag" onchange="this.form.submit()">
+      <option value="">Any</option>
+      {% for v, label in tag_choices %}<option value="{{ v }}"{{ ' selected' if f.tag == v }}>{{ label }}</option>{% endfor %}
+    </select></label>
+  <label class="flt">WhatsApp
+    <select name="wa" onchange="this.form.submit()">
+      <option value="">Any</option>
+      {% for k, label in WA_FILTERS %}<option value="{{ k }}"{{ ' selected' if f.wa == k }}>{{ label }}</option>{% endfor %}
+    </select></label>
+  <label class="flt">Has an enquiry
+    <select name="enq" onchange="this.form.submit()">
+      <option value="">Any</option>
+      {% for k, label in ENQ_FILTERS %}<option value="{{ k }}"{{ ' selected' if f.enq == k }}>{{ label }}</option>{% endfor %}
+    </select></label>
+  <label class="flt">Looked after by
+    <select name="owner" onchange="this.form.submit()">
+      <option value="">Anyone</option>
+      <option value="mine"{{ ' selected' if f.owner == 'mine' }}>Mine</option>
+      <option value="none"{{ ' selected' if f.owner == 'none' }}>Not given to anyone</option>
+      {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if f.owner == u.id|string }}>{{ u.full_name }}{{ ' (you)' if u.id == current_user.id }}</option>{% endfor %}
+    </select></label>
+  <label class="search"><i class="fa-solid fa-magnifying-glass"></i>
+    <input type="search" name="q" value="{{ f.q }}" placeholder="Name, phone, e-mail or handle" aria-label="Search contacts"/></label>
+  {% if filters_on %}<a class="muted small" href="{{ crm_url('contacts') }}">Clear filters</a>{% endif %}
+</form>
+
+{% if not people %}
+<div class="card">{{ empty('fa-solid fa-filter', crm_people.CONTACTS_NO_MATCH, {'label': 'Clear filters', 'href': crm_url('contacts')}) }}</div>
+{% else %}
+<div class="table-wrap">
+<table class="crm-table ct-table">
+  <thead><tr><th>Name</th><th>Phone</th><th>Enquiries</th><th>Last contact</th><th>WhatsApp</th></tr></thead>
+  <tbody>
+  {% for p in people %}
+  {% set r = rows[p.id] %}
+  <tr>
+    <td class="nm" data-label="Name"><a href="{{ crm_url('contact', person_id=p.id) }}">{{ p.display_name }}</a></td>
+    <td data-label="Phone">{% if p.phone %}<a href="tel:{{ p.phone }}">{{ PHONE.pretty(p.phone) }}</a>{% else %}—{% endif %}</td>
+    <td data-label="Enquiries">{% for cls, text, url in r.chips %}<a class="pill {{ cls }}" href="{{ url }}">{{ text }}</a>{% else %}<span class="muted">None yet</span>{% endfor %}{% if r.more %} <small class="muted">+{{ r.more }}</small>{% endif %}</td>
+    <td data-label="Last contact">{{ when(r.last_contact, utcnow) if r.last_contact else '—' }}</td>
+    <td data-label="WhatsApp"><span class="ct-wa {{ r.wa[0] }}">{{ r.wa[1] }}</span></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% set first = (page - 1) * per_page + 1 %}
+<p class="pager muted">Showing {{ first }}–{{ first + people|length - 1 }} of {{ total }}
+  {% if page > 1 %}<a class="cb sm" href="{{ crm_url('contacts', tag=f.tag or None, wa=f.wa or None, enq=f.enq or None, owner=f.owner or None, q=f.q or None, page=page - 1) }}">‹ Previous</a>{% endif %}
+  {% if page < pages %}<a class="cb sm" href="{{ crm_url('contacts', tag=f.tag or None, wa=f.wa or None, enq=f.enq or None, owner=f.owner or None, q=f.q or None, page=page + 1) }}">Next ›</a>{% endif %}</p>
+{% endif %}
+{% endif %}
+{% endblock %}

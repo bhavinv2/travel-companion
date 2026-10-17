@@ -298,6 +298,7 @@ def enquiry():
     from app.services import crm
     crm.capture_safely('ti-support' if support else 'ti-expert', name=name, phone=phone, email=email,
                        product='TI', message=written or None, ref=('contact_messages', msg.id),
-                       user_id=msg.user_id,
+                       user_id=msg.user_id, consent=crm.ticked(data.get('wa_consent')),
+                       consent_from='insurance form',
                        details={'destination': destination, 'about': subject, 'preferred_contact': preferred})
     return jsonify({'success': True}), 201

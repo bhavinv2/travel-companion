@@ -130,8 +130,9 @@ def test_the_administrator_sees_every_section_in_order(app, admin_user):
                  'Team members', 'Teams', 'Roles', 'Workspace'):
         assert line in flat, line
     # lines with no menu entry: reachable from the page that needs them
-    # F1: Contacts stays off the menu in release 1 (its page comes in release 2)
-    for hidden in ('Contacts', 'Add a lead', 'Download lists of leads and contacts', 'Auto', 'All workspaces'):
+    # Contacts is on the menu from U7 (the portal's own page)
+    assert 'Contacts' in flat
+    for hidden in ('Add a lead', 'Download lists of leads and contacts', 'Auto', 'All workspaces'):
         assert hidden not in flat, hidden
 
 
@@ -198,9 +199,9 @@ def _nav_for_client(client):
 def test_release_two_pages_are_not_offered_yet(app, client, admin_user):
     html = the_menu(client, admin_user.email)
     text = re.sub(r'<[^>]+>', ' ', html)
-    for later in ('Find a person', 'Automatic follow-ups', 'Download this list', 'Pipeline builder'):
+    for later in ('Automatic follow-ups', 'Pipeline builder'):
         assert later not in text, later
-    assert 'crm_auto' in access.RESERVED_PAGES and 'crm_auto' not in access.PAGES   # kept in roles, never shown
+    assert 'crm_auto' in access.PAGES      # U8 built the page, so it is no longer reserved
 
 
 def test_the_old_setup_links_still_land_on_the_right_page(app, client, admin_user):
@@ -224,7 +225,7 @@ def test_every_set_up_page_draws(app, client, admin_user):
 def test_the_connection_page_switches_the_mode_and_shows_its_words(app, client, admin_user):
     login(client, admin_user.email)
     r = client.post('/admin/crm/setup/whatsapp', data={'action': 'mode', 'mode': 'contacts'}, follow_redirects=True)
-    assert r.status_code == 200 and 'Keep leads in step' in r.get_data(as_text=True)
+    assert r.status_code == 200 and 'Saved: Keep contacts in step.' in r.get_data(as_text=True)
 
 
 # ------------------------------------------------------------------ the data revision
@@ -311,9 +312,10 @@ def test_the_lead_page_and_daily_work_revisions_add_their_columns_and_reverse(tm
 
 def test_no_menu_line_frames_a_page_the_whatsapp_crm_retires(app):
     """F1/G3: the WhatsApp CRM retires /contacts inside the portal, so a menu line framing it would bounce
-    every click to Leads. The Contacts line stays off the menu, and its key stays for roles and sign-in."""
+    every click to Leads. Contacts is the portal's own page from U7: on the menu, native."""
     page = access.PAGES['crm_people']
-    assert page['nav'] is False
+    assert page['nav'] is True
+    assert page['links'] == {'admin': 'admin_crm.contacts', 'cs': 'crm.contacts'}
     assert 'crm_people' in access.PAGES
     assert 'crm_people' in access.CS_ROLE_PAGES
     for key, p in access.PAGES.items():

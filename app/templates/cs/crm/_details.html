@@ -1,0 +1,20 @@
+{# Lead details (U6): one input for a field of its type, and a read-out with a pencil that opens the input.
+   Import with context (they read nothing from the page). #}
+{% macro detail_input(f, value, name='', attrs='') -%}
+{%- if f.type == 'choice' -%}
+<select {{ attrs|safe }}{% if name %} name="{{ name }}"{% endif %}><option value="">—</option>{% for o in (f.options or []) %}<option value="{{ o }}"{{ ' selected' if value == o }}>{{ o }}</option>{% endfor %}</select>
+{%- elif f.type == 'yesno' -%}
+<select {{ attrs|safe }}{% if name %} name="{{ name }}"{% endif %}><option value="">—</option><option value="yes"{{ ' selected' if value is sameas true or value == 'yes' }}>Yes</option><option value="no"{{ ' selected' if value is sameas false or value == 'no' }}>No</option></select>
+{%- elif f.type == 'date' -%}
+<input type="date" {{ attrs|safe }}{% if name %} name="{{ name }}"{% endif %} value="{{ value or '' }}"/>
+{%- elif f.type == 'number' -%}
+<input type="number" step="any" {{ attrs|safe }}{% if name %} name="{{ name }}"{% endif %} value="{{ value if value is not none else '' }}"/>
+{%- else -%}
+<input type="text" maxlength="300" {{ attrs|safe }}{% if name %} name="{{ name }}"{% endif %} value="{{ value if value is not none else '' }}"/>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro detail_view(label, text, editor, hint='') -%}
+<dt>{{ label }}</dt>
+<dd class="dv-row"><span data-dv>{{ text }}</span> <button type="button" class="cb quiet sm" data-act="edit-detail" aria-label="Change {{ label }}" title="Change">✎</button>{% if hint %}<span class="hint">{{ hint }}</span>{% endif %}<span data-detail-edit hidden>{{ editor|safe }}</span></dd>
+{%- endmacro %}

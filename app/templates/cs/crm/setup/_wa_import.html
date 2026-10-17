@@ -1,0 +1,24 @@
+{# Bring in & download: From WhatsApp (one-off). Two buttons, each run in batches with a progress count (crm-people.js). #}
+<section class="card" data-wa-import-card>
+  <h2><i class="fa-brands fa-whatsapp"></i> From WhatsApp (one-off)</h2>
+  {% if not wa_enabled %}
+  <p class="muted">{{ crm_people.WA_FEED_OFF }}</p>
+  {% elif feed_missing %}
+  <p class="muted" data-missing>{{ crm_people.NEEDS_UPDATE }}</p>
+  <button type="button" class="cb quiet" data-wa-import="contacts" data-url="{{ crm_url('wa_contacts_import') }}">Check again</button>
+  <p class="hint" data-wa-progress aria-live="polite"></p>
+  {% else %}
+  <div class="stack">
+    <div>
+      <button type="button" class="cb" data-wa-import="contacts" data-url="{{ crm_url('wa_contacts_import') }}">Bring in WhatsApp-only contacts</button>
+      <p class="hint">Brings in WhatsApp contacts who never became a lead. They are not messaged or tagged until they get an enquiry.</p>
+      <p class="hint" data-wa-progress="contacts" aria-live="polite"></p>
+    </div>
+    <div>
+      <button type="button" class="cb" data-wa-import="notes" data-url="{{ crm_url('wa_notes_import') }}">Bring in WhatsApp notes</button>
+      <p class="hint">Copies the notes written in WhatsApp onto each contact's newest lead.</p>
+      <p class="hint" data-wa-progress="notes" aria-live="polite"></p>
+    </div>
+  </div>
+  {% endif %}
+</section>

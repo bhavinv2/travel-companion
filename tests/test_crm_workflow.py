@@ -199,7 +199,7 @@ def test_the_dashboard_counts_what_the_team_does(app, client, cs_user, admin_use
     client.post('/auth/logout')
     login(client, 'admin@test.com')
     page = client.get('/admin/crm/insights?days=7').get_data(as_text=True)
-    assert 'From lead to customer' in page and 'Log today' in page and 'Day by day' in page
+    assert 'From lead to customer' in page and 'Messages, by who sent them' in page and 'Log today' not in page
 
 
 def test_logging_todays_work(app, client, cs_user):
@@ -236,7 +236,7 @@ def test_the_sales_process_page(app, client, admin_user, cs_user):
     ti_lead()
     login(client, cs_user.email)
     page = client.get('/cs/crm/process').get_data(as_text=True)
-    assert 'Where leads come from' in page and 'Travel insurance' in page and 'TI #1' in page
+    assert 'Where leads come from' in page and 'Travel insurance' in page and 'WhatsApp “Details: introduce yourself and offer a quote” right away, goes by itself' in page
     assert 'Organic posting in groups' in page and 'Gaps to close' not in page
     assert client.post('/cs/crm/process', data={'what': 'channels', 'channels': 'x | y'}).status_code == 302
     assert 'channels' not in crm.crm_settings_raw()                    # not theirs to edit
@@ -316,7 +316,7 @@ def test_the_workbook_comes_in_with_its_notes_colours_and_history(app, client, a
     r = client.post('/admin/crm/setup/import', data={'sheet': (workbook(), 'Sales Process.xlsx')},
                     content_type='multipart/form-data')
     page = r.get_data(as_text=True)
-    assert 'Dashboard history from the KPI tabs' in page
+    assert 'Daily numbers from the sales sheet' in page
     assert 'value="%d" selected' % hb_user.id in page                 # HB KPI guessed as Harsha Bandi
     token = page.split('name="token" value="', 1)[1].split('"', 1)[0]
     client.post('/admin/crm/setup/import/confirm', data={'token': token, 'kpi_KPI': 'team', 'kpi_HB_KPI': hb_user.id})

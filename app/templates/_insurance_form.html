@@ -73,6 +73,7 @@
          so a number entered without its code reached the quotes table with nothing to say which
          country it was. Our own label above, the shared field below (label='' skips its own). #}
       <div class="f"><label for="{{ p }}-phone">Phone <i class="rq">*</i></label>{{ phone_field(name='phone', id=p ~ '-phone', label='') }}</div>
+      {% from '_wa_consent.html' import wa_consent %}{{ wa_consent(p ~ '-wa', 'ins-wa') }}
     </div>
 
     <div class="ins-err" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><span></span></div>

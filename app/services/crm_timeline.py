@@ -52,10 +52,11 @@ def _touch(tp, lead, person):
     here = tp.lead_id == lead.id
     ch, body, who = tp.channel, tp.body or '', _agent(tp)
     # 1. the milestone buttons ("I sent the quote"): this lead's, old ones logged as WhatsApp too
-    if ch in ('whatsapp', 'system') and tp.code in crm.MILESTONES and not tp.external_id:
+    if not tp.external_id and ((ch == 'system' and tp.code) or (ch == 'whatsapp' and tp.code in crm.LEGACY_MILESTONES)):
         if not here:
             return None
-        return _event(tp.created_at, 'fa-solid fa-flag', crm.EVENTS[tp.code][0] + (' (%s)' % who if who else ''))
+        text = tp.body if ch == 'system' and tp.body else crm.LEGACY_MILESTONES.get(tp.code, tp.code)
+        return _event(tp.created_at, 'fa-solid fa-flag', text + (' (%s)' % who if who else ''))
     # 2. rows from the sales sheet's import
     if tp.status == 'imported' and not tp.external_id:
         return _event(tp.created_at, 'fa-solid fa-file-import', body) if here else None
@@ -121,7 +122,8 @@ def build(lead, now=None, limit=TIMELINE_LIMIT):
         text = 'Stage: %s → %s' % (ch.from_stage.name, to) if ch.from_stage else 'Stage: %s' % to
         text += ' (%s)' % ch.by.full_name if ch.by else ' (automatic)'
         detail = (ch.reason or '').replace(' (automatic)', '').strip()
-        if detail in [v[0] for v in crm.EVENTS.values()]:
+        if detail in crm.LEGACY_MILESTONES.values() or (ch.to_stage is not None and ch.to_stage.button_label
+                                                        and detail == ch.to_stage.button_label):
             detail = ''
         items.append(_event(ch.created_at, 'fa-solid fa-arrow-right-arrow-left', text, detail, order=1))
     tasks = (CrmTask.query.filter(CrmTask.lead_id == lead.id, CrmTask.status != 'open', CrmTask.done_at.isnot(None))
@@ -129,7 +131,7 @@ def build(lead, now=None, limit=TIMELINE_LIMIT):
     ids = {t.done_by_id for t in tasks if t.done_by_id}
     names = {u.id: u.full_name for u in User.query.filter(User.id.in_(ids))} if ids else {}
     for t in tasks:
-        if t.note in ('Stage changed', 'Pipeline changed'):
+        if t.note in ('Stage changed', 'Pipeline changed', crm.WAIT_NOTE):
             continue
         by = names.get(t.done_by_id)
         if t.status == 'done':

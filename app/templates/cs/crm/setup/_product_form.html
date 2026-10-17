@@ -1,0 +1,33 @@
+{# The product's fields, for Products and for the wizard's "+ New product" (prefix 'np_').
+   p: the product (or None); form: what was typed; errors: {field: message}; locked_n: leads using the code. #}
+{% macro product_fields(prefix, p, form, errors, locked_n, with_default=False, pipelines=()) %}
+{% set f = form or {} %}
+{% set code = f.get(prefix ~ 'code', p.code if p else '') %}
+{% set icon = f.get(prefix ~ 'icon', p.icon if p and p.icon else 'fa-layer-group') %}
+<div class="crm-form pf">
+  <div><label class="lb" for="{{ prefix }}name">Name</label>
+    <input type="text" id="{{ prefix }}name" name="{{ prefix }}name" maxlength="60" value="{{ f.get(prefix ~ 'name', p.name if p else '') }}" placeholder="e.g. Gift Health"/>
+    <div class="pe-err">{{ errors.get(prefix ~ 'name', '') }}</div></div>
+  <div class="full"><span class="lb">Icon</span>
+    <div class="icon-grid" role="radiogroup" aria-label="Icon">
+      {% for cls, label in ICONS %}<label title="{{ label }}"><input type="radio" name="{{ prefix }}icon" value="{{ cls }}" aria-label="{{ label }}"{{ ' checked' if icon == cls }}/><i class="fa-solid {{ cls }}" aria-hidden="true"></i></label>{% endfor %}
+    </div></div>
+  <div><label class="lb" for="{{ prefix }}code">Code used in WhatsApp tags</label>
+    <input type="text" id="{{ prefix }}code" name="{{ prefix }}code" maxlength="8" value="{{ code }}" placeholder="e.g. GH" autocomplete="off"
+           data-code-input data-check="{{ CRM_REL('tag_check') }}" data-product="{{ p.id if p and p.id else '' }}"{{ ' readonly' if locked_n }}/>
+    {% if locked_n %}<div class="hint">{{ P_CODE_LOCKED % (locked_n, '' if locked_n == 1 else 's') }}</div>{% endif %}
+    <span class="tag-preview" data-preview>appears as '{{ code or 'XX' }}' and '{{ code or 'XX' }}: New'</span>
+    <div class="pe-err" data-check-err>{{ errors.get(prefix ~ 'code', '') }}</div>
+    <label class="check" data-take-over{{ '' if errors.get(prefix ~ '_clash') else ' hidden' }}><input type="checkbox" name="{{ prefix }}take_over"{{ ' checked' if f.get(prefix ~ 'take_over') }}/> {{ TAKE_OVER }}</label></div>
+  <div><label class="lb" for="{{ prefix }}currency">Currency</label>
+    <select id="{{ prefix }}currency" name="{{ prefix }}currency">{% for k, label in CURRENCIES.items() %}<option value="{{ k }}"{{ ' selected' if f.get(prefix ~ 'currency', p.currency if p else 'INR') == k }}>{{ label }}</option>{% endfor %}</select></div>
+  <div><label class="lb" for="{{ prefix }}kpi_row">Counts in the sales-sheet row <small class="muted">(optional)</small></label>
+    <select id="{{ prefix }}kpi_row" name="{{ prefix }}kpi_row"><option value="">— none —</option>{% for k, label in KPI_ROWS %}<option value="{{ k }}"{{ ' selected' if f.get(prefix ~ 'kpi_row', p.kpi_row if p else '') == k }}>{{ label }}</option>{% endfor %}</select></div>
+  {% if with_default %}
+  <div><label class="lb" for="{{ prefix }}default_pipeline_id">Default pipeline</label>
+    <select id="{{ prefix }}default_pipeline_id" name="{{ prefix }}default_pipeline_id"><option value="">— the first pipeline of this product —</option>{% for pl in pipelines %}<option value="{{ pl.id }}"{{ ' selected' if (f.get(prefix ~ 'default_pipeline_id') or (p.default_pipeline_id|string if p.default_pipeline_id else '')) == pl.id|string }}>{{ pl.name }}</option>{% endfor %}</select></div>
+  <div><label class="check"><input type="checkbox" name="{{ prefix }}offered"{{ ' checked' if ((f.get(prefix ~ 'offered') == 'on') if f else p.offered) }}/> Offered</label>
+    <div class="hint">Offered products show as choices in Add a lead.</div></div>
+  {% endif %}
+</div>
+{% endmacro %}

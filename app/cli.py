@@ -67,7 +67,7 @@ def register(app):
 
     @app.cli.command('crm-wa-backfill')
     def crm_wa_backfill():
-        """Bring every open lead with a phone into the WhatsApp CRM as a contact with its tags (no chat
+        """Bring every lead with a phone (open, won or lost) into the WhatsApp CRM as a contact with its tags (no chat
         is made and nothing is sent). The jobs runner does it, a few people every run."""
         from app.services import crm
         if not crm.wa_writes_on():

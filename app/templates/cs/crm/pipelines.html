@@ -1,24 +1,46 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
-{% from 'cs/crm/setup/_macros.html' import pipe_tabs with context %}
+{% from '_empty.html' import empty %}
 {% block crm_title %}Pipelines{% endblock %}
 {% block crm %}
 {{ page_head('Pipelines', 'fa-solid fa-diagram-project',
              'The path a lead follows for each product: its stages, and the follow-ups each stage plans.',
-             help=['Pick a pipeline above. Each has its stages, in order, and the follow-ups each stage plans.',
-                   'When a lead enters a stage, its first follow-up goes on the list of whoever looks after it; doing one plans the next.',
-                   'The WhatsApp templates tab lists the template each follow-up needs to go after 24 hours.'],
+             help=["Each pipeline is the path one product's leads follow: its stages and the follow-ups each stage plans.",
+                   'Open a pipeline to change it, then press Save changes once.',
+                   'Products are what a lead asks about; each has a code used in WhatsApp tags.'],
+             primary={'label': 'New pipeline', 'href': crm_url('pipeline_new'), 'icon': 'fa-solid fa-plus'},
              full_screen=True) }}
-{% if tpl_status %}<datalist id="wa-templates">{% for name in tpl_status %}<option value="{{ name }}"></option>{% endfor %}</datalist>{% endif %}
-{{ pipe_tabs(show) }}
-<nav class="subtabs">
-  <a href="{{ crm_url('pipelines', p=pipe.key if pipe else None) }}" class="{{ 'on' if show == 'stages' }}"><i class="fa-solid fa-diagram-next"></i> Stages &amp; follow-ups</a>
-  <a href="{{ crm_url('pipelines', show='templates') }}" class="{{ 'on' if show == 'templates' }}"><i class="fa-solid fa-file-lines"></i> WhatsApp templates</a>
+{% if banner and tab != 'templates' %}
+<div class="pl-banner card warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> <span>{{ banner }}</span>
+  <a class="cb sm" href="{{ crm_url('pipelines', show='templates') }}">See them</a></div>
+{% endif %}
+<nav class="subtabs" aria-label="Pipelines">
+  <a href="{{ crm_url('pipelines') }}" class="{{ 'on' if tab == 'pipelines' }}"><i class="fa-solid fa-diagram-next"></i> Pipelines</a>
+  <a href="{{ crm_url('pipelines', tab='products') }}" class="{{ 'on' if tab == 'products' }}"><i class="fa-solid fa-boxes-stacked"></i> Products</a>
+  <a href="{{ crm_url('pipelines', show='templates') }}" class="{{ 'on' if tab == 'templates' }}"><i class="fa-solid fa-file-lines"></i> Needs a WhatsApp template{% if needs %} <span class="chip bad">{{ needs }}</span>{% endif %}</a>
 </nav>
-{% if show == 'stages' %}
-  {% include 'cs/crm/setup/_pipeline.html' %}
-  {% include 'cs/crm/setup/_messages.html' %}
+
+{% if tab == 'products' %}
+  {% include 'cs/crm/setup/_products.html' %}
+{% elif tab == 'templates' %}
+  {% include 'cs/crm/setup/_checklist.html' %}
+{% elif pipelines %}
+<div class="pl-cards">
+  {% for p in pipelines %}
+  {% set n = counts.get(p.id, (0, 0)) %}
+  <section class="card pl-card">
+    <div class="pl-top"><span class="pl-ico"><i class="fa-solid {{ CRM_PRODUCT_ICON(p.product) }}" aria-hidden="true"></i></span>
+      <div><h2>{{ p.name }}</h2><small class="muted">{{ PRODUCTS.get(p.product, p.product) }}</small></div></div>
+    <p class="pl-meta">{{ n[0] }} stage{{ '' if n[0] == 1 else 's' }} · {{ n[1] }} open lead{{ '' if n[1] == 1 else 's' }}</p>
+    <div class="pl-foot">
+      <label class="pe-switch"><input type="checkbox" role="switch" data-act="pipe-active" data-url="{{ CRM_REL('pipeline_active', pid=p.id) }}" data-on="Taking new leads" data-off="Not taking new leads"{{ ' checked' if p.is_active }}/> <span>{{ 'Taking new leads' if p.is_active else 'Not taking new leads' }}</span></label>
+      <a class="cb primary sm" href="{{ crm_url('pipeline_edit', pid=p.id) }}">Open</a>
+    </div>
+  </section>
+  {% endfor %}
+</div>
 {% else %}
-  {% include 'cs/crm/setup/_templates.html' %}
+{{ empty('fa-solid fa-diagram-project', 'No pipelines yet.', {'label': 'New pipeline', 'href': crm_url('pipeline_new'), 'icon': 'fa-solid fa-plus'}) }}
 {% endif %}
 {% endblock %}
+{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/crm-setup.js') }}" defer></script>{% endblock %}

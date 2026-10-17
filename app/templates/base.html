@@ -170,6 +170,7 @@
          that workspace's modules, narrowed to this person's pages (services/access.py). #}
       {# `site_sw`, not `sw`: a name set here is visible inside every child template's
          block, and `sw` is what the notification-switches screen calls its own data. #}
+      {% if is_staff and (CAN('crm_people') or CAN('crm_board') or CAN('crm_today')) %}{% include '_find_person.html' %}{% endif %}
       {% set site_sw = PORTAL_SWITCHER() %}
       {% if site_sw %}
       <div class="site-sw" id="siteSw">
@@ -513,6 +514,7 @@
   {% if current_user.is_authenticated and (current_user.is_cs or current_user.is_admin) %}
   <script src="{{ url_for('static', filename='js/notify.js') }}" data-api="{{ url_for('notifications.list_notifications') }}" defer></script>
   {% endif %}
+  {% if is_staff and (CAN('crm_people') or CAN('crm_board') or CAN('crm_today')) %}<script src="{{ url_for('static', filename='js/find-person.js') }}" defer></script>{% endif %}
   {% block extra_js %}{% endblock %}
 </body>
 </html>

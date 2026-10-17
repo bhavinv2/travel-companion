@@ -141,7 +141,10 @@ def current():
 
 
 def grid(day):
-    return {(c.slot, c.channel): c for c in CrmChannelCheck.query.filter_by(day=day).all()}
+    from app.services import crm
+    # ticks made before an inbox was renamed still count under its new name
+    return {(c.slot, crm.CHECK_RENAMED.get(c.channel, c.channel)): c
+            for c in CrmChannelCheck.query.filter_by(day=day).all()}
 
 
 def can_tick(day, slot):

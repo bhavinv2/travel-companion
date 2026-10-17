@@ -44,6 +44,8 @@ export interface QuoteRequest {
   phone: string;
   /** the country the phone number was typed for, as an ISO code; the server normalises with it */
   phoneCc?: string;
+  /** ticked "Send my quote and updates on WhatsApp" */
+  waConsent?: boolean;
 }
 
 export interface QuoteResult {
@@ -81,6 +83,7 @@ export async function requestQuote(req: QuoteRequest): Promise<QuoteResult> {
     // different number stored.
     phone: req.phone,
     phone_cc: req.phoneCc || '',
+    wa_consent: !!req.waConsent,
   };
   if (req.plan === 'health') body.destination = destination;
 

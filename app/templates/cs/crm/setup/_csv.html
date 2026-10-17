@@ -1,0 +1,68 @@
+{# Bring in & download: Import a list (CSV). Upload, map the columns, preview, then import. Nobody is messaged. #}
+{% from 'cs/crm/setup/_macros.html' import csrf with context %}
+<section class="card{{ ' focus' if csv }}" id="import">
+  <h2><i class="fa-solid fa-file-csv"></i> Import a list (CSV)</h2>
+  {% if not csv %}
+  <p class="muted">Choose a .csv file. Map its columns, check the preview, then import.</p>
+  <form method="POST" action="{{ crm_url('import_csv') }}" enctype="multipart/form-data" class="row" data-busy>
+    {{ csrf() }}
+    <input type="file" name="list" accept=".csv" required style="max-width:360px"/>
+    <button class="cb primary"><i class="fa-solid fa-magnifying-glass"></i> Read it</button>
+  </form>
+  {% if dnc_n %}<p class="hint">People on the do-not-contact list are skipped ({{ dnc_n }}).</p>{% endif %}
+  {% else %}
+  {% set plan = csv.plan %}
+  <p><b>{{ csv.filename }}</b>: {{ csv.rows }} rows</p>
+  <form method="POST" action="{{ crm_url('import_csv') }}" id="csv-form">
+    {{ csrf() }}
+    <input type="hidden" name="token" value="{{ csv.token }}"/>
+    <input type="hidden" name="filename" value="{{ csv.filename }}"/>
+    <div class="csv-map">
+      {% for field, label in crm_people.FIELDS %}
+      <label for="map-{{ field }}">{{ label }}</label>
+      <select id="map-{{ field }}" name="map_{{ field }}">
+        <option value="">Not in this file</option>
+        {% for h in csv.headers %}<option value="{{ loop.index0 }}"{{ ' selected' if csv.mapping.get(field) == loop.index0 }}>{{ h or ('Column ' ~ loop.index) }}</option>{% endfor %}
+      </select>
+      {% endfor %}
+      <label for="d-product">Product for rows without one</label>
+      <select id="d-product" name="default_product">
+        <option value="">Something else</option>
+        {% for p in tiles %}<option value="{{ p.code }}"{{ ' selected' if csv.defaults.product == p.code }}>{{ p.name }}</option>{% endfor %}
+      </select>
+      <label for="d-source">Where they came from, when the file doesn't say</label>
+      <select id="d-source" name="default_source">
+        {% for s in sources %}<option value="{{ s.key }}"{{ ' selected' if csv.defaults.source == s.key }}>{{ s.name }}</option>{% endfor %}
+      </select>
+      <label for="d-owner">Looked after by, when the file doesn't say</label>
+      <select id="d-owner" name="default_owner">
+        <option value="">Whoever is least busy</option>
+        {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if csv.defaults.owner == u.id }}>{{ u.full_name }}</option>{% endfor %}
+      </select>
+      <label for="d-cc">Numbers without a country code are from</label>
+      <select id="d-cc" name="phone_cc">
+        {% set popular, rest = PHONE.choices() %}
+        {% for c in popular + rest %}<option value="{{ c.iso }}"{{ ' selected' if csv.defaults.phone_cc == c.iso }}>{{ c.name }} +{{ c.dial }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="table-wrap">
+    <table class="crm-table">
+      <thead><tr><th>Name</th><th>Phone</th><th>E-mail</th><th>Product</th><th>Stage</th><th>Looked after by</th><th>What happens</th></tr></thead>
+      <tbody>
+      {% for r in plan.preview %}
+      <tr><td>{{ r.name }}</td><td>{{ r.phone }}</td><td>{{ r.email }}</td><td>{{ r.product }}</td><td>{{ r.stage }}</td><td>{{ r.owner }}</td><td>{{ r.what }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% set c = plan.counts %}
+    {% set n = c.get('new', 0) + c.get('existing', 0) %}
+    <p class="muted">{{ n }} will be imported. Skipped: {{ c.get('already', 0) }} already here · {{ c.get('unreachable', 0) }} with no phone or e-mail · {{ c.get('dnc', 0) }} on the do-not-contact list.</p>
+    <div class="row">
+      <button class="cb primary" formaction="{{ crm_url('import_csv_confirm') }}"{{ ' disabled' if not n }}>Import {{ n }} {{ 'person' if n == 1 else 'people' }}</button>
+      <button class="cb quiet" type="submit">Check again</button>
+      <a class="cb ghost" href="{{ crm_url('data') }}">Cancel</a>
+    </div>
+  </form>
+  {% endif %}
+</section>

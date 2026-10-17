@@ -13,7 +13,7 @@
     {% if events and lead.status == 'open' %}
     <div class="row lead-milestones">
       {% for code, label, sname in events %}
-      <button type="button" class="cb sm" data-act="event" data-code="{{ code }}" title="{{ MILESTONE % sname }}"><i class="fa-solid {{ 'fa-file-invoice-dollar' if code == 'Q' else 'fa-link' }}"></i> {{ label }}</button>
+      <button type="button" class="cb sm" data-act="event" data-code="{{ code }}" title="{{ MILESTONE % sname }}"><i class="fa-solid fa-flag"></i> {{ label }}</button>
       {% endfor %}
     </div>
     {% endif %}
@@ -22,11 +22,12 @@
   <div class="crm-journey" data-journey>
     {% for st in lead.pipeline.stages %}
     <button type="button" data-stage="{{ st.id }}" data-kind="{{ st.kind }}" data-name="{{ st.name }}"
-            data-milestone="{{ MILESTONE_STAGES.get(st.key, '') }}" data-ask="{{ MILESTONE_ASK.get(MILESTONE_STAGES.get(st.key), '') }}"
+            data-milestone="{{ st.button_code if st.button_label else '' }}" data-ask="{{ MILESTONE_ASK(st) }}"
             class="{{ st.kind if st.kind != 'open' }}{{ ' now' if st.id == lead.stage_id }}{{ ' past' if st.kind == 'open' and st.position < cur and lead.stage and lead.stage.kind == 'open' }}">
       {% if st.kind == 'won' %}<i class="fa-solid fa-trophy"></i> {% elif st.kind == 'lost' %}<i class="fa-solid fa-xmark"></i> {% endif %}{{ st.name }}</button>
     {% endfor %}
   </div>
+  {% if choices %}{% include 'cs/crm/_ask_product.html' %}{% endif %}
   {% else %}
   <p class="muted small"><i class="fa-solid fa-route"></i> Not in a pipeline yet. Choose one above.</p>
   {% endif %}

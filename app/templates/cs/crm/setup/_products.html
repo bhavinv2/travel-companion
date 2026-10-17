@@ -1,0 +1,33 @@
+{% from 'cs/crm/setup/_product_form.html' import product_fields with context %}
+<p class="ui-helper">Products are what a lead asks about. Sahayak prices are set in Sahayak → Services &amp; prices.</p>
+<div class="row between pe-bar">
+  <a class="cb" href="{{ crm_url('pipelines', tab='products', edit='new') }}"><i class="fa-solid fa-plus" aria-hidden="true"></i> New product</a>
+</div>
+{% if edit_prod %}
+<form method="POST" action="{{ crm_url('save_product') }}" class="card pf-card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  {% if edit_prod.id %}<input type="hidden" name="id" value="{{ edit_prod.id }}"/>{% endif %}
+  <h2>{{ ('Edit ' ~ edit_prod.name) if edit_prod.id else 'New product' }}</h2>
+  {{ product_fields('', edit_prod, form, errors, prod_leads.get(edit_prod.code, 0) if edit_prod.id else 0, with_default=(edit_prod.id is not none), pipelines=pipelines) }}
+  <div class="row end"><a class="cb quiet" href="{{ crm_url('pipelines', tab='products') }}">Cancel</a> <button class="cb primary">Save</button></div>
+</form>
+{% endif %}
+<div class="table-wrap">
+<table class="crm-table prod-table">
+  <thead><tr><th>Icon</th><th>Name</th><th>Code</th><th>Default pipeline</th><th>Currency</th><th>Offered</th><th></th></tr></thead>
+  <tbody>
+  {% for p in products %}
+  {% set dp = (pipelines|selectattr('id', 'equalto', p.default_pipeline_id)|first) if p.default_pipeline_id else none %}
+  <tr>
+    <td><i class="fa-solid {{ p.icon }}" aria-hidden="true"></i></td>
+    <td>{{ p.name }}</td>
+    <td><code>{{ p.code }}</code></td>
+    <td>{{ dp.name if dp else 'First pipeline of this product' }}</td>
+    <td>{{ p.currency }}</td>
+    <td>{% if p.id %}<label class="pe-switch"><input type="checkbox" role="switch" aria-label="Offered" data-act="product-offered" data-url="{{ CRM_REL('product_offered', prod_id=p.id) }}" data-on="Offered" data-off="Not offered"{{ ' checked' if p.offered }}/> <span>{{ 'Offered' if p.offered else 'Not offered' }}</span></label>{% else %}{{ 'Offered' if p.offered else 'Not offered' }}{% endif %}</td>
+    <td>{% if p.id %}<a class="cb sm" href="{{ crm_url('pipelines', tab='products', edit=p.id) }}">Edit</a>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>

@@ -52,60 +52,8 @@
 </form>
 
 <section class="card" id="whatsapp">
-  <h2><i class="fa-brands fa-whatsapp" style="color:#25a244"></i> WhatsApp CRM</h2>
-  {% if not whatsapp.configured %}
-  <p class="lead">Not connected on this server yet. Once WACRM_URL and WACRM_PORTAL_SECRET are set, this workspace's team can
-    be linked: everyone whose role includes WhatsApp pages gets into the WhatsApp CRM with their portal sign-in.</p>
-  {% elif not whatsapp.linked %}
-  <p class="lead">Link this workspace and its team is kept in step with the WhatsApp CRM: a member whose role includes WhatsApp
-    pages is added there (as an admin when they manage templates, the AI assistant or settings, otherwise as an agent),
-    and taken out when they lose them. Nobody already in the WhatsApp CRM is removed by linking.</p>
-  {% if whatsapp.other %}
-  <p class="ws-note warn"><i class="fa-solid fa-triangle-exclamation"></i> The WhatsApp CRM is linked to <b>{{ whatsapp.other }}</b>.
-    Linking here moves the link to this workspace.</p>
-  {% endif %}
-  <form method="POST" action="{{ url_for('workspace.whatsapp', action='link') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-    <button class="cb primary"><i class="fa-solid fa-link"></i> Link this workspace</button>
-  </form>
-  {% else %}
-  <p class="ws-note ok"><i class="fa-solid fa-circle-check"></i>
-    <span>Linked to the WhatsApp CRM workspace <b>{{ whatsapp.name or ws.name }}</b>.
-    {{ whatsapp.synced }} member{{ 's' if whatsapp.synced != 1 }} have WhatsApp access{% if whatsapp.failed %}; <b>{{ whatsapp.failed }}</b> could not be synced (see Members){% endif %}.</span></p>
-  {% if whatsapp.error %}<p class="ws-note bad"><i class="fa-solid fa-circle-exclamation"></i> Last sync: {{ whatsapp.error }}</p>{% endif %}
-  {% set extra = (ws.wacrm or {}).get('extra') or [] %}
-  {% if extra %}
-  <p class="ws-note warn"><i class="fa-solid fa-user-clock"></i>
-    <span>{{ extra|length }} {{ 'person is' if extra|length == 1 else 'people are' }} in the WhatsApp CRM but not in this workspace.
-      Add them on Members, or take their WhatsApp access away here.</span></p>
-  <table class="ws-people" style="margin-bottom:12px">
-    {% for x in extra %}
-    <tr><td><div class="ws-who"><span class="ws-av">{{ (x.name or x.email or '?')[:2]|upper }}</span>
-      <span><b>{{ x.name or x.email }}</b><small>{{ x.email }} · {{ x.role }}</small></span></div></td>
-      <td style="text-align:right">
-        <a class="cb sm" href="{{ url_for('workspace.members', add=x.email) }}"><i class="fa-solid fa-user-plus"></i> Add to workspace</a>
-        {% if x.role != 'owner' %}
-        <form method="POST" action="{{ url_for('workspace.whatsapp', action='remove-extra') }}" style="display:inline"
-              data-confirm="Take WhatsApp access away from {{ x.email }}?">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="email" value="{{ x.email }}"/>
-          <button class="cb sm danger"><i class="fa-solid fa-user-minus"></i> Remove access</button>
-        </form>
-        {% endif %}
-      </td></tr>
-    {% endfor %}
-  </table>
-  {% endif %}
-  <div class="ws-actions">
-    <form method="POST" action="{{ url_for('workspace.whatsapp', action='sync') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-      <button class="cb"><i class="fa-solid fa-rotate"></i> Sync now</button>
-    </form>
-    {% if CAN('wa_inbox') %}<a class="cb" href="{{ url_for('messaging.inbox') }}"><i class="fa-solid fa-comments"></i> Open the inbox</a>{% endif %}
-    <form method="POST" action="{{ url_for('workspace.whatsapp', action='unlink') }}" data-confirm="Stop keeping the WhatsApp CRM team in step with this workspace? Nobody loses access.">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-      <button class="cb danger"><i class="fa-solid fa-link-slash"></i> Unlink</button>
-    </form>
-  </div>
-  {% endif %}
+  <p class="ws-line"><i class="fa-brands fa-whatsapp" style="color:#25a244"></i>
+    WhatsApp: {% if whatsapp.linked %}connected ✓{% elif not whatsapp.configured %}not set up on this server{% else %}not connected yet{% endif %}
+    {% if CAN('crm_connection') %}<a class="cb sm" href="{{ url_for('admin_crm.connection') }}">Open WhatsApp connection</a>{% endif %}</p>
 </section>
 {% endblock %}

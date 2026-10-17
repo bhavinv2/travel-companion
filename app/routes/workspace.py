@@ -452,30 +452,8 @@ def switch(ws_id):
 @workspace_bp.route('/whatsapp/<action>', methods=['POST'])
 @staff_page
 def whatsapp(action):
-    """Link this workspace to the WhatsApp CRM (its team follows from then on), sync now, unlink,
-    or take somebody the workspace does not have out of the CRM."""
-    from app.services import wacrm_team
-    ws = _ws()
-    try:
-        if action == 'link':
-            ok, failed = wacrm_team.link(ws)
-            flash('Linked to the WhatsApp CRM. %d member(s) synced%s.' % (ok, ', %d failed' % failed if failed else ''),
-                  'success' if not failed else 'warning')
-        elif action == 'sync':
-            ok, failed = wacrm_team.sync_all(ws)
-            flash('Synced %d member(s)%s.' % (ok, ', %d failed' % failed if failed else ''),
-                  'success' if not failed else 'warning')
-        elif action == 'unlink':
-            wacrm_team.unlink(ws)
-            flash('Unlinked. Nobody was removed from the WhatsApp CRM.', 'success')
-        elif action == 'remove-extra':
-            email = (request.form.get('email') or '').strip()
-            wacrm_team.remove_extra(ws, email)
-            flash('%s no longer has access to the WhatsApp CRM.' % email, 'success')
-        else:
-            abort(404)
-    except wacrm_team.TeamError as exc:
-        flash('The WhatsApp CRM said: %s' % exc, 'danger')
-    _log('workspace_whatsapp_' + action.replace('-', '_'), workspace=ws.id)
-    db.session.commit()
-    return redirect(url_for('workspace.overview') + '#whatsapp')
+    """Moved: linking, checking and unlinking the WhatsApp team are on Set-up -> WhatsApp connection now. 307 keeps
+    the form (its csrf token, remove-extra's e-mail)."""
+    if action not in ('link', 'sync', 'unlink', 'remove-extra'):
+        abort(404)
+    return redirect(url_for('admin_crm.connection_team', action=action), code=307)

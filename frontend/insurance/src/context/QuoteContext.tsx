@@ -16,6 +16,8 @@ export interface QuoteForm {
   purpose: string;
   preExisting: 'no' | 'yes';
   consent: boolean;
+  /** "Send my quote and updates on WhatsApp": never ticked for them */
+  waConsent: boolean;
 }
 
 const initialForm: QuoteForm = {
@@ -33,6 +35,7 @@ const initialForm: QuoteForm = {
   purpose: 'Visiting family',
   preExisting: 'no',
   consent: true,
+  waConsent: false,
 };
 
 interface QuoteContextValue {

@@ -32,6 +32,15 @@ VARIABLE_TOKENS = ('name', 'agent', 'product', 'departure', 'days', 'ends')
 SAMPLES = {'name': 'Priya', 'agent': 'Harsha', 'product': 'travel insurance', 'departure': '12 Nov',
            'days': '10', 'ends': '20 Dec'}
 LANGUAGE = 'en'
+# every value a lead can fill into a message or a template blank (crm.fill_values), as the follow-up editor names them
+FILL_LABELS = {'name': 'Name', 'agent': 'Your name', 'product': 'Product', 'departure': 'Travel date',
+               'days': 'Days to travel', 'ends': 'Cover ends', 'helplines': 'Helplines',
+               'insurance_link': 'Insurance page link', 'companion_link': 'Travel Companion page link',
+               'sahayak_link': 'Sahayak page link', 'site_link': 'Website link'}
+STATUS_WORDS = {'APPROVED': 'Approved', 'PENDING': 'Waiting for WhatsApp', 'IN_APPEAL': 'Waiting for WhatsApp',
+                'DRAFT': 'Not sent for approval yet', 'REJECTED': 'Turned down', 'PAUSED': 'Paused by WhatsApp',
+                'DISABLED': 'Turned off by WhatsApp'}
+NO_TEMPLATE = 'No template yet'
 TOKEN = re.compile(r'\{([a-z_]+)\}')
 NAME_OK = re.compile(r'^[a-z0-9_]{1,512}$')
 
@@ -71,6 +80,47 @@ def params(body, values):
     """The values for a template's blanks, in its order, for one lead (values: crm.fill_values)."""
     _, tokens = parts(body, static={})
     return [str(values.get(t) or '').strip() or SAMPLES.get(t, '') for t in tokens]
+
+
+def step_param_keys(step):
+    """The fill-in map of a follow-up (wa_params: which lead value goes into blank 1, 2 ...), or None when it
+    has none and the blanks follow the order of the {tokens} in its words."""
+    keys = getattr(step, 'wa_params', None)
+    if isinstance(keys, list) and keys and all(isinstance(k, str) and k in FILL_LABELS for k in keys):
+        return list(keys)
+    return None
+
+
+def step_params(step, values):
+    """The values for a follow-up's template blanks, in order: its fill-in map when it has one, else the
+    order of the {tokens} in its words (params)."""
+    keys = step_param_keys(step)
+    if keys is None:
+        return params(step.body or '', values)
+    return [str(values.get(k) or '').strip() or SAMPLES.get(k, '') for k in keys]
+
+
+def step_blanks(step):
+    """How many blanks a follow-up fills: its map's length, else one per person token in its words."""
+    keys = step_param_keys(step)
+    return len(keys) if keys is not None else blanks(step.body)
+
+
+def status_words(status, reason=None):
+    """A template's status as a person reads it: 'Approved', 'Waiting for WhatsApp', 'Turned down: <why>'."""
+    if not status:
+        return NO_TEMPLATE
+    status = str(status).upper()
+    if status == 'REJECTED' and (reason or '').strip():
+        return 'Turned down: ' + reason.strip()[:200]
+    return STATUS_WORDS.get(status, status.replace('_', ' ').capitalize())
+
+
+def status_css(status):
+    status = str(status or '').upper()
+    return 'tpl-' + ('approved' if status == 'APPROVED' else 'pending' if status in ('PENDING', 'IN_APPEAL')
+                     else 'draft' if status == 'DRAFT' else 'rejected' if status in ('REJECTED', 'PAUSED', 'DISABLED')
+                     else 'missing')
 
 
 def slug_name(code):
@@ -189,6 +239,7 @@ def statuses(force=False):
                     v = t.get('variables')
                     info[t.get('name')] = {
                         'status': (t.get('status') or '').upper(),
+                        'rejection_reason': t.get('rejection_reason') or None,
                         'category': (t.get('category') or '').strip().upper() or None,
                         'body': t.get('body') or '', 'language': t.get('language') or None,
                         'variables': v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None}
@@ -198,6 +249,65 @@ def statuses(force=False):
         error = 'The WhatsApp CRM is not connected.'
     _cache.update(at=now, rows=rows, info=info, error=error)
     return rows
+
+
+def infos():
+    """Everything statuses() last heard about each template: {name: {status, category, body, variables...}}."""
+    statuses()
+    return dict(_cache.get('info') or {})
+
+
+# the pipeline editor's list of templates: asked at most every ten minutes
+LIBRARY_SECONDS = 600
+_lib = {'at': 0.0, 'rows': None, 'error': None}
+
+
+def library(force=False):
+    """[{name, status, category, body, variables, language, rejection_reason}] -- every template the WhatsApp
+    CRM has, for the pipeline editor's picker (cached ten minutes; [] and library_error() when it cannot be
+    reached). Inside cache_only() it answers from what it last heard."""
+    from app.services import wacrm_team
+    if getattr(_local, 'cache_only', False):
+        return list(_lib['rows'] or [])
+    now = time.monotonic()
+    if not force and _lib['rows'] is not None and now - _lib['at'] < LIBRARY_SECONDS:
+        return list(_lib['rows'])
+    rows, error = [], None
+    if wacrm_team.enabled():
+        try:
+            for t in wacrm_team.templates(status='ALL'):
+                v = t.get('variables')
+                rows.append({'name': t.get('name'), 'status': (t.get('status') or '').upper(),
+                             'category': (t.get('category') or '').strip().upper() or None,
+                             'body': t.get('body') or '', 'language': t.get('language') or None,
+                             'variables': v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None,
+                             'rejection_reason': t.get('rejection_reason') or None})
+        except wacrm_team.TeamError as exc:
+            error = str(exc)
+    else:
+        error = 'The WhatsApp CRM is not connected.'
+    _lib.update(at=now, rows=rows, error=error)
+    return list(rows)
+
+
+def library_error():
+    return _lib['error']
+
+
+def template_labels():
+    """{template name: the follow-up's or ready message's title} for templates the portal made; other names
+    read as their words with spaces."""
+    from app.models import CrmAnswer, CrmPlaybookStep
+    out = {}
+    for s in CrmPlaybookStep.query.filter(CrmPlaybookStep.channel == 'whatsapp').all():
+        name = s.wa_template or slug_name(s.code)
+        if name and name not in out:
+            out[name] = s.title
+    for a in CrmAnswer.query.filter(CrmAnswer.code.isnot(None)).all():
+        name = slug_name(a.code)
+        if name and name not in out:
+            out[name] = a.title
+    return out
 
 
 def template_info(name):
@@ -239,7 +349,7 @@ def known_fills(values):
                                            CrmPlaybookStep.body.isnot(None)).all():
         name = s.wa_template or slug_name(s.code)
         if name and name not in out:
-            out[name] = {'fill': params(s.body, values), 'title': s.title}
+            out[name] = {'fill': step_params(s, values), 'title': s.title}
     for a in CrmAnswer.query.filter(CrmAnswer.code.isnot(None)).all():
         name = slug_name(a.code)
         if name and name not in out:
@@ -262,6 +372,7 @@ def approved(name):
 
 def forget():
     _cache.update(at=0.0, rows=None, info=None, error=None)
+    _lib.update(at=0.0, rows=None, error=None)
 
 
 # ------------------------------------------------------------------- putting them in
@@ -284,6 +395,53 @@ def push_drafts(rows=None):
     db.session.commit()
     forget()
     return {'created': result.get('created', 0), 'skipped': skipped + list(result.get('skipped') or [])}
+
+
+def push_step_draft(step):
+    """One follow-up's words as ONE WhatsApp template draft ("Make it a WhatsApp template"; nothing goes to
+    Meta -- a person sends it for approval in WhatsApp). The follow-up is linked to it (wa_template, and its
+    fill-in map from the order of the {tokens}). Words WhatsApp already has under a name are linked, not
+    made again; changed words get 'name_2', 'name_3' ...; a name another follow-up uses is never taken.
+    {'name', 'created', 'body', 'variables', 'params', 'category'} or {'error'}. No commit: the caller commits;
+    the caller checks crm.wa_writes_on()."""
+    from app.models import CrmPlaybookStep
+    from app.services import wacrm_team
+    if not (step.body or '').strip():
+        return {'error': 'Write its words first.'}
+    body, tokens = parts(step.body)
+    statuses(force=True)
+    if error():
+        return {'error': 'WhatsApp could not be reached. Try again in a minute.'}
+    have = infos()
+    others = {n for (n,) in db.session.query(CrmPlaybookStep.wa_template)
+              .filter(CrmPlaybookStep.id != step.id, CrmPlaybookStep.wa_template.isnot(None))}
+    base = slug_name(step.code) or 'nri_follow_up'
+    names = ([step.wa_template] if step.wa_template else []) + [base] + ['%s_%d' % (base, i) for i in range(2, 21)]
+    chosen, created = None, 0
+    for n in names:
+        if n in have and (have[n].get('body') or '').strip() == body.strip() and n not in others:
+            chosen = n
+            break
+        if n not in have and n not in others:
+            chosen, created = n, 1
+            break
+    if chosen is None:
+        return {'error': 'No free template name: change its code under More.'}
+    category = _category(step=step)
+    if created:
+        probs = problems(chosen, body, tokens)
+        if probs:
+            return {'error': '; '.join(probs)}
+        result = wacrm_team.push_template_drafts([{'name': chosen, 'category': category, 'language': LANGUAGE,
+                                                   'body': body, 'sample_values': [SAMPLES.get(t, 'example') for t in tokens]}])
+        created = int(result.get('created') or 0)
+    else:
+        category = have[chosen].get('category') or category
+    step.wa_template = chosen
+    step.wa_params = list(tokens) or None
+    forget()
+    return {'name': chosen, 'created': created, 'body': body, 'variables': len(tokens), 'params': list(tokens),
+            'category': category}
 
 
 def csv_text(rows=None):
@@ -323,25 +481,118 @@ def quick_reply_text(body, static=None):
 QUICK_KEY = 'crm_wa_quick'     # its own settings row, never "crm": a stale copy written back there could undo the switch
 QUICK_TITLES_MAX = 500
 QUICK_CONFLICT = '%d not copied: a WhatsApp button reply has the same title (%s). Rename one of them.'
+# the fill-ins WhatsApp chats can fill (their name, the agent's, the written-in links) and the ones only a lead has
+STATIC_TOKENS = ('helplines', 'insurance_link', 'companion_link', 'sahayak_link', 'site_link')
+DATE_TOKENS = ('departure', 'days', 'ends')
+WORKS_CHATS = 'Lead page & WhatsApp chats'
+WORKS_LEAD_DATE = 'Lead page & chat panel (needs a date)'
+WORKS_LEAD = 'Lead page & chat panel (needs the lead)'
+WORKS_HELP = 'From the help page — edit there'
+WORKS_BUTTONS = 'Made in WhatsApp (buttons) — stays there'
+QR_SAVED_WA = "Saved. It's ready in WhatsApp chats too."
+QR_SAVED_LEAD = 'Saved. Lead page and chat panel only, because it needs %s.'
+QR_SAVED_OFF = 'Saved. It reaches WhatsApp chats once WhatsApp is connected.'
+QR_REMOVED, QR_REMOVED_WA = 'Quick reply removed.', ' It goes from WhatsApp chats too.'
+QR_BUTTON_CONFLICT = 'WhatsApp already has a button reply called “%s”. Rename one of them.'
+QUICK_TOO_MANY = ('WhatsApp keeps about 150 quick replies from the Sales CRM, and these are more. '
+                  'Remove some here, then press Push all to WhatsApp now.')
+QUICK_WAITING = 'WhatsApp has not taken the last change yet. It is tried again by itself.'
+OLD_TITLE = '%s · %s'            # how release 1 titled a reply with a code in WhatsApp
+HELP_PRODUCT = {'insurance': 'TI', 'sahayak': 'SH', 'companion': 'TC'}
+HELP_PAGE = {'companion': ('help', None), 'insurance': ('help_insurance', 'insurance'),
+             'sahayak': ('help_sahayak', 'sahayak')}         # (page key, ?site=) of the help editor
+WA_VAR_BACK = re.compile(r'\{\{\s*(contact|agent)\.(first_name|name)\s*\}\}')
+
+
+def lead_only(body):
+    """The fill-ins of a reply that WhatsApp chats cannot fill (the trip date, the cover end, the product...):
+    every {token} that is in neither QUICK_TOKENS nor STATIC_TOKENS, in order, each once. [] for a reply that
+    works everywhere."""
+    out = []
+    for t in TOKEN.findall(body or ''):
+        if t not in QUICK_TOKENS and t not in STATIC_TOKENS and t not in out:
+            out.append(t)
+    return out
+
+
+def lead_only_reason(tokens):
+    """Why a reply stays off WhatsApp chats, for the toast: 'a trip date', "the lead's product" ..."""
+    if any(t in DATE_TOKENS for t in tokens):
+        return 'a trip date'
+    if 'product' in tokens:
+        return "the lead's product"
+    return 'details of the lead'
+
+
+def works_in(body):
+    """Where a reply can be used: WORKS_CHATS, or the lead page and chat panel only."""
+    tokens = lead_only(body)
+    if not tokens:
+        return WORKS_CHATS
+    return WORKS_LEAD_DATE if any(t in DATE_TOKENS for t in tokens) else WORKS_LEAD
+
+
+def help_rows(own_titles=None):
+    """The Help & FAQ questions as read-only quick replies: [{'title', 'body', 'product', 'site', 'page',
+    'site_arg'}]. Each question appears once (the first site wins, in help_center.SITE_KEYS order), none that an
+    own reply already asks (ignoring case), and none with a blank question or answer."""
+    from app.models import CrmAnswer
+    from app.services import crm_products, help_center
+    if own_titles is None:
+        own_titles = [t for (t,) in db.session.query(CrmAnswer.title).all()]
+    seen = {(t or '').strip().lower() for t in own_titles}
+    codes = set(crm_products.codes())
+    out = []
+    for site in help_center.SITE_KEYS:
+        for f in help_center.faqs(site):
+            title = str(f.get('question') or '').strip()[:160]
+            body = str(f.get('answer') or '').strip()
+            if not title or not body or title.lower() in seen:
+                continue
+            seen.add(title.lower())
+            product = HELP_PRODUCT.get(site, 'GEN')
+            page, arg = HELP_PAGE.get(site, ('help', None))
+            out.append({'title': title, 'body': body, 'site': site, 'page': page, 'site_arg': arg,
+                        'product': product if product in codes else crm_products.general_code()})
+    return out
 
 
 def _quick_items():
-    """Every quick reply as the WhatsApp CRM's quick replies take them. Built inside a request, so the links are the site's."""
+    """Every reply WhatsApp chats can use, as its quick replies take them: own replies first (title as written,
+    never the code), then the Help & FAQ questions. A reply with a lead-only fill-in is left out. A title is sent
+    once (ignoring case, cut to 120 characters). Built inside a request, so the links are the site's."""
     from app.models import CrmAnswer
     static = _static_values()
-    return [{'title': ('%s · %s' % (a.code, a.title) if a.code else a.title).strip()[:120],
-             'text': quick_reply_text(a.body, static)} for a in CrmAnswer.query.order_by(CrmAnswer.title).all()]
+    rows = [(a.title, a.body) for a in CrmAnswer.query.order_by(CrmAnswer.title).all()]
+    rows += [(h['title'], h['body']) for h in help_rows([t for t, _ in rows])]
+    items, seen = [], set()
+    for title, body in rows:
+        title = (title or '').strip()[:120]
+        if not title or title.lower() in seen or lead_only(body):
+            continue
+        seen.add(title.lower())
+        items.append({'title': title, 'text': quick_reply_text(body, static)})
+    return items
+
+
+def _quick_raw():
+    from app.models import AppSetting
+    row = db.session.get(AppSetting, QUICK_KEY, populate_existing=True)
+    return row.value if row is not None and isinstance(row.value, dict) else {}
 
 
 def quick_state():
-    """What the portal last put in the WhatsApp CRM's quick replies: {titles, conflicts, due, error, at}.
-    Read past the settings cache: both workers and a background thread write it."""
-    from app.models import AppSetting
-    row = db.session.get(AppSetting, QUICK_KEY, populate_existing=True)
-    v = row.value if row is not None and isinstance(row.value, dict) else {}
+    """What the portal last put in the WhatsApp CRM's quick replies, and the one-off steps:
+    {titles, conflicts, due, error, at, coded_cleaned, import_missing, imported_at, imported, buttons}.
+    Read past the settings cache: both workers and a background thread write it. Every save merges into this,
+    so a push never drops the import keys and the reverse."""
+    v = _quick_raw()
     return {'titles': [t for t in v.get('titles') or [] if isinstance(t, str) and t.strip()],
             'conflicts': [t for t in v.get('conflicts') or [] if isinstance(t, str)],
-            'due': bool(v.get('due')), 'error': v.get('error'), 'at': v.get('at')}
+            'due': bool(v.get('due')), 'error': v.get('error'), 'at': v.get('at'),
+            'coded_cleaned': bool(v.get('coded_cleaned')), 'import_missing': bool(v.get('import_missing')),
+            'imported_at': v.get('imported_at'), 'imported': int(v.get('imported') or 0),
+            'buttons': [b for b in v.get('buttons') or [] if isinstance(b, dict) and b.get('title')][:50]}
 
 
 def _save_quick_state(state):
@@ -354,12 +605,33 @@ def conflict_words(titles):
     return QUICK_CONFLICT % (len(titles), shown)
 
 
+def _old_coded_titles(state):
+    """Release 1's WhatsApp titles of replies with a code (OLD_TITLE), for the one removal: the code and title
+    of each reply that has a code, plus every stored title holding ' · '. Each once (ignoring case).
+    [(title, text)]: the text is the matching reply's words, else the title (never empty: the WhatsApp CRM
+    refuses an empty text)."""
+    from app.models import CrmAnswer
+    static = _static_values()
+    out, seen = [], set()
+    for a in CrmAnswer.query.filter(CrmAnswer.code.isnot(None)).all():
+        t = (OLD_TITLE % (a.code, a.title)).strip()[:120]
+        if t.lower() not in seen:
+            seen.add(t.lower())
+            out.append((t, quick_reply_text(a.body, static) or t))
+    for t in state['titles']:
+        if ' · ' in t and t.strip().lower() not in seen:
+            seen.add(t.strip().lower())
+            out.append((t.strip(), t.strip()))
+    return out
+
+
 def push_quick_replies(items=None):
     """Every quick reply into the WhatsApp CRM's quick replies, matched by title. The ones this portal
-    put there before and no longer has (renamed or removed here) go out with remove_titles, so nothing
-    the portal made stays there, locked, for good (contract 21). {created, updated, removed, conflicts}.
-    Raises wacrm_team.TeamError, leaving the change marked for the jobs runner; the caller checks
-    crm.wa_writes_on()."""
+    put there before and no longer has (renamed or removed here, or now needing a lead) go out with
+    remove_titles, so nothing the portal made stays there, locked, for good (contract 21). Once, release 1's
+    "CODE · title" rows are adopted and then removed. {created, updated, removed, conflicts}.
+    Raises wacrm_team.TeamError, leaving the change marked for the jobs runner (unless only a person can fix
+    it); the caller checks crm.wa_writes_on()."""
     from datetime import datetime
     from app.services import wacrm_team
     items = _quick_items() if items is None else items
@@ -367,13 +639,24 @@ def push_quick_replies(items=None):
     have = {i['title'].strip().lower() for i in items}
     remove = [t for t in state['titles'] if t.strip().lower() not in have]
     try:
+        if not state['coded_cleaned']:
+            old = [(t, x) for t, x in _old_coded_titles(state) if t.lower() not in have]
+            if old:
+                # the WhatsApp CRM only takes out replies it knows are ours: push them once as items (adopted)
+                wacrm_team.push_quick_replies([{'title': t, 'text': x} for t, x in old])
+                known = {r.strip().lower() for r in remove}
+                remove += [t for t, _ in old if t.lower() not in known]
         out = (wacrm_team.push_quick_replies(items, remove_titles=remove) if (items or remove)
                else {'created': 0, 'updated': 0, 'removed': 0, 'conflicts': []})
     except wacrm_team.TeamError as exc:
         if exc.status == 404:                    # a WhatsApp CRM without it: nothing to copy to, nothing waits
-            _save_quick_state(dict(state, due=False, error=None))
+            _save_quick_state(dict(_quick_raw(), due=False, error=None))
+        elif exc.code == 'rule_too_large':
+            _save_quick_state(dict(_quick_raw(), due=False, error=QUICK_TOO_MANY))
+        elif exc.status and 400 <= exc.status < 500 and exc.status not in (401, 403, 408, 429):
+            _save_quick_state(dict(_quick_raw(), due=False, error=str(exc)[:250]))     # a person has to fix it
         else:
-            _save_quick_state(dict(state, due=True, error=str(exc)[:250]))
+            _save_quick_state(dict(_quick_raw(), due=True, error=str(exc)[:250]))
         raise
     titles, seen = [], set()
     for i in items:
@@ -381,9 +664,52 @@ def push_quick_replies(items=None):
         if k not in seen:
             seen.add(k)
             titles.append(i['title'].strip())
-    _save_quick_state({'titles': titles[:QUICK_TITLES_MAX], 'conflicts': out['conflicts'], 'due': False, 'error': None,
-                       'at': datetime.utcnow().isoformat(timespec='seconds')})
+    _save_quick_state(dict(_quick_raw(), titles=titles[:QUICK_TITLES_MAX], conflicts=out['conflicts'], due=False,
+                           error=None, at=datetime.utcnow().isoformat(timespec='seconds'), coded_cleaned=True))
     return out
+
+
+def import_quick_replies():
+    """One-off: the text quick replies somebody made by hand in WhatsApp become quick replies here -- no code,
+    for any product -- so they are edited only here from now on; the next push makes them the portal's there
+    (the WhatsApp CRM adopts a same-title text reply). Replies with buttons stay in WhatsApp and are only
+    listed. {'added', 'already', 'buttons'}. Raises wacrm_team.TeamError (404: an older WhatsApp CRM --
+    remembered, so the page says so). Commits."""
+    from datetime import datetime
+    from app.models import CrmAnswer
+    from app.services import crm_products, wacrm, wacrm_team
+    try:
+        with wacrm.short_timeouts():
+            rows = wacrm_team.quick_replies_unmanaged()
+    except wacrm_team.TeamError as exc:
+        if exc.status == 404:
+            _save_quick_state(dict(_quick_raw(), import_missing=True))
+        raise
+    have = {(t or '').strip().lower() for (t,) in db.session.query(CrmAnswer.title).all()}
+    added = already = 0
+    buttons = []
+    for r in rows:
+        title = str(r.get('title') or '').strip()[:160]
+        if not title:
+            continue
+        if r.get('type') == 'interactive':
+            buttons.append({'title': title, 'body': str(r.get('body') or '')[:300]})
+            continue
+        body = WA_VAR_BACK.sub(lambda m: '{name}' if m.group(1) == 'contact' else '{agent}',
+                               str(r.get('body') or '')).strip()[:4000]
+        if not body:
+            continue
+        if title.lower() in have:
+            already += 1
+            continue
+        have.add(title.lower())
+        db.session.add(CrmAnswer(title=title, body=body, product=crm_products.general_code(), code=None))
+        added += 1
+    db.session.commit()
+    _save_quick_state(dict(_quick_raw(), import_missing=False,
+                           imported_at=datetime.utcnow().isoformat(timespec='seconds'),
+                           imported=added, buttons=buttons[:50]))
+    return {'added': added, 'already': already, 'buttons': len(buttons)}
 
 
 def quick_replies_changed():

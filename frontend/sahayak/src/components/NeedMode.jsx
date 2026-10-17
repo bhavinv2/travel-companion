@@ -327,7 +327,7 @@ const REQUEST_EMPTY = {
   who: '', city: '', area: '', pin: '', what: [], spec: '', when: '', details: '',
   name: '', relationship: '', phone: '', phone_cc: '+91', phone_iso: 'IN',
   whatsapp: '', whatsapp_cc: '+91', whatsapp_iso: 'IN',
-  email: '', contact_time: 'Morning (IST)',
+  email: '', contact_time: 'Morning (IST)', waConsent: false,
 };
 
 /* What each step needs before it lets you on -- what /api/sahayak-booking would refuse, asked a
@@ -457,6 +457,10 @@ function RequestForm() {
             <Field as="select" id="n-time" label="Preferred Contact Time" name="contact_time" {...f}>
               <option>Morning (IST)</option><option>Afternoon (IST)</option><option>Evening (IST)</option><option>Any time</option>
             </Field>
+            <label className="consent">
+              <input type="checkbox" checked={data.waConsent} onChange={(e) => set('waConsent', e.target.checked)} />
+              Send my quote and updates on WhatsApp
+            </label>
           </div>
         </>
       ),
@@ -484,6 +488,7 @@ function RequestForm() {
           phone: data.phone.trim(),
           phone_cc: phonePair({ dial: data.phone_cc, iso: data.phone_iso, tel: data.phone }).cc,
           email: data.email,
+          wa_consent: data.waConsent,
           address: [data.area.trim(), data.city.trim()].filter(Boolean).join(', '),
           pincode: data.pin.trim(),
           when_type: 'asap',

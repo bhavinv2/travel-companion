@@ -19,9 +19,12 @@ from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from statistics import median
 
+from sqlalchemy.orm import selectinload
+
 from app import db
 from app.models import (CrmActivity, CrmLead, CrmPipeline, CrmSource, CrmStage, CrmStageChange,
                         CrmTouchpoint)
+from app.services import crm_products
 
 IST = timedelta(hours=5, minutes=30)
 
@@ -86,6 +89,8 @@ MANUAL = [k for k, (_, how) in METRICS.items() if how == 'manual']
 AVERAGED = {'response_time'}             # a day's value is a median, the period's is their mean
 WEBSITE_KINDS = ('form', 'popup', 'api')
 CODE = re.compile(r'^[A-Z]+')
+CODE_ALNUM = re.compile(r'^[A-Z][A-Z0-9]*')      # a product code may have digits ("G2 #1")
+PRODUCT_ROWS = ('tc_posts',)                     # rows a product's new leads can also count in
 
 
 def ist_day(dt):
@@ -100,27 +105,11 @@ def utc_bounds(first, last):
 # ============================================================================================ stages
 
 def stage_roles():
-    """{stage id: cold / prospect / pipeline / customer / lost} for every pipeline: its first open
-    stage is cold, the stage a reply moves to is prospect, open stages after it are pipeline."""
-    out = {}
-    for p in CrmPipeline.query.all():
-        stages = sorted(p.stages, key=lambda s: s.position)
-        opens = [s for s in stages if s.kind == 'open']
-        reply = next((s for s in stages if s.on_reply), None)
-        for s in stages:
-            if s.kind == 'won':
-                out[s.id] = 'customer'
-            elif s.kind == 'lost':
-                out[s.id] = 'lost'
-            elif opens and s.id == opens[0].id:
-                out[s.id] = 'cold'
-            elif reply is not None and s.id == reply.id:
-                out[s.id] = 'prospect'
-            elif reply is not None and s.position < reply.position:
-                out[s.id] = 'cold'
-            else:
-                out[s.id] = 'pipeline'
-    return out
+    """{stage id: cold / prospect / pipeline / customer / lost} for every pipeline, from each stage's
+    "This stage means" (a stage saved without one: its first open stage is cold, the stage a reply
+    moves to is prospect, open stages after it are pipeline)."""
+    return {s.id: s.role for p in CrmPipeline.query.options(selectinload(CrmPipeline.stages)).all()
+            for s in p.stages}
 
 
 def _fallout_kind(stage_key, from_role):
@@ -137,6 +126,8 @@ def compute(first, last, user_id=None):
     grid = defaultdict(lambda: defaultdict(float))
     roles = stage_roles()
     keys = {s.id: s.key for s in CrmStage.query.all()}
+    kpi_rows = {c: r for c, r in crm_products.kpi_rows().items() if METRICS.get(r, (None, None))[1] == 'auto'}
+    codes = set(crm_products.codes())
 
     def mine(*uids):
         return user_id is None or user_id in uids
@@ -157,8 +148,9 @@ def compute(first, last, user_id=None):
         add('cold', created)
         if kind in WEBSITE_KINDS:
             add('cold_web', created)
-        if product == 'TC':
-            add('tc_posts', created)
+        row = kpi_rows.get(product)
+        if row:
+            add(row, created)
 
     # ---- stage moves
     won_before = defaultdict(list)       # person -> dates of earlier wins, for upsell
@@ -203,7 +195,7 @@ def compute(first, last, user_id=None):
         if not mine(agent) or code in ('Q', 'PLS'):
             continue                 # the lead page's milestone buttons have their own rows below
         add('msg_total', when)
-        add(message_row(code, roles.get(stage_id), keys.get(stage_id)), when)
+        add(message_row(code, roles.get(stage_id), keys.get(stage_id), codes), when)
 
     # ---- the lead page's milestone buttons ("I sent the quote" / "I sent the payment link")
     for when, code, agent in (db.session.query(CrmTouchpoint.created_at, CrmTouchpoint.code, CrmTouchpoint.agent_id)
@@ -264,15 +256,24 @@ def compute(first, last, user_id=None):
     return grid
 
 
-def message_row(code, role, stage_key):
-    """Which "Messages sent" row a message counts on, from its code (or, without one, the stage)."""
-    prefix = CODE.match(code or '')
+# SH: Sahayak's own steps are care (the step-kind rule reads CE / SH as care); CL calls, NR nurse steps
+KIND_ROWS = {'PI': 'msg_pi', 'CE': 'msg_ce', 'SH': 'msg_ce', 'BW': 'msg_bw', 'ER': 'msg_er', 'FM': 'msg_fm',
+             'OM': 'msg_fm', 'PM': 'msg_mkt', 'CL': 'msg_prospect', 'NR': 'msg_prospect'}
+
+
+def message_row(code, role, stage_key, codes=None):
+    """Which "Messages sent" row a message counts on, from its code (or, without one, the stage). Any
+    product's code is a first-contact step."""
+    known = codes if codes is not None else crm_products.codes()
+    prefix = CODE_ALNUM.match(code or '')
     prefix = prefix.group(0) if prefix else ''
-    fixed = {'TC': 'msg_prospect', 'TI': 'msg_prospect', 'CL': 'msg_prospect', 'GEN': 'msg_prospect',
-             'PI': 'msg_pi', 'CE': 'msg_ce', 'SH': 'msg_ce', 'NR': 'msg_prospect',
-             'BW': 'msg_bw', 'ER': 'msg_er', 'FM': 'msg_fm', 'OM': 'msg_fm', 'PM': 'msg_mkt'}
-    if prefix in fixed:
-        return fixed[prefix]
+    if prefix not in KIND_ROWS and prefix not in known:
+        letters = CODE.match(code or '')       # "TC2" still counts as TC
+        prefix = letters.group(0) if letters else ''
+    if prefix in KIND_ROWS:
+        return KIND_ROWS[prefix]
+    if prefix in known:
+        return 'msg_prospect'          # a product's own first-contact steps
     if prefix == 'PF' or role == 'lost':
         return 'msg_%s_fallout' % _fallout_kind(stage_key, None if 'prospect' in (stage_key or '') else 'pipeline')
     return {'customer': 'msg_ce', 'pipeline': 'msg_pi'}.get(role, 'msg_prospect')

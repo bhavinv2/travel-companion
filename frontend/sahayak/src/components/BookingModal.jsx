@@ -29,7 +29,7 @@ export const SERVICES = SERVICE_KEYS;
    the request was made in its place, so the copy Preventia receives still carries a date. */
 const EMPTY = {
   who: '', svc: '', spec: '', address: '', city: '', pin: '', drop: '',
-  followUp: '', file: null, name: '', phone: '', dial: '+91', iso: 'IN', frequency: '',
+  followUp: '', file: null, name: '', phone: '', dial: '+91', iso: 'IN', frequency: '', waConsent: false,
 };
 
 /* Keyed by the GIG sheet's own service names, which is what gigFor() hands back -- the
@@ -130,6 +130,7 @@ export default function BookingModal({ open, prefill, onClose }) {
         // the number as typed and its country, apart -- see PhoneField.phonePair
         phone: pair.tel,
         phone_cc: pair.cc,
+        wa_consent: data.waConsent,
         address: [data.address.trim(), data.city.trim()].filter(Boolean).join(', '),
         pincode: data.pin.trim(),
         when_type: 'asap',
@@ -262,6 +263,10 @@ export default function BookingModal({ open, prefill, onClose }) {
                   }}
                 />
               </div>
+              <label className="consent">
+                <input type="checkbox" checked={data.waConsent} onChange={(e) => set('waConsent', e.target.checked)} />
+                Send my quote and updates on WhatsApp
+              </label>
             </div>
             <div className="bk-foot">
               <a href="#request" className="bk-more" onClick={onClose}>Want to share more details? Use the full form</a>

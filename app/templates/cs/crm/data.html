@@ -4,8 +4,13 @@
 {% block crm %}
 {{ page_head('Bring in & download', 'fa-solid fa-file-arrow-up',
              'Bring leads in from a spreadsheet or old website records, and download lists. Nobody is messaged when you import.',
-             help=['Nobody is messaged when you import.',
-                   'Old website enquiries and the sales sheet are safe to bring in again: rows already here are skipped.'],
+             help=['Nobody is messaged when you import. Imported people reach WhatsApp only when an admin presses "Add existing leads and customers to WhatsApp" on WhatsApp connection.',
+                   'Everything here is safe to run again: rows already here are skipped.',
+                   'People on the do-not-contact list are skipped.'],
              full_screen=True) }}
+{% include 'cs/crm/setup/_csv.html' %}
 {% include 'cs/crm/setup/_import.html' %}
+{% include 'cs/crm/setup/_download.html' %}
+{% include 'cs/crm/setup/_wa_import.html' %}
 {% endblock %}
+{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/crm-people.js') }}" defer></script>{% endblock %}

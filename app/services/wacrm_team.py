@@ -243,8 +243,8 @@ def role_for(member):
         return None
     pages = member_pages(member)
     wa = set(wa_pages(pages))
-    # until U7 makes Contacts the portal's own page, the Contacts line is the CRM's screen
-    if not wa and 'crm_people' not in pages:
+    # Contacts is the portal's own page: only WhatsApp screens make somebody a CRM member
+    if not wa:
         return None
     return 'admin' if (wa & ADMIN_PAGES or member.is_owner) else 'agent'
 
@@ -371,6 +371,12 @@ def push_quick_replies(items, remove_titles=None):
     return out
 
 
+def quick_replies_unmanaged():
+    """Contract 21: the WhatsApp CRM's quick replies the portal does not keep -- [{title, type: 'text' |
+    'interactive', body}], for the one-off import. TeamError 404 on an older WhatsApp CRM."""
+    return list((_api('GET', 'quick-replies', params={'managed': 'none'}) or {}).get('items') or [])
+
+
 def conversation_info(conversation_id):
     """{conversation_id, status, assignee_email, last_inbound_at, contact: {...}} or None."""
     try:
@@ -403,10 +409,23 @@ def activity(since, limit=100):
     return {'items': list(data.get('items') or []), 'next_since': data.get('next_since')}
 
 
+def automations_info():
+    """GET /api/portal/automations in full: {'items': [...], 'flows_active': int | None, 'ai_auto_reply': bool | None}.
+    The chatbot count and the AI switch are newer; an older WhatsApp CRM leaves them out, and None means it did
+    not say."""
+    data = _api('GET', 'automations') or {}
+    if not isinstance(data, dict):
+        data = {}
+    flows, ai = data.get('flows_active'), data.get('ai_auto_reply')
+    return {'items': list(data.get('items') or []),
+            'flows_active': flows if isinstance(flows, int) and not isinstance(flows, bool) and flows >= 0 else None,
+            'ai_auto_reply': ai if isinstance(ai, bool) else None}
+
+
 def automations():
     """The WhatsApp CRM's automations: [{id, name, active, trigger_type, trigger_tags, sends}];
     `sends` when a step messages the customer -- checked before tags are switched on."""
-    return list((_api('GET', 'automations') or {}).get('items') or [])
+    return automations_info()['items']
 
 
 def assign_conversation(phone_digits, email, conversation_id=None, only_if_unassigned=False):
@@ -417,3 +436,75 @@ def assign_conversation(phone_digits, email, conversation_id=None, only_if_unass
     if only_if_unassigned:
         body['only_if_unassigned'] = True
     return _api('POST', 'conversation/assign', body)
+
+
+def put_managed_tags(prefixes, names):
+    """Contract 16: which tags are the Sales CRM's (stored by the WhatsApp CRM in its owner's
+    app_metadata). {'ok': True}. 404 on an older WhatsApp CRM."""
+    return _api('PUT', 'managed-tags', {'prefixes': prefixes, 'names': names}) or {}
+
+
+def rename_tags(renames):
+    """Contract 18: Sales tags renamed in place, ids kept, nothing fired. [{'from', 'to'}], 100 a call.
+    {'renamed': [from], 'skipped': [{'from', 'reason': 'missing' | 'not_managed' | 'exists'}]}."""
+    out = {'renamed': [], 'skipped': []}
+    for i in range(0, len(renames), 100):
+        data = _api('POST', 'tags/rename', {'renames': renames[i:i + 100]}) or {}
+        out['renamed'] += list(data.get('renamed') or [])
+        out['skipped'] += list(data.get('skipped') or [])
+    return out
+
+
+def list_tags():
+    """Contract 17: [{id, name, color, managed, contacts}]."""
+    return list((_api('GET', 'tags') or {}).get('items') or [])
+
+
+TAGS_SECONDS = 60
+_tags_cache = {'at': 0.0, 'items': None}
+
+
+def tags(force=False):
+    """Contract 17 for pickers: list_tags(), kept TAGS_SECONDS in this process. A check before a save
+    (crm.wa_tag_clashes) asks list_tags itself."""
+    now = time.monotonic()
+    if not force and _tags_cache['items'] is not None and now - _tags_cache['at'] < TAGS_SECONDS:
+        return _tags_cache['items']
+    items = list_tags()
+    _tags_cache.update(at=now, items=items)
+    return items
+
+
+def forget_tags():
+    _tags_cache.update(at=0.0, items=None)
+
+
+def contact_tags(contact_id, add=(), remove=(), create=False, quiet=False):
+    """Contract 20: add or take off a contact's free tags. `create` makes a missing tag (only for people
+    with Tags); `quiet` sends dispatch_tag_events false. [{name, managed}] afterwards. TeamError 422
+    managed_tag / unknown_tag, 404 (an unknown contact, or an older WhatsApp CRM: code None)."""
+    body = {'contact_id': str(contact_id)}
+    if add:
+        body['add'] = [str(t) for t in add][:50]
+    if remove:
+        body['remove'] = [str(t) for t in remove][:50]
+    if create:
+        body['create'] = True
+    if quiet:
+        body['dispatch_tag_events'] = False
+    return list((_api('POST', 'contact/tags', body) or {}).get('tags') or [])
+
+
+def contacts_export(since, limit=100):
+    """Contract 27: the WhatsApp CRM's contacts made after `since` (a naive UTC datetime or ISO text with a
+    time zone), oldest first, with tag names and notes: {items, next_since}."""
+    if isinstance(since, datetime):
+        since = since.replace(microsecond=0).isoformat() + 'Z'
+    data = _api('GET', 'contacts', params={'since': since, 'limit': max(1, min(int(limit), 200))}) or {}
+    return {'items': list(data.get('items') or []), 'next_since': data.get('next_since')}
+
+
+def erase_contact(contact_id):
+    """Contract 28: the contact, its chats, messages, notes and tags, gone. TeamError 404 code 'not_found'
+    when it is not there (already erased); 404 without a code: an older WhatsApp CRM."""
+    return _api('POST', 'contact/erase', {'contact_id': str(contact_id)}) or {}

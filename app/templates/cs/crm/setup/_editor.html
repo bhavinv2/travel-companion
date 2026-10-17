@@ -1,0 +1,71 @@
+{# The pipeline editor's two repeated pieces: a stage card and a follow-up row. Import "with context":
+   they read MEANS, dates, BUTTONS, stages, reasons, step_json and summary from the page. A stage card
+   with st = none is the empty one the script copies for "+ Add a stage". #}
+{% from 'cs/crm/_bits.html' import channel_icon with context %}
+{% macro step_row(s, n) %}
+{% set j = step_json(s)|tojson if s else '' %}
+<li class="pe-step" data-ref="{{ 't%d'|format(s.id) if s else '' }}" data-id="{{ s.id if s else '' }}" data-fu='{{ j }}' data-saved='{{ j }}'>
+  <span class="pe-n">{{ n }}</span>
+  <span class="pe-ch">{% if s %}{{ channel_icon(s.channel) }}{% endif %}</span>
+  <span class="pe-sum" data-sum>{{ summary(s) if s else '' }}</span>
+  <span class="pe-btns">
+    <button type="button" class="cb quiet sm" data-act="step-up" aria-label="Move up" title="Move up">↑</button>
+    <button type="button" class="cb quiet sm" data-act="step-down" aria-label="Move down" title="Move down">↓</button>
+    <button type="button" class="cb sm" data-act="step-edit">Edit</button>
+  </span>
+  <div class="pe-err" data-err="{{ 't%d'|format(s.id) if s else '' }}"></div>
+</li>
+{% endmacro %}
+
+{% macro stage_card(st, n, counts) %}
+{% set means = st.stage_means if st else 'talking' %}
+{% set ref = 's%d'|format(st.id) if st else '' %}
+{% set auto_pick = ((st.auto_kind ~ (':' ~ st.auto_field if st.auto_kind == 'after_date' else '')) if st and st.auto_kind else '') %}
+{% set known = BUTTONS|map('first')|list %}
+{% set bpick = ('' if not (st and st.button_label) else (st.button_label if st.button_label in known else '__other')) %}
+<li class="pe-stage m-{{ means }}" data-ref="{{ ref }}" data-id="{{ st.id if st else '' }}" data-open="{{ counts[0] }}" data-closed="{{ counts[1] }}">
+  <div class="pe-stage-head">
+    <span class="pe-grip" draggable="true" title="Drag to move" aria-hidden="true">⠿</span>
+    <span class="pe-n">{{ n }}</span>
+    <input data-k="name" maxlength="60" aria-label="Stage name" value="{{ st.name if st else '' }}" placeholder="Stage name"/>
+    <span class="muted small" data-open-note>{% if counts[0] %}{{ counts[0] }} open lead{{ '' if counts[0] == 1 else 's' }}{% endif %}</span>
+    <span class="pe-btns">
+      <button type="button" class="cb quiet sm" data-act="stage-up" aria-label="Move up" title="Move up">↑</button>
+      <button type="button" class="cb quiet sm" data-act="stage-down" aria-label="Move down" title="Move down">↓</button>
+      <details class="ui-more pe-more"><summary class="cb quiet sm" aria-label="More">⋮</summary>
+        <div class="ui-more-menu">
+          <label data-code-wrap{{ '' if (st and st.button_label) else ' hidden' }}>Code for the numbers <input data-k="button_code" maxlength="20" value="{{ st.button_code if st and st.button_code else '' }}"/></label>
+          <button type="button" class="cb danger sm" data-act="stage-remove">Remove</button>
+        </div></details>
+    </span>
+  </div>
+  <div class="pe-err" data-err="{{ ref }}.name"></div>
+  <div class="pe-rows">
+    <div class="pe-row"><label>This stage means <select data-k="means">{% for k, label in MEANS.items() %}<option value="{{ k }}"{{ ' selected' if means == k }}>{{ label }}</option>{% endfor %}</select></label>
+      <div class="pe-err" data-err="{{ ref }}.means"></div></div>
+    <div class="pe-row"><label class="check"><input type="checkbox" data-k="on_reply"{{ ' checked' if st and st.on_reply }}/> Move here when they reply</label>
+      <div class="pe-err" data-err="{{ ref }}.on_reply"></div></div>
+    <div class="pe-row"><label>Warn the person looking after it after <input type="number" data-k="sla_hours" min="1" max="2000" placeholder="24" value="{{ st.sla_hours if st and st.sla_hours else '' }}"/> hours in this stage</label>
+      <div class="pe-err" data-err="{{ ref }}.sla_hours"></div></div>
+    <div class="pe-row pe-auto"><label>Move by itself: if
+        <select data-k="auto_kind">
+          <option value="">— never —</option>
+          <option value="no_reply"{{ ' selected' if auto_pick == 'no_reply' }}>no reply</option>
+          <option value="in_stage"{{ ' selected' if auto_pick == 'in_stage' }}>in this stage</option>
+          {% for d in dates %}<option value="after_date:{{ d.key }}"{{ ' selected' if auto_pick == 'after_date:' ~ d.key }}>after {{ d.label }}</option>{% endfor %}
+        </select></label>
+      <span data-auto-rest{{ '' if auto_pick else ' hidden' }}> for <input data-k="auto_days" type="number" min="0" max="365" value="{{ st.auto_days if st and st.auto_days is not none else '' }}"/> days →
+        <select data-k="auto_to" aria-label="Move to">{% for o in stages %}{% if not st or o.id != st.id %}<option value="s{{ o.id }}"{{ ' selected' if st and st.auto_to_id == o.id }}>{{ o.name }}</option>{% endif %}{% endfor %}</select>
+        because <select data-k="auto_reason" aria-label="Reason"><option value="">— no reason —</option>{% for r in reasons %}<option value="{{ r }}"{{ ' selected' if st and st.auto_reason == r }}>{{ r }}</option>{% endfor %}{% if st and st.auto_reason and st.auto_reason not in reasons %}<option value="{{ st.auto_reason }}" selected>{{ st.auto_reason }}</option>{% endif %}</select></span>
+      <div class="pe-err" data-err="{{ ref }}.auto"></div></div>
+    <div class="pe-row"><label>Button on the lead
+        <select data-k="button_pick"><option value="">— none —</option>{% for label, _c in BUTTONS %}<option value="{{ label }}"{{ ' selected' if bpick == label }}>{{ label }}</option>{% endfor %}<option value="__other"{{ ' selected' if bpick == '__other' }}>Something else…</option></select></label>
+      <input data-k="button_label" maxlength="60" placeholder="e.g. I sent the match" aria-label="Button label" value="{{ st.button_label if st and st.button_label else '' }}"{{ '' if bpick == '__other' else ' hidden' }}/>
+      <div class="pe-err" data-err="{{ ref }}.button"></div></div>
+  </div>
+  <div class="pe-steps"><h3>Follow-ups</h3>
+    <ol data-steps>{% if st %}{% for s in st.steps %}{{ step_row(s, loop.index) }}{% endfor %}{% endif %}</ol>
+    <button type="button" class="cb sm" data-act="add-step"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add a follow-up</button>
+  </div>
+</li>
+{% endmacro %}

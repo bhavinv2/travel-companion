@@ -1,0 +1,74 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% from '_empty.html' import empty %}
+{% block crm_title %}What goes out by itself{% endblock %}
+{% block crm %}
+{{ page_head('What goes out by itself', 'fa-solid fa-list-check',
+             "Everything that messages customers without a person pressing Send, in one list. Change each one where it's made.",
+             help=['Follow-ups that go by themselves and stage moves are set in Pipelines.',
+                   'Reply rules, the chatbot and AI replies are set in WhatsApp.',
+                   'A reply rule that sends when a Sales tag is added, a chat is given to someone, a new contact is made or on a schedule can repeat our follow-ups. Pause it, or check it first.',
+                   'This list is checked every day; admins get a bell when a new reply rule may repeat our follow-ups.'],
+             full_screen=True) }}
+
+{% if conflicts %}
+<section class="card warn pl-banner"><i class="fa-solid fa-triangle-exclamation"></i> <span>{{ RULE_STRIP }}</span>
+  {% if CAN('wa_automations') %}
+  {% if conflicts|length == 1 %}<a class="cb sm" href="{{ url_for('messaging.automations', p='/automations/' ~ conflicts[0].id ~ '/edit') }}">Open it</a>
+  {% else %}<a class="cb sm" href="{{ url_for('messaging.automations') }}">Open Reply rules</a>{% endif %}
+  {% endif %}
+</section>
+{% endif %}
+
+{% if not sending %}
+<p class="muted">Follow-ups go by themselves only while WhatsApp connection is on Keep in step and send follow-ups. Now: {{ mode_label }}.
+  {% if CAN('crm_connection') %}<a href="{{ crm_url('connection') }}">Open WhatsApp connection</a>{% endif %}</p>
+{% endif %}
+
+{% if not steps and not moves and not rules and rules_state == 'ok' and flows_active == 0 and ai_auto_reply is sameas false %}
+{{ empty('fa-solid fa-list-check', 'Nothing goes out by itself yet.') }}
+{% else %}
+
+<section class="card">
+  <h2>Follow-ups that go by themselves <small class="muted">(Pipelines)</small></h2>
+  {% for r in steps %}
+  <div class="auto-row"><span>{{ r.pipeline.name }} › {{ r.stage.name }} › “{{ r.step.title }}” · {{ r.when }}{% if r.tpl %} · {{ r.tpl }}{% endif %}{% if not r.active %} · not taking new leads{% endif %}</span>
+    <a class="cb sm" href="{{ crm_url('pipeline_edit', pid=r.pipeline.id, step=r.step.id) }}">Edit</a></div>
+  {% else %}<p class="muted">None yet.</p>{% endfor %}
+</section>
+
+<section class="card">
+  <h2>Stage moves by themselves</h2>
+  {% for m in moves %}
+  <div class="auto-row"><span>{{ m.pipeline.name }} › {{ m.stage.name }} → {{ m.to }} {{ m.words }}</span>
+    <a class="cb sm" href="{{ crm_url('pipeline_edit', pid=m.pipeline.id) }}">Edit</a></div>
+  {% else %}<p class="muted">None yet.</p>{% endfor %}
+</section>
+
+<section class="card">
+  <h2>WhatsApp reply rules</h2>
+  {% if rules_state == 'off' %}<p class="muted">WhatsApp is not connected on this server, so its reply rules can't be listed.</p>
+  {% elif rules_state == 'old' %}<p class="muted">{{ NEEDS_UPDATE }}</p>
+  {% elif rules_state == 'error' %}<p class="muted">Could not read the reply rules from WhatsApp just now.</p>
+  {% elif not rules %}<p class="muted">None yet.</p>
+  {% else %}
+  <div class="table-wrap">
+  <table class="crm-table">
+    <thead><tr><th>Name</th><th>On/off</th><th>Sends</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rules %}
+    <tr><td><span class="nm">{{ r.name }}</span>{% if r.conflict %} <span class="ui-chip warn" title="{{ r.conflict }}">may repeat our follow-ups</span>{% endif %}</td>
+      <td>{{ '● on' if r.active else '○ off' }}</td><td>{{ 'yes' if r.sends else 'no' }}</td>
+      <td>{% if CAN('wa_automations') %}<a class="cb sm" href="{{ url_for('messaging.automations', p='/automations/' ~ r.id ~ '/edit') }}">Edit</a>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+  <div class="auto-row"><span><b>Chatbot</b>{% if flows_active is not none %} · {{ '%d on'|format(flows_active) if flows_active else 'off' }}{% endif %} — menus of buttons that answer by themselves.{% if flows_active is none %} Open it to see if it is on.{% endif %}</span>
+    {% if CAN('wa_flows') %}<a class="cb sm" href="{{ url_for('messaging.flows') }}">Open</a>{% endif %}</div>
+  <div class="auto-row"><span><b>AI replies</b>{% if ai_auto_reply is not none %} · {{ 'on' if ai_auto_reply else 'off' }}{% endif %} — answers from your documents by themselves.{% if ai_auto_reply is none %} Open it to see if it is on.{% endif %}</span>
+    {% if CAN('wa_ai') %}<a class="cb sm" href="{{ url_for('messaging.ai') }}">Open</a>{% endif %}</div>
+</section>
+{% endif %}
+{% endblock %}

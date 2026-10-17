@@ -1,6 +1,8 @@
 import secrets
 from datetime import datetime, date, timedelta
 from flask_login import UserMixin
+from sqlalchemy import event
+from sqlalchemy.orm import validates
 from app import db
 import bcrypt
 
@@ -1611,6 +1613,7 @@ def _back_in_the_queue_is_new_again(session, flush_context, instances):
 # configured by lead sources and pipelines an admin edits on screen rather than in code.
 # ---------------------------------------------------------------------------
 
+# Seed data only since U5: products live in crm_products (services/crm_products.py reads them).
 CRM_PRODUCTS = ('TC', 'TI', 'SH', 'GH', 'VC', 'GEN')
 CRM_PRODUCT_LABELS = {'TC': 'Travel Companion', 'TI': 'Travel Insurance', 'SH': 'Sahayak',
                       'GH': 'Gift Health', 'VC': 'Virtual Consultation', 'GEN': 'General'}
@@ -1622,6 +1625,12 @@ CRM_SOURCE_KIND_LABELS = {'form': 'Landing-page form', 'popup': 'Pop-up', 'chat'
 # is sent. unrouted: a page nobody has set up yet -- kept, waiting for an admin to choose.
 CRM_SOURCE_STATUSES = ('live', 'paused', 'unrouted')
 CRM_STAGE_KINDS = ('open', 'won', 'lost')
+# "This stage means": decides open / won / lost (kind) and the funnel role
+CRM_STAGE_MEANS = ('new', 'talking', 'quoted', 'won', 'lost')
+CRM_MEANS_LABELS = {'new': 'Still new (no reply yet)', 'talking': 'Talking', 'quoted': 'Quoted',
+                    'won': 'Won (customer)', 'lost': 'Lost'}
+MEANS_ROLE = {'new': 'cold', 'talking': 'prospect', 'quoted': 'pipeline', 'won': 'customer', 'lost': 'lost'}
+ROLE_MEANS = {v: k for k, v in MEANS_ROLE.items()}
 CRM_TEMPERATURES = {'L': 'Loyal', 'R': 'Responsive', 'U': 'Unresponsive', 'Z': 'Zombie',
                     'DL': 'Dead lead', 'EL': 'Expired lead'}
 CRM_VIA = ('person', 'auto', 'automation', 'flow', 'ai', 'broadcast', 'import')
@@ -1631,7 +1640,7 @@ CRM_CHANNELS = ('whatsapp', 'call', 'email', 'sms', 'instagram', 'facebook', 'te
 CRM_CHANNEL_LABELS = {'whatsapp': 'WhatsApp', 'call': 'Call', 'email': 'E-mail', 'sms': 'SMS',
                       'instagram': 'Instagram', 'facebook': 'Facebook', 'telegram': 'Telegram',
                       'chat': 'Chat', 'note': 'Note', 'form': 'Form', 'system': 'System',
-                      'wa_other': 'WhatsApp (other number)'}
+                      'wa_other': 'WhatsApp (other number)', 'todo': 'To-do'}
 # the read-only "Replies" line: what the temperature codes mean, in plain words
 CRM_REPLIES = {'L': 'Comes back', 'R': 'Replies', 'U': 'Not replying', 'Z': 'Stopped replying',
                'DL': 'Number not working', 'EL': 'Cover ended'}
@@ -1640,7 +1649,16 @@ CRM_CALL_OUTCOMES = {'connected': 'Talked', 'no_answer': 'No answer', 'busy': 'B
                      'switched_off': 'Switched off'}
 # when a step is due: hours after the previous one, days before the trip leaves, or days before
 # the policy ends (the sales sheet's ER -- expiration reminder)
-CRM_STEP_TRIGGERS = ('after_hours', 'before_departure_days', 'before_end_days')
+CRM_STEP_TRIGGERS = ('after_hours', 'date_offset')
+# before U5 (kept readable: old rows in flight, tests): days before the trip / before the cover ends
+CRM_LEGACY_TRIGGERS = {'before_departure_days': 'departure_date', 'before_end_days': 'ends_on'}
+CRM_STEP_CHANNELS = {'whatsapp': 'WhatsApp message', 'call': 'Call', 'email': 'E-mail', 'todo': 'To-do'}
+CRM_STEP_KINDS = {'first': 'First contact', 'reminder': 'Reminder', 'care': 'Customer care',
+                  'birthday': 'Birthday', 'festival': 'Festival', 'promotion': 'Promotion',
+                  'expiry': 'Expiry', 'after_lost': 'After losing', 'other': 'Other'}
+CRM_TAG_MODES = ('product', 'own')
+CRM_FIELD_TYPES = ('text', 'number', 'date', 'choice', 'yesno')
+CRM_DATE_FIELDS = {'departure_date': 'Travels on', 'ends_on': 'Cover ends'}     # the two built-in dates (columns)
 # Ways to reach somebody who gave no phone or e-mail. instagram / facebook are a handle or profile
 # link typed by staff; ig_id / fb_psid are the ids Meta's webhooks send, which are what a reply
 # through the Graph API is addressed to.
@@ -1653,8 +1671,9 @@ CRM_CHECK_HOURS = (7, 24)     # IST, half-hour slots from 07:00 to midnight
 # How ready to buy -- the colour of the row in the sales sheet (green: ready, yellow: thinking).
 CRM_LIKELIHOOD = {'hot': 'Ready to buy', 'warm': 'Thinking about it', 'cold': 'Not likely'}
 # What a stage does by itself: move a lead on after N days without a reply, or once the trip
-# has started (N days after departure).
-CRM_AUTO_KINDS = {'no_reply': 'days with no reply from them', 'departed': 'days after the trip starts'}
+# has started or passed another date (N days after it), or sat in the stage for N days.
+CRM_AUTO_KINDS = {'no_reply': 'days with no reply from them', 'in_stage': 'days in this stage',
+                  'after_date': 'days after the trip starts'}
 
 
 class CrmPipeline(db.Model):
@@ -1663,8 +1682,13 @@ class CrmPipeline(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(40), unique=True, nullable=False)
     name = db.Column(db.String(80), nullable=False)
-    product = db.Column(db.String(4), nullable=False, default='GEN')
+    product = db.Column(db.String(8), nullable=False, default='GEN')
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    # the first part of its WhatsApp stage tags: the lead's product code ('product') or tag_label ('own')
+    tag_mode = db.Column(db.String(8), nullable=False, default='product', server_default='product')
+    tag_label = db.Column(db.String(30))
+    # leads of a product with its own pipeline pass on from here (General)
+    catch_all = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     # what a lost lead may be lost FOR -- shown as buttons, so nobody has to type a reason
     fallout_reasons = db.Column(db.JSON)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -1685,6 +1709,53 @@ class CrmPipeline(db.Model):
         return [s for s in self.stages if s.kind == 'open']
 
 
+class CrmProduct(db.Model):
+    """What a lead asks about (Set-up -> Pipelines -> Products, U6). The code is in WhatsApp tags
+    ("TI", "TI: Prospect"); read through services/crm_products.py, never the seed constants."""
+    __tablename__ = 'crm_products'
+
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(8), unique=True, nullable=False)
+    name = db.Column(db.String(60), nullable=False)
+    icon = db.Column(db.String(40), nullable=False, default='fa-layer-group')
+    offered = db.Column(db.Boolean, nullable=False, default=True)
+    default_pipeline_id = db.Column(db.Integer, db.ForeignKey('crm_pipelines.id'), nullable=True)
+    currency = db.Column(db.String(3), nullable=False, default='INR')
+    kpi_row = db.Column(db.String(30))        # a crm_kpi row its new leads also count in (TC: tc_posts)
+    position = db.Column(db.Integer, nullable=False, default=0)
+
+    default_pipeline = db.relationship('CrmPipeline')
+
+
+def _forget_products(*_a):
+    request_cache('crm_products').clear()
+
+
+for _ev in ('after_insert', 'after_update', 'after_delete'):
+    event.listen(CrmProduct, _ev, _forget_products)
+
+
+class CrmField(db.Model):
+    """A lead detail asked in one pipeline (pipeline_id None: in every one); its value is
+    CrmLead.details[key]. The trip's dates stay columns (CRM_DATE_FIELDS), not rows here."""
+    __tablename__ = 'crm_fields'
+
+    id = db.Column(db.Integer, primary_key=True)
+    pipeline_id = db.Column(db.Integer, db.ForeignKey('crm_pipelines.id'), nullable=True, index=True)
+    key = db.Column(db.String(40), nullable=False)
+    label = db.Column(db.String(80), nullable=False)
+    type = db.Column(db.String(10), nullable=False, default='text')     # CRM_FIELD_TYPES
+    options = db.Column(db.JSON)
+    position = db.Column(db.Integer, nullable=False, default=0)
+    on_card = db.Column(db.Boolean, nullable=False, default=False)
+    on_add = db.Column(db.Boolean, nullable=False, default=False)
+    required = db.Column(db.Boolean, nullable=False, default=False)
+
+    pipeline = db.relationship('CrmPipeline')
+
+    __table_args__ = (db.UniqueConstraint('pipeline_id', 'key', name='uq_crm_field_key'),)
+
+
 class CrmStage(db.Model):
     __tablename__ = 'crm_stages'
 
@@ -1698,15 +1769,64 @@ class CrmStage(db.Model):
     on_reply = db.Column(db.Boolean, nullable=False, default=False)
     sla_hours = db.Column(db.Integer)                                    # how long a lead may sit here
     # automation: after `auto_days` (see CRM_AUTO_KINDS) move the lead to `auto_to` by itself
-    auto_kind = db.Column(db.String(10))
+    auto_kind = db.Column(db.String(10))       # no_reply / in_stage / after_date (CRM_AUTO_KINDS)
+    auto_field = db.Column(db.String(40))      # after_date: which date (departure_date, ends_on, a date detail)
     auto_days = db.Column(db.Integer)
     auto_to_id = db.Column(db.Integer, db.ForeignKey('crm_stages.id', use_alter=True,
                                                      name='fk_crm_stage_auto_to'), nullable=True)
     auto_reason = db.Column(db.String(80))
+    # "This stage means" (CRM_STAGE_MEANS): kind and the funnel role follow it
+    means = db.Column(db.String(8))
+    # the lead page's button for this stage ("I sent the quote" / Q)
+    button_label = db.Column(db.String(60))
+    button_code = db.Column(db.String(20))
 
     auto_to = db.relationship('CrmStage', remote_side='CrmStage.id', foreign_keys=[auto_to_id], post_update=True)
 
     __table_args__ = (db.UniqueConstraint('pipeline_id', 'key', name='uq_crm_stage_key'),)
+
+    @validates('means')
+    def _means_sets_kind(self, _key, value):
+        """"This stage means" decides open / won / lost (kind), so code that reads kind keeps working."""
+        if value is not None:
+            if value not in CRM_STAGE_MEANS:
+                raise ValueError(value)
+            self.kind = value if value in ('won', 'lost') else 'open'
+        return value
+
+    def derived_role(self):
+        """cold / prospect / pipeline / customer / lost by where the stage sits -- the rule from before
+        U5, for a stage saved without "This stage means". Compares by identity (unsaved stages have no id)."""
+        if self.kind in ('won', 'lost'):
+            return 'customer' if self.kind == 'won' else 'lost'
+        stages = sorted(self.pipeline.stages, key=lambda s: s.position) if self.pipeline else [self]
+        opens = [s for s in stages if s.kind == 'open']
+        reply = next((s for s in stages if s.on_reply), None)
+        if opens and opens[0] is self:
+            return 'cold'
+        if reply is not None and reply is self:
+            return 'prospect'
+        if reply is not None and self.position < reply.position:
+            return 'cold'
+        return 'pipeline'
+
+    @property
+    def role(self):
+        return MEANS_ROLE.get(self.means) or self.derived_role()
+
+    @property
+    def stage_means(self):
+        return self.means or ROLE_MEANS[self.derived_role()]
+
+
+@event.listens_for(CrmStage, 'before_insert')
+@event.listens_for(CrmStage, 'before_update')
+def _crm_stage_kind(mapper, connection, target):
+    """Every save: kind from means; a won / lost stage saved the old way gets its means."""
+    if target.means:
+        target.kind = target.means if target.means in ('won', 'lost') else 'open'
+    elif target.kind in ('won', 'lost'):
+        target.means = target.kind
 
 
 class CrmSource(db.Model):
@@ -1716,7 +1836,7 @@ class CrmSource(db.Model):
     key = db.Column(db.String(60), unique=True, nullable=False)
     name = db.Column(db.String(100), nullable=False)
     kind = db.Column(db.String(10), nullable=False, default='form')
-    product = db.Column(db.String(4), nullable=False, default='GEN')
+    product = db.Column(db.String(8), nullable=False, default='GEN')
     pages = db.Column(db.JSON)                          # page addresses it is on, for people to read
     pipeline_id = db.Column(db.Integer, db.ForeignKey('crm_pipelines.id'), nullable=True)
     status = db.Column(db.String(10), nullable=False, default='live')
@@ -1812,7 +1932,7 @@ class CrmLead(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     person_id = db.Column(db.Integer, db.ForeignKey('crm_people.id'), nullable=False, index=True)
-    product = db.Column(db.String(4), nullable=False, default='GEN')
+    product = db.Column(db.String(8), nullable=False, default='GEN')
     source_id = db.Column(db.Integer, db.ForeignKey('crm_sources.id'), nullable=True, index=True)
     pipeline_id = db.Column(db.Integer, db.ForeignKey('crm_pipelines.id'), nullable=True, index=True)
     stage_id = db.Column(db.Integer, db.ForeignKey('crm_stages.id'), nullable=True, index=True)
@@ -1954,10 +2074,14 @@ class CrmPlaybookStep(db.Model):
     position = db.Column(db.Integer, nullable=False, default=0)
     code = db.Column(db.String(20), nullable=False)
     title = db.Column(db.String(160), nullable=False)
-    channel = db.Column(db.String(10), nullable=False, default='whatsapp')   # whatsapp / call / email
+    channel = db.Column(db.String(10), nullable=False, default='whatsapp')   # whatsapp / call / email / todo
     body = db.Column(db.Text)              # the message, with {name} {agent} {product}... filled in
+    # after_hours: hours after the last step; date_offset: days from a date of the lead (negative: before)
     trigger = db.Column(db.String(24), nullable=False, default='after_hours')
     trigger_value = db.Column(db.Integer, nullable=False, default=0)
+    trigger_field = db.Column(db.String(40))     # date_offset: departure_date, ends_on or a date detail
+    kind = db.Column(db.String(16))              # CRM_STEP_KINDS: what the "numbers" count it as
+    wa_params = db.Column(db.JSON)               # template fill-in map (U6)
     auto = db.Column(db.Boolean, nullable=False, default=False)   # sent without a person, once connected
     wa_template = db.Column(db.String(80))  # the approved WhatsApp template it maps to, if any
 
@@ -1976,7 +2100,7 @@ class CrmAnswer(db.Model):
     # on the lead page and counted under its code; answers (no code) are what "They asked" offers
     code = db.Column(db.String(20))
     body = db.Column(db.Text, nullable=False)
-    product = db.Column(db.String(4), nullable=False, default='GEN')
+    product = db.Column(db.String(8), nullable=False, default='GEN')
     use_count = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -1995,6 +2119,20 @@ class CrmActivity(db.Model):
     count = db.Column(db.Float, nullable=False, default=0)
     source = db.Column(db.String(8), nullable=False, default='manual')     # manual / import
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CrmDoNotContact(db.Model):
+    """Somebody erased at their request (contact page -> Erase this person): a salted hash of their phone
+    and e-mail (services/crm_people.dnc_hash), never the number or address. Imports skip a match; a new
+    enquiry they make themselves clears it."""
+    __tablename__ = 'crm_do_not_contact'
+
+    id = db.Column(db.Integer, primary_key=True)
+    phone_hash = db.Column(db.String(64), nullable=True, index=True)
+    email_hash = db.Column(db.String(64), nullable=True, index=True)
+    reason = db.Column(db.String(40), nullable=False, default='erased')
+    at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    by_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
 
 
 # ---------------------------------------------------------------------------

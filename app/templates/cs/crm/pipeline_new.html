@@ -1,0 +1,73 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% from 'cs/crm/setup/_product_form.html' import product_fields with context %}
+{% block crm_title %}New pipeline{% endblock %}
+{% block crm %}
+<p><a href="{{ crm_url('pipelines') }}">← Pipelines</a></p>
+{{ page_head('New pipeline', 'fa-solid fa-diagram-project', 'Five questions, then the pipeline is ready to change in detail.',
+             help=['Pick a product, or make a new one here.',
+                   'Start from a copy of a pipeline you have, or a simple path.',
+                   'Everything can be changed afterwards in the pipeline.']) }}
+{% set f = form %}
+<form method="POST" action="{{ crm_url('pipeline_new') }}" class="card wiz" data-wizard
+      data-taken='{{ taken|tojson }}' data-first='{{ first_stages|tojson }}' data-taken-words="{{ E_TAG_TAKEN }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+  <fieldset>
+    <legend>1. Name</legend>
+    <input type="text" name="name" maxlength="80" value="{{ f.get('name', '') }}" placeholder="e.g. Gift Health visits" aria-label="Name" required/>
+    <div class="pe-err">{{ errors.get('name', '') }}</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>2. Product</legend>
+    <select name="product" data-wiz-product aria-label="Product">
+      {% for p in products %}<option value="{{ p.code }}"{{ ' selected' if f.get('product') == p.code }}>{{ p.name }}{{ '' if p.offered else ' (not offered)' }}</option>{% endfor %}
+      <option value="__new"{{ ' selected' if f.get('product') == '__new' }}>+ New product</option>
+    </select>
+    <div class="pe-err">{{ errors.get('product', '') }}</div>
+    <div data-new-product{{ '' if f.get('product') == '__new' else ' hidden' }}>
+      {{ product_fields('np_', none, f, errors, 0) }}
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>3. Start from</legend>
+    <label class="check"><input type="radio" name="start" value="copy"{{ ' checked' if f.get('start') == 'copy' }}/> a copy of
+      <select name="copy_from" aria-label="Pipeline to copy">{% for p in pipelines %}<option value="{{ p.id }}"{{ ' selected' if f.get('copy_from') == p.id|string }}>{{ p.name }}</option>{% endfor %}</select></label>
+    <label class="check"><input type="radio" name="start" value="simple"{{ ' checked' if f.get('start', 'simple') == 'simple' }}/> a simple path (New → Talking → Won / Lost)</label>
+    <div class="hint">A copy brings its stages, follow-ups and lead details.</div>
+    <div class="pe-err">{{ errors.get('copy_from', '') }}</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>4. WhatsApp tag</legend>
+    <p data-tag-product>WhatsApp tag: the product code.</p>
+    <p class="pe-err" data-tag-taken hidden></p>
+    <label class="check"><input type="radio" name="tag_mode" value="product"{{ ' checked' if f.get('tag_mode', 'product') == 'product' }}/> The product code</label>
+    <label class="check"><input type="radio" name="tag_mode" value="own"{{ ' checked' if f.get('tag_mode') == 'own' }}/> Its own tag:
+      <input type="text" name="tag_label" maxlength="30" value="{{ f.get('tag_label', '') }}" placeholder="e.g. TI renewals" aria-label="Its own tag"
+             data-label-input data-check="{{ CRM_REL('tag_check') }}"/></label>
+    <span class="tag-preview" data-preview></span>
+    <div class="pe-err" data-check-err>{{ errors.get('tag_label', '')|quote_ok }}</div>
+    <label class="check" data-take-over{{ '' if errors.get('_clash_label') else ' hidden' }}><input type="checkbox" name="tag_take_over"{{ ' checked' if f.get('tag_take_over') }}/> {{ TAKE_OVER }}</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>5. How will leads arrive?</legend>
+    <label class="check"><input type="radio" name="arrive" value="hand"{{ ' checked' if f.get('arrive', 'hand') == 'hand' }}/> Added by hand</label>
+    <div class="hint">Nothing to do.</div>
+    <label class="check"><input type="radio" name="arrive" value="whatsapp"{{ ' checked' if f.get('arrive') == 'whatsapp' }}/> WhatsApp chat panel</label>
+    <div class="hint">Pick the product beside a new chat.</div>
+    <label class="check"><input type="radio" name="arrive" value="form"{{ ' checked' if f.get('arrive') == 'form' }}/> A website form</label>
+    <div class="hint">We make a form source for it; copy the code for your developer after this.</div>
+    <label class="check"><input type="radio" name="arrive" value="source"{{ ' checked' if f.get('arrive') == 'source' }}/> An existing source
+      <select name="source_id" aria-label="Source"><option value="">Choose…</option>{% for s in sources %}<option value="{{ s.id }}"{{ ' selected' if f.get('source_id') == s.id|string }}>{{ s.name }}</option>{% endfor %}</select></label>
+    <div class="hint">Its new leads come here from now on.</div>
+    <div class="pe-err">{{ errors.get('source_id', '') }}</div>
+  </fieldset>
+
+  <div class="row end"><button class="cb primary">Make the pipeline</button></div>
+</form>
+{% endblock %}
+{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/crm-setup.js') }}" defer></script>{% endblock %}

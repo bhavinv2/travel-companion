@@ -1,14 +1,113 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
+{% from '_empty.html' import empty %}
+{% from 'cs/crm/_bits.html' import product_chip with context %}
+{% from 'cs/crm/setup/_macros.html' import csrf with context %}
 {% block crm_title %}Quick replies{% endblock %}
 {% block crm %}
+{% set new_button = {'label': 'New quick reply', 'href': crm_url('quick_replies', edit='new'), 'icon': 'fa-solid fa-plus'} %}
 {{ page_head('Quick replies', 'fa-solid fa-bolt',
              'Ready-made answers. Pick one while chatting, on the lead page or in WhatsApp chats. Edit them only here.',
-             help=['Write the question the way a customer would, and the answer we send.',
-                   'The questions from the Help & FAQ pages are offered too, so there is no need to copy them here.',
-                   'Test a customer message to see which answers come up.',
-                   'While WhatsApp connection is on, saving or removing one here changes it in WhatsApp chats too.'],
-             primary={'label': 'New quick reply', 'href': crm_url('quick_replies', edit='new'), 'icon': 'fa-solid fa-plus'},
-             full_screen=True) }}
-{% include 'cs/crm/setup/_answers.html' %}
+             help=['Write the question the way a customer would, and the reply we send.',
+                   'Saving or removing one here changes WhatsApp chats too, once WhatsApp is connected.',
+                   'A reply with a trip date or the product in it works on the lead page and the chat panel only.',
+                   'The questions on the Help & FAQ pages are offered too. Change those on the help page.'],
+             primary=new_button, full_screen=True) }}
+
+{# ------------------------------------------------------------------ test a customer message #}
+<section class="card crm-asked" data-try-answers>
+  <textarea id="crm-q" rows="2" aria-label="Test a customer message" placeholder="Test a customer message: paste what they wrote…"></textarea>
+  <div class="crm-sugg" data-sugg><div class="none">The best match shows here.</div></div>
+</section>
+
+{% for t in state.conflicts %}<p class="hint bad"><i class="fa-solid fa-triangle-exclamation"></i> {{ QR_BUTTON_CONFLICT % t }}</p>{% endfor %}
+{% if state.due and state.error %}<p class="hint bad"><i class="fa-solid fa-triangle-exclamation"></i> {{ QUICK_WAITING }}</p>{% endif %}
+{% if state.error and not state.due %}<p class="hint bad"><i class="fa-solid fa-triangle-exclamation"></i> {{ state.error }}</p>{% endif %}
+
+{# ------------------------------------------------------------------ the form #}
+{% if form %}
+<section class="card focus">
+  <h2>{{ 'Edit this quick reply' if form.id else 'New quick reply' }}</h2>
+  {% if error %}<p class="pe-err">{{ error }}</p>{% endif %}
+  <form method="POST" action="{{ crm_url('save_answer') }}" class="crm-form">
+    {{ csrf() }}{% if form.id %}<input type="hidden" name="id" value="{{ form.id }}"/>{% endif %}
+    <div class="full"><label class="lb">What the customer asks (in their words)</label><input type="text" name="title" value="{{ form.title }}" maxlength="160" required/></div>
+    <div class="full"><label class="lb">Other ways they ask <small class="muted">(words that help it come up, e.g. diabetes, BP, sugar, heart)</small></label><input type="text" name="keywords" value="{{ form.keywords }}" maxlength="400"/></div>
+    <div><label class="lb">Product</label>
+      <select name="product">{% for code, label in PRODUCTS.items() %}<option value="{{ code }}"{{ ' selected' if form.product == code }}>{{ 'Any' if code == GENERAL else label }}</option>{% endfor %}</select></div>
+    <div class="full"><label class="lb">The reply</label><textarea name="body" rows="6" required data-vars-target>{{ form.body }}</textarea>
+      <div class="vars">{% for k, label in FILLS.items() %}<button type="button" class="ui-chip fill" data-var="{{ '{' ~ k ~ '}' }}">{{ label }}</button>{% endfor %}</div>
+      <p class="hint">Travel date, Days to travel, Cover ends and Product work on the lead page and the chat panel only, not in WhatsApp chats.</p></div>
+    <details class="full qr-more"><summary>More</summary>
+      <label class="lb">Type (for the numbers)</label>
+      <select name="kind"{{ ' disabled' if form.locked }}>
+        <option value="">A plain answer (offered as a Suggested reply)</option>
+        {% for k, label in STEP_KINDS.items() %}<option value="{{ k }}"{{ ' selected' if form.kind == k }}>{{ label }}</option>{% endfor %}
+      </select>
+      {% if form.locked %}<input type="hidden" name="kind" value="{{ form.kind }}"/><p class="hint">My day's sign-off uses this one, so its type stays.</p>{% endif %}
+      <p class="hint">With a type it is counted in Results under that type, and it is not offered as a Suggested reply.</p>
+      <p class="hint">{% if form.code %}Code: <b>{{ form.code }}</b> (made from the type){% elif form.kind %}Code: made from the type when you save.{% else %}No code: a plain answer.{% endif %}</p>
+      {% if form.id %}<button class="cb danger sm" name="op" value="delete" formnovalidate onclick="return confirm('Remove this quick reply? It goes from WhatsApp chats too.')">Remove</button>{% endif %}
+    </details>
+    <div class="full"><button class="cb primary">Save</button></div>
+  </form>
+</section>
+{% endif %}
+
+{# ------------------------------------------------------------------ the list #}
+<section class="card">
+  <h2>All quick replies</h2>
+  {% if not own and not help and not state.buttons %}
+  {{ empty('fa-solid fa-bolt', 'No quick replies yet. Add the answers you type most often.', new_button) }}
+  {% else %}
+  <div class="table-wrap">
+  <table class="crm-table">
+    <thead><tr><th>Reply</th><th>Product</th><th>Works in</th><th>Used</th><th></th></tr></thead>
+    <tbody>
+    {% for a in own %}
+    <tr><td><span class="nm">{{ a.title }}</span><br/><small class="muted">{{ a.body[:120] }}{{ '…' if a.body|length > 120 }}</small></td>
+      <td>{{ product_chip(a.product) }}</td>
+      <td>{{ works[a.id] }}{% if a.title|lower in conflicts %}<br/><small class="bad">WhatsApp already has a button reply with this title.</small>{% endif %}</td>
+      <td>{{ a.use_count }}</td>
+      <td><a class="cb sm" href="{{ crm_url('quick_replies', edit=a.id) }}">Edit</a></td></tr>
+    {% endfor %}
+    {% for h in help %}
+    <tr class="qr-ro"><td><span class="nm">{{ h.title }}</span><br/><small class="muted">{{ h.body[:120] }}{{ '…' if h.body|length > 120 }}</small></td>
+      <td>{{ product_chip(h.product) }}</td>
+      <td>{% if CAN(h.page) %}From the help page — <a href="{{ url_for('admin.help_center_page', site=h.site_arg) }}">edit there</a>{% else %}{{ WORKS_HELP }}{% endif %}</td>
+      <td>—</td><td></td></tr>
+    {% endfor %}
+    {% for b in state.buttons %}
+    <tr class="qr-ro"><td><span class="nm">{{ b.title }}</span><br/><small class="muted">{{ (b.body or '')[:120] }}</small></td>
+      <td>—</td><td>{{ WORKS_BUTTONS }}</td><td>—</td><td></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+  {% if buttons_url %}<p class="hint"><a href="{{ buttons_url }}">Replies with buttons are made in WhatsApp →</a></p>{% endif %}
+</section>
+
+{# ------------------------------------------------------------------ WhatsApp chats (admins) #}
+{% if can_push %}
+<section class="card">
+  <h2><i class="fa-brands fa-whatsapp"></i> WhatsApp chats</h2>
+  <p class="muted">Quick replies go to WhatsApp chats by themselves when one is saved or removed. Press this if one is missing there.</p>
+  <form method="POST" action="{{ crm_url('quick_replies_push') }}">{{ csrf() }}
+    <button class="cb"><i class="fa-solid fa-arrow-right-arrow-left"></i> Push all to WhatsApp now</button></form>
+  {% if wa_enabled %}
+  <div style="margin-top:12px">
+    {% if state.import_missing %}
+    <p class="muted">{{ NEEDS_UPDATE }}</p>
+    <form method="POST" action="{{ crm_url('quick_replies_import') }}">{{ csrf() }}<button class="cb quiet sm">Check again</button></form>
+    {% else %}
+    <form method="POST" action="{{ crm_url('quick_replies_import') }}">{{ csrf() }}
+      <button class="cb">Bring in WhatsApp's own text replies</button></form>
+    <p class="hint">Copies the text replies made in WhatsApp into this list, once, so they are edited here from now on. Replies with buttons stay in WhatsApp.</p>
+    {% endif %}
+    {% if state.imported_at %}<p class="hint">Done on {{ state.imported_at[:10] }}: {{ state.imported }} brought in.</p>{% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endif %}
 {% endblock %}

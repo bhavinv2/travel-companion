@@ -21,12 +21,12 @@
     <details class="more-menu">
       <summary class="cb" aria-label="More"><i class="fa-solid fa-ellipsis"></i> More</summary>
       <div class="menu">
-        <button type="button" data-act="edit-person" data-name="{{ person.name or '' }}" data-email="{{ person.email or '' }}"
-                data-phone="{{ person.phone or '' }}" data-instagram="{{ ig or '' }}" data-facebook="{{ fb or '' }}">
-          <i class="fa-solid fa-pen"></i><span>Edit their details<small>name, phone, e-mail, Instagram</small></span></button>
-        {% if has_moves %}<button type="button" data-act="undo"><i class="fa-solid fa-rotate-left"></i><span>Undo the last move<small>put them back in the stage before</small></span></button>{% endif %}
-        {% if lead.status != 'open' %}<button type="button" data-act="reopen"><i class="fa-solid fa-box-open"></i><span>Reopen<small>back to work, in their last open stage</small></span></button>{% endif %}
-        {% if can_remove %}<button type="button" class="danger" data-act="remove" data-name="{{ person.display_name }}"><i class="fa-solid fa-trash"></i><span>Remove from the Sales CRM<small>added by mistake — the record on the site stays</small></span></button>{% endif %}
+        <a href="{{ crm_url('contact_edit', person_id=person.id, next=crm_url('lead', lead_id=lead.id)) }}"><i class="fa-solid fa-pen"></i><span>Edit details<small>name, phone, e-mail, Instagram, Facebook</small></span></a>
+        <a href="{{ crm_url('contact', person_id=person.id) }}"><i class="fa-solid fa-address-card"></i><span>Their contact page<small>permission, tags, every enquiry</small></span></a>
+        {% if has_moves %}<button type="button" data-act="undo"><i class="fa-solid fa-rotate-left"></i><span>Undo last stage change<small>put them back in the stage before</small></span></button>{% endif %}
+        {% if lead.status != 'open' %}<button type="button" data-act="reopen"><i class="fa-solid fa-box-open"></i><span>Work on it again<small>back to work, in their last open stage</small></span></button>{% endif %}
+        {% if can_remove %}<button type="button" class="danger" data-act="remove" data-name="{{ person.display_name }}"><i class="fa-solid fa-trash"></i><span>Remove this lead<small>Removes this enquiry. {{ person.display_name }} stays in Contacts.</small></span></button>{% endif %}
+        {% if CAN('delete_records') %}<a class="danger" href="{{ crm_url('contact', person_id=person.id, erase=1) }}"><i class="fa-solid fa-user-slash"></i><span>Erase this person<small>everything we hold about them, at their request</small></span></a>{% endif %}
       </div>
     </details>
   </div>

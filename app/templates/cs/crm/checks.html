@@ -3,7 +3,7 @@
 {% block crm_title %}Half-hourly check{% endblock %}
 {% block crm %}
 {{ page_head('Half-hourly check', 'fa-solid fa-clipboard-check',
-             'From 7:00 to midnight, look at each inbox every half hour and tick it.',
+             'From 7:00 to midnight, look at each inbox every half hour and tick it. Connected inboxes tick themselves.',
              help=['Every half hour from 7:00 to midnight (India time), look at each inbox and tick it.',
                    'Tick them one by one, or all at once when you have looked at every inbox.',
                    'The bars show how much of each earlier day was checked.'],
@@ -27,6 +27,19 @@
 </section>
 {% elif editable %}
 <section class="card flat"><b>Outside checking hours.</b> <span class="muted">The check runs from 7 am to midnight, India time.</span></section>
+{% endif %}
+
+{% if auto %}
+<section class="card">
+  {% for item in auto %}
+  <div class="check-auto">
+    <b>{{ item.row.name }} (ticks itself)</b>
+    {% if item.n %}<span class="bad">{{ item.n }} waiting →
+      {% for w in item.waiting[:5] %}<a href="{{ w.url }}">{{ w.short }}</a>{{ ', ' if not loop.last }}{% endfor %}{% if item.n > 5 %} +{{ item.n - 5 }}{% endif %}</span>
+    {% else %}<span class="ok">● nobody waiting</span>{% endif %}
+  </div>
+  {% endfor %}
+</section>
 {% endif %}
 
 <section class="card">
@@ -74,17 +87,7 @@
   </div>
 </section>
 
-{% if CAN('crm_connection') %}
-<details class="card flat">
-  <summary style="cursor:pointer;font-weight:600"><i class="fa-solid fa-sliders"></i> Change the list of inboxes</summary>
-  <form method="POST" action="{{ crm_url('save_whatsapp') }}" style="margin-top:10px">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-    <input type="hidden" name="action" value="channels"/>
-    <textarea name="channels" rows="8">{{ channels|join('\n') }}</textarea>
-    <p class="hint">One per line. Old ticks keep their names.</p>
-    <p class="hint"><i class="fa-brands fa-whatsapp"></i> The WhatsApp number linked to the WhatsApp CRM is watched in <b>WhatsApp chats</b>, so it does not need a line here. Keep only the numbers and channels that are not linked.</p>
-    <button class="cb primary">Save</button>
-  </form>
-</details>
+{% if CAN('crm_sources') %}
+<p><a class="cb quiet" href="{{ crm_url('sources', tab='inboxes') }}"><i class="fa-solid fa-sliders"></i> Change the list of inboxes</a></p>
 {% endif %}
 {% endblock %}

@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% from '_phone_field.html' import phone_field with context %}
 {% from '_flag.html' import flag with context %}
+{% from '_wa_consent.html' import wa_consent %}
 {# The group's contact page, and its own front door at /contact-us -- the address printed on
    cards and in ads, beside the app's prefix rather than inside it, the same way the travel
    insurance and Sahayak pages answer.
@@ -138,6 +139,7 @@
                         placeholder="Tell us a little about your situation.">{{ form.message or '' }}</textarea>
             </div>
           </div>
+          {{ wa_consent('cuWaConsent') }}
           <div class="cu-foot">
             <button type="submit" class="btn btn-primary btn-lg">
               <i class="fa-solid fa-paper-plane"></i> Send Message

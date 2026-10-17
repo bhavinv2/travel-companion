@@ -447,7 +447,8 @@ def _save_contact(form, topic=None, lead_source=None, crm_lead=True):
     started = datetime.utcnow()
     lead = crm.capture_safely(lead_source or 'contact-%s' % msg.topic, name=msg.name, phone=msg.phone,
                               email=msg.email, product=CONTACT_TOPIC_PRODUCT.get(msg.topic),
-                              message=msg.message, ref=('contact_messages', msg.id), user_id=msg.user_id)
+                              message=msg.message, ref=('contact_messages', msg.id), user_id=msg.user_id,
+                              consent=bool(form.get('wa_consent')), consent_from='contact form')
     if lead is None:
         # no lead was made: the contact inbox is the only place this enquiry shows. Only the agents whose
         # console has the screen it lands on -- one that does not would be told to open a page they cannot.
@@ -478,6 +479,7 @@ def _contact_fields(src):
     return {'name': fields['name'], 'email': fields['email'], 'phone': fields['phone'],
             # carried through so _validate_contact can refuse a number it could not normalise
             'phone_error': fields.get('phone_error'),
+            'wa_consent': fields['wa_consent'],
             'message': contact_form.compose(fields),
             # '' when nothing was picked, so the caller's own default still decides
             'topic': contact_form.route(fields['topic'], default='')}
@@ -759,6 +761,7 @@ def api_insurance_quote():
         crm.capture_safely(
             'ti-quote', phone=quote.phone, email=quote.email, product='TI',
             user_id=quote.user_id, departure_date=start, ends_on=end, ref=('insurance_quotes', quote.id),
+            consent=crm.ticked(data.get('wa_consent')), consent_from='insurance quote form',
             details={'plan': ins_type, 'travellers_ages': ', '.join(ages), 'citizenship': citizenship,
                      'destination': destination, 'cover': '%s to %s' % (start.strftime('%d %b %Y'),
                                                                           end.strftime('%d %b %Y')),

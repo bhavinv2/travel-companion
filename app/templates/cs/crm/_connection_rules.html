@@ -1,0 +1,14 @@
+{# The reply rules to pause before switching (services/crm_connection.checks), drawn after the page has loaded. #}
+{% if c.rules %}
+<div class="card warn" style="margin-top:14px">
+  <p><b>Before you switch: pause these reply rules, they send when a tag is added, a chat is given to someone or on a schedule</b></p>
+  <ul class="conn-rules">
+    {% for r in c.rules %}
+    <li>“{{ r.name }}” — {{ r.why }}
+      {% if CAN('wa_automations') %}<a class="cb sm" href="{{ url_for('messaging.automations', p='/automations/' ~ r.id ~ '/edit') }}">Open</a>{% endif %}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% elif c.rules_state == 'error' %}
+<p class="hint">Could not read the reply rules from WhatsApp just now.</p>
+{% endif %}

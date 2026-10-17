@@ -78,16 +78,29 @@ def test_the_radio_follows_the_saved_choice(app, client, admin_user, monkeypatch
 
 # ---------------------------------------------------------------- G4: nothing that does nothing
 
-def test_put_it_in_the_chat_is_hidden_until_the_whatsapp_side_exists(app, client, cs_user):
-    assert crm.WA_COMPOSE is False
+def test_put_it_in_the_chat_is_shown_in_the_panel_but_not_on_the_full_lead_page(app, client, cs_user, team):
+    """Release 2: the WhatsApp CRM fills its own box (portal:compose), so the panel offers it. The full lead page
+    has its own message box and gets no fill button. (Was: pinned off until release 2; the WA_COMPOSE flag is gone.)"""
+    from datetime import datetime, timedelta
+    from app import db
+    assert not hasattr(crm, 'WA_COMPOSE')
+    crm.save_settings(whatsapp_mode='send')
     access.ensure_defaults()
     lead = crm.capture('ti-quote', name='Ramesh Kumar', phone='+919876543210', utm={})
+    crm.log_touch(lead, 'whatsapp', 'in', body='Are pre-existing conditions covered?', external_id='wamid.in1', at=datetime.utcnow() - timedelta(hours=1))
+    db.session.commit()
     login(client, cs_user.email)
     html = client.get('/admin/messaging/lead-panel?conversation=conv-7&phone=919876543210').get_data(as_text=True)
-    assert 'Put it in the chat' not in html
+    assert 'Suggested reply' in html and 'Quick replies for' in html and 'Put it in the chat' in html
     page = client.get('/cs/crm/lead/%d' % lead.id).get_data(as_text=True)
     assert 'Put it in the chat' not in page
-    assert 'Put in the chat. Check it' not in read('app', 'static', 'js', 'crm.js')       # no toast for nothing
+
+
+def test_reply_rule_links_open_the_edit_page(app):
+    for path in (('app', 'templates', 'cs', 'crm', 'automatic.html'), ('app', 'templates', 'cs', 'crm', '_connection_rules.html'),
+                 ('app', 'templates', 'messaging', 'frame.html')):
+        links = re.findall(r"p='/automations/' ~ [^)]*?\)", read(*path))
+        assert links and all(l.rstrip(')').strip().endswith("'/edit'") for l in links), path
 
 
 # ---------------------------------------------------------------- G5: quick replies follow saves and removals
@@ -98,7 +111,7 @@ def test_saving_a_quick_reply_copies_it_to_whatsapp(app, client, admin_user, tea
     answer(client)
     out = quick_calls(calls)
     assert out and any(i['title'] == 'Do you ship gifts?' and i['text'] == 'Yes, we do.' for i in out[-1][2]['items'])
-    assert wa_templates.quick_state()['titles'] == ['Do you ship gifts?']
+    assert 'Do you ship gifts?' in wa_templates.quick_state()['titles']      # U8: the Help & FAQ rows go along
     assert wa_templates.quick_state()['due'] is False
 
 
@@ -187,9 +200,9 @@ def test_the_push_button_tells_about_conflicts(app, client, admin_user, team):
     state['conflicts'] = ['Yes']
     crm.ensure_defaults()
     login(client, admin_user.email)
-    r = client.post('/admin/crm/setup/templates/quick-replies', follow_redirects=True)
+    r = client.post('/admin/crm/quick-replies/push', follow_redirects=True)      # U8: the copy card became Push all
     text = r.get_data(as_text=True)
-    assert 'not copied' in text and 'Rename one of them' in text
+    assert 'not copied' in text and 'Rename one of them' in text.replace('&#39;', "'")
     assert wa_templates.quick_state()['conflicts'] == ['Yes']
 
 
@@ -209,7 +222,7 @@ def test_the_frame_and_the_lead_page_refresh_on_activity():
 
 def test_the_tags_screen_warns_about_the_tags_the_sales_crm_writes():
     from app.routes import messaging
-    assert any('stage, product or source tags' in line for line in messaging.SCREENS['tags']['help'])
+    assert any('are locked here' in line for line in messaging.SCREENS['tags']['help'])
 
 
 # ---------------------------------------------------------------- G11: every menu line explains itself

@@ -12,6 +12,8 @@ Every function reads in one query for all the people or leads it is given -- nev
     waiting_by_owner()   the same for many owners at once
     unanswered_by_owner()  customers who wrote in a time span and had no answer when it ended
     first_reply_minutes()  per person, the median wait for a person's first answer
+    reply_minutes() / first_contact_minutes() / waiting_people()  the same for Results: one median or count
+    DEFINITIONS          the words behind each number's (i) on Results
     waiting_rows() / window_open_people()  the SQL forms of waiting_on_us / window_left_hours, for
                          filtering and counting in the database
     via_expr() / via_of()  who sent an outbound message, with the rule for rows from before `via`
@@ -193,19 +195,20 @@ def via_of(via, agent_id):
     return via or ('person' if agent_id else 'automation')
 
 
-def first_reply_minutes(start, end, now=None):
-    """{agent_id: median minutes}: how long customers waited for a PERSON's first answer, for waits that
-    began in [start, end). An answer from an automation, a flow or the AI is not counted; a wait
-    answered first by one of those gives no sample. One query."""
+def _reply_samples(start, end, now=None, person_ids=None):
+    """[(agent_id, minutes)]: one per customer wait that began in [start, end) and a PERSON answered first.
+    `person_ids`: a select that limits it to those people. One query."""
     tp = CrmTouchpoint
     now = now or datetime.utcnow()
     stop = min(now, end + timedelta(hours=WINDOW_HOURS))
+    where = [tp.person_id.in_(_wrote_between(start, end)), tp.channel.in_(REPLY_CHANNELS),
+             tp.direction.in_(('in', 'out')), func.coalesce(tp.status, '') != 'failed',
+             tp.created_at >= start - timedelta(hours=WINDOW_HOURS), tp.created_at < stop]
+    if person_ids is not None:
+        where.append(tp.person_id.in_(person_ids))
     rows = (db.session.query(tp.person_id, tp.direction, tp.created_at, tp.id, tp.agent_id, via_expr())
-            .filter(tp.person_id.in_(_wrote_between(start, end)), tp.channel.in_(REPLY_CHANNELS),
-                    tp.direction.in_(('in', 'out')), func.coalesce(tp.status, '') != 'failed',
-                    tp.created_at >= start - timedelta(hours=WINDOW_HOURS), tp.created_at < stop)
-            .order_by(tp.person_id, tp.created_at, tp.id).all())
-    samples = {}
+            .filter(*where).order_by(tp.person_id, tp.created_at, tp.id).all())
+    samples = []
     person, wait = None, None
     for pid, direction, at, _id, agent, via in rows:
         if pid != person:
@@ -215,6 +218,66 @@ def first_reply_minutes(start, end, now=None):
                 wait = at
         elif wait is not None:
             if start <= wait < end and via == VIA_PERSON and agent:
-                samples.setdefault(agent, []).append((at - wait).total_seconds() / 60)
+                samples.append((agent, (at - wait).total_seconds() / 60))
             wait = None
-    return {a: round(median(v)) for a, v in samples.items()}
+    return samples
+
+
+def first_reply_minutes(start, end, now=None):
+    """{agent_id: median minutes}: how long customers waited for a PERSON's first answer, for waits that
+    began in [start, end). An answer from an automation, a flow or the AI is not counted; a wait
+    answered first by one of those gives no sample. One query."""
+    by_agent = {}
+    for agent, minutes in _reply_samples(start, end, now):
+        by_agent.setdefault(agent, []).append(minutes)
+    return {a: round(median(v)) for a, v in by_agent.items()}
+
+
+def reply_minutes(start, end, person_ids=None, now=None):
+    """Median minutes customers waited for a PERSON's answer, for waits that began in [start, end), over
+    everybody (or the people `person_ids` -- a select -- picks). None without samples."""
+    got = [m for _, m in _reply_samples(start, end, now, person_ids)]
+    return round(median(got)) if got else None
+
+
+def first_contact_minutes(lead_ids):
+    """Median minutes from a lead coming in to the first message or call a PERSON made on it, for the leads
+    `lead_ids` (a select of CrmLead.id). Automatic messages are not counted; a lead nobody has contacted yet gives
+    no sample. None without samples."""
+    tp = CrmTouchpoint
+    first = (select(tp.lead_id.label('lead_id'), func.min(tp.created_at).label('t'))
+             .where(tp.lead_id.in_(lead_ids), tp.direction == 'out', tp.channel.notin_(('system', 'note', 'form')),
+                    func.coalesce(tp.status, '') != 'imported', via_expr() == VIA_PERSON)
+             .group_by(tp.lead_id).subquery())
+    rows = (db.session.query(CrmLead.created_at, first.c.t)
+            .join(first, first.c.lead_id == CrmLead.id).all())
+    got = [max((t - created).total_seconds() / 60, 0) for created, t in rows if created and t]
+    return round(median(got)) if got else None
+
+
+def waiting_people(person_ids):
+    """How many of the people `person_ids` (a select) are waiting on us now (waiting_rows)."""
+    w = waiting_rows(CrmTouchpoint.person_id.in_(person_ids)).subquery()
+    return db.session.execute(select(func.count()).select_from(w)).scalar() or 0
+
+
+DEFINITIONS = {
+    'new_leads': 'Leads that came in during these days. Leads brought in from a list or the sales sheet are not counted.',
+    'replied': 'Leads whose customer wrote back for the first time during these days, on any channel. A form is not a reply.',
+    'quoted': 'Leads that reached a stage meaning Quoted for the first time during these days.',
+    'won': 'Leads marked won during these days.',
+    'first_contact': ('How long new leads waited for the first message or call from a person; half waited less. '
+                      'Automatic messages are not counted, nor leads nobody has contacted yet.'),
+    'reply_time': ("How long customers waited for a person's answer after they wrote; half waited less. "
+                   'Automatic replies are not counted.'),
+    'waiting_now': 'Customers who wrote last on WhatsApp, Instagram or Facebook and have no answer yet. Right now.',
+    'funnel': 'Of the leads that came in during these days: how many got this far.',
+    'sources': ('Leads that came in during these days, by where they came from: how many replied and how many '
+                'are customers now.'),
+    'campaigns': "The same, by the campaign name in the ad's link.",
+    'by_sender': ('Messages we sent during these days: by a person, by itself (follow-ups, reply rules, the chatbot, '
+                  'AI replies) or in a broadcast. Calls are not messages.'),
+    'milestones': 'How often somebody pressed I sent the quote or I sent the payment link on a lead.',
+    'lost': 'Leads lost during these days, by the reason given.',
+    'day_by_day': 'Every number of the sales sheet, day by day. It counts every pipeline.',
+}

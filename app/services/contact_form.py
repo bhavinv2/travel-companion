@@ -92,6 +92,8 @@ def clean(src):
         # country code reached the inbox.
         out['phone'] = e164 or out['phone']
         out['phone_error'] = error
+    # the tick box "Send my quote and updates on WhatsApp": never ticked unless the form said so
+    out['wa_consent'] = str(src.get('wa_consent') or '').strip().lower() in ('1', 'on', 'true', 'yes')
     allowed = {'topic': TOPICS, 'via': VIA, 'time': TIMES, 'zone': ZONES}
     for key in CHOICE_FIELDS:
         value = (src.get(key) or '').strip()

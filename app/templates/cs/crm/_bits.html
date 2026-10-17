@@ -1,8 +1,7 @@
 {# Small pieces the CRM screens share. Import with context so they can read the label maps. #}
 
 {% macro product_chip(code) -%}
-{%- set icon = {'TI': 'fa-shield-heart', 'TC': 'fa-plane-departure', 'SH': 'fa-house-medical', 'GH': 'fa-gift',
-                'VC': 'fa-user-doctor', 'GEN': 'fa-comments'}.get(code, 'fa-layer-group') -%}
+{%- set icon = CRM_PRODUCT_ICON(code) -%}
 <span class="chip prod p-{{ code }}"><i class="fa-solid {{ icon }}" aria-hidden="true"></i> {{ PRODUCTS.get(code, code) }}</span>
 {%- endmacro %}
 
@@ -33,6 +32,7 @@
 {%- elif ch == 'system' -%}<i class="fa-solid fa-flag"></i>
 {%- elif ch == 'call' -%}<i class="fa-solid fa-phone"></i>
 {%- elif ch == 'email' -%}<i class="fa-solid fa-envelope"></i>
+{%- elif ch == 'todo' -%}<i class="fa-solid fa-list-check"></i>
 {%- elif ch == 'instagram' -%}<i class="fa-brands fa-instagram"></i>
 {%- elif ch == 'facebook' -%}<i class="fa-brands fa-facebook-messenger"></i>
 {%- elif ch == 'sms' -%}<i class="fa-solid fa-comment-sms"></i>

@@ -97,6 +97,9 @@
     });
   }
 
+  // the set-up screens (crm-setup.js) use the same helpers
+  window.CRM = { post: post, toast: toast, choose: choose, esc: esc, base: BASE };
+
   function reasonsFrom(el) {
     try { return JSON.parse(el.dataset.reasons || '[]'); } catch (e) { return []; }
   }
@@ -127,7 +130,7 @@
     }).then(function (d) {
       if (d === null) return null;
       if (!d._ok) { toast(d.error || 'Could not move it.', true); return null; }
-      var said = d.logged ? '. Logged: ' + (milestone === 'Q' ? 'I sent the quote' : 'I sent the payment link') : '';
+      var said = d.logged ? '. Logged: ' + (d.logged_label || '') : '';
       toast(d.status === 'won' ? 'Won! 🎉 Moved to ' + d.stage : 'Moved to ' + d.stage + said, false,
             { label: 'Undo', run: function () { undoMove(leadId, reasonsSource); } });
       return d;
@@ -400,7 +403,7 @@
           });
         });
       } else if (act === 'compose') {
-        // contract 25: the WhatsApp CRM fills its box and answers nothing, so no "done" here -- they see it there
+        // contract 25: the WhatsApp CRM fills its box (never sends) and answers wacrm:composed; the frame says a refusal (messaging/frame.html)
         if (!(window.CRM_compose && window.CRM_compose(b.dataset.text || ''))) toast('Open the chat on the left first.', true);
       } else if (act === 'open-chat') {
         e.preventDefault();
@@ -460,11 +463,11 @@
       } else if (act === 'reopen') {
         post('lead/' + leadId + '/reopen', {}).then(function (d) {
           if (!d._ok) { toast(d.error || 'Could not reopen.', true); return; }
-          toast('Reopened — back in ' + d.stage); reloadFor(leadPage);
+          toast('Back to work, in ' + d.stage); reloadFor(leadPage);
         });
       } else if (act === 'remove') {
-        choose('Take ' + (b.dataset.name || 'this lead') + ' out of the Sales CRM?',
-               'Their follow-ups and history in the CRM go too. The record on the site (their quote, booking or post) stays.',
+        choose('Remove this lead?',
+               'Removes this enquiry with its follow-ups and timeline. ' + (b.dataset.name || 'The contact') + ' stays in Contacts.',
                [{ label: 'Yes, remove', value: 'yes' }]).then(function (v) {
           if (v !== 'yes') return;
           post('lead/' + leadId + '/remove', {}).then(function (d) {
@@ -472,24 +475,6 @@
             location.href = d.next;
           });
         });
-      } else if (act === 'edit-person') {
-        var box = dialog.querySelector('.in');
-        box.innerHTML = '<h3>Their details</h3><div class="stack" style="margin-top:10px">' +
-          '<div><label class="lb">Name</label><input type="text" id="crm-e-name" maxlength="120" value="' + esc(b.dataset.name) + '"/></div>' +
-          '<div><label class="lb">E-mail</label><input type="email" id="crm-e-email" maxlength="255" value="' + esc(b.dataset.email) + '"/></div>' +
-          '<div><label class="lb">Phone / WhatsApp <small class="muted">with the country code, e.g. +91 98480 00000</small></label><input type="text" id="crm-e-phone" maxlength="24" value="' + esc(b.dataset.phone) + '"/></div>' +
-          (b.dataset.instagram ? '' : '<div><label class="lb">Instagram</label><input type="text" id="crm-e-ig" maxlength="200" placeholder="@their.handle"/></div>') +
-          (b.dataset.facebook ? '' : '<div><label class="lb">Facebook</label><input type="text" id="crm-e-fb" maxlength="200" placeholder="facebook.com/…"/></div>') +
-          '<div class="row end"><button type="button" class="cb ghost" data-close>Cancel</button><button type="button" class="cb primary" data-save>Save</button></div></div>';
-        box.querySelector('[data-close]').onclick = function () { dialog.close(); };
-        box.querySelector('[data-save]').onclick = function () {
-          var val = function (id) { var el = document.getElementById(id); return el ? el.value : ''; };
-          var body = { name: val('crm-e-name'), email: val('crm-e-email'), instagram: val('crm-e-ig'), facebook: val('crm-e-fb') };
-          if (val('crm-e-phone').trim() && val('crm-e-phone').trim() !== (b.dataset.phone || '')) body.phone = val('crm-e-phone');
-          post('lead/' + leadId + '/update', body)
-            .then(function (d) { if (!d._ok) { toast(d.error || 'Could not save.', true); return; } dialog.close(); toast('Saved'); reloadFor(leadPage); });
-        };
-        dialog.showModal();
       }
     }
   });
@@ -709,6 +694,7 @@
 
   // something half typed or open in a region: leave that region as it is
   function regionBusy(el) {
+    if (el.querySelector('[data-detail-edit]:not([hidden])')) return true;      // a detail being changed
     var a = document.activeElement;
     if (a && el.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;
     if (el.querySelector('details.more-menu[open], details.box-qr[open]')) return true;
@@ -724,13 +710,19 @@
     doc.querySelectorAll('[data-lead-live]').forEach(function (fresh) {
       var name = fresh.dataset.leadLive;
       var old = leadPage.querySelector('[data-lead-live="' + name + '"]');
-      if (!old || old.outerHTML === fresh.outerHTML || regionBusy(old)) return;
+      if (!old) return;
+      // the tags box filled itself from WhatsApp: it stays as it is, and is not part of the comparison
+      var keepTags = old.querySelector('[data-tags]'), newTags = fresh.querySelector('[data-tags]');
+      if (keepTags && newTags && keepTags.dataset.url === newTags.dataset.url) newTags.replaceWith(keepTags.cloneNode(true));
+      else keepTags = null;
+      if (old.outerHTML === fresh.outerHTML || regionBusy(old)) return;
       var scroller = old.querySelector('[data-tl-scroll]');
       var atBottom = scroller ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 40 : false;
       var top = scroller ? scroller.scrollTop : 0;
       var open = Array.prototype.map.call(old.querySelectorAll('details[open][data-fold]'), function (d) { return d.dataset.fold; });
       var node = document.importNode(fresh, true);
       old.replaceWith(node);
+      if (keepTags) { var slot = node.querySelector('[data-tags]'); if (slot) slot.replaceWith(keepTags); }
       open.forEach(function (f) { var d = node.querySelector('details[data-fold="' + f + '"]'); if (d) d.open = true; });
       var sc = node.querySelector('[data-tl-scroll]');
       if (sc) sc.scrollTop = atBottom ? sc.scrollHeight : top;
@@ -750,6 +742,8 @@
   // (window.CRM_bindLead).
   function bindLeadNodes(node, leadPage) {
     if (node.querySelector && node.querySelector('[data-tpl]')) renderFills(leadPage.querySelector('[data-box]') || node);
+    // a tags box fills itself from WhatsApp (crm-people.js, loaded after this file)
+    if (window.CRM_bindTags && node.querySelectorAll) node.querySelectorAll('[data-tags]').forEach(window.CRM_bindTags);
   }
 
   function bindLead(leadPage) {
@@ -797,6 +791,25 @@
         if (!was) wc.classList.add('on');
         return;
       }
+      var ed = e.target.closest('[data-act="edit-detail"]');
+      if (ed && leadPage.contains(ed)) {
+        var box = ed.closest('dd').querySelector('[data-detail-edit]');
+        box.hidden = !box.hidden;
+        var fld = box.querySelector('input, select');
+        if (!box.hidden && fld) fld.focus();
+        return;
+      }
+      var sp = e.target.closest('[data-act="set-product"]');
+      if (sp && leadPage.contains(sp)) {
+        var all = leadPage.querySelectorAll('[data-act="set-product"]');
+        all.forEach(function (x) { x.disabled = true; });
+        post('lead/' + leadId + '/update', { product: sp.dataset.product || '' }).then(function (d) {
+          if (!d._ok) { all.forEach(function (x) { x.disabled = false; }); toast(d.error || 'Could not save.', true); return; }
+          toast(d.message || 'Saved');
+          if (d.moved && !leadPage.closest('[data-lead-panel]')) reloadSoon(1200); else reloadFor(leadPage, 1200);
+        });
+        return;
+      }
       var ev = e.target.closest('[data-act="event"]');
       if (ev && leadPage.contains(ev)) {
         ev.disabled = true;
@@ -832,16 +845,24 @@
 
     leadPage.addEventListener('change', function (e) {
       var el = e.target;
-      if (el.matches && el.matches('[data-update]')) {
+      if (el.matches && el.matches('[data-detail]')) {
+        // one lead detail, edited on the card (✎)
+        var one = {}; one[el.dataset.detail] = el.value;
+        post('lead/' + leadId + '/update', { details: one }).then(function (d) {
+          if (!d._ok) { toast(d.error || 'Could not save.', true); return; }
+          toast(d.message || 'Saved');
+          reloadFor(leadPage, d.message ? 1800 : undefined);
+        });
+      } else if (el.matches && el.matches('[data-update]')) {
         var body = {}; body[el.dataset.update] = el.value;
         post('lead/' + leadId + '/update', body).then(function (d) {
           if (!d._ok) { toast(d.error || 'Could not save.', true); return; }
-          toast(el.dataset.update === 'owner_id' && d.whatsapp ? 'Saved. Their WhatsApp chat goes to them too' : 'Saved');
+          toast(d.message || (el.dataset.update === 'owner_id' && d.whatsapp ? 'Saved. Their WhatsApp chat goes to them too' : 'Saved'));
           if (el.dataset.update === 'owner_id') {
             leadPage.querySelectorAll('[data-update="owner_id"]').forEach(function (x) { x.value = el.value; });
             reloadFor(leadPage);
           }
-          if (el.dataset.update === 'departure_date') reloadFor(leadPage);
+          if (el.dataset.update === 'departure_date' || el.dataset.update === 'ends_on') reloadFor(leadPage, d.message ? 1800 : undefined);
         });
       } else if (el.matches && el.matches('[data-tpl]')) {
         var box = leadPage.querySelector('[data-box]');
@@ -1143,6 +1164,15 @@
       if (b) { b.disabled = true; b.textContent = 'Working… this can take a minute'; }
     });
   });
+
+  /* -------------------------------------------------------------- add a lead: the chosen product's details */
+  var addForm = document.querySelector('[data-add-lead]');
+  if (addForm) {
+    addForm.addEventListener('change', function (e) {
+      if (e.target.name !== 'product') return;
+      addForm.querySelectorAll('[data-add-fields]').forEach(function (g) { g.hidden = g.dataset.addFields !== e.target.value; });
+    });
+  }
 
   /* -------------------------------------------------------------- set-up: {name} buttons */
   document.addEventListener('click', function (e) {

@@ -2,30 +2,25 @@
 {% from '_page_head.html' import page_head %}
 {% block crm_title %}Results{% endblock %}
 
-{% macro num(v, key='') -%}
-{%- if v is none or v == '' -%}–{%- elif key == 'response_time' -%}{{ '%.1f'|format(v) }}{%- else -%}{{ v|int }}{%- endif -%}
+{% macro num(v) -%}
+{%- if v is none or v == '' -%}–{%- else -%}{{ v|int }}{%- endif -%}
 {%- endmacro %}
 
-{% macro delta(key, lower_better=false) -%}
-{%- set a = now_tot.get(key) or 0 -%}{%- set b = old_tot.get(key) or 0 -%}
+{% macro info(tip) -%}
+<span class="tt-i" tabindex="0" title="{{ tip }}" aria-label="{{ tip }}">ⓘ</span>
+{%- endmacro %}
+
+{% macro mins(m) -%}
+{%- if m is none -%}—{%- elif m < 60 -%}{{ m }} min{%- else -%}{{ m // 60 }} h {{ m % 60 }} min{%- endif -%}
+{%- endmacro %}
+
+{% macro delta(key) -%}
+{%- set a = cards.get(key) or 0 -%}{%- set b = before.get(key) or 0 -%}
 {%- if b -%}
   {%- set pct = ((a - b) / b * 100)|round|int -%}
-  {%- set good = (pct < 0) if lower_better else (pct > 0) -%}
-  <span class="delta {{ 'good' if good else 'bad' if pct != 0 else '' }}" title="Previous {{ days }} days: {{ num(b, key) }}">{{ '▲' if pct > 0 else '▼' if pct < 0 else '=' }} {{ pct|abs }}%</span>
+  <span class="delta {{ 'good' if pct > 0 else 'bad' if pct != 0 else '' }}" title="Previous {{ days }} days: {{ b }}">{{ '▲' if pct > 0 else '▼' if pct < 0 else '=' }} {{ pct|abs }}%</span>
 {%- elif a -%}<span class="delta good">new</span>
 {%- endif -%}
-{%- endmacro %}
-
-{% macro columns(vals, colour='var(--crm-blue)') -%}
-{%- set nums = vals|map('default', 0, true)|list -%}
-{%- set top = nums|max if nums else 0 -%}
-<svg class="cols" viewBox="0 0 {{ nums|length * 12 }} 64" preserveAspectRatio="none" role="img" aria-label="By day">
-  <line x1="0" y1="63" x2="{{ nums|length * 12 }}" y2="63" class="axis"/>
-  {%- for v in nums %}
-  {%- set h = (58 * v / top) if top else 0 %}
-  <rect x="{{ loop.index0 * 12 + 2 }}" y="{{ 63 - h }}" width="8" height="{{ h if h > 0 else 0 }}" rx="2" fill="{{ colour }}"><title>{{ day_list[loop.index0].strftime('%a %d %b') }}: {{ num(v) }}</title></rect>
-  {%- endfor %}
-</svg>
 {%- endmacro %}
 
 {% macro bars(rows, colour='var(--crm-blue)') -%}
@@ -40,125 +35,101 @@
 {% block crm %}
 {{ page_head(person.full_name ~ "'s results" if person else 'Results', 'fa-solid fa-chart-line',
              'How sales are going: new leads, replies and customers won, by product, source and person.',
-             help=['Counted from the CRM as the team works. The few numbers it cannot count are logged at the end of the day.',
-                   'Compare 7, 30 or 90 days with the days before, for the whole team or one person.'],
+             help=['Counted from the Sales CRM as the team works: nothing to fill in.',
+                   'Pick the days, one pipeline and one person to look closer. Each ⓘ says what a number counts.',
+                   'Numbers the CRM cannot see are written down on My day.'],
              primary=({'label': 'Download for Excel', 'href': crm_url('insights_csv', days=days), 'icon': 'fa-solid fa-file-csv'} if CAN('crm_export') else None),
              full_screen=True) }}
 <div class="ui-filters">
   <form method="GET" class="row" style="gap:6px">
     <input type="hidden" name="days" value="{{ days }}"/>
+    <select name="pipeline" onchange="this.form.submit()" aria-label="Pipeline" style="width:auto">
+      <option value="">Every pipeline</option>
+      {% for p in pipelines %}<option value="{{ p.id }}"{{ ' selected' if pipe and pipe.id == p.id }}>{{ p.name }}</option>{% endfor %}
+    </select>
     <select name="who" onchange="this.form.submit()" aria-label="Whose numbers" style="width:auto">
       <option value="">The whole team</option>
       {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if person and person.id == u.id }}>{{ u.full_name }}</option>{% endfor %}
     </select>
   </form>
-  <div class="chips">{% for d in [7, 30, 90] %}<a class="chip{{ ' on' if days == d }}" href="{{ crm_url('insights', days=d, who=person.id if person else None) }}">{{ d }} days</a>{% endfor %}</div>
+  <div class="chips">{% for d in [7, 30, 90] %}<a class="chip{{ ' on' if days == d }}" href="{{ crm_url('insights', days=d, who=person.id if person else None, pipeline=pipe.id if pipe else None) }}">{{ d }} days</a>{% endfor %}</div>
 </div>
-<p class="muted" style="margin:-8px 0 14px">Last {{ days }} days{{ ', compared with the %d days before' % days }}. Counted from the CRM as the team works — nothing to fill in except "Log today's work".</p>
+<p class="muted" style="margin:-8px 0 14px">Last {{ days }} days, compared with the {{ days }} days before{% if pipe %} · {{ pipe.name }}{% endif %}{% if person %} · leads {{ person.full_name }} looks after{% endif %}.</p>
 
 {# ------------------------------------------------------------------ the headline numbers #}
 <div class="kpi-cards">
-  {% for key, label, icon, lower in [('cold', 'New leads', 'fa-user-plus', false), ('prospects', 'Became prospects', 'fa-comments', false),
-                                     ('pipeline', 'Into the pipeline', 'fa-hourglass-half', false), ('customers', 'Customers won', 'fa-trophy', false),
-                                     ('msg_total', 'Messages sent', 'fa-paper-plane', false), ('response_time', 'Hours to first message', 'fa-stopwatch', true)] %}
+  {% for key, label, icon in [('new_leads', 'New leads', 'fa-user-plus'), ('replied', 'Replied', 'fa-comments'),
+                              ('quoted', 'Quoted', 'fa-file-invoice'), ('won', 'Customers won', 'fa-trophy')] %}
   <div class="kpi-card">
-    <div class="top"><i class="fa-solid {{ icon }}"></i><span>{{ label }}</span></div>
-    <b>{{ num(now_tot.get(key), key) }}</b>
-    {{ delta(key, lower) }}
-    {{ columns(series.get(key, []), 'var(--crm-ok)' if key == 'customers' else 'var(--crm-blue)') }}
+    <div class="top"><i class="fa-solid {{ icon }}"></i><span>{{ label }}</span> {{ info(DEFS[key]) }}</div>
+    <b>{{ num(cards.get(key)) }}</b>
+    {{ delta(key) }}
   </div>
   {% endfor %}
+  {% for key, label, icon, note in [('first_contact', 'First contact time', 'fa-stopwatch', 'people only'),
+                                    ('reply_time', 'Reply time', 'fa-reply', 'people only')] %}
+  <div class="kpi-card">
+    <div class="top"><i class="fa-solid {{ icon }}"></i><span>{{ label }}</span> {{ info(DEFS[key]) }}</div>
+    <b>{{ mins(cards.get(key)) }}</b>
+    <small class="muted">{{ note }}</small>
+  </div>
+  {% endfor %}
+  <div class="kpi-card">
+    <div class="top"><i class="fa-solid fa-hourglass-half"></i><span>Customers waiting now</span> {{ info(DEFS.waiting_now) }}</div>
+    <b>{{ num(cards.get('waiting_now')) }}</b>
+    <small class="muted">right now</small>
+  </div>
 </div>
 
 {# ------------------------------------------------------------------ the funnel #}
 <section class="card">
-  <h2>From lead to customer</h2>
-  {% set f_cold = now_tot.get('cold') or 0 %}{% set f_pro = now_tot.get('prospects') or 0 %}
-  {% set f_pipe = now_tot.get('pipeline') or 0 %}{% set f_cust = now_tot.get('customers') or 0 %}
-  {% set f_top = [f_cold, f_pro, f_pipe, f_cust, 1]|max %}
+  <h2>From lead to customer {{ info(DEFS.funnel) }}</h2>
+  {% set f_top = [funnel.total, 1]|max %}
+  {% if funnel.total %}
   <div class="funnel">
-    {% for label, n, prev, cls in [('New leads', f_cold, none, ''), ('Prospects', f_pro, f_cold, ''), ('Pipeline', f_pipe, f_pro, ''), ('Customers', f_cust, f_pipe, 'won')] %}
+    {% for r in funnel.rows %}
     <div class="f-row">
-      <span class="f-label">{{ label }}</span>
-      <span class="f-bar {{ cls }}" style="width:{{ [100 * n / f_top, 3]|max }}%"><b>{{ n|int }}</b></span>
-      <span class="f-conv">{% if prev is not none %}{{ ((100 * n / prev)|round|int ~ '% of the step before') if prev else '—' }}{% endif %}</span>
+      <span class="f-label">{{ r.label }}</span>
+      <span class="f-bar {{ 'won' if r.won }}" style="width:{{ [100 * r.n / f_top, 3]|max }}%"><b>{{ r.n }}</b></span>
+      <span class="f-conv">{% if r.pct is not none %}{{ r.pct }}% of the step before{% endif %}</span>
     </div>
     {% endfor %}
   </div>
-  <div class="row" style="gap:14px;margin-top:10px">
-    <span class="chip bad">Prospect fallout: {{ (now_tot.get('prospect_fallout') or 0)|int }}</span>
-    <span class="chip bad">Pipeline fallout: {{ (now_tot.get('pipeline_fallout') or 0)|int }}</span>
-    <span class="chip ok">Upsell: {{ (now_tot.get('upsell') or 0)|int }}</span>
+  <div class="row" style="gap:14px;margin-top:10px"><span class="chip bad">Lost: {{ funnel.lost }}</span></div>
+  {% else %}<p class="muted" style="margin:0">Nothing in these days yet.</p>{% endif %}
+</section>
+
+{# ------------------------------------------------------------------ where customers come from #}
+<section class="card">
+  <h2>Where customers come from {{ info(DEFS.sources) }}</h2>
+  {% if sources.rows %}
+  <div class="table-wrap">
+  <table class="crm-table">
+    <thead><tr><th>Source</th><th>Leads</th><th>Replied</th><th>Won</th><th>Won %</th></tr></thead>
+    <tbody>{% for r in sources.rows %}<tr><td class="nm">{{ r.name }}</td><td>{{ r.leads }}</td><td>{{ r.replied }}</td><td>{{ r.won }}</td><td>{{ r.pct }}%</td></tr>{% endfor %}</tbody>
+  </table>
   </div>
+  {% if sources.campaigns %}
+  <h3 style="margin-top:14px">By campaign {{ info(DEFS.campaigns) }}</h3>
+  <div class="table-wrap">
+  <table class="crm-table">
+    <thead><tr><th>Campaign</th><th>Leads</th><th>Replied</th><th>Won</th><th>Won %</th></tr></thead>
+    <tbody>{% for r in sources.campaigns %}<tr><td class="nm">{{ r.name }}</td><td>{{ r.leads }}</td><td>{{ r.replied }}</td><td>{{ r.won }}</td><td>{{ r.pct }}%</td></tr>{% endfor %}</tbody>
+  </table>
+  </div>
+  {% endif %}
+  {% else %}<p class="muted" style="margin:0">Nothing in these days yet.</p>{% endif %}
 </section>
 
 <div class="grid2">
-  <section class="card"><h2>Where new leads came from</h2>{{ bars(data.new_by_source) }}</section>
-  <section class="card"><h2>Messages by kind</h2>
-    {% set msg_rows = [] %}
-    {% for group, rows in groups if group == 'Messages sent' %}{% for key, label, how, vals, total in rows if key != 'msg_total' and total %}{% set _ = msg_rows.append((label, total)) %}{% endfor %}{% endfor %}
-    {{ bars(msg_rows|sort(attribute=1, reverse=true)) }}
-  </section>
-  <section class="card"><h2>Why leads fell out</h2>{{ bars(data.reasons, 'var(--ui-bad)') }}</section>
-  <section class="card"><h2>Marketing</h2>
-    <div class="mini-tiles">
-      {% for group, rows in groups if group in ('Marketing', 'Lead source points') %}{% for key, label, how, vals, total in rows if key != 'response_time' %}
-      <div class="mini"><b>{{ num(total) }}</b><span>{{ label }}</span>{% if how == 'manual' %}<i title="Entered in Log today's work">✎</i>{% endif %}</div>
-      {% endfor %}{% endfor %}
-    </div>
-  </section>
+  <section class="card"><h2>Messages, by who sent them {{ info(DEFS.by_sender) }}</h2>{{ bars(senders) }}</section>
+  <section class="card"><h2>Quotes and payment links {{ info(DEFS.milestones) }}</h2>{{ bars(milestones) }}</section>
+  <section class="card"><h2>Why we lost leads {{ info(DEFS.lost) }}</h2>{{ bars(reasons, 'var(--ui-bad)') }}</section>
 </div>
-
-{# ------------------------------------------------------------------ the team #}
-{% if not person %}
-<section class="card">
-  <div class="row between" style="margin-bottom:10px">
-    <h2 style="margin:0">The team</h2>
-  </div>
-  <div style="overflow-x:auto">
-  <table class="crm-table">
-    <thead><tr><th>Person</th>{% for k, label in METRICS %}<th>{{ label }}</th>{% endfor %}<th>Overdue now</th><th>First message within</th></tr></thead>
-    <tbody>
-    {% for u in staff %}{% set t = totals.get(u.id, {}) %}
-    <tr>
-      <td><a class="nm" href="{{ crm_url('insights', days=days, who=u.id) }}">{{ u.full_name }}</a></td>
-      {% for k, _ in METRICS %}<td>{{ t.get(k, 0) }}</td>{% endfor %}
-      <td>{% set od = overdue.get(u.id, 0) %}<span class="chip {{ 'bad' if od else 'ok' }}">{{ od }}</span></td>
-      <td>{{ '%s h' % t.first_reply_h if t.get('first_reply_h') is not none else '—' }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  </div>
-</section>
-{% endif %}
-
-{# ------------------------------------------------------------------ log today's work #}
-<section class="card" id="log">
-  <div class="row between">
-    <div><h2 style="margin:0"><i class="fa-solid fa-pen-to-square"></i> Log today's work</h2>
-      <p class="muted" style="margin:4px 0 0">Only the things the CRM cannot see. Everything else counts itself.</p></div>
-    <form method="GET" class="row" style="gap:6px">
-      <input type="hidden" name="days" value="{{ days }}"/>
-      <input type="date" name="log_day" value="{{ log_day.isoformat() }}" max="{{ today.isoformat() }}" onchange="this.form.submit()" style="width:auto"/>
-    </form>
-  </div>
-  <form method="POST" action="{{ crm_url('log_work') }}" class="log-grid">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-    <input type="hidden" name="day" value="{{ log_day.isoformat() }}"/><input type="hidden" name="days" value="{{ days }}"/>
-    {% for key, label in MANUAL %}
-    <label class="log-item"><span>{{ label }}</span>
-      <span class="stepper"><button type="button" data-step="-1" aria-label="One less">−</button>
-        <input type="number" min="0" step="1" name="{{ key }}" value="{{ (my_log.get(key) or 0)|int }}"/>
-        <button type="button" data-step="1" aria-label="One more">+</button></span></label>
-    {% endfor %}
-    <div class="full"><button class="cb primary">Save my numbers for {{ log_day.strftime('%d %b') }}</button></div>
-  </form>
-</section>
 
 {# ------------------------------------------------------------------ day by day #}
 <details class="card">
-  <summary style="cursor:pointer;font-weight:700;font-size:16px">Day by day — every number, like the KPI sheet</summary>
+  <summary style="cursor:pointer;font-weight:700;font-size:16px">Day by day (like the sales sheet) {{ info(DEFS.day_by_day) }}</summary>
   <div style="overflow-x:auto;margin-top:12px">
   <table class="crm-table daygrid">
     <thead><tr><th></th><th>Total</th>{% for d in day_list %}<th>{{ d.strftime('%d %b') }}</th>{% endfor %}</tr></thead>
@@ -167,8 +138,8 @@
     <tr class="grp"><td colspan="{{ day_list|length + 2 }}">{{ group }}</td></tr>
     {% for key, label, how, vals, total in rows %}
     <tr><td class="nm" style="white-space:nowrap">{{ label }}{% if how == 'manual' %} <i title="Entered by hand">✎</i>{% endif %}</td>
-      <td><b>{{ num(total, key) }}</b></td>
-      {% for v in vals %}<td style="{{ 'color:var(--muted)' if not v }}">{{ num(v, key) if v else '0' }}</td>{% endfor %}</tr>
+      <td><b>{{ ('%.1f'|format(total) if total is not none else '–') if key == 'response_time' else num(total) }}</b></td>
+      {% for v in vals %}<td style="{{ 'color:var(--muted)' if not v }}">{{ ('%.1f'|format(v) if v else '0') if key == 'response_time' else (num(v) if v else '0') }}</td>{% endfor %}</tr>
     {% endfor %}
     {% endfor %}
     </tbody>

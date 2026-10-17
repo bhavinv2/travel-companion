@@ -1,0 +1,5 @@
+{# The tick on a public form: never ticked for the visitor. A ticked box lets an automatic first WhatsApp message go
+   out (crm.WA_FIRST_OK_LABEL); the server notes where they agreed. #}
+{% macro wa_consent(id='wa-consent', cls='') -%}
+<label class="wa-consent {{ cls }}" for="{{ id }}"><input type="checkbox" id="{{ id }}" name="wa_consent" value="1"/> <span>Send my quote and updates on WhatsApp</span></label>
+{%- endmacro %}

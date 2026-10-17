@@ -184,6 +184,20 @@ def run_all():
         from app import db
         db.session.rollback()
         out['crm_waiting_alerts'] = 'failed'
+    # Sales CRM -> WhatsApp CRM: which tags are the Sales CRM's, once a day (contract 16)
+    try:
+        out.update(crm.wa_tag_rule_daily())
+    except Exception:          # noqa: BLE001
+        from app import db
+        db.session.rollback()
+        out['crm_wa_tag_rule'] = 'failed'
+    # Sales CRM <- WhatsApp CRM: reply rules that may repeat our follow-ups, once a day; a new one rings the admins
+    try:
+        out.update(crm.check_automation_conflicts())
+    except Exception:          # noqa: BLE001
+        from app import db
+        db.session.rollback()
+        out['crm_reply_rules'] = 'failed'
     # Sales CRM -> WhatsApp CRM: whoever is still marked (a save whose sync failed, the backfill),
     # a few at a time; never a message
     try:

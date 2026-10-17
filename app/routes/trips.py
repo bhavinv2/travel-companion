@@ -230,7 +230,8 @@ def post_trip():
                           confirmed_over=[d['id'] for d in dups] or None)
         db.session.commit()
         from app.services import crm
-        crm.capture_trip(trip, 'tc-trip-post', user_id=current_user.id)
+        crm.capture_trip(trip, 'tc-trip-post', user_id=current_user.id,
+                          consent=_truthy(get('wa_consent')), consent_from='trip post form')
         # Instant matching (plan §9): compute now so the UI can show "N possible matches" immediately.
         found = matching.compute_matches_for(trip, actor=current_user)
         d = trip.to_dict(viewer_id=current_user.id)

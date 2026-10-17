@@ -13,12 +13,15 @@ Message text may use these, filled in when it is sent:
     {ends}        the date the policy / trip ends
     {insurance_link} {companion_link} {sahayak_link} {site_link}
 """
+import re
 
 # ---------------------------------------------------------------------------------------- pipelines
 # (key, name, product, fallout reasons, stages)
 # stage: (key, name, kind, on_reply, sla_hours, steps[, automation])
 #   automation: (kind, days, stage key to move to, reason) -- see CRM_AUTO_KINDS
 # step:  (code, title, channel, trigger, value, auto, body)
+# These tuples keep the vocabulary from before U5 (D / E triggers, 'departed'); ensure_defaults() turns
+# them into date_offset / after_date with seed_trigger() / seed_auto() below.
 H = 'after_hours'
 D = 'before_departure_days'
 E = 'before_end_days'
@@ -219,12 +222,72 @@ PIPELINES = [
      ]),
 ]
 
-# which pipeline a product's leads start in when their source does not name one
+# which pipeline a product's leads start in when their source does not name one (seed data only:
+# crm_products.default_pipeline_id is what is read)
 PRODUCT_PIPELINE = {'TI': 'ti-standard', 'TC': 'tc-companion', 'SH': 'sahayak-visit',
                     'GH': 'general', 'VC': 'general', 'GEN': 'general'}
 
+# products: seed data only -- written into crm_products once (crm_products.ensure_seeded)
+PRODUCT_ICONS = {'TI': 'fa-shield-heart', 'TC': 'fa-plane-departure', 'SH': 'fa-house-medical',
+                 'GH': 'fa-gift', 'VC': 'fa-user-doctor', 'GEN': 'fa-comments'}
+PRODUCT_KPI_ROWS = {'TC': 'tc_posts'}
+
+
+def products():
+    """(code, name, icon, offered, pipeline key, kpi_row) from CRM_PRODUCTS / CRM_PRODUCT_LABELS / PRODUCT_PIPELINE."""
+    from app.models import CRM_PRODUCTS, CRM_PRODUCT_LABELS
+    return [(c, CRM_PRODUCT_LABELS[c], PRODUCT_ICONS.get(c, 'fa-layer-group'), True,
+             PRODUCT_PIPELINE.get(c, 'general'), PRODUCT_KPI_ROWS.get(c)) for c in CRM_PRODUCTS]
+
+
+# the lead page's buttons, by stage key: (button label, code)
+MILESTONES = {'quoted': ('I sent the quote', 'Q'), 'pipeline': ('I sent the payment link', 'PLS')}
+CATCH_ALL = ('general',)           # pipeline keys that pass a lead on to its product's own pipeline
+# a new pipeline starts as (key, name, means, on_reply) and can be changed on screen
+SIMPLE_PATH = [('new', 'New', 'new', False), ('talking', 'Talking', 'talking', True),
+               ('won', 'Won', 'won', False), ('lost', 'Lost', 'lost', False)]
+SIMPLE_REASONS = ['No response', 'Not interested', 'Duplicate']
+
+STEP_KIND_PREFIXES = {'PI': 'reminder', 'CE': 'care', 'SH': 'care', 'BW': 'birthday', 'FM': 'festival',
+                      'OM': 'festival', 'PM': 'promotion', 'ER': 'expiry', 'PF': 'after_lost'}
+STEP_KIND_CODES = {'reminder': 'PI', 'care': 'CE', 'birthday': 'BW', 'festival': 'FM', 'promotion': 'PM',
+                   'expiry': 'ER', 'after_lost': 'PF', 'other': 'FU'}    # first -> the product code
+LEGACY_TRIGGERS = {'before_departure_days': 'departure_date', 'before_end_days': 'ends_on'}
+
+
+def step_kind(code, product_codes):
+    """A step's kind from its code: the kind prefixes first (SH is Sahayak's care), then a product code
+    is the first contact, else other."""
+    text = (code or '').strip().upper()
+    m = re.match(r'^[A-Z][A-Z0-9]*', text)
+    prefix = m.group(0) if m else ''
+    if prefix not in STEP_KIND_PREFIXES and prefix not in (product_codes or ()):
+        m = re.match(r'^[A-Z]+', text)         # "TC2" still reads as TC
+        prefix = m.group(0) if m else ''
+    if prefix in STEP_KIND_PREFIXES:
+        return STEP_KIND_PREFIXES[prefix]
+    if prefix in (product_codes or ()):
+        return 'first'
+    return 'other'
+
+
+def seed_trigger(trigger, value):
+    """('before_departure_days', 3) -> ('date_offset', 'departure_date', -3); after_hours unchanged."""
+    if trigger in LEGACY_TRIGGERS:
+        return 'date_offset', LEGACY_TRIGGERS[trigger], -abs(value or 0)
+    return trigger, None, value
+
+
+def seed_auto(kind):
+    """'departed' -> ('after_date', 'departure_date'); others -> (kind, None)."""
+    if kind == 'departed':
+        return 'after_date', 'departure_date'
+    return kind, None
+
 # ---------------------------------------------------------------------------------------- sources
 # (key, name, kind, product, pipeline key, pages, status)
+# ti-support, contact-companion and contact-sahayak name the pipeline the catch-all rule already passed
+# their leads on to (U5)
 SOURCES = [
     ('tc-trip-post', 'TC: trip posted on the site', 'form', 'TC', 'tc-companion', ['/'], 'live'),
     ('tc-cs-post', 'TC: post added by CS (Facebook groups, WhatsApp)', 'manual', 'TC', 'tc-companion',
@@ -233,12 +296,12 @@ SOURCES = [
     ('ti-quote', 'TI: quote request', 'form', 'TI', 'ti-standard', ['/travel-insurance'], 'live'),
     ('ti-expert', 'TI: expert form and consultation pop-up', 'popup', 'TI', 'ti-standard',
      ['/travel-insurance'], 'live'),
-    ('ti-support', 'TI: support form', 'form', 'TI', 'general', ['/travel-insurance'], 'live'),
+    ('ti-support', 'TI: support form', 'form', 'TI', 'ti-standard', ['/travel-insurance'], 'live'),
     ('sh-booking', 'Sahayak: visit booking', 'form', 'SH', 'sahayak-visit', ['/sahayak'], 'live'),
     ('sh-apply', 'Sahayak: nurse application', 'form', 'SH', 'nurse-recruitment', ['/sahayak'], 'live'),
-    ('contact-companion', 'Contact us: travel companion', 'form', 'TC', 'general', ['/contact-us'], 'live'),
+    ('contact-companion', 'Contact us: travel companion', 'form', 'TC', 'tc-companion', ['/contact-us'], 'live'),
     ('contact-insurance', 'Contact us: insurance', 'form', 'TI', 'ti-standard', ['/contact-us'], 'live'),
-    ('contact-sahayak', 'Contact us: Sahayak', 'form', 'SH', 'general', ['/contact-us'], 'live'),
+    ('contact-sahayak', 'Contact us: Sahayak', 'form', 'SH', 'sahayak-visit', ['/contact-us'], 'live'),
     ('contact-general', 'Contact us: general', 'form', 'GEN', 'general', ['/contact-us'], 'live'),
     ('newsletter', 'Newsletter sign-up', 'form', 'GEN', 'general', ['/'], 'paused'),
     ('wa-india', 'WhatsApp: India number', 'chat', 'GEN', 'general', [], 'live'),
@@ -254,6 +317,7 @@ SOURCES = [
     ('direct-sale', 'Direct sale', 'manual', 'TI', 'ti-standard', [], 'live'),
     ('sales-sheet', 'Sales sheet (Excel import)', 'import', 'GEN', 'general', [], 'live'),
     ('site-account', 'Site account (added from existing data)', 'manual', 'GEN', 'general', [], 'live'),
+    ('csv-import', 'Imported list (CSV)', 'import', 'GEN', 'general', [], 'live'),
 ]
 
 # ---------------------------------------------------------------------------------------- answers

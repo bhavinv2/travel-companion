@@ -121,6 +121,7 @@
       const body = {
         start_date: start, end_date: end, travellers, citizenship: q('.ins-cit').value,
         insurance_type: insType, email, phone, phone_cc: phoneCc,
+        wa_consent: !!(q('.ins-wa input') || {}).checked,
       };
       if (NEEDS_DESTINATION[insType]) body.destination = q('.ins-dest').value;
 

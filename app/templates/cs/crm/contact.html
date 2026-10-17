@@ -1,0 +1,85 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_bits.html' import product_chip, stage_pill, when, ist with context %}
+{% block crm_title %}{{ person.display_name }}{% endblock %}
+{% block crm %}
+{% set more = [{'label': 'Erase this person', 'href': crm_url('contact', person_id=person.id, erase=1), 'danger': True, 'icon': 'fa-solid fa-user-slash'}] if can_erase else None %}
+<p class="small"><a href="{{ crm_url('contacts') }}">‹ Contacts</a></p>
+{{ page_head(person.display_name, 'fa-solid fa-address-card',
+             'Their details, permissions and every enquiry. This is the only place their details are changed.',
+             primary={'label': 'Edit details', 'href': crm_url('contact_edit', person_id=person.id), 'icon': 'fa-solid fa-pen'},
+             more=more, full_screen=True) }}
+
+{% if erase %}
+<section class="card danger-zone">
+  <h2>Erase this person</h2>
+  <p>This removes, for good:</p>
+  <ul>
+    <li>The contact: {{ person.display_name }}{% if person.phone %} · {{ PHONE.pretty(person.phone) }}{% endif %}{% if person.email %} · {{ person.email }}{% endif %}</li>
+    <li>{{ erase.leads }} enquir{{ 'y' if erase.leads == 1 else 'ies' }}, {{ erase.touches }} timeline item{{ '' if erase.touches == 1 else 's' }}, {{ erase.tasks }} follow-up{{ '' if erase.tasks == 1 else 's' }}</li>
+    {% if erase.chat %}<li>Their WhatsApp chat and its messages</li>
+    {% elif person.phone or person.wacrm_contact_id %}<li>Their WhatsApp chat stays: WhatsApp is not connected for leads.</li>{% endif %}
+    {% for rec in erase.records %}<li>{{ rec.label }}</li>{% endfor %}
+    {% if erase.bells %}<li>{{ erase.bells }} notification{{ '' if erase.bells == 1 else 's' }} about them</li>{% endif %}
+  </ul>
+  {% for line in erase.kept %}<p class="hint">{{ line }}</p>{% endfor %}
+  {% if erase.login %}<p class="hint">{{ crm_people.LOGIN_STAYS % erase.login }}</p>{% endif %}
+  <p class="hint">{{ crm_people.DNC_LINE }}</p>
+  <form method="POST" action="{{ crm_url('contact_erase', person_id=person.id) }}" class="stack" data-erase-form>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <label class="lb" for="er-name">Type their name to confirm: <b>{{ person.display_name }}</b></label>
+    <input id="er-name" name="confirm_name" autocomplete="off" required data-erase-name="{{ person.display_name }}"/>
+    <div class="row">
+      <button class="cb danger" data-erase-btn disabled>Erase everything listed</button>
+      <a class="cb ghost" href="{{ crm_url('contact', person_id=person.id) }}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endif %}
+
+<div class="ct-grid">
+  <section class="card">
+    <h2>How to reach them</h2>
+    <div class="ct-line"><i class="fa-solid fa-phone" aria-hidden="true"></i> {% if person.phone %}<a href="tel:{{ person.phone }}">{{ PHONE.pretty(person.phone) }}</a>{% else %}<span class="muted">—</span>{% endif %}</div>
+    <div class="ct-line"><i class="fa-solid fa-envelope" aria-hidden="true"></i> {% if person.email %}<a href="mailto:{{ person.email }}">{{ person.email }}</a>{% else %}<span class="muted">—</span>{% endif %}</div>
+    {% set ig = person.identity('instagram') %}{% set fb = person.identity('facebook') %}
+    <div class="ct-line"><i class="fa-brands fa-instagram" aria-hidden="true"></i> {% if ig %}<a href="https://www.instagram.com/{{ ig }}" target="_blank" rel="noopener">{{ ig }}</a>{% else %}<span class="muted">—</span>{% endif %}</div>
+    <div class="ct-line"><i class="fa-brands fa-facebook" aria-hidden="true"></i> {% if fb %}<a href="https://www.facebook.com/{{ fb }}" target="_blank" rel="noopener">{{ fb }}</a>{% else %}<span class="muted">—</span>{% endif %}</div>
+    {% if sync and sync.state != 'ok' %}<p class="hint">{{ sync.text }}</p>{% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Permission</h2>
+    <p>{{ permission }}</p>
+    {% if person.wa_opt_out_at %}<p class="hint">Opt them back in from their lead page.</p>{% endif %}
+  </section>
+
+  <section class="card wide">
+    <h2>Tags</h2>
+    {% include 'cs/crm/_tags_box.html' %}
+  </section>
+
+  <section class="card wide">
+    <h2>Enquiries</h2>
+    {% for l in leads %}
+    <div class="ct-enq">
+      {{ product_chip(l.product) }}
+      <b>{{ l.pipeline.name if l.pipeline else 'Not routed yet' }}</b>
+      {{ stage_pill(l) }}
+      <span class="muted">{{ ('Looked after by ' ~ l.owner.full_name) if l.owner else 'Not given to anyone' }}</span>
+      <a class="cb sm" href="{{ crm_url('lead', lead_id=l.id) }}">Open lead</a>
+    </div>
+    {% else %}<p class="muted">No enquiry yet.</p>{% endfor %}
+    {% if can_add %}<p><a class="cb" href="{{ crm_url('add', person=person.id) }}">+ New enquiry</a></p>{% endif %}
+  </section>
+
+  <section class="card wide">
+    <h2>Recent messages</h2>
+    {% for m in recent %}
+    <div class="ct-msg"><i class="{{ m.icon }}" aria-hidden="true"></i>
+      <div><b>{{ m.who }}</b> {{ m.text }}<br/><small>{{ when(m.at, utcnow) }}{% if m.lead %} · <a href="{{ crm_url('lead', lead_id=m.lead.id) }}">open lead</a>{% endif %}</small></div></div>
+    {% else %}<p class="muted">No messages yet.</p>{% endfor %}
+  </section>
+</div>
+{% endblock %}
+{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/crm-people.js') }}" defer></script>{% endblock %}

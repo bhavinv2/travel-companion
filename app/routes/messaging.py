@@ -38,10 +38,6 @@ SCREENS = {
                        'WhatsApp template can go.',
                        'A chat with a lead shows the lead on the right: the next follow-up, the stage and who looks '
                        'after it.']},
-    # off the menu until U7 (access.py crm_people): the WhatsApp CRM retires /contacts inside the portal, so an old link lands on Leads
-    'contacts': {'page': 'crm_people', 'path': '/contacts', 'heading': 'Contacts',
-                 'helper': 'Everyone in WhatsApp, one row per person. Enquiries are worked on Leads.',
-                 'help': ["The WhatsApp CRM's contact list.", 'Enquiries, stages and follow-ups are on Leads.']},
     'broadcasts': {'page': 'wa_broadcasts', 'path': '/broadcasts', 'heading': 'Broadcasts',
                    'helper': 'Send one approved message to many people at once, for example everyone in a stage.',
                    'help': ['Only an approved WhatsApp template can go to many people.',
@@ -73,7 +69,7 @@ SCREENS = {
              'helper': 'Labels on contacts, used to choose who gets a broadcast or a reply rule.',
              'help': ['Tags pick who gets a broadcast or a reply rule.',
                       "The Sales CRM adds tags for each lead's stage and source by itself.",
-                      "Don't rename or delete the stage, product or source tags here: the Sales CRM writes them and puts them back."]},
+                      "Tags set by the Sales CRM (stage, product, source, opted-out) are locked here; change the stage or source instead."]},
     'settings': {'page': 'wa_settings', 'path': '/settings?tab=whatsapp', 'tabs': ('whatsapp', 'api'),
                  'heading': 'WhatsApp number',
                  'helper': 'The number customers write to, and its Meta account details. Messages not reaching leads? '
@@ -163,6 +159,15 @@ def _screens_js(panel):
     return out
 
 
+def frame_link(path):
+    """The portal address that opens `path` inside the WhatsApp frame, on the first framed screen this person may
+    open (SCREENS order), or None when WhatsApp is not connected here or no framed screen is theirs."""
+    if not wacrm_team.enabled():
+        return None
+    name = next((n for n, s in SCREENS.items() if access.can(current_user, s['page'])), None)
+    return url_for('messaging.' + name, p=path) if name else None
+
+
 def _screen_view(name):
     screen = SCREENS[name]
 
@@ -186,7 +191,12 @@ def _screen_view(name):
                 path = _with_panel(path)
             src = wacrm_team.sso_url(current_user, role, path, pages=granted)
         alone = name == 'inbox' and not panel
-        return render_template('messaging/frame.html', heading=screen['heading'],
+        rules, rules_at = [], None
+        if name == 'automations':                  # the strip is what was last seen: no call to the WhatsApp CRM
+            rules, seen = crm.known_rule_conflicts()
+            rules_at = (seen + crm.IST).strftime('%d %b, %H:%M') if seen else None
+        return render_template('messaging/frame.html', rules=rules, rules_line=crm.rule_strip(rules),
+                               rules_at=rules_at, heading=screen['heading'],
                                helper=INBOX_HELPER_ALONE if alone else screen['helper'],
                                help=screen['help'][:2] if alone else screen['help'],
                                page_key=screen['page'], src=src, panel=panel, wa_ready=crm.wa_can_send(),
@@ -199,6 +209,13 @@ def _screen_view(name):
 
 for _name in SCREENS:
     messaging_bp.add_url_rule('/' + _name.replace('_', '-'), endpoint=_name, view_func=_screen_view(_name))
+
+
+@messaging_bp.route('/contacts')
+@login_required
+def contacts():
+    """Moved: Contacts is the Sales CRM's own page."""
+    return redirect(access.page_url(access.PAGES['crm_people']) or access.home_url(current_user))
 
 
 @messaging_bp.route('/quick-replies')
@@ -216,7 +233,7 @@ def overview():
 
 
 # contract 15: a screen retired inside the WhatsApp CRM -> the portal page that took its place
-GO_PAGES = {'contacts': 'crm_board',          # U7: 'crm_people', once Contacts is the portal's own page
+GO_PAGES = {'contacts': 'crm_people',
             'leads': 'crm_board', 'results': 'crm_insights', 'notifications': 'notifications',
             'members': 'ws_members', 'quick_replies': 'crm_quick', 'pipelines': 'crm_pipelines'}
 
@@ -230,9 +247,13 @@ def _go_url(key, template=''):
         return access.home_url(current_user)
     if page == 'crm_pipelines' and template:
         from app.models import CrmPlaybookStep
+        from app.services import wa_templates
         step = CrmPlaybookStep.query.filter_by(wa_template=template).order_by(CrmPlaybookStep.id).first()
-        if step is not None and step.stage is not None and step.stage.pipeline is not None:
-            return url_for('admin_crm.pipelines', p=step.stage.pipeline.key) + '#st-%d' % step.stage_id
+        if step is None:
+            step = next((s for s in CrmPlaybookStep.query.filter_by(channel='whatsapp', wa_template=None)
+                         .order_by(CrmPlaybookStep.id) if wa_templates.slug_name(s.code) == template), None)
+        if step is not None and step.stage is not None and step.stage.pipeline_id is not None:
+            return url_for('admin_crm.pipeline_edit', pid=step.stage.pipeline_id, step=step.id)
     return access.page_url(access.PAGES[page]) or access.home_url(current_user)
 
 
@@ -340,12 +361,13 @@ def lead_panel():
         from app.services import crm
         lead = crm.wa_lead_for(person) or (person.leads[0] if person.leads else None)
     if lead is None:
+        from app.services import crm_products
         return render_template('messaging/lead_panel.html', state='none', phone=digits,
-                               name=name[:120], conversation=conversation_id)
+                               name=name[:120], conversation=conversation_id, tiles=crm_products.tiles())
     from app.services import crm
     belongs = sum(1 for l in person.leads if l.status == 'open') > 1
     return render_template('messaging/lead_panel.html', state='lead', belongs=belongs,
-                           suggested=crm.suggested_reply(lead, current_user) if crm.WA_COMPOSE else None, conversation=conversation_id,
+                           suggested=crm.suggested_reply(lead, current_user), conversation=conversation_id,
                            **lead_card_context(lead, compact=True), **_common())
 
 
@@ -354,15 +376,18 @@ def lead_panel():
 def lead_panel_make():
     """Somebody wrote on WhatsApp who is not a lead yet: make them one, from the inbox."""
     from flask import current_app
-    from app.services import crm
+    from app.services import crm, crm_products
     if not access.allowed(current_user, request.endpoint) or not access.can(current_user, 'crm_add'):
         abort(403)
+    chosen = crm_products.by_code(request.form.get('product'))
+    product = chosen.code if chosen is not None and chosen.offered else None
     digits = ''.join(ch for ch in (request.form.get('wa_phone') or '') if ch.isdigit())
     if len(digits) < 8:
         abort(400)
     key = current_app.config.get('WACRM_SOURCE_KEY') or 'wa-india'
     lead = crm.capture(key, name=(request.form.get('name') or '').strip()[:120] or None, phone='+' + digits,
-                       channel='whatsapp', utm={}, created_by_id=current_user.id, note=crm.MADE_FROM_CHAT)
+                       channel='whatsapp', utm={}, created_by_id=current_user.id, note=crm.MADE_FROM_CHAT,
+                       product=product)
     if lead is not None and request.form.get('conversation'):
         lead.person.wacrm_conversation_id = request.form.get('conversation')[:64]
         took_it = lead.owner_id is None

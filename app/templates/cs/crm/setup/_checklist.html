@@ -1,0 +1,31 @@
+<h2>Needs a WhatsApp template</h2>
+<p class="muted">WhatsApp lets us write first, or after 24 hours of silence, only with a template it has approved. Each follow-up below needs one to go then.</p>
+{% if tpl_error %}<p class="hint">{{ tpl_error }}</p>{% endif %}
+{% if rows %}
+<div class="table-wrap">
+<table class="crm-table tpl-table">
+  <thead><tr><th>Follow-up</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td><a href="{{ crm_url('pipeline_edit', pid=r.pipeline_id, step=r.step.id) }}">{{ r.where }}</a></td>
+    <td><span class="tpl-st {{ r.css }}">{{ r.status_text }}</span>{% if r.hint %}<div class="hint">{{ r.hint }}</div>{% endif %}</td>
+    <td class="tpl-act">
+      {% if r.can_make %}
+      <form method="POST" action="{{ crm_url('template_draft') }}" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="step_id" value="{{ r.step.id }}"/>
+        <button class="cb sm primary">Make it a WhatsApp template</button>
+      </form>
+      {% endif %}
+      {% if r.in_wa and can_templates %}<a class="cb sm" target="_top" href="{{ tpl_url(r.name) }}">Open in WhatsApp templates</a>{% endif %}
+      <details class="ui-more"><summary class="cb quiet sm">⋯ More</summary><div class="ui-more-menu"><span class="muted small">Template name: {{ r.name }}</span></div></details>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="muted">No WhatsApp follow-ups yet.</p>
+{% endif %}
+<p><a class="cb" href="{{ crm_url('setup_templates', action='csv') }}"><i class="fa-solid fa-file-csv" aria-hidden="true"></i> Download the list</a></p>

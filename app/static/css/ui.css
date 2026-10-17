@@ -110,3 +110,28 @@
 .ui-empty { text-align: center; padding: 28px 16px; color: var(--ui-muted); }
 .ui-empty > i { display: block; font-size: 28px; color: var(--ui-primary); opacity: .8; margin-bottom: 10px; }
 .ui-empty p { margin: 0 auto 14px; max-width: 46ch; font-size: 15px; color: var(--ui-ink); }
+
+
+/* Find a person: the header box on staff pages (E25) */
+.find-person { position: relative; display: flex; align-items: center; margin-right: 10px; }
+.find-person input[type=search] { width: 260px; max-width: 34vw; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--ui-line, #e3eaf4);
+  font: inherit; font-size: 14px; background: var(--ui-card, #fff); color: var(--ui-ink, #0f2340); }
+.find-person .fp-open { display: none; border: 0; background: transparent; cursor: pointer; font-size: 16px; color: inherit; padding: 6px 8px; }
+.find-person .fp-list { position: absolute; top: calc(100% + 6px); right: 0; width: 420px; max-width: 92vw; z-index: 1200; background: var(--ui-card, #fff);
+  border: 1px solid var(--ui-line, #e3eaf4); border-radius: 12px; box-shadow: 0 14px 40px rgba(15, 35, 64, .18); padding: 6px; }
+.find-person .fp-list[hidden] { display: none; }
+.find-person .fp-item { display: block; padding: 8px 10px; border-radius: 8px; color: var(--ui-ink, #0f2340); text-decoration: none; font-size: 14px; }
+.find-person .fp-item:hover, .find-person .fp-item.on { background: var(--ui-soft, #f6f9fd); }
+.find-person .fp-item b { display: block; }
+.find-person .fp-item small { color: var(--ui-muted, #5b6b84); }
+.find-person .fp-chip { display: inline-block; margin: 3px 4px 0 0; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  background: var(--ui-soft, #f6f9fd); border: 1px solid var(--ui-line, #e3eaf4); }
+.find-person .fp-chip.won { background: var(--ui-ok-soft, #e8f8ee); }
+.find-person .fp-chip.lost { background: var(--ui-bad-soft, #fdecec); }
+.find-person .fp-none { padding: 10px; color: var(--ui-muted, #5b6b84); }
+@media (max-width: 720px) {
+  .find-person .fp-open { display: block; }
+  .find-person input[type=search] { display: none; width: 220px; }
+  .find-person.open input[type=search] { display: block; position: absolute; right: 0; top: 100%; z-index: 1201; width: 92vw; max-width: 92vw; }
+  .find-person.open .fp-list { top: calc(100% + 52px); width: 92vw; }
+}

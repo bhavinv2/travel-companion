@@ -1,0 +1,28 @@
+{# Where leads come from -> Marketing activities: platform, activity, who, where it stands. #}
+{% from 'cs/crm/setup/_macros.html' import csrf with context %}
+<section class="card">
+  <h2>Marketing activities</h2>
+  <p class="muted">The ways we find people, who does each, and where it stands. They are shown on How we sell.</p>
+  <form method="POST" action="{{ crm_url('save_activities') }}" data-act-form>
+    {{ csrf() }}
+    <table class="act-rows">
+      <thead><tr><th>Platform</th><th>Activity</th><th>Who</th><th>Where it stands</th><th></th></tr></thead>
+      <tbody data-act-rows>
+      {% for platform, activity, who, status in activities + [['', '', '', '']] %}
+      <tr data-act-row>
+        <td><input type="text" name="platform" value="{{ platform }}" maxlength="200" aria-label="Platform"/></td>
+        <td><input type="text" name="activity" value="{{ activity }}" maxlength="200" aria-label="Activity"/></td>
+        <td><input type="text" name="who" value="{{ who }}" maxlength="200" aria-label="Who"/></td>
+        <td><input type="text" name="status" value="{{ status }}" maxlength="200" aria-label="Where it stands"/></td>
+        <td><button type="button" class="cb quiet sm" data-act-remove aria-label="Remove this row">×</button></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p class="hint">Where it stands as Ongoing shows as running on How we sell.</p>
+    <div class="row">
+      <button type="button" class="cb" data-act-add>+ Add row</button>
+      <button class="cb primary">Save</button>
+    </div>
+  </form>
+</section>

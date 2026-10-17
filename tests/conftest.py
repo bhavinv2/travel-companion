@@ -56,6 +56,9 @@ def app(tmp_path):
         from app.services import crm as _crm, wa_templates as _wa_templates
         _crm._wa_inbound.clear()         # the WhatsApp CRM's answers are cached for a minute: not across tests
         _wa_templates.forget()
+        from app.services import crm_people as _crm_people, wacrm_team as _wacrm_team
+        _crm_people.forget()             # the contact page's tag cache and the tag list, per process
+        _wacrm_team.forget_tags()
         yield app
         _db.session.remove()
         _db.drop_all()

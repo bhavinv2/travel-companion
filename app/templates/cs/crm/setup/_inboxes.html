@@ -1,0 +1,42 @@
+{# Where leads come from -> Inboxes to check: the rows of the Half-hourly check. #}
+{% from 'cs/crm/setup/_macros.html' import csrf with context %}
+<section class="card">
+  <h2>Inboxes to check</h2>
+  <p class="muted">These are the rows on the Half-hourly check. A connected inbox ticks itself.</p>
+  <form method="POST" action="{{ crm_url('save_inboxes') }}" data-inbox-form data-wa-key="{{ wa_key }}">
+    {{ csrf() }}
+    <table class="inbox-rows">
+      <thead><tr><th>Inbox</th><th>Comes from</th><th>Ticks itself when connected</th><th></th></tr></thead>
+      <tbody data-inbox-rows>
+      {% for r in check_rows %}
+      {% set k = 'r' ~ loop.index %}
+      <tr data-inbox-row>
+        <td><input type="hidden" name="row" value="{{ k }}"/><input type="text" name="name_{{ k }}" value="{{ r.name }}" maxlength="40" aria-label="Inbox name"/></td>
+        <td><select name="source_{{ k }}" aria-label="Comes from" data-inbox-source>
+          <option value="">—</option>
+          {% for key, name in source_keys %}<option value="{{ key }}"{{ ' selected' if r.source_key == key }}>{{ name }}</option>{% endfor %}
+        </select></td>
+        <td><label class="check"><input type="checkbox" name="auto_{{ k }}" value="1"{{ ' checked' if r.auto }}{{ '' if r.source_key == wa_key else ' disabled' }} data-inbox-auto/>
+          {% if r.source_key == wa_key %}<small class="muted">{{ 'Ticks itself now' if replies_linked else 'Ticks itself once WhatsApp replies are connected' }}</small>{% endif %}</label></td>
+        <td><button type="button" class="cb quiet sm" data-inbox-remove aria-label="Remove {{ r.name }}">×</button></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <template data-inbox-template>
+      <tr data-inbox-row>
+        <td><input type="hidden" name="row" value="__K__"/><input type="text" name="name___K__" value="" maxlength="40" aria-label="Inbox name"/></td>
+        <td><select name="source___K__" aria-label="Comes from" data-inbox-source>
+          <option value="">—</option>
+          {% for key, name in source_keys %}<option value="{{ key }}">{{ name }}</option>{% endfor %}
+        </select></td>
+        <td><label class="check"><input type="checkbox" name="auto___K__" value="1" disabled data-inbox-auto/></label></td>
+        <td><button type="button" class="cb quiet sm" data-inbox-remove aria-label="Remove">×</button></td>
+      </tr>
+    </template>
+    <div class="row" style="margin-top:10px">
+      <button type="button" class="cb" data-inbox-add>+ Add inbox</button>
+      <button class="cb primary">Save</button>
+    </div>
+  </form>
+</section>

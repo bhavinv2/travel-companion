@@ -1,0 +1,41 @@
+{# The four live check lines of WhatsApp connection (services/crm_connection.checks), drawn after the page has loaded. #}
+{% from 'cs/crm/setup/_macros.html' import csrf with context %}
+{% macro act(line) -%}
+{%- if line.action == 'webhook' %}
+<form method="POST" action="{{ crm_url('save_whatsapp') }}">{{ csrf() }}<input type="hidden" name="action" value="webhook"/><button class="cb sm primary">Connect replies</button></form>
+{%- elif line.action == 'webhook_on' %}
+<form method="POST" action="{{ crm_url('save_whatsapp') }}">{{ csrf() }}<input type="hidden" name="action" value="webhook_on"/><button class="cb sm primary">Switch it back on</button></form>
+{%- elif line.action == 'team_link' %}
+<form method="POST" action="{{ crm_url('connection_team', action='link') }}">{{ csrf() }}<button class="cb sm primary">Link this workspace</button></form>
+{%- endif %}
+{%- endmacro %}
+<ul class="conn-checks">
+  {% for line in [c.key, c.replies, c.team, c.number] if line %}
+  <li class="{{ line.state }}">
+    <span>{{ line.text }}</span>
+    {{ act(line) }}
+    {% if line is mapping and line.failed %}
+      {% for f in line.failed %}
+      <span class="conn-fail">{{ f.name }} ({{ f.reason }})
+        <form method="POST" action="{{ crm_url('connection_team', action='retry') }}">{{ csrf() }}<input type="hidden" name="member_id" value="{{ f.member.id }}"/><button class="cb sm">Try again</button></form></span>
+      {% endfor %}
+    {% endif %}
+    {% if line.other %}<small class="muted">{{ line.other }}</small>{% endif %}
+    {% if line is mapping and line.linked %}
+      {% if line.error %}<small class="muted">Last check: {{ line.error }}</small>{% endif %}
+      {% set extra = line.extra or [] %}
+      {% if extra %}
+      <span class="conn-extra">{{ extra|length }} {{ 'person is' if extra|length == 1 else 'people are' }} in WhatsApp but not in this workspace:
+        {% for x in extra %}<span>{{ x.email }}
+          <a class="cb sm quiet" href="{{ url_for('workspace.members', add=x.email) }}">Add to workspace</a>
+          {% if x.role != 'owner' %}<form method="POST" action="{{ crm_url('connection_team', action='remove-extra') }}" data-confirm="Take WhatsApp access away from {{ x.email }}?">{{ csrf() }}<input type="hidden" name="email" value="{{ x.email }}"/><button class="cb sm danger">Remove access</button></form>{% endif %}</span>{% endfor %}
+      </span>
+      {% endif %}
+      <form method="POST" action="{{ crm_url('connection_team', action='sync') }}">{{ csrf() }}<button class="cb sm quiet">Sync now</button></form>
+    {% endif %}
+    {% if line is mapping and line.state == 'ok' and line.text.startswith('✓ WhatsApp number') and CAN('wa_settings') %}
+      <a class="cb sm" href="{{ url_for('messaging.settings') }}">Open WhatsApp number</a>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>

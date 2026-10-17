@@ -1,0 +1,61 @@
+{# One follow-up, edited in a drawer from the right. It sits outside the editor's <form>; the script reads it
+   into the follow-up row (Done) or throws it away (Cancel). Nothing is saved until Save changes. #}
+<aside class="pe-drawer" data-drawer hidden aria-label="Follow-up">
+  <div class="pe-drawer-head"><h2>Follow-up</h2>
+    <button type="button" class="cb quiet icon" data-act="drawer-cancel" aria-label="Close">×</button></div>
+  <div class="pe-drawer-body">
+    <label class="lb">What it is <input data-d="title" maxlength="160" placeholder="e.g. Welcome"/></label>
+    <fieldset class="pe-fs"><legend>How</legend>
+      {% for k, label in STEP_CHANNELS.items() %}<label class="check"><input type="radio" name="d-channel" data-d="channel" value="{{ k }}"/> {{ label }}</label>{% endfor %}
+    </fieldset>
+    <fieldset class="pe-fs"><legend>When</legend>
+      <label class="check"><input type="radio" name="d-when" data-d="when_type" value="now"/> Right away</label>
+      <label class="check"><input type="radio" name="d-when" data-d="when_type" value="after"/>
+        <input type="number" data-d="after_value" min="0" max="2000" aria-label="How long"/>
+        <select data-d="after_unit" aria-label="Hours or days"><option value="hours">hours</option><option value="days">days</option></select> after the last follow-up</label>
+      <label class="check"><input type="radio" name="d-when" data-d="when_type" value="date"/>
+        <input type="number" data-d="date_value" min="0" max="365" aria-label="Days"/> days
+        <select data-d="date_sign" aria-label="Before or after"><option value="before">before</option><option value="after">after</option></select>
+        <select data-d="date_field" aria-label="Which date"></select></label>
+    </fieldset>
+    <label class="lb">Type (for the numbers)
+      <select data-d="kind">{% for k, label in STEP_KINDS.items() %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</select></label>
+
+    <section data-wa-only>
+      <div data-tpl-on hidden>
+        <p class="lb">WhatsApp template · <span class="tpl-st" data-tpl-status></span></p>
+        <div class="msg-preview" data-tpl-words></div>
+        <div data-tpl-fills></div>
+        <p class="hint" data-tpl-promo hidden>WhatsApp doesn't deliver promotions to +1 numbers; those people get a Call follow-up instead.</p>
+        <p class="hint" data-tpl-wait hidden>Until WhatsApp approves it, this follow-up can go only while the chat is open.</p>
+        <a class="cb sm" data-tpl-open target="_top" hidden>Open in WhatsApp templates</a>
+      </div>
+      <label class="lb"><span data-pick-label>Use another template</span> <select data-d="tpl_pick"></select></label>
+      <p class="hint" data-lib-err hidden></p>
+    </section>
+
+    <details class="pe-words" data-words open>
+      <summary data-words-label>The message</summary>
+      <textarea data-d="body" data-vars-target rows="6" aria-label="The message"></textarea>
+      <div class="vars" data-fill-chips>{% for k, label in FILLS.items() %}<button type="button" class="ui-chip fill" data-var="{{ '{' ~ k ~ '}' }}">{{ label }}</button>{% endfor %}</div>
+      <p class="hint" data-no-tpl>Without an approved template this can go only while the chat is open (24 h after they last wrote).</p>
+      <div class="row" data-no-tpl><button type="button" class="cb sm" data-act="make-template">Make it a WhatsApp template</button> <span class="hint" data-make-hint></span></div>
+    </details>
+
+    <div data-wa-only>
+      <label class="check"><input type="checkbox" data-d="auto"/> Goes by itself</label>
+      <p class="hint">Sends without a person when it's due. Waits if the customer is waiting for us.</p>
+    </div>
+
+    <details class="pe-step-more"><summary>More</summary>
+      <label class="lb">Code <input data-d="code" maxlength="20" placeholder="made for you"/></label>
+      <p class="muted small" data-tpl-name></p>
+      <button type="button" class="cb danger sm" data-act="step-remove">Remove</button>
+    </details>
+    <div class="pe-err" data-d-err></div>
+  </div>
+  <div class="pe-drawer-foot">
+    <button type="button" class="cb quiet" data-act="drawer-cancel">Cancel</button>
+    <button type="button" class="cb primary" data-act="drawer-done">Done</button>
+  </div>
+</aside>

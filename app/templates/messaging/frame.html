@@ -19,6 +19,9 @@
         <details class="help-fold wa-frame-help"><summary>(?) How this works</summary>
           <ul data-frame-help>{% for line in help %}<li>{{ line }}</li>{% endfor %}</ul></details>
       </div>
+      {% if rules %}<p class="ws-note warn" data-frame-rules><i class="fa-solid fa-triangle-exclamation"></i>
+        <span>{{ rules_line }}{% if rules|length == 1 %} <a href="{{ url_for('messaging.automations', p='/automations/' ~ rules[0].id ~ '/edit') }}">Open it</a>{% endif %}
+        {% if rules_at %}<small> · last checked {{ rules_at }}</small>{% endif %}</span></p>{% endif %}
       {# The WhatsApp CRM, signed in as this person. It reports where it is (wacrm:navigate) so the
          address bar can hold its place: reloading this page lands on the same conversation. On the
          inbox it also says which conversation is open (wacrm:conversation), and that person's sales
@@ -85,9 +88,23 @@
     return best;
   }
 
+  // contract 25: the chat answers each request (wacrm:composed); when it refuses, nothing was filled -- say why
+  var COMPOSE_REFUSED = {
+    window_closed: 'Only an approved template can go now.',
+    busy: 'Finish the attachment or voice note first.',
+    read_only: 'You can read this chat but not write in it.',
+    not_open: 'Open the chat on the left first.'
+  };
+
   window.addEventListener('message', function (e) {
     if (e.origin !== crmOrigin || e.source !== frame.contentWindow) return;
     var d = e.data || {};
+    if (d.type === 'wacrm:composed') {
+      if (d.ok === false && window.CRM && window.CRM.toast) {
+        window.CRM.toast(COMPOSE_REFUSED[d.reason] || 'The chat could not take it. Try again.', true);
+      }
+      return;
+    }
     if (d.type !== 'wacrm:navigate' || typeof d.path !== 'string' || d.path.charAt(0) !== '/') return;
     // a screen that moved into the portal (contract 15): the whole window goes to its page here
     if (typeof d.retired === 'string' && /^[a-z_]{1,32}$/.test(d.retired)) {
@@ -113,6 +130,7 @@
 </script>
 {% if panel %}
 <script src="{{ url_for('static', filename='js/crm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/crm-people.js') }}"></script>
 <script>
 (function () {
   var frame = document.querySelector('[data-wa-frame]');
@@ -144,8 +162,10 @@
     var make = panel.querySelector('[data-lp-make]');
     if (make) make.addEventListener('submit', function (e) {
       e.preventDefault();
-      make.querySelector('button').disabled = true;
-      fetch(make.action, { method: 'POST', body: new FormData(make), credentials: 'same-origin' })
+      var fd = new FormData(make);
+      if (e.submitter && e.submitter.name) fd.set(e.submitter.name, e.submitter.value);
+      make.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+      fetch(make.action, { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(function (r) { return r.text(); }).then(show);
     });
   }
