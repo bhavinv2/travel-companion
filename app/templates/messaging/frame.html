@@ -27,7 +27,7 @@
          inbox it also says which conversation is open (wacrm:conversation), and that person's sales
          lead is shown beside it -- the lead card, to work the lead without leaving the chat. A screen
          that moved into the portal says so (`retired`), and the whole window goes to its page here. #}
-      <div class="{{ 'wa-split' if panel }}">
+      <div class="{{ 'wa-split' if panel else 'wa-solo' }}">
         <iframe class="wa-frame" src="{{ src }}" title="WhatsApp — {{ heading }}" data-wa-frame
                 allow="microphone; clipboard-write" referrerpolicy="same-origin"></iframe>
         {% if panel %}

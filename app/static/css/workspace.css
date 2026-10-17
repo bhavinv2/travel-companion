@@ -127,6 +127,11 @@
    pages the menu's own counts do that job. */
 body:has(.wa-frame-wrap) #whatsNew { display: none; }
 
+/* every other WhatsApp screen: the frame fills the space under the bar (without this the
+   wrapper does not stretch and the iframe falls back to the browser's 150px default) */
+.wa-solo { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.wa-solo .wa-frame { flex: 1; min-height: 0; }
+
 /* the WhatsApp inbox with the open conversation's sales lead beside it */
 .wa-split { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 380px; min-height: 0; }
 .wa-split .wa-frame { height: 100%; }
