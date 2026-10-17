@@ -3,7 +3,8 @@
 {% from 'cs/crm/_bits.html' import product_chip, stage_pill, when, ist with context %}
 {% block crm_title %}{{ person.display_name }}{% endblock %}
 {% block crm %}
-{% set more = [{'label': 'Erase this person', 'href': crm_url('contact', person_id=person.id, erase=1), 'danger': True, 'icon': 'fa-solid fa-user-slash'}] if can_erase else None %}
+{% set more = [{'label': 'Visual flow', 'href': crm_url('flow', person_id=person.id), 'icon': 'fa-solid fa-diagram-project'}] if CAN('crm_people') else [] %}
+{% if can_erase %}{% set more = more + [{'label': 'Erase this person', 'href': crm_url('contact', person_id=person.id, erase=1), 'danger': True, 'icon': 'fa-solid fa-user-slash'}] %}{% endif %}
 <p class="small"><a href="{{ crm_url('contacts') }}">‹ Contacts</a></p>
 {{ page_head(person.display_name, 'fa-solid fa-address-card',
              'Their details, permissions and every enquiry. This is the only place their details are changed.',

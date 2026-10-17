@@ -23,8 +23,8 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import joinedload, selectinload
 
 from app import db
-from app.models import (ActivityEvent, CrmDoNotContact, CrmIdentity, CrmLead, CrmPerson, CrmSource, CrmTask,
-                        CrmTouchpoint, Notification, User)
+from app.models import (ActivityEvent, CrmDoNotContact, CrmIdentity, CrmLead, CrmPerson, CrmSource, CrmStageChange,
+                        CrmTask, CrmTouchpoint, Notification, User)
 from app.services import crm, crm_products, wacrm_team
 from app.services import phone as phone_svc
 
@@ -215,6 +215,54 @@ def find(q, user, limit=8):
                 out['items'].append({'kind': 'record', 'name': r['title'], 'label': r['label'], 'what': r['what'],
                                      'url': _crm_url('add', q=q, **{'from': 'existing'})})
     return out
+
+
+def find_people(q, limit=8):
+    """Visual Flow's "Add someone to track": people only, newest activity first -- no fallback to
+    site records, since a record with no lead has nothing to put on a flow map."""
+    cond = person_match(q)
+    if cond is None or len(q) < 2:
+        return []
+    people = (CrmPerson.query.options(selectinload(CrmPerson.identities)).filter(cond)
+              .order_by(*_activity_order()).limit(limit).all())
+    return [{'id': p.id, 'name': p.display_name,
+             'phone': phone_svc.pretty(p.phone) if p.phone else '', 'email': p.email or ''} for p in people]
+
+
+def flow_data(people):
+    """Visual Flow (E26): one map per pipeline any of `people` has an enquiry in -- every stage from
+    first contact to won/lost (CrmPipeline.stages, already in position order), and for each of
+    them, their current stage and the path they took to get there (CrmStageChange, oldest first).
+    Only their most recent lead counts per pipeline, so a reopened enquiry doesn't show twice."""
+    if not people:
+        return []
+    leads = (CrmLead.query.options(joinedload(CrmLead.stage), joinedload(CrmLead.pipeline),
+                                   selectinload(CrmLead.stage_changes).joinedload(CrmStageChange.to_stage),
+                                   selectinload(CrmLead.stage_changes).joinedload(CrmStageChange.by))
+             .filter(CrmLead.person_id.in_([p.id for p in people]), CrmLead.pipeline_id.isnot(None))
+             .order_by(CrmLead.created_at.desc()).all())
+    by_pipeline = {}
+    for l in leads:
+        by_pipeline.setdefault(l.pipeline_id, {}).setdefault(l.person_id, l)
+    maps = []
+    for pipeline_id, leads_by_person in by_pipeline.items():
+        pipeline = next(iter(leads_by_person.values())).pipeline
+        entries = []
+        for p in people:
+            lead = leads_by_person.get(p.id)
+            if lead is None:
+                continue
+            path = [{'stage_id': c.to_stage_id, 'name': c.to_stage.name if c.to_stage else '?', 'at': c.created_at,
+                     'by': c.by.full_name if c.by else 'Automatic'}
+                    for c in reversed(lead.stage_changes) if c.to_stage_id]
+            if not path and lead.stage_id:
+                path.append({'stage_id': lead.stage_id, 'name': lead.stage.name if lead.stage else '?',
+                            'at': lead.entered_stage_at or lead.created_at, 'by': None})
+            entries.append({'person': p, 'lead': lead, 'current_id': lead.stage_id, 'path': path})
+        if entries:
+            maps.append({'pipeline': pipeline, 'stages': list(pipeline.stages), 'entries': entries})
+    maps.sort(key=lambda m: m['pipeline'].name)
+    return maps
 
 
 # ------------------------------------------------------------------------------ the Contacts list

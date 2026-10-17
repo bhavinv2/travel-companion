@@ -54,6 +54,14 @@ def shows_badge(html):
     return bool(re.search(r'<span class="nav-badge"(?![^>]*\shidden)[^>]*>', html))
 
 
+def sidebar_item(nav, title):
+    """One line of the menu, by its exact label (data-title) rather than substring position --
+    "Contact us" and "Contact us (all services)" are two different lines (voices_contact in its
+    product's section, voices_general in Overview), and a plain text search for "Contact us"
+    would find whichever renders first in the <nav>, not necessarily the one being asked about."""
+    return nav.split('data-title="%s"' % title, 1)[1].split('</a>', 1)[0]
+
+
 def test_each_line_counts_what_that_line_shows(client, db, app):
     enquiry('companion')
     enquiry('companion')
@@ -112,7 +120,7 @@ def test_the_menu_shows_the_number(client, db, admin_user):
     assert shows_badge(nav)
     assert '>2<' in nav
     # on the line it belongs to, and not on its neighbours
-    contact = nav.split('Contact us', 1)[1].split('</a>', 1)[0]
+    contact = sidebar_item(nav, 'Contact us')
     assert shows_badge(contact)
     listings = nav.split('Listings', 1)[1].split('</a>', 1)[0]
     assert not shows_badge(listings)
@@ -181,7 +189,7 @@ def test_the_notifications_line_counts_this_agents_own(client, db, cs_user, app)
     line = nav.split('Notifications', 1)[1].split('</a>', 1)[0]
     assert shows_badge(line) and '>2<' in line
     # the shared queues are untouched by one agent's own unread count
-    assert not shows_badge(nav.split('Contact us', 1)[1].split('</a>', 1)[0])
+    assert not shows_badge(sidebar_item(nav, 'Contact us'))
 
 
 def test_one_agents_notifications_are_not_anothers(client, db, cs_user, admin_user, monkeypatch):
@@ -273,7 +281,7 @@ def test_the_tab_badge_agrees_with_the_chip(client, db, admin_user):
     assert _chips(html)['New'] == 1
     # ...and the sidebar line for this product says the same
     nav = sidebar(client, '/admin/voices?tab=contact&topic=companion')
-    assert '>1<' in nav.split('Contact us', 1)[1].split('</a>', 1)[0]
+    assert '>1<' in sidebar_item(nav, 'Contact us')
 
 
 def test_the_cs_console_counts_the_same_way(client, db, cs_user):
@@ -381,7 +389,7 @@ def test_what_one_agent_read_is_still_unread_for_another(client, db, cs_user):
 
     login(client, 'cs2@test.com')
     nav = sidebar(client, '/cs/voices?tab=contact')
-    assert '>2<' in nav.split('Contact us', 1)[1].split('</a>', 1)[0], \
+    assert '>2<' in sidebar_item(nav, 'Contact us'), \
         'the second agent has opened nothing, so both are new to them'
     html = client.get('/cs/voices?tab=contact').data.decode()
     assert html.count('data-read="contact/') == 2
@@ -391,7 +399,7 @@ def test_what_one_agent_read_is_still_unread_for_another(client, db, cs_user):
     # ...and the first agent's count is untouched by the second one reading
     login(client, 'cs@test.com')
     nav = sidebar(client, '/cs/voices?tab=contact')
-    assert '>1<' in nav.split('Contact us', 1)[1].split('</a>', 1)[0]
+    assert '>1<' in sidebar_item(nav, 'Contact us')
 
 
 def test_a_mark_written_by_a_parallel_request_does_not_fail_this_one(client, db, cs_user, app):

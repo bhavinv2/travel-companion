@@ -942,3 +942,54 @@ button.pe-chip:hover { border-color: var(--c-blue); }
 .qr-ro td { color: var(--c-muted); } .qr-more { margin-top: 10px; }
 .auto-row { display: flex; gap: 10px; justify-content: space-between; align-items: center; padding: 8px 0;
             border-bottom: 1px solid var(--c-line); flex-wrap: wrap; }
+
+/* Visual Flow (E26): the people being tracked, the add-person search, and the maps themselves */
+.flow-track { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 4px; }
+.flow-person { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border-radius: 999px;
+  background: var(--c-soft); border: 1px solid var(--c-line); font-size: 13.5px; font-weight: 600; }
+.flow-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; }
+.flow-person a { color: var(--c-muted); font-weight: 400; }
+.flow-person button { border: 0; background: transparent; cursor: pointer; color: var(--c-muted); font: inherit;
+  padding: 0 2px; line-height: 1; }
+.flow-person button:hover { color: var(--c-bad); }
+.flow-add { position: relative; max-width: 360px; margin: 10px 0 20px; }
+.flow-add input { width: 100%; }
+.flow-add .fp-results { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; background: var(--c-card);
+  border: 1px solid var(--c-line); border-radius: 10px; box-shadow: var(--shadow-card); max-height: 300px; overflow-y: auto; }
+.flow-add .fp-item { display: block; padding: 8px 12px; text-decoration: none; color: var(--c-ink); }
+.flow-add .fp-item:hover, .flow-add .fp-item:focus { background: var(--c-soft); }
+.flow-add .fp-item b { display: block; font-size: 14px; }
+.flow-add .fp-item small { color: var(--c-muted); font-size: 12.5px; }
+.flow-add .fp-none { padding: 8px 12px; color: var(--c-muted); font-size: 13.5px; }
+
+.flow-map { margin-bottom: 22px; }
+.flow-map h2 { margin-bottom: 14px; }
+.flow-row { display: flex; align-items: flex-start; gap: 0; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 8px; }
+.flow-stage { display: flex; flex-direction: column; min-width: 140px; max-width: 190px; flex: none; }
+.flow-stage-link { display: block; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--c-line);
+  background: var(--c-soft); color: var(--c-ink); font-weight: 600; font-size: 13.5px; text-decoration: none;
+  text-align: center; min-height: 38px; box-sizing: border-box; }
+.flow-stage-link:hover { border-color: var(--c-blue); background: var(--c-blue-soft); }
+.flow-stage.kind-won .flow-stage-link { background: var(--c-ok-soft); border-color: #b7e4c7; color: var(--c-ok-ink); }
+.flow-stage.kind-lost .flow-stage-link { background: var(--c-bad-soft); border-color: #f5c2c2; color: var(--c-bad-ink); }
+.flow-arrow { display: flex; align-items: center; justify-content: center; width: 30px; height: 38px;
+  color: var(--c-muted); flex: none; }
+.flow-branch { display: flex; flex-direction: column; gap: 8px; justify-content: center; flex: none; }
+.flow-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; min-height: 26px; }
+.flow-chip { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%;
+  color: #fff; font-size: 11px; font-weight: 700; text-decoration: none; border: 2px solid var(--c-card);
+  box-shadow: 0 0 0 1px var(--c-line); flex: none; }
+.flow-chip:hover { outline: 2px solid var(--c-blue); outline-offset: 1px; }
+.pc-0 { background: #1f6fd6; } .pc-1 { background: #d97706; } .pc-2 { background: #16a34a; } .pc-3 { background: #be185d; }
+.pc-4 { background: #7c3aed; } .pc-5 { background: #0e7a6e; } .pc-6 { background: #b45309; } .pc-7 { background: #475569; }
+.flow-paths { margin-top: 10px; }
+.flow-path-person { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; border-top: 1px solid var(--c-line); flex-wrap: wrap; }
+.flow-path-person:first-of-type { border-top: 0; }
+.flow-path-trail { color: var(--c-muted); font-size: 13px; }
+.flow-path-trail b { color: var(--c-ink); font-weight: 600; }
+@media (max-width: 720px) {
+  .flow-row { flex-direction: column; align-items: stretch; overflow-x: visible; }
+  .flow-stage, .flow-branch { max-width: none; }
+  .flow-arrow { width: auto; height: auto; padding: 4px 0; }
+  .flow-arrow i { transform: rotate(90deg); }
+}

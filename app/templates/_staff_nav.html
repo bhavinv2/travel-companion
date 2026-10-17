@@ -7,7 +7,11 @@
    services/nav_badges.py, with a tooltip saying what it counts; a "!" is never added to a total.
 
    Sections fold; the one being worked in is open, and whatever else was opened stays open
-   (static/js/main.js, "staff menu"). "Find a page" narrows the whole menu as you type. #}
+   (static/js/main.js, "staff menu"). "Find a page" narrows the whole menu as you type, AND
+   (static/js/main.js, same handler) asks the Sales CRM's /find for matching trips, people,
+   insurance quotes, contact messages and Sahayak bookings -- the same global record search
+   the header's "Find a person" box already uses (_find_person.html), so one box now covers
+   pages and data instead of just pages. #}
 {% set groups = STAFF_NAV(active if active is defined else None) %}
 {% set ws = WORKSPACE() %}
 {% set waiting = NAV_BADGES() %}
@@ -29,12 +33,12 @@
       </a>
     </div>
     {% endif %}
-    {% if groups|length > 1 %}
-    <label class="sn-find">
+    <label class="sn-find" data-find="{{ crm_url('find') }}">
       <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-      <input type="search" placeholder="Find a page" aria-label="Find a page" data-nav-find autocomplete="off"/>
+      <input type="search" placeholder="Find a page, a trip, a person…"
+             aria-label="Find a page, a trip, a person" data-nav-find autocomplete="off"/>
     </label>
-    {% endif %}
+    <div class="sn-global-results" data-nav-results role="listbox" hidden></div>
     {% for g in groups %}
     {% set ns = namespace(total=0) %}
     {% for item in g['items'] if item.badge and item.sum %}{% set ns.total = ns.total + (waiting.get(item.badge, 0) or 0) %}{% endfor %}

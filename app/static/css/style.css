@@ -4499,6 +4499,16 @@ a.crm-pill:hover { filter: brightness(.95); }
   font: inherit; font-size: 13px; padding: 0; }
 .staff-nav .sn-find input::placeholder { color: rgba(255,255,255,.5); }
 .staff-nav .sn-find:focus-within { background: rgba(255,255,255,.14); box-shadow: 0 0 0 2px rgba(47,128,237,.6); }
+/* Global results: trips, people, insurance quotes, contact messages and Sahayak bookings from
+   the Sales CRM's /find (main.js, the data-nav-find handler) -- the same cross-entity search
+   the header's "Find a person" box uses, reusing its .fp-item/.fp-none markup but restyled for
+   this dark rail instead of the header's light dropdown. */
+.staff-nav .sn-global-results { margin: 0 12px 10px; max-height: 50vh; overflow-y: auto; }
+.staff-nav .sn-global-results .fp-item { display: block; padding: 8px 10px; border-radius: 8px;
+  color: rgba(255,255,255,.92); text-decoration: none; font-size: 13px; }
+.staff-nav .sn-global-results .fp-item:hover { background: rgba(255,255,255,.08); }
+.staff-nav .sn-global-results .fp-item b { display: block; font-weight: 600; }
+.staff-nav .sn-global-results .fp-item small { color: rgba(255,255,255,.55); }
 .staff-nav .sn-group { margin: 2px 0; }
 .staff-nav .sn-head { display: flex; align-items: center; gap: 10px; width: calc(100% - 12px); margin-right: 12px; padding: 10px 14px 10px 20px;
   background: none; border: 0; border-radius: 0 999px 999px 0; cursor: pointer; text-align: left;
@@ -4522,7 +4532,8 @@ a.crm-pill:hover { filter: brightness(.95); }
 .staff-nav.is-finding .sn-group.has-hit .sn-items { display: block; }
 .staff-nav.is-finding .sn-items a.no-hit { display: none; }
 /* collapsed to icons: every page's icon, no headings, no search */
-.admin-page.is-rail .staff-nav .sn-find, .admin-page.is-rail .staff-nav .sn-head { display: none; }
+.admin-page.is-rail .staff-nav .sn-find, .admin-page.is-rail .staff-nav .sn-head,
+.admin-page.is-rail .staff-nav .sn-global-results { display: none; }
 .admin-page.is-rail .staff-nav .sn-items { display: block; padding: 0; }
 .admin-page.is-rail .staff-nav .sn-group + .sn-group { border-top: 1px solid rgba(255,255,255,.08); margin-top: 4px; padding-top: 4px; }
 .admin-page.is-rail .staff-nav .sn-items a { padding: 11px 0; }
@@ -4531,6 +4542,7 @@ a.crm-pill:hover { filter: brightness(.95); }
   .staff-nav .sn-items a { padding: 13px 18px 13px 32px; }
   .staff-nav .sn-find { margin: 10px 14px; }
   .admin-page.is-rail .staff-nav .sn-find, .admin-page.is-rail .staff-nav .sn-head { display: flex; }
+  .admin-page.is-rail .staff-nav .sn-global-results:not([hidden]) { display: block; }
   .admin-page.is-rail .staff-nav .sn-items { display: none; }
   .admin-page.is-rail .staff-nav .sn-group.open .sn-items { display: block; }
 }

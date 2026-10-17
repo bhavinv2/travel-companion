@@ -1,0 +1,87 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_bits.html' import when, initials with context %}
+{% block crm_title %}Visual flow{% endblock %}
+{% block crm %}
+{{ page_head('Visual flow', 'fa-solid fa-diagram-project',
+             'Add one or more people to see every stage their enquiries could pass through, where they are now, and how they got there.',
+             help=['Add a person below the usual way (name, phone or e-mail); add more than one to compare them on the same map.',
+                   "Each stage opens Leads filtered to it. A person's own circle opens their contact page.",
+                   'A map only appears for a pipeline someone you are tracking actually has an enquiry in.']) }}
+
+<div class="card">
+  <h2>Tracking</h2>
+  <div class="flow-track">
+    {% for p in people %}
+    <span class="flow-person">
+      <span class="flow-dot pc-{{ colors[p.id] }}" aria-hidden="true"></span>
+      <a href="{{ crm_url('contact', person_id=p.id) }}">{{ p.display_name }}</a>
+      {% if p.id not in tracked_ids %}<small class="muted">· no enquiry yet</small>{% endif %}
+      <button type="button" data-flow-remove="{{ p.id }}" title="Stop tracking {{ p.display_name }}"
+              aria-label="Stop tracking {{ p.display_name }}">&times;</button>
+    </span>
+    {% else %}
+    <p class="muted">Nobody yet — search below and add one or more people.</p>
+    {% endfor %}
+  </div>
+  <div class="flow-add" data-flow-add data-base="{{ crm_url('flow', person_id=people|map(attribute='id')|list) }}">
+    <input type="search" placeholder="Search by name, phone or e-mail…" aria-label="Add a person to track"
+           data-flow-find="{{ crm_url('flow_find') }}" autocomplete="off"/>
+    <div class="fp-results" data-flow-results hidden></div>
+  </div>
+</div>
+
+{% if people and not maps %}
+<div class="card"><p class="muted">{{ 'They have' if people|length > 1 else (people[0].display_name ~ ' has') }} no enquiry yet, so there is nothing to map.</p></div>
+{% endif %}
+
+{% for m in maps %}
+{% set pipeline = m.pipeline %}
+{% set open_stages = m.stages|selectattr('kind', 'equalto', 'open')|list %}
+{% set end_stages = m.stages|rejectattr('kind', 'equalto', 'open')|list %}
+<section class="card flow-map">
+  <h2>{{ pipeline.name }}</h2>
+  <div class="flow-row">
+    {% for s in open_stages %}
+    <div class="flow-stage">
+      <a class="flow-stage-link" href="{{ crm_url('board', p=pipeline.key, stage=s.id) }}">{{ s.name }}</a>
+      <div class="flow-chips">
+        {% for e in m.entries if e.current_id == s.id %}
+        <a class="flow-chip pc-{{ colors[e.person.id] }}" href="{{ crm_url('contact', person_id=e.person.id) }}"
+           title="{{ e.person.display_name }}">{{ initials(e.person.display_name) }}</a>
+        {% endfor %}
+      </div>
+    </div>
+    {% if not loop.last %}<div class="flow-arrow"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i></div>{% endif %}
+    {% endfor %}
+    {% if end_stages %}
+    <div class="flow-arrow"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i></div>
+    <div class="flow-branch">
+      {% for s in end_stages %}
+      <div class="flow-stage kind-{{ s.kind }}">
+        <a class="flow-stage-link" href="{{ crm_url('board', p=pipeline.key, stage=s.id) }}">{{ s.name }}</a>
+        <div class="flow-chips">
+          {% for e in m.entries if e.current_id == s.id %}
+          <a class="flow-chip pc-{{ colors[e.person.id] }}" href="{{ crm_url('contact', person_id=e.person.id) }}"
+             title="{{ e.person.display_name }}">{{ initials(e.person.display_name) }}</a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="flow-paths">
+    {% for e in m.entries %}
+    <div class="flow-path-person">
+      <span class="flow-dot pc-{{ colors[e.person.id] }}" aria-hidden="true"></span>
+      <a href="{{ crm_url('contact', person_id=e.person.id) }}"><b>{{ e.person.display_name }}</b></a>
+      <span class="flow-path-trail">{% for step in e.path %}{{ step.name }}{% if step.at %} ({{ when(step.at, utcnow) }}{% if step.by %}, {{ step.by }}{% endif %}){% endif %}{% if not loop.last %} → {% endif %}{% endfor %}</span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+{% endblock %}
+{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/crm-flow.js') }}" defer></script>{% endblock %}

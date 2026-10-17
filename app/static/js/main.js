@@ -3443,13 +3443,65 @@ function wireBulkSelect(headId, rowSelector, onChange) {
   });
   find.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') {
-      const first = nav.querySelector('.sn-group.has-hit .sn-items a:not(.no-hit)');
+      const first = nav.querySelector('.sn-group.has-hit .sn-items a:not(.no-hit)')
+        || (results && results.querySelector('a'));
       if (first) { e.preventDefault(); window.location.href = first.href; }
     } else if (e.key === 'Escape') {
       find.value = '';
       find.dispatchEvent(new Event('input'));
     }
   });
+
+  // Global search: the same box also asks the Sales CRM's /find for matching trips, people,
+  // insurance quotes, contact messages and Sahayak bookings -- the cross-entity search the
+  // header's "Find a person" box already does (find-person.js), now from the one box that
+  // narrows the menu too. findUrl comes from _staff_nav.html (crm_url('find')).
+  const results = nav.querySelector('[data-nav-results]');
+  const findBox = nav.querySelector('.sn-find');
+  const findUrl = findBox && findBox.dataset.find;
+  if (results && findUrl) {
+    let seq = 0, timer = null;
+    function elx(tag, cls, text) {
+      const n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text != null) n.textContent = text;
+      return n;
+    }
+    function renderResults(data) {
+      results.innerHTML = '';
+      (data.items || []).forEach(function (it) {
+        const a = elx('a', 'fp-item', null);
+        a.href = it.url;
+        a.setAttribute('role', 'option');
+        a.appendChild(elx('b', '', it.name));
+        if (it.kind === 'person') {
+          const sub = [it.phone, it.email].filter(Boolean).join(' · ');
+          if (sub) a.appendChild(elx('small', '', sub));
+        } else {
+          a.appendChild(elx('small', '', (it.label || '') + (it.what ? ' · ' + it.what : '')));
+        }
+        results.appendChild(a);
+      });
+      results.hidden = !(data.items || []).length;
+    }
+    function askGlobal(q) {
+      const mine = ++seq;
+      fetch(findUrl + (findUrl.indexOf('?') < 0 ? '?' : '&') + 'q=' + encodeURIComponent(q),
+        { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.ok ? r.json() : { items: [] }; })
+        .then(function (d) { if (mine === seq) renderResults(d); })
+        .catch(function () { if (mine === seq) { results.innerHTML = ''; results.hidden = true; } });
+    }
+    find.addEventListener('input', function () {
+      clearTimeout(timer);
+      const q = find.value.replace(/\s+/g, ' ').trim();
+      if (q.length < 2) { results.innerHTML = ''; results.hidden = true; return; }
+      timer = setTimeout(function () { askGlobal(q); }, 250);
+    });
+    find.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { results.innerHTML = ''; results.hidden = true; }
+    });
+  }
 })();
 
 

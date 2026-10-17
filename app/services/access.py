@@ -87,8 +87,8 @@ MODULES = [
                admin='admin_crm.board', cs='crm.board', lit=_both('lead'),
                tip='Every enquiry, by stage, for each product.'),
          _page('crm_people', 'Contacts', 'fa-address-book',
-               _both('contacts', 'contact', 'contact_edit', 'contact_tags', 'find') + ('messaging.contacts',),
-               admin='admin_crm.contacts', cs='crm.contacts', lit=_both('contact', 'contact_edit'),
+               _both('contacts', 'contact', 'contact_edit', 'contact_tags', 'find', 'flow', 'flow_find') + ('messaging.contacts',),
+               admin='admin_crm.contacts', cs='crm.contacts', lit=_both('contact', 'contact_edit', 'flow'),
                desc='Everyone we can reach, one row per person, and each contact page.',
                tip='Everyone we can reach, one row per person.'),
          _page('crm_add', 'Add a lead', 'fa-user-plus', _both('add', 'add_from_record'),
@@ -276,7 +276,8 @@ MODULES = [
 # A page's area (its module above) still decides whether the workspace has it switched on; the
 # section only decides where its line sits. The one place the menu's order lives.
 SECTIONS = [
-    {'key': 'overview', 'label': 'Overview', 'icon': 'fa-gauge', 'pages': ('dashboard', 'home', 'notifications')},
+    {'key': 'overview', 'label': 'Overview', 'icon': 'fa-gauge',
+     'pages': ('dashboard', 'home', 'notifications', 'voices_general')},
     {'key': 'sales', 'label': 'Sales', 'icon': 'fa-filter-circle-dollar',
      'pages': ('crm_today', 'wa_inbox', 'crm_board', 'crm_people', 'crm_checks', 'crm_process', 'crm_add')},
     {'key': 'messaging', 'label': 'Messaging', 'icon': 'fa-comments',
@@ -296,8 +297,10 @@ SECTIONS = [
     {'key': 'sahayak', 'label': 'Sahayak', 'icon': 'fa-house-medical',
      'pages': ('sahayak', 'voices_sahayak', 'sahayak_services', 'help_sahayak')},
     {'key': 'site', 'label': 'Site settings', 'icon': 'fa-gear',
-     'pages': ('voices_general', 'users', 'options', 'messages', 'notiflog', 'notify_switches', 'themes',
-               'delete_records')},
+     # genuine configuration only -- voices_general ("Contact us, all services") moved to Overview:
+     # it's a daily support inbox a CS agent may reasonably have, and sitting in a section called
+     # "Site settings" made it look like configuration access nobody actually gave them.
+     'pages': ('users', 'options', 'messages', 'notiflog', 'notify_switches', 'themes', 'delete_records')},
 ]
 
 # Endpoints anybody on the staff side may open, whatever their role: the plumbing behind

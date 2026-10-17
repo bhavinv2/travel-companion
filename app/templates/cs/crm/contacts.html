@@ -4,7 +4,7 @@
 {% from 'cs/crm/_bits.html' import when with context %}
 {% block crm_title %}Contacts{% endblock %}
 {% block crm %}
-{% set more = [] %}
+{% set more = [{'label': 'Visual flow', 'href': crm_url('flow'), 'icon': 'fa-solid fa-diagram-project'}] %}
 {% if can_import %}{% set _ = more.append({'label': 'Import a list', 'href': crm_url('data') ~ '#import', 'icon': 'fa-solid fa-file-arrow-up'}) %}{% endif %}
 {% if can_export %}{% set _ = more.append({'label': 'Download this list', 'href': crm_url('export_contacts', tag=f.tag or None, wa=f.wa or None, enq=f.enq or None, owner=f.owner or None, q=f.q or None), 'icon': 'fa-solid fa-file-csv'}) %}{% endif %}
 {{ page_head('Contacts', 'fa-solid fa-address-book',
