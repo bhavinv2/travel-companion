@@ -3,8 +3,7 @@
 {% from 'cs/crm/_bits.html' import product_chip, stage_pill, when, ist with context %}
 {% block crm_title %}{{ person.display_name }}{% endblock %}
 {% block crm %}
-{% set more = [{'label': 'Visual flow', 'href': crm_url('flow', person_id=person.id), 'icon': 'fa-solid fa-diagram-project'}] if CAN('crm_people') else [] %}
-{% if can_erase %}{% set more = more + [{'label': 'Erase this person', 'href': crm_url('contact', person_id=person.id, erase=1), 'danger': True, 'icon': 'fa-solid fa-user-slash'}] %}{% endif %}
+{% set more = [{'label': 'Erase this person', 'href': crm_url('contact', person_id=person.id, erase=1), 'danger': True, 'icon': 'fa-solid fa-user-slash'}] if can_erase else None %}
 <p class="small"><a href="{{ crm_url('contacts') }}">‹ Contacts</a></p>
 {{ page_head(person.display_name, 'fa-solid fa-address-card',
              'Their details, permissions and every enquiry. This is the only place their details are changed.',
@@ -61,7 +60,10 @@
   </section>
 
   <section class="card wide">
-    <h2>Enquiries</h2>
+    <div class="card-head">
+      <h2>Enquiries</h2>
+      {% if leads and CAN('crm_flow') %}<a class="cb sm" href="{{ crm_url('flow', person_id=person.id) }}" title="Every step of their journey, and what to do next"><i class="fa-solid fa-diagram-project"></i> Visual flow</a>{% endif %}
+    </div>
     {% for l in leads %}
     <div class="ct-enq">
       {{ product_chip(l.product) }}

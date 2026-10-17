@@ -211,11 +211,10 @@ def find():
 @crm_bp.route('/flow')
 @cs_required
 def flow():
-    """Visual Flow (E26): pick one or more people and see every pipeline their enquiries touch, from
-    first contact to won/lost, with where each of them actually is -- and the path they took to get
-    there -- marked on it. A stage opens Leads filtered to it; a person's own name on the map opens
-    their contact page, since "the same person whom we are checking" is the one thing a click here
-    always means for them specifically."""
+    """Visual Flow (E26): the whole CRM lifecycle -- every pipeline from the way in to won/lost, with what
+    happens at each stage -- and, for the people picked (?person_id=, repeatable), where each one is, how they
+    got there and what to do next. Their circles open their lead at the stage bar; "Do it" opens the message
+    box; the step-by-step guide's stages open Leads filtered to that stage."""
     ids = []
     for raw in request.args.getlist('person_id'):
         if raw.isdigit() and int(raw) not in ids:
@@ -223,10 +222,13 @@ def flow():
     by_id = {p.id: p for p in CrmPerson.query.filter(CrmPerson.id.in_(ids)).all()} if ids else {}
     people = [by_id[i] for i in ids if i in by_id]
     maps = crm_people.flow_data(people)
-    tracked_ids = {e['person'].id for m in maps for e in m['entries']}
-    colors = {p.id: i % 8 for i, p in enumerate(people)}
-    return render_template('cs/crm/flow.html', people=people, maps=maps, colors=colors,
-                           tracked_ids=tracked_ids, **_common())
+    order = {p.id: n for n, p in enumerate(people)}
+    entries = sorted((e for m in maps for e in m['entries']), key=lambda e: order[e['person'].id])
+    return render_template('cs/crm/flow.html', people=people, maps=maps, entries=entries,
+                           colors={p.id: n % 8 for n, p in enumerate(people)},
+                           tracked_ids={e['person'].id for e in entries},
+                           phases=crm_people.FLOW_PHASES, phase_text={k: t for k, _, t in crm_people.FLOW_PHASES},
+                           phase_label={k: l for k, l, _ in crm_people.FLOW_PHASES}, **_common())
 
 
 @crm_bp.route('/flow/find')

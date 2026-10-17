@@ -229,40 +229,71 @@ def find_people(q, limit=8):
              'phone': phone_svc.pretty(p.phone) if p.phone else '', 'email': p.email or ''} for p in people]
 
 
+# The phases every pipeline's stages fall into (CrmStage.role), in plain words, for Visual Flow's lifecycle
+FLOW_PHASES = (
+    ('in', 'Comes in', 'A form, a WhatsApp message, Instagram or Facebook, or someone adds them by hand. '
+                       'A lead is made and given to someone to look after.'),
+    ('cold', 'New', 'A new enquiry with no reply from them yet. The welcome and the first follow-ups go out.'),
+    ('prospect', 'Talking', 'They replied, so we are talking: answer their questions and find out what they need.'),
+    ('pipeline', 'Quoted', 'They have a quote or an offer. Follow up until they decide.'),
+    ('customer', 'Won', 'They said yes. The sale is done.'),
+    ('lost', 'Lost', 'It did not go ahead. The reason is kept, and they can be worked on again if they come back.'),
+)
+
+
 def flow_data(people):
-    """Visual Flow (E26): one map per pipeline any of `people` has an enquiry in -- every stage from
-    first contact to won/lost (CrmPipeline.stages, already in position order), and for each of
-    them, their current stage and the path they took to get there (CrmStageChange, oldest first).
-    Only their most recent lead counts per pipeline, so a reopened enquiry doesn't show twice."""
-    if not people:
-        return []
-    leads = (CrmLead.query.options(joinedload(CrmLead.stage), joinedload(CrmLead.pipeline),
-                                   selectinload(CrmLead.stage_changes).joinedload(CrmStageChange.to_stage),
-                                   selectinload(CrmLead.stage_changes).joinedload(CrmStageChange.by))
-             .filter(CrmLead.person_id.in_([p.id for p in people]), CrmLead.pipeline_id.isnot(None))
-             .order_by(CrmLead.created_at.desc()).all())
-    by_pipeline = {}
-    for l in leads:
-        by_pipeline.setdefault(l.pipeline_id, {}).setdefault(l.person_id, l)
+    """Visual Flow (E26): every active pipeline -- and any other one a tracked person is in -- from the way in
+    to won/lost, each stage with its follow-ups and automation; for each of `people`, their most recent lead in
+    it: where they are, the path they took (CrmStageChange, oldest first) and what to do next. Pipelines with
+    somebody tracked come first. A fixed number of queries."""
+    from app.models import CrmPipeline, CrmStage, CrmTask
+    pipes = (CrmPipeline.query.options(selectinload(CrmPipeline.stages).selectinload(CrmStage.steps),
+                                       selectinload(CrmPipeline.stages).joinedload(CrmStage.auto_to))
+             .order_by(CrmPipeline.id).all())
+    newest = {}
+    if people:
+        leads = (CrmLead.query.options(joinedload(CrmLead.stage), joinedload(CrmLead.source), joinedload(CrmLead.owner),
+                                       selectinload(CrmLead.tasks).joinedload(CrmTask.owner),
+                                       selectinload(CrmLead.stage_changes).joinedload(CrmStageChange.to_stage),
+                                       selectinload(CrmLead.stage_changes).joinedload(CrmStageChange.by))
+                 .filter(CrmLead.person_id.in_([p.id for p in people]), CrmLead.pipeline_id.isnot(None))
+                 .order_by(CrmLead.created_at.desc(), CrmLead.id.desc()).all())
+        for l in leads:
+            newest.setdefault((l.pipeline_id, l.person_id), l)
+    sources = {}
+    for s in (CrmSource.query.filter(CrmSource.pipeline_id.isnot(None), CrmSource.status != 'paused')
+              .order_by(CrmSource.name)):
+        sources.setdefault(s.pipeline_id, []).append(s)
     maps = []
-    for pipeline_id, leads_by_person in by_pipeline.items():
-        pipeline = next(iter(leads_by_person.values())).pipeline
-        entries = []
-        for p in people:
-            lead = leads_by_person.get(p.id)
-            if lead is None:
-                continue
-            path = [{'stage_id': c.to_stage_id, 'name': c.to_stage.name if c.to_stage else '?', 'at': c.created_at,
-                     'by': c.by.full_name if c.by else 'Automatic'}
-                    for c in reversed(lead.stage_changes) if c.to_stage_id]
-            if not path and lead.stage_id:
-                path.append({'stage_id': lead.stage_id, 'name': lead.stage.name if lead.stage else '?',
-                            'at': lead.entered_stage_at or lead.created_at, 'by': None})
-            entries.append({'person': p, 'lead': lead, 'current_id': lead.stage_id, 'path': path})
-        if entries:
-            maps.append({'pipeline': pipeline, 'stages': list(pipeline.stages), 'entries': entries})
-    maps.sort(key=lambda m: m['pipeline'].name)
+    for pipe in pipes:
+        entries = [_flow_entry(p, newest[(pipe.id, p.id)], pipe) for p in people if (pipe.id, p.id) in newest]
+        if not entries and not pipe.is_active:
+            continue
+        stages = list(pipe.stages)
+        maps.append({'pipeline': pipe, 'entries': entries, 'sources': sources.get(pipe.id, []),
+                     'opens': [s for s in stages if s.kind == 'open'],
+                     'ends': [s for s in stages if s.kind != 'open'],
+                     'here': {s.id: [e for e in entries if e['lead'].stage_id == s.id] for s in stages},
+                     'passed': {s.id: [e for e in entries if s.id in e['passed'] and e['lead'].stage_id != s.id]
+                                for s in stages}})
+    maps.sort(key=lambda m: not m['entries'])
     return maps
+
+
+def _flow_entry(person, lead, pipe):
+    changes = [c for c in reversed(lead.stage_changes) if c.to_stage_id]
+    path = [{'name': c.to_stage.name if c.to_stage else '?', 'at': c.created_at, 'reason': c.reason or '',
+             'by': c.by.full_name if c.by else 'by itself'} for c in changes]
+    if not path and lead.stage is not None:
+        path.append({'name': lead.stage.name, 'at': lead.entered_stage_at or lead.created_at, 'reason': '', 'by': ''})
+    opens = pipe.open_stages
+    cur = lead.stage
+    step = next((i + 1 for i, s in enumerate(opens) if cur is not None and s.id == cur.id), None)
+    nxt = (next((s for s in opens if s.position > cur.position), None)
+           if cur is not None and cur.kind == 'open' and lead.status == 'open' else None)
+    passed = {c.to_stage_id for c in changes} | {c.from_stage_id for c in changes if c.from_stage_id}
+    return {'person': person, 'lead': lead, 'path': path, 'passed': passed, 'task': lead.open_task,
+            'step': step, 'steps': len(opens), 'next_stage': nxt}
 
 
 # ------------------------------------------------------------------------------ the Contacts list

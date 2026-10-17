@@ -2,7 +2,7 @@
    WhatsApp line (drawn from portal data only). A live region. The inbox panel has its own compact
    bar in _lead_card.html. Needs: lead, events, wa, wa_line, chat_url, sync, can_opt_in. #}
 {% from 'cs/crm/_bits.html' import when with context %}
-<section class="card lead-journey" data-lead-live="journey">
+<section class="card lead-journey" id="journey" data-lead-live="journey">
   {% if lead.pipeline %}
   <div class="card-head">
     <div class="t"><span class="ico"><i class="fa-solid fa-route"></i></span>
@@ -10,13 +10,14 @@
         <p class="muted small">{% if lead.entered_stage_at %}In “{{ lead.stage.name if lead.stage }}” since {{ when(lead.entered_stage_at, utcnow) }}. {% endif %}Click a stage to move them there.
           {% if lead.stuck_hours and lead.entered_stage_at %}{% set hrs = ((utcnow - lead.entered_stage_at).total_seconds() / 3600)|int %}
           <span class="chip stuck">Stuck: {{ ((hrs // 24) ~ (' day' if hrs // 24 == 1 else ' days')) if hrs >= 24 else (hrs ~ ' hours') }} in this stage</span>{% endif %}</p></div></div>
-    {% if events and lead.status == 'open' %}
     <div class="row lead-milestones">
+      {% if events and lead.status == 'open' %}
       {% for code, label, sname in events %}
       <button type="button" class="cb sm" data-act="event" data-code="{{ code }}" title="{{ MILESTONE % sname }}"><i class="fa-solid fa-flag"></i> {{ label }}</button>
       {% endfor %}
+      {% endif %}
+      {% if CAN('crm_flow') %}<a class="cb sm" href="{{ crm_url('flow', person_id=lead.person_id) }}" title="Their whole journey, every step, and what to do next"><i class="fa-solid fa-diagram-project"></i> Visual flow</a>{% endif %}
     </div>
-    {% endif %}
   </div>
   {% set cur = lead.stage.position if lead.stage else -1 %}
   <div class="crm-journey" data-journey>

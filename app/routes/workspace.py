@@ -342,7 +342,7 @@ def role(role_id):
     chosen = access.role_pages(r) if r else (access.role_pages(copy_of) if copy_of else frozenset())
     on = set(access.enabled_modules(ws))
     modules = [{'key': m['key'], 'label': m['label'], 'icon': m['icon'], 'desc': m.get('desc', ''), 'on': m['key'] in on,
-                'pages': m['pages']} for m in access.MODULES]
+                'pages': [p for p in m['pages'] if not p['with']]} for m in access.MODULES]
     return render_template('workspace/role.html', ws=ws, r=r, modules=modules, chosen=chosen,
                            copy_of=copy_of, locked=bool(r and r.system_key == 'admin'))
 

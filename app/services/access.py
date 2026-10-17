@@ -31,15 +31,16 @@ from app import db
 # ------------------------------------------------------------------------------- the pages
 
 def _page(key, label, icon, endpoints=(), admin=None, cs=None, args=None, nav=True, desc='', lit=(), deny=None,
-          tip=''):
+          tip='', with_=()):
     """`admin` / `cs`: the endpoint the menu opens in that console (None: not in that console).
     `args`: the query string both links carry -- several menu lines are one screen filtered.
     `lit`: endpoints other pages share that should light THIS line (the lead page is "Leads",
     though My day opens it too). `tip`: the menu line's tooltip; `desc` is what the Roles screen
-    says about the page."""
+    says about the page. `with_`: a page nobody grants on its own -- whoever may open any of these
+    may open it too (_implied), so it is not on the Roles screen and no stored role needs it."""
     return {'key': key, 'label': label, 'icon': icon, 'endpoints': tuple(endpoints),
             'links': {'admin': admin, 'cs': cs}, 'args': dict(args or {}), 'nav': nav, 'desc': desc,
-            'lit': frozenset(lit), 'deny': deny, 'tip': tip}
+            'lit': frozenset(lit), 'deny': deny, 'tip': tip, 'with': frozenset(with_)}
 
 
 def _both(*names):
@@ -87,10 +88,13 @@ MODULES = [
                admin='admin_crm.board', cs='crm.board', lit=_both('lead'),
                tip='Every enquiry, by stage, for each product.'),
          _page('crm_people', 'Contacts', 'fa-address-book',
-               _both('contacts', 'contact', 'contact_edit', 'contact_tags', 'find', 'flow', 'flow_find') + ('messaging.contacts',),
-               admin='admin_crm.contacts', cs='crm.contacts', lit=_both('contact', 'contact_edit', 'flow'),
+               _both('contacts', 'contact', 'contact_edit', 'contact_tags', 'find') + ('messaging.contacts',),
+               admin='admin_crm.contacts', cs='crm.contacts', lit=_both('contact', 'contact_edit'),
                desc='Everyone we can reach, one row per person, and each contact page.',
                tip='Everyone we can reach, one row per person.'),
+         _page('crm_flow', 'Visual flow', 'fa-diagram-project', _both('flow', 'flow_find'),
+               admin='admin_crm.flow', cs='crm.flow', with_=('crm_today', 'crm_board', 'crm_people'),
+               tip="Every step from first message to won or lost, where each customer is, and what to do next."),
          _page('crm_add', 'Add a lead', 'fa-user-plus', _both('add', 'add_from_record'),
                admin='admin_crm.add', cs='crm.add', nav=False, desc='The Add a lead button on Leads and My day.'),
          _page('crm_checks', 'Half-hourly check', 'fa-clipboard-check', _both('checks', 'check_tick'),
@@ -279,7 +283,8 @@ SECTIONS = [
     {'key': 'overview', 'label': 'Overview', 'icon': 'fa-gauge',
      'pages': ('dashboard', 'home', 'notifications', 'voices_general')},
     {'key': 'sales', 'label': 'Sales', 'icon': 'fa-filter-circle-dollar',
-     'pages': ('crm_today', 'wa_inbox', 'crm_board', 'crm_people', 'crm_checks', 'crm_process', 'crm_add')},
+     'pages': ('crm_today', 'wa_inbox', 'crm_board', 'crm_people', 'crm_flow', 'crm_checks', 'crm_process',
+               'crm_add')},
     {'key': 'messaging', 'label': 'Messaging', 'icon': 'fa-comments',
      'pages': ('crm_quick', 'wa_templates', 'wa_broadcasts', 'wa_tags')},
     {'key': 'automatic', 'label': 'Automatic messages', 'icon': 'fa-wand-magic-sparkles',
@@ -378,6 +383,15 @@ def expand_page_keys(keys):
     return frozenset(k for k in out if k in PAGES)
 
 
+IMPLIED_PAGES = {k: p['with'] for k, p in PAGES.items() if p['with']}
+
+
+def _implied(pages):
+    """`pages` plus every page that comes with one of them (_page's `with_`)."""
+    extra = {k for k, needs in IMPLIED_PAGES.items() if pages & needs}
+    return frozenset(pages | extra) if extra - pages else pages
+
+
 def _legacy_pages(user):
     if user.is_admin:
         return ALL_PAGES
@@ -385,8 +399,8 @@ def _legacy_pages(user):
         return frozenset()
     keys = getattr(user, 'cs_access', None)
     if keys is None:
-        return CS_DEFAULT_PAGES
-    return frozenset(p for k in keys for p in LEGACY_SCREEN_PAGES.get(k, ()))
+        return _implied(CS_DEFAULT_PAGES)
+    return _implied(frozenset(p for k in keys for p in LEGACY_SCREEN_PAGES.get(k, ())))
 
 
 # ------------------------------------------------------------------------------ lookups
@@ -490,7 +504,7 @@ def _member_pages(member):
              .filter(WorkspaceTeam.workspace_id == ws.id, workspace_team_members.c.user_id == member.user_id).all())
     for t in teams:
         pages |= role_pages(t.role)
-    return frozenset(pages) & within
+    return _implied(frozenset(pages) & within)
 
 
 def pages_for(user, ws=None):
@@ -918,7 +932,7 @@ def clean_pages(keys, keep=()):
     (what the role held) that a later step reserves -- the form cannot show them, so a save must
     not drop them."""
     wanted = set(keys or [])
-    out = [p['key'] for m in MODULES for p in m['pages'] if p['key'] in wanted]
+    out = [p['key'] for m in MODULES for p in m['pages'] if p['key'] in wanted and not p['with']]
     return out + [k for k in (keep or ()) if k in RESERVED_PAGES and k not in out]
 
 

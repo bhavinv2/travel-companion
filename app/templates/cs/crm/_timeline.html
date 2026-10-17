@@ -1,7 +1,7 @@
 {# The conversation: their messages and this lead's events in one stream, oldest first.
    A live region (crm_timeline.build). The data-* on it tell the message box where the chat stands. #}
 {% from '_empty.html' import empty %}
-<section class="card lead-tl" data-lead-live="timeline" data-wa-state="{{ wa.state }}" data-wa-note="{{ box_note }}"
+<section class="card lead-tl" id="conversation" data-lead-live="timeline" data-wa-state="{{ wa.state }}" data-wa-note="{{ box_note }}"
          data-ig-note="{{ social_notes.get('instagram', '') }}" data-fb-note="{{ social_notes.get('facebook', '') }}">
   <div class="tl-scroll" data-tl-scroll>
     {% for it in stream %}

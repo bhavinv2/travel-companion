@@ -1,86 +1,229 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
-{% from 'cs/crm/_bits.html' import when, initials with context %}
+{% from 'cs/crm/_bits.html' import when, initials, product_chip, channel_icon with context %}
 {% block crm_title %}Visual flow{% endblock %}
+
+{# One stage on a flow's map: its name and phase, then a solid circle for each picked person who is here
+   (opens their lead at the stage bar) and a faded one for each who passed through. #}
+{% macro stage_box(st, m) -%}
+{%- set role = st.role -%}
+<div class="flow-stage r-{{ role }}">
+  <a class="flow-stage-link" href="#st-{{ st.id }}" data-flow-jump title="What happens in {{ st.name }}">
+    {%- if st.kind == 'won' %}<i class="fa-solid fa-trophy" aria-hidden="true"></i> {% elif st.kind == 'lost' %}<i class="fa-solid fa-xmark" aria-hidden="true"></i> {% endif %}{{ st.name }}
+    <small>{{ phase_label.get(role, '') }}</small></a>
+  <div class="flow-chips">
+    {%- for e in m.here[st.id] %}<a class="flow-chip pc-{{ colors[e.person.id] }}" href="{{ crm_url('lead', lead_id=e.lead.id) }}#journey"
+       title="{{ e.person.display_name }} is here: open their lead">{{ initials(e.person.display_name) }}</a>{% endfor %}
+    {%- for e in m.passed[st.id] %}<a class="flow-chip was pc-{{ colors[e.person.id] }}" href="{{ crm_url('lead', lead_id=e.lead.id) }}#conversation"
+       title="{{ e.person.display_name }} passed through here">{{ initials(e.person.display_name) }}</a>{% endfor %}
+  </div>
+</div>
+{%- endmacro %}
+
 {% block crm %}
 {{ page_head('Visual flow', 'fa-solid fa-diagram-project',
-             'Add one or more people to see every stage their enquiries could pass through, where they are now, and how they got there.',
-             help=['Add a person below the usual way (name, phone or e-mail); add more than one to compare them on the same map.',
-                   "Each stage opens Leads filtered to it. A person's own circle opens their contact page.",
-                   'A map only appears for a pipeline someone you are tracking actually has an enquiry in.']) }}
+             'Every step from the first message to won or lost. Pick a customer to see where they are, how they got there and exactly what to do next.',
+             help=['The coloured strip on each flow is the whole journey. Click a stage to read what happens there.',
+                   "Pick one or more customers: a circle shows where each one is now, a faded one where they have been.",
+                   "Click a person's circle to open their lead at the stage bar; “Do it on their lead” opens the message box.",
+                   'Stages move when you click them on the lead page, press a button like “I sent the quote”, or by themselves (marked with a robot).'],
+             full_screen=True) }}
 
-<div class="card">
-  <h2>Tracking</h2>
+<section class="card flow-pick">
+  <div class="card-head">
+    <h2>Customers you are following</h2>
+    {% if people %}<a class="cb sm quiet" href="{{ crm_url('flow') }}">Clear all</a>{% endif %}
+  </div>
   <div class="flow-track">
     {% for p in people %}
     <span class="flow-person">
       <span class="flow-dot pc-{{ colors[p.id] }}" aria-hidden="true"></span>
-      <a href="{{ crm_url('contact', person_id=p.id) }}">{{ p.display_name }}</a>
+      <a href="{{ crm_url('contact', person_id=p.id) if CAN('crm_people') else '#who-' ~ p.id }}">{{ p.display_name }}</a>
       {% if p.id not in tracked_ids %}<small class="muted">· no enquiry yet</small>{% endif %}
-      <button type="button" data-flow-remove="{{ p.id }}" title="Stop tracking {{ p.display_name }}"
-              aria-label="Stop tracking {{ p.display_name }}">&times;</button>
+      <button type="button" data-flow-remove="{{ p.id }}" title="Stop following {{ p.display_name }}"
+              aria-label="Stop following {{ p.display_name }}">&times;</button>
     </span>
     {% else %}
-    <p class="muted">Nobody yet — search below and add one or more people.</p>
+    <p class="muted">Nobody yet. Search below; you can add as many as you like and compare them.</p>
     {% endfor %}
   </div>
   <div class="flow-add" data-flow-add data-base="{{ crm_url('flow', person_id=people|map(attribute='id')|list) }}">
-    <input type="search" placeholder="Search by name, phone or e-mail…" aria-label="Add a person to track"
+    <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+    <input type="search" placeholder="Add a customer: name, phone or e-mail…" aria-label="Add a customer to follow"
            data-flow-find="{{ crm_url('flow_find') }}" autocomplete="off"/>
     <div class="fp-results" data-flow-results hidden></div>
   </div>
-</div>
+</section>
 
-{% if people and not maps %}
-<div class="card"><p class="muted">{{ 'They have' if people|length > 1 else (people[0].display_name ~ ' has') }} no enquiry yet, so there is nothing to map.</p></div>
+{% if entries %}
+<section class="flow-people" aria-label="What to do for each customer">
+  {% for e in entries %}
+  {% set l = e.lead %}{% set p = e.person %}
+  <article class="card flow-who" id="who-{{ p.id }}">
+    <header class="fw-head">
+      <span class="flow-chip big pc-{{ colors[p.id] }}" aria-hidden="true">{{ initials(p.display_name) }}</span>
+      <div>
+        <h3><a href="{{ crm_url('lead', lead_id=l.id) }}">{{ p.display_name }}</a> {{ product_chip(l.product) }}</h3>
+        <p class="muted small">
+          {%- if l.status == 'won' %}<b class="fw-ok">Won</b> · {{ l.stage.name if l.stage }}
+          {%- elif l.status == 'lost' %}<b class="fw-bad">Lost</b> · {{ l.stage.name if l.stage }}
+          {%- elif e.step %}Step {{ e.step }} of {{ e.steps }}: <b>{{ l.stage.name }}</b>
+          {%- else %}<b>{{ l.stage.name if l.stage else 'Not in a stage yet' }}</b>{% endif %}
+          {%- if l.entered_stage_at %} · since {{ when(l.entered_stage_at, utcnow) }}{% endif %}
+          · {{ ('looked after by ' ~ l.owner.full_name) if l.owner else 'not given to anyone yet' }}</p>
+      </div>
+    </header>
+
+    <div class="flow-next{{ ' late' if e.task and e.task.is_overdue }}{{ ' closed' if l.status != 'open' }}">
+      {% if l.status == 'open' %}
+      <p class="fn-label"><i class="fa-solid fa-hand-point-right" aria-hidden="true"></i> Do this next</p>
+        {% if e.task %}
+        <p class="fn-what">{{ channel_icon(e.task.channel) }} {{ e.task.title }}</p>
+        <p class="small">{{ CHANNELS.get(e.task.channel, e.task.channel) }} ·
+          {{ ('was due ' ~ when(e.task.due_at, utcnow)) if e.task.is_overdue else ('due ' ~ when(e.task.due_at, utcnow)) }}
+          {%- if e.task.owner %} · for {{ e.task.owner.full_name }}{% endif %}</p>
+        <div class="row">
+          <a class="cb primary sm" href="{{ crm_url('lead', lead_id=l.id) }}#box">Do it on their lead</a>
+          {% if e.task.channel == 'call' and p.phone %}<a class="cb sm" href="tel:{{ p.phone }}"><i class="fa-solid fa-phone"></i> Call {{ PHONE.pretty(p.phone) }}</a>{% endif %}
+        </div>
+        {% else %}
+        <p class="fn-what">No follow-up is planned.</p>
+        <p class="small">Open their lead to write to them, log a call or move them on.</p>
+        <div class="row"><a class="cb primary sm" href="{{ crm_url('lead', lead_id=l.id) }}#box">Open their lead</a></div>
+        {% endif %}
+        {% if e.next_stage %}
+        <p class="small fn-then"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> Next stage: <b>{{ e.next_stage.name }}</b>
+          {%- if e.next_stage.button_label %}. Press “{{ e.next_stage.button_label }}” on their lead page once it is done.
+          {%- elif e.next_stage.on_reply %}. They move there by themselves when they reply.
+          {%- else %}. Click it on the stage bar of their lead page when they are ready.{% endif %}</p>
+        {% endif %}
+      {% elif l.status == 'won' %}
+      <p class="fn-label"><i class="fa-solid fa-trophy" aria-hidden="true"></i> Finished</p>
+      <p class="fn-what">They are a customer.</p>
+      <p class="small">Nothing to do unless they come back with something new.</p>
+      {% else %}
+      <p class="fn-label"><i class="fa-solid fa-flag-checkered" aria-hidden="true"></i> Finished</p>
+      <p class="fn-what">Closed as lost{% if l.fallout_reason %}: {{ l.fallout_reason }}{% endif %}.</p>
+      <p class="small">If they come back, open their lead and choose More → “Work on it again”.</p>
+      {% endif %}
+    </div>
+
+    <h4 class="fw-sub">How they got here</h4>
+    <ol class="flow-trail">
+      <li><a href="{{ crm_url('lead', lead_id=l.id) }}#conversation"><b>Came in</b></a>
+        <span class="muted">{{ when(l.created_at, utcnow) }}{% if l.source %} · from “{{ l.source.name }}”{% endif %}</span></li>
+      {% for s in e.path %}
+      <li class="{{ 'now' if loop.last }}"><a href="{{ crm_url('lead', lead_id=l.id) }}#conversation"><b>{{ s.name }}</b></a>
+        <span class="muted">{{ when(s.at, utcnow) }}{% if s.by %} · {{ s.by }}{% endif %}{% if s.reason %} · “{{ s.reason }}”{% endif %}</span></li>
+      {% endfor %}
+    </ol>
+    <p class="small fw-links">
+      <a href="{{ crm_url('lead', lead_id=l.id) }}">Open lead</a>
+      {% if CAN('crm_people') %} · <a href="{{ crm_url('contact', person_id=p.id) }}">Contact page</a>{% endif %}
+      · <a href="#flow-{{ l.pipeline.key }}" data-flow-jump>See it on the map</a></p>
+  </article>
+  {% endfor %}
+</section>
 {% endif %}
 
-{% for m in maps %}
-{% set pipeline = m.pipeline %}
-{% set open_stages = m.stages|selectattr('kind', 'equalto', 'open')|list %}
-{% set end_stages = m.stages|rejectattr('kind', 'equalto', 'open')|list %}
-<section class="card flow-map">
-  <h2>{{ pipeline.name }}</h2>
-  <div class="flow-row">
-    {% for s in open_stages %}
-    <div class="flow-stage">
-      <a class="flow-stage-link" href="{{ crm_url('board', p=pipeline.key, stage=s.id) }}">{{ s.name }}</a>
-      <div class="flow-chips">
-        {% for e in m.entries if e.current_id == s.id %}
-        <a class="flow-chip pc-{{ colors[e.person.id] }}" href="{{ crm_url('contact', person_id=e.person.id) }}"
-           title="{{ e.person.display_name }}">{{ initials(e.person.display_name) }}</a>
-        {% endfor %}
-      </div>
-    </div>
-    {% if not loop.last %}<div class="flow-arrow"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i></div>{% endif %}
-    {% endfor %}
-    {% if end_stages %}
+<section class="card flow-life">
+  <h2><i class="fa-solid fa-arrows-spin" aria-hidden="true"></i> The CRM lifecycle, end to end</h2>
+  <p class="muted small">Every enquiry goes through these phases, whatever it is about. Each flow below gives the phases its own stage names; the colour shows which phase a stage is.</p>
+  <div class="flow-phases">
+    {% for key, label, text in phases if key not in ('customer', 'lost') %}
+    <div class="ph ph-{{ key }}"><b>{{ label }}</b><span>{{ text }}</span></div>
     <div class="flow-arrow"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i></div>
-    <div class="flow-branch">
-      {% for s in end_stages %}
-      <div class="flow-stage kind-{{ s.kind }}">
-        <a class="flow-stage-link" href="{{ crm_url('board', p=pipeline.key, stage=s.id) }}">{{ s.name }}</a>
-        <div class="flow-chips">
-          {% for e in m.entries if e.current_id == s.id %}
-          <a class="flow-chip pc-{{ colors[e.person.id] }}" href="{{ crm_url('contact', person_id=e.person.id) }}"
-             title="{{ e.person.display_name }}">{{ initials(e.person.display_name) }}</a>
-          {% endfor %}
-        </div>
-      </div>
+    {% endfor %}
+    <div class="ph-branch">
+      {% for key, label, text in phases if key in ('customer', 'lost') %}
+      <div class="ph ph-{{ key }}"><b>{{ label }}</b><span>{{ text }}</span></div>
       {% endfor %}
     </div>
+  </div>
+  {% if not people %}<p class="small flow-hint"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Add a customer above to see where they are on these flows and what to do next.</p>{% endif %}
+</section>
+
+{% for m in maps %}
+{% set pipe = m.pipeline %}
+<section class="card flow-map" id="flow-{{ pipe.key }}">
+  <div class="card-head">
+    <div class="t"><span class="ico"><i class="fa-solid {{ CRM_PRODUCT_ICON(pipe.product) }}" aria-hidden="true"></i></span>
+      <div><h2>{{ pipe.name }}</h2>
+        <p class="muted small">{{ m.opens|length }} stage{{ 's' if m.opens|length != 1 }}, then {{ m.ends|length }} way{{ 's' if m.ends|length != 1 }} it can end
+          {%- if m.entries %} · {{ m.entries|length }} of your customers {{ 'is' if m.entries|length == 1 else 'are' }} here{% endif %}
+          {%- if not pipe.is_active %} · not taking new leads{% endif %}</p></div></div>
+  </div>
+
+  <div class="flow-row">
+    <div class="flow-stage r-in">
+      <a class="flow-stage-link" href="#in-{{ pipe.id }}" data-flow-jump title="How leads come in">
+        <i class="fa-solid fa-door-open" aria-hidden="true"></i> Comes in<small>{{ m.sources|length }} way{{ 's' if m.sources|length != 1 }} in</small></a>
+      <div class="flow-chips"></div>
+    </div>
+    {% for st in m.opens %}
+    <div class="flow-arrow"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i></div>
+    {{ stage_box(st, m) }}
+    {% endfor %}
+    {% if m.ends %}
+    <div class="flow-arrow"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i></div>
+    <div class="flow-branch">{% for st in m.ends %}{{ stage_box(st, m) }}{% endfor %}</div>
     {% endif %}
   </div>
 
-  <div class="flow-paths">
-    {% for e in m.entries %}
-    <div class="flow-path-person">
-      <span class="flow-dot pc-{{ colors[e.person.id] }}" aria-hidden="true"></span>
-      <a href="{{ crm_url('contact', person_id=e.person.id) }}"><b>{{ e.person.display_name }}</b></a>
-      <span class="flow-path-trail">{% for step in e.path %}{{ step.name }}{% if step.at %} ({{ when(step.at, utcnow) }}{% if step.by %}, {{ step.by }}{% endif %}){% endif %}{% if not loop.last %} → {% endif %}{% endfor %}</span>
-    </div>
-    {% endfor %}
-  </div>
+  <details class="flow-guide-wrap"{{ ' open' if m.entries or (not people and loop.first) }}>
+    <summary>Step by step: what happens at each stage</summary>
+    <ol class="flow-guide">
+      <li class="fg r-in" id="in-{{ pipe.id }}">
+        <span class="fg-num"><i class="fa-solid fa-door-open" aria-hidden="true"></i></span>
+        <div class="fg-body">
+          <h3>How they come in</h3>
+          {% if m.sources %}
+          <ul class="fg-do">{% for s in m.sources %}<li><i class="fa-solid fa-arrow-right-to-bracket" aria-hidden="true"></i> {{ s.name }} <span class="muted">· {{ KINDS.get(s.kind, s.kind) }}</span></li>{% endfor %}</ul>
+          {% else %}
+          <p class="muted small">No form or channel sends leads here directly: they arrive when someone adds them, or are passed on from another flow.</p>
+          {% endif %}
+          {% if m.opens %}<p class="small">Every new lead starts in <b>{{ m.opens[0].name }}</b> and is given to someone to look after.</p>{% endif %}
+        </div>
+      </li>
+      {% for st in m.opens + m.ends %}
+      {% set role = st.role %}
+      <li class="fg r-{{ role }}" id="st-{{ st.id }}">
+        <span class="fg-num">{% if st.kind == 'won' %}<i class="fa-solid fa-trophy" aria-hidden="true"></i>{% elif st.kind == 'lost' %}<i class="fa-solid fa-xmark" aria-hidden="true"></i>{% else %}{{ loop.index }}{% endif %}</span>
+        <div class="fg-body">
+          <h3>{{ st.name }} <span class="pill r-{{ role }}">{{ phase_label.get(role, role) }}</span></h3>
+          <p class="muted small">{{ phase_text.get(role, '') }}</p>
+          {% set ns = namespace(n=0) %}
+          <ul class="fg-do">
+            {% if st.on_reply %}{% set ns.n = ns.n + 1 %}<li><i class="fa-solid fa-reply" aria-hidden="true"></i> When they reply, they move here by themselves.</li>{% endif %}
+            {% for s in st.steps %}{% set ns.n = ns.n + 1 %}<li>{{ channel_icon(s.channel) }} {{ STEP_SENTENCE(s) }}</li>{% endfor %}
+            {% if st.button_label %}{% set ns.n = ns.n + 1 %}<li><i class="fa-solid fa-flag" aria-hidden="true"></i> Press “{{ st.button_label }}” on their lead page. {{ MILESTONE % st.name }}</li>{% endif %}
+            {% if st.auto_kind and st.auto_to %}{% set ns.n = ns.n + 1 %}<li class="auto"><i class="fa-solid fa-robot" aria-hidden="true"></i> It {{ AUTO_SENTENCE(st) }}.</li>{% endif %}
+            {% if st.sla_hours %}{% set ns.n = ns.n + 1 %}<li><i class="fa-regular fa-clock" aria-hidden="true"></i> Should not wait here more than {{ st.sla_hours }} hour{{ 's' if st.sla_hours != 1 }}; after that their lead shows “Stuck”.</li>{% endif %}
+            {% if ns.n == 0 %}<li class="muted"><i class="fa-regular fa-hand" aria-hidden="true"></i> Nothing happens here by itself: you choose the next step on their lead page.</li>{% endif %}
+          </ul>
+          {% if m.here[st.id] %}
+          <p class="small fg-who"><b>Here now:</b>
+            {% for e in m.here[st.id] %}<a class="fg-person" href="{{ crm_url('lead', lead_id=e.lead.id) }}#journey"><span class="flow-dot pc-{{ colors[e.person.id] }}" aria-hidden="true"></span>{{ e.person.display_name }}</a>{% endfor %}</p>
+          {% endif %}
+          {% if m.passed[st.id] %}
+          <p class="small muted">Passed through: {% for e in m.passed[st.id] %}{{ e.person.display_name }}{{ ', ' if not loop.last }}{% endfor %}</p>
+          {% endif %}
+          <p class="small"><a href="{{ crm_url('board', p=pipe.key, stage=st.id) }}">Everyone in this stage <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a></p>
+        </div>
+      </li>
+      {% endfor %}
+      {% if pipe.fallout_reasons %}
+      <li class="fg r-lost">
+        <span class="fg-num"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span>
+        <div class="fg-body">
+          <h3>Why a lead is lost</h3>
+          <p class="small">Closing a lead as lost asks for one of these, so the reason is never typed by hand:</p>
+          <div class="fg-reasons">{% for r in pipe.fallout_reasons %}<span class="chip">{{ r }}</span>{% endfor %}</div>
+        </div>
+      </li>
+      {% endif %}
+    </ol>
+  </details>
 </section>
 {% endfor %}
 {% endblock %}
