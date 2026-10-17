@@ -144,3 +144,54 @@ body:has(.wa-frame-wrap) #whatsNew { display: none; }
   .wa-split { grid-template-columns: 1fr; grid-template-rows: minmax(420px, 1fr) auto; }
   .wa-lead-panel { border-left: 0; border-top: 1px solid #e3e8f0; }
 }
+
+/* Menu builder (workspace/menu.html, static/js/menu-builder.js): sections and sub-menus as cards, lines that
+   drag by their handle, and beside them the chosen role's menu drawn like the real dark sidebar */
+.mnu-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+.mnu-side { position: sticky; top: 84px; }
+.mnu-side .card { margin: 0; }
+.mnu-sec { border: 1px solid #e3e8f0; border-radius: 12px; margin-bottom: 12px; background: #fff; }
+.mnu-sec-head, .mnu-sub-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; }
+.mnu-sec-head { background: #f7f9fc; border-radius: 12px 12px 0 0; border-bottom: 1px solid #eef2f8; }
+.mnu-sub { border-top: 1px dashed #e3e8f0; }
+.mnu-sub:first-child { border-top: 0; }
+.mnu-sub-head { padding: 8px 12px 4px 30px; }
+.mnu-grip { cursor: grab; color: #94a3b8; font-size: 16px; line-height: 1; padding: 2px; user-select: none; }
+.mnu-name { flex: 1 1 160px; min-width: 0; font-weight: 700; font-size: 15px; color: var(--text); border: 1px solid transparent;
+  border-radius: 8px; padding: 5px 8px; background: transparent; }
+.mnu-sub-head .mnu-name { font-size: 13.5px; }
+.mnu-name:hover, .mnu-name:focus { border-color: #d7e6f6; background: #fff; outline: none; }
+.mnu-icon-pick { display: inline-flex; align-items: center; gap: 6px; color: var(--ui-primary, #1f6fd6); }
+.mnu-icon-pick i { width: 18px; text-align: center; }
+.mnu-icon-pick select, .mnu-move { font-size: 12.5px; padding: 4px 6px; border: 1px solid #e3e8f0; border-radius: 8px;
+  background: #fff; color: var(--text); max-width: 150px; }
+.mnu-tools { display: flex; gap: 4px; margin-left: auto; align-items: center; }
+.mnu-tools .cb.sm { padding: 5px 9px; }
+.mnu-tools .cb[disabled] { opacity: .35; cursor: not-allowed; }
+.mnu-lines { list-style: none; margin: 0; padding: 6px 10px 10px; min-height: 44px; }
+.mnu-subs .mnu-lines { padding-left: 34px; }
+.mnu-lines:empty::after { content: 'Drag lines here, or use “Move to” on a line'; display: block; padding: 10px; color: #94a3b8;
+  font-size: 13px; border: 1px dashed #d7e6f6; border-radius: 8px; text-align: center; }
+.mnu-line { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 8px; flex-wrap: wrap; }
+.mnu-line:hover { background: #f7f9fc; }
+.mnu-line > i { width: 18px; text-align: center; color: var(--ui-primary, #1f6fd6); }
+.mnu-label { flex: 1 1 160px; min-width: 0; font-size: 13.5px; padding: 5px 8px; border: 1px solid #e3e8f0; border-radius: 8px; }
+.mnu-label::placeholder { color: #24324d; opacity: 1; }
+.mnu-area { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.mnu-hide { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--muted); white-space: nowrap; cursor: pointer; }
+.mnu-line.is-hidden .mnu-label, .mnu-line.is-hidden > i { opacity: .45; text-decoration: line-through; }
+.mnu-sec.dragging, .mnu-sub.dragging, .mnu-line.dragging { opacity: .4; }
+.mnu-preview { background: linear-gradient(180deg, #10254a, #0c1e3c); border-radius: 10px; padding: 6px 0; margin-top: 4px;
+  color: rgba(255,255,255,.92); font-size: 13px; max-height: 68vh; overflow-y: auto; }
+.mnu-preview i { width: 16px; text-align: center; opacity: .7; flex: none; }
+.mnu-preview .pv-sec { display: flex; gap: 8px; align-items: center; padding: 8px 14px 4px; font-weight: 700; }
+.mnu-preview .pv-sub { display: flex; gap: 7px; align-items: center; padding: 5px 14px 3px 26px; font-size: 12px; font-weight: 700;
+  color: rgba(255,255,255,.62); }
+.mnu-preview .pv-line { display: flex; gap: 8px; align-items: center; padding: 4px 14px 4px 30px; color: rgba(255,255,255,.8); }
+.mnu-preview .pv-line.in-sub { padding-left: 42px; }
+.mnu-preview .pv-none { padding: 12px 14px; margin: 0; color: rgba(255,255,255,.6); }
+.mnu-note { font-size: 12.5px; margin: 10px 0 0; }
+@media (max-width: 1000px) {
+  .mnu-wrap { grid-template-columns: 1fr; }
+  .mnu-side { position: static; }
+}

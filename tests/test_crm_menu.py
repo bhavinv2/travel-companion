@@ -17,7 +17,7 @@ from app import db as _db
 from app.models import Workspace, WorkspaceMember, WorkspaceRole
 from app.services import access
 
-SECTION_ORDER = ['overview', 'sales', 'companion', 'insurance', 'sahayak', 'team', 'site']
+SECTION_ORDER = ['overview', 'sales', 'companion', 'insurance', 'sahayak', 'team', 'site', 'help']
 SALES_SUBS = ['daily', 'messaging', 'automatic', 'setup']
 
 
@@ -47,7 +47,13 @@ def test_every_page_is_in_exactly_one_section_in_the_agreed_order():
 def test_every_dashboard_and_report_is_in_overview():
     for key in ('dashboard', 'crm_insights', 'crm_tracker', 'metrics'):
         assert access.PAGES[key]['section'] == 'overview', key
-    assert access.PAGES['crm_flow']['sub'] == 'daily' and access.PAGES['wa_flows']['sub'] == 'automatic'
+    assert access.PAGES['wa_flows']['sub'] == 'automatic'
+
+
+def test_help_holds_the_read_only_screens_that_explain_the_work():
+    help_ = next(s for s in access.SECTIONS if s['key'] == 'help')
+    assert help_['pages'] == ('crm_flow', 'crm_process', 'crm_auto')
+    assert all('sub' not in access.PAGES[k] for k in help_['pages'])
 
 
 def test_the_old_page_keys_are_gone_and_the_new_ones_exist():
@@ -123,7 +129,9 @@ def test_an_agent_sees_the_days_work_and_nothing_to_manage(app, cs_user):
 def test_one_sub_menu_is_shown_as_plain_lines(app, cs_user):
     """An agent's Sales CRM is only Daily work: a "Daily work" heading over all of it would be one click too many."""
     sales = next(g for g in _nav_for(app, cs_user) if g['key'] == 'sales')
-    assert sales['subs'] == [] and 'Visual flow' in [i['label'] for i in sales['items']]
+    assert sales['subs'] == [] and 'My day' in [i['label'] for i in sales['items']]
+    help_ = next(g for g in _nav_for(app, cs_user) if g['key'] == 'help')
+    assert [i['label'] for i in help_['items']] == ['Visual flow', 'How we sell']      # What goes out: admins
 
 
 def _nav_for(app, user):
@@ -141,7 +149,9 @@ def test_the_administrator_sees_every_section_in_order(app, admin_user):
         assert k in keys, k
     sales = next(g for g in groups if g['key'] == 'sales')
     assert [s['key'] for s in sales['subs']] == ['sales.' + k for k in SALES_SUBS]
-    assert [i['label'] for i in sales['subs'][0]['items']][:2] == ['Visual flow', 'My day']
+    assert [i['label'] for i in sales['subs'][0]['items']][:2] == ['My day', 'WhatsApp chats']
+    help_ = next(g for g in groups if g['key'] == 'help')
+    assert [i['label'] for i in help_['items']] == ['Visual flow', 'How we sell', 'What goes out by itself']
     overview = [i['label'] for i in next(g for g in groups if g['key'] == 'overview')['items']]
     assert {'Site dashboard', 'Sales results', 'Team today', 'Match quality'} <= set(overview)
     flat = [l for ls in labels(groups).values() for l in ls]

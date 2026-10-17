@@ -218,8 +218,9 @@ def test_there_is_still_one_alembic_head_after_release_two():
     cfg = Config()
     cfg.set_main_option('script_location', mig)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ['s7crm011']
-    for rev, down in (('s7crm011', 's6crm010'), ('s6crm010', 's5crm009'), ('s5crm009', 's4crm008')):
+    assert script.get_heads() == ['t1ws012']               # the Menu builder's column, straight after release two
+    for rev, down in (('t1ws012', 's7crm011'), ('s7crm011', 's6crm010'), ('s6crm010', 's5crm009'),
+                      ('s5crm009', 's4crm008')):
         assert script.get_revision(rev).down_revision == down
 
 

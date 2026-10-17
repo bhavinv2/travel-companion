@@ -9,10 +9,11 @@ Two guard rails, because these are the screens that can lock people out:
     the classic way to lose a workspace is somebody tidying up their own role;
   * the Administrator role's pages cannot be edited: it is always every page.
 """
+import json
 import secrets
 from functools import wraps
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user
 
 from app import db
@@ -319,6 +320,66 @@ def delete_team(team_id):
         wacrm_team.member_changed(m)
     flash('Team %s deleted.' % name, 'success')
     return redirect(url_for('workspace.teams'))
+
+
+# -------------------------------------------------------------------------------- menu builder
+
+def _layout_from(raw):
+    try:
+        return access.clean_layout(json.loads(raw) if isinstance(raw, str) else raw)
+    except ValueError:
+        return None
+
+
+@workspace_bp.route('/menu')
+@staff_page
+def menu():
+    """Menu builder: this workspace's staff menu -- sections, sub-menus, the order of lines, their names, lines
+    left off. Who sees a line is still their roles; the preview shows each role's menu as it would be."""
+    ws = _ws()
+    lines = [{'key': k, 'label': access.PAGES[k]['label'], 'icon': access.PAGES[k]['icon'],
+              'area': access.MODULE_BY_KEY[access.PAGES[k]['module']]['label'],
+              'tip': access.PAGES[k]['tip'] or access.PAGES[k]['desc']} for k in access.MENU_PAGES]
+    roles = sorted(ws.roles, key=lambda r: (r.system_key != 'admin', r.system_key != 'cs', r.name.lower()))
+    return render_template('workspace/menu.html', ws=ws, ws_tab='ws_menu', layout=access.menu_layout(ws),
+                           lines=lines, roles=roles, icons=access.MENU_ICONS, custom=bool(ws.menu))
+
+
+@workspace_bp.route('/menu/preview', methods=['POST'])
+@staff_page
+def menu_preview():
+    """The menu one role would see with the layout on screen (not saved yet)."""
+    ws = _ws()
+    data = request.get_json(silent=True) or {}
+    layout = _layout_from(data.get('layout')) or access.default_layout()
+    return jsonify({'groups': access.menu_for_role(ws, _role_or_none(ws, data.get('role')), layout)})
+
+
+@workspace_bp.route('/menu/save', methods=['POST'])
+@staff_page
+def save_menu():
+    ws = _ws()
+    layout = _layout_from(request.form.get('layout'))
+    if layout is None:
+        flash('That menu could not be read. Nothing was changed.', 'danger')
+        return redirect(url_for('workspace.menu'))
+    # the same as the menu in code: keep following the code, so a screen added later lands where it belongs
+    ws.menu = None if layout == access.clean_layout(access.default_layout()) else layout
+    _log('workspace_menu_saved', workspace=ws.id, custom=bool(ws.menu))
+    db.session.commit()
+    flash('Menu saved. Everybody in %s sees it on their next page.' % ws.name, 'success')
+    return redirect(url_for('workspace.menu'))
+
+
+@workspace_bp.route('/menu/reset', methods=['POST'])
+@staff_page
+def reset_menu():
+    ws = _ws()
+    ws.menu = None
+    _log('workspace_menu_reset', workspace=ws.id)
+    db.session.commit()
+    flash('The menu is back to the standard one.', 'success')
+    return redirect(url_for('workspace.menu'))
 
 
 # -------------------------------------------------------------------------------- roles

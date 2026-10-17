@@ -270,6 +270,10 @@ MODULES = [
          _page('ws_roles', 'Roles', 'fa-user-lock',
                ['workspace.roles', 'workspace.role', 'workspace.save_role', 'workspace.delete_role'],
                admin='workspace.roles', tip='What each kind of job can open.'),
+         _page('ws_menu', 'Menu builder', 'fa-bars-staggered',
+               ['workspace.menu', 'workspace.save_menu', 'workspace.reset_menu', 'workspace.menu_preview'],
+               admin='workspace.menu', desc='Arrange the staff menu: sections, sub-menus, order and names.',
+               tip='Arrange the menu: sections, sub-menus, order and names. Roles decide who sees each line.'),
          _page('ws_all', 'All workspaces', 'fa-layer-group',
                ['workspace.all_workspaces', 'workspace.create_workspace'], admin='workspace.all_workspaces',
                nav=False, desc='Make new workspaces (a tab on Workspace).'),
@@ -286,12 +290,11 @@ SECTIONS = [
      'pages': ('dashboard', 'crm_insights', 'crm_tracker', 'metrics', 'home', 'notifications', 'voices_general')},
     {'key': 'sales', 'label': 'Sales CRM', 'icon': 'fa-filter-circle-dollar', 'subs': (
         {'key': 'daily', 'label': 'Daily work', 'icon': 'fa-sun',
-         'pages': ('crm_flow', 'crm_today', 'wa_inbox', 'crm_board', 'crm_people', 'crm_checks', 'crm_process',
-                   'crm_add')},
+         'pages': ('crm_today', 'wa_inbox', 'crm_board', 'crm_people', 'crm_checks', 'crm_add')},
         {'key': 'messaging', 'label': 'Messaging', 'icon': 'fa-comments',
          'pages': ('crm_quick', 'wa_templates', 'wa_broadcasts', 'wa_tags')},
         {'key': 'automatic', 'label': 'Automatic messages', 'icon': 'fa-wand-magic-sparkles',
-         'pages': ('crm_auto', 'wa_automations', 'wa_flows', 'wa_ai')},
+         'pages': ('wa_automations', 'wa_flows', 'wa_ai')},
         {'key': 'setup', 'label': 'Set-up', 'icon': 'fa-sliders',
          'pages': ('crm_pipelines', 'crm_sources', 'crm_connection', 'wa_settings', 'crm_data', 'crm_export')},
     )},
@@ -307,9 +310,12 @@ SECTIONS = [
     {'key': 'sahayak', 'label': 'Sahayak', 'icon': 'fa-house-medical',
      'pages': ('sahayak', 'voices_sahayak', 'sahayak_services', 'help_sahayak')},
     {'key': 'team', 'label': 'Team', 'icon': 'fa-users',
-     'pages': ('ws_members', 'ws_teams', 'ws_roles', 'ws_settings', 'ws_all')},
+     'pages': ('ws_members', 'ws_teams', 'ws_roles', 'ws_menu', 'ws_settings', 'ws_all')},
     {'key': 'site', 'label': 'Site settings', 'icon': 'fa-gear',
      'pages': ('users', 'options', 'messages', 'notiflog', 'notify_switches', 'themes', 'delete_records')},
+    # read-only screens that explain how the work goes -- nothing is changed on them
+    {'key': 'help', 'label': 'Help', 'icon': 'fa-circle-question',
+     'pages': ('crm_flow', 'crm_process', 'crm_auto')},
 ]
 for _s in SECTIONS:
     if 'subs' in _s:
@@ -640,45 +646,155 @@ def active_page(fallback=None):
     return best or (fallback if fallback in PAGES else None)
 
 
-def nav(user, fallback_active=None):
-    """The staff menu: SECTIONS in order, each with the pages this person may open whose area is
-    switched on in this workspace, the one being looked at marked. A section with nothing in it for
-    them is left out. `mark`: the line's badge is a "!" (services/nav_badges.MARKS); `sum`: its
-    number counts in the section's total. `subs`: a section's sub-menus that have lines for them --
-    none when only one would (a sub-heading over everything they have is one click too many);
-    `items` always lists every line of the section."""
+# The menu's layout: SECTIONS is the default; a workspace's Menu builder may save its own (Workspace.menu) --
+# other sections, another order, lines moved, renamed or hidden. Only where a line SITS changes: whether
+# somebody sees it is still their roles (pages_for), and where a refused person lands still follows the
+# order in code (denied_url, _first_url), so tidying the menu cannot change anybody's way in.
+MENU_PAGES = tuple(k for k in MENU_ORDER if PAGES[k]['nav'])
+MENU_ICON = re.compile(r'^fa-[a-z0-9-]{1,40}$')
+MENU_LABEL_MAX = 40
+# what the builder offers for a section or a sub-menu
+MENU_ICONS = ('fa-gauge', 'fa-filter-circle-dollar', 'fa-sun', 'fa-comments', 'fa-wand-magic-sparkles', 'fa-sliders',
+              'fa-plane-departure', 'fa-shield-heart', 'fa-house-medical', 'fa-users', 'fa-gear', 'fa-circle-question',
+              'fa-chart-line', 'fa-list', 'fa-envelope', 'fa-globe', 'fa-inbox', 'fa-star', 'fa-bolt', 'fa-briefcase',
+              'fa-folder', 'fa-folder-open', 'fa-layer-group', 'fa-bullhorn', 'fa-diagram-project', 'fa-book-open')
+
+
+def default_layout():
+    """The menu in code, in the shape the builder saves (lines that are buttons, not menu lines, left out)."""
+    sections = []
+    for s in SECTIONS:
+        sec = {'key': s['key'], 'label': s['label'], 'icon': s['icon']}
+        if 'subs' in s:
+            sec['subs'] = [{'key': b['key'], 'label': b['label'], 'icon': b['icon'],
+                            'pages': [k for k in b['pages'] if PAGES[k]['nav']]} for b in s['subs']]
+        else:
+            sec['pages'] = [k for k in s['pages'] if PAGES[k]['nav']]
+        sections.append(sec)
+    return {'sections': sections, 'labels': {}, 'hidden': []}
+
+
+def clean_layout(raw):
+    """A layout from the builder (or the database) made safe and whole: every menu line exactly once -- one it
+    does not place (a screen added since it was saved) goes back to its section in code -- names and icons
+    within bounds, unknown pages dropped. None when there is nothing to read."""
+    if not isinstance(raw, dict) or not isinstance(raw.get('sections'), list):
+        return None
+    seen, sections, taken = set(), [], set()
+
+    def text(v, default):
+        return ' '.join(str(v or '').split())[:MENU_LABEL_MAX] or default
+
+    def icon(v, default):
+        v = str(v or '').strip()
+        return v if MENU_ICON.match(v) else default
+
+    def key_of(v, keys):
+        base = re.sub(r'[^a-z0-9_]', '', str(v or '').lower())[:30] or 'section'
+        k, n = base, 2
+        while k in keys:
+            k, n = '%s%d' % (base, n), n + 1
+        keys.add(k)
+        return k
+
+    def lines(v):
+        out = []
+        for k in v if isinstance(v, list) else ():
+            if isinstance(k, str) and k in PAGES and PAGES[k]['nav'] and k not in seen:
+                seen.add(k)
+                out.append(k)
+        return out
+
+    for s in raw['sections'][:40]:
+        if not isinstance(s, dict):
+            continue
+        sec = {'key': key_of(s.get('key'), taken), 'label': text(s.get('label'), 'Menu'),
+               'icon': icon(s.get('icon'), 'fa-folder')}
+        subs = [b for b in s.get('subs') or () if isinstance(b, dict)] if isinstance(s.get('subs'), list) else []
+        if subs:
+            sub_keys = set()
+            sec['subs'] = [{'key': key_of(b.get('key'), sub_keys), 'label': text(b.get('label'), 'Sub-menu'),
+                            'icon': icon(b.get('icon'), 'fa-folder-open'), 'pages': lines(b.get('pages'))}
+                           for b in subs[:20]]
+        else:
+            sec['pages'] = lines(s.get('pages'))
+        sections.append(sec)
+    restored = []
+    for k in MENU_PAGES:
+        if k in seen:
+            continue
+        home = PAGES[k]['section']
+        sec = next((s for s in sections if s['key'] == home), None)
+        if sec is None:           # its whole section is missing: back as it is in code, sub-menus and all
+            d = SECTION_BY_KEY[home]
+            sec = {'key': key_of(home, taken), 'label': d['label'], 'icon': d['icon']}
+            if 'subs' in d:
+                sec['subs'] = [{'key': b['key'], 'label': b['label'], 'icon': b['icon'], 'pages': []} for b in d['subs']]
+            else:
+                sec['pages'] = []
+            sections.append(sec)
+            restored.append(sec)
+        if 'subs' in sec:
+            sub = next((b for b in sec['subs'] if b['key'] == PAGES[k].get('sub')), sec['subs'][-1])
+            sub['pages'].append(k)
+        else:
+            sec['pages'].append(k)
+        seen.add(k)
+    for sec in restored:
+        if 'subs' in sec:
+            sec['subs'] = [b for b in sec['subs'] if b['pages']]
+    names = raw.get('labels') if isinstance(raw.get('labels'), dict) else {}
+    labels = {k: text(v, '') for k, v in names.items()
+              if k in seen and text(v, '') and text(v, '') != PAGES[k]['label']}
+    hidden = sorted({k for k in raw.get('hidden') or () if isinstance(k, str) and k in seen}) \
+        if isinstance(raw.get('hidden'), list) else []
+    return {'sections': sections, 'labels': labels, 'hidden': hidden}
+
+
+def menu_layout(ws):
+    """The menu `ws` uses: what its Menu builder saved (made whole), else the menu in code."""
+    if ws is None or not ws.menu:
+        return default_layout()
+    c = _cache()
+    key = ('menu', ws.id)
+    if key not in c:
+        c[key] = clean_layout(ws.menu) or default_layout()
+    return c[key]
+
+
+def _menu(layout, allowed_pages, on, here, console):
     from app.services.nav_badges import MARKS
-    ws = current_workspace(user)
-    on = set(enabled_modules(ws))
-    allowed_pages = pages_for(user, ws)
-    here = active_page(fallback_active)
-    console = current_console(user)
+    names, hidden = layout['labels'], set(layout['hidden'])
+
+    def line(key):
+        p = PAGES[key]
+        if not p['nav'] or key in hidden or p['module'] not in on or key not in allowed_pages:
+            return None
+        url = page_url(p, console)
+        if not url:
+            return None
+        return {'key': key, 'label': names.get(key, p['label']), 'icon': p['icon'], 'tip': p['tip'] or p['label'],
+                'url': url, 'active': key == here, 'badge': key, 'mark': key in MARKS, 'sum': key not in MARKS}
+
     groups = []
-    for sec in SECTIONS:
-        items = []
-        for key in sec['pages']:
-            p = PAGES[key]
-            if not p['nav'] or p['module'] not in on or key not in allowed_pages:
-                continue
-            url = page_url(p, console)
-            if url:
-                items.append({'key': key, 'label': p['label'], 'icon': p['icon'], 'tip': p['tip'] or p['label'],
-                              'url': url, 'active': key == here, 'badge': key,
-                              'mark': key in MARKS, 'sum': key not in MARKS})
+    for sec in layout['sections']:
+        subs = []
+        for sub in sec.get('subs') or ():
+            got = [i for i in map(line, sub['pages']) if i]
+            if got:
+                subs.append({'key': '%s.%s' % (sec['key'], sub['key']), 'label': sub['label'], 'icon': sub['icon'],
+                             'items': got, 'open': any(i['active'] for i in got)})
+        items = [i for s in subs for i in s['items']] if 'subs' in sec else \
+            [i for i in map(line, sec['pages']) if i]
+        if not items:
+            continue
         # the customers waiting are in My day's number too: the section's total counts them once
         if any(i['key'] == 'crm_today' for i in items):
             for i in items:
                 if i['key'] == 'wa_inbox':
                     i['sum'] = False
-        if items:
-            subs = []
-            for sub in sec.get('subs', ()):
-                lines = [i for i in items if PAGES[i['key']]['sub'] == sub['key']]
-                if lines:
-                    subs.append({'key': '%s.%s' % (sec['key'], sub['key']), 'label': sub['label'], 'icon': sub['icon'],
-                                 'items': lines, 'open': any(i['active'] for i in lines)})
-            groups.append({'key': sec['key'], 'label': sec['label'], 'icon': sec['icon'], 'items': items,
-                           'subs': subs if len(subs) > 1 else [], 'open': any(i['active'] for i in items)})
+        groups.append({'key': sec['key'], 'label': sec['label'], 'icon': sec['icon'], 'items': items,
+                       'subs': subs if len(subs) > 1 else [], 'open': any(i['active'] for i in items)})
     # a short menu is shown whole; a long one opens only the section being worked in (the rest are
     # one click away, and the menu remembers what was opened)
     if sum(len(gr['items']) for gr in groups) <= 12:
@@ -687,6 +803,26 @@ def nav(user, fallback_active=None):
             for s in gr['subs']:
                 s['open'] = True
     return groups
+
+
+def nav(user, fallback_active=None):
+    """The staff menu: the workspace's layout (menu_layout) in order, each section with the pages this
+    person may open whose area is switched on in this workspace, the one being looked at marked. A
+    section with nothing in it for them is left out. `mark`: the line's badge is a "!"
+    (services/nav_badges.MARKS); `sum`: its number counts in the section's total. `subs`: a section's
+    sub-menus that have lines for them -- none when only one would (a sub-heading over everything they
+    have is one click too many); `items` always lists every line of the section."""
+    ws = current_workspace(user)
+    return _menu(menu_layout(ws), pages_for(user, ws), set(enabled_modules(ws)), active_page(fallback_active),
+                 current_console(user))
+
+
+def menu_for_role(ws, role, layout):
+    """The menu somebody whose only role is `role` would see with `layout` (the Menu builder's preview)."""
+    on = set(enabled_modules(ws))
+    admin = role is not None and role.system_key == 'admin'
+    pages = module_pages(on) if admin else _implied(role_pages(role) & module_pages(on))
+    return _menu(layout, pages, on, None, 'admin' if admin else 'cs')
 
 
 def home_url(user):

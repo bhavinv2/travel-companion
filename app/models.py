@@ -2164,6 +2164,9 @@ class Workspace(db.Model):
     # the WhatsApp CRM workspace this one is kept in step with: {account_id, name, synced_at,
     # error}. NULL = not linked.
     wacrm = db.Column(db.JSON)
+    # the staff menu as arranged on Team -> Menu builder: {'sections': [...], 'labels': {page: name},
+    # 'hidden': [page, ...]} (access.menu_layout reads it). NULL = the menu in code (access.SECTIONS).
+    menu = db.Column(db.JSON)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
 

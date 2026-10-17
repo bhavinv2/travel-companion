@@ -1,0 +1,47 @@
+{% extends 'workspace/_layout.html' %}
+{% set ws_tab = 'ws_menu' %}
+{% block ws_title %}Menu builder{% endblock %}
+{% block ws %}
+<div class="ws-head">
+  <div><h1>Menu builder</h1>
+    <p>Arrange the menu everybody in {{ ws.name }} sees: its sections, sub-menus, the order of the lines and their names.
+      Drag a line by its handle, or use “Move to”. Who sees a line is still decided by
+      <a href="{{ url_for('workspace.roles') }}">Roles</a>; the preview shows the menu of the role you pick.</p></div>
+  <span class="ws-pill">{{ 'Arranged for this workspace' if custom else 'Standard menu' }}</span>
+</div>
+
+<div class="mnu-wrap" data-menu-builder data-preview="{{ url_for('workspace.menu_preview') }}">
+  <div class="mnu-editor">
+    <div class="mnu-sections" data-mnu-sections></div>
+    <button type="button" class="cb" data-mnu-add-section><i class="fa-solid fa-plus"></i> Add a section</button>
+  </div>
+  <aside class="mnu-side">
+    <section class="card">
+      <h2><i class="fa-solid fa-eye"></i> Preview</h2>
+      <div class="ws-field"><label for="mbRole">The menu of</label>
+        <select id="mbRole" data-mnu-role>{% for r in roles %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></div>
+      <div class="mnu-preview" data-mnu-preview aria-live="polite"></div>
+      <p class="ws-muted mnu-note">Lines this role cannot open are not in its menu.
+        <a href="{{ url_for('workspace.role', role_id=roles[0].id) if roles else url_for('workspace.roles') }}" data-mnu-role-link>Change what this role can open</a></p>
+    </section>
+  </aside>
+</div>
+
+<script type="application/json" id="mnu-data">{{ {'layout': layout, 'lines': lines, 'icons': icons,
+  'roleUrl': url_for('workspace.role', role_id=0)}|tojson }}</script>
+
+<form method="POST" action="{{ url_for('workspace.save_menu') }}" class="ws-actions ws-sticky" data-mnu-form>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  <input type="hidden" name="layout" data-mnu-out/>
+  <button class="cb primary"><i class="fa-solid fa-floppy-disk"></i> Save menu</button>
+  <span class="ws-muted" data-mnu-dirty hidden>Unsaved changes</span>
+</form>
+{% if custom %}
+<form method="POST" action="{{ url_for('workspace.reset_menu') }}" style="margin-top:14px"
+      data-confirm="Go back to the standard menu? The arrangement saved for {{ ws.name }} is dropped.">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  <button class="cb"><i class="fa-solid fa-rotate-left"></i> Back to the standard menu</button>
+</form>
+{% endif %}
+{% endblock %}
+{% block extra_js %}<script src="{{ url_for('static', filename='js/menu-builder.js') }}" defer></script>{% endblock %}
