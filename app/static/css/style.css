@@ -573,7 +573,7 @@ label .opt { text-transform: none; letter-spacing: 0; font-weight: 500; font-siz
 .photo-preview { margin-top: 8px; }
 
 /* ===== ADMIN ===== */
-.admin-page { --railw: 220px; display: grid; grid-template-columns: var(--railw) 1fr; min-height: calc(100vh - 68px); background: linear-gradient(90deg, var(--navy) 0, var(--navy) var(--railw), transparent var(--railw)); transition: grid-template-columns .18s ease; } /* STICKY CHROME */
+.admin-page { --railw: 260px; display: grid; grid-template-columns: var(--railw) 1fr; min-height: calc(100vh - 68px); background: linear-gradient(90deg, var(--navy) 0, var(--navy) var(--railw), transparent var(--railw)); transition: grid-template-columns .18s ease; } /* STICKY CHROME */
 .admin-sidebar { background: var(--navy); padding: 24px 0; position: sticky; top: 68px; height: calc(100vh - 68px); overflow-y: auto; align-self: start; }
 .admin-sidebar h3 { color: rgba(255,255,255,0.82); font-size: 14.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; padding: 1px 14px 16px 56px; }
 .admin-sidebar nav a { display: flex; align-items: center; gap: 10px; padding: 12px 20px; color: rgba(255,255,255,0.6); font-size: 14px; font-weight: 500; transition: all 0.2s; }
@@ -2826,7 +2826,7 @@ body:has(.td-panel.is-sheet:not([hidden])) .chat-toggle { opacity: 0; pointer-ev
 @media (max-width: 900px) {
   .rail-toggle { position: static; margin: 0 14px 0 auto; width: 38px; height: 38px; font-size: 15px; }
   /* the rail (icon-only) state is meaningless on a phone dropdown — always show full labels */
-  .admin-page.is-rail { --railw: 220px; }
+  .admin-page.is-rail { --railw: 260px; }
   .admin-page.is-rail .admin-sidebar nav a { justify-content: flex-start; padding: 14px 18px; }
   .admin-page.is-rail .admin-sidebar nav a span { display: inline; }
   .admin-page.is-rail .admin-sidebar nav a i { font-size: 15px; }
