@@ -27,23 +27,17 @@
    rendered, the contact numbers are the ones published. Nothing is asserted twice. #}
 {% block extra_head %}
 <script type="application/ld+json">{{ structured_data | tojson }}</script>
-{# Google Ads. Loaded here rather than site-wide because the four conversions it measures all
-   happen on this page, and because a tag on every page of the app would follow signed-in
-   travellers around screens that have nothing to do with buying a policy.
-
-   ads_account is empty in tests and on localhost, and the whole block disappears with it --
-   development traffic in a conversion report inflates the number somebody is about to make a
-   spending decision on. #}
-{% if ads_account %}
-<script async src="https://www.googletagmanager.com/gtag/js?id={{ ads_account }}"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){ dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', {{ ads_account | tojson }});
-</script>
-{% endif %}
 {% endblock %}
+
+{# This page's Ads account is now initialised site-wide from base.html (see _analytics.html,
+   ADS_ACCOUNT_ID) rather than loaded a second time here -- the duplicate `gtag('config', ...)`
+   would have double-counted this page's pageviews for that account. `ads_conversions` below is
+   unaffected: those are the four named events the React bundle fires with `gtag('event', ...)`
+   once this page's dataLayer/gtag already exist, which they do from base.html regardless. #}
+
+{# GTM noscript fallback: this is a landing page (where paid traffic lands), so it gets the
+   body-level fallback the way base.html's other extenders mostly don't. #}
+{% block gtm_noscript %}{% include '_gtm_noscript.html' %}{% endblock %}
 
 {% block extra_css %}
 <link rel="canonical" href="{{ canonical_url }}"/>

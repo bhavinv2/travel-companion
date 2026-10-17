@@ -27,6 +27,10 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='sahayak/sahayak.css') }}"/>
 {% endblock %}
 
+{# GTM noscript fallback: this is a landing page (where paid traffic lands), so it gets the
+   body-level fallback the way base.html's other extenders mostly don't. #}
+{% block gtm_noscript %}{% include '_gtm_noscript.html' %}{% endblock %}
+
 {% block content %}
 <script>
   {# chrome: the page is served inside base.html, which already draws a header and a footer,

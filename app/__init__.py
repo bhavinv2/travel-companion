@@ -585,10 +585,21 @@ def create_app(test_config=None):
                                 GENDERS, PREF_GENDERS)
         from app import options
         from flask_login import current_user
-        from app.services import (access, contact_form, cs_access, insurance_countries,
-                                  nav_badges, nri_services, offices, phone, portals, products,
-                                  urls, whats_new)
+        from app.services import (access, ads, analytics, contact_form, cs_access,
+                                  insurance_countries, nav_badges, nri_services, offices, phone,
+                                  portals, products, urls, whats_new)
         return {
+            # Site-wide GA4 / GTM / second Ads account / Search Console verification -- see
+            # app/services/analytics.py and _analytics.html. ADS_ACCOUNT_ID reuses ads.py's own
+            # account+enabled check (the travel-insurance page's conversion tracking) so that
+            # account is only ever initialised once, from here, instead of also inline on that
+            # page.
+            'ANALYTICS_ENABLED': analytics.enabled(),
+            'GA4_ID': analytics.ga4_id(),
+            'GTM_ID': analytics.gtm_id(),
+            'ADS2_ID': analytics.ads2_id(),
+            'GOOGLE_SITE_VERIFICATION': analytics.site_verification(),
+            'ADS_ACCOUNT_ID': ads.account_id() if ads.enabled() else '',
             # Templates use this for "today" in date inputs. Between 18:30 and 00:00 IST,
             # utcnow() is still yesterday in India, which would let somebody pick a date that
             # has already gone or block one that has not.

@@ -1,0 +1,10 @@
+{# GTM's noscript fallback -- must sit immediately after <body> to work at all. Included only
+   on the public landing-style pages (the main landing, travel-insurance, Sahayak), not on
+   every page the script tag is on: those are where paid traffic actually lands, so they are
+   where catching a JS-disabled or ad-blocked visitor's pageview is worth the markup. #}
+{% if ANALYTICS_ENABLED %}
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id={{ GTM_ID }}"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+{% endif %}

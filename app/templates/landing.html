@@ -12,6 +12,7 @@
 <meta name="app-root" content="{{ request.script_root }}">
 <script src="{{ url_for('static', filename='js/app-root.js') }}"></script>
 <script src="{{ url_for('static', filename='js/crm-src.js') }}" defer></script>
+{% include '_analytics.html' %}
 <link rel="canonical" href="{{ SITE_URL }}/">
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo-icon.png') }}">
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/logo-icon.png') }}">
@@ -1569,6 +1570,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
 <script src="{{ url_for('static', filename='js/phone-field.js') }}" defer></script>
 </head>
 <body>
+{% include '_gtm_noscript.html' %}
 <!-- ================= HEADER ================= -->
 <header class="hdr">
   <div class="wrap">

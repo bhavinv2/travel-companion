@@ -1,0 +1,48 @@
+{# Site-wide tags: GA4, Google Tag Manager, a second Google Ads account, and Search Console
+   verification. Included from base.html (every page that extends it) and from the standalone
+   pages that don't (landing.html, auth/*). One place to add, remove or rotate an account --
+   see app/services/analytics.py. Skipped in tests and on localhost: development traffic in
+   these reports is noise nobody asked for (same reasoning as app/services/ads.py).
+
+   ADS_ACCOUNT_ID is app/services/ads.py's own account (previously only loaded on the
+   travel-insurance page) -- now site-wide too, so it is guarded here rather than duplicated
+   on that page as well as here. #}
+{% if ANALYTICS_ENABLED %}
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id={{ GA4_ID }}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', {{ GA4_ID|tojson }});
+</script>
+
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer',{{ GTM_ID|tojson }});</script>
+<!-- End Google Tag Manager -->
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id={{ ADS2_ID }}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', {{ ADS2_ID|tojson }});
+</script>
+
+{% if ADS_ACCOUNT_ID %}
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id={{ ADS_ACCOUNT_ID }}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', {{ ADS_ACCOUNT_ID|tojson }});
+</script>
+{% endif %}
+{% endif %}
+<meta name="google-site-verification" content="{{ GOOGLE_SITE_VERIFICATION }}"/>
