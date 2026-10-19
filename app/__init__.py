@@ -522,6 +522,14 @@ def create_app(test_config=None):
     from app import cli
     cli.register(app)
 
+    # A global, not a context value: the delete macros (admin/_hard_delete.html) are imported without
+    # context, and must hide themselves from everybody but a Super admin wherever they are used.
+    def _can_delete():
+        from flask_login import current_user
+        from app.services import access
+        return access.can(current_user, 'delete_records')
+    app.jinja_env.globals['CAN_DELETE'] = _can_delete
+
     # ---- i18n: Flask-Babel renders the curated translations server-side; the Google
     # Translate widget stays on as a fallback for strings we have not translated yet.
     from flask_babel import Babel
@@ -610,6 +618,9 @@ def create_app(test_config=None):
             'STAFF_NAV': lambda active=None: access.nav(current_user, active),
             'CAN': lambda page: access.can(current_user, page),
             'WORKSPACE': lambda: access.current_workspace(current_user),
+            # the account menu's "Working as": the roles one can take, and the one taken (None: everything)
+            'ROLE_CHOICES': lambda: access.roles_to_act(current_user),
+            'ACTING': lambda: access.acting_role(current_user),
             'CS_ACCESS': cs_access,
             # The function, not the counts: only a staff sidebar calls it, so a public page
             # never runs the queries behind it.

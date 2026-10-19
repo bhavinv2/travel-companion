@@ -8,7 +8,8 @@
 
    Gate every call on `can_delete` (the screen's own flag) or current_user.is_admin: the server
    refuses a CS agent with a 403 either way, but an agent should never be shown a button that
-   cannot work.
+   cannot work. On top of that every macro draws nothing unless CAN_DELETE() -- deleting for good
+   is a Super admin's alone (services/access.SUPER_ONLY), whatever a screen's own flag says.
 
    Mark the row the record is drawn in with data-hd-row="<kind>-<id>" so it disappears when the
    delete succeeds; a second row that belongs to it (a notes row under a booking) gets
@@ -21,26 +22,34 @@
    redirect: where to go once it is gone, for a page whose subject it was #}
 
 {% macro del_btn(kind, id, what, tier='confirm', label='', detail='', redirect='') -%}
+{%- if CAN_DELETE() -%}
 <button type="button" class="btn-sm danger hd-del" data-hd-kind="{{ kind }}" data-hd-id="{{ id }}"
         data-hd-what="{{ what }}" data-hd-tier="{{ tier }}"
         {%- if detail %} data-hd-detail="{{ detail }}"{% endif %}
         {%- if redirect %} data-hd-redirect="{{ redirect }}"{% endif %} title="Delete permanently"
         aria-label="Delete {{ what }} permanently"><i class="fa-solid fa-trash-can"></i>{% if label %} {{ label }}{% endif %}</button>
+{%- endif -%}
 {%- endmacro %}
 
 {% macro row_check(kind, id) -%}
+{%- if CAN_DELETE() -%}
 <input type="checkbox" class="hd-check" data-hd-kind="{{ kind }}" value="{{ id }}" aria-label="Select #{{ id }}"/>
+{%- endif -%}
 {%- endmacro %}
 
 {% macro select_all(kind) -%}
+{%- if CAN_DELETE() -%}
 <input type="checkbox" class="hd-all" data-hd-kind="{{ kind }}" aria-label="Select all on this page"/>
+{%- endif -%}
 {%- endmacro %}
 
 {# noun is plural: "enquiries", "bookings" #}
 {% macro bulk_bar(kind, noun) -%}
+{%- if CAN_DELETE() -%}
 <div class="bulk-select-bar hd-bulk" data-hd-kind="{{ kind }}" style="display:none">
   <strong class="hd-count">0</strong> selected
   <button type="button" class="btn-sm danger hd-bulk-del" data-hd-kind="{{ kind }}" data-hd-noun="{{ noun }}">
     <i class="fa-solid fa-trash-can"></i> Delete selected</button>
 </div>
+{%- endif -%}
 {%- endmacro %}

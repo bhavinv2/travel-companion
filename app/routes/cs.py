@@ -401,8 +401,8 @@ def report_action(report_id, action):
         if report.match:
             report.match.needs_cs_attention = True
     elif action == 'delete':
-        if not current_user.is_admin:
-            return jsonify({'error': 'Only an admin can delete a report.'}), 403
+        if not access.can(current_user, 'delete_records'):
+            return jsonify({'error': 'Only a Super admin can delete a report.'}), 403
         # the registry's delete: it also takes the match out of the CS queue when this was its
         # last open report, which a bare delete left stuck there
         from app.services import admin_delete

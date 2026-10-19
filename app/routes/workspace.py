@@ -110,63 +110,116 @@ def save_settings():
 
 # ------------------------------------------------------------------------------ members
 
+def _person(u):
+    """An account as the add form's people picker shows it."""
+    return {'id': u.id, 'name': u.full_name or u.username, 'email': u.email or '', 'username': u.username or '',
+            'staff': bool(u.is_admin or u.is_cs)}
+
+
 @workspace_bp.route('/members')
 @staff_page
 def members():
-    """Team members. ?add=1 opens the add form; ?email= (or an address in ?add=) fills it in -- Users
-    sends somebody here to add a member of staff."""
+    """Team members. ?add=1 opens the add form; ?email= (or an address in ?add=) fills in the invite, and
+    ?user=<id> (repeatable) picks existing accounts -- Users sends people here to add them."""
     ws = _ws()
     rows = sorted(ws.members, key=lambda m: (not m.is_owner, (m.user.full_name or m.user.email or '').lower()))
     teams = {m.id: access.teams_of(m) for m in rows}
     add = request.args.get('add', '')
     prefill = (request.args.get('email') or (add if '@' in add else '')).strip()[:254]
-    return render_template('workspace/members.html', ws=ws, rows=rows, teams=teams, prefill=prefill,
-                           open_add=bool(add or prefill), can_open={m.id: access.can_open_summary(m) for m in rows})
+    have = {m.user_id for m in rows}
+    ids = [int(i) for i in request.args.getlist('user') if i.isdigit()][:100]
+    picked = [_person(u) for u in User.query.filter(User.id.in_(ids), User.is_active.is_(True)).all()
+              if u.id not in have] if ids else []
+    return render_template('workspace/members.html', ws=ws, rows=rows, teams=teams, prefill=prefill, picked=picked,
+                           open_add=bool(add or prefill or ids), can_open={m.id: access.can_open_summary(m) for m in rows})
+
+
+@workspace_bp.route('/members/find')
+@staff_page
+def member_search():
+    """The add form's people picker: active accounts that are not in this workspace yet, by name, username,
+    e-mail or phone -- travellers too, since anybody with an account can be made a member of staff."""
+    from sqlalchemy import and_, or_
+    from app.services import phone as phone_svc
+    ws = _ws()
+    q = ' '.join((request.args.get('q') or '').split())[:80]
+    if len(q) < 2:
+        return jsonify({'items': []})
+    pat = '%%%s%%' % q
+    conds = [User.username.ilike(pat), User.email.ilike(pat), User.first_name.ilike(pat), User.last_name.ilike(pat),
+             phone_svc.matches(User.phone, q)]
+    words = q.split()
+    if len(words) > 1:
+        conds.append(and_(User.first_name.ilike('%%%s%%' % words[0]), User.last_name.ilike('%%%s%%' % words[-1])))
+    have = {m.user_id for m in ws.members}
+    found = (User.query.filter(or_(*conds), User.is_active.is_(True))
+             .order_by(User.first_name, User.username).limit(40).all())
+    return jsonify({'items': [_person(u) for u in found if u.id not in have][:20]})
 
 
 @workspace_bp.route('/members/add', methods=['POST'])
 @staff_page
 def add_member():
-    """Add somebody by e-mail. An existing account joins; a new address gets a staff account
-    and, if asked, the set-password e-mail."""
+    """Add people: accounts picked from the site's users (user_ids -- a traveller account becomes staff as well,
+    keeping its own roles), and/or one e-mail address -- an existing account joins, a new address gets a staff
+    account and, if asked, the set-password e-mail. Everybody added gets the same role and teams."""
     from app.routes.auth import EMAIL_RE
     from app.services import mailer, tokens
     ws = _ws()
-    email = (request.form.get('email') or '').strip().lower()
-    if not EMAIL_RE.match(email):
-        flash('Enter the e-mail address of the person to add.', 'warning')
-        return redirect(url_for('workspace.members'))
+    back = url_for('workspace.members', add=1)
     role = _role_or_none(ws, request.form.get('role_id'))
     teams = _teams_from(ws, request.form.getlist('team_ids'))
-    user = User.query.filter(db.func.lower(User.email) == email).first()
-    created = user is None
-    if created:
-        first = (request.form.get('first_name') or '').strip()[:60] or None
-        base = ''.join(ch for ch in email.split('@')[0] if ch.isalnum() or ch in '._')[:24] or 'staff'
-        username, n = base, 2
-        while User.query.filter(db.func.lower(User.username) == username.lower()).first():
-            username, n = '%s%d' % (base[:22], n), n + 1
-        user = User(email=email, username=username, first_name=first, is_verified=True)
-        user.set_password(secrets.token_urlsafe(18))
-        user.set_roles(['cs'])
-        db.session.add(user)
-        db.session.flush()
-    elif WorkspaceMember.query.filter_by(workspace_id=ws.id, user_id=user.id).first():
-        flash('%s is already a member.' % email, 'info')
-        return redirect(url_for('workspace.members'))
-    access.add_member(ws, user, role=role, teams=teams, by=current_user)
-    _log('workspace_member_added', workspace=ws.id, user_id=user.id, role=role.name if role else None)
+    ids = {int(i) for i in request.form.getlist('user_ids') if str(i).isdigit()}
+    people = User.query.filter(User.id.in_(ids), User.is_active.is_(True)).order_by(User.id).all() if ids else []
+    email = (request.form.get('email') or '').strip().lower()
+    if email and not EMAIL_RE.match(email):
+        flash('That e-mail address does not look right.', 'warning')
+        return redirect(back)
+    if not people and not email:
+        flash('Pick somebody from the list, or enter the e-mail address of a new person.', 'warning')
+        return redirect(back)
+    created = None
+    if email:
+        user = User.query.filter(db.func.lower(User.email) == email).first()
+        if user is None:
+            first = (request.form.get('first_name') or '').strip()[:60] or None
+            base = ''.join(ch for ch in email.split('@')[0] if ch.isalnum() or ch in '._')[:24] or 'staff'
+            username, n = base, 2
+            while User.query.filter(db.func.lower(User.username) == username.lower()).first():
+                username, n = '%s%d' % (base[:22], n), n + 1
+            user = User(email=email, username=username, first_name=first, is_verified=True)
+            user.set_password(secrets.token_urlsafe(18))
+            user.set_roles(['cs'])
+            db.session.add(user)
+            db.session.flush()
+            created = user
+        if all(p.id != user.id for p in people):
+            people.append(user)
+    have = {m.user_id for m in WorkspaceMember.query.filter_by(workspace_id=ws.id)}
+    added, already = [], []
+    for u in people:
+        if u.id in have:
+            already.append(u)
+            continue
+        _log('workspace_member_added', workspace=ws.id, user_id=u.id, role=role.name if role else None)
+        access.add_member(ws, u, role=role, teams=teams, by=current_user)
+        added.append(u)
     db.session.commit()
     sent = False
-    if created and request.form.get('send_link'):
-        link = url_for('auth.reset_password', token=tokens.make_reset_token(user), _external=True)
-        sent = mailer.send('[NRI Parent Service] You have been added to %s' % ws.name, [email],
+    if created is not None and created in added and request.form.get('send_link'):
+        link = url_for('auth.reset_password', token=tokens.make_reset_token(created), _external=True)
+        sent = mailer.send('[NRI Parent Service] You have been added to %s' % ws.name, [created.email],
                            'Hello %s,\n\n%s added you to the %s workspace on NRI Parent Service.\n'
                            'Set your password here: %s\n\nSign in: %s'
-                           % (user.first_name or user.username, current_user.full_name or 'An admin', ws.name,
+                           % (created.first_name or created.username, current_user.full_name or 'An admin', ws.name,
                               link, url_for('auth.login', _external=True)),
                            category='account', account=True)
-    flash('%s added%s.' % (email, ' and sent a set-password e-mail' if sent else ''), 'success')
+    name = lambda u: u.full_name or u.username or u.email                             # noqa: E731
+    if added:
+        flash('Added %s%s.' % (', '.join(name(u) for u in added), ' and sent a set-password e-mail' if sent else ''),
+              'success')
+    if already:
+        flash('Already a member: %s.' % ', '.join(name(u) for u in already), 'info')
     return redirect(url_for('workspace.members'))
 
 
@@ -403,7 +456,8 @@ def role(role_id):
     chosen = access.role_pages(r) if r else (access.role_pages(copy_of) if copy_of else frozenset())
     on = set(access.enabled_modules(ws))
     modules = [{'key': m['key'], 'label': m['label'], 'icon': m['icon'], 'desc': m.get('desc', ''), 'on': m['key'] in on,
-                'pages': [p for p in m['pages'] if not p['with']]} for m in access.MODULES]
+                'pages': [p for p in m['pages'] if not p['with'] and p['key'] not in access.SUPER_ONLY]}
+               for m in access.MODULES]
     return render_template('workspace/role.html', ws=ws, r=r, modules=modules, chosen=chosen,
                            copy_of=copy_of, locked=bool(r and r.system_key == 'admin'))
 

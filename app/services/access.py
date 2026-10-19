@@ -63,7 +63,7 @@ MATCHES = ('matches.cs_match_queue', 'matches.cs_matches', 'matches.cs_notify', 
 
 SCRAPER = tuple('scraper.' + n for n in (
     'recipes', 'new_recipe', 'new_recipe_detect', 'use_source', 'start_teach', 'recipe_form', 'preview_recipe',
-    'mapping', 'mapping_preview', 'recipe_runs', 'start_run', 'toggle_recipe', 'delete_recipe', 'run_detail',
+    'mapping', 'mapping_preview', 'recipe_runs', 'start_run', 'toggle_recipe', 'run_detail',
     'run_status', 'cancel_run', 'create_posts', 'skip_rows', 'row_detail', 'row_edit', 'export_run',
     'export_recipe'))
 
@@ -233,8 +233,8 @@ MODULES = [
                admin='admin.users'),
          _page('options', 'Options & dropdowns', 'fa-sliders',
                ['admin.options_page', 'admin.translations_list', 'admin.translations_save', 'admin.save_options',
-                'admin.reset_options', 'admin.airports_search', 'admin.airports_add', 'admin.airports_delete',
-                'admin.airlines_search', 'admin.airlines_add', 'admin.airlines_delete'],
+                'admin.reset_options', 'admin.airports_search', 'admin.airports_add',
+                'admin.airlines_search', 'admin.airlines_add'],
                admin='admin.options_page'),
          _page('messages', 'Trip post texts & e-mails', 'fa-envelope-open-text',
                ['admin.messages_page', 'admin.test_email', 'admin.save_message', 'admin.reset_message',
@@ -242,17 +242,19 @@ MODULES = [
                admin='admin.messages_page'),
          _page('notiflog', 'Notification log', 'fa-bell',
                ['admin.notification_log', 'admin.notification_log_send', 'admin.notification_log_read',
-                'admin.notification_log_delete', 'admin.notification_log_delete_matching', 'admin.broadcast'],
+                'admin.broadcast'],
                admin='admin.notification_log'),
          _page('notify_switches', 'Notification switches', 'fa-bell-slash', ['admin.notification_switches'],
                admin='admin.notification_switches'),
          _page('themes', 'Colour themes', 'fa-palette', ['admin.themes_page'], admin='admin.themes_page'),
          _page('delete_records', 'Delete records permanently', 'fa-trash-can',
                ['admin.hard_delete', 'admin.hard_delete_bulk', 'admin.delete_user', 'admin.bulk_delete_users',
-                'admin.delete_listing', 'admin.bulk_delete_listings', 'crm.contact_erase', 'admin_crm.contact_erase'],
+                'admin.delete_listing', 'admin.bulk_delete_listings', 'crm.contact_erase', 'admin_crm.contact_erase',
+                'admin.notification_log_delete', 'admin.notification_log_delete_matching', 'admin.airports_delete',
+                'admin.airlines_delete', 'scraper.delete_recipe'],
                nav=False, desc=('The bin buttons on every list, and Erase this person on a contact page. '
-                                'Nothing deleted this way can be brought back.'),
-               deny='Only an admin can delete this.'),
+                                'Nothing deleted this way can be brought back. Super admins only.'),
+               deny='Only a Super admin can delete this.'),
      ]},
     {'key': 'workspace', 'label': 'Team', 'icon': 'fa-people-group', 'required': True,
      'desc': 'Team members, teams, roles and the areas this workspace uses.',
@@ -261,8 +263,8 @@ MODULES = [
                ['workspace.overview', 'workspace.save_settings', 'workspace.whatsapp'],
                admin='workspace.overview', tip='Business name and the areas you use.'),
          _page('ws_members', 'Team members', 'fa-user-gear',
-               ['workspace.members', 'workspace.add_member', 'workspace.member', 'workspace.save_member',
-                'workspace.remove_member', 'admin.cs_agents', 'admin.cs_screen_access'],
+               ['workspace.members', 'workspace.add_member', 'workspace.member_search', 'workspace.member',
+                'workspace.save_member', 'workspace.remove_member', 'admin.cs_agents', 'admin.cs_screen_access'],
                admin='workspace.members', tip='Who works here, their role and teams.'),
          _page('ws_teams', 'Teams', 'fa-people-group',
                ['workspace.teams', 'workspace.team', 'workspace.save_team', 'workspace.delete_team'],
@@ -385,6 +387,12 @@ NEW_IN_ONE_MENU = frozenset({'crm_people', 'crm_quick', 'crm_pipelines', 'crm_so
 RESERVED_PAGES = frozenset()
 # the Team lead role: Sales & service plus these
 TEAM_LEAD_EXTRA = frozenset({'crm_tracker', 'crm_insights', 'crm_auto', 'wa_broadcasts'})
+# Deleting for good belongs to the Super admin account role (Users screen), whatever any workspace role says:
+# these pages are taken out of every role -- Administrator too -- and given to Super admins alone.
+SUPER_ROLE = 'superadmin'
+SUPER_ONLY = frozenset({'delete_records'})
+# the role somebody chose to work as (header menu), by id; none = everything they have
+ACT_KEY = 'act_role'
 
 
 def expand_page_keys(keys):
@@ -514,24 +522,48 @@ def _member_pages(member):
     ws = member.workspace
     within = module_pages(enabled_modules(ws))
     if member.is_owner:
-        return within
+        return within - SUPER_ONLY
     pages = set(role_pages(member.role))
-    teams = (WorkspaceTeam.query.join(workspace_team_members, workspace_team_members.c.team_id == WorkspaceTeam.id)
-             .filter(WorkspaceTeam.workspace_id == ws.id, workspace_team_members.c.user_id == member.user_id).all())
-    for t in teams:
+    for t in _teams(member):
         pages |= role_pages(t.role)
-    return _implied(frozenset(pages) & within)
+    return _implied(frozenset(pages) & within) - SUPER_ONLY
+
+
+def _teams(member):
+    """The teams of the member's workspace they are in (one query)."""
+    from app.models import WorkspaceTeam, workspace_team_members
+    return (WorkspaceTeam.query.join(workspace_team_members, workspace_team_members.c.team_id == WorkspaceTeam.id)
+            .filter(WorkspaceTeam.workspace_id == member.workspace_id,
+                    workspace_team_members.c.user_id == member.user_id).all())
+
+
+def is_super(user):
+    """A Super admin: the only people who delete for good."""
+    return _authed(user) and SUPER_ROLE in (user.role_keys or ())
+
+
+def _super(user, pages):
+    return (pages | SUPER_ONLY) if is_super(user) else (pages - SUPER_ONLY)
+
+
+def _role_only(role):
+    """Exactly one role's pages in its workspace (somebody working as it): never a Super admin's."""
+    return _implied(role_pages(role) & module_pages(enabled_modules(role.workspace))) - SUPER_ONLY
 
 
 def pages_for(user, ws=None):
-    """The page keys this person may open in `ws` (default: the current workspace)."""
+    """The page keys this person may open in `ws` (default: the current workspace). Somebody working as one
+    of their roles (acting_role) gets just that role's pages."""
     if not _authed(user):
         return frozenset()
+    act = acting_role(user)
+    if act is not None and (ws is None or ws.id == act.workspace_id):
+        return _role_only(act)
     if user.is_admin:
-        return ALL_PAGES
+        return _super(user, ALL_PAGES)
     mems = memberships(user)
     if not mems:
-        return _legacy_pages(user)
+        return _super(user, _legacy_pages(user))
     ws = ws or current_workspace(user)
     if ws is None:
         return frozenset()
@@ -540,23 +572,77 @@ def pages_for(user, ws=None):
     if key not in c:
         m = next((m for m in mems if m.workspace_id == ws.id), None)
         c[key] = _member_pages(m) if m else frozenset()
-    return c[key]
+    return _super(user, c[key])
 
 
 def pages_anywhere(user):
     """Everything this person may open in any of their workspaces -- for "who should hear about
-    this", where the answer cannot depend on which workspace they happen to have open."""
+    this", where the answer cannot depend on which workspace they happen to have open (nor on the
+    role they are working as just now)."""
     if not _authed(user):
         return frozenset()
     if user.is_admin:
-        return ALL_PAGES
+        return _super(user, ALL_PAGES)
     mems = memberships(user)
     if not mems:
-        return _legacy_pages(user)
+        return _super(user, _legacy_pages(user))
     out = set()
     for m in mems:
         out |= _member_pages(m)
-    return frozenset(out)
+    return _super(user, frozenset(out))
+
+
+def roles_to_act(user):
+    """The roles somebody can work as in their current workspace: a site admin or the owner any of them,
+    anybody else their own role and their teams' roles -- only when that is more than one, since with one
+    there is nothing to switch to."""
+    if not _authed(user):
+        return []
+    c = _cache()
+    key = ('can_act', user.id)
+    if key in c:
+        return c[key]
+    ws = current_workspace(user)
+    m = next((m for m in memberships(user) if m.workspace_id == ws.id), None) if ws is not None else None
+    if ws is None:
+        roles = []
+    elif user.is_admin or (m is not None and m.is_owner):
+        roles = list(ws.roles)
+    elif m is None:
+        roles = []
+    else:
+        roles = [m.role] if m.role else []
+        for t in _teams(m):
+            if t.role is not None and t.role not in roles:
+                roles.append(t.role)
+        roles = roles if len(roles) > 1 else []
+    c[key] = roles
+    return roles
+
+
+def acting_role(user):
+    """The role this person chose to work as (header menu), or None for everything they have. A choice that
+    no longer fits -- another workspace, a role taken away -- is simply not used."""
+    if not has_request_context() or not _authed(user):
+        return None
+    rid = session.get(ACT_KEY)
+    if not rid:
+        return None
+    c = _cache()
+    key = ('act', user.id)
+    if key not in c:
+        c[key] = next((r for r in roles_to_act(user) if r.id == rid), None)
+    return c[key]
+
+
+def act_as(role):
+    """Work as `role` from the next page on; None goes back to everything."""
+    if has_request_context():
+        if role is None:
+            session.pop(ACT_KEY, None)
+        else:
+            session[ACT_KEY] = role.id
+        _cache().clear()
 
 
 def is_staff(user):
@@ -589,8 +675,10 @@ def allowed(user, endpoint, fallback=None):
         return bool(fallback(user)) if fallback else True
     if owners & pages_for(user):
         return True
+    if acting_role(user) is not None:          # working as one role: nothing else of theirs counts
+        return False
     for m in memberships(user):
-        if owners & _member_pages(m):
+        if owners & _super(user, _member_pages(m)):
             set_current_workspace(m.workspace)
             return True
     return False
@@ -600,9 +688,12 @@ def allowed(user, endpoint, fallback=None):
 
 def current_console(user=None):
     """Which console's copy a menu link should open. Only site admins live in /admin; everybody
-    else stays in /cs and reaches an admin-only screen there when their role gives them one."""
-    if user is not None and _authed(user) and not user.is_admin:
-        return 'cs'
+    else stays in /cs and reaches an admin-only screen there when their role gives them one -- a
+    site admin working as another role too, so they see that role's screens as its people do."""
+    if user is not None and _authed(user):
+        act = acting_role(user)
+        if not user.is_admin or (act is not None and act.system_key != 'admin'):
+            return 'cs'
     if has_request_context() and request.blueprint in ADMIN_SIDE:
         return 'admin'
     return 'cs'
@@ -821,7 +912,7 @@ def menu_for_role(ws, role, layout):
     """The menu somebody whose only role is `role` would see with `layout` (the Menu builder's preview)."""
     on = set(enabled_modules(ws))
     admin = role is not None and role.system_key == 'admin'
-    pages = module_pages(on) if admin else _implied(role_pages(role) & module_pages(on))
+    pages = _role_only(role) if role is not None else frozenset()
     return _menu(layout, pages, on, None, 'admin' if admin else 'cs')
 
 
@@ -829,7 +920,8 @@ def home_url(user):
     """Where a staff account lands: site owners on Results (the site dashboard when Sales is off),
     people who work leads on My day, customer service on Service to-do, anybody else on the first
     page in the menu their roles give them."""
-    if user.is_admin:                                          # a site owner
+    act = acting_role(user)
+    if user.is_admin and (act is None or act.system_key == 'admin'):          # a site owner
         return url_for('admin_crm.insights' if 'crm' in enabled_modules(current_workspace(user))
                        else 'admin.dashboard')
     pages = pages_for(user)
@@ -976,6 +1068,8 @@ def ensure_defaults():
             else:
                 continue
             db.session.add(WorkspaceMember(workspace_id=ws.id, user_id=u.id, role_id=role.id, is_owner=owner))
+            if owner and not any(s.is_super for s in staff):     # somebody must be able to delete for good
+                u.set_roles(u.role_keys + [SUPER_ROLE])
         db.session.commit()
     except Exception:          # noqa: BLE001 -- two workers racing to make it: the other one won
         db.session.rollback()
@@ -1088,7 +1182,8 @@ def clean_pages(keys, keep=()):
     (what the role held) that a later step reserves -- the form cannot show them, so a save must
     not drop them."""
     wanted = set(keys or [])
-    out = [p['key'] for m in MODULES for p in m['pages'] if p['key'] in wanted and not p['with']]
+    out = [p['key'] for m in MODULES for p in m['pages']
+           if p['key'] in wanted and not p['with'] and p['key'] not in SUPER_ONLY]
     return out + [k for k in (keep or ()) if k in RESERVED_PAGES and k not in out]
 
 

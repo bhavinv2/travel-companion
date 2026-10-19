@@ -71,6 +71,23 @@ def switch_view(view):
     return redirect(staff_home(current_user))
 
 
+@main_bp.route('/work-as/<int:role_id>')
+@login_required
+def work_as(role_id):
+    """Account menu, "Working as": see and work exactly as one of your roles (access.roles_to_act) until you
+    switch back; role_id 0 is everything your roles give you again."""
+    from app.services import access
+    role = next((r for r in access.roles_to_act(current_user) if r.id == role_id), None) if role_id else None
+    if role_id and role is None:
+        flash('You cannot work as that role here.', 'warning')
+    else:
+        access.act_as(role)
+        session.pop('view', None)              # working as a staff role is the staff view
+        flash('You are working as %s. Switch back from your account menu.' % role.name if role
+              else 'Back to everything your roles give you.', 'info')
+    return redirect(access.home_url(current_user) if access.is_staff(current_user) else url_for('main.index'))
+
+
 def _landing_structured_data(landing_faqs, review_stats):
     """JSON-LD for the public landing: WebSite + Organization + WebPage + Service (the standard
     brand-identity graph our SEO reviewer asked for), plus FAQPage (mirrors the on-page accordion

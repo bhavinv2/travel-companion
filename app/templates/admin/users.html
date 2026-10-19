@@ -34,7 +34,8 @@
 
     <div class="bulk-select-bar" id="userBulkBar" style="display:none">
       <strong id="userBulkCount">0</strong> selected
-      <button type="button" class="btn-sm danger" id="userBulkDeleteBtn"><i class="fa-solid fa-trash-can"></i> Delete selected</button>
+      {% if CAN('ws_members') %}<button type="button" class="btn-sm" id="userBulkTeamBtn" data-to="{{ url_for('workspace.members', add=1) }}"><i class="fa-solid fa-user-plus"></i> Add selected to the team</button>{% endif %}
+      {% if CAN('delete_records') %}<button type="button" class="btn-sm danger" id="userBulkDeleteBtn"><i class="fa-solid fa-trash-can"></i> Delete selected</button>{% endif %}
     </div>
 
     <div class="table-wrap">
@@ -66,20 +67,26 @@
               <br/><small class="muted">you — ask another admin to change your roles</small>
               <br/><label class="owner-switch" title="Site owners can open every page and change every setting.">
                 <input type="checkbox" disabled{{ ' checked' if user.is_admin }}/> Site owner</label>
+              <br/><label class="owner-switch" title="Super admins are the only people who can delete for good.">
+                <input type="checkbox" disabled{{ ' checked' if user.is_super }}/> Super admin</label>
             {% elif user.is_cs or user.id in member_of %}
               {# staff: what they open is their role and teams in Team members; here only "Site owner" #}
               {% for k in user.role_keys %}<span class="badge-pill green">{{ role_labels.get(k, k) }}</span> {% endfor %}
-              <br/><a href="{{ url_for('workspace.member', member_id=member_of[user.id]) if user.id in member_of else url_for('workspace.members', add=1, email=user.email) }}">Change in Team members</a>
+              {% if user.id in member_of %}<br/><a href="{{ url_for('workspace.member', member_id=member_of[user.id]) }}">Change in Team members</a>
+              {% else %}<br/><a href="{{ url_for('workspace.members', add=1, user=user.id) }}#add"><i class="fa-solid fa-user-plus"></i> Add to the team</a>{% endif %}
               <br/><label class="owner-switch" title="Site owners can open every page and change every setting.">
-                <input type="checkbox" data-owner="{{ user.id }}" data-roles='{{ user.role_keys|tojson|forceescape }}'{{ ' checked' if user.is_admin }}/> Site owner</label>
+                <input type="checkbox" data-owner="{{ user.id }}" data-roles='{{ user.role_keys|tojson|forceescape }}'{{ ' checked' if user.is_admin }}{{ ' disabled' if user.is_super and not current_user.is_super }}/> Site owner</label>
+              <br/><label class="owner-switch" title="{{ 'Super admins are the only people who can delete for good.' if current_user.is_super else 'Only a Super admin can change this.' }}">
+                <input type="checkbox" data-super="{{ user.id }}" data-roles='{{ user.role_keys|tojson|forceescape }}'{{ ' checked' if user.is_super }}{{ ' disabled' if not current_user.is_super }}/> Super admin</label>
             {% else %}
               {# A multi-select: searchselect.js turns it into a dropdown with tick boxes and an
                  "N selected" label, and still dispatches change, so roles save exactly as before. #}
               <select multiple class="role-select" id="roles-{{ user.id }}" data-placeholder="No roles"
                       onchange="setRoles({{ user.id }})">
-                {% for r in roles %}<option value="{{ r.key }}" {% if r.key in user.role_keys %}selected{% endif %}>{{ role_labels.get(r.key, r.key) }}</option>{% endfor %}
+                {% for r in roles if r.key != 'superadmin' or current_user.is_super %}<option value="{{ r.key }}" {% if r.key in user.role_keys %}selected{% endif %}>{{ role_labels.get(r.key, r.key) }}</option>{% endfor %}
               </select>
               <small class="muted" id="level-{{ user.id }}">access: {{ user.effective_role }}</small>
+              {% if CAN('ws_members') and user.is_active %}<br/><a href="{{ url_for('workspace.members', add=1, user=user.id) }}#add"><i class="fa-solid fa-user-plus"></i> Add to the team</a>{% endif %}
             {% endif %}
           </td>
           <td data-label="Active"><span class="badge-pill {{ 'green' if user.is_active else 'red' }}">{{ 'Active' if user.is_active else 'Inactive' }}</span></td>
@@ -89,7 +96,7 @@
               {{ 'Disable' if user.is_active else 'Enable' }}
             </button>
             {# data-* rather than an inline onclick: a username with quotes would break the attribute #}
-            <button type="button" class="btn-sm danger user-del" data-id="{{ user.id }}" data-label="{{ user.username }}" title="Delete permanently"><i class="fa-solid fa-trash-can"></i></button>
+            {% if CAN('delete_records') %}<button type="button" class="btn-sm danger user-del" data-id="{{ user.id }}" data-label="{{ user.username }}" title="Delete permanently"><i class="fa-solid fa-trash-can"></i></button>{% endif %}
             {% endif %}
           </td>
         </tr>
@@ -126,9 +133,33 @@ document.addEventListener('change', e => {
   fetch(`/admin/users/${box.dataset.owner}/roles`, { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN}, body: JSON.stringify({ roles }) })
     .then(r => r.json()).then(d => {
       if (d.error) { box.checked = !box.checked; return showToast(d.error, 'danger'); }
-      box.dataset.roles = JSON.stringify(d.roles);
+      const row = box.closest('tr');
+      row.querySelectorAll('[data-roles]').forEach(b => { b.dataset.roles = JSON.stringify(d.roles); });
+      const sup = row.querySelector('[data-super]');
+      if (sup) sup.checked = d.roles.includes('superadmin');
       showToast(box.checked ? 'Site owner: they can open every page now.'
                             : 'No longer a site owner. What they can open comes from Team members.', 'success');
+    });
+});
+// "Super admin" (only a Super admin may change it): on adds superadmin (and admin, so turning it off leaves a
+// site owner); off takes superadmin away and nothing else
+document.addEventListener('change', e => {
+  const box = e.target.closest('[data-super]');
+  if (!box) return;
+  let roles = JSON.parse(box.dataset.roles || '[]');
+  if (box.checked) {
+    ['admin', 'superadmin'].forEach(k => { if (!roles.includes(k)) roles.push(k); });
+  } else {
+    roles = roles.filter(k => k !== 'superadmin');
+  }
+  fetch(`/admin/users/${box.dataset.super}/roles`, { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN}, body: JSON.stringify({ roles }) })
+    .then(r => r.json()).then(d => {
+      if (d.error) { box.checked = !box.checked; return showToast(d.error, 'danger'); }
+      const row = box.closest('tr');
+      row.querySelectorAll('[data-roles]').forEach(b => { b.dataset.roles = JSON.stringify(d.roles); });
+      const owner = row.querySelector('[data-owner]');
+      if (owner) owner.checked = d.level === 'admin';
+      showToast(box.checked ? 'Super admin: they can delete for good now.' : 'No longer a Super admin: they cannot delete.', 'success');
     });
 });
 function setRoles(userId) {
@@ -159,6 +190,14 @@ document.addEventListener('click', e => {
 wireBulkSelect('userSelectAll', '.user-select', ids => {
   document.getElementById('userBulkBar').style.display = ids.length ? 'flex' : 'none';
   document.getElementById('userBulkCount').textContent = ids.length;
+});
+// the ticked accounts, already picked, on Team members' add form
+document.getElementById('userBulkTeamBtn')?.addEventListener('click', e => {
+  const ids = [...document.querySelectorAll('.user-select:checked')].map(i => +i.value);
+  if (!ids.length) return;
+  const to = new URL(e.currentTarget.dataset.to, location.href);
+  ids.forEach(id => to.searchParams.append('user', id));
+  location.href = to.pathname + to.search + '#add';
 });
 document.getElementById('userBulkDeleteBtn')?.addEventListener('click', () => {
   const ids = [...document.querySelectorAll('.user-select:checked')].map(i => +i.value);

@@ -43,6 +43,9 @@ DEFAULT_USER_ROLES = [
     {'key': 'user', 'label': 'Traveller', 'level': 'user', 'builtin': True},
     {'key': 'cs', 'label': 'Customer service', 'level': 'cs', 'builtin': True},
     {'key': 'admin', 'label': 'Administrator', 'level': 'admin', 'builtin': True},
+    # an Administrator who may also delete for good (services/access.SUPER_ONLY); only a Super admin
+    # gives it or takes it away (admin.set_user_roles)
+    {'key': 'superadmin', 'label': 'Super admin', 'level': 'admin', 'builtin': True},
     # Promotion, not support: traveller level on purpose. It opens one read-only dashboard of
     # counts and published reviews and nothing else, so it must not carry CS access -- the CS
     # console shows enquirers' names, e-mail addresses and phone numbers, which is not something
@@ -210,7 +213,10 @@ def rows(name):
 
 
 def role_defs():
-    return get_list('roles')
+    """The roles accounts can hold: the saved list, plus any built-in role added since it was saved."""
+    out = get_list('roles')
+    have = {r['key'] for r in out}
+    return out + [dict(r) for r in DEFAULT_USER_ROLES if r['key'] not in have]
 
 
 def role_level(key):

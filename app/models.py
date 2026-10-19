@@ -175,6 +175,11 @@ class User(UserMixin, db.Model):
         return 'user' in self.role_levels
 
     @property
+    def is_super(self):
+        """A Super admin: an Administrator who may also delete for good (services/access.SUPER_ONLY)."""
+        return 'superadmin' in self.role_keys
+
+    @property
     def effective_role(self):
         if self.is_admin:
             return 'admin'

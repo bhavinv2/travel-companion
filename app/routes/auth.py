@@ -523,6 +523,7 @@ def logout():
     """
     logout_user()
     session.pop('view', None)
+    session.pop('act_role', None)
     flash('You have been logged out.', 'info')
     return redirect(url_for('main.index'))
 

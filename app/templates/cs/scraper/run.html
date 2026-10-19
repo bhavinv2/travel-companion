@@ -61,7 +61,7 @@
         <button type="submit" class="btn btn-primary" data-action="create" data-url="{{ url_for('scraper.create_posts', run_id=run.id) }}" data-needs-selection {% if not counts.get('new', 0) %}disabled{% endif %}><i class="fa-solid fa-plus"></i> Create posts</button>
         <button type="submit" class="btn-sm" data-action="skip" data-url="{{ url_for('scraper.skip_rows', run_id=run.id) }}" data-needs-selection>Skip</button>
         {# the ticked rows only, never "all new": a delete names exactly what it removes #}
-        <button type="button" class="btn-sm danger hd-bulk-del" data-hd-kind="scrape_row" data-hd-noun="scraped rows"><i class="fa-solid fa-trash-can"></i> Delete</button>
+        {% if CAN('delete_records') %}<button type="button" class="btn-sm danger hd-bulk-del" data-hd-kind="scrape_row" data-hd-noun="scraped rows"><i class="fa-solid fa-trash-can"></i> Delete</button>{% endif %}
         <span class="spacer"></span>
         <button type="button" class="btn-sm" data-action="export-selected" data-base="{{ url_for('scraper.export_run', run_id=run.id) }}" data-mapped="0"><i class="fa-solid fa-file-excel"></i> Export {{ 'selected' }} / run (raw)</button>
         <button type="button" class="btn-sm" data-action="export-selected" data-base="{{ url_for('scraper.export_run', run_id=run.id) }}" data-mapped="1"><i class="fa-solid fa-file-excel"></i> mapped</button>

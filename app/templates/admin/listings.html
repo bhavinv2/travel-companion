@@ -30,7 +30,7 @@
 
     <div class="bulk-select-bar" id="postBulkBar" style="display:none">
       <strong id="postBulkCount">0</strong> selected
-      <button type="button" class="btn-sm danger" id="postBulkDeleteBtn"><i class="fa-solid fa-trash-can"></i> Delete selected</button>
+      {% if CAN('delete_records') %}<button type="button" class="btn-sm danger" id="postBulkDeleteBtn"><i class="fa-solid fa-trash-can"></i> Delete selected</button>{% endif %}
     </div>
 
     <div class="table-wrap">
@@ -71,7 +71,7 @@
             <button class="btn-sm danger" onclick="disableListing({{ trip.id }})">Disable</button>
             {% endif %}
             {# data-* rather than an inline onclick: a route with quotes would break the attribute #}
-            <button type="button" class="btn-sm danger post-del" data-id="{{ trip.id }}" data-label="{{ trip.route_display }}" title="Delete permanently"><i class="fa-solid fa-trash-can"></i></button>
+            {% if CAN('delete_records') %}<button type="button" class="btn-sm danger post-del" data-id="{{ trip.id }}" data-label="{{ trip.route_display }}" title="Delete permanently"><i class="fa-solid fa-trash-can"></i></button>{% endif %}
           </td>
         </tr>
         {% else %}

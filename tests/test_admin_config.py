@@ -45,7 +45,8 @@ def test_multi_role_account_switches_between_staff_and_traveller_views(client, d
 
 
 def test_legacy_rows_and_default_roles(client, db, user, admin_user):
-    assert user.roles == ['user'] and admin_user.roles == ['admin']                 # filled on insert
+    plain_admin = make_user('admin2@test.com', 'admin2', role='admin')
+    assert user.roles == ['user'] and plain_admin.roles == ['admin']                # filled on insert
     legacy = User(email='old@test.com', username='old', role='cs', is_admin=False)
     legacy.set_password('password123')
     legacy.roles = None

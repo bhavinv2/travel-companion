@@ -104,7 +104,12 @@ def cs_user(app):
 
 @pytest.fixture()
 def admin_user(app):
-    return make_user('admin@test.com', 'admin', role='admin')
+    """The site's top account, as every live workspace's owner is: an Administrator who is also the Super
+    admin, the only kind of account that deletes for good. make_user(role='admin') is a plain Administrator."""
+    u = make_user('admin@test.com', 'admin', role='admin')
+    u.set_roles(['admin', 'superadmin'])
+    _db.session.commit()
+    return u
 
 
 def login(client, email, password='password123'):

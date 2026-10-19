@@ -145,6 +145,26 @@ body:has(.wa-frame-wrap) #whatsNew { display: none; }
   .wa-lead-panel { border-left: 0; border-top: 1px solid #e3e8f0; }
 }
 
+/* Team members -> Add: pick existing accounts (members.html) */
+.ws-pick { position: relative; max-width: 560px; }
+.ws-pick > i { position: absolute; left: 12px; top: 12px; color: var(--muted); font-size: 13px; pointer-events: none; }
+.ws-field .ws-pick input[type=search] { width: 100%; padding: 9px 12px 9px 34px; border: 1px solid #d7e6f6; border-radius: 10px; font-size: 14px; }
+.ws-pick-results { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30; background: #fff;
+  border: 1px solid #e3e8f0; border-radius: 10px; box-shadow: 0 14px 34px rgba(15,35,64,.14); max-height: 320px; overflow-y: auto; }
+.ws-pick-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'n tag' 's tag'; gap: 0 10px;
+  align-items: center; width: 100%; padding: 8px 12px; border: 0; background: none; text-align: left; cursor: pointer; font: inherit; }
+.ws-pick-item:hover, .ws-pick-item:focus { background: #f4f8fd; outline: none; }
+.ws-pick-item b { grid-area: n; font-size: 14px; color: var(--text); }
+.ws-pick-item small { grid-area: s; color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-pick-item .ws-pill { grid-area: tag; }
+.ws-pick-none { padding: 10px 12px; color: var(--muted); font-size: 13.5px; }
+.ws-picked { margin-top: 8px; }
+.ws-picked .ws-pill { padding: 4px 6px 4px 10px; }
+.ws-picked .ws-pill small { font-weight: 500; opacity: .75; }
+.ws-picked .ws-pill button { border: 0; background: none; cursor: pointer; font-size: 15px; line-height: 1; color: inherit; padding: 0 3px; }
+.ws-or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12.5px; margin: 4px 0 12px; }
+.ws-or::before, .ws-or::after { content: ''; flex: 1; height: 1px; background: #e3e8f0; }
+
 /* Menu builder (workspace/menu.html, static/js/menu-builder.js): sections and sub-menus as cards, lines that
    drag by their handle, and beside them the chosen role's menu drawn like the real dark sidebar */
 .mnu-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }

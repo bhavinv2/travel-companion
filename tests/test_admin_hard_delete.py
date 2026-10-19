@@ -147,7 +147,7 @@ def test_a_cs_agent_cannot_delete_anything(client, users, kind):
     login(client, 'cs@test.com')
     r = client.post('/admin/delete/%s/%d' % (kind, obj.id), json={})
     assert r.status_code == 403
-    assert r.get_json()['error'] == 'Only an admin can delete this.'
+    assert r.get_json()['error'] == 'Only a Super admin can delete this.'
     assert _db.session.get(type(obj), obj.id) is not None
 
 

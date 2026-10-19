@@ -272,7 +272,7 @@
                 <strong>{{ current_user.full_name or current_user.username }}</strong>
                 <small>{{ current_user.email }}</small>
               </div>
-              <span class="dd-role dd-role-{{ current_user.effective_role }}">{{ current_user.effective_role }}</span>
+              <span class="dd-role dd-role-{{ current_user.effective_role }}">{{ 'super admin' if current_user.is_super else current_user.effective_role }}</span>
             </div>
             {# Website / Staff: only for an account that is both. Which one is on comes from the
                person's chosen view (main.staff_view_active), never from the address. #}
@@ -285,6 +285,21 @@
               </div>
             </div>
             {% endif %}
+            {# Working as: the roles this person can take (services/access.roles_to_act) -- see and work as exactly
+               one of them until they switch back. Only when there is more than one thing to be. #}
+            {% if is_staff %}{% set role_choices = ROLE_CHOICES() %}{% if role_choices %}{% set acting = ACTING() %}
+            <div class="dd-section">
+              <span class="dd-label">Working as</span>
+              <div class="role-switch" role="radiogroup" aria-label="Working as">
+                <a href="{{ url_for('main.work_as', role_id=0) }}" role="radio" aria-checked="{{ 'false' if acting else 'true' }}" class="{{ '' if acting else 'active' }}">
+                  <i class="fa-solid fa-layer-group"></i> <span>{{ 'Super admin (everything)' if current_user.is_super else ('Administrator (everything)' if current_user.is_admin else 'All my roles') }}</span></a>
+                {% for r in role_choices %}
+                <a href="{{ url_for('main.work_as', role_id=r.id) }}" role="radio" aria-checked="{{ 'true' if acting and acting.id == r.id else 'false' }}" class="{{ 'active' if acting and acting.id == r.id }}">
+                  <i class="fa-solid fa-user-tag"></i> <span>{{ r.name }}</span></a>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}{% endif %}
             <div class="dd-menu">
             {% if is_staff %}
               <a href="{{ url_for('main.notification_settings') }}"><i class="fa-solid fa-bell"></i> {{ _('Notification settings') }}</a>
@@ -317,6 +332,14 @@
       <button class="hamburger" id="hamburger"><i class="fa-solid fa-bars"></i></button>
     </div>
   </nav>
+
+  {% if current_user.is_authenticated and is_staff %}{% set acting_now = ACTING() %}{% if acting_now %}
+  <div class="acting-banner" role="status">
+    <i class="fa-solid fa-user-tag" aria-hidden="true"></i>
+    <span>You are working as <b>{{ acting_now.name }}</b>: you see its menu and its pages only.</span>
+    <a href="{{ url_for('main.work_as', role_id=0) }}">Back to {{ 'Super admin' if current_user.is_super else ('Administrator' if current_user.is_admin else 'all my roles') }}</a>
+  </div>
+  {% endif %}{% endif %}
 
   {% if current_user.is_authenticated and not current_user.is_verified and not current_user.oauth_provider %}
   <div class="verify-banner">

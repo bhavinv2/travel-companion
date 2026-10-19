@@ -123,6 +123,7 @@
 {% endblock %}
 {% block extra_js %}
 <script>
+const CAN_DELETE_REF = {{ CAN('delete_records')|tojson }};
 // ------- tabs -------
 const LANG_GROUP = ['sec-languages', 'sec-site_languages', 'sec-translations'];   // one tab, three stacked cards
 document.querySelectorAll('#optTabs button').forEach(b => b.onclick = () => {
@@ -278,8 +279,10 @@ async function refLoad(kind) {
     const td = document.createElement('td');
     if (a.custom) {
       const chip = document.createElement('span'); chip.className = 'chip chip-open'; chip.textContent = 'added'; td.appendChild(chip);
-      const rm = document.createElement('button'); rm.className = 'rm'; rm.title = 'Remove'; rm.innerHTML = ' <i class="fa-solid fa-trash-can"></i>';
-      rm.onclick = () => refDel(kind, a.id, a.iata); td.appendChild(rm);
+      if (CAN_DELETE_REF) {     // deleting for good: a Super admin's only
+        const rm = document.createElement('button'); rm.className = 'rm'; rm.title = 'Remove'; rm.innerHTML = ' <i class="fa-solid fa-trash-can"></i>';
+        rm.onclick = () => refDel(kind, a.id, a.iata); td.appendChild(rm);
+      }
     }
     tr.appendChild(td); tb.appendChild(tr);
   });

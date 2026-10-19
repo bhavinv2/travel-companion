@@ -68,12 +68,14 @@
         {% else %}<tr><td colspan="8" class="muted">No runs yet.</td></tr>{% endfor %}
         </tbody></table></div>
     </div>
+    {% if CAN('delete_records') %}
     <div class="admin-card">
       <form method="POST" action="{{ url_for('scraper.delete_recipe', recipe_id=recipe.id) }}" onsubmit="return confirm('Delete this recipe and all its scraped rows? Posts already created are kept.')">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <button class="btn-sm danger"><i class="fa-solid fa-trash"></i> Delete recipe</button>
       </form>
     </div>
+    {% endif %}
   </main>
 </div>
 {% endblock %}

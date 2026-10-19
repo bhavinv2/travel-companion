@@ -26,6 +26,21 @@ def register(app):
         access.sync_account(u)
         click.echo(f"{u.username} now has roles {', '.join(u.role_keys)} (access: {u.effective_role})")
 
+    @app.cli.command('make-superadmin')
+    @click.argument('email')
+    def make_superadmin(email):
+        """Make an account a Super admin (the only people who delete for good) -- the way back in when
+        nobody who can give it on the Users screen is left."""
+        from app.models import User
+        u = User.query.filter_by(email=email.lower()).first()
+        if not u:
+            raise click.ClickException(f'No user with email {email}')
+        u.set_roles(u.role_keys + ['admin', 'superadmin'])
+        db.session.commit()
+        from app.services import access
+        access.sync_account(u)
+        click.echo(f"{u.username} is a Super admin now (roles: {', '.join(u.role_keys)})")
+
     @app.cli.command('make-admin')
     @click.argument('email')
     def make_admin(email):

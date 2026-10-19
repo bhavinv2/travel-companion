@@ -8,19 +8,35 @@
     <h1>Team members</h1>
     <p>Everyone who works here, what they can open, and their WhatsApp access.</p>
   </div>
-  <a class="cb primary" href="{{ url_for('workspace.members', add=1) }}#add"><i class="fa-solid fa-plus"></i> Add a team member</a>
+  <a class="cb primary" href="{{ url_for('workspace.members', add=1) }}#add"><i class="fa-solid fa-plus"></i> Add team members</a>
 </div>
 
 <details class="card" id="add"{{ ' open' if open_add }}>
-  <summary><h2><i class="fa-solid fa-user-plus"></i> Add a team member</h2></summary>
-  <p class="lead">Their e-mail address. Somebody without an account gets one, and you can send them a link to set their password.</p>
-  <form method="POST" action="{{ url_for('workspace.add_member') }}">
+  <summary><h2><i class="fa-solid fa-user-plus"></i> Add team members</h2></summary>
+  <p class="lead">Pick people who already have an account on the site — staff or travellers — or invite somebody new by
+    e-mail. Everybody you add here gets the role and teams you choose below.</p>
+  <form method="POST" action="{{ url_for('workspace.add_member') }}" data-add-form>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <div class="ws-field"><label for="mFind">Pick from existing accounts</label>
+      <div class="ws-pick" data-pick data-find="{{ url_for('workspace.member_search') }}">
+        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+        <input type="search" id="mFind" placeholder="Search by name, e-mail, username or phone…" autocomplete="off"/>
+        <div class="ws-pick-results" data-pick-results role="listbox" hidden></div>
+      </div>
+      <div class="ws-chips ws-picked" data-picked>
+        {% for p in picked %}<span class="ws-pill role" data-id="{{ p.id }}"><input type="hidden" name="user_ids" value="{{ p.id }}"/>{{ p.name }}
+          <small>{{ p.email }}</small><button type="button" data-unpick aria-label="Remove {{ p.name }}">&times;</button></span>{% endfor %}
+      </div>
+      <small data-picked-none{{ ' hidden' if picked }}>Nobody picked yet. Accounts already in the team are not listed.</small>
+    </div>
+    <p class="ws-or"><span>or invite somebody new</span></p>
     <div class="ws-grid2">
-      <div class="ws-field"><label for="mEmail">E-mail</label>
-        <input type="email" id="mEmail" name="email" value="{{ prefill }}" required placeholder="name@example.com"/></div>
+      <div class="ws-field"><label for="mEmail">E-mail <small>(a new account is made if there is none)</small></label>
+        <input type="email" id="mEmail" name="email" value="{{ prefill }}" placeholder="name@example.com"/></div>
       <div class="ws-field"><label for="mName">First name <small>(for a new account)</small></label>
         <input type="text" id="mName" name="first_name" maxlength="60"/></div>
+    </div>
+    <div class="ws-grid2">
       <div class="ws-field"><label for="mRole">Role</label>
         <select id="mRole" name="role_id">
           {% for r in ws.roles %}<option value="{{ r.id }}"{{ ' selected' if r.system_key == 'cs' }}>{{ r.name }}</option>{% endfor %}
@@ -35,7 +51,7 @@
     {% endif %}
     <div class="ws-actions">
       <label class="ws-check"><input type="checkbox" name="send_link" value="1" checked/> E-mail a set-password link to a new account</label>
-      <button class="cb primary"><i class="fa-solid fa-user-plus"></i> Add</button>
+      <button class="cb primary" data-add-btn><i class="fa-solid fa-user-plus"></i> <span>Add</span></button>
     </div>
   </form>
 </details>
@@ -68,4 +84,79 @@
   </table>
   </div>
 </section>
+{% endblock %}
+{% block extra_js %}
+<script>
+/* the add form's people picker: search accounts (workspace.member_search), click to pick, × to un-pick.
+   Each pick is a hidden user_ids input inside its chip, so the form posts exactly what is shown. */
+(function () {
+  var form = document.querySelector('[data-add-form]');
+  if (!form) return;
+  var box = form.querySelector('[data-pick]'), input = box.querySelector('input'), list = box.querySelector('[data-pick-results]');
+  var picked = form.querySelector('[data-picked]'), none = form.querySelector('[data-picked-none]');
+  var btn = form.querySelector('[data-add-btn] span'), email = form.querySelector('#mEmail');
+  var timer = null, seq = 0;
+
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function ids() { return Array.prototype.map.call(picked.querySelectorAll('[data-id]'), function (c) { return c.dataset.id; }); }
+  function sync() {
+    var n = ids().length + (email.value.trim() ? 1 : 0);
+    none.hidden = ids().length > 0;
+    btn.textContent = n > 1 ? 'Add ' + n + ' people' : 'Add';
+  }
+  function close() { list.hidden = true; list.innerHTML = ''; }
+  function pick(p) {
+    if (ids().indexOf(String(p.id)) > -1) return;
+    var chip = el('span', 'ws-pill role');
+    chip.dataset.id = p.id;
+    var hid = document.createElement('input');
+    hid.type = 'hidden'; hid.name = 'user_ids'; hid.value = p.id;
+    var x = el('button', null, '×');
+    x.type = 'button'; x.setAttribute('data-unpick', ''); x.setAttribute('aria-label', 'Remove ' + p.name);
+    chip.appendChild(hid);
+    chip.appendChild(document.createTextNode(p.name + ' '));
+    chip.appendChild(el('small', null, p.email));
+    chip.appendChild(x);
+    picked.appendChild(chip);
+    sync();
+  }
+  function render(items) {
+    list.innerHTML = '';
+    var taken = ids();
+    items = items.filter(function (p) { return taken.indexOf(String(p.id)) < 0; });
+    if (!items.length) { list.appendChild(el('div', 'ws-pick-none', 'No one found who is not in the team already.')); }
+    items.forEach(function (p) {
+      var b = el('button', 'ws-pick-item');
+      b.type = 'button'; b.setAttribute('role', 'option');
+      b.appendChild(el('b', null, p.name));
+      b.appendChild(el('small', null, [p.email, p.username ? '@' + p.username : ''].filter(Boolean).join(' · ')));
+      b.appendChild(el('span', 'ws-pill' + (p.staff ? ' team' : ''), p.staff ? 'Staff' : 'Traveller'));
+      b.addEventListener('click', function () { pick(p); input.value = ''; close(); input.focus(); });
+      list.appendChild(b);
+    });
+    list.hidden = false;
+  }
+  function ask() {
+    var q = input.value.replace(/\s+/g, ' ').trim();
+    if (q.length < 2) { close(); return; }
+    var mine = ++seq;
+    fetch(box.dataset.find + '?q=' + encodeURIComponent(q), { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : { items: [] }; })
+      .then(function (d) { if (mine === seq) render(d.items || []); })
+      .catch(function () { if (mine === seq) close(); });
+  }
+  input.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(ask, 250); });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); var first = list.querySelector('.ws-pick-item'); if (first) first.click(); }
+    else if (e.key === 'Escape') close();
+  });
+  picked.addEventListener('click', function (e) {
+    var x = e.target.closest('[data-unpick]');
+    if (x) { x.closest('[data-id]').remove(); sync(); }
+  });
+  email.addEventListener('input', sync);
+  document.addEventListener('click', function (e) { if (!box.contains(e.target)) close(); });
+  sync();
+})();
+</script>
 {% endblock %}

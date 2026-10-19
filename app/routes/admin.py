@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from slugify import slugify
 
 admin_bp = Blueprint('admin', __name__)
+SUPER_ONLY_SAYS = 'Only a Super admin can change Super admin, or change a Super admin\'s account.'
 
 
 def admin_required(f):
@@ -170,6 +171,8 @@ def toggle_user(user_id):
     user = User.query.get_or_404(user_id)
     if user.id == current_user.id:
         return jsonify({'error': 'You cannot deactivate yourself.'}), 400
+    if user.is_super and not current_user.is_super:
+        return jsonify({'error': SUPER_ONLY_SAYS}), 403
     user.is_active = not user.is_active
     db.session.commit()
     return jsonify({'success': True, 'is_active': user.is_active})
@@ -187,6 +190,8 @@ def set_user_role(user_id):
         return jsonify({'error': 'Invalid role'}), 400
     if user.id == current_user.id and role != 'admin':
         return jsonify({'error': 'You cannot remove your own admin role.'}), 400
+    if (user.is_super or role == 'superadmin') and not current_user.is_super:
+        return jsonify({'error': SUPER_ONLY_SAYS}), 403
     user.set_roles([role])
     db.session.commit()
     # staff join the first workspace; somebody who stopped being staff leaves it
@@ -213,6 +218,11 @@ def set_user_roles(user_id):
         return jsonify({'error': f"Unknown role(s): {', '.join(map(str, bad))}"}), 400
     if user.id == current_user.id and not any(options.role_level(k) == 'admin' for k in keys):
         return jsonify({'error': 'You cannot remove your own admin access.'}), 400
+    # Super admin: given, taken away -- or anything changed on somebody who has it -- by a Super admin only
+    if (user.is_super or 'superadmin' in keys) and not current_user.is_super:
+        return jsonify({'error': SUPER_ONLY_SAYS}), 403
+    if user.id == current_user.id and user.is_super and 'superadmin' not in keys:
+        return jsonify({'error': 'You cannot remove your own Super admin. Ask another Super admin.'}), 400
     before = user.role_keys
     user.set_roles(keys)
     ActivityEvent.log('user_roles_changed', actor=current_user, user_id=user.id, before=before, after=user.role_keys)
@@ -1504,7 +1514,7 @@ def broadcast():
 @login_required
 @admin_required
 def notification_log():
-    from app.services import notiflog
+    from app.services import access, notiflog
     page, per_page = _page_args(30)
     query = notiflog.build_query(request.args)
     total = query.count()
@@ -1516,7 +1526,7 @@ def notification_log():
         'admin/notifications_log.html', rows=rows, page=page, pages=pages, total=total, f=f,
         categories=[(c, notiflog.CATEGORY_LABELS[c]) for c in notiflog.CATEGORY_ORDER],
         groups=notiflog.SEND_GROUPS, cat_for_type=notiflog.CATEGORY_FOR_TYPE,
-        cat_labels=notiflog.CATEGORY_LABELS, base=url_for('admin.notification_log'), can_delete=True)
+        cat_labels=notiflog.CATEGORY_LABELS, base=url_for('admin.notification_log'), can_delete=access.can(current_user, 'delete_records'))
 
 
 @admin_bp.route('/notification-log/send', methods=['POST'])

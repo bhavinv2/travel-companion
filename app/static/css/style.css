@@ -1199,6 +1199,17 @@ tr.row-edited > td:first-child { box-shadow: inset 3px 0 0 var(--coral); }
 .dd-section .portal-switch a { flex: 1; justify-content: center; padding: 8px 6px; font-size: 12.5px; border-radius: 8px; color: var(--muted); font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
 .dd-section .portal-switch a.active { background: #fff; color: var(--coral); box-shadow: 0 1px 4px rgba(0,0,0,0.14); }
 .dd-section .portal-switch a:not(.active):hover { color: var(--text); background: transparent; }
+/* "Working as": one line per role, the one taken lit like the Website / Staff switch */
+.dd-section .role-switch { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--border); background: var(--bg);
+  border-radius: 10px; padding: 3px; max-height: 240px; overflow-y: auto; }
+.dd-section .role-switch a { display: flex; align-items: center; gap: 8px; padding: 7px 10px; font-size: 12.5px; font-weight: 600;
+  border-radius: 8px; color: var(--muted); }
+.dd-section .role-switch a i { width: 14px; text-align: center; }
+.dd-section .role-switch a.active { background: #fff; color: var(--coral); box-shadow: 0 1px 4px rgba(0,0,0,0.14); }
+.dd-section .role-switch a:not(.active):hover { color: var(--text); }
+.acting-banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 9px 5%; font-size: 13.5px;
+  background: #eef4ff; border-bottom: 1px solid #c7d8fb; color: #1e3a8a; }
+.acting-banner a { margin-left: auto; font-weight: 700; color: #1d4ed8; white-space: nowrap; }
 .dd-menu { padding-top: 6px; }
 .dd-menu a i { width: 18px; text-align: center; color: var(--muted); }
 .dd-menu a:hover i, .dd-menu a.danger i { color: inherit; }
