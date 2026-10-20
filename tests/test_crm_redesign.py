@@ -212,6 +212,43 @@ def test_every_kind_of_record_becomes_a_lead_from_add_a_lead(app, client, cs_use
     assert r.status_code == 302 and crm.lead_for_record('trip', bare.id) is None
 
 
+def test_a_post_whose_poster_is_already_a_lead_is_not_offered_again(app, client, cs_user):
+    """"+ Sales CRM" on a post by somebody with an open Travel Companion lead goes into that lead
+    (capture: same person, same pipeline). The post's own button then kept showing, and every click
+    added the same enquiry to the timeline again and said "Added"."""
+    from app.models import CompanionRequest, CrmTouchpoint
+    owner = make_user('trav@test.com', 'trav')
+    owner.phone = '+919812340099'
+    trips = []
+    for dest in ('Dallas (DFW)', 'Chicago (ORD)'):
+        t = CompanionRequest(user_id=owner.id, travel_type='air', trip_type='one_way', role='seeking_help',
+                             flying_from='Hyderabad (HYD)', destination=dest,
+                             from_date=date.today() + timedelta(days=30), source='organic')
+        t.set_status('open')
+        trips.append(t)
+    _db.session.add_all(trips)
+    _db.session.commit()
+    first, second = trips
+    login(client, cs_user.email)
+    client.post('/cs/crm/add/record', data={'kind': 'trip', 'id': first.id})
+    lead = crm.lead_for_record('trip', first.id)
+
+    r = client.post('/cs/crm/add/record', data={'kind': 'trip', 'id': second.id}, follow_redirects=True)
+    assert b'already in the Sales CRM' in r.data
+    assert CrmLead.query.count() == 1 and crm.lead_for_record('trip', second.id) == lead
+    said = CrmTouchpoint.query.filter_by(lead_id=lead.id).count()
+    client.post('/cs/crm/add/record', data={'kind': 'trip', 'id': second.id})       # again: nothing more
+    assert CrmTouchpoint.query.filter_by(lead_id=lead.id).count() == said
+
+    html = client.get('/cs/posts').data.decode()
+    assert 'Make this a lead in the Sales CRM' not in html                             # both posts show the stage
+    assert html.count(crm_url_for_lead(lead)) >= 2
+
+
+def crm_url_for_lead(lead):
+    return '/cs/crm/lead/%d' % lead.id
+
+
 def test_the_stage_pill_colours(app):
     crm.ensure_defaults()
     roles = {s.key: crm.stage_role(s) for s in CrmPipeline.query.filter_by(key='ti-standard').one().stages}

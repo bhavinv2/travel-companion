@@ -80,6 +80,8 @@ def test_account_emails_cannot_be_switched_off(client, user, db):
     """They used to have a switch of their own, and turning it -- or the e-mail channel, or
     everything -- off silently stopped password reset for everybody. Sign-in and sign-up mail is
     not a notification; it is how people get into their own accounts."""
+    user.signed_up = True                 # only sign-ups are asked to confirm their e-mail
+    db.session.commit()
     login(client, 'bob@test.com')
     for switches in ({'enabled': True, 'categories': {'account': False}},
                      {'enabled': True, 'channels': {'email': False}},
@@ -136,6 +138,7 @@ def test_user_no_email_and_mute_all(client, user, other_user, db):
     assert not any(o['recipients'] == ['bob@test.com'] for o in mailer.OUTBOX)                # e-mail no
     # account e-mails ignore the user's mute
     user.notify_prefs = {'muted': True}
+    user.signed_up = True                 # only sign-ups are asked to confirm their e-mail
     db.session.commit()
     mailer.OUTBOX.clear()
     logout(client)

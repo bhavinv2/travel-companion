@@ -616,24 +616,44 @@ def capture_safely(source_key, **kw):
         return None
 
 
+def trip_reach(trip):
+    """Who a trip post reaches: (name, phone, email, identities) -- its contact numbers, else the
+    account that posted it."""
+    phone = email = None
+    identities = []
+    for cp in trip.contact_points or []:
+        if cp.type in ('mobile', 'whatsapp') and not phone:
+            phone = normalise_phone(cp.value)
+        elif cp.type == 'email' and not email:
+            email = cp.value
+        elif cp.type in ('instagram', 'facebook'):
+            identities.append((cp.type, cp.value))
+    author = getattr(trip, 'author', None)
+    if author is not None:
+        phone = phone or normalise_phone(author.phone)
+        email = email or author.email
+    name = trip.poster_name or trip.traveler_name or (author.full_name if author is not None else None)
+    return name, phone, email, identities
+
+
+def open_trip_lead_of_poster(trip):
+    """The open Travel Companion lead of whoever a post reaches, when the post itself is not a lead:
+    capture() put the post on that lead (same person, same pipeline), so it is in the CRM already."""
+    _, phone, email, identities = trip_reach(trip)
+    if not (phone or email or identities):
+        return None
+    person = find_person(phone, email, [(k, clean_identity(k, v)) for k, v in identities])
+    if person is None:
+        return None
+    return next((l for l in sorted(person.leads, key=lambda l: l.last_activity_at or datetime.min, reverse=True)
+                 if l.status == 'open' and l.product == 'TC'), None)
+
+
 def capture_trip(trip, source_key, user_id=None, **kw):
     """A trip post as a Travel Companion lead: who to reach (its contact numbers, else the account
     that posted it), the route and the date it leaves. Safe like capture_safely()."""
-    phone = email = None
-    identities = []
     try:
-        for cp in trip.contact_points or []:
-            if cp.type in ('mobile', 'whatsapp') and not phone:
-                phone = normalise_phone(cp.value)
-            elif cp.type == 'email' and not email:
-                email = cp.value
-            elif cp.type in ('instagram', 'facebook'):
-                identities.append((cp.type, cp.value))
-        author = getattr(trip, 'author', None)
-        if author is not None:
-            phone = phone or normalise_phone(author.phone)
-            email = email or author.email
-        name = trip.poster_name or trip.traveler_name or (author.full_name if author is not None else None)
+        name, phone, email, identities = trip_reach(trip)
         details = {'route': ' → '.join(x for x in (trip.flying_from, trip.destination) if x),
                    'they_are': (trip.role or '').replace('_', ' '),
                    'airline': ' '.join(x for x in (trip.airline, trip.flight_number) if x),
@@ -4533,21 +4553,28 @@ def _record(kind, record_id):
     return db.session.get(model, record_id) if model else None
 
 
-def lead_for_record(kind, record_id):
+def lead_for_record(kind, record_id, record=None):
+    """The lead a record became -- or, for a trip post, the open lead its poster already has, which
+    "+ Sales CRM" on the post went into (it never shows a second "add" button for it)."""
     ref_type = RECORD_KINDS.get(kind, (None,))[0]
     if not ref_type:
         return None
-    return (CrmLead.query.filter_by(ref_type=ref_type, ref_id=record_id)
+    lead = (CrmLead.query.filter_by(ref_type=ref_type, ref_id=record_id)
             .order_by(CrmLead.created_at.desc()).first())
+    if lead is None and kind == 'trip':
+        trip = record if record is not None else _record(kind, record_id)
+        lead = open_trip_lead_of_poster(trip) if trip is not None else None
+    return lead
 
 
 def lead_from_record(kind, record_id, user=None):
     """Make a lead of something the site already has -- a quote, a contact message, a booking, a
-    trip post, an account. Returns (lead, created). An existing lead for it is returned as it is."""
-    existing = lead_for_record(kind, record_id)
+    trip post, an account. Returns (lead, created). An existing lead for it is returned as it is;
+    so is the open lead the same person already has in that pipeline, with this record added to it."""
+    r = _record(kind, record_id)
+    existing = lead_for_record(kind, record_id, record=r)
     if existing is not None:
         return existing, False
-    r = _record(kind, record_id)
     if r is None:
         return None, False
     by = getattr(user, 'id', None)
@@ -4577,7 +4604,15 @@ def lead_from_record(kind, record_id, user=None):
     else:  # a site account
         lead = capture('site-account', name=r.full_name, phone=r.phone, email=r.email, user_id=r.id,
                        ref=('users', r.id), **common)
-    return lead, lead is not None
+    if lead is None:
+        return None, False
+    ref_type = RECORD_KINDS[kind][0]
+    created = (lead.ref_type, lead.ref_id) == (ref_type, record_id)
+    if not created and not lead.ref_type:
+        # the same person's open lead (one made by hand, from a chat): this record is where it came from
+        lead.ref_type, lead.ref_id = ref_type, record_id
+        db.session.commit()
+    return lead, created
 
 
 def search_records(q, limit=8):
@@ -4631,7 +4666,8 @@ def search_records(q, limit=8):
     rows = []
     for kind, rid, title, sub, when, what in out:
         rows.append({'kind': kind, 'id': rid, 'title': title or '—', 'sub': sub, 'when': when, 'what': what,
-                     'label': RECORD_KINDS[kind][1], 'lead': leads.get((RECORD_KINDS[kind][0], rid))})
+                     'label': RECORD_KINDS[kind][1],
+                     'lead': leads.get((RECORD_KINDS[kind][0], rid)) or (lead_for_record(kind, rid) if kind == 'trip' else None)})
     rows.sort(key=lambda r: r['when'] or datetime.min, reverse=True)
     return rows
 

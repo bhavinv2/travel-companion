@@ -19,7 +19,8 @@
   <form method="POST" action="{{ crm_url('add_from_record') }}" class="crm-pill-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <input type="hidden" name="kind" value="{{ kind }}"/><input type="hidden" name="id" value="{{ ref_id }}"/>
-    <input type="hidden" name="next" value="{{ request.full_path if request else '' }}"/>
+    {#- here(), not request.full_path: that leaves out /travel-companions and lands outside the app #}
+    <input type="hidden" name="next" value="{{ here() if request else '' }}"/>
     <button class="crm-pill add" title="Make this a lead in the Sales CRM"><i class="fa-solid fa-plus"></i> Sales CRM</button>
   </form>
 {%- endif -%}

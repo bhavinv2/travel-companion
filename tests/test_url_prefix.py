@@ -83,6 +83,36 @@ def test_the_move_to_buttons_come_back_to_this_screen(pclient, cs):
     assert 'name="next" value="%s/cs/voices' % PREFIX in html
 
 
+def test_the_add_to_sales_crm_button_comes_back_to_this_screen(pclient, cs):
+    """The "+ Sales CRM" pill beside a post built its `next` from request.full_path: the lead was
+    made, then the agent landed on nriparentservice.com/cs/posts -- outside the app."""
+    from datetime import date, timedelta
+    from app.models import CompanionRequest
+    from app.services import crm
+    owner = make_user('trav@test.com', 'trav')
+    owner.phone = '+919812340099'
+    trip = CompanionRequest(user_id=owner.id, travel_type='air', trip_type='one_way', role='seeking_help',
+                            flying_from='Hyderabad (HYD)', destination='Dallas (DFW)',
+                            from_date=date.today() + timedelta(days=30), source='organic')
+    trip.set_status('open')
+    _db.session.add(trip)
+    _db.session.commit()
+    signin(pclient)
+
+    html = get(pclient, '/cs/posts').data.decode()
+    assert 'name="next" value="%s/cs/posts"' % PREFIX in html
+    r = pclient.post(PREFIX + '/cs/crm/add/record', data={'kind': 'trip', 'id': trip.id, 'next': PREFIX + '/cs/posts'},
+                     base_url='https://nriparentservice.com')
+    assert r.status_code == 302 and r.headers['Location'].endswith(PREFIX + '/cs/posts')
+    assert crm.lead_for_record('trip', trip.id) is not None
+    # a page opened before the fix still sends the bare path: it is moved inside the app
+    _db.session.delete(crm.lead_for_record('trip', trip.id))
+    _db.session.commit()
+    r = pclient.post(PREFIX + '/cs/crm/add/record', data={'kind': 'trip', 'id': trip.id, 'next': '/cs/posts?'},
+                     base_url='https://nriparentservice.com')
+    assert PREFIX + '/cs/posts' in r.headers['Location']
+
+
 def test_the_notification_log_filters_stay_inside_the_app(pclient, cs):
     """Reset, and the username links that filter by user. Both were built from a hardcoded
     '/cs/notifications' the route passed in as a string."""

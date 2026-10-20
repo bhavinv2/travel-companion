@@ -77,6 +77,11 @@ def crm_lead_for(ref_type, ref_id, phone=None, email=None):
         cache[key] = {l.ref_id: l for l in CrmLead.query.filter_by(ref_type=ref_type)
                       .order_by(CrmLead.created_at).all()}
     lead = cache[key].get(ref_id)
+    if lead is None and ref_type == 'companion_requests':
+        # a post its poster's open lead took in ("+ Sales CRM" on it): that lead, not a second button
+        from app.models import CompanionRequest
+        trip = db.session.get(CompanionRequest, ref_id)
+        return crm.open_trip_lead_of_poster(trip) if trip is not None else None
     if lead is None and (phone or email):
         pkey = ('person', phone or '', (email or '').lower())
         if pkey not in cache:
@@ -1211,9 +1216,9 @@ def add_from_record():
         db.session.commit()
     flash(('Added to the Sales CRM: %s.' if created else '%s is already in the Sales CRM.') % lead.person.display_name,
           'success' if created else 'info')
-    nxt = request.form.get('next') or ''
-    if nxt.startswith('/') and not nxt.startswith('//'):
-        return redirect(nxt)
+    nxt = urls.safe_next(request.form.get('next'))
+    if nxt:
+        return redirect(urls.app_url(nxt))       # an older page's next has no /travel-companions in it
     return redirect(crm_url('lead', lead_id=lead.id))
 
 
