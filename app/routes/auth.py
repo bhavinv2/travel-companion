@@ -97,6 +97,8 @@ def verify_email(token):
 def resend_verification():
     if current_user.is_verified:
         flash('Your e-mail is already confirmed.', 'info')
+    elif not current_user.needs_email_check:
+        flash('Your account does not need an e-mail confirmation.', 'info')
     elif send_verification_email(current_user):
         flash(f'We sent a new confirmation link to {current_user.email}.', 'success')
     else:
@@ -413,6 +415,7 @@ def register():
             marketing_consent=marketing_consent,
             show_photo=show_photo,
             is_verified=False,
+            signed_up=True,          # the only accounts asked to confirm their e-mail
         )
         user.set_password(password)
 

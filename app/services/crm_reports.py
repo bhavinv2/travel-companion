@@ -176,21 +176,66 @@ def tick_all(day, slot, user, channels):
     db.session.commit()
 
 
-def coverage(day, channels):
-    """How much of the day so far was covered: {'done', 'due', 'pct', 'missed': [slot labels]}."""
+def slots_so_far(day):
+    """The half hours of `day` that are over: all of a past day, none of a future one, today's up to now."""
     today, now_slot = current()
     if day > today:
-        upto = []
-    elif day < today:
-        upto = slots()
-    else:
-        upto = [s for s in slots() if now_slot is not None and s < now_slot] if now_slot is not None else \
-            ([s for s in slots()] if slot_of(ist_now()) > max(slots()) else [])
+        return []
+    if day < today:
+        return slots()
+    if now_slot is not None:
+        return [s for s in slots() if s < now_slot]
+    return list(slots()) if slot_of(ist_now()) > max(slots()) else []
+
+
+def coverage(day, channels):
+    """How much of the day so far was covered: {'done', 'due', 'pct', 'missed': [slot labels]}."""
+    upto = slots_so_far(day)
     ticks = grid(day)
     full = [s for s in upto if all((s, ch) in ticks for ch in channels)]
     missed = [slot_label(s) for s in upto if s not in full]
     return {'done': len(full), 'due': len(upto), 'missed': missed,
             'pct': round(100 * len(full) / len(upto)) if upto else None}
+
+
+def checks_by_team(day, users, channels, teams):
+    """Team today's "Half-hourly checks, team by team": each of `teams` (then everybody of `users` in none of
+    them) with, for each member, how many inboxes they ticked in each half hour -- one inbox is ticked once
+    per half hour, by whoever checks it -- and the team's coverage: the half hours so far in which every
+    inbox was ticked by one of its members or by itself (a connected inbox). One query.
+    [{'name', 'rows': [{'user', 'by_slot': {slot: n}, 'total'}], 'covered', 'due', 'pct', 'missed'}]"""
+    from app.services import crm
+    upto = slots_so_far(day)
+    by_slot, mine = {}, {}
+    for c in CrmChannelCheck.query.filter_by(day=day).all():
+        ch = crm.CHECK_RENAMED.get(c.channel, c.channel)
+        if ch not in channels:
+            continue
+        by_slot.setdefault(c.slot, {})[ch] = c.user_id
+        if c.user_id:
+            mine.setdefault(c.user_id, {}).setdefault(c.slot, set()).add(ch)
+    wanted = {u.id for u in users}
+
+    def group(name, members):
+        ids = {u.id for u in members}
+        covered = [s for s in upto if channels and all(
+            ch in by_slot.get(s, {}) and (by_slot[s][ch] is None or by_slot[s][ch] in ids) for ch in channels)]
+        rows = [{'user': u, 'by_slot': {s: len(chs) for s, chs in mine.get(u.id, {}).items()},
+                 'total': sum(len(chs) for chs in mine.get(u.id, {}).values())} for u in members]
+        return {'name': name, 'rows': rows, 'covered': len(covered), 'covered_slots': set(covered), 'due': len(upto),
+                'pct': round(100 * len(covered) / len(upto)) if upto else None,
+                'missed': [slot_label(s) for s in upto if s not in covered]}
+
+    out, placed = [], set()
+    for t in teams:
+        members = [u for u in t.users if u.id in wanted]
+        if members:
+            out.append(group(t.name, members))
+            placed |= {u.id for u in members}
+    rest = [u for u in users if u.id not in placed]
+    if rest:
+        out.append(group('Not in a team' if out else 'Everybody', rest))
+    return out
 
 
 def current_slot_done(channels):

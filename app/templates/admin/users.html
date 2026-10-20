@@ -30,7 +30,7 @@
       {% endif %}
     </form>
     <p class="muted" style="font-size:13px;margin:-4px 0 10px">{{ total }} account{{ '' if total == 1 else 's' }} match.</p>
-    <p class="muted" style="font-size:13px">An account can hold several roles (e.g. traveller + staff). Staff are managed in <a href="{{ url_for('workspace.members') }}">Team members</a>. Site owners can open every page and change every setting.</p>
+    <p class="muted" style="font-size:13px">Click <b>Manage</b> (or a name) to change everything about an account in one place: its roles, its place in the team, sign-in, a set-password e-mail.</p>
 
     <div class="bulk-select-bar" id="userBulkBar" style="display:none">
       <strong id="userBulkCount">0</strong> selected
@@ -47,7 +47,7 @@
           <td data-label="">{% if user.id != current_user.id %}<input type="checkbox" class="user-select" value="{{ user.id }}"/>{% endif %}</td>
           <td data-label="ID">{{ user.id }}</td>
           <td data-label="Name">
-            <b>{{ user.full_name }}</b><br><small class="muted">@{{ user.username }}</small>
+            <a href="#" class="ur-name" data-manage="{{ user.id }}"><b>{{ user.full_name }}</b></a><br><small class="muted">@{{ user.username }}</small>
           </td>
           <td data-label="Contact">
             <a href="mailto:{{ user.email }}">{{ user.email }}</a>
@@ -62,42 +62,18 @@
           <td data-label="Joined">{{ user.created_at|istd }}<br>
             <small class="muted">{{ 'last seen ' + (user.last_login|istd) if user.last_login else 'never signed in' }}</small></td>
           <td data-label="Roles">
-            {% if user.id == current_user.id %}
-              {% for k in user.role_keys %}<span class="badge-pill green">{{ role_labels.get(k, k) }}</span> {% endfor %}
-              <br/><small class="muted">you — ask another admin to change your roles</small>
-              <br/><label class="owner-switch" title="Site owners can open every page and change every setting.">
-                <input type="checkbox" disabled{{ ' checked' if user.is_admin }}/> Site owner</label>
-              <br/><label class="owner-switch" title="Super admins are the only people who can delete for good.">
-                <input type="checkbox" disabled{{ ' checked' if user.is_super }}/> Super admin</label>
-            {% elif user.is_cs or user.id in member_of %}
-              {# staff: what they open is their role and teams in Team members; here only "Site owner" #}
-              {% for k in user.role_keys %}<span class="badge-pill green">{{ role_labels.get(k, k) }}</span> {% endfor %}
-              {% if user.id in member_of %}<br/><a href="{{ url_for('workspace.member', member_id=member_of[user.id]) }}">Change in Team members</a>
-              {% else %}<br/><a href="{{ url_for('workspace.members', add=1, user=user.id) }}#add"><i class="fa-solid fa-user-plus"></i> Add to the team</a>{% endif %}
-              <br/><label class="owner-switch" title="Site owners can open every page and change every setting.">
-                <input type="checkbox" data-owner="{{ user.id }}" data-roles='{{ user.role_keys|tojson|forceescape }}'{{ ' checked' if user.is_admin }}{{ ' disabled' if user.is_super and not current_user.is_super }}/> Site owner</label>
-              <br/><label class="owner-switch" title="{{ 'Super admins are the only people who can delete for good.' if current_user.is_super else 'Only a Super admin can change this.' }}">
-                <input type="checkbox" data-super="{{ user.id }}" data-roles='{{ user.role_keys|tojson|forceescape }}'{{ ' checked' if user.is_super }}{{ ' disabled' if not current_user.is_super }}/> Super admin</label>
-            {% else %}
-              {# A multi-select: searchselect.js turns it into a dropdown with tick boxes and an
-                 "N selected" label, and still dispatches change, so roles save exactly as before. #}
-              <select multiple class="role-select" id="roles-{{ user.id }}" data-placeholder="No roles"
-                      onchange="setRoles({{ user.id }})">
-                {% for r in roles if r.key != 'superadmin' or current_user.is_super %}<option value="{{ r.key }}" {% if r.key in user.role_keys %}selected{% endif %}>{{ role_labels.get(r.key, r.key) }}</option>{% endfor %}
-              </select>
-              <small class="muted" id="level-{{ user.id }}">access: {{ user.effective_role }}</small>
-              {% if CAN('ws_members') and user.is_active %}<br/><a href="{{ url_for('workspace.members', add=1, user=user.id) }}#add"><i class="fa-solid fa-user-plus"></i> Add to the team</a>{% endif %}
-            {% endif %}
+            {# what the account is, at a glance; changing it is in the side panel ("Manage") #}
+            <div class="ur-chips">
+              {% if user.is_super %}<span class="ur-chip super"><i class="fa-solid fa-crown"></i> Super admin</span>
+              {% elif user.is_admin %}<span class="ur-chip admin">Site owner</span>{% endif %}
+              {% for k in user.role_keys if k not in ('admin', 'superadmin') %}<span class="ur-chip{{ ' staff' if levels.get(k) == 'cs' }}">{{ role_labels.get(k, k) }}</span>{% endfor %}
+            </div>
+            {% set t = in_team.get(user.id) %}
+            {% if t %}<small class="ur-team"><i class="fa-solid fa-people-group"></i> {{ 'Owner' if t.owner else (t.role or 'Teams only') }}{% if t.teams %} · {{ t.teams|join(', ') }}{% endif %}</small>{% endif %}
           </td>
           <td data-label="Active"><span class="badge-pill {{ 'green' if user.is_active else 'red' }}">{{ 'Active' if user.is_active else 'Inactive' }}</span></td>
           <td data-label="Actions">
-            {% if user.id != current_user.id %}
-            <button class="btn-sm" onclick="toggleUser({{ user.id }}, this)">
-              {{ 'Disable' if user.is_active else 'Enable' }}
-            </button>
-            {# data-* rather than an inline onclick: a username with quotes would break the attribute #}
-            {% if CAN('delete_records') %}<button type="button" class="btn-sm danger user-del" data-id="{{ user.id }}" data-label="{{ user.username }}" title="Delete permanently"><i class="fa-solid fa-trash-can"></i></button>{% endif %}
-            {% endif %}
+            <button type="button" class="cb sm ur-manage" data-manage="{{ user.id }}"><i class="fa-solid fa-sliders"></i> Manage</button>
           </td>
         </tr>
         {% endfor %}
@@ -107,70 +83,91 @@
     {% include 'admin/_pager.html' %}
   </main>
 </div>
+{# Manage: one account in a panel from the right (admin.user_panel draws it) #}
+<div class="ud-backdrop" data-panel-backdrop hidden></div>
+<aside class="ud-drawer" id="userPanel" role="dialog" aria-modal="true" aria-label="Manage account" hidden
+       data-url="{{ url_for('admin.user_panel', user_id=0)|replace('/0/', '/__ID__/') }}"></aside>
 {# the type-DELETE dialog comes from base.html for every admin page #}
 {% endblock %}
 {% block extra_js %}
 <script>
-function toggleUser(userId, btn) {
-  fetch(`/admin/users/${userId}/toggle`, { method: 'POST', headers: {'X-CSRFToken': CSRF_TOKEN} })
-    .then(r => r.json()).then(d => {
-      if (d.error) return showToast(d.error, 'danger');
-      btn.textContent = d.is_active ? 'Disable' : 'Enable';
-    });
+// ----- Manage: one account in the panel from the right (admin/_user_panel.html, drawn by admin.user_panel).
+// Every change posts to the route that owns it; the panel is drawn again after it, and the table is
+// reloaded when the panel closes, so a row never shows something that changed.
+const panel = document.getElementById('userPanel');
+const backdrop = document.querySelector('[data-panel-backdrop]');
+let openId = null, changed = false;
+const panelUrl = id => panel.dataset.url.replace('__ID__', id);
+
+async function openPanel(id) {
+  const r = await fetch(panelUrl(id), { credentials: 'same-origin' });
+  if (!r.ok) return showToast('That account could not be opened.', 'danger');
+  openId = id;
+  panel.innerHTML = await r.text();
+  panel.hidden = false;
+  backdrop.hidden = false;
+  document.body.classList.add('ud-open');
+  requestAnimationFrame(() => panel.classList.add('open'));
 }
-// "Site owner": on adds the admin role; off takes every admin-level role away and keeps them staff
-const ADMIN_KEYS = {{ admin_keys|tojson }};
-document.addEventListener('change', e => {
-  const box = e.target.closest('[data-owner]');
-  if (!box) return;
-  let roles = JSON.parse(box.dataset.roles || '[]');
-  if (box.checked) {
-    if (!roles.includes('admin')) roles.push('admin');
-  } else {
-    roles = roles.filter(k => !ADMIN_KEYS.includes(k));
-    if (!roles.includes('cs')) roles.push('cs');
-  }
-  fetch(`/admin/users/${box.dataset.owner}/roles`, { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN}, body: JSON.stringify({ roles }) })
-    .then(r => r.json()).then(d => {
-      if (d.error) { box.checked = !box.checked; return showToast(d.error, 'danger'); }
-      const row = box.closest('tr');
-      row.querySelectorAll('[data-roles]').forEach(b => { b.dataset.roles = JSON.stringify(d.roles); });
-      const sup = row.querySelector('[data-super]');
-      if (sup) sup.checked = d.roles.includes('superadmin');
-      showToast(box.checked ? 'Site owner: they can open every page now.'
-                            : 'No longer a site owner. What they can open comes from Team members.', 'success');
-    });
-});
-// "Super admin" (only a Super admin may change it): on adds superadmin (and admin, so turning it off leaves a
-// site owner); off takes superadmin away and nothing else
-document.addEventListener('change', e => {
-  const box = e.target.closest('[data-super]');
-  if (!box) return;
-  let roles = JSON.parse(box.dataset.roles || '[]');
-  if (box.checked) {
-    ['admin', 'superadmin'].forEach(k => { if (!roles.includes(k)) roles.push(k); });
-  } else {
-    roles = roles.filter(k => k !== 'superadmin');
-  }
-  fetch(`/admin/users/${box.dataset.super}/roles`, { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN}, body: JSON.stringify({ roles }) })
-    .then(r => r.json()).then(d => {
-      if (d.error) { box.checked = !box.checked; return showToast(d.error, 'danger'); }
-      const row = box.closest('tr');
-      row.querySelectorAll('[data-roles]').forEach(b => { b.dataset.roles = JSON.stringify(d.roles); });
-      const owner = row.querySelector('[data-owner]');
-      if (owner) owner.checked = d.level === 'admin';
-      showToast(box.checked ? 'Super admin: they can delete for good now.' : 'No longer a Super admin: they cannot delete.', 'success');
-    });
-});
-function setRoles(userId) {
-  const roles = [...document.getElementById(`roles-${userId}`).selectedOptions].map(o => o.value);
-  fetch(`/admin/users/${userId}/roles`, { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN}, body: JSON.stringify({ roles }) })
-    .then(r => r.json()).then(d => {
-      if (d.error) return showToast(d.error, 'danger');
-      document.getElementById(`level-${userId}`).textContent = `access: ${d.level}`;
-      showToast(`Roles saved: ${d.roles.join(', ')}`, 'success');
-    });
+function closePanel() {
+  panel.classList.remove('open');
+  backdrop.hidden = true;
+  document.body.classList.remove('ud-open');
+  setTimeout(() => { panel.hidden = true; panel.innerHTML = ''; }, 200);
+  openId = null;
+  if (changed) location.reload();
 }
+async function post(url, body, json) {
+  const headers = { 'X-CSRFToken': CSRF_TOKEN, 'Accept': 'application/json' };
+  if (json) headers['Content-Type'] = 'application/json';
+  const r = await fetch(url, { method: 'POST', credentials: 'same-origin', headers, body });
+  let d;
+  try { d = await r.json(); } catch (x) { d = { error: 'Your role does not allow that change.' }; }
+  if (!r.ok && !d.error) d.error = 'That did not work. Try again.';
+  return d;
+}
+async function after(d, said) {
+  if (d.error) return showToast(d.error, 'danger');
+  changed = true;
+  showToast(d.message || said, 'success');
+  if (openId) await openPanel(openId);
+}
+
+document.addEventListener('click', e => {
+  const m = e.target.closest('[data-manage]');
+  if (m) { e.preventDefault(); openPanel(m.dataset.manage); }
+});
+backdrop.addEventListener('click', closePanel);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !panel.hidden && !document.querySelector('#hardDeleteModal.open')) closePanel();
+});
+panel.addEventListener('click', async e => {
+  if (e.target.closest('[data-panel-close]')) return closePanel();
+  const t = e.target.closest('[data-toggle-active]');
+  if (t) {
+    const d = await post(t.dataset.toggleActive, '{}', true);
+    return after(d, d.is_active ? 'They can sign in again.' : 'Their sign-in is disabled.');
+  }
+  const s = e.target.closest('[data-send-reset]');
+  if (s) {
+    const d = await post(s.dataset.sendReset, '{}', true);
+    return showToast(d.error || d.message, d.error ? 'danger' : 'success');
+  }
+  const rm = e.target.closest('[data-remove-member]');
+  if (rm) {
+    if (!window.confirm(`Remove ${rm.dataset.name} from the team? They lose its pages.`)) return;
+    return after(await post(rm.dataset.removeMember, new FormData(), false), 'Removed from the team.');
+  }
+});
+panel.addEventListener('submit', async e => {
+  const f = e.target;
+  e.preventDefault();
+  if (f.matches('[data-roles-form]')) {
+    const roles = [...f.querySelectorAll('input[name="roles"]:checked')].map(i => i.value);
+    return after(await post(f.dataset.action, JSON.stringify({ roles }), true), 'Account roles saved.');
+  }
+  return after(await post(f.dataset.action, new FormData(f), false), 'Saved.');
+});
 
 // ----- hard delete: single + bulk, both behind the type-DELETE-to-confirm dialog -----
 function deleteOneUser(userId, username) {
@@ -179,6 +176,7 @@ function deleteOneUser(userId, username) {
     const d = await res.json();
     if (d.error) return showToast(d.error, 'danger');
     document.getElementById(`user-row-${userId}`)?.remove();
+    if (String(openId) === String(userId)) { changed = false; closePanel(); }
     showToast(`${d.username} deleted permanently.`, 'success');
   });
 }

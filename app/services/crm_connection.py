@@ -109,6 +109,7 @@ def checks(ws, now=None):
                 wa = info.get('whatsapp') or {}
                 if wa.get('connected'):
                     phone = wa.get('display_phone')
+                    wacrm_team.remember_phone(ws, phone)
                     out['number'] = _line('ok', '✓ WhatsApp number connected' + (': %s' % phone if phone else ''))
                 else:
                     out['number'] = _line('bad', '✗ No WhatsApp number is connected yet')

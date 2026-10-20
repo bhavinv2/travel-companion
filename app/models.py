@@ -83,6 +83,9 @@ class User(UserMixin, db.Model):
     bio = db.Column(db.Text)
     marketing_consent = db.Column(db.Boolean, default=False)
     is_verified = db.Column(db.Boolean, default=False)   # e-mail verified
+    # made on the sign-up page: the only accounts asked to confirm their e-mail (needs_email_check). Accounts
+    # staff make or invite, ones that claimed a post and staff accounts are never asked.
+    signed_up = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     is_admin = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
     role = db.Column(db.String(20), default='user')      # legacy: highest access level (user / cs / admin)
@@ -173,6 +176,12 @@ class User(UserMixin, db.Model):
     def is_traveller(self):
         """Holds a traveller-level role, i.e. may use the public/traveller screens."""
         return 'user' in self.role_levels
+
+    @property
+    def needs_email_check(self):
+        """Asked to confirm their e-mail (the reminder bar): a sign-up account, not confirmed yet, that signed up
+        with a password -- Google / Facebook confirm it already -- and is not staff."""
+        return bool(self.signed_up and not self.is_verified and not self.oauth_provider and not self.is_cs)
 
     @property
     def is_super(self):
@@ -2172,6 +2181,9 @@ class Workspace(db.Model):
     # the staff menu as arranged on Team -> Menu builder: {'sections': [...], 'labels': {page: name},
     # 'hidden': [page, ...]} (access.menu_layout reads it). NULL = the menu in code (access.SECTIONS).
     menu = db.Column(db.JSON)
+    # the business WhatsApp number this workspace runs (E.164), as set up in "New workspace". The workspace
+    # linked to the WhatsApp CRM shows the number the CRM reports instead (wacrm_team.number_of).
+    whatsapp_phone = db.Column(db.String(20))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
 

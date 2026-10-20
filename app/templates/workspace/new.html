@@ -1,0 +1,110 @@
+{% extends 'workspace/_layout.html' %}
+{% set ws_tab = 'ws_all' %}
+{% block ws_title %}New workspace{% endblock %}
+{% block ws %}
+<div class="ws-head">
+  <div><h1>New workspace</h1>
+    <p>Set up a whole workspace in one go: its name and areas, its people and their roles, its teams and the
+      business WhatsApp number it runs. Nothing is made until you press <b>Create</b> on the last step.</p></div>
+  <a class="cb" href="{{ url_for('workspace.all_workspaces') }}"><i class="fa-solid fa-arrow-left"></i> All workspaces</a>
+</div>
+
+{% if errors %}
+<div class="ws-note bad"><i class="fa-solid fa-circle-exclamation"></i>
+  <div><b>Nothing was made yet:</b><ul class="nw-errors">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>
+{% endif %}
+
+<ol class="nw-steps" data-nw-steps>
+  <li data-step="1"><span>1</span> Name &amp; areas</li>
+  <li data-step="2"><span>2</span> People &amp; roles</li>
+  <li data-step="3"><span>3</span> Teams</li>
+  <li data-step="4"><span>4</span> WhatsApp</li>
+  <li data-step="5"><span>5</span> Review</li>
+</ol>
+
+<form method="POST" action="{{ url_for('workspace.new_workspace') }}" data-nw-form>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  <input type="hidden" name="plan" data-nw-plan/>
+
+  {# ---------------------------------------------------------------- 1 #}
+  <section class="card nw-panel" data-panel="1">
+    <h2><i class="fa-solid fa-building"></i> Name and areas</h2>
+    <div class="ws-grid2">
+      <div class="ws-field"><label for="nwName">Name</label>
+        <input type="text" id="nwName" data-f="name" maxlength="120" placeholder="e.g. Sahayak Care" autocomplete="off"/></div>
+      <div class="ws-field"><label for="nwDesc">What it is for <small>(optional)</small></label>
+        <input type="text" id="nwDesc" data-f="description" maxlength="255" placeholder="e.g. Home-care bookings in Hyderabad"/></div>
+    </div>
+    <div class="ws-field"><label>Areas it works in</label>
+      <div class="ws-checks">{% for m in modules %}
+        <label class="ws-check"><input type="checkbox" data-module value="{{ m.key }}" checked{{ ' disabled' if m.required }}/>
+          <span>{{ m.label }}{% if m.desc %}<small class="ws-muted"> — {{ m.desc }}</small>{% endif %}</span></label>{% endfor %}</div>
+    </div>
+  </section>
+
+  {# ---------------------------------------------------------------- 2 #}
+  <section class="card nw-panel" data-panel="2" hidden>
+    <h2><i class="fa-solid fa-users"></i> People and their roles</h2>
+    <p class="lead">You are its owner. Pick people who already have an account, or invite somebody new by e-mail, and give each a role.</p>
+    <div class="ws-field"><label for="nwFind">Add people who have an account</label>
+      <div class="ws-pick" data-pick data-find="{{ find_url }}">
+        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+        <input type="search" id="nwFind" placeholder="Search by name, e-mail, username or phone…" autocomplete="off"/>
+        <div class="ws-pick-results" data-pick-results role="listbox" hidden></div>
+      </div>
+    </div>
+    <div class="nw-invite">
+      <div class="ws-field"><label for="nwEmail">Or invite somebody new</label>
+        <input type="email" id="nwEmail" placeholder="name@example.com"/></div>
+      <div class="ws-field"><label for="nwFirst">First name</label><input type="text" id="nwFirst" maxlength="60"/></div>
+      <button type="button" class="cb" data-invite><i class="fa-solid fa-envelope"></i> Add</button>
+    </div>
+    <table class="nw-people">
+      <thead><tr><th>Person</th><th>Role</th><th></th></tr></thead>
+      <tbody data-people>
+        <tr class="me"><td><b>{{ me.name }}</b><small>{{ me.email }} · you, the owner</small></td><td><span class="ws-pill owner"><i class="fa-solid fa-crown"></i> Owner</span></td><td></td></tr>
+      </tbody>
+    </table>
+    <label class="ws-check" style="margin-top:10px"><input type="checkbox" data-f="send_links" checked/> E-mail new people a link to set their password</label>
+    <p class="ws-muted nw-roles-help"><b>Administrator</b> opens everything · <b>Team lead</b> the daily work plus Team today and Results ·
+      <b>Sales &amp; service</b> the daily work. Change what each role opens later in Roles.</p>
+  </section>
+
+  {# ---------------------------------------------------------------- 3 #}
+  <section class="card nw-panel" data-panel="3" hidden>
+    <h2><i class="fa-solid fa-people-group"></i> Teams <small class="ws-muted">(optional)</small></h2>
+    <p class="lead">Group people so a team lead sees their own team on Team today. A team can give its people an extra role.</p>
+    <div data-teams></div>
+    <button type="button" class="cb" data-add-team><i class="fa-solid fa-plus"></i> Add a team</button>
+  </section>
+
+  {# ---------------------------------------------------------------- 4 #}
+  <section class="card nw-panel" data-panel="4" hidden>
+    <h2><i class="fa-brands fa-whatsapp"></i> Business WhatsApp number</h2>
+    <p class="lead">The number this workspace's chats run on. It shows next to the workspace in the switcher at the top.</p>
+    <div class="ws-field" style="max-width:360px"><label for="nwPhone">WhatsApp number <small>(optional)</small></label>
+      <input type="tel" id="nwPhone" data-f="phone" placeholder="+91 98765 43210" autocomplete="off"/>
+      <small>With its country code. Leave empty if it has none yet.</small></div>
+    <p class="ws-note warn"><i class="fa-solid fa-circle-info"></i>
+      <span>Connecting a second number to the WhatsApp CRM comes in the next update: until then this number shows as
+        <b>to be connected</b>, and WhatsApp chats keep running on
+        {% if linked %}<b>{{ linked.name }}</b>{% if linked_wa and linked_wa.phone %} ({{ PHONE.pretty(linked_wa.phone, linked_wa.phone) }}){% endif %}{% else %}the site's number{% endif %}.</span></p>
+  </section>
+
+  {# ---------------------------------------------------------------- 5 #}
+  <section class="card nw-panel" data-panel="5" hidden>
+    <h2><i class="fa-solid fa-list-check"></i> Review</h2>
+    <div class="nw-review" data-review></div>
+  </section>
+
+  <div class="ws-actions ws-sticky nw-nav">
+    <button type="button" class="cb" data-back hidden><i class="fa-solid fa-arrow-left"></i> Back</button>
+    <button type="button" class="cb primary" data-next>Next <i class="fa-solid fa-arrow-right"></i></button>
+    <button type="submit" class="cb primary" data-create hidden><i class="fa-solid fa-check"></i> Create workspace</button>
+    <span class="ws-muted" data-nw-msg></span>
+  </div>
+</form>
+
+<script type="application/json" id="nw-data">{{ {'roles': roles, 'me': me, 'plan': plan}|tojson }}</script>
+{% endblock %}
+{% block extra_js %}<script src="{{ url_for('static', filename='js/new-workspace.js') }}" defer></script>{% endblock %}

@@ -5,8 +5,10 @@
 {% block ws %}
 <div class="ws-head">
   <div><h1>All workspaces</h1>
-    <p>Each workspace has its own members, teams, roles and modules. The records underneath -- leads, quotes, bookings,
-      conversations -- belong to the company, so two workspaces with the same module see the same records.</p></div>
+    <p>Each workspace has its own members, teams, roles, modules and business WhatsApp number. The records underneath --
+      leads, quotes, bookings, conversations -- belong to the company for now, so two workspaces with the same module see
+      the same records.</p></div>
+  <a class="cb primary" href="{{ url_for('workspace.new_workspace') }}"><i class="fa-solid fa-plus"></i> New workspace</a>
 </div>
 
 <div class="ws-spaces" style="margin-bottom:22px">
@@ -15,6 +17,9 @@
     <h3>{{ w.name }}{% if current and w.id == current.id %} <span class="ws-pill role">Open now</span>{% endif %}
       {% if (w.wacrm or {}).get('account_id') %} <span class="ws-pill team"><i class="fa-brands fa-whatsapp"></i> Linked</span>{% endif %}</h3>
     {% if w.description %}<p class="ws-muted" style="margin:0">{{ w.description }}</p>{% endif %}
+    {% set wa = WA_NUMBER(w) %}
+    <div class="ws-muted" style="font-size:13px"><i class="fa-brands fa-whatsapp"></i>
+      {% if wa.phone %}{{ PHONE.pretty(wa.phone, wa.phone) }}{{ ' · to be connected' if wa.state == 'planned' }}{% elif wa.state == 'live' %}WhatsApp linked{% else %}No WhatsApp number yet{% endif %}</div>
     <div class="ws-muted" style="font-size:13px">{{ w.members|length }} member{{ 's' if w.members|length != 1 }} ·
       {{ (w.modules|length ~ ' modules') if w.modules is not none else 'every module' }}</div>
     {% if not current or w.id != current.id %}
@@ -26,19 +31,8 @@
 
 <section class="card">
   <h2><i class="fa-solid fa-plus"></i> New workspace</h2>
-  <p class="lead">You become its owner. It starts with the Administrator, Team lead and Sales &amp; service roles; add people afterwards.</p>
-  <p class="ws-note warn"><i class="fa-solid fa-triangle-exclamation"></i> <span>Leads are shared across workspaces, and WhatsApp stays linked to this one.</span></p>
-  <form method="POST" action="{{ url_for('workspace.create_workspace') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-    <div class="ws-grid2">
-      <div class="ws-field"><label for="nwName">Name</label><input type="text" id="nwName" name="name" maxlength="120" required placeholder="e.g. Sahayak operations"/></div>
-      <div class="ws-field"><label for="nwDesc">What it is for <small>(optional)</small></label><input type="text" id="nwDesc" name="description" maxlength="255"/></div>
-    </div>
-    <div class="ws-field"><label>Modules</label>
-      <div class="ws-checks">{% for m in modules %}
-        <label class="ws-check"><input type="checkbox" name="modules" value="{{ m.key }}" checked {{ 'disabled' if m.required }}/> {{ m.label }}</label>{% endfor %}</div>
-    </div>
-    <button class="cb primary"><i class="fa-solid fa-plus"></i> Create workspace</button>
-  </form>
+  <p class="lead">Set one up in a single flow: its name and areas, its people and their roles, its teams and its business
+    WhatsApp number -- all made in one go.</p>
+  <a class="cb primary" href="{{ url_for('workspace.new_workspace') }}"><i class="fa-solid fa-wand-magic-sparkles"></i> Start</a>
 </section>
 {% endblock %}

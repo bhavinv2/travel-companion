@@ -119,19 +119,78 @@ def users():
     pages = max((total + per_page - 1) // per_page, 1)
     page = min(page, pages)
     users_list = query.order_by(User.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
-    # staff are changed in Team members: their row links to it, and only says whether they are a site owner
+    # the row shows what each account is and where it sits in the team; "Manage" opens the side panel
     from app.models import WorkspaceMember
     from app.services import access
     ws = access.current_workspace(current_user)
     ids = [u.id for u in users_list]
-    member_of = ({m.user_id: m.id for m in WorkspaceMember.query.filter(WorkspaceMember.workspace_id == ws.id,
-                                                                       WorkspaceMember.user_id.in_(ids)).all()}
-                 if ws and ids else {})
+    mems = (WorkspaceMember.query.filter(WorkspaceMember.workspace_id == ws.id, WorkspaceMember.user_id.in_(ids)).all()
+            if ws and ids else [])
+    team_names = {}
+    for t in (ws.teams if ws else []):
+        for u in t.users:
+            team_names.setdefault(u.id, []).append(t.name)
+    in_team = {m.user_id: {'role': m.role.name if m.role else None, 'owner': m.is_owner,
+                           'teams': team_names.get(m.user_id, [])} for m in mems}
     return render_template('admin/users.html', users=users_list, search=search, roles=options.role_defs(),
                            role_labels=options.role_labels(), page=page, pages=pages, total=total,
-                           filters=dict(q=search, role=role, status=status, verified=verified),
-                           member_of=member_of,
-                           admin_keys=[r['key'] for r in options.role_defs() if r['level'] == 'admin'])
+                           filters=dict(q=search, role=role, status=status, verified=verified), in_team=in_team,
+                           levels={r['key']: r['level'] for r in options.role_defs()})
+
+
+@admin_bp.route('/users/<int:user_id>/panel')
+@login_required
+@admin_required
+def user_panel(user_id):
+    """Users -> Manage: one account in a side panel -- what it is (account roles), its place in the team (role,
+    teams, what it opens), and what can be done to it -- so nothing about a person needs another screen.
+    Every change posts to the route that already owns it, with that route's checks."""
+    from sqlalchemy import or_
+    from app import options
+    from app.models import CompanionRequest, CrmLead, CrmPerson, CrmTask, WorkspaceMember
+    from app.services import access
+    u = User.query.get_or_404(user_id)
+    ws = access.current_workspace(current_user)
+    m = WorkspaceMember.query.filter_by(workspace_id=ws.id, user_id=u.id).first() if ws else None
+    person = None
+    if u.email or u.phone:
+        conds = [CrmPerson.email.ilike(u.email)] if u.email else []
+        if u.phone:
+            conds.append(CrmPerson.phone == u.phone)
+        person = CrmPerson.query.filter(or_(*conds)).first()
+    levels = {r['key']: r['level'] for r in options.role_defs()}
+    return render_template(
+        'admin/_user_panel.html', u=u, ws=ws, m=m, roles=options.role_defs(), levels=levels,
+        level_labels=options.ROLE_LEVEL_LABELS, teams=access.teams_of(m) if m else [],
+        can_open=access.can_open_summary(m, limit=6) if m else None,
+        open_leads=CrmLead.query.filter_by(owner_id=u.id, status='open').count() if m else 0,
+        open_tasks=CrmTask.query.filter_by(owner_id=u.id, status='open').count() if m else 0,
+        trips=CompanionRequest.query.filter_by(user_id=u.id).count(), person=person,
+        is_self=u.id == current_user.id, locked=u.is_super and not current_user.is_super)
+
+
+@admin_bp.route('/users/<int:user_id>/send-reset', methods=['POST'])
+@login_required
+@admin_required
+def user_send_reset(user_id):
+    """Users -> Manage: e-mail the account a link to set a new password (it is never shown or sent to us)."""
+    from app.services import mailer, tokens
+    u = User.query.get_or_404(user_id)
+    if not u.email:
+        return jsonify({'error': 'This account has no e-mail address.'}), 400
+    link = url_for('auth.reset_password', token=tokens.make_reset_token(u), _external=True)
+    sent = mailer.send('[NRI Parent Service] Set your password', [u.email],
+                       'Hello %s,\n\n%s asked us to send you a link to set your password.\n'
+                       'Set it here: %s\n\nSign in: %s'
+                       % (u.first_name or u.username, current_user.full_name or 'An admin', link,
+                          url_for('auth.login', _external=True)),
+                       category='account', account=True)
+    if not sent:
+        return jsonify({'error': 'The e-mail could not be sent. Check the mail settings.'}), 502
+    from app.models import ActivityEvent
+    ActivityEvent.log('user_reset_link_sent', actor=current_user, user_id=u.id)
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'A set-password link went to %s.' % u.email})
 
 
 @admin_bp.route('/users/<int:user_id>/delete', methods=['POST'])

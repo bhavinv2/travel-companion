@@ -595,7 +595,7 @@ def create_app(test_config=None):
         from flask_login import current_user
         from app.services import (access, ads, analytics, contact_form, cs_access,
                                   insurance_countries, nav_badges, nri_services, offices, phone,
-                                  portals, products, urls, whats_new)
+                                  portals, products, urls, wacrm_team, whats_new)
         return {
             # Site-wide GA4 / GTM / second Ads account / Search Console verification -- see
             # app/services/analytics.py and _analytics.html. ADS_ACCOUNT_ID reuses ads.py's own
@@ -618,6 +618,8 @@ def create_app(test_config=None):
             'STAFF_NAV': lambda active=None: access.nav(current_user, active),
             'CAN': lambda page: access.can(current_user, page),
             'WORKSPACE': lambda: access.current_workspace(current_user),
+            # a workspace's business WhatsApp number: {'phone', 'state': live / planned / none}
+            'WA_NUMBER': lambda ws: wacrm_team.number_of(ws),
             # the account menu's "Working as": the roles one can take, and the one taken (None: everything)
             'ROLE_CHOICES': lambda: access.roles_to_act(current_user),
             'ACTING': lambda: access.acting_role(current_user),

@@ -185,6 +185,33 @@ def test_the_pipeline_symbol_on_other_screens(app, client, cs_user):
     assert 'crm-pill r-cold' in client.get('/cs/sahayak').get_data(as_text=True)
 
 
+def test_every_kind_of_record_becomes_a_lead_from_add_a_lead(app, client, cs_user):
+    """A trip post used to 500 here (capture_trip got created_by_id twice): every kind is checked, and the
+    lead remembers which member of staff added it."""
+    from app.models import CompanionRequest
+    owner = make_user('trav@test.com', 'trav')
+    owner.phone = '+919812340099'
+    trip = CompanionRequest(user_id=owner.id, travel_type='air', trip_type='one_way', role='seeking_help',
+                            flying_from='Hyderabad (HYD)', destination='Dallas (DFW)',
+                            from_date=date.today() + timedelta(days=30), source='organic')
+    trip.set_status('open')
+    bare = CompanionRequest(user_id=None, travel_type='air', trip_type='one_way', role='offering_help',
+                            flying_from='Delhi (DEL)', destination='Chicago (ORD)',
+                            from_date=date.today() + timedelta(days=20), source='facebook')
+    bare.set_status('open')
+    m = ContactMessage(name='Asha', email='asha@example.com', topic='general', status='new', message='call me')
+    _db.session.add_all([trip, bare, m])
+    _db.session.commit()
+    login(client, cs_user.email)
+    for kind, rid in (('trip', trip.id), ('contact_message', m.id), ('user', owner.id)):
+        r = client.post('/cs/crm/add/record', data={'kind': kind, 'id': rid})
+        assert r.status_code == 302 and '/cs/crm/lead/' in r.headers['Location'], kind
+        lead = crm.lead_for_record(kind, rid)
+        assert lead is not None and lead.created_by_id == cs_user.id, kind
+    r = client.post('/cs/crm/add/record', data={'kind': 'trip', 'id': bare.id})        # nobody to reach: said, not a 500
+    assert r.status_code == 302 and crm.lead_for_record('trip', bare.id) is None
+
+
 def test_the_stage_pill_colours(app):
     crm.ensure_defaults()
     roles = {s.key: crm.stage_role(s) for s in CrmPipeline.query.filter_by(key='ti-standard').one().stages}

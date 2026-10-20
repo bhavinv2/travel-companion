@@ -79,8 +79,7 @@ def claim_page(token):
             db.session.add(user)
             db.session.flush()
             login_user(user)
-            from app.routes.auth import send_verification_email
-            send_verification_email(user)
+            # no "confirm your e-mail": only accounts made on the sign-up page are asked (User.needs_email_check)
 
         # Consent given on this page applies to every contact point entered here.
         for r in rows:

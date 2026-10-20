@@ -36,8 +36,10 @@ def test_register_sends_verification_and_link_verifies(client, db):
     assert client.get('/auth/verify/not-a-token').headers['Location'].endswith('/auth/login')
 
 
-def test_resend_verification_requires_login(client, user):
+def test_resend_verification_requires_login(client, db, user):
     assert client.post('/auth/resend-verification').status_code == 302
+    user.signed_up = True                      # only accounts made on the sign-up page are asked to confirm
+    db.session.commit()
     login(client, 'bob@test.com')
     mailer.OUTBOX.clear()
     client.post('/auth/resend-verification', data={})

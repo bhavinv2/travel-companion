@@ -530,7 +530,9 @@ def signoff():
 @cs_required
 @admin_only
 def tracker():
-    """Team today: for any day, what each person had to do and what they did."""
+    """Team today: for any day, what each person had to do and what they did -- and their half-hourly
+    checks, team by team (every team for an admin, their own teams for a team lead)."""
+    from app.services import access
     today_ = (datetime.utcnow() + crm.IST).date()
     try:
         day = datetime.strptime(request.args.get('day') or '', '%Y-%m-%d').date()
@@ -546,13 +548,19 @@ def tracker():
     nums = crm_reports.team_numbers(day, staff)
     steps = crm_reports.step_ticks(day, None if len(staff) == len(everyone) else [u.id for u in staff])
     team_note = None
-    if len(staff) != len(everyone):
+    sees_all = len(staff) == len(everyone)
+    if not sees_all:
         names = sorted({t.name for t in _my_teams()})
         team_note = ('You see your own teams: %s.' % ', '.join(names)) if names else \
             'You are not in a team yet, so only your own day shows.'
+    # the half-hourly checks, team by team: every team for those who see everybody, their own teams for a lead
+    ws = access.current_workspace(current_user)
+    teams = (list(ws.teams) if ws is not None else []) if sees_all else _my_teams()
     return render_template('cs/crm/tracker.html', day=day, today=today_, sheet=sheet, staff=staff, person=person,
                            prev_day=day - timedelta(days=1), next_day=day + timedelta(days=1), nums=nums,
                            steps=steps, team_note=team_note,
+                           check_teams=crm_reports.checks_by_team(day, staff, channels, teams),
+                           check_channels=len(channels), check_over=set(crm_reports.slots_so_far(day)),
                            coverage=crm_reports.coverage(day, channels), slot_label=crm_reports.slot_label,
                            slots=crm_reports.slots(), MANUAL=dict((k, crm_kpi.METRICS[k][0]) for k in crm_kpi.MANUAL),
                            **_common())

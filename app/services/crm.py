@@ -641,10 +641,12 @@ def capture_trip(trip, source_key, user_id=None, **kw):
     except Exception:        # noqa: BLE001 -- see capture_safely
         current_app.logger.exception('CRM could not read trip %s', getattr(trip, 'id', None))
         return None
+    # staff making a lead of the post (lead_from_record) pass themselves; a post coming in counts its own maker
+    kw.setdefault('created_by_id', trip.created_by_id)
     return capture_safely(source_key, name=name, phone=phone, email=email, product='TC',
                           details=details, departure_date=trip.from_date, ends_on=trip.to_date,
                           ref=('companion_requests', trip.id), user_id=user_id or trip.user_id,
-                          identities=identities, created_by_id=trip.created_by_id, **kw)
+                          identities=identities, **kw)
 
 
 def trip_claimed(trip):

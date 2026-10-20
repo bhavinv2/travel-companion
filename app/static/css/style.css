@@ -1210,6 +1210,60 @@ tr.row-edited > td:first-child { box-shadow: inset 3px 0 0 var(--coral); }
 .acting-banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 9px 5%; font-size: 13.5px;
   background: #eef4ff; border-bottom: 1px solid #c7d8fb; color: #1e3a8a; }
 .acting-banner a { margin-left: auto; font-weight: 700; color: #1d4ed8; white-space: nowrap; }
+
+/* ===== Users: role chips in the table, and "Manage" -- one account in a panel from the right ===== */
+.ur-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.ur-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; font-size: 12px;
+  font-weight: 600; background: #eef2f7; color: #33415c; white-space: nowrap; }
+.ur-chip.staff { background: #e7f0fd; color: #1d4ed8; }
+.ur-chip.admin { background: #fee2e2; color: #b91c1c; }
+.ur-chip.super { background: #fff1db; color: #9a5300; }
+.ur-team { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+.ur-name { color: inherit; }
+.ur-name:hover b { text-decoration: underline; }
+.ud-backdrop { position: fixed; inset: 0; background: rgba(15, 35, 64, .35); z-index: 1090; }
+.ud-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(480px, 100vw); z-index: 1100; background: #fff;
+  box-shadow: -18px 0 44px rgba(15, 35, 64, .22); overflow-y: auto; transform: translateX(100%); transition: transform .2s ease; }
+.ud-drawer.open { transform: none; }
+body.ud-open { overflow: hidden; }
+.upn { padding-bottom: 24px; color: var(--text); }
+.upn-head { position: sticky; top: 0; z-index: 2; display: flex; gap: 14px; align-items: flex-start; padding: 18px 20px 14px;
+  background: #fff; border-bottom: 1px solid var(--border); }
+.upn-av { flex: none; width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: var(--ui-primary-soft, #eaf3fe); color: var(--ui-primary, #1f6fd6); font-weight: 800; font-size: 16px; }
+.upn-id { flex: 1; min-width: 0; }
+.upn-id h2 { margin: 0; font-size: 19px; }
+.upn-id p { margin: 2px 0 6px; color: var(--muted); font-size: 13px; }
+.upn-badges { display: flex; flex-wrap: wrap; gap: 5px; }
+.upn-close { border: 0; background: none; font-size: 26px; line-height: 1; color: var(--muted); cursor: pointer; padding: 0 4px; }
+.upn-close:hover { color: var(--text); }
+.upn-sec { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.upn-sec h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 15px; }
+.upn-sec h3 i { color: var(--ui-primary, #1f6fd6); }
+.upn-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin: 0; }
+.upn-facts dt { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 700; }
+.upn-facts dd { margin: 2px 0 0; font-size: 13.5px; overflow-wrap: anywhere; }
+.upn-ok { color: #1E7F4F; }
+.upn-checks { display: grid; gap: 6px; margin-bottom: 12px; }
+.upn-checks.two { grid-template-columns: 1fr 1fr; }
+.upn-check { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px;
+  cursor: pointer; }
+.upn-check:hover { background: #f7f9fc; }
+.upn-check.off { opacity: .6; cursor: not-allowed; }
+.upn-check.small { padding: 6px 9px; font-size: 13.5px; }
+.upn-check input { width: 16px; height: 16px; margin-top: 2px; flex: none; accent-color: var(--ui-primary, #1f6fd6); }
+.upn-check b { display: block; font-size: 14px; }
+.upn-check small { display: block; color: var(--muted); font-size: 12px; }
+.upn-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; font-size: 13px; font-weight: 600; }
+.upn-field select { padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-weight: 400; }
+.upn-hint { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
+.upn-note { margin: 0 0 10px; padding: 8px 10px; border-radius: 10px; background: #f4f8fd; font-size: 13px; color: #33415c; }
+.upn-note.bad { background: #fdecec; color: #991b1b; }
+.upn-links { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; font-size: 14px; }
+.upn-links a { display: inline-flex; gap: 8px; align-items: center; font-weight: 600; }
+.upn-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.upn-remove { margin-top: 10px; color: #b91c1c; }
+@media (max-width: 520px) { .upn-facts, .upn-checks.two { grid-template-columns: 1fr; } }
 .dd-menu { padding-top: 6px; }
 .dd-menu a i { width: 18px; text-align: center; color: var(--muted); }
 .dd-menu a:hover i, .dd-menu a.danger i { color: inherit; }
@@ -3695,6 +3749,19 @@ td.row-actions.hd-wrap > * { margin-bottom: 4px; }
 .site-sw-item.on { background: var(--coral-light); color: var(--coral-dark-text); }
 .site-sw-item.on i:first-child { color: var(--coral); }
 .site-sw-tick { margin-left: auto; font-size: 11px; color: var(--coral); }
+/* each workspace's business WhatsApp number, under its name */
+.site-sw-btn { max-width: 300px; }
+.site-sw-cur { display: inline-flex; flex-direction: column; align-items: flex-start; line-height: 1.15; min-width: 0; }
+.site-sw-num { font-size: 11px; font-weight: 600; color: rgba(255,255,255,.7); white-space: nowrap; }
+.site-sw-num i { color: #25d366; }
+.site-sw-menu { min-width: 290px; }
+.site-sw-lbl { display: flex; flex-direction: column; min-width: 0; }
+.site-sw-wa { font-size: 12px; font-weight: 500; color: var(--muted); }
+.site-sw-wa.live i { color: #1e9e57; }
+.site-sw-wa.planned { color: #9a5300; }
+.site-sw-sep { height: 1px; background: var(--border); margin: 6px 4px; }
+.site-sw-tool { font-size: 13.5px; }
+.site-sw-tool.add, .site-sw-tool.add i:first-child { color: var(--coral); }
 @media (max-width: 768px) { .site-sw-cur { display: none; } .site-sw-btn { padding: 7px 10px; gap: 5px; } }
 
 /* ---- CS agents & access -------------------------------------------------

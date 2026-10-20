@@ -1,0 +1,122 @@
+{# Users -> Manage (admin.user_panel): one account in the side panel. Each form posts with fetch to the route
+   that owns that change -- account roles, the team, sign-in, the set-password e-mail, delete -- with that route's
+   own checks; admin/users.html draws this fragment again after every change. #}
+{% set first = u.first_name or u.username %}
+{% set frozen = is_self or locked %}
+<div class="upn" data-user="{{ u.id }}">
+  <header class="upn-head">
+    <span class="upn-av" aria-hidden="true">{{ ((u.first_name or u.username or '?')[:1] ~ (u.last_name or '')[:1])|upper }}</span>
+    <div class="upn-id">
+      <h2>{{ u.full_name or u.username }}</h2>
+      <p>@{{ u.username }} · #{{ u.id }}</p>
+      <div class="upn-badges">
+        <span class="badge-pill {{ 'green' if u.is_active else 'red' }}">{{ 'Active' if u.is_active else 'Sign-in disabled' }}</span>
+        {% if u.is_super %}<span class="ur-chip super"><i class="fa-solid fa-crown"></i> Super admin</span>
+        {% elif u.is_admin %}<span class="ur-chip admin">Site owner</span>{% endif %}
+        {% if m %}<span class="ur-chip staff"><i class="fa-solid fa-people-group"></i> In {{ ws.name }}</span>{% endif %}
+      </div>
+    </div>
+    <button type="button" class="upn-close" data-panel-close aria-label="Close">&times;</button>
+  </header>
+
+  <section class="upn-sec">
+    <dl class="upn-facts">
+      <div><dt>E-mail</dt><dd>{% if u.email %}<a href="mailto:{{ u.email }}">{{ u.email }}</a>
+        {% if u.is_verified %}<i class="fa-solid fa-circle-check upn-ok" title="Verified"></i>{% else %}<small class="muted">not verified</small>{% endif %}{% else %}—{% endif %}</dd></div>
+      <div><dt>Phone</dt><dd>{% if u.phone %}<a href="tel:{{ u.phone }}">{{ PHONE.pretty(u.phone, u.phone) }}</a>{% else %}—{% endif %}</dd></div>
+      <div><dt>Joined</dt><dd>{{ u.created_at|istd }}</dd></div>
+      <div><dt>Last seen</dt><dd>{{ u.last_login|istd if u.last_login else 'never signed in' }}</dd></div>
+      {% if u.oauth_provider %}<div><dt>Signs in with</dt><dd>{{ u.oauth_provider|capitalize }}</dd></div>{% endif %}
+    </dl>
+  </section>
+
+  {# ------------------------------------------------------------------ what the account is #}
+  <section class="upn-sec">
+    <h3><i class="fa-solid fa-id-badge"></i> Account roles</h3>
+    {% if is_self %}<p class="upn-note"><i class="fa-solid fa-lock"></i> This is you. Ask another admin to change your own account.</p>
+    {% elif locked %}<p class="upn-note"><i class="fa-solid fa-lock"></i> Only a Super admin can change a Super admin's account.</p>{% endif %}
+    <form data-roles-form data-action="{{ url_for('admin.set_user_roles', user_id=u.id) }}">
+      <div class="upn-checks">
+      {% for r in roles %}
+      {% set super_only = r.key == 'superadmin' and not current_user.is_super %}
+      <label class="upn-check{{ ' off' if frozen or super_only }}">
+        <input type="checkbox" name="roles" value="{{ r.key }}"{{ ' checked' if r.key in u.role_keys }}{{ ' disabled' if frozen or super_only }}/>
+        <span><b>{{ r.label }}</b><small>{{ level_labels.get(r.level, '') }}{{ ' · the only ones who delete for good' if r.key == 'superadmin' }}</small></span>
+      </label>
+      {% endfor %}
+      </div>
+      {% if not frozen %}<button class="cb sm primary"><i class="fa-solid fa-floppy-disk"></i> Save account roles</button>{% endif %}
+      <p class="upn-hint">A staff role (Customer service, Administrator) puts them in the team by itself; taking it away takes them out.</p>
+    </form>
+  </section>
+
+  {# ------------------------------------------------------------------ their place in the team #}
+  {% if ws and CAN('ws_members') %}
+  <section class="upn-sec">
+    <h3><i class="fa-solid fa-people-group"></i> Team — {{ ws.name }}</h3>
+    {% if m %}
+      {% if m.is_owner %}<p class="upn-note"><i class="fa-solid fa-crown"></i> Owner: opens every page of the areas this workspace has on.</p>{% endif %}
+      <form data-member-form data-action="{{ url_for('workspace.save_member', member_id=m.id) }}">
+        <label class="upn-field"><span>Role in the team</span>
+          <select name="role_id">
+            {% for r in ws.roles %}<option value="{{ r.id }}"{{ ' selected' if m.role_id == r.id }}>{{ r.name }}</option>{% endfor %}
+            <option value=""{{ ' selected' if not m.role_id }}>No role of their own (teams only)</option>
+          </select></label>
+        <div class="upn-field"><span>Teams</span>
+          {% if ws.teams %}<div class="upn-checks two">{% for t in ws.teams %}
+            <label class="upn-check small"><input type="checkbox" name="team_ids" value="{{ t.id }}"{{ ' checked' if t in teams }}/>
+              <span>{{ t.name }}{% if t.role %} <small>{{ t.role.name }}</small>{% endif %}</span></label>{% endfor %}</div>
+          {% else %}<p class="upn-hint">No teams yet. <a href="{{ url_for('workspace.team', team_id=0) }}">Make one</a>.</p>{% endif %}
+        </div>
+        <button class="cb sm primary"><i class="fa-solid fa-floppy-disk"></i> Save role and teams</button>
+      </form>
+      <p class="upn-hint"><b>Can open:</b> {{ can_open }} · <a href="{{ url_for('workspace.member', member_id=m.id) }}">see every page</a></p>
+      {% if m.wacrm_error %}<p class="upn-note bad"><i class="fa-solid fa-circle-exclamation"></i> WhatsApp CRM: {{ m.wacrm_error }}</p>
+      {% elif m.wacrm_role %}<p class="upn-hint"><i class="fa-brands fa-whatsapp"></i> WhatsApp CRM: {{ m.wacrm_role|capitalize }}</p>{% endif %}
+      {% if not m.is_owner and not is_self %}
+        {% if open_leads or open_tasks %}
+        <p class="upn-hint">{{ first }} looks after {{ open_leads }} open lead{{ 's' if open_leads != 1 }} and {{ open_tasks }} follow-up{{ 's' if open_tasks != 1 }}:
+          <a href="{{ url_for('workspace.member', member_id=m.id) }}">remove them and hand those over</a>.</p>
+        {% else %}
+        <button type="button" class="cb sm upn-remove" data-remove-member="{{ url_for('workspace.remove_member', member_id=m.id) }}"
+                data-name="{{ u.full_name or u.email }}"><i class="fa-solid fa-user-minus"></i> Remove from {{ ws.name }}</button>
+        {% endif %}
+      {% endif %}
+    {% elif u.is_active %}
+      <form data-member-form data-action="{{ url_for('workspace.add_member') }}">
+        <input type="hidden" name="user_ids" value="{{ u.id }}"/>
+        <label class="upn-field"><span>Role in the team</span>
+          <select name="role_id">
+            {% for r in ws.roles %}<option value="{{ r.id }}"{{ ' selected' if r.system_key == 'cs' }}>{{ r.name }}</option>{% endfor %}
+            <option value="">No role of their own (teams only)</option>
+          </select></label>
+        {% if ws.teams %}<div class="upn-field"><span>Teams</span><div class="upn-checks two">{% for t in ws.teams %}
+          <label class="upn-check small"><input type="checkbox" name="team_ids" value="{{ t.id }}"/> <span>{{ t.name }}</span></label>{% endfor %}</div></div>{% endif %}
+        <button class="cb sm primary"><i class="fa-solid fa-user-plus"></i> Add to {{ ws.name }}</button>
+        <p class="upn-hint">They become staff{{ ' and stay a traveller too' if u.is_traveller }}.</p>
+      </form>
+    {% else %}
+      <p class="upn-hint">Not in the team. Enable their sign-in first to add them.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ everything else about them #}
+  <section class="upn-sec">
+    <h3><i class="fa-solid fa-bolt"></i> More</h3>
+    <div class="upn-links">
+      {% if trips %}<a href="{{ url_for('admin.listings', q=u.username) }}"><i class="fa-solid fa-plane-departure"></i> {{ trips }} trip post{{ 's' if trips != 1 }}</a>{% endif %}
+      {% if person %}<a href="{{ crm_url('contact', person_id=person.id) }}"><i class="fa-solid fa-address-card"></i> Their Sales CRM contact</a>{% endif %}
+      {% if m and CAN('ws_members') %}<a href="{{ url_for('workspace.member', member_id=m.id) }}"><i class="fa-solid fa-user-gear"></i> Full team page</a>{% endif %}
+      {% if not trips and not person and not m %}<span class="muted">No trips, enquiries or team place yet.</span>{% endif %}
+    </div>
+    {% if not is_self %}
+    <div class="upn-actions">
+      {% if u.email %}<button type="button" class="cb sm" data-send-reset="{{ url_for('admin.user_send_reset', user_id=u.id) }}"><i class="fa-solid fa-key"></i> E-mail a set-password link</button>{% endif %}
+      {% if not locked %}<button type="button" class="cb sm" data-toggle-active="{{ url_for('admin.toggle_user', user_id=u.id) }}">
+        <i class="fa-solid fa-{{ 'ban' if u.is_active else 'circle-check' }}"></i> {{ 'Disable sign-in' if u.is_active else 'Enable sign-in' }}</button>{% endif %}
+      {% if CAN('delete_records') %}<button type="button" class="cb sm danger user-del" data-id="{{ u.id }}" data-label="{{ u.username }}"><i class="fa-solid fa-trash-can"></i> Delete permanently</button>{% endif %}
+    </div>
+    {% endif %}
+  </section>
+</div>

@@ -200,6 +200,33 @@ def linked_workspace():
     return None
 
 
+def _phone_of(info):
+    """The WhatsApp number the CRM reports for its workspace (GET workspace), or None."""
+    wa = (info or {}).get('whatsapp') or {}
+    return wa.get('display_phone') or None
+
+
+def remember_phone(ws, phone):
+    """Keep the number the CRM just reported on the linked workspace, for the switcher."""
+    if linked(ws) and phone and (ws.wacrm or {}).get('phone') != phone:
+        info = dict(ws.wacrm)
+        info['phone'] = phone
+        ws.wacrm = info
+        db.session.commit()
+
+
+def number_of(ws):
+    """The business WhatsApp number a workspace runs, for the header switcher and the workspace screens:
+    {'phone', 'state'} -- 'live' (linked to the WhatsApp CRM: the number it last reported), 'planned'
+    (set up for this workspace, not connected yet) or 'none'. Never asks the CRM: a page must not wait."""
+    info = (ws.wacrm or {}) if ws is not None else {}
+    if info.get('account_id'):
+        return {'phone': info.get('phone') or ws.whatsapp_phone, 'state': 'live'}
+    if ws is not None and ws.whatsapp_phone:
+        return {'phone': ws.whatsapp_phone, 'state': 'planned'}
+    return {'phone': None, 'state': 'none'}
+
+
 def link(ws):
     """Link `ws` to the CRM's workspace and bring its team in. Any other link is dropped: the CRM
     is one workspace."""
@@ -208,7 +235,7 @@ def link(ws):
     for other in Workspace.query.filter(Workspace.id != ws.id).all():
         if other.wacrm:
             other.wacrm = None
-    ws.wacrm = {'account_id': info.get('account_id'), 'name': info.get('name'),
+    ws.wacrm = {'account_id': info.get('account_id'), 'name': info.get('name'), 'phone': _phone_of(info),
                 'linked_at': datetime.utcnow().isoformat(timespec='seconds'), 'error': None}
     db.session.commit()
     if info.get('name') != ws.name:
@@ -323,6 +350,7 @@ def sync_all(ws):
                          for row in list_members()
                          if (row.get('email') or '').lower() not in known and not row.get('banned')]
         info['error'] = None
+        info['phone'] = _phone_of(workspace_info()) or info.get('phone')      # for the header switcher
     except TeamError as exc:
         info['error'] = str(exc)[:255]
     info['synced_at'] = datetime.utcnow().isoformat(timespec='seconds')

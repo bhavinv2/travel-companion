@@ -68,7 +68,7 @@ def test_admin_assigns_roles(client, db, user, admin_user):
     assert client.post(f'/admin/users/{user.id}/roles', json={'roles': ['ninja']}).status_code == 400
     assert client.post(f'/admin/users/{admin_user.id}/roles', json={'roles': ['user']}).status_code == 400
     html = client.get('/admin/users').data.decode()
-    assert 'Add account' in html and f'id="roles-{user.id}"' in html
+    assert 'Add account' in html and f'data-manage="{user.id}"' in html
     logout(client)
     login(client, 'bob@test.com')
     assert client.post(f'/admin/users/{user.id}/roles', json={'roles': ['admin']}).status_code == 302

@@ -145,6 +145,40 @@ body:has(.wa-frame-wrap) #whatsNew { display: none; }
   .wa-lead-panel { border-left: 0; border-top: 1px solid #e3e8f0; }
 }
 
+/* + New workspace, in one flow (new.html, static/js/new-workspace.js) */
+.nw-steps { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; padding: 0; counter-reset: none; }
+.nw-steps li { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px 7px 8px; border-radius: 999px; cursor: pointer;
+  background: #f1f4f9; color: var(--muted); font-weight: 600; font-size: 13.5px; }
+.nw-steps li span { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: #fff; font-size: 12.5px; font-weight: 800; }
+.nw-steps li.on { background: var(--ui-primary, #1f6fd6); color: #fff; }
+.nw-steps li.on span { color: var(--ui-primary, #1f6fd6); }
+.nw-steps li.done { background: #e7f6ee; color: #1d6b40; }
+.nw-panel { margin-bottom: 14px; }
+.nw-invite { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; max-width: 760px; }
+.nw-invite .ws-field { margin-bottom: 0; }
+.nw-people { width: 100%; border-collapse: collapse; margin-top: 16px; }
+.nw-people th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 6px 8px; }
+.nw-people td { padding: 8px; border-top: 1px solid #eef2f8; vertical-align: middle; }
+.nw-people td b { display: block; }
+.nw-people td small { color: var(--muted); font-size: 12.5px; }
+.nw-role { padding: 6px 8px; border: 1px solid #d7e6f6; border-radius: 8px; font: inherit; font-size: 13.5px; background: #fff; }
+.nw-rm { border: 0; background: none; font-size: 20px; line-height: 1; color: var(--muted); cursor: pointer; padding: 2px 6px; }
+.nw-rm:hover { color: #b91c1c; }
+.nw-roles-help { font-size: 12.5px; margin: 10px 0 0; }
+.nw-team { border: 1px solid #e3e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+.nw-team-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.nw-team-head input[type=text] { flex: 1 1 200px; padding: 8px 10px; border: 1px solid #d7e6f6; border-radius: 8px; font: inherit; font-weight: 600; }
+.nw-team-role { font-size: 13px; color: var(--muted); }
+.nw-review { display: grid; gap: 10px; margin: 0; }
+.nw-rv { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 12px; padding: 8px 0; border-top: 1px solid #eef2f8; }
+.nw-rv:first-child { border-top: 0; }
+.nw-rv dt { font-weight: 700; color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+.nw-rv dd { margin: 0; }
+.nw-errors { margin: 4px 0 0; padding-left: 18px; }
+.nw-nav { justify-content: flex-start; }
+@media (max-width: 640px) { .nw-invite, .nw-rv { grid-template-columns: 1fr; } }
+
 /* Team members -> Add: pick existing accounts (members.html) */
 .ws-pick { position: relative; max-width: 560px; }
 .ws-pick > i { position: absolute; left: 12px; top: 12px; color: var(--muted); font-size: 13px; pointer-events: none; }

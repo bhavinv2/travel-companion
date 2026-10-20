@@ -179,17 +179,24 @@
         <button type="button" class="site-sw-btn" id="siteSwBtn"
                 aria-haspopup="listbox" aria-expanded="false" title="Switch workspace">
           <i class="fa-solid fa-grip site-sw-grip"></i>
-          <span class="site-sw-cur">{{ site_sw.label }}</span>
+          <span class="site-sw-cur">{{ site_sw.label }}
+            {%- if site_sw.wa.phone %}<small class="site-sw-num"><i class="fa-brands fa-whatsapp"></i> {{ PHONE.pretty(site_sw.wa.phone, site_sw.wa.phone) }}</small>{% endif %}</span>
           <i class="fa-solid fa-chevron-down site-sw-caret"></i>
         </button>
         <div class="site-sw-menu" id="siteSwMenu" role="listbox" aria-label="Site">
-          <div class="site-sw-head">Workspace</div>
+          <div class="site-sw-head">Workspace · WhatsApp number</div>
           {% for s in site_sw.sites %}
           <a href="{{ s.url }}" role="option" aria-selected="{{ 'true' if s.key == site_sw.current else 'false' }}"
              class="site-sw-item{{ ' on' if s.key == site_sw.current }}">
-            <i class="fa-solid {{ s.icon }}"></i><span>{{ s.label }}</span>
+            <i class="fa-solid {{ s.icon }}"></i>
+            <span class="site-sw-lbl">{{ s.label }}
+              <small class="site-sw-wa {{ s.wa.state }}">{% if s.wa.phone %}<i class="fa-brands fa-whatsapp"></i> {{ PHONE.pretty(s.wa.phone, s.wa.phone) }}{{ ' · to be connected' if s.wa.state == 'planned' }}{% elif s.wa.state == 'live' %}<i class="fa-brands fa-whatsapp"></i> WhatsApp linked{% else %}No WhatsApp number yet{% endif %}</small></span>
             {% if s.key == site_sw.current %}<i class="fa-solid fa-check site-sw-tick"></i>{% endif %}
           </a>
+          {% endfor %}
+          {% if site_sw.tools %}<div class="site-sw-sep"></div>{% endif %}
+          {% for s in site_sw.tools %}
+          <a href="{{ s.url }}" class="site-sw-item site-sw-tool{{ ' add' if s.key == 'new' }}"><i class="fa-solid {{ s.icon }}"></i><span>{{ s.label }}</span></a>
           {% endfor %}
         </div>
       </div>
@@ -341,7 +348,7 @@
   </div>
   {% endif %}{% endif %}
 
-  {% if current_user.is_authenticated and not current_user.is_verified and not current_user.oauth_provider %}
+  {% if current_user.is_authenticated and current_user.needs_email_check %}
   <div class="verify-banner">
     <i class="fa-solid fa-envelope-circle-check"></i>
     <span>{{ _('Please confirm your e-mail address') }} <strong>{{ current_user.email }}</strong> {{ _('so we can notify you about matches.') }}</span>

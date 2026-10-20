@@ -32,14 +32,22 @@ def switcher():
     from app.services import access
     if which() is None or not access.is_staff(current_user):
         return None
+    from app.services import wacrm_team
     current = access.current_workspace(current_user)
     spaces = access.workspaces_for(current_user)
     manage = access.can(current_user, 'ws_settings')
-    if current is None or (len(spaces) < 2 and not manage):
+    create = access.can(current_user, 'ws_all')
+    if current is None or (len(spaces) < 2 and not manage and not create):
         return None
-    sites = [{'key': w.id, 'label': w.name, 'icon': 'fa-building',
-              'url': url_for('workspace.switch', ws_id=w.id, next=urls.here())} for w in spaces]
+    # each workspace with the business WhatsApp number it runs (wacrm_team.number_of: stored, never asked live)
+    sites = [dict({'key': w.id, 'label': w.name, 'icon': 'fa-building',
+                   'url': url_for('workspace.switch', ws_id=w.id, next=urls.here())}, wa=wacrm_team.number_of(w))
+             for w in spaces]
+    tools = []
+    if create:
+        tools.append({'key': 'new', 'label': 'New workspace', 'icon': 'fa-plus', 'url': url_for('workspace.new_workspace')})
     if manage:
-        sites.append({'key': 'settings', 'label': 'Workspace settings', 'icon': 'fa-gear',
+        tools.append({'key': 'settings', 'label': 'Workspace settings', 'icon': 'fa-gear',
                       'url': url_for('workspace.overview')})
-    return {'label': current.name, 'current': current.id, 'sites': sites}
+    return {'label': current.name, 'current': current.id, 'wa': wacrm_team.number_of(current), 'sites': sites,
+            'tools': tools}

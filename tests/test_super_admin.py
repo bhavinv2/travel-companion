@@ -31,10 +31,12 @@ def test_only_a_super_admin_deletes(client, app, admin_user):
     assert r.status_code in (302, 403) and _db.session.get(ContactMessage, m.id) is not None
     page = client.get('/admin/voices?tab=contact').data.decode()
     assert 'hd-check' not in page and 'hd-bulk-del' not in page                 # no button that cannot work
-    assert 'danger user-del' not in client.get('/admin/users').data.decode()
+    target = make_user('trav@test.com', 'trav')
+    assert 'user-del' not in client.get('/admin/users/%d/panel' % target.id).data.decode()
     logout(client)
     login(client, admin_user.email)                                               # the Super admin
     assert 'hd-check' in client.get('/admin/voices?tab=contact').data.decode()
+    assert 'user-del' in client.get('/admin/users/%d/panel' % target.id).data.decode()
     assert client.post('/admin/delete/contact_message/%d' % m.id, json={}).status_code == 200
     _db.session.expire_all()
     assert _db.session.get(ContactMessage, m.id) is None

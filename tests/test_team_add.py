@@ -73,7 +73,8 @@ def test_users_sends_ticked_accounts_to_the_add_form(client, app, admin_user, us
     login(client, admin_user.email)
     users_page = client.get('/admin/users').data.decode()
     assert 'id="userBulkTeamBtn"' in users_page
-    assert '/admin/workspace/members?add=1&amp;user=%d#add' % user.id in users_page
+    panel = client.get('/admin/users/%d/panel' % user.id).data.decode()          # one account: its Manage panel
+    assert '/admin/workspace/members/add' in panel and 'name="user_ids" value="%d"' % user.id in panel
     form = client.get(MEMBERS + '?add=1&user=%d&user=%d' % (user.id, other_user.id)).data.decode()
     assert '<details class="card" id="add" open' in form
     assert form.count('name="user_ids"') == 2 and 'value="%d"' % user.id in form

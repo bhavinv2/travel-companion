@@ -40,6 +40,8 @@ def test_a_password_reset_goes_through_gmail(client, user, gmail):
 
 
 def test_a_signup_verification_goes_through_gmail(client, user, gmail):
+    user.signed_up = True
+    _db.session.commit()
     login(client, 'bob@test.com')
     client.post('/auth/resend-verification', data={})
     assert mailer.OUTBOX and mailer.OUTBOX[-1]['account'] is True

@@ -70,6 +70,20 @@ def _log(kind, **data):
     ActivityEvent.log(kind, actor=current_user, **data)
 
 
+def _wants_json():
+    """The Users screen's side panel posts with fetch and wants an answer, not a page."""
+    return request.accept_mimetypes.best == 'application/json'
+
+
+def _say(message, category, to, status=200):
+    """A screen gets a flash and a redirect; the side panel gets the same words as JSON."""
+    if _wants_json():
+        ok = category in ('success', 'info')
+        return jsonify({'success': True, 'message': message} if ok else {'error': message}), (status if not ok else 200)
+    flash(message, category)
+    return redirect(to)
+
+
 # ----------------------------------------------------------------------------- overview
 
 @workspace_bp.route('')
@@ -110,6 +124,32 @@ def save_settings():
 
 # ------------------------------------------------------------------------------ members
 
+def _new_staff_account(email, first_name=None):
+    """A staff account for somebody new: a random password -- they set their own from the e-mailed link."""
+    base = ''.join(ch for ch in email.split('@')[0] if ch.isalnum() or ch in '._')[:24] or 'staff'
+    username, n = base, 2
+    while User.query.filter(db.func.lower(User.username) == username.lower()).first():
+        username, n = '%s%d' % (base[:22], n), n + 1
+    user = User(email=email, username=username, first_name=(first_name or '').strip()[:60] or None, is_verified=True)
+    user.set_password(secrets.token_urlsafe(18))
+    user.set_roles(['cs'])
+    db.session.add(user)
+    db.session.flush()
+    return user
+
+
+def _send_set_password(user, ws):
+    """The "you have been added" e-mail with a link to set a password. True when it went."""
+    from app.services import mailer, tokens
+    link = url_for('auth.reset_password', token=tokens.make_reset_token(user), _external=True)
+    return mailer.send('[NRI Parent Service] You have been added to %s' % ws.name, [user.email],
+                       'Hello %s,\n\n%s added you to the %s workspace on NRI Parent Service.\n'
+                       'Set your password here: %s\n\nSign in: %s'
+                       % (user.first_name or user.username, current_user.full_name or 'An admin', ws.name,
+                          link, url_for('auth.login', _external=True)),
+                       category='account', account=True)
+
+
 def _person(u):
     """An account as the add form's people picker shows it."""
     return {'id': u.id, 'name': u.full_name or u.username, 'email': u.email or '', 'username': u.username or '',
@@ -138,7 +178,8 @@ def members():
 @staff_page
 def member_search():
     """The add form's people picker: active accounts that are not in this workspace yet, by name, username,
-    e-mail or phone -- travellers too, since anybody with an account can be made a member of staff."""
+    e-mail or phone -- travellers too, since anybody with an account can be made a member of staff. ?any=1
+    (the New workspace flow) leaves this workspace's members in: they can join the new one as well."""
     from sqlalchemy import and_, or_
     from app.services import phone as phone_svc
     ws = _ws()
@@ -151,7 +192,7 @@ def member_search():
     words = q.split()
     if len(words) > 1:
         conds.append(and_(User.first_name.ilike('%%%s%%' % words[0]), User.last_name.ilike('%%%s%%' % words[-1])))
-    have = {m.user_id for m in ws.members}
+    have = set() if request.args.get('any') else {m.user_id for m in ws.members}
     found = (User.query.filter(or_(*conds), User.is_active.is_(True))
              .order_by(User.first_name, User.username).limit(40).all())
     return jsonify({'items': [_person(u) for u in found if u.id not in have][:20]})
@@ -164,7 +205,6 @@ def add_member():
     keeping its own roles), and/or one e-mail address -- an existing account joins, a new address gets a staff
     account and, if asked, the set-password e-mail. Everybody added gets the same role and teams."""
     from app.routes.auth import EMAIL_RE
-    from app.services import mailer, tokens
     ws = _ws()
     back = url_for('workspace.members', add=1)
     role = _role_or_none(ws, request.form.get('role_id'))
@@ -173,26 +213,14 @@ def add_member():
     people = User.query.filter(User.id.in_(ids), User.is_active.is_(True)).order_by(User.id).all() if ids else []
     email = (request.form.get('email') or '').strip().lower()
     if email and not EMAIL_RE.match(email):
-        flash('That e-mail address does not look right.', 'warning')
-        return redirect(back)
+        return _say('That e-mail address does not look right.', 'warning', back, 400)
     if not people and not email:
-        flash('Pick somebody from the list, or enter the e-mail address of a new person.', 'warning')
-        return redirect(back)
+        return _say('Pick somebody from the list, or enter the e-mail address of a new person.', 'warning', back, 400)
     created = None
     if email:
         user = User.query.filter(db.func.lower(User.email) == email).first()
         if user is None:
-            first = (request.form.get('first_name') or '').strip()[:60] or None
-            base = ''.join(ch for ch in email.split('@')[0] if ch.isalnum() or ch in '._')[:24] or 'staff'
-            username, n = base, 2
-            while User.query.filter(db.func.lower(User.username) == username.lower()).first():
-                username, n = '%s%d' % (base[:22], n), n + 1
-            user = User(email=email, username=username, first_name=first, is_verified=True)
-            user.set_password(secrets.token_urlsafe(18))
-            user.set_roles(['cs'])
-            db.session.add(user)
-            db.session.flush()
-            created = user
+            user = created = _new_staff_account(email, request.form.get('first_name'))
         if all(p.id != user.id for p in people):
             people.append(user)
     have = {m.user_id for m in WorkspaceMember.query.filter_by(workspace_id=ws.id)}
@@ -207,19 +235,18 @@ def add_member():
     db.session.commit()
     sent = False
     if created is not None and created in added and request.form.get('send_link'):
-        link = url_for('auth.reset_password', token=tokens.make_reset_token(created), _external=True)
-        sent = mailer.send('[NRI Parent Service] You have been added to %s' % ws.name, [created.email],
-                           'Hello %s,\n\n%s added you to the %s workspace on NRI Parent Service.\n'
-                           'Set your password here: %s\n\nSign in: %s'
-                           % (created.first_name or created.username, current_user.full_name or 'An admin', ws.name,
-                              link, url_for('auth.login', _external=True)),
-                           category='account', account=True)
+        sent = _send_set_password(created, ws)
     name = lambda u: u.full_name or u.username or u.email                             # noqa: E731
+    said = []
     if added:
-        flash('Added %s%s.' % (', '.join(name(u) for u in added), ' and sent a set-password e-mail' if sent else ''),
-              'success')
+        said.append(('Added %s%s.' % (', '.join(name(u) for u in added),
+                                      ' and sent a set-password e-mail' if sent else ''), 'success'))
     if already:
-        flash('Already a member: %s.' % ', '.join(name(u) for u in already), 'info')
+        said.append(('Already a member: %s.' % ', '.join(name(u) for u in already), 'info'))
+    if _wants_json():
+        return jsonify({'success': True, 'message': ' '.join(s for s, _ in said)})
+    for s, category in said:
+        flash(s, category)
     return redirect(url_for('workspace.members'))
 
 
@@ -248,16 +275,15 @@ def save_member(member_id):
     ws = _ws()
     m = _member_or_404(ws, member_id)
     if m.user_id == current_user.id and not current_user.is_admin:
-        flash('Ask another admin to change your own access.', 'warning')
-        return redirect(url_for('workspace.member', member_id=m.id))
+        return _say('Ask another admin to change your own access.', 'warning',
+                    url_for('workspace.member', member_id=m.id), 400)
     role = _role_or_none(ws, request.form.get('role_id'))
     teams = _teams_from(ws, request.form.getlist('team_ids'))
     access.add_member(ws, m.user, role=role, teams=teams, owner=m.is_owner, by=current_user)
     _log('workspace_member_saved', workspace=ws.id, user_id=m.user_id, role=role.name if role else None,
          teams=[t.name for t in teams])
     db.session.commit()
-    flash('Saved %s.' % (m.user.full_name or m.user.email), 'success')
-    return redirect(url_for('workspace.members'))
+    return _say('Saved %s.' % (m.user.full_name or m.user.email), 'success', url_for('workspace.members'))
 
 
 @workspace_bp.route('/members/<int:member_id>/remove', methods=['POST'])
@@ -266,8 +292,7 @@ def remove_member(member_id):
     ws = _ws()
     m = _member_or_404(ws, member_id)
     if m.user_id == current_user.id and not current_user.is_admin:
-        flash('You cannot remove yourself.', 'warning')
-        return redirect(url_for('workspace.members'))
+        return _say('You cannot remove yourself.', 'warning', url_for('workspace.members'), 400)
     who = m.user.full_name or m.user.email
     from app.services import cs_access
     # their open leads and follow-ups go first: to a person, or to whoever is least busy (in a team)
@@ -276,8 +301,7 @@ def remove_member(member_id):
     if hand == 'person':
         to = db.session.get(User, request.form.get('to_id', type=int) or 0)
         if to is None or to.id == m.user_id or to not in cs_access.recipients('crm_board', limit=None):
-            flash('Choose who gets their leads.', 'warning')
-            return redirect(url_for('workspace.member', member_id=m.id))
+            return _say('Choose who gets their leads.', 'warning', url_for('workspace.member', member_id=m.id), 400)
     else:
         tid = request.form.get('team_id', type=int)
         team = next((t for t in ws.teams if t.id == tid), None)
@@ -285,17 +309,15 @@ def remove_member(member_id):
         moved = access.remove_member(m, hand_over={'to': to, 'team': team}, by=current_user)
     except ValueError as exc:
         db.session.rollback()
-        flash(str(exc), 'warning')
-        return redirect(url_for('workspace.member', member_id=m.id) if not m.is_owner
-                        else url_for('workspace.members'))
+        return _say(str(exc), 'warning', url_for('workspace.member', member_id=m.id) if not m.is_owner
+                    else url_for('workspace.members'), 400)
     _log('workspace_member_removed', workspace=ws.id, user=who)
     db.session.commit()
     said = '%s is no longer in %s.' % (who, ws.name)
     if moved and (moved[0] or moved[1]):
         said += ' %d lead%s and %d follow-up%s were handed over.' % (
             moved[0], '' if moved[0] == 1 else 's', moved[1], '' if moved[1] == 1 else 's')
-    flash(said, 'success')
-    return redirect(url_for('workspace.members'))
+    return _say(said, 'success', url_for('workspace.members'))
 
 
 # -------------------------------------------------------------------------------- teams
@@ -548,6 +570,140 @@ def create_workspace():
     access.set_current_workspace(ws)
     flash('%s is ready. Add its members and roles below.' % ws.name, 'success')
     return redirect(url_for('workspace.overview'))
+
+
+# --------------------------------------------------------------------- + New workspace, in one flow
+
+# the roles every workspace starts with (access.create_workspace), as the flow names them
+NEW_ROLES = (('admin', 'Administrator'), ('lead', 'Team lead'), ('cs', 'Sales & service'), ('', 'No role (teams only)'))
+
+
+def _start_roles(ws):
+    return {'admin': access.system_role(ws, 'admin'), 'cs': access.system_role(ws, 'cs'),
+            'lead': next((r for r in ws.roles if r.name == 'Team lead'), None), '': None}
+
+
+def _create_from_plan(plan):
+    """Make a whole workspace from the flow's plan: {name, description, modules, phone, people: [{id, role}],
+    invites: [{email, first_name, role}], teams: [{name, role, members: ['me' | 'u<id>' | 'e<email>']}],
+    send_links}. Everything is checked before anything is made, and it is made in one transaction: a
+    half-made workspace is never left behind. Returns (errors, workspace, accounts made)."""
+    from app.routes.auth import EMAIL_RE
+    from app.services import phone as phone_svc
+    roles_ok = {k for k, _ in NEW_ROLES}
+    errors = []
+    name = ' '.join(str(plan.get('name') or '').split())[:120]
+    if not name:
+        errors.append('Give the workspace a name.')
+    picked = set(plan.get('modules') or []) | access.REQUIRED_MODULES
+    modules = [k for k in access.MODULE_KEYS if k in picked]
+    phone, problem = phone_svc.normalise(str(plan.get('phone') or ''), 'IN')
+    problem = problem or (phone and phone_svc.length_error(phone))
+    if problem:
+        errors.append('WhatsApp number: %s' % problem)
+    members = {'me': (current_user, 'admin')}                 # ref -> (user, role key); the maker is the owner
+    for p in plan.get('people') or []:
+        u = db.session.get(User, int(p.get('id') or 0)) if str(p.get('id') or '').isdigit() else None
+        if u is None or not u.is_active:
+            errors.append('One of the people picked is not an active account any more.')
+        elif u.id != current_user.id:
+            members['u%d' % u.id] = (u, p.get('role') if p.get('role') in roles_ok else 'cs')
+    invites = []
+    for i in plan.get('invites') or []:
+        email = str(i.get('email') or '').strip().lower()
+        if not EMAIL_RE.match(email):
+            errors.append('"%s" is not an e-mail address.' % email[:80])
+        else:
+            invites.append((email, str(i.get('first_name') or ''), i.get('role') if i.get('role') in roles_ok else 'cs'))
+    teams, seen = [], set()
+    for t in plan.get('teams') or []:
+        tname = ' '.join(str(t.get('name') or '').split())[:80]
+        if not tname:
+            errors.append('Every team needs a name.')
+        elif tname.lower() in seen:
+            errors.append('Two teams are called "%s".' % tname)
+        else:
+            seen.add(tname.lower())
+            teams.append((tname, t.get('role') if t.get('role') in roles_ok else '', list(t.get('members') or [])))
+    if errors:
+        return errors, None, []
+
+    ws = access.create_workspace(name, by=current_user, modules=None if len(modules) == len(access.MODULE_KEYS) else modules,
+                                 description=plan.get('description'))
+    ws.whatsapp_phone = phone or None
+    roles = _start_roles(ws)
+    made = []
+    for email, first, role in invites:
+        u = User.query.filter(db.func.lower(User.email) == email).first()
+        if u is None:
+            u = _new_staff_account(email, first)
+            made.append(u)
+        if u.id != current_user.id:
+            members.setdefault('u%d' % u.id, (u, role))
+        members['e' + email] = members.get('u%d' % u.id, members['me'])
+    team_rows = []
+    for tname, role, refs in teams:
+        t = WorkspaceTeam(workspace_id=ws.id, name=tname, role=roles.get(role))
+        db.session.add(t)
+        team_rows.append((t, refs))
+    db.session.flush()
+    in_teams = {}
+    for t, refs in team_rows:
+        for ref in refs:
+            if ref in members:
+                in_teams.setdefault(members[ref][0].id, []).append(t)
+    done = set()
+    for ref, (u, role) in members.items():
+        if u.id in done:
+            continue
+        done.add(u.id)
+        if u.id == current_user.id:                           # already the owner: just their teams
+            m = WorkspaceMember.query.filter_by(workspace_id=ws.id, user_id=u.id).first()
+            access.set_teams(m, in_teams.get(u.id, []))
+        else:
+            access.add_member(ws, u, role=roles.get(role), teams=in_teams.get(u.id, []), by=current_user, commit=False)
+    _log('workspace_created', workspace=ws.id, name=ws.name, people=len(done), teams=len(team_rows),
+         whatsapp=ws.whatsapp_phone)
+    db.session.commit()
+    access.set_current_workspace(ws)
+    return [], ws, made
+
+
+@workspace_bp.route('/new', methods=['GET', 'POST'])
+@staff_page
+def new_workspace():
+    """+ New workspace, in one flow: its name and areas, its people and their roles, its teams and its business
+    WhatsApp number -- set up from one screen and made in one go, instead of five screens one after another."""
+    _ws()
+    from app.services import wacrm_team
+    linked = wacrm_team.linked_workspace()
+    ctx = dict(modules=access.MODULES, roles=NEW_ROLES, linked=linked,
+               linked_wa=wacrm_team.number_of(linked) if linked else None,
+               find_url=url_for('workspace.member_search', any=1), me=_person(current_user))
+    if request.method == 'POST':
+        try:
+            plan = json.loads(request.form.get('plan') or '')
+        except ValueError:
+            plan = None
+        if not isinstance(plan, dict):
+            errors, ws, made = ['The setup could not be read. Nothing was made.'], None, []
+        else:
+            errors, ws, made = _create_from_plan(plan)
+        if errors:
+            db.session.rollback()
+            if isinstance(plan, dict):                       # the people go back on screen with their names
+                for p in plan.get('people') or []:
+                    u = db.session.get(User, int(p['id'])) if str(p.get('id', '')).isdigit() else None
+                    if u is not None:
+                        p.update(name=u.full_name or u.username, email=u.email or '')
+            return render_template('workspace/new.html', plan=plan if isinstance(plan, dict) else None,
+                                   errors=errors, **ctx), 400
+        sent = sum(1 for u in made if plan.get('send_links') and _send_set_password(u, ws))
+        flash('%s is ready: %d %s%s.' % (ws.name, len(ws.members), 'person' if len(ws.members) == 1 else 'people',
+                                         ', %d set-password e-mail%s sent' % (sent, '' if sent == 1 else 's') if sent else ''),
+              'success')
+        return redirect(url_for('workspace.members'))
+    return render_template('workspace/new.html', plan=None, errors=[], **ctx)
 
 
 @workspace_bp.route('/switch/<int:ws_id>')
