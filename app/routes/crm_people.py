@@ -273,16 +273,20 @@ def export_leads():
     owner_id = (current_user.id if owner == 'mine' else 'none' if owner == 'none'
                 else int(owner) if owner.isdigit() and int(owner) in staff_ids else None)
     chat = a.get('chat') if a.get('chat') in {k for k, _ in CHAT_FILTERS} else ''
-    closed_days = 30 if a.get('win') == '30' else None
+    closes = a.get('closes') if crm_money.closes_bounds(a.get('closes')) else None
+    forecast = a.get('forecast') if a.get('forecast') in CRM_FORECASTS else None
+    no_value, no_close = bool(a.get('no_value')), bool(a.get('no_close'))
+    ids = [int(x) for x in (a.get('ids') or '').split(',') if x.strip().isdigit()][:200] or None
+    _more, more_args = crm.lead_more_words(a)
+    # as on the screen: a money filter, a date range or chosen leads show every finished one, not the last 30 days
+    lifted = closes or forecast or no_value or no_close or ids or more_args['date_on']
+    closed_days = 30 if a.get('win') == '30' and not lifted else None
     query = crm.lead_filter(pipe, owner_id=owner_id, q=(a.get('q') or '').strip()[:80], chat=chat,
                             stage_id=a.get('stage', type=int), closed_days=closed_days,
-                            follow=a.get('follow') if a.get('follow') in ('late', 'today') else None,
+                            follow=a.get('follow') if a.get('follow') in dict(crm.FOLLOW_FILTERS) else None,
                             quoted='week' if a.get('quoted') == 'week' else None,
-                            closes=a.get('closes') if crm_money.closes_bounds(a.get('closes')) else None,
-                            forecast=a.get('forecast') if a.get('forecast') in CRM_FORECASTS else None,
-                            no_value=bool(a.get('no_value')), no_close=bool(a.get('no_close')),
-                            status=a.get('status'),
-                            ids=[int(x) for x in (a.get('ids') or '').split(',') if x.strip().isdigit()][:200] or None)
+                            closes=closes, forecast=forecast, no_value=no_value, no_close=no_close,
+                            status=a.get('status'), ids=ids, **more_args)
     query = query.order_by(CrmLead.last_activity_at.desc(), CrmLead.id.desc())
     return crm_people.export(query, 'leads', current_user, {k: v for k, v in a.items() if v})
 

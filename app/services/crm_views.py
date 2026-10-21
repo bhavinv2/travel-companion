@@ -16,8 +16,8 @@ from datetime import datetime, timedelta
 from sqlalchemy import or_
 
 from app import db
-from app.models import CRM_FORECASTS, CrmView
-from app.services import crm_money
+from app.models import CRM_FORECASTS, CRM_LIKELIHOOD, CrmView
+from app.services import crm, crm_money
 
 LEADS, CONTACTS = 'crm_leads', 'crm_contacts'
 SCOPES = (LEADS, CONTACTS)
@@ -52,13 +52,22 @@ def _closes(v):
     return v if crm_money.closes_bounds(v) else None
 
 
+def _day(v):
+    return v if crm._iso_day(v) and len(v) == 10 else None
+
+
 def _leads_checks():
     from app.routes.crm import CHAT_FILTERS
+    ranges = {k for f, _ in crm.LEAD_DATES for k, _l in crm.date_ranges(f)} | {'custom'}
     return {'p': lambda v: v if v == 'all' or (v.replace('-', '').replace('_', '').isalnum() and len(v) <= 40) else None,
             'view': _word(('board', 'list')), 'owner': _owner, 'chat': _word([k for k, _ in CHAT_FILTERS]),
             'win': _word(('30', 'all')), 'stage': _digits, 'q': _text(80), 'closes': _closes,
             'forecast': _word(tuple(CRM_FORECASTS)), 'no_value': _word(('1',)), 'no_close': _word(('1',)),
-            'status': _word(('open', 'won', 'lost')), 'follow': _word(('late', 'today')), 'quoted': _word(('week',))}
+            'status': _word(('open', 'won', 'lost')), 'follow': _word([k for k, _ in crm.FOLLOW_FILTERS]),
+            'quoted': _word(('week',)),
+            # the filter panel's: which date and its range (a ready-made range stays rolling), source, how likely
+            'dt': _word([k for k, _ in crm.LEAD_DATES]), 'dr': _word(sorted(ranges)), 'd1': _day, 'd2': _day,
+            'src': lambda v: v if v == 'none' else _digits(v), 'lk': _word(tuple(CRM_LIKELIHOOD))}
 
 
 def _contacts_checks():
@@ -96,6 +105,9 @@ def builtins(scope, today=None):
                 ('due-today', 'Due today', {'owner': 'mine', 'follow': 'today'}),
                 ('late', 'Late', {'owner': 'mine', 'follow': 'late'}),
                 ('quoted-week', 'Quoted this week', {'owner': 'all', 'quoted': 'week'}),
+                ('new-week', 'Came in the last 7 days', {'owner': 'all', 'dr': '7d'}),
+                ('travel-soon', 'Travelling in the next 30 days', {'owner': 'all', 'status': 'open', 'dt': 'travel',
+                                                                  'dr': 'next30'}),
                 ('won-month', 'Won this month', {'owner': 'all', 'status': 'won', 'forecast': 'won',
                                                  'closes': month}),
                 ('no-value', 'No value yet', {'owner': 'all', 'status': 'open', 'no_value': '1'})]

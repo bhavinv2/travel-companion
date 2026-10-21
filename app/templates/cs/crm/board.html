@@ -8,7 +8,7 @@
 {{ page_head('Leads', 'fa-solid fa-table-columns', 'Every enquiry, by where it is now. Drag a card, or use ⋯ Move to.',
              help=['Pick a product above. Each column is a stage; the dots under a name show how far along they are.',
                    'Drag a card to another column, or use ⋯ Move to on the card.',
-                   "Quick filters find customers waiting on us, chats inside WhatsApp's 24 hours, and leads with no chat yet.",
+                   "Filters sit in the panel on the right: who looks after them, the stage, a date (came in, last activity, closes, travels), status, follow-ups, chat, how likely and where they came from. The Filters button hides or shows it.",
                    ('Switch to List for every lead in pages of 50. Tick some to give them to somebody or move them together.' if can_bulk else 'Switch to List for every lead in pages of 50.')],
              primary=({'label': 'Add a lead', 'href': crm_url('add'), 'icon': 'fa-solid fa-plus'} if CAN('crm_add') else None), full_screen=True) }}
 
@@ -24,7 +24,6 @@
 </div>
 {% endif %}
 
-<div class="leads-top">
 <nav class="pipes" aria-label="Product">
   {% if view == 'list' %}
   <a href="{{ link(p='all', page=None, stage=None) }}" class="{{ 'on' if p_key == 'all' }}"><i class="fa-solid fa-layer-group"></i> All</a>
@@ -34,53 +33,25 @@
     <i class="fa-solid {{ CRM_PRODUCT_ICON(p.product) }}"></i> {{ p.name }}{% if not p.is_active %} <small class="muted">not taking new leads</small>{% endif %} <span class="c">{{ counts.get(p.id, 0) }}</span></a>
   {% endfor %}
 </nav>
-{{ leads_switch(view, board_href=(link(view='board', page=None) if p_key != 'all' else none), list_href=link(view='list', page=None)) }}
-{{ views_menu('crm_leads', view_params) }}
-{% if CAN('crm_bin') %}<a class="cb quiet sm" href="{{ crm_url('bin') }}" title="Leads removed in the last 30 days"><i class="fa-solid fa-trash-can-arrow-up"></i> Recycle bin</a>{% endif %}
-</div>
 
-<form class="toolbar leads-filters" method="GET">
-  <input type="hidden" name="p" value="{{ p_key or '' }}"/>
-  <input type="hidden" name="view" value="{{ view }}"/>
-  <label class="flt">Looked after by
-    <select name="owner" onchange="this.form.submit()">
-      <option value="mine"{{ ' selected' if owner == 'mine' }}>Mine</option>
-      <option value="all"{{ ' selected' if owner == 'all' }}>Anyone</option>
-      <option value="none"{{ ' selected' if owner == 'none' }}>Not given to anyone</option>
-      {% for u in owner_options %}<option value="{{ u.id }}"{{ ' selected' if owner == u.id|string }}>{{ u.full_name }}{{ ' (you)' if u.id == current_user.id }}</option>{% endfor %}
-    </select></label>
-  {% if pipe %}
-  <label class="flt">Stage
-    <select name="stage" onchange="this.form.submit()">
-      <option value="">All</option>
-      {% for st in pipe.stages %}<option value="{{ st.id }}"{{ ' selected' if stage_id == st.id }}>{{ st.name }}</option>{% endfor %}
-    </select></label>
-  {% endif %}
-  <label class="flt">Chat
-    <select name="chat" onchange="this.form.submit()">
-      <option value="">Any</option>
-      {% for k, label in CHAT_FILTERS if k != 'nochat' or wa_mode != 'off' %}<option value="{{ k }}"{{ ' selected' if chat == k }}>{{ label }}</option>{% endfor %}
-    </select></label>
-  <label class="search"><i class="fa-solid fa-magnifying-glass"></i>
-    <input type="search" name="q" value="{{ q }}" placeholder="Find in these" aria-label="Find in these"/></label>
-  <label class="flt"><span class="sr-only">Won and lost</span>
-    <select name="win" onchange="this.form.submit()" aria-label="Won and lost">
-      <option value="30"{{ ' selected' if win == '30' }}>Won and lost: Last 30 days</option>
-      <option value="all"{{ ' selected' if win == 'all' }}>Won and lost: All</option>
-    </select></label>
-  {% if filters_on %}<a class="muted small" href="{{ crm_url('board', reset=1) }}">Clear filters</a>{% endif %}
-</form>
-
-<div class="quick-filters">
-  <span class="muted small">Quick filters:</span>
-  {% for k, label in CHAT_FILTERS if k != 'nochat' or wa_mode != 'off' %}
-  <a class="chip{{ ' on' if chat == k }}" href="{{ link(chat=None if chat == k else k, page=None) }}">{{ label }}</a>
-  {% endfor %}
+{# the leads on the left, the filters in a panel on the right (a drawer on a narrow screen); crm-filters.js #}
+<div class="leads-wrap" data-lf-wrap>
+<script>try { if (localStorage.getItem('crm-leads-side') === 'off') document.querySelector('[data-lf-wrap]').classList.add('side-off'); } catch (e) { /* private window */ }</script>
+<div class="leads-main">
+<div class="leads-bar">
+  {{ leads_switch(view, board_href=(link(view='board', page=None) if p_key != 'all' else none), list_href=link(view='list', page=None)) }}
+  <div class="leads-bar-r">
+    {{ views_menu('crm_leads', view_params) }}
+    <button type="button" class="cb sm lf-toggle" data-lf-toggle aria-controls="leads-side" aria-expanded="true">
+      <i class="fa-solid fa-sliders" aria-hidden="true"></i> Filters{% if filter_chips %} <span class="lf-n" aria-label="{{ filter_chips|length }} on">{{ filter_chips|length }}</span>{% endif %}</button>
+    {% if CAN('crm_bin') %}<a class="cb quiet sm" href="{{ crm_url('bin') }}" title="Leads removed in the last 30 days"><i class="fa-solid fa-trash-can-arrow-up"></i> Recycle bin</a>{% endif %}
+  </div>
 </div>
 
 {% if filter_chips %}
-<p class="active-filters">
+<p class="active-filters" aria-label="Filters on">
   {% for text, href in filter_chips %}<a class="chip on rm" href="{{ href }}" title="Remove this filter">{{ text }} <i class="fa-solid fa-xmark"></i></a>{% endfor %}
+  <a class="muted small" href="{{ crm_url('board', reset=1) }}">Clear filters</a>
 </p>
 {% endif %}
 
@@ -218,4 +189,136 @@
 {% endif %}
 {% endif %}
 {% endif %}
+</div>
+
+{# ------------------------------------------------------------------------------------------ the filter panel
+   A choice applies at once; typed things (the search, picked dates) with Enter or "Show leads". #}
+{% set date_on = more.dt or 'created' %}
+{% set date_set = 'ahead' if date_on in ('close', 'travel') else 'past' %}
+<aside class="leads-side" id="leads-side" aria-label="Filters" data-lf>
+<form class="lf" method="GET" action="{{ crm_url('board') }}" data-lf-form>
+  <div class="lf-head">
+    <h2><i class="fa-solid fa-sliders" aria-hidden="true"></i> Filters</h2>
+    {% if filters_on %}<a class="lf-clear" href="{{ crm_url('board', reset=1) }}">Clear filters</a>{% endif %}
+    <button type="button" class="lf-x" data-lf-close aria-label="Hide the filters" title="Hide the filters"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+  </div>
+  <div class="lf-body" data-lf-body>
+    <input type="hidden" name="p" value="{{ p_key or '' }}"/>
+    <input type="hidden" name="view" value="{{ view }}"/>
+    {% if closes %}<input type="hidden" name="closes" value="{{ closes }}"/>{% endif %}
+    {% if fc %}<input type="hidden" name="forecast" value="{{ fc }}"/>{% endif %}
+    {% if only_ids %}<input type="hidden" name="ids" value="{{ only_ids|join(',') }}"/>{% endif %}
+
+    <label class="lf-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+      <input type="search" name="q" value="{{ q }}" placeholder="Name, phone or e-mail" aria-label="Find in these leads" data-lf-typed/></label>
+
+    <div class="lf-g">
+      <label class="lf-h" for="lf-owner">Looked after by</label>
+      <select id="lf-owner" name="owner">
+        <option value="mine"{{ ' selected' if owner == 'mine' }}>Mine</option>
+        <option value="all"{{ ' selected' if owner == 'all' }}>Anyone</option>
+        <option value="none"{{ ' selected' if owner == 'none' }}>Not given to anyone</option>
+        {% for u in owner_options %}<option value="{{ u.id }}"{{ ' selected' if owner == u.id|string }}>{{ u.full_name }}{{ ' (you)' if u.id == current_user.id }}</option>{% endfor %}
+      </select>
+    </div>
+
+    {% if pipe %}
+    <div class="lf-g">
+      <label class="lf-h" for="lf-stage">Stage</label>
+      <select id="lf-stage" name="stage">
+        <option value="">Any stage</option>
+        {% for st in pipe.stages %}<option value="{{ st.id }}"{{ ' selected' if stage_id == st.id }}>{{ st.name }}</option>{% endfor %}
+      </select>
+      {% if view == 'board' %}<p class="lf-note">On the board this brings its column into view.</p>{% endif %}
+    </div>
+    {% endif %}
+
+    <fieldset class="lf-g">
+      <legend class="lf-h">Date</legend>
+      <div class="lf-seg" role="radiogroup" aria-label="Which date">
+        {% for k, label in LEAD_DATES %}
+        <label><input type="radio" name="dt" value="{{ k }}"{{ ' checked' if date_on == k }} data-lf-dt/><span>{{ {'close': 'Closes'}.get(k, label) }}</span></label>
+        {% endfor %}
+      </div>
+      <div class="lf-opts" role="radiogroup" aria-label="When">
+        <label class="lf-o"><input type="radio" name="dr" value=""{{ ' checked' if not more.dr }}/><span>Any time</span></label>
+        {% for k, label, sets in RANGE_CHOICES %}
+        {% set off = date_set not in sets.split() %}
+        <label class="lf-o" data-sets="{{ sets }}"{{ ' hidden' if off }}><input type="radio" name="dr" value="{{ k }}"{{ ' checked' if more.dr == k and not off }}{{ ' disabled' if off }}/><span>{{ label }}</span></label>
+        {% endfor %}
+        <label class="lf-o"><input type="radio" name="dr" value="custom"{{ ' checked' if more.dr == 'custom' }} data-lf-custom/><span>Pick dates</span></label>
+      </div>
+      <div class="lf-dates" data-lf-dates{{ ' hidden' if more.dr != 'custom' }}>
+        <label><span>From</span><input type="date" name="d1" value="{{ more.d1 or '' }}" data-lf-typed/></label>
+        <label><span>To</span><input type="date" name="d2" value="{{ more.d2 or '' }}" data-lf-typed/></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="lf-g">
+      <legend class="lf-h">Status</legend>
+      <div class="lf-opts">
+        {% for k, label in (('', 'Any'), ('open', 'Still open'), ('won', 'Won'), ('lost', 'Lost')) %}
+        <label class="lf-o"><input type="radio" name="status" value="{{ k }}"{{ ' checked' if (status or '') == k }}/><span>{{ label }}</span></label>
+        {% endfor %}
+      </div>
+      <label class="lf-sub"><span>Won and lost from</span>
+        <select name="win" aria-label="Won and lost from">
+          <option value="30"{{ ' selected' if win == '30' }}>The last 30 days</option>
+          <option value="all"{{ ' selected' if win == 'all' }}>Any time</option>
+        </select></label>
+      {% if win_lifted %}<p class="lf-note">All of them show while a date or money filter is on.</p>{% endif %}
+    </fieldset>
+
+    <fieldset class="lf-g">
+      <legend class="lf-h">Follow-up</legend>
+      <div class="lf-opts">
+        <label class="lf-o"><input type="radio" name="follow" value=""{{ ' checked' if not follow }}/><span>Any</span></label>
+        {% for k, label in FOLLOW_FILTERS %}
+        <label class="lf-o"><input type="radio" name="follow" value="{{ k }}"{{ ' checked' if follow == k }}/><span>{{ label }}</span></label>
+        {% endfor %}
+      </div>
+      <label class="lf-check"><input type="checkbox" name="quoted" value="week"{{ ' checked' if quoted }}/> A quote went out in the last 7 days</label>
+    </fieldset>
+
+    <fieldset class="lf-g">
+      <legend class="lf-h">Chat</legend>
+      <div class="lf-opts">
+        <label class="lf-o"><input type="radio" name="chat" value=""{{ ' checked' if not chat }} data-lf-keep/><span>Any</span></label>
+        {% for k, label in CHAT_FILTERS if k != 'nochat' or wa_mode != 'off' %}
+        <label class="lf-o"><input type="radio" name="chat" value="{{ k }}"{{ ' checked' if chat == k }}/><span>{{ label }}</span></label>
+        {% endfor %}
+      </div>
+    </fieldset>
+
+    <fieldset class="lf-g">
+      <legend class="lf-h">How likely</legend>
+      <div class="lf-opts">
+        <label class="lf-o"><input type="radio" name="lk" value=""{{ ' checked' if not more.lk }}/><span>Any</span></label>
+        {% for k, label in LIKELIHOOD.items() %}
+        <label class="lf-o lk-{{ k }}"><input type="radio" name="lk" value="{{ k }}"{{ ' checked' if more.lk == k }}/><span><i aria-hidden="true"></i>{{ label }}</span></label>
+        {% endfor %}
+      </div>
+    </fieldset>
+
+    <div class="lf-g">
+      <label class="lf-h" for="lf-src">Came from</label>
+      <select id="lf-src" name="src">
+        <option value="">Any source</option>
+        <option value="none"{{ ' selected' if more.src == 'none' }}>Not known</option>
+        {% for s in sources %}<option value="{{ s.id }}"{{ ' selected' if more.src == s.id|string }}>{{ SOURCE_NAME(s.name) }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <fieldset class="lf-g">
+      <legend class="lf-h">Money</legend>
+      <label class="lf-check"><input type="checkbox" name="no_value" value="1"{{ ' checked' if no_value }}/> No value yet</label>
+      <label class="lf-check"><input type="checkbox" name="no_close" value="1"{{ ' checked' if no_close }}/> No close date</label>
+    </fieldset>
+  </div>
+  <div class="lf-foot"><button type="submit" class="cb primary block" data-lf-apply>Show leads</button></div>
+</form>
+</aside>
+</div>
+<div class="lf-scrim" data-lf-scrim hidden></div>
 {% endblock %}
+{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/crm-filters.js') }}" defer></script>{% endblock %}

@@ -298,7 +298,8 @@ def test_a_short_column_has_no_button_and_no_cap_note(client, app, admin_user):
     _many_leads(12)
     login(client, admin_user.email)
     html = client.get('/admin/crm/?p=ti-standard&view=board&owner=all').get_data(as_text=True)
-    assert 'data-extra' not in html and 'Show ' not in words(html).replace('Show all', '')
+    # no "Show 8 more" (the filter panel's "Show leads" button and "Show all" are not that)
+    assert 'data-extra' not in html and 'Show ' not in words(html).replace('Show all', '').replace('Show leads', '')
     assert 'Showing 12 of' not in words(html)
 
 

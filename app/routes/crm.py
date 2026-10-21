@@ -297,6 +297,18 @@ def _stage_ids_hidden(prefs, pipe):
     return [i for i in (prefs.get('hide') or {}).get(pipe.key, []) if i in keep]
 
 
+def _lead_sources(pipe, chosen=None):
+    """The lead sources Leads' "Came from" offers: those with a lead in this pipeline (any pipeline on
+    All), and the chosen one even if it has none now."""
+    ids = select(CrmLead.source_id).where(CrmLead.source_id.isnot(None))
+    if pipe is not None:
+        ids = ids.where(CrmLead.pipeline_id == pipe.id)
+    cond = CrmSource.id.in_(ids)
+    if chosen and chosen.isdigit():
+        cond = or_(cond, CrmSource.id == int(chosen))
+    return sorted(CrmSource.query.filter(cond).all(), key=lambda s: source_name(s.name).lower())
+
+
 @crm_bp.route('/')
 @cs_required
 def board():
@@ -306,8 +318,8 @@ def board():
     crm.ensure_defaults()
     a = request.args
     prefs = dict(session.get(BOARD_PREFS) or {})
-    if a.get('reset'):
-        session[BOARD_PREFS] = {'hide': prefs.get('hide') or {}}
+    if a.get('reset'):              # the filters go; the product, Board or List and hidden stages stay
+        session[BOARD_PREFS] = {k: prefs[k] for k in ('hide', 'p', 'view') if prefs.get(k)}
         return redirect(crm_url('board'))
     counts = dict(db.session.query(CrmLead.pipeline_id, func.count(CrmLead.id))
                   .filter(CrmLead.status == 'open').group_by(CrmLead.pipeline_id).all())
@@ -356,7 +368,7 @@ def board():
     closed_days = 30 if win == '30' else None
     stage_id = a.get('stage', type=int)
     q = (a.get('q') or '').strip()[:80]
-    follow = a.get('follow') if a.get('follow') in ('late', 'today') else None
+    follow = a.get('follow') if a.get('follow') in dict(crm.FOLLOW_FILTERS) else None
     quoted = 'week' if a.get('quoted') == 'week' else None
     page = max(1, a.get('page', type=int) or 1)
     # Forecast's links: leads that close in a month, a forecast category, no value / no close date
@@ -364,9 +376,10 @@ def board():
     fc = a.get('forecast') if a.get('forecast') in CRM_FORECASTS else None
     no_value, no_close = bool(a.get('no_value')), bool(a.get('no_close'))
     money_filter = bool(closes or fc or no_value or no_close)
-    if money_filter:
-        closed_days = None              # a link to won leads must show every one of them, not the last 30 days
-    extra = dict(closes=closes, forecast=fc, no_value=no_value, no_close=no_close, quoted=quoted)
+    more, more_args = crm.lead_more_words(a)          # the panel's date, source and how likely
+    if money_filter or more_args['date_on']:
+        closed_days = None              # a link to won leads, or a date range, must show every one of them
+    extra = dict(closes=closes, forecast=fc, no_value=no_value, no_close=no_close, quoted=quoted, **more_args)
     only_ids = [int(x) for x in (a.get('ids') or '').split(',') if x.strip().isdigit()][:200]
     if only_ids:
         extra['ids'] = only_ids              # "3 not moved: they need a value" links to exactly those leads
@@ -404,27 +417,52 @@ def board():
                    for s in (pipe.stages if pipe else [])]
 
     def link(**kw):
-        """This page's address with some words changed (None drops one)."""
+        """This page's address with some words changed (None drops one; chat='' says "any chat" out loud,
+        as a missing chat falls back to the remembered one)."""
         vals = {'p': p_key, 'view': view, 'owner': owner, 'chat': chat, 'win': win, 'stage': stage_id, 'q': q,
                 'closes': closes, 'forecast': fc, 'no_value': 1 if no_value else None,
                 'no_close': 1 if no_close else None, 'status': extra.get('status'), 'follow': follow,
-                'quoted': quoted,
+                'quoted': quoted, **more,
                 'ids': ','.join(map(str, only_ids)) if only_ids else None}
         vals.update(kw)
-        return crm_url('board', **{k: v for k, v in vals.items() if v not in (None, '')})
+        return crm_url('board', **{k: v for k, v in vals.items() if v is not None and (v != '' or k == 'chat')})
 
     # what Download this list and Save this view carry: the filters on screen, nothing more
     view_params = {k: v for k, v in {
         'p': p_key, 'view': view, 'owner': owner, 'chat': chat, 'win': win, 'stage': stage_id, 'q': q,
         'closes': closes, 'forecast': fc, 'no_value': 1 if no_value else None, 'no_close': 1 if no_close else None,
-        'status': extra.get('status'), 'follow': follow, 'quoted': quoted}.items() if v not in (None, '')}
+        'status': extra.get('status'), 'follow': follow, 'quoted': quoted, **more}.items() if v not in (None, '')}
     export_args = dict(view_params, ids=','.join(map(str, only_ids)) if only_ids else None)
     export_args.pop('view', None)
 
-    defaults = (not only_ids and owner == ('all' if access.can(current_user, 'crm_insights') else 'mine') and not chat
+    owner_default = 'all' if access.can(current_user, 'crm_insights') else 'mine'
+    defaults = (not only_ids and owner == owner_default and not chat
                 and win == '30' and not q and not stage_id and not money_filter and not extra.get('status')
-                and not follow and not quoted)
+                and not follow and not quoted and not (more['dr'] or more['src'] or more['lk']))
+    # every filter that is on, as a chip that takes it off (the panel can be hidden)
     chips = []
+    if q:
+        chips.append(('Find: “%s”' % q, link(q=None, page=None)))
+    if owner != owner_default:
+        who = {'mine': 'Mine', 'all': 'Anyone', 'none': 'Not given to anyone'}.get(owner)
+        if who is None:
+            who = next((u.full_name for u in staff if str(u.id) == owner), 'Someone')
+        chips.append(('Looked after by: ' + who, link(owner=owner_default, page=None)))
+    if stage_id and pipe is not None:
+        st_name = next((s.name for s in pipe.stages if s.id == stage_id), None)
+        if st_name:
+            chips.append(('Stage: ' + st_name, link(stage=None, page=None)))
+    if chat:
+        chips.append((dict(CHAT_FILTERS)[chat], link(chat='', page=None)))
+    if more['dr']:
+        chips.append((crm.date_words_text(more), link(dr=None, d1=None, d2=None, page=None)))
+    if more['lk']:
+        chips.append((CRM_LIKELIHOOD[more['lk']], link(lk=None, page=None)))
+    sources = _lead_sources(pipe, more['src'])
+    if more['src']:
+        src_name = 'Not known' if more['src'] == 'none' else next(
+            (source_name(s.name) for s in sources if str(s.id) == more['src']), 'A removed source')
+        chips.append(('Came from: ' + src_name, link(src=None, page=None)))
     if closes:
         chips.append(('Closes in ' + (crm_money.month_label(closes) if crm_money.PERIOD_RE.match(closes) else closes.upper()),
                       link(closes=None, page=None)))
@@ -437,7 +475,8 @@ def board():
     if only_ids:
         chips.append(('Only the %d leads that were not moved' % len(only_ids), link(ids=None, page=None)))
     if follow:
-        chips.append(({'late': 'Follow-up is late', 'today': 'Follow-up due today'}[follow], link(follow=None, page=None)))
+        chips.append(({'late': 'Follow-up is late', 'today': 'Follow-up due today',
+                       'none': 'Nothing planned'}[follow], link(follow=None, page=None)))
     if quoted:
         chips.append(('Quote sent this week', link(quoted=None, page=None)))
     if extra.get('status'):
@@ -452,6 +491,11 @@ def board():
                            CHAT_FILTERS=CHAT_FILTERS, can_bulk=access.can(current_user, 'crm_tracker'),
                            can_broadcast=can_broadcast, can_export=access.can(current_user, 'crm_export'),
                            view_params=view_params, export_args=export_args,
+                           more=more, follow=follow, quoted=quoted, status=extra.get('status'),
+                           no_value=no_value, no_close=no_close, closes=closes, fc=fc, only_ids=only_ids,
+                           sources=sources, FOLLOW_FILTERS=crm.FOLLOW_FILTERS, LEAD_DATES=crm.LEAD_DATES,
+                           RANGE_CHOICES=crm.date_range_choices(),
+                           win_lifted=win == '30' and closed_days is None,
                            stages_json=stages_json, unrouted=unrouted,
                            unrouted_total=unrouted_total, has_leads=has_leads, **_common())
 

@@ -4211,14 +4211,109 @@ def lead_load():
             joinedload(CrmLead.stage))
 
 
+# Leads' filter panel: which date to filter on, its ready-made ranges (India days: looking back for
+# when they came in or were last active, looking ahead for when they close or travel), follow-ups
+LEAD_DATES = (('created', 'Came in'), ('activity', 'Last activity'), ('close', 'Expected to close'),
+              ('travel', 'Travels on'))
+PAST_RANGES = (('today', 'Today'), ('yesterday', 'Yesterday'), ('7d', 'Last 7 days'), ('30d', 'Last 30 days'),
+               ('month', 'This month'), ('lastmonth', 'Last month'))
+AHEAD_RANGES = (('passed', 'Already passed'), ('today', 'Today'), ('next7', 'Next 7 days'),
+                ('next30', 'Next 30 days'), ('month', 'This month'), ('nextmonth', 'Next month'))
+FOLLOW_FILTERS = (('late', 'Late'), ('today', 'Due today'), ('none', 'Nothing planned'))
+
+
+def date_ranges(field):
+    return AHEAD_RANGES if field in ('close', 'travel') else PAST_RANGES
+
+
+def date_range_choices():
+    """Both sets as one row of choices, in an order that reads right for either: [(word, label, 'past ahead')]."""
+    past, ahead = dict(PAST_RANGES), dict(AHEAD_RANGES)
+    order = ('passed', 'today', 'yesterday', '7d', '30d', 'next7', 'next30', 'month', 'lastmonth', 'nextmonth')
+    return [(k, past.get(k) or ahead[k], ' '.join(n for n, s in (('past', past), ('ahead', ahead)) if k in s))
+            for k in order]
+
+
+def date_span(rng, today, d1=None, d2=None):
+    """(first day, the day after the last) of a Leads date range, as India dates; None leaves that end open.
+    'custom' is d1..d2, both days included."""
+    one = timedelta(days=1)
+    first = today.replace(day=1)
+    following = (first + timedelta(days=32)).replace(day=1)
+    return {'custom': (d1, d2 + one if d2 else None),
+            'today': (today, today + one), 'yesterday': (today - one, today),
+            '7d': (today - timedelta(days=6), today + one), '30d': (today - timedelta(days=29), today + one),
+            'month': (first, following), 'lastmonth': ((first - one).replace(day=1), first),
+            'next7': (today, today + timedelta(days=7)), 'next30': (today, today + timedelta(days=30)),
+            'nextmonth': (following, (following + timedelta(days=32)).replace(day=1)),
+            'passed': (None, today)}.get(rng, (None, None))
+
+
+def _iso_day(v):
+    try:
+        d = date.fromisoformat(str(v or '')[:10])
+    except ValueError:
+        return None
+    return d if 2000 <= d.year <= 2100 else None
+
+
+def lead_more_words(a, now=None):
+    """Leads' panel words beyond the first few, checked, for the board, the list and Download this list:
+    ({word: value or None}, the lead_filter() arguments they make). dt: which date (LEAD_DATES; 'created' is
+    left out); dr: a range of that date's set, or 'custom' with d1 / d2 (YYYY-MM-DD, either may be blank);
+    src: a lead source id or 'none'; lk: how likely (CRM_LIKELIHOOD)."""
+    from app.models import CRM_LIKELIHOOD
+    now = now or datetime.utcnow()
+    dt = a.get('dt') if a.get('dt') in dict(LEAD_DATES) else 'created'
+    d1, d2 = _iso_day(a.get('d1')), _iso_day(a.get('d2'))
+    dr = a.get('dr') or ''
+    if dr != 'custom' and dr not in dict(date_ranges(dt)):
+        dr = 'custom' if (d1 or d2) and not dr else ''        # typed dates without choosing "Custom"
+    if dr == 'custom':
+        if d1 and d2 and d1 > d2:
+            d1, d2 = d2, d1
+        if not (d1 or d2):
+            dr = ''
+    if dr != 'custom':
+        d1 = d2 = None
+    start, until = date_span(dr, (now + IST).date(), d1, d2) if dr else (None, None)
+    src = a.get('src') or ''
+    src = src if src == 'none' or (src.isdigit() and len(src) < 10) else ''
+    lk = a.get('lk') if a.get('lk') in CRM_LIKELIHOOD else ''
+    words = {'dt': dt if dt != 'created' else None, 'dr': dr or None,
+             'd1': d1.isoformat() if d1 else None, 'd2': d2.isoformat() if d2 else None,
+             'src': src or None, 'lk': lk or None}
+    args = {'date_on': dt if dr else None, 'date_from': start, 'date_until': until,
+            'source': ('none' if src == 'none' else int(src)) if src else None, 'likelihood': lk or None}
+    return words, args
+
+
+def date_words_text(words):
+    """The date filter in a few words, for its chip: "Came in: Last 7 days", "Travels on: 3 Nov – 10 Nov"."""
+    dt = words.get('dt') or 'created'
+    what = dict(LEAD_DATES)[dt]
+    if words.get('dr') != 'custom':
+        return '%s: %s' % (what, dict(date_ranges(dt)).get(words.get('dr'), ''))
+    d1, d2 = _iso_day(words.get('d1')), _iso_day(words.get('d2'))
+
+    def day(d):
+        return '%d %s' % (d.day, d.strftime('%b')) + (' %d' % d.year if d.year != (datetime.utcnow() + IST).year else '')
+    if d1 and d2:
+        return '%s: %s' % (what, day(d1)) if d1 == d2 else '%s: %s – %s' % (what, day(d1), day(d2))
+    return '%s: from %s' % (what, day(d1)) if d1 else '%s: until %s' % (what, day(d2))
+
+
 def lead_filter(pipeline=None, owner_id=None, q=None, chat=None, stage_id=None, closed_days=30,
                 follow=None, now=None, closes=None, forecast=None, no_value=False, no_close=False,
-                status=None, ids=None, quoted=None):
+                status=None, ids=None, quoted=None, date_on=None, date_from=None, date_until=None,
+                source=None, likelihood=None):
     """The leads Leads shows, as a query (none runs here): one pipeline (None: every pipeline -- the
     list only); whose (a user id, 'none' for Not given to anyone, None for anyone); a search; the chat
     filter ('waiting' | 'open' | 'nochat'); one stage; finished leads only from the last
-    `closed_days` days (None: all); follow='late': an open follow-up past due, 'today': one due today (India time);
-    quoted='week': a quote was sent in the last 7 days (the "Quote sent" line or a quote marked as sent)."""
+    `closed_days` days (None: all); follow='late': an open follow-up past due, 'today': one due today (India time),
+    'none': still open with no follow-up planned; quoted='week': a quote was sent in the last 7 days (the
+    "Quote sent" line or a quote marked as sent); date_on (LEAD_DATES) between India days date_from and
+    date_until (the day after the last; either may be None); source: a lead source id or 'none'; likelihood."""
     from app.services import crm_metrics
     now = now or datetime.utcnow()
     query = CrmLead.query.join(CrmPerson, CrmPerson.id == CrmLead.person_id)
@@ -4250,6 +4345,25 @@ def lead_filter(pipeline=None, owner_id=None, q=None, chat=None, stage_id=None, 
         start = datetime.combine((now + IST).date(), datetime.min.time()) - IST
         query = query.filter(CrmLead.id.in_(select(CrmTask.lead_id).where(
             CrmTask.status == 'open', CrmTask.due_at >= start, CrmTask.due_at < start + timedelta(days=1))))
+    if follow == 'none':
+        query = query.filter(CrmLead.status == 'open', CrmLead.id.notin_(select(CrmTask.lead_id).where(
+            CrmTask.status == 'open', CrmTask.lead_id.isnot(None))))
+    if date_on and (date_from or date_until):
+        col = {'created': CrmLead.created_at, 'activity': CrmLead.last_activity_at,
+               'close': CrmLead.close_date, 'travel': CrmLead.departure_date}[date_on]
+
+        def edge(d):              # a date column takes the India day; a UTC time column, the moment it starts
+            return d if date_on in ('close', 'travel') else datetime.combine(d, time.min) - IST
+        if date_from:
+            query = query.filter(col >= edge(date_from))
+        if date_until:
+            query = query.filter(col < edge(date_until))
+    if source == 'none':
+        query = query.filter(CrmLead.source_id.is_(None))
+    elif source:
+        query = query.filter(CrmLead.source_id == source)
+    if likelihood:
+        query = query.filter(CrmLead.likelihood == likelihood)
     if quoted == 'week':
         from app.models import CrmQuote
         since = now - timedelta(days=7)
