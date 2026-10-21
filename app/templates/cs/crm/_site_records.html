@@ -1,0 +1,12 @@
+{# "Records on the site" (Sales CRM 2.0): what the site holds about this person, each linked to that record. #}
+<section class="card wide" id="site-records">
+  <h2>Records on the site</h2>
+  {% for r in site_records %}
+  <div class="rec-row">
+    <span class="chip">{{ r.label }}</span>
+    <div><b>{% if r.url %}<a href="{{ r.url }}">{{ r.title }}</a>{% else %}{{ r.title }}{% endif %}</b>
+      {% if r.sub %}<span class="muted small"> &middot; {{ r.sub }}</span>{% endif %}</div>
+    <span class="muted small">{{ r.when.strftime('%d %b %Y') if r.when }}</span>
+  </div>
+  {% else %}<p class="muted">Nothing on the site is linked to them yet: no trip post, insurance quote request, Sahayak booking, contact message or account found by their account, phone or e-mail.</p>{% endfor %}
+</section>

@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+{% block title %}{{ d.title or 'Blog post' }} – Edit – Admin{% endblock %}
+{% block content %}
+{% set errs = checks|selectattr('level', 'equalto', 'error')|list %}
+<div class="admin-page">
+  {% with active='blog' %}{% include 'admin/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <div class="card-head bs-head">
+      <div>
+        <h1>Edit blog post</h1>
+        <p class="muted">
+          {% if post.is_published %}<span class="chip chip-open">published</span>{% else %}<span class="chip chip-unconfirmed">draft</span>{% endif %}
+          {% if post.source_file %}· imported from {{ post.source_file }}{% endif %}
+          {% if post.updated_at %}· last saved {{ post.updated_at|istd }}{% endif %}
+        </p>
+      </div>
+      <div class="bs-head-links">
+        {% if post.is_published %}<a class="btn-sm" href="{{ url_for('blog.blog_post', slug=post.slug) }}" target="_blank" rel="noopener"><i class="fa-solid fa-up-right-from-square"></i> View live</a>{% endif %}
+        <a class="btn-sm" href="{{ url_for('admin.blog_import') }}"><i class="fa-solid fa-file-import"></i> Import from Word</a>
+      </div>
+    </div>
+
+    <form method="POST" id="bsForm" action="{{ url_for('admin.blog_edit', post_id=post.id) }}"
+          data-check-url="{{ url_for('admin.blog_check', post_id=post.id) }}"
+          data-image-url="{{ url_for('admin.blog_image', post_id=post.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <textarea name="content" hidden>{{ d.content }}</textarea>
+
+      <div class="bf-layout">
+        <div class="bf-main">
+          <div class="admin-card bf-card">
+            <textarea name="title" class="bf-title bs-title" rows="1" required maxlength="300" placeholder="Post title…">{{ d.title }}</textarea>
+            <label class="bs-slug muted">{{ SITE_URL }}/blog/<input type="text" name="slug" value="{{ d.slug }}" maxlength="80" spellcheck="false" aria-label="Address"/></label>
+
+            <div class="bf-toolbar bs-toolbar" id="bsToolbar" role="toolbar" aria-label="Formatting">
+              <button type="button" data-do="block" data-tag="h2" title="Section heading">H2</button>
+              <button type="button" data-do="block" data-tag="h3" title="Smaller heading">H3</button>
+              <button type="button" data-do="block" data-tag="p" title="Normal text"><i class="fa-solid fa-paragraph"></i></button>
+              <span class="bf-sep"></span>
+              <button type="button" data-do="cmd" data-cmd="bold" title="Bold (Ctrl+B)"><i class="fa-solid fa-bold"></i></button>
+              <button type="button" data-do="cmd" data-cmd="italic" title="Italic (Ctrl+I)"><i class="fa-solid fa-italic"></i></button>
+              <button type="button" data-do="cmd" data-cmd="underline" title="Underline"><i class="fa-solid fa-underline"></i></button>
+              <button type="button" data-do="link" title="Link"><i class="fa-solid fa-link"></i></button>
+              <span class="bf-sep"></span>
+              <button type="button" data-do="cmd" data-cmd="insertUnorderedList" title="Bulleted list"><i class="fa-solid fa-list-ul"></i></button>
+              <button type="button" data-do="cmd" data-cmd="insertOrderedList" title="Numbered list"><i class="fa-solid fa-list-ol"></i></button>
+              <button type="button" data-do="block" data-tag="blockquote" title="Pull quote"><i class="fa-solid fa-quote-left"></i></button>
+              <button type="button" data-do="note" title="Tip box"><i class="fa-solid fa-lightbulb"></i></button>
+              <span class="bf-sep"></span>
+              <button type="button" data-do="image" title="Picture"><i class="fa-solid fa-image"></i></button>
+              <button type="button" data-do="cta" title="Button"><i class="fa-solid fa-hand-pointer"></i></button>
+              <button type="button" data-do="cmd" data-cmd="insertHorizontalRule" title="Line across"><i class="fa-solid fa-minus"></i></button>
+              <span class="bf-sep"></span>
+              <button type="button" data-do="cmd" data-cmd="undo" title="Undo (Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
+              <button type="button" data-do="cmd" data-cmd="redo" title="Redo"><i class="fa-solid fa-rotate-right"></i></button>
+              <button type="button" data-do="clear" title="Clear formatting"><i class="fa-solid fa-eraser"></i></button>
+            </div>
+            <div class="bs-editor-wrap">
+              <div class="bf-editor bs-editor blog-post-content" id="bsEditor" contenteditable="true"
+                   data-placeholder="Write the post, or import it from Word…">{{ body|safe }}</div>
+              <div class="bs-figpanel" id="bsFigPanel" hidden>
+                <p class="bs-fp-missing" hidden><i class="fa-solid fa-triangle-exclamation"></i> Missing picture: <b></b></p>
+                <label>Description (what the picture shows)<input type="text" data-k="alt" maxlength="200"/></label>
+                <label>Caption (optional)<input type="text" data-k="cap" maxlength="200"/></label>
+                <div class="bs-fp-actions">
+                  <button type="button" class="btn btn-primary btn-sm" data-fp="replace"><i class="fa-solid fa-upload"></i> <span>Upload picture</span></button>
+                  <button type="button" class="btn-sm" data-fp="remove"><i class="fa-solid fa-trash"></i> Remove</button>
+                  <button type="button" class="btn-sm-outline" data-fp="done">Done</button>
+                </div>
+              </div>
+            </div>
+            <div class="bf-foot muted"><span id="bsCount"></span><span id="bsDirty"></span></div>
+          </div>
+        </div>
+
+        <div class="bf-side">
+          <div class="admin-card bf-card">
+            <h3 class="bf-h"><i class="fa-solid fa-paper-plane"></i> {{ 'Live post' if post.is_published else 'Publish' }}</h3>
+            <div class="bs-actions">
+              {% if post.is_published %}
+                <button type="submit" name="action" value="save" class="btn btn-primary" id="bsGoLive"><i class="fa-solid fa-floppy-disk"></i> Update</button>
+              {% else %}
+                <button type="submit" name="action" value="publish" class="btn btn-primary" id="bsGoLive"><i class="fa-solid fa-paper-plane"></i> Publish</button>
+                <button type="submit" name="action" value="save" class="btn-sm" id="bsSave"><i class="fa-solid fa-floppy-disk"></i> Save draft</button>
+              {% endif %}
+              <button type="submit" formaction="{{ url_for('admin.blog_preview', post_id=post.id) }}" formtarget="_blank" class="btn-sm" id="bsPreview"><i class="fa-solid fa-eye"></i> Preview</button>
+              {% if post.is_published %}
+                <button type="submit" name="action" value="unpublish" class="btn-sm-outline" data-confirm="Take this post off the site? It stays here as a draft."><i class="fa-solid fa-eye-slash"></i> Unpublish</button>
+              {% endif %}
+            </div>
+            <p class="bs-blocked" id="bsBlocked" {{ '' if errs else 'hidden' }}><i class="fa-solid fa-circle-exclamation"></i> Fix the red items below to {{ 'update' if post.is_published else 'publish' }}.</p>
+            {% if not post.published_at %}
+            <input type="hidden" name="send_notification_shown" value="1"/>
+            <label class="bf-toggle">
+              <input type="checkbox" name="send_notification" {{ 'checked' if d.send_notification }}/>
+              <span><strong>Tell everybody when it goes live</strong><small>In-app for everyone; e-mail only to people who opted in.</small></span>
+            </label>
+            {% endif %}
+          </div>
+
+          <div class="admin-card bf-card">
+            <h3 class="bf-h"><i class="fa-solid fa-list-check"></i> Checks</h3>
+            <ul class="bs-checks" id="bsChecks">
+              {% for c in checks %}
+              <li class="bs-c-{{ c.level }}"><i class="fa-solid {{ {'error': 'fa-circle-xmark', 'warn': 'fa-lightbulb', 'ok': 'fa-circle-check'}[c.level] }}"></i> {{ c.text }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <div class="admin-card bf-card">
+            <h3 class="bf-h"><i class="fa-solid fa-align-left"></i> Summary</h3>
+            <textarea name="summary" rows="4" maxlength="300" class="bs-summary" placeholder="One or two sentences for Google, shares and the blog list.">{{ d.summary }}</textarea>
+            <small class="muted"><span id="bsSumCount">{{ d.summary|length }}</span> characters · 70–160 shows in full</small>
+          </div>
+
+          <div class="admin-card bf-card">
+            <h3 class="bf-h"><i class="fa-solid fa-image"></i> Cover picture</h3>
+            <input type="hidden" name="cover_image_url" value="{{ d.cover_image_url or '' }}"/>
+            <div class="bs-cover" id="bsCover">
+              <img alt="" {% if d.cover_image_url %}src="{{ app_url(d.cover_image_url) }}"{% else %}hidden{% endif %}/>
+              <p class="muted" {{ 'hidden' if d.cover_image_url }}>No cover yet. 1200 × 630 px works best.</p>
+            </div>
+            <div class="bs-cover-actions">
+              <button type="button" class="btn-sm" data-cover="upload"><i class="fa-solid fa-upload"></i> {{ 'Replace' if d.cover_image_url else 'Upload' }}</button>
+              <button type="button" class="btn-sm-outline" data-cover="remove" {{ '' if d.cover_image_url else 'hidden' }}>Remove</button>
+            </div>
+            <label class="bs-field">Description (alt text)<input type="text" name="cover_alt" maxlength="300" value="{{ d.cover_alt }}" placeholder="What the picture shows"/></label>
+          </div>
+        </div>
+      </div>
+      <input type="file" id="bsFile" accept="image/jpeg,image/png,image/webp" hidden/>
+    </form>
+  </main>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/blog-studio.js') }}"></script>
+{% endblock %}

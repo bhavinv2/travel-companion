@@ -1,11 +1,13 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_tabs.html' import tab_strip with context %}
 {% from '_empty.html' import empty %}
-{% block crm_title %}What goes out by itself{% endblock %}
+{% block crm_title %}Automation{% endblock %}
 {% block crm %}
-{{ page_head('What goes out by itself', 'fa-solid fa-list-check',
+{{ tab_strip('crm_auto') }}
+{{ page_head('Automation — what goes out by itself', 'fa-solid fa-list-check',
              "Everything that messages customers without a person pressing Send, in one list. Change each one where it's made.",
-             help=['Follow-ups that go by themselves and stage moves are set in Pipelines.',
+             help=['Follow-ups that go by themselves and stage moves are set in Pipelines. Automation rules are on the Rules tab.',
                    'Reply rules, the chatbot and AI replies are set in WhatsApp.',
                    'A reply rule that sends when a Sales tag is added, a chat is given to someone, a new contact is made or on a schedule can repeat our follow-ups. Pause it, or check it first.',
                    'This list is checked every day; admins get a bell when a new reply rule may repeat our follow-ups.'],
@@ -20,10 +22,34 @@
 </section>
 {% endif %}
 
-{% if not sending %}
-<p class="muted">Follow-ups go by themselves only while WhatsApp connection is on Keep in step and send follow-ups. Now: {{ mode_label }}.
-  {% if CAN('crm_connection') %}<a href="{{ crm_url('connection') }}">Open WhatsApp connection</a>{% endif %}</p>
+{% if rule_clashes %}
+<section class="card warn pl-banner"><i class="fa-solid fa-triangle-exclamation"></i>
+  <span>{{ rule_clashes|length }} automation rule{{ '' if rule_clashes|length == 1 else 's' }} may fight a stage’s own move: {{ rule_clashes[0].name }} {{ rule_clashes[0].why }}{{ ' …' if rule_clashes|length > 1 }}</span>
+  {% if CAN('crm_rules') %}<a class="cb sm" href="{{ crm_url('rules') }}">Open Rules</a>{% endif %}
+</section>
 {% endif %}
+
+{% if not sending %}
+<p class="muted">Follow-ups go by themselves only while WhatsApp is on Keep in step and send follow-ups. Now: {{ mode_label }}.
+  {% if CAN('crm_connection') %}<a href="{{ crm_url('connection') }}">Open WhatsApp</a>{% endif %}</p>
+{% endif %}
+
+<section class="card ai-box" id="ai-lead">
+  <div class="card-head"><h2><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> AI on the lead page</h2>
+    <form method="POST" action="{{ crm_url('ai_switch') }}" class="inl">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="on" value="{{ 0 if ai_on else 1 }}"/>
+      <button class="cb sm{{ '' if ai_on else ' primary' }}">{{ 'Switch off' if ai_on else 'Switch on' }}</button></form></div>
+  <p><b>{{ 'On' if ai_on and ai_key else 'Off' }}.</b> “Summarise” on a lead writes a short summary and a suggested next message. The message only goes into the message box: the agent reads it, changes it and presses Send.</p>
+  <p class="hint">{{ AI_NOTE }}</p>
+  {% if ai_on and not ai_key %}<p class="hint">It is switched on, but the server has no Anthropic key yet, so it does not show on leads.</p>{% endif %}
+</section>
+
+<section class="card">
+  <h2>Automation rules</h2>
+  {% set on_rules = lead_rules|selectattr('active')|list %}
+  <div class="auto-row"><span>{{ on_rules|length }} of {{ lead_rules|length }} rule{{ '' if lead_rules|length == 1 else 's' }} switched on. Rules add tasks, give leads to people, change details, move stages and ring bells; they never message a customer.</span>
+    {% if CAN('crm_rules') %}<a class="cb sm" href="{{ crm_url('rules') }}">Open Rules</a>{% endif %}</div>
+</section>
 
 {% if not steps and not moves and not rules and rules_state == 'ok' and flows_active == 0 and ai_auto_reply is sameas false %}
 {{ empty('fa-solid fa-list-check', 'Nothing goes out by itself yet.') }}

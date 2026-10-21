@@ -28,6 +28,17 @@ from app.services import crm_products
 
 IST = timedelta(hours=5, minutes=30)
 
+# Rows that are a registry number (services/crm_numbers.py), so the sheet, Results and the downloads agree:
+#
+#   sheet row                      registry number    note
+#   Cold leads                     new_leads          the lead's owner; brought-in leads are not counted
+#   Quotes sent                    quoted             "Quote sent" marks, on leads the person looks after
+#   Payment links sent             payment_links      the same for "Payment link sent"
+#
+# The other rows (stage moves, messages by code, posts, blogs, response time, the hand-entered ones) are the
+# workbook's own and stay here.
+ROW_METRIC = {'cold': 'new_leads', 'quotes_sent': 'quoted', 'payment_links_sent': 'payment_links'}
+
 # (group, [(key, label, how, question, unit)]) -- the rows of the KPI tab, in its order. how: auto / manual;
 # question and unit: what My day asks for a hand-entered row ("How many posts ...?", "posts")
 GROUPS = [
@@ -43,10 +54,10 @@ GROUPS = [
         ('cold_web', 'Cold leads from the website', 'auto', None, None),
         ('cold_to_prospect', 'Cold lead → prospect', 'auto', None, None),
         ('prospects', 'Prospects', 'auto', None, None),
-        ('prospect_fallout', 'Prospect fallout', 'auto', None, None),
+        ('prospect_fallout', 'Prospects lost', 'auto', None, None),
         ('prospect_to_pipeline', 'Prospect → pipeline', 'auto', None, None),
         ('pipeline', 'Pipeline', 'auto', None, None),
-        ('pipeline_fallout', 'Pipeline fallout', 'auto', None, None),
+        ('pipeline_fallout', 'Pipeline lost', 'auto', None, None),
         ('customers', 'Pipeline → customer', 'auto', None, None),
         ('upsell', 'Customer upsell', 'auto', None, None),
         ('quotes_sent', 'Quotes sent', 'auto', None, None),
@@ -56,9 +67,9 @@ GROUPS = [
         ('msg_total', 'All messages', 'auto', None, None),
         ('msg_prospect', 'To cold leads and prospects', 'auto', None, None),
         ('msg_ce', 'Customer engagement', 'auto', None, None),
-        ('msg_prospect_fallout', 'Prospect fallout', 'auto', None, None),
+        ('msg_prospect_fallout', 'To lost prospects', 'auto', None, None),
         ('msg_pi', 'Pipeline', 'auto', None, None),
-        ('msg_pipeline_fallout', 'Pipeline fallout', 'auto', None, None),
+        ('msg_pipeline_fallout', 'To lost pipeline leads', 'auto', None, None),
         ('msg_bw', 'Birthday wishes', 'auto', None, None),
         ('msg_er', 'Expiration reminders', 'auto', None, None),
         ('msg_fm', 'Festival and occasion messages', 'auto', None, None),
@@ -143,9 +154,8 @@ def compute(first, last, user_id=None):
             .outerjoin(CrmSource, CrmSource.id == CrmLead.source_id)
             .filter(CrmLead.created_at >= since, CrmLead.created_at < until, CrmLead.imported.is_(False)))
     for _, created, by, owner, product, kind in rows:
-        if not mine(by or owner):
+        if not mine(owner):
             continue
-        add('cold', created)
         if kind in WEBSITE_KINDS:
             add('cold_web', created)
         row = kpi_rows.get(product)
@@ -197,13 +207,14 @@ def compute(first, last, user_id=None):
         add('msg_total', when)
         add(message_row(code, roles.get(stage_id), keys.get(stage_id), codes), when)
 
-    # ---- the lead page's milestone buttons ("I sent the quote" / "I sent the payment link")
-    for when, code, agent in (db.session.query(CrmTouchpoint.created_at, CrmTouchpoint.code, CrmTouchpoint.agent_id)
-                              .filter(CrmTouchpoint.code.in_(('Q', 'PLS')),
-                                      db.or_(CrmTouchpoint.status.is_(None), CrmTouchpoint.status != 'imported'),
-                                      CrmTouchpoint.created_at >= since, CrmTouchpoint.created_at < until)):
-        if mine(agent):
-            add('quotes_sent' if code == 'Q' else 'payment_links_sent', when)
+    # ---- the lead page's milestone buttons ("I sent the quote" / "I sent the payment link") and the leads in:
+    # the registry's numbers (crm_numbers.METRICS), the same as Results shows
+    from app.services import crm_numbers
+    owners = None if user_id is None else [user_id]
+    for key, metric in ROW_METRIC.items():
+        for day, n in crm_numbers.daily_totals([metric], since, until, None, owners)[metric].items():
+            if first <= day <= last:
+                grid[key][day] = n
 
     # ---- trip posts and blogs
     from app.models import Blog, CompanionRequest

@@ -44,6 +44,7 @@
 
     <p class="admin-count"><b>{{ total }}</b> booking{{ '' if total == 1 else 's' }}{{ ' in this view' if (status or service or q) }}</p>
 
+    {% set rec_id = (request.args.get('id') or '')|int(0) %}{% if rec_id %}<p class="admin-count"><i class="fa-solid fa-filter"></i> Showing one record (#{{ rec_id }}). <a href="{{ url_for(request.endpoint) }}">Show all</a></p>{% endif %}
     {% if can_delete %}{{ bulk_bar('sahayak_booking', 'bookings') }}{% endif %}
     <div class="admin-panel">
     <div class="table-wrap">
@@ -54,7 +55,7 @@
         </thead>
         <tbody>
           {% for b in bookings %}
-          <tr id="sk-{{ b.id }}" data-hd-row="sahayak_booking-{{ b.id }}">
+          <tr id="sk-{{ b.id }}" data-rec="rec-{{ b.id }}" data-hd-row="sahayak_booking-{{ b.id }}">
             {% if can_delete %}<td class="hd-pick" data-label="">{{ row_check('sahayak_booking', b.id) }}</td>{% endif %}
             <td data-label="When" class="nowrap">
               <strong>{{ b.when_display }}</strong>

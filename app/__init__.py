@@ -114,7 +114,9 @@ from flask import Request as _FlaskRequest  # noqa: E402
 # Uploads bigger than MAX_CONTENT_LENGTH, allowed on these screens only. The sales team's workbook
 # is 24 MB of mostly empty formatted cells; raising the limit everywhere to take it would let every
 # public form accept that much too.
-BIG_UPLOADS = {'crm.import_sheet': 64 * 1024 * 1024, 'admin_crm.import_sheet': 64 * 1024 * 1024}
+BIG_UPLOADS = {'crm.import_sheet': 64 * 1024 * 1024, 'admin_crm.import_sheet': 64 * 1024 * 1024,
+               # Word documents with a zip of their pictures (blog_engine caps each picture and the zip)
+               'admin.blog_import': 96 * 1024 * 1024}
 
 
 class AppRequest(_FlaskRequest):
@@ -477,6 +479,7 @@ def create_app(test_config=None):
     from app.routes.trips import trips_bp
     from app.routes.chat import chat_bp
     from app.routes.admin import admin_bp
+    from app.routes import admin_blog  # noqa: F401 -- adds the blog studio's screens to admin_bp
     from app.routes.blog import blog_bp
     from app.routes.notifications import notifications_bp
     from app.routes.cs import cs_bp
@@ -491,7 +494,20 @@ def create_app(test_config=None):
     from app.routes import crm_setup  # noqa: F401 -- Set-up -> Pipelines: its rules are on crm_bp, before it is registered
     from app.routes import crm_wa  # noqa: F401 -- Quick replies, WhatsApp connection, What goes out by itself: rules on crm_bp, before it is registered
     from app.routes import crm_people  # noqa: F401 -- Contacts, Find a person, downloads and imports: rules on crm_bp, before it is registered
+    from app.routes import crm_forecast  # noqa: F401 -- Forecast and Targets: rules on crm_bp, before it is registered
+    from app.routes import crm_control  # noqa: F401 -- Recycle bin, being away, what a stage needs: rules on crm_bp, before it is registered
+    from app.routes import crm_family  # noqa: F401 -- Families, merge, files: rules on crm_bp, before it is registered
+    from app.routes import crm_quotes, crm_views, crm_report_builder, crm_lead_ads  # noqa: F401 -- Quotes, saved views, report builder, lead ads: rules on crm_bp / crm_public_bp, before they are registered
+    from app.routes import crm_activities  # noqa: F401 -- Tasks, Calendar, e-mail: rules on crm_bp / crm_public_bp, before they are registered
+    from app.routes import crm_rules  # noqa: F401 -- Automation rules, scoring, AI on the lead page, offers consent: rules on crm_bp, before it is registered
 
+    from app.services import crm_access, crm_audit, crm_bin, crm_scope
+    crm_bin.register()          # removed leads are hidden everywhere (the recycle bin)
+    crm_access.register()       # a role may see only its own / its team's leads
+    crm_audit.register()        # the history of every change to a lead or a person
+    crm_scope.register()        # every workspace has its own CRM: leads, contacts, pipelines, numbers
+    from app.services import crm_rules as _crm_rules
+    _crm_rules.register()       # automation rules and lead scores: worked out after each save's commit
     app.register_blueprint(main_bp)
     app.register_blueprint(insurance_bp)
     app.register_blueprint(sahayak_bp)
@@ -596,6 +612,7 @@ def create_app(test_config=None):
         from app.services import (access, ads, analytics, contact_form, cs_access,
                                   insurance_countries, nav_badges, nri_services, offices, phone,
                                   portals, products, urls, wacrm_team, whats_new)
+        from app.services import crm_assign
         return {
             # Site-wide GA4 / GTM / second Ads account / Search Console verification -- see
             # app/services/analytics.py and _analytics.html. ADS_ACCOUNT_ID reuses ads.py's own
@@ -617,11 +634,15 @@ def create_app(test_config=None):
             # Functions, so a public page never runs the queries behind them.
             'STAFF_NAV': lambda active=None: access.nav(current_user, active),
             'CAN': lambda page: access.can(current_user, page),
+            'TABS_FOR': lambda page: access.tabs_for(page),
             'WORKSPACE': lambda: access.current_workspace(current_user),
             # a workspace's business WhatsApp number: {'phone', 'state': live / planned / none}
             'WA_NUMBER': lambda ws: wacrm_team.number_of(ws),
             # the account menu's "Working as": the roles one can take, and the one taken (None: everything)
             'ROLE_CHOICES': lambda: access.roles_to_act(current_user),
+            'AWAY_UNTIL': lambda: crm_assign.away_until(current_user),
+            'AWAY_MIN': lambda: (datetime.utcnow() + timedelta(days=1, hours=5, minutes=30)).strftime('%Y-%m-%d'),
+            'IST_OFFSET': timedelta(hours=5, minutes=30),
             'ACTING': lambda: access.acting_role(current_user),
             'CS_ACCESS': cs_access,
             # The function, not the counts: only a staff sidebar calls it, so a public page

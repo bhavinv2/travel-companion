@@ -32,6 +32,11 @@ class Product:
     currency: str
     kpi_row: object
     position: int
+    price: object = None
+    revenue_kind: object = None
+    revenue_value: object = None
+    close_days: object = None
+    max_discount_pct: object = None
 
 
 def _seed():
@@ -55,7 +60,8 @@ def all():
             keys = {pid: key for pid, key in db.session.query(CrmPipeline.id, CrmPipeline.key)
                     .filter(CrmPipeline.id.in_(ids))}
         out = [Product(r.id, r.code, r.name, r.icon or ICON_DEFAULT, bool(r.offered), r.default_pipeline_id,
-                       keys.get(r.default_pipeline_id), r.currency or 'INR', r.kpi_row, r.position or 0)
+                       keys.get(r.default_pipeline_id), r.currency or 'INR', r.kpi_row, r.position or 0,
+                       r.price, r.revenue_kind, r.revenue_value, r.close_days, r.max_discount_pct)
                for r in rows]
     else:
         out = _seed()

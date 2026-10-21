@@ -47,7 +47,7 @@ def test_it_comes_with_working_leads_and_is_never_granted_on_its_own(client, app
         give_role(ws, cs_user, pages)
         r = client.get('/cs/crm/flow')
         assert r.status_code == 200, pages
-        assert 'data-title="Visual flow"' in menu(r.data.decode()), pages
+        assert 'Visual flow' in r.data.decode() and 'data-title="Visual flow"' not in menu(r.data.decode()), pages
     give_role(ws, cs_user, ['home'])
     assert client.get('/cs/crm/flow').status_code == 302
     assert client.get('/cs/crm/flow/find?q=Ramesh').status_code == 302

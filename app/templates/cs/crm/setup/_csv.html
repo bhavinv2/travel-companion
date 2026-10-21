@@ -32,7 +32,7 @@
       </select>
       <label for="d-source">Where they came from, when the file doesn't say</label>
       <select id="d-source" name="default_source">
-        {% for s in sources %}<option value="{{ s.key }}"{{ ' selected' if csv.defaults.source == s.key }}>{{ s.name }}</option>{% endfor %}
+        {% for s in sources %}<option value="{{ s.key }}"{{ ' selected' if csv.defaults.source == s.key }}>{{ SOURCE_NAME(s.name) }}</option>{% endfor %}
       </select>
       <label for="d-owner">Looked after by, when the file doesn't say</label>
       <select id="d-owner" name="default_owner">

@@ -14,6 +14,7 @@
 {% from '_crm_pill.html' import crm_pill with context %}
 
 {% macro contact_table(messages, status_endpoint, statuses, labels, next_url, with_notes=False, topic_labels={}, can_delete=False) %}
+{% set rec_id = (request.args.get('id') or '')|int(0) %}{% if rec_id %}<p class="admin-count"><i class="fa-solid fa-filter"></i> Showing one record (#{{ rec_id }}). <a href="{{ url_for(request.endpoint) }}">Show all</a></p>{% endif %}
 {% if can_delete %}{{ bulk_bar('contact_message', 'enquiries') }}{% endif %}
 <table class="admin-table vc-table">
   <thead>
@@ -24,7 +25,7 @@
   </thead>
   <tbody>
   {% for m in messages %}
-    <tr data-hd-row="contact_message-{{ m.id }}"{% if m.is_unread %} class="vc-unread" data-read="contact/{{ m.id }}"{% endif %}>
+    <tr id="rec-{{ m.id }}" data-hd-row="contact_message-{{ m.id }}"{% if m.is_unread %} class="vc-unread" data-read="contact/{{ m.id }}"{% endif %}>
       <td class="nowrap">{% if can_delete %}<span class="vc-pick">{{ row_check('contact_message', m.id) }}</span>{% endif %}{% if m.is_unread %}<span class="vc-new-dot" title="You have not opened this yet">New</span><br/>{% endif %}{{ m.created_at|ist('%d %b %Y<br/>%H:%M')|safe if m.created_at }}</td>
       {# which service the enquiry came from: the insurance page writes into this same inbox #}
       <td class="nowrap"><span class="cm-topic cm-topic-{{ m.topic or 'companion' }}">{{ topic_labels.get(m.topic, 'Travel companion') }}</span></td>

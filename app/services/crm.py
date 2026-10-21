@@ -18,7 +18,7 @@ How a lead moves, in one place:
   mark_wa_due()  every change the WhatsApp CRM should know (a new or repeat enquiry, a stage, an
                  owner, a name, a number) only marks the person. Straight after the save a
                  background thread brings their contact into step (run_wa_sync), and the jobs
-                 runner retries whoever is still marked. Off (Set-up → WhatsApp connection) marks nothing
+                 runner retries whoever is still marked. Off (Set-up → WhatsApp) marks nothing
                  and writes nothing. Bulk marks (the backfill, a source's changed tags) are quiet:
                  the tags go without starting the WhatsApp CRM's tag automations.
   record_whatsapp_in()  a WhatsApp message from them (the webhook, or the jobs runner catching up
@@ -48,7 +48,7 @@ from app import db
 from app.models import (CrmAnswer, CrmField, CrmIdentity, CrmLead, CrmPerson, CrmPipeline, CrmPlaybookStep,
                         CrmSource, CrmStage, CrmStageChange, CrmTask, CrmTouchpoint, User,
                         CRM_CHANNEL_LABELS, CRM_CHECK_CHANNELS, CRM_DATE_FIELDS, CRM_LEGACY_TRIGGERS, ROLE_MEANS)
-from app.services import crm_products
+from app.services import crm_money, crm_products
 
 log = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ WA_FIRST_OK_SAYS = 'Waits until they tick “Send my quote and updates on WhatsA
 # ======================================================================================= settings
 
 def crm_settings():
-    """The CRM's own switches, set on screen (Set-up → WhatsApp connection)."""
+    """The CRM's own switches, set on screen (Set-up → WhatsApp)."""
     from app.services import settings
     s = settings.get_setting(SETTINGS_KEY) or {}
     rows = check_rows(s.get('check_channels'))
@@ -168,6 +168,13 @@ def wa_writes_on():
     Reading is always allowed. The team sync (members, sign-in, workspace) does not ask this."""
     from app.services import wacrm
     return wa_mode() in ('contacts', 'send') and wacrm.enabled()
+
+
+def wa_team_on():
+    """The WhatsApp CRM's portal link can be used for the CRM being worked on: it is set up, and this is the workspace
+    WhatsApp is linked to (another workspace's leads have WhatsApp off: services/crm_scope)."""
+    from app.services import crm_scope, wacrm_team
+    return wacrm_team.enabled() and crm_scope.wa_here()
 
 
 # ======================================================================================= set-up
@@ -349,8 +356,10 @@ def _owner_candidates(src):
     """Who may own a lead from `src`: its Workspace team ({'team_id'}), or the people ticked, else every
     agent whose console has the CRM, else an admin."""
     from app.models import WorkspaceTeam
-    from app.services import cs_access
-    staff = cs_access.recipients('crm_board', limit=None)
+    from app.services import crm_scope, cs_access
+    # only people of the workspace the lead comes into (the source's)
+    wid = src.workspace_id if src is not None and src.workspace_id is not None else crm_scope.stamp_id()
+    staff = crm_scope.in_workspace(cs_access.recipients('crm_board', limit=None), wid)
     team = src.team if src else None
     ids = set()
     if isinstance(team, dict):
@@ -366,15 +375,10 @@ def _owner_candidates(src):
 
 
 def assign_owner(src):
-    """The candidate holding the fewest open leads -- spreads work evenly without a rota."""
-    users = _owner_candidates(src)
-    if not users:
-        return None
-    ids = [u.id for u in users]
-    loads = dict(db.session.query(CrmLead.owner_id, func.count(CrmLead.id))
-                 .filter(CrmLead.owner_id.in_(ids), CrmLead.status == 'open')
-                 .group_by(CrmLead.owner_id).all())
-    return min(users, key=lambda u: (loads.get(u.id, 0), u.id))
+    """Who gets a new lead from this source: see services/crm_assign (fewest open leads, or in turn;
+    nobody who is away). Returns the user, or None."""
+    from app.services import crm_assign
+    return crm_assign.choose(src)[0]
 
 
 def _summary(details, message=None):
@@ -429,6 +433,7 @@ class DoNotContact(Exception):
 
 
 CONSENT_NOTE = 'Agreed to WhatsApp messages (%s)'
+OFFERS_NOTE = 'OK to send offers (%s)'
 
 
 def ticked(value):
@@ -436,12 +441,21 @@ def ticked(value):
     return value is True or str(value or '').strip().lower() in ('1', 'on', 'true', 'yes')
 
 
-def capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, product=None,
-            details=None, message=None, ref=None, utm=None, departure_date=None, consent=None,
-            user_id=None, channel='form', when=None, identities=None, ends_on=None,
-            created_by_id=None, start_stage=None, plan=True, notify=True, temperature=None,
-            fallout_reason=None, external_id=None, sync=True, imported=False, likelihood=None,
-            person=None, note=None, refuse_dnc=False, consent_from=None):
+def capture(source_key, *, workspace_id=None, **kw):
+    """Record an enquiry as a lead (see _capture). Which workspace's CRM it goes to (Sales CRM 2.0, run 5a): an
+    explicit `workspace_id`, else the `person`'s, else the one being worked in (a signed-in staff member, a job, the
+    WhatsApp webhook), else -- a public form, nobody signed in -- the SOURCE decides (crm_scope.source_workspace)."""
+    from app.services import crm_scope
+    with crm_scope.for_capture(source_key, person=kw.get('person'), workspace_id=workspace_id):
+        return _capture(source_key, **kw)
+
+
+def _capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, product=None,
+             details=None, message=None, ref=None, utm=None, departure_date=None, consent=None,
+             user_id=None, channel='form', when=None, identities=None, ends_on=None,
+             created_by_id=None, start_stage=None, plan=True, notify=True, temperature=None,
+             fallout_reason=None, external_id=None, sync=True, imported=False, likelihood=None,
+             person=None, note=None, refuse_dnc=False, consent_from=None, offers_consent=False):
     """Record an enquiry as a lead. Returns the lead, or None when there is nobody to reach.
 
     The same person asking again within the source's window, about anything that goes to the same
@@ -457,6 +471,7 @@ def capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, pro
     logged instead of a message from them, so it never opens WhatsApp's 24 hours or counts as a reply.
     `refuse_dnc`: an importer (raises DoNotContact for an erased person); otherwise a match is an enquiry
     they made themselves and clears the entry. `consent_from`: the form, for the note when `consent` is new.
+    `offers_consent`: the form's own "OK to send offers" tick (never the WhatsApp tick, `consent`).
     """
     ensure_defaults()
     key = (source_key or '').strip().lower()
@@ -516,12 +531,16 @@ def capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, pro
     created = lead is None
     if created:
         stage = start_stage or (pipe.first_stage if pipe else None)
+        from app.services import crm_assign
+        owner, owner_note = crm_assign.choose(src)
         lead = CrmLead(person=person, product=product, source=src, pipeline=pipe, stage=stage,
                        status=stage.kind if stage else 'open',
-                       owner=assign_owner(src), details=details, utm=utm or None,
+                       owner=owner, details=details, utm=utm or None,
                        departure_date=departure_date, ends_on=ends_on, created_at=now,
                        last_activity_at=now, entered_stage_at=now, created_by_id=created_by_id,
-                       temperature=temperature, likelihood=likelihood, imported=imported)
+                       temperature=temperature, likelihood=likelihood, imported=imported,
+                       # a rating that came with it (the sales sheet's colour) is a person's: scoring leaves it
+                       likelihood_manual=bool(likelihood))
         if stage is not None and stage.kind != 'open':
             lead.closed_at = now
             lead.fallout_reason = fallout_reason if stage.kind == 'lost' else None
@@ -529,9 +548,13 @@ def capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, pro
             lead.ref_type, lead.ref_id = ref[0], ref[1]
         db.session.add(lead)
         db.session.flush()
+        crm_money.apply_new_lead_defaults(lead)        # the product's usual price and a close date (not for importers)
         if lead.stage:
             db.session.add(CrmStageChange(lead=lead, from_stage_id=None, to_stage_id=lead.stage.id,
                                           reason='Came in from %s' % src.name, created_at=now))
+        if owner_note:
+            db.session.add(CrmTouchpoint(lead=lead, person_id=person.id, channel='note', direction='none',
+                                         body=owner_note, created_at=now))
     else:
         lead.details = {**(lead.details or {}), **details}
         if departure_date and not lead.departure_date:
@@ -555,6 +578,11 @@ def capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, pro
     if consent_new:
         db.session.add(CrmTouchpoint(lead=lead, person_id=person.id, channel='note', direction='none',
                                      body=CONSENT_NOTE % (consent_from or src.name), created_at=now))
+    if offers_consent:
+        from app.services import crm_consent
+        if crm_consent.from_form(person, consent_from or src.name, at=now):
+            db.session.add(CrmTouchpoint(lead=lead, person_id=person.id, channel='note', direction='none',
+                                         body=OFFERS_NOTE % (consent_from or src.name), created_at=now))
     src.lead_count = (src.lead_count or 0) + 1
     src.last_lead_at = max(src.last_lead_at or now, now)
     if created and plan and src.status == 'live' and lead.status == 'open':
@@ -562,6 +590,12 @@ def capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, pro
     if sync:
         # a new enquiry or a repeat one: their WhatsApp contact and its tags follow, after the save
         mark_wa_due(person)
+    # automation rules ("a new lead comes in") and the lead's score: after the commit (services/crm_rules)
+    from app.services import crm_rules, crm_scoring
+    db.session.flush()
+    if created and not imported:
+        crm_rules.fire('lead_created', lead, 'created')
+    crm_scoring.touched(lead)
     db.session.commit()
     if created and notify:
         _tell_owner(lead, new_source=new_source)
@@ -596,7 +630,7 @@ def _tell_owner(lead, new_source=False):
             from app.services import cs_access
             for u in User.query.filter(User.is_admin.is_(True), User.is_active.is_(True)).all():
                 notify.push(u.id, 'crm_source', title='A new lead source needs setting up',
-                            body='"%s" sent its first lead. Choose its pipeline once in Set-up → Where leads come from.'
+                            body='"%s" sent its first lead. Choose its pipeline once in Set-up → Lead sources.'
                                  % lead.source.key, link='/admin/crm/sources')
         db.session.commit()
     except Exception:          # noqa: BLE001
@@ -711,7 +745,7 @@ WA_JOBS_LOCK_WAIT = 1         # the jobs runner does not wait: a busy worker lea
 WA_RETRY_STATUSES = frozenset({401, 403, 404, 408, 429})   # refusals that are not about this person
 WA_RETIRED_TAGS_KEY = 'wa_retired_tags'   # 'crm' setting: tags a source used to add (newest first)
 WA_RETIRED_MAX = 200
-WA_WRITES_OFF = 'WhatsApp is not connected for leads yet. Change it in Set-up → WhatsApp connection.'
+WA_WRITES_OFF = 'WhatsApp is not connected for leads yet. Change it in Set-up → WhatsApp.'
 WA_BACKFILL_SAID = ('Bringing %d %s into WhatsApp: they become contacts with their tags, a few at a time. '
                     'Nothing is sent to them.')
 WA_BACKFILL_NONE = 'Everybody with a lead and a phone is in WhatsApp already, or on the way.'
@@ -749,13 +783,13 @@ WA_HOOK_BELLS = {
     'switched_on': ('WhatsApp replies were off; they are on again',
                     'The WhatsApp CRM stopped sending us replies after several failed tries. It is switched '
                     'back on, and the last message of each chat comes in with the next jobs runs. If it keeps '
-                    'happening, press "Connect replies" in Set-up → WhatsApp connection.'),
+                    'happening, press "Connect replies" in Set-up → WhatsApp.'),
     'off': ('Replies stopped arriving from WhatsApp',
             'The WhatsApp CRM stopped sending us replies after several failed tries. Press "Connect replies" '
-            'in Set-up → WhatsApp connection to switch them back on.'),
+            'in Set-up → WhatsApp to switch them back on.'),
     'missing': ('Replies stopped arriving from WhatsApp',
                 'Our address is no longer in the WhatsApp CRM, so replies do not reach the leads. Press '
-                '"Connect replies" in Set-up → WhatsApp connection.'),
+                '"Connect replies" in Set-up → WhatsApp.'),
 }
 _wa_lock = threading.RLock()
 
@@ -871,6 +905,9 @@ def mark_wa_due(person, assign=False, assign_if_free=False, quiet=False):
     contact)."""
     if person is None or not (person.phone or person.wacrm_contact_id) or not wa_writes_on():
         return False
+    from app.services import crm_scope
+    if not crm_scope.wa_person(person):
+        return False                           # a contact of a workspace WhatsApp is not linked to
     if quiet and not (assign or assign_if_free):
         if person.wacrm_sync_due_at is None:
             person.wacrm_quiet = True          # nothing was waiting: this push can be quiet
@@ -2048,7 +2085,7 @@ def _pending_step(lead):
     stage, from its loaded tasks; None when there is no stage, something is open, or its source is paused."""
     if lead.stage is None or (lead.source and lead.source.status == 'paused'):
         return None
-    if any(t.status in ('open', 'sending') for t in lead.tasks):
+    if any(t.status in ('open', 'sending') and t.is_step for t in lead.tasks):
         return None
     since = lead.entered_stage_at or datetime.min
     done = [t for t in lead.tasks if t.step is not None and t.step.stage_id == lead.stage_id
@@ -2255,6 +2292,8 @@ def complete_task(task, user=None, skipped=False, note=None):
     task.done_at = datetime.utcnow()
     task.done_by_id = getattr(user, 'id', None)
     task.note = (note or '')[:200] or None
+    if not task.is_step:
+        return None          # a task, call or meeting someone added by hand: nothing is planned after it
     task.lead.last_activity_at = task.done_at
     if task.step_id is None and task.code is None:
         return None          # a follow-up made by hand ("Call back") plans nothing when it is done
@@ -2274,11 +2313,11 @@ def move_stage(lead, stage, user=None, reason=None, fallout_reason=None, plan=Tr
         return False
     now = datetime.utcnow()
     for t in lead.tasks:
-        if t.status == 'open':
+        if t.status == 'open' and t.is_step:          # a task someone added by hand stays
             t.status, t.done_at, t.note = 'skipped', now, 'Stage changed'
-    db.session.add(CrmStageChange(lead=lead, from_stage_id=lead.stage_id, to_stage_id=stage.id,
-                                  by_id=getattr(user, 'id', None),
-                                  reason=(reason or fallout_reason or '')[:160] or None))
+    change = CrmStageChange(lead=lead, from_stage_id=lead.stage_id, to_stage_id=stage.id,
+                            by_id=getattr(user, 'id', None), reason=(reason or fallout_reason or '')[:160] or None)
+    db.session.add(change)
     lead.stage = stage
     lead.entered_stage_at = now
     lead.sla_alerted_at = None
@@ -2286,7 +2325,15 @@ def move_stage(lead, stage, user=None, reason=None, fallout_reason=None, plan=Tr
     lead.status = stage.kind
     lead.closed_at = now if stage.kind in ('won', 'lost') else None
     lead.fallout_reason = (fallout_reason or None) if stage.kind == 'lost' else None
+    if stage.kind == 'won':
+        crm_money.lead_won(lead, today=(now + IST).date())
     db.session.flush()
+    # automation rules ("a lead moves to a stage", "won", "lost") and the score: after the commit (crm_rules)
+    from app.services import crm_rules, crm_scoring
+    crm_rules.fire('stage_changed', lead, 'stage:%d' % change.id, to_stage_id=stage.id)
+    if stage.kind in ('won', 'lost'):
+        crm_rules.fire(stage.kind, lead, '%s:%d' % (stage.kind, change.id))
+    crm_scoring.touched(lead)
     if plan:
         plan_next(lead, base=now)
     # their WhatsApp contact's stage tag follows, once this is saved (the owner did not change)
@@ -2300,7 +2347,7 @@ def set_pipeline(lead, pipeline, user=None):
     if pipeline is None:
         return
     for t in lead.tasks:
-        if t.status == 'open':
+        if t.status == 'open' and t.is_step:
             t.status, t.done_at, t.note = 'skipped', datetime.utcnow(), 'Pipeline changed'
     lead.pipeline = pipeline
     first = pipeline.first_stage
@@ -2339,6 +2386,8 @@ def log_touch(lead, channel, direction='out', body=None, code=None, outcome=None
                 if l.waiting_alerted_at is not None or l.snoozed_until is not None:
                     l.waiting_alerted_at = l.snoozed_until = None
     db.session.flush()
+    from app.services import crm_scoring
+    crm_scoring.touched(lead)                    # a reply, a quote sent...: the score is worked out after the commit
     return tp
 
 
@@ -2546,7 +2595,7 @@ WA_BLANKS = 'The approved template has %s, the follow-up has %s. Make them match
 WA_WINDOW_CLOSED = 'Their last message is over 24 hours old, so WhatsApp only lets an approved template through.'
 WA_WINDOW_SHUT = ('Over 24 hours since they last wrote, so WhatsApp only lets an approved template '
                   'through -- send it from your WhatsApp.')
-WA_NOT_SENDING = ('Sending from here is switched off (Set-up → WhatsApp connection). Start the chat '
+WA_NOT_SENDING = ('Sending from here is switched off (Set-up → WhatsApp). Start the chat '
                   'in WhatsApp chats instead.')
 WA_MAYBE_SENT = 'WhatsApp did not answer, so it may have gone. Check their chat before you send it again.'
 WA_MAYBE_SENT_NOTE = 'May have gone: WhatsApp did not answer. Check the chat before sending again'
@@ -2621,7 +2670,7 @@ def _wa_last_inbound(person):
     a minute per number. (False, None) when it cannot say."""
     from app.services import wacrm, wacrm_team
     digits = _digits(person.phone)
-    if not digits or not wacrm_team.enabled():
+    if not digits or not wa_team_on():
         return False, None
     now = datetime.utcnow()
     hit = _wa_inbound.get(digits)
@@ -3646,15 +3695,25 @@ def known_rule_conflicts():
 def check_automation_conflicts(now=None):
     """The jobs runner, once a day: read the WhatsApp CRM's reply rules (contract 4) and ring the admins once for
     each NEW rule that may repeat our follow-ups (RULE_BELL). Only where the WhatsApp team link is set up.
-    {} when it is not time yet or not connected; {'crm_reply_rules': n | 'old' | 'failed'}."""
-    from app.services import notify, settings, wacrm, wacrm_team
-    if not (wacrm_team.enabled() and wacrm_team.linked_workspace() is not None):
-        return {}
+    {} when it is not time yet or not connected; {'crm_reply_rules': n | 'old' | 'failed'}.
+    It also rings, once per rule, when an automation rule's stage move fights a stage's own automatic move (the
+    workspace being run; crm_rules.ring_conflicts): {'crm_rule_conflicts': n} when there are any."""
+    from app.services import crm_rules, crm_scope, notify, settings, wacrm, wacrm_team
+    out = {}
+    try:
+        clashes = crm_rules.ring_conflicts(now)
+        if clashes:
+            out['crm_rule_conflicts'] = clashes
+    except Exception:          # noqa: BLE001 -- the reply-rule check below still runs
+        db.session.rollback()
+        log.warning('Checking automation rules against stage moves failed', exc_info=True)
+    if not (wacrm_team.enabled() and wacrm_team.linked_workspace() is not None and crm_scope.wa_here()):
+        return out
     now = now or datetime.utcnow()
     state = dict(settings.get_setting(WA_RULES_KEY) or {})
     checked = _parse_utc(state.get('checked_at'))
     if checked is not None and now - checked < WA_RULES_EVERY:
-        return {}
+        return out
     try:
         with wacrm.short_timeouts():
             items = wacrm_team.automations()
@@ -3662,9 +3721,9 @@ def check_automation_conflicts(now=None):
         if exc.status == 404:                    # an older WhatsApp CRM: no list, nothing to ring about
             state.update(old=True, checked_at=now.isoformat(timespec='seconds'))
             settings.set_setting(WA_RULES_KEY, state)
-            return {'crm_reply_rules': 'old'}
+            return {**out, 'crm_reply_rules': 'old'}
         log.warning('Reply rules not read from the WhatsApp CRM: %s', exc)
-        return {'crm_reply_rules': 'failed'}     # checked_at stays: the next run tries again
+        return {**out, 'crm_reply_rules': 'failed'}     # checked_at stays: the next run tries again
     conflicts = rule_conflicts(items)
     told = {str(i) for i in state.get('told') or []}
     admins = User.query.filter(User.is_admin.is_(True), User.is_active.is_(True)).all()
@@ -3677,7 +3736,7 @@ def check_automation_conflicts(now=None):
     state.update(checked_at=now.isoformat(timespec='seconds'), seen_at=now.isoformat(timespec='seconds'),
                  conflicts=conflicts, told=[c['id'] for c in conflicts], old=False)
     settings.set_setting(WA_RULES_KEY, state)      # commits the bells too
-    return {'crm_reply_rules': len(conflicts)}
+    return {**out, 'crm_reply_rules': len(conflicts)}
 
 
 LEGACY_MILESTONES = {'Q': 'I sent the quote', 'PLS': 'I sent the payment link'}  # old rows (WhatsApp "out" until U3)
@@ -3713,7 +3772,7 @@ def milestone_ask(stage):
     return 'Log “%s” too?' % label
 
 
-def mark_event(lead, code, user=None, note=None):
+def mark_event(lead, code, user=None, note=None, amount=None, currency=None):
     """A button on the lead: a person says they did it. A system line under the stage's code -- never a
     WhatsApp message, nothing goes to the customer -- and the lead moves forward to that stage, never back.
     Returns the stage it moved to. ValueError for a code no stage of the lead's pipeline has."""
@@ -3722,6 +3781,8 @@ def mark_event(lead, code, user=None, note=None):
         raise ValueError(code)
     log_touch(lead, 'system', 'none', body=('%s: %s' % (stage.button_label, note)) if note else stage.button_label,
               code=stage.button_code, user=user)
+    if amount not in (None, ''):
+        crm_money.change_value(lead, amount=amount, currency=currency, user=user)
     moved = None
     if lead.status == 'open' and lead.stage and stage.position > lead.stage.position:
         move_stage(lead, stage, user=user, reason=stage.button_label)
@@ -3915,7 +3976,7 @@ def record_social(ev):
 # ======================================================================================= the daily work
 
 # the daily work's words, all in one place
-REPLY_LABELS = {'whatsapp': 'WhatsApp', 'instagram': 'Instagram', 'facebook': 'Messenger'}
+REPLY_LABELS = {'whatsapp': 'WhatsApp', 'instagram': 'Instagram', 'facebook': 'Messenger', 'email': 'E-mail'}
 ROLE_STEPS = (('cold', 'New'), ('prospect', 'Talking'), ('pipeline', 'Quoted'), ('customer', 'Won'), ('lost', 'Lost'))
 STEP_TIP = 'Step %d of %d: %s'
 STUCK_DEFAULT_HOURS = 72          # "Stuck in a stage" for a stage with no warning hours of its own
@@ -4037,7 +4098,7 @@ def set_owner(lead, owner_id, by=None, ring=True, mark=True, chat=None):
     log_touch(lead, 'system', 'none', body=owner_line(lead.owner, after), user=by, activity=False)
     lead.owner = after
     for t in lead.tasks:
-        if t.status == 'open':
+        if t.status == 'open' and t.is_step:          # a task given to someone by hand stays theirs
             t.owner_id = owner_id
     marked = mark_wa_due(lead.person, assign=True) if mark else False
     if chat is None:
@@ -4100,7 +4161,8 @@ def hand_over(user, to=None, team=None, by=None):
         got.setdefault(u.id, []).append((lead, chat))
     for t in tasks:
         if t.owner_id == user.id:
-            t.owner_id = t.lead.owner_id if t.lead.owner_id not in (None, user.id) else pool[0].id
+            lead_owner = t.lead.owner_id if t.lead is not None else None
+            t.owner_id = lead_owner if lead_owner not in (None, user.id) else pool[0].id
     for uid, rows in got.items():
         if uid == getattr(by, 'id', None):
             continue
@@ -4150,11 +4212,13 @@ def lead_load():
 
 
 def lead_filter(pipeline=None, owner_id=None, q=None, chat=None, stage_id=None, closed_days=30,
-                follow=None, now=None):
+                follow=None, now=None, closes=None, forecast=None, no_value=False, no_close=False,
+                status=None, ids=None, quoted=None):
     """The leads Leads shows, as a query (none runs here): one pipeline (None: every pipeline -- the
     list only); whose (a user id, 'none' for Not given to anyone, None for anyone); a search; the chat
     filter ('waiting' | 'open' | 'nochat'); one stage; finished leads only from the last
-    `closed_days` days (None: all); follow='late': an open follow-up past due."""
+    `closed_days` days (None: all); follow='late': an open follow-up past due, 'today': one due today (India time);
+    quoted='week': a quote was sent in the last 7 days (the "Quote sent" line or a quote marked as sent)."""
     from app.services import crm_metrics
     now = now or datetime.utcnow()
     query = CrmLead.query.join(CrmPerson, CrmPerson.id == CrmLead.person_id)
@@ -4182,6 +4246,23 @@ def lead_filter(pipeline=None, owner_id=None, q=None, chat=None, stage_id=None, 
     if follow == 'late':
         query = query.filter(CrmLead.id.in_(select(CrmTask.lead_id).where(CrmTask.status == 'open',
                                                                           CrmTask.due_at < now)))
+    if follow == 'today':
+        start = datetime.combine((now + IST).date(), datetime.min.time()) - IST
+        query = query.filter(CrmLead.id.in_(select(CrmTask.lead_id).where(
+            CrmTask.status == 'open', CrmTask.due_at >= start, CrmTask.due_at < start + timedelta(days=1))))
+    if quoted == 'week':
+        from app.models import CrmQuote
+        since = now - timedelta(days=7)
+        query = query.filter(or_(
+            CrmLead.id.in_(select(CrmTouchpoint.lead_id).where(
+                CrmTouchpoint.code == 'Q', CrmTouchpoint.channel == 'system', CrmTouchpoint.created_at >= since)),
+            CrmLead.id.in_(select(CrmQuote.lead_id).where(CrmQuote.sent_at >= since))))
+    if status in ('open', 'won', 'lost'):
+        query = query.filter(CrmLead.status == status)
+    if ids:
+        query = query.filter(CrmLead.id.in_(list(ids)[:200]))
+    if closes or forecast or no_value or no_close:
+        query = crm_money.apply_filters(query, closes, forecast, no_value, no_close)
     if q:
         from app.services import crm_people
         cond = crm_people.person_match(q)
@@ -4200,7 +4281,8 @@ def lead_cards(leads, now=None):
         return {}
     tasks = {}
     for t in (CrmTask.query.options(joinedload(CrmTask.step))
-              .filter(CrmTask.lead_id.in_(ids), CrmTask.status == 'open').order_by(CrmTask.due_at)):
+              .filter(CrmTask.lead_id.in_(ids), CrmTask.status == 'open', CrmTask.kind == 'step')
+              .order_by(CrmTask.due_at)):
         tasks.setdefault(t.lead_id, t)
     touches = crm_metrics.last_touches({l.person_id for l in leads})
     last = dict(db.session.query(CrmTouchpoint.lead_id, func.max(CrmTouchpoint.created_at))
@@ -4243,10 +4325,11 @@ def lead_cards(leads, now=None):
     return out
 
 
-def board(pipeline, owner_id=None, q=None, chat=None, closed_days=30, hidden=(), limit_per_stage=60, now=None):
+def board(pipeline, owner_id=None, q=None, chat=None, closed_days=30, hidden=(), limit_per_stage=60, now=None,
+          follow=None, **more):
     """Leads of a pipeline by stage, newest activity first: {'columns': [{'stage', 'leads', 'total'}],
     'cards': lead_cards()}. Hidden stages are left out. A fixed number of queries whatever the size."""
-    base = lead_filter(pipeline, owner_id, q, chat, None, closed_days, None, now)
+    base = lead_filter(pipeline, owner_id, q, chat, None, closed_days, follow, now, **more)
     hidden = [int(h) for h in hidden or ()]
     if hidden:
         base = base.filter(CrmLead.stage_id.notin_(hidden))
@@ -4257,12 +4340,13 @@ def board(pipeline, owner_id=None, q=None, chat=None, closed_days=30, hidden=(),
     ids = [i for (i,) in db.session.query(ranked.c.id).filter(ranked.c.rn <= limit_per_stage)]
     leads = CrmLead.query.options(*lead_load()).filter(CrmLead.id.in_(ids)).all() if ids else []
     leads.sort(key=lambda l: (l.last_activity_at or datetime.min, l.id), reverse=True)
+    values = crm_money.totals_by_stage(base)         # each column's money, in the reporting currency
     columns = []
     for st in pipeline.stages:
         if st.id in hidden:
             continue
         columns.append({'stage': st, 'leads': [l for l in leads if l.stage_id == st.id],
-                        'total': totals.get(st.id, 0)})
+                        'total': totals.get(st.id, 0), 'value': values.get(st.id)})
     return {'columns': columns, 'cards': lead_cards(leads, now)}
 
 
@@ -4522,6 +4606,7 @@ def set_product(lead, code, user=None):
     if prod is None or not prod.offered:
         raise ValueError(code)
     lead.product = prod.code
+    crm_money.recalc_revenue(lead)
     target = crm_products.default_pipeline(prod.code)
     if (target is not None and target.id != lead.pipeline_id and not target.catch_all
             and target.is_active and target.first_stage is not None):
@@ -4532,7 +4617,7 @@ def set_product(lead, code, user=None):
 
 
 ROLE_LABELS = {'new': 'Not routed', 'cold': 'Cold lead', 'prospect': 'Prospect', 'pipeline': 'Pipeline',
-               'customer': 'Customer', 'lost': 'Fell out'}
+               'customer': 'Customer', 'lost': 'Lost'}
 
 
 # ======================================================================================= existing records -> leads
@@ -4705,25 +4790,8 @@ def can_remove(lead, user):
 
 
 def remove_lead(lead, user=None):
-    """Take a lead out of the Sales CRM (added by mistake). The contact stays (Contacts) with their other
+    """Take a lead out of the Sales CRM (added by mistake): it goes to the Recycle bin for 30 days
+    (services/crm_bin), then it is deleted for good. The contact stays (Contacts) with their other
     enquiries and their own timeline items; the record it came from on the site is not touched."""
-    from app.models import ActivityEvent
-    person = lead.person
-    name = person.display_name if person else '?'
-    lead_id = lead.id
-    db.session.delete(lead)
-    db.session.flush()
-    if person is not None and not CrmLead.query.filter_by(person_id=person.id).first():
-        # no enquiry left: the portal's tags come off their WhatsApp contact (contact and chat stay), and
-        # nothing more goes to WhatsApp for them until they have an enquiry again
-        _wa_drop_tags_later(person.wacrm_contact_id, keep_for=person.id)
-        person.wacrm_sync_due_at = None
-        person.wacrm_assign_due = person.wacrm_assign_if_free = False
-    elif person is not None:
-        mark_wa_due(person)      # their tags follow the leads they still have
-    try:
-        ActivityEvent.log('crm_lead_removed', actor=user, lead_id=lead_id, name=name)
-    except Exception:          # noqa: BLE001 -- the log is a courtesy
-        pass
-    db.session.commit()
-    return name
+    from app.services import crm_bin
+    return crm_bin.remove(lead, user=user)

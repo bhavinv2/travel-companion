@@ -3,12 +3,14 @@
 {% from 'cs/crm/_bits.html' import product_chip, stage_pill, when, ist with context %}
 {% block crm_title %}{{ person.display_name }}{% endblock %}
 {% block crm %}
-{% set more = [{'label': 'Erase this person', 'href': crm_url('contact', person_id=person.id, erase=1), 'danger': True, 'icon': 'fa-solid fa-user-slash'}] if can_erase else None %}
+{% set more = [] %}
+{% if can_merge %}{% set _ = more.append({'label': 'Merge with another person…', 'href': crm_url('contact_merge', person_id=person.id), 'icon': 'fa-solid fa-code-merge'}) %}{% endif %}
+{% if can_erase %}{% set _ = more.append({'label': 'Erase this person', 'href': crm_url('contact', person_id=person.id, erase=1), 'danger': True, 'icon': 'fa-solid fa-user-slash'}) %}{% endif %}
 <p class="small"><a href="{{ crm_url('contacts') }}">‹ Contacts</a></p>
 {{ page_head(person.display_name, 'fa-solid fa-address-card',
              'Their details, permissions and every enquiry. This is the only place their details are changed.',
              primary={'label': 'Edit details', 'href': crm_url('contact_edit', person_id=person.id), 'icon': 'fa-solid fa-pen'},
-             more=more, full_screen=True) }}
+             more=(more or None), full_screen=True) }}
 
 {% if erase %}
 <section class="card danger-zone">
@@ -20,6 +22,8 @@
     {% if erase.chat %}<li>Their WhatsApp chat and its messages</li>
     {% elif person.phone or person.wacrm_contact_id %}<li>Their WhatsApp chat stays: WhatsApp is not connected for leads.</li>{% endif %}
     {% for rec in erase.records %}<li>{{ rec.label }}</li>{% endfor %}
+    {% if erase.files %}<li>{{ erase.files }} file{{ '' if erase.files == 1 else 's' }}, deleted from the server</li>{% endif %}
+    {% if family %}<li>Their place in the {{ family.household.name }} (the family is deleted if they are the last one)</li>{% endif %}
     {% if erase.bells %}<li>{{ erase.bells }} notification{{ '' if erase.bells == 1 else 's' }} about them</li>{% endif %}
   </ul>
   {% for line in erase.kept %}<p class="hint">{{ line }}</p>{% endfor %}
@@ -52,7 +56,18 @@
     <h2>Permission</h2>
     <p>{{ permission }}</p>
     {% if person.wa_opt_out_at %}<p class="hint">Opt them back in from their lead page.</p>{% endif %}
+    <div class="offers-line" id="offers">
+      <form method="POST" action="{{ crm_url('contact_offers', person_id=person.id) }}" class="inl">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="on" value="{{ 0 if person.consent_marketing else 1 }}"/>
+        <button class="pe-switch-btn" role="switch" aria-checked="{{ 'true' if person.consent_marketing else 'false' }}"><span class="dot" aria-hidden="true"></span> OK to send offers</button></form>
+      <p class="small muted">{{ OFFERS_LINE(person) }}</p>
+      <p class="hint">Separate from WhatsApp permission. Only send offers (broadcasts, promotions) to people with “OK to send offers”.</p>
+    </div>
   </section>
+
+  <div class="wide">{% include 'cs/crm/_tasks.html' %}</div>
+
+  {% include 'cs/crm/_family.html' %}
 
   <section class="card wide">
     <h2>Tags</h2>
@@ -76,6 +91,10 @@
     {% if can_add %}<p><a class="cb" href="{{ crm_url('add', person=person.id) }}">+ New enquiry</a></p>{% endif %}
   </section>
 
+  {% include 'cs/crm/_site_records.html' %}
+
+  {% include 'cs/crm/_files.html' %}
+
   <section class="card wide">
     <h2>Recent messages</h2>
     {% for m in recent %}
@@ -83,6 +102,8 @@
       <div><b>{{ m.who }}</b> {{ m.text }}<br/><small>{{ when(m.at, utcnow) }}{% if m.lead %} · <a href="{{ crm_url('lead', lead_id=m.lead.id) }}">open lead</a>{% endif %}</small></div></div>
     {% else %}<p class="muted">No messages yet.</p>{% endfor %}
   </section>
+
+  <div class="wide">{% include 'cs/crm/_history.html' %}</div>
 </div>
 {% endblock %}
-{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/crm-people.js') }}" defer></script>{% endblock %}
+{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/crm-people.js') }}" defer></script><script src="{{ url_for('static', filename='js/crm-activities.js') }}" defer></script><script src="{{ url_for('static', filename='js/crm-files.js') }}" defer></script>{% endblock %}

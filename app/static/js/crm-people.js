@@ -182,15 +182,17 @@
   }
   var acts = q('[data-act-form]');
   if (acts) {
-    var body = q('[data-act-rows]', acts);
+    // each activity is a <tbody> of two lines (the activity, and its campaign details)
     var wireAct = function (row) { q('[data-act-remove]', row).addEventListener('click', function () { row.remove(); }); };
     qa('[data-act-row]', acts).forEach(wireAct);
     q('[data-act-add]', acts).addEventListener('click', function () {
-      var row = body.lastElementChild.cloneNode(true);
+      var all = qa('[data-act-row]', acts), last = all[all.length - 1];
+      var row = last.cloneNode(true);
       qa('input', row).forEach(function (i) { i.value = ''; });
-      body.appendChild(row);
+      qa('select[name="source"]', row).forEach(function (s) { s.value = ''; });
+      last.parentNode.insertBefore(row, last.nextSibling);
       wireAct(row);
-      q('input', row).focus();
+      q('input[type=text]', row).focus();
     });
   }
 

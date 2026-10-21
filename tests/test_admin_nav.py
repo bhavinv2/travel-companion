@@ -65,7 +65,7 @@ def test_the_menu_has_every_module_with_the_current_one_open(client, db, admin_u
     login(client, 'admin@test.com')
     html = client.get('/admin/sahayak').data.decode()
     nav = html.split('admin-nav-items', 1)[1].split('</nav>', 1)[0]
-    for label in ('Sales', 'Travel Companion', 'Travel Insurance', 'Sahayak', 'Messaging', 'Team'):
+    for label in ('Sales', 'Travel Companion', 'Travel Insurance', 'Sahayak', 'Set-up', 'Team'):
         assert label in nav, label
     sahayak = nav.split('data-group="sahayak"', 1)[0].rsplit('<div', 1)[1]
     assert 'open' in sahayak                               # the module being worked in is open

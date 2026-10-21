@@ -36,6 +36,13 @@
       <div class="team">{% for u in staff %}<label class="check"><input type="checkbox" name="team" value="{{ u.id }}"{{ ' checked' if team and team is not mapping and u.id in team }}/> {{ u.full_name }}</label>{% endfor %}</div>
       {% if errors.team %}<p class="err">{{ errors.team }}</p>{% endif %}
     </fieldset>
+    <fieldset class="full pe-fs">
+      <legend>How to share new leads</legend>
+      {% set share = form.get('assign_mode') or edit.assign_mode or 'fewest' %}
+      <label class="check"><input type="radio" name="assign_mode" value="fewest"{{ ' checked' if share != 'round_robin' }}/> Whoever has the fewest open leads</label>
+      <label class="check"><input type="radio" name="assign_mode" value="round_robin"{{ ' checked' if share == 'round_robin' }}/> In turn (round robin)</label>
+      <p class="hint">Nobody who is away gets a new lead. People mark themselves away from their account menu.</p>
+    </fieldset>
     <div class="full">If they ask again within <input type="number" name="dedupe_days" min="0" max="365" style="width:80px;display:inline-block" value="{{ form.get('dedupe_days') or (edit.dedupe_days if edit.dedupe_days is not none else 30) }}"/> days about this pipeline, add it to the same lead</div>
     <div class="full tag-picker" data-tag-picker data-check="{{ crm_url('source_tag_check') }}">
       <span class="lb">Tags to add</span>
@@ -80,7 +87,7 @@
     {% for s in sources %}
     {% set rp = really.get(s.id) %}
     <tr class="{{ 'unrouted' if s.status == 'unrouted' }}">
-      <td><span class="nm">{{ s.name }}</span><br/><small class="muted">{{ s.key }}</small></td>
+      <td><span class="nm">{{ SOURCE_NAME(s.name) }}</span><br/><small class="muted">{{ s.key }}</small></td>
       <td>{{ KINDS.get(s.kind, s.kind) }}</td>
       <td>{{ rp[0].name if rp and rp[0] else (s.pipeline.name if s.pipeline else '—') }}{% if rp and rp[1] %}<br/><small class="muted">{{ rp[1] }}</small>{% endif %}</td>
       <td>{{ goes.get(s.id) }}</td>

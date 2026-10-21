@@ -1,11 +1,15 @@
 {% extends 'base.html' %}
 {% block title %}{{ heading }} – WhatsApp{% endblock %}
+{% from 'cs/crm/_tabs.html' import tab_strip with context %}
 {% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace.css') }}">
-{% if panel %}<link rel="stylesheet" href="{{ url_for('static', filename='css/crm.css') }}"/>{% endif %}{% endblock %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/crm.css') }}"/>{% endblock %}
 {% block content %}
 <div class="admin-page">
   {% include 'admin/_sidebar.html' %}
   <main class="admin-main">
+    {{ tab_strip(page_key) }}
+    {# run 5b: one line on Broadcasts; the WhatsApp CRM itself is not changed #}
+    {% if screen == 'broadcasts' %}<p class="ws-note" data-offers-note><i class="fa-solid fa-circle-info" aria-hidden="true"></i> <span>Only send offers to people with 'OK to send offers'.</span></p>{% endif %}
     {% if src %}
     <div class="wa-frame-wrap">
       {# The bar: the screen's heading, what it is for, and how it works. It follows the screen

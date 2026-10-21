@@ -1,5 +1,5 @@
 {% extends 'cs/crm/_layout.html' %}
-{% from 'cs/crm/_bits.html' import task_card, stage_pill, when with context %}
+{% from 'cs/crm/_bits.html' import task_card, my_task_card, stage_pill, when with context %}
 {% from '_page_head.html' import page_head %}
 {% from '_empty.html' import empty with context %}
 {% block crm_title %}My day{% endblock %}
@@ -9,8 +9,15 @@
                    'Each card says what its button does. "I did it another way", "Remind me tomorrow" and "Not needed" are under it.',
                    "Before you finish, save today's numbers and send your sign-off to your open chats."],
              primary=({'label': 'Add a lead', 'href': crm_url('add'), 'icon': 'fa-solid fa-plus'} if CAN('crm_add') else None), full_screen=True) }}
+{% if my_target %}
+<a class="card my-target" href="{{ target_href }}" title="Open the numbers behind this">
+  <span><b>My target for {{ my_target.label }}:</b> {{ MONEY(my_target.won, REPORT_CURRENCY()) }} of {{ MONEY(my_target.target, REPORT_CURRENCY()) }} won
+    {% if my_target.commit %}· {{ MONEY(my_target.commit, REPORT_CURRENCY()) }} committed{% endif %}</span>
+  <span class="fc-prog" role="img" title="{{ metric_tip('target_progress') }}" aria-label="{{ my_target.pct }}% of the target won"><i style="width:{{ [my_target.pct, 100]|min }}%"></i></span>
+</a>
+{% endif %}
 {% set hour = (utcnow + IST_OFFSET).hour %}
-{% set to_do = welcome|length + follow|length %}
+{% set to_do = welcome|length + follow|length + my_tasks|length %}
 {% set total_today = to_do + done_today %}
 
 <section class="card">
@@ -24,7 +31,7 @@
         <button type="button" class="cb sm quiet" data-alerts-no>Not now</button></p>
     </div>
     <div class="progress">
-      <div class="lbl"><span>Follow-ups done today</span><span>{{ done_today }} of {{ total_today }}</span></div>
+      <div class="lbl"><span title="{{ metric_tip('followups_done') }}">Follow-ups done today</span><span>{{ done_today }} of {{ total_today }}</span></div>
       <div class="bar"><i style="width:{{ (100 * done_today / total_today)|round|int if total_today else 100 }}%"></i></div>
       {% if team %}
       <div class="seg" style="margin-top:12px">
@@ -35,6 +42,26 @@
     </div>
   </div>
 </section>
+
+{% if approvals %}
+<section class="card qp-approvals" id="approvals">
+  <div class="card-head"><h2>Waiting for your approval ({{ approvals|length }})</h2></div>
+  <p class="muted small">These quotes are below the usual price for their product. They cannot be sent until someone approves them.</p>
+  {% for a in approvals %}
+  <div class="qp-row">
+    <div class="qp-main"><a href="{{ crm_url('lead', lead_id=a.lead.id) }}#quotes"><b>{{ a.lead.person.display_name }}</b></a>
+      &middot; {{ a.quote.title }} &middot; {{ MONEY(a.quote.amount, a.quote.currency) if a.quote.amount is not none else 'no amount' }}
+      <div class="muted small">{{ a.lead.owner.full_name if a.lead.owner else 'Nobody' }} looks after it</div></div>
+    <div class="qp-acts">
+      <form method="POST" action="{{ crm_url('quote_approve', quote_id=a.quote.id) }}" class="inl">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ crm_url('today') }}"/>
+        <button class="cb sm primary">Approve</button></form>
+      <a class="cb sm quiet" href="{{ crm_url('lead', lead_id=a.lead.id) }}#quotes">Open</a>
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
 
 {% if getting_started %}
 <section class="card">
@@ -47,7 +74,7 @@
 </section>
 {% endif %}
 
-{% if not waiting and not welcome and not follow and not stuck %}
+{% if not waiting and not welcome and not follow and not stuck and not my_tasks %}
 <section class="card">{{ empty('fa-solid fa-mug-hot', "All done. New leads and follow-ups appear here as soon as they're due.", {'label': 'See all leads', 'href': crm_url('board')}) }}</section>
 {% endif %}
 
@@ -103,6 +130,21 @@
     <div class="step-body">
       {% for t in follow %}{{ task_card(t, texts.get(t.id, ''), plans[t.id], utcnow, who == 'all') }}
       {% else %}<p class="empty"><i class="fa-solid fa-circle-check"></i> All done for today.</p>{% endfor %}
+    </div>
+   </details>
+  </li>
+
+  {# ---------------------------------------------------------------- 3b. tasks, calls and meetings added by hand #}
+  <li>
+   <details class="step" data-acc{{ ' open' if my_tasks }}>
+    <summary class="step-head">
+      <span class="num"></span>
+      <div class="what"><h2>{{ "Everybody's tasks" if who == 'all' else 'My tasks' }} ({{ my_tasks|length }})</h2><p>To-dos, calls and meetings added by hand, due today or late. Meetings show their time.</p></div>
+      <span class="count">{{ my_tasks|length }}</span>
+    </summary>
+    <div class="step-body">
+      {% for t in my_tasks %}{{ my_task_card(t, utcnow, who == 'all') }}
+      {% else %}<p class="empty"><i class="fa-solid fa-circle-check"></i> No tasks for today. Add one from a lead or a contact page, or in <a href="{{ crm_url('calendar', tab='list') }}">the list</a>.</p>{% endfor %}
     </div>
    </details>
   </li>
@@ -194,7 +236,7 @@
           {% if signoff_preview %}<p class="muted small">Each gets it with their own first name: “{{ signoff_preview }}”</p>{% endif %}
           {% if not signoff_n %}<p class="muted small">Nobody on your leads has a chat open right now.</p>{% endif %}
           {% else %}
-          <p class="muted small">Sending your sign-off from here needs WhatsApp connected (Set-up → WhatsApp connection).</p>
+          <p class="muted small">Sending your sign-off from here needs WhatsApp connected (Set-up → WhatsApp).</p>
           {% endif %}
         </div>
         {% endif %}

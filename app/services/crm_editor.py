@@ -24,10 +24,10 @@ from sqlalchemy import func
 
 from app import db
 from app.models import (ActivityEvent, CrmAnswer, CrmField, CrmLead, CrmPerson, CrmPipeline, CrmPlaybookStep, CrmProduct,
-                        CrmSource, CrmStage, CrmStageChange, CrmTask,
+                        CrmSource, CrmStage, CrmStageChange, CrmTask, CrmCurrencyRate,
                         CRM_CHANNEL_LABELS, CRM_DATE_FIELDS, CRM_FIELD_TYPES, CRM_MEANS_LABELS, CRM_STAGE_MEANS,
-                        CRM_STEP_CHANNELS, CRM_STEP_KINDS)
-from app.services import crm, crm_defaults, crm_kpi, crm_products, wa_templates, wacrm, wacrm_team
+                        CRM_STEP_CHANNELS, CRM_STEP_KINDS, CRM_FORECASTS)
+from app.services import crm, crm_defaults, crm_kpi, crm_products, crm_stage_rules, wa_templates, wacrm, wacrm_team
 
 log = logging.getLogger(__name__)
 
@@ -166,6 +166,12 @@ def _slug(text, sep='-', limit=40, default='pipeline'):
 
 def _clean(text, limit):
     return ' '.join(str(text or '').split())[:limit]
+
+
+E_FORECAST = 'Choose how the forecast counts this stage.'
+E_FORECAST_OPEN = 'A stage that is still open cannot count as won or lost.'
+E_FORECAST_CLOSED = 'A won or lost stage always counts as won or lost.'
+E_CHANCE = 'Type a chance between 0 and 100.'
 
 
 def _int(value, low, high):
@@ -379,7 +385,12 @@ def list_context(tab, edit=None, errors=None, form=None):
     rows, needs = template_rows(force=tab == 'templates')
     banner = (BANNER % (needs, plural(needs), 's' if needs == 1 else '', 'it' if needs == 1 else 'they')
               if needs else None)
+    from app.services import crm_money
+    have = {r.code: r for r in CrmCurrencyRate.query.all()}
+    rate_rows = [{'code': c, 'rate': crm_money.plain_rate(have[c].rate) if c in have else '',
+                  'updated_at': have[c].updated_at if c in have else None} for c in crm_money.currencies_in_use()]
     return {'tab': tab, 'pipelines': pipelines, 'counts': counts, 'products': products, 'prod_leads': prod_leads,
+            'rate_rows': rate_rows, 'report_currency': crm_money.reporting_currency(),
             'edit_prod': edit_prod, 'errors': errors or {}, 'form': form or {}, 'ICONS': ICONS,
             'CURRENCIES': CURRENCIES, 'TAKE_OVER': TAKE_OVER, 'P_CODE_LOCKED': P_CODE_LOCKED,
             'KPI_ROWS': [(k, crm_kpi.METRICS[k][0]) for k in crm_kpi.PRODUCT_ROWS],
@@ -405,6 +416,9 @@ def product_errors(form, prod, prefix=''):
                                                               else crm_products.ICON_DEFAULT)
     values['currency'] = get('currency') if get('currency') in CURRENCIES else 'INR'
     values['kpi_row'] = get('kpi_row') if get('kpi_row') in crm_kpi.PRODUCT_ROWS else None
+    if (get('price') is not None or get('revenue_kind') is not None or get('close_days') is not None
+            or get('max_discount_pct') is not None):
+        _money_values(get, prefix, errors, values)
     if prod is not None and prod.id:
         pid = _int(get('default_pipeline_id'), 1, 10 ** 9) if (get('default_pipeline_id') or '') else None
         values['default_pipeline_id'] = pid if pid and db.session.get(CrmPipeline, pid) is not None else None
@@ -425,6 +439,49 @@ def product_errors(form, prod, prefix=''):
     return errors, values
 
 
+def _money_values(get, prefix, errors, values):
+    """The money fields of the product form (Phase 1): usual price, what we earn, usual days to close."""
+    from app.services import crm_money
+    raw = (get('price') or '').strip()
+    try:
+        values['price'] = crm_money.money_amount(raw) if raw else None
+    except ValueError:
+        values['price'] = None
+        errors[prefix + 'price'] = 'Type the usual amount as a number, like 18500.'
+    kind = get('revenue_kind') if get('revenue_kind') in ('fixed', 'percent') else None
+    values['revenue_kind'] = kind
+    raw = (get('revenue_value') or '').strip()
+    value = None
+    if kind:
+        try:
+            value = crm_money.money_amount(raw) if raw else None
+        except ValueError:
+            value = None
+        if value is None:
+            errors[prefix + 'revenue_value'] = 'Type what we earn as a number.'
+        elif kind == 'percent' and value > 100:
+            errors[prefix + 'revenue_value'] = 'A percentage is between 0 and 100.'
+    values['revenue_value'] = value if kind else None
+    raw = (get('close_days') or '').strip()
+    days = None
+    if raw:
+        days = _int(raw, 1, 365)
+        if days is None:
+            errors[prefix + 'close_days'] = 'Type a number of days between 1 and 365.'
+    values['close_days'] = days
+    raw = (get('max_discount_pct') or '').strip().rstrip('%').strip()
+    pct = None
+    if raw:
+        try:
+            pct = crm_money.money_amount(raw)
+        except ValueError:
+            pct = None
+        if pct is None or pct > 100:
+            errors[prefix + 'max_discount_pct'] = 'Type a percentage between 0 and 100, like 10.'
+            pct = None
+    values['max_discount_pct'] = pct
+
+
 def _next_product_position():
     return (db.session.query(func.max(CrmProduct.position)).scalar() or 0) + 1
 
@@ -443,6 +500,10 @@ def save_product(form, actor):
     old_code = prod.code
     prod.name, prod.icon, prod.currency, prod.kpi_row = (values['name'], values['icon'], values['currency'],
                                                           values['kpi_row'])
+    if 'price' in values:
+        prod.price, prod.revenue_kind = values['price'], values['revenue_kind']
+        prod.revenue_value, prod.close_days = values['revenue_value'], values['close_days']
+        prod.max_discount_pct = values.get('max_discount_pct')
     if not new:
         prod.offered = values['offered']
         prod.default_pipeline_id = values['default_pipeline_id']
@@ -479,7 +540,8 @@ def stamp(pipe):
               pipe.tag_label],
         'f': [[f.id, f.key, f.label, f.type, f.options, f.position, f.on_card, f.on_add, f.required] for f in fields],
         's': [[s.id, s.key, s.name, s.position, s.means, s.on_reply, s.sla_hours, s.auto_kind, s.auto_field,
-               s.auto_days, s.auto_to_id, s.auto_reason, s.button_label, s.button_code,
+               s.auto_days, s.auto_to_id, s.auto_reason, s.button_label, s.button_code, s.forecast, s.probability,
+               list(s.requires or []),
                [[t.id, t.position, t.code, t.title, t.channel, t.body, t.trigger, t.trigger_value, t.trigger_field,
                  t.kind, t.wa_params, bool(t.auto), t.wa_template]
                 for t in sorted(s.steps, key=lambda x: (x.position, x.id))]] for s in stages]}
@@ -577,7 +639,8 @@ def editor_context(pipe, user, open_step=None, made=None, source_key=None):
             'BUTTONS': BUTTONS, 'dates': dates, 'tag_text': prefix_of(pipe), 'snippet': snippet, 'data': data,
             'TAKE_OVER': TAKE_OVER, 'E_REMOVE_USED': E_REMOVE_USED,
             'step_json': step_json, 'summary': lambda s: step_summary(s, lib_by),
-            'reasons': list(pipe.fallout_reasons or [])}
+            'reasons': list(pipe.fallout_reasons or []),
+            'NEEDS': crm_stage_rules.choices(pipe)}
 
 
 def _can_open_templates(user):
@@ -756,6 +819,25 @@ def validate(pipe, data):
             sla = _int(sla, 1, 2000)
             if sla is None:
                 err(ref + '.sla_hours', E_SLA)
+        # how the forecast counts this stage's leads (Automatic when empty) and their chance to win
+        fc = (raw.get('forecast') if 'forecast' in raw else (old.forecast if old is not None else None)) or None
+        if fc is not None and fc not in CRM_FORECASTS:
+            err(ref + '.forecast', E_FORECAST)
+            fc = None
+        elif fc is not None and means_of[ref] in ('won', 'lost') and fc != means_of[ref]:
+            err(ref + '.forecast', E_FORECAST_CLOSED)
+        elif fc is not None and means_of[ref] not in ('won', 'lost') and fc in ('won', 'lost'):
+            err(ref + '.forecast', E_FORECAST_OPEN)
+        chance = raw.get('probability') if 'probability' in raw else (old.probability if old is not None else None)
+        if chance in (None, ''):
+            chance = None
+        else:
+            chance = _int(chance, 0, 100)
+            if chance is None:
+                err(ref + '.probability', E_CHANCE)
+        # what a person must fill in before a lead moves here (the saved fields of this pipeline)
+        need = crm_stage_rules.clean_requires(raw.get('requires') if 'requires' in raw
+                                              else (old.requires if old is not None else []), pipe)
         # moves by itself
         auto = raw.get('auto') if isinstance(raw.get('auto'), dict) else {}
         a = {'kind': None, 'field': None, 'days': None, 'to': None, 'reason': None}
@@ -799,7 +881,9 @@ def validate(pipe, data):
             bcode = ''
         steps = _validate_steps(pipe, raw, ref, old, errors, resolve_date, removed_keys)
         stages.append({'id': old.id if old is not None else None, 'ref': ref, 'name': sname, 'means': means,
-                       'on_reply': on_reply, 'sla_hours': sla, 'auto': a, 'button_label': blabel or None,
+                       'on_reply': on_reply, 'sla_hours': sla, 'auto': a, 'forecast': fc, 'probability': chance,
+                       'requires': need,
+                       'button_label': blabel or None,
                        'button_code': bcode or None, 'steps': steps})
     plan['stages'] = stages
     if not any(means_of.get(r) not in ('won', 'lost') for r in refs):
@@ -999,6 +1083,8 @@ def apply(pipe, plan, actor):
             summary['stages_renamed'] += 1
         st.name, st.means, st.on_reply, st.sla_hours = sp['name'], sp['means'], sp['on_reply'], sp['sla_hours']
         st.button_label = sp['button_label']
+        st.forecast, st.probability = sp['forecast'], sp['probability']
+        st.requires = sp['requires'] or None
         st.position = i
         rows.append((st, sp))
         by_ref[sp['ref']] = st
@@ -1118,7 +1204,8 @@ def set_active(pipe, on, actor):
 
 def _rules_using(pipe):
     """The names of the WhatsApp CRM's reply rules (automations) triggered by one of this pipeline's tags."""
-    if not wacrm_team.enabled():
+    from app.services import crm
+    if not crm.wa_team_on():
         return []
     try:
         with wacrm.short_timeouts():
@@ -1218,7 +1305,7 @@ def _copy_into(src, pipe, keep_templates):
         n = CrmStage(key=st.key, name=st.name, means=st.stage_means, on_reply=st.on_reply, sla_hours=st.sla_hours,
                      auto_kind=st.auto_kind, auto_field=st.auto_field, auto_days=st.auto_days,
                      auto_reason=st.auto_reason, button_label=st.button_label, button_code=st.button_code,
-                     position=st.position)
+                     forecast=st.forecast, probability=st.probability, requires=st.requires, position=st.position)
         pipe.stages.append(n)
         mapping[st.id] = n
     db.session.flush()

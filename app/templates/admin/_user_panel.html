@@ -71,6 +71,17 @@
         <button class="cb sm primary"><i class="fa-solid fa-floppy-disk"></i> Save role and teams</button>
       </form>
       <p class="upn-hint"><b>Can open:</b> {{ can_open }} · <a href="{{ url_for('workspace.member', member_id=m.id) }}">see every page</a></p>
+      <form method="POST" action="{{ url_for('admin.user_away', user_id=u.id) }}" class="upn-away">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        {% if m.away_until and m.away_until > utcnow %}
+        <p class="upn-hint">Away until {{ (m.away_until + IST_OFFSET).strftime('%d %b') }}: no new leads are shared with {{ first }}.
+          <button class="cb sm" name="back" value="1">Mark as back</button></p>
+        {% else %}
+        <label class="upn-field"><span>Away until <small>(no new leads meanwhile)</small></span>
+          <input type="date" name="until" required/></label>
+        <button class="cb sm"><i class="fa-solid fa-plane-departure"></i> Mark as away</button>
+        {% endif %}
+      </form>
       {% if m.wacrm_error %}<p class="upn-note bad"><i class="fa-solid fa-circle-exclamation"></i> WhatsApp CRM: {{ m.wacrm_error }}</p>
       {% elif m.wacrm_role %}<p class="upn-hint"><i class="fa-brands fa-whatsapp"></i> WhatsApp CRM: {{ m.wacrm_role|capitalize }}</p>{% endif %}
       {% if not m.is_owner and not is_self %}

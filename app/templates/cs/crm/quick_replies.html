@@ -1,10 +1,12 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_tabs.html' import tab_strip with context %}
 {% from '_empty.html' import empty %}
 {% from 'cs/crm/_bits.html' import product_chip with context %}
 {% from 'cs/crm/setup/_macros.html' import csrf with context %}
 {% block crm_title %}Quick replies{% endblock %}
 {% block crm %}
+{{ tab_strip('crm_quick') }}
 {% set new_button = {'label': 'New quick reply', 'href': crm_url('quick_replies', edit='new'), 'icon': 'fa-solid fa-plus'} %}
 {{ page_head('Quick replies', 'fa-solid fa-bolt',
              'Ready-made answers. Pick one while chatting, on the lead page or in WhatsApp chats. Edit them only here.',
@@ -108,6 +110,20 @@
     {% if state.imported_at %}<p class="hint">Done on {{ state.imported_at[:10] }}: {{ state.imported }} brought in.</p>{% endif %}
   </div>
   {% endif %}
+</section>
+
+{# ------------------------------------------------------------------ e-mails to customers (the composer's sender) #}
+<section class="card" id="email-sender">
+  <h2><i class="fa-solid fa-envelope"></i> E-mails to customers</h2>
+  <p class="muted">The “E-mail” button on a lead or contact page sends from this name. Nothing is sent from here.</p>
+  {% if not email_sender.can_send %}<p class="hint">This server cannot send e-mail to customers yet, so the button opens each person's own mail app. These settings apply once it can.</p>{% endif %}
+  <form method="POST" action="{{ crm_url('email_sender_save') }}" class="stack" style="max-width:520px">{{ csrf() }}
+    <div><label class="lb" for="es-name">Sender name</label>
+      <input id="es-name" type="text" name="name" maxlength="80" value="{{ email_sender.name }}" placeholder="{{ email_sender.default_name }}"/></div>
+    <div><label class="lb" for="es-reply">Replies go to <small class="muted">(empty: to the person who wrote)</small></label>
+      <input id="es-reply" type="email" name="reply_to" maxlength="200" value="{{ email_sender.reply_to }}" placeholder="sales@example.com"/></div>
+    <div><button class="cb primary">Save</button></div>
+  </form>
 </section>
 {% endif %}
 {% endblock %}

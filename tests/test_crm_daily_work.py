@@ -269,7 +269,7 @@ def test_leads_page_draws_in_both_views_and_remembers_the_view(app, client, cs_u
     r = client.get('/cs/crm/?p=ti-standard&view=list')
     assert r.status_code == 200
     t = text_of(r.get_data(as_text=True))
-    for col in ('Name', 'Product', 'Stage', 'Looked after by', 'Next follow-up', 'Chat', 'Travels on', 'Last contact'):
+    for col in ('Name', 'Product', 'Stage', 'Value', 'Closes', 'Looked after by', 'Next step', 'Chat', 'Travels on', 'Last contact'):
         assert col in t, col
     assert 'Lead 0' in t
     assert 'Download this list' not in t                                    # hidden until a later release

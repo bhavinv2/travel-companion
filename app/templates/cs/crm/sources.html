@@ -1,21 +1,21 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
-{% block crm_title %}Where leads come from{% endblock %}
+{% block crm_title %}Lead sources{% endblock %}
 {% block crm %}
-{{ page_head('Where leads come from', 'fa-solid fa-door-open',
+{{ page_head('Lead sources', 'fa-solid fa-door-open',
              'Each form, page or channel that brings leads, which pipeline and people they go to, and the inboxes the team checks.',
              help=['A new form or page sends its leads here by itself and shows as needing set-up until you choose its pipeline.',
                    "Paused keeps a source's leads but sends nothing.",
                    'Inboxes to check is the list on the Half-hourly check.'],
              primary=({'label': '+ New source', 'href': crm_url('sources', edit='new')} if tab == 'sources' else None),
              full_screen=True) }}
-<nav class="subtabs" aria-label="Where leads come from">
+<nav class="subtabs" aria-label="Lead sources">
   <a href="{{ crm_url('sources') }}" class="{{ 'on' if tab == 'sources' }}">Sources</a>
   <a href="{{ crm_url('sources', tab='inboxes') }}" class="{{ 'on' if tab == 'inboxes' }}">Inboxes to check</a>
   <a href="{{ crm_url('sources', tab='activities') }}" class="{{ 'on' if tab == 'activities' }}">Marketing activities</a>
 </nav>
 {% if tab == 'inboxes' %}{% include 'cs/crm/setup/_inboxes.html' %}
 {% elif tab == 'activities' %}{% include 'cs/crm/setup/_activities.html' %}
-{% else %}{% include 'cs/crm/setup/_sources.html' %}{% endif %}
+{% else %}{% include 'cs/crm/setup/_sources.html' %}{% include 'cs/crm/setup/_lead_ads.html' %}{% endif %}
 {% endblock %}
 {% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/crm-people.js') }}" defer></script>{% endblock %}

@@ -6,7 +6,8 @@
      </form>
      <script src="https://<this site>/static/js/lead-capture.js" defer></script>
 
-   name, phone (and phone_cc, an ISO country such as IN or US), email, message and consent are
+   name, phone (and phone_cc, an ISO country such as IN or US), email, message, consent (the WhatsApp tick) and
+   offers_consent (a separate "OK to send offers" tick) are
    read by name; every other field is kept with the lead as it is. The campaign the visitor came
    from (utm_*, gclid, fbclid) goes with it. A source code nobody has set up yet still works: its
    leads wait in the CRM until an admin chooses their pipeline once.
@@ -17,7 +18,7 @@
   'use strict';
   var me = document.currentScript;
   var ORIGIN = me && me.src ? new URL(me.src).origin : location.origin;
-  var KNOWN = ['name', 'phone', 'phone_cc', 'email', 'message', 'consent', 'website', 'csrf_token'];
+  var KNOWN = ['name', 'phone', 'phone_cc', 'email', 'message', 'consent', 'offers_consent', 'website', 'csrf_token'];
   var UTM = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid'];
 
   function firstVisit() {
@@ -55,7 +56,7 @@
       if (form.dataset.product) body.product = form.dataset.product;
       data.forEach(function (v, k) {
         if (typeof v !== 'string') return;
-        if (KNOWN.indexOf(k) >= 0) body[k] = k === 'consent' ? true : v;
+        if (KNOWN.indexOf(k) >= 0) body[k] = (k === 'consent' || k === 'offers_consent') ? true : v;
         else if (v.trim()) body.fields[k] = body.fields[k] ? body.fields[k] + ', ' + v : v;
       });
       if (!(body.phone || '').trim() && !(body.email || '').trim()) {

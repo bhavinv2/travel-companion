@@ -77,7 +77,8 @@
   }
 
   /* A small chooser in the shared <dialog>: a title, a line, and buttons. Resolves with the value
-     clicked, or null when closed. */
+     clicked, or null when closed. A dialog's 'close' event arrives a moment after close(): when the next question
+     is already open in the same <dialog> (Move to... -> Mark as won?), that late event is not this one's. */
   function choose(title, line, options, extra) {
     return new Promise(function (resolve) {
       var box = dialog.querySelector('.in');
@@ -92,7 +93,7 @@
         b.addEventListener('click', function () { finish(options[+b.dataset.i].value); });
       });
       box.querySelector('[data-close]').addEventListener('click', function () { finish(null); });
-      dialog.addEventListener('close', function once() { dialog.removeEventListener('close', once); finish(null); });
+      dialog.addEventListener('close', function once() { if (dialog.open) return; dialog.removeEventListener('close', once); finish(null); });
       dialog.showModal();
     });
   }
@@ -107,26 +108,85 @@
   /* Moving a lead. A finish line asks once: won to confirm, lost for why (the pipeline's buttons). A stage
      with a milestone button asks "Did you send the quote?". `stage`: an element with data-stage, data-kind,
      data-name (and data-milestone, data-ask), or a plain object with those names. */
-  function moveLead(leadId, stage, reasonsSource) {
+  /* The optional Amount in the "Did you send the quote?" dialog: prefilled with the lead's amount. */
+  function amountField(value) {
+    return '<label class="lbl" for="crm-ask-amount" style="margin-top:10px">Amount (optional)</label>' +
+      '<input type="text" inputmode="decimal" id="crm-ask-amount" data-ask-amount autocomplete="off" placeholder="e.g. 18500" value="' + esc(value || '') + '"/>';
+  }
+  function askedAmount() {
+    var i = dialog.querySelector('[data-ask-amount]');
+    return i ? i.value.trim() : '';
+  }
+
+  /* A stage that needs something before a lead moves in (Set-up -> Pipelines): one small form, then the move
+     is posted again with the typed values. Resolves the values, or null when closed. */
+  function askFields(stageName, fields) {
+    return new Promise(function (resolve) {
+      var box = dialog.querySelector('.in');
+      var rows = fields.map(function (f, i) {
+        var id = 'crm-need-' + i, input;
+        if (f.type === 'date') input = '<input type="date" id="' + id + '" data-need="' + esc(f.key) + '"/>';
+        else if (f.type === 'money' || f.type === 'number') input = '<input type="text" inputmode="decimal" id="' + id + '" data-need="' + esc(f.key) + '" autocomplete="off"/>';
+        else if (f.type === 'choice' && f.options && f.options.length) {
+          input = '<select id="' + id + '" data-need="' + esc(f.key) + '"><option value=""></option>' + f.options.map(function (o) {
+            return '<option>' + esc(o) + '</option>'; }).join('') + '</select>';
+        } else if (f.type === 'yesno') input = '<select id="' + id + '" data-need="' + esc(f.key) + '"><option value=""></option><option>Yes</option><option>No</option></select>';
+        else input = '<input type="text" id="' + id + '" data-need="' + esc(f.key) + '" autocomplete="off"/>';
+        return '<label class="lbl" for="' + id + '" style="margin-top:8px">' + esc(f.label) +
+          (f.currency ? ' (' + esc(f.currency) + ')' : '') + '</label>' + input;
+      }).join('');
+      box.innerHTML = '<h3>Before it moves to ' + esc(stageName) + '</h3><p class="muted" style="margin:0">This stage needs:</p>' + rows +
+        '<div class="row end" style="margin-top:12px"><button type="button" class="cb ghost" data-close>Cancel</button>' +
+        '<button type="button" class="cb primary" data-save>Save and move</button></div>';
+      var done = false;
+      function finish(v) { if (done) return; done = true; dialog.close(); resolve(v); }
+      box.querySelector('[data-close]').onclick = function () { finish(null); };
+      box.querySelector('[data-save]').onclick = function () {
+        var vals = {};
+        box.querySelectorAll('[data-need]').forEach(function (i) { vals[i.dataset.need] = i.value.trim(); });
+        finish(vals);
+      };
+      dialog.addEventListener('close', function once() { if (dialog.open) return; dialog.removeEventListener('close', once); finish(null); });
+      dialog.showModal();
+    });
+  }
+  function postMove(leadId, body) {
+    return post('lead/' + leadId + '/move', body).then(function (d) {
+      if (d._ok || !d.need_fields) return d;
+      if (body.fields) toast(d.error || 'Fill in what the stage needs.', true);
+      return askFields(d.stage_name || 'this stage', d.need_fields).then(function (vals) {
+        if (!vals) return null;
+        body.fields = vals;
+        return postMove(leadId, body);
+      });
+    });
+  }
+
+  function moveLead(leadId, stage, reasonsSource, amount0) {
     var info = stage.dataset || stage;
+    if (amount0 == null) amount0 = (reasonsSource && reasonsSource.dataset && reasonsSource.dataset.amount) || '';
     var kind = info.kind, name = info.name, milestone = info.milestone || '';
     var ask = Promise.resolve('');
     if (kind === 'lost') {
       var reasons = reasonsFrom(reasonsSource);
       if (!reasons.length) reasons = ['No response', 'Not interested'];
-      ask = choose('Why did they fall out?', 'Moving to "' + name + '".',
+      ask = choose('Why did we lose them?', 'Moving to "' + name + '".',
         reasons.map(function (r) { return { label: r, value: r }; }));
     } else if (kind === 'won') {
       ask = choose('Mark as won?', 'Moving to "' + name + '". Well done!', [{ label: 'Yes, won', value: 'won' }]);
     } else if (milestone && kind === 'open') {
       ask = choose(info.ask || 'Did you send it?', 'Moving to "' + name + '".',
-        [{ label: 'Yes, log it', value: 'yes' }, { label: 'No, just move', value: 'no' }]);
+        [{ label: 'Yes, log it', value: 'yes' }, { label: 'No, just move', value: 'no' }], amountField(amount0));
     }
     return ask.then(function (reason) {
       if (reason === null) return null;
       var body = { stage_id: +info.stage, reason: kind === 'lost' ? reason : '' };
-      if (milestone && kind === 'open') body.log_milestone = reason === 'yes';
-      return post('lead/' + leadId + '/move', body);
+      if (milestone && kind === 'open') {
+        body.log_milestone = reason === 'yes';
+        var amt = askedAmount();
+        if (amt && amt !== amount0) body.amount = amt;
+      }
+      return postMove(leadId, body);
     }).then(function (d) {
       if (d === null) return null;
       if (!d._ok) { toast(d.error || 'Could not move it.', true); return null; }
@@ -172,7 +232,7 @@
     return post('task/' + taskId + '/' + action, extra || {}).then(function (d) {
       if (!d._ok) { toast(d.error || 'That did not work.', true); return null; }
       toast(action === 'snooze' ? 'Moved to tomorrow' : action === 'skip' ? 'Marked not needed' : 'Done ✓' +
-        (d.next ? ' Next: ' + (d.next.title || d.next.code) : ''));
+        (d.next ? ' Next: ' + (d.next.title || 'the next follow-up') : ''));
       return d;
     });
   }
@@ -214,7 +274,7 @@
           if (!at) { toast('Pick a time.', true); return; }
           finish({ when: 'at', at: at });
         };
-        dialog.addEventListener('close', function once() { dialog.removeEventListener('close', once); finish(null); });
+        dialog.addEventListener('close', function once() { if (dialog.open) return; dialog.removeEventListener('close', once); finish(null); });
         dialog.showModal();
       });
     });
@@ -254,7 +314,7 @@
       var lost = leadPage.querySelector('[data-journey] [data-kind="lost"]');
       if (lost) {
         choose(d.no_answers + ' calls in a row with no answer', 'Move them to "' + lost.dataset.name + '"?',
-          [{ label: 'Yes, they fell out', value: 'yes' }, { label: 'Keep trying', value: 'no' }])
+          [{ label: 'Yes, mark them lost', value: 'yes' }, { label: 'Keep trying', value: 'no' }])
           .then(function (v) {
             if (v === 'yes') {
               var reasons = reasonsFrom(reasonsSource);
@@ -467,7 +527,7 @@
         });
       } else if (act === 'remove') {
         choose('Remove this lead?',
-               'Removes this enquiry with its follow-ups and timeline. ' + (b.dataset.name || 'The contact') + ' stays in Contacts.',
+               'It goes to the Recycle bin for 30 days, with its follow-ups and timeline, and an admin can put it back. ' + (b.dataset.name || 'The contact') + ' stays in Contacts.',
                [{ label: 'Yes, remove', value: 'yes' }]).then(function (v) {
           if (v !== 'yes') return;
           post('lead/' + leadId + '/remove', {}).then(function (d) {
@@ -697,7 +757,7 @@
     if (el.querySelector('[data-detail-edit]:not([hidden])')) return true;      // a detail being changed
     var a = document.activeElement;
     if (a && el.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;
-    if (el.querySelector('details.more-menu[open], details.box-qr[open]')) return true;
+    if (el.querySelector('details.more-menu[open], details.box-qr[open], details.lv[open]')) return true;
     if (el.dataset.touched === '1') return true;
     if (el.querySelector('[data-wrote-ch].on')) return true;
     var fields = el.querySelectorAll('textarea, input[type="text"], input[type="datetime-local"]');
@@ -750,6 +810,25 @@
     if (leadPage.dataset.bound) return;
     leadPage.dataset.bound = '1';
     var leadId = leadPage.dataset.lead;
+
+    // the value / close date / forecast form in the lead's header
+    leadPage.addEventListener('submit', function (e) {
+      var f = e.target.closest('[data-money-form]');
+      if (!f || !leadPage.contains(f)) return;
+      e.preventDefault();
+      var body = { amount: f.elements.amount.value.trim(), currency: f.elements.currency.value,
+                   close_date: f.elements.close_date.value };
+      if (!f.elements.forecast.disabled) body.forecast = f.elements.forecast.value;
+      post('lead/' + leadId + '/money', body).then(function (d) {
+        if (!d._ok) { toast(d.error || 'Could not save.', true); return; }
+        leadPage.dataset.amount = body.amount;
+        // saved: the typed values are no longer "half typed", so the live refresh may redraw the header now
+        Array.prototype.forEach.call(f.querySelectorAll('input'), function (i) { i.defaultValue = i.value; });
+        var det = f.closest('details'); if (det) det.open = false;
+        toast(d.changed && d.changed.length ? 'Saved' : 'Nothing changed');
+        reloadFor(leadPage, 150);
+      });
+    });
 
     leadPage.addEventListener('click', function (e) {
       var btn = e.target.closest('[data-journey] button[data-stage]');
@@ -812,11 +891,20 @@
       }
       var ev = e.target.closest('[data-act="event"]');
       if (ev && leadPage.contains(ev)) {
-        ev.disabled = true;
-        post('lead/' + leadId + '/event', { code: ev.dataset.code }).then(function (d) {
-          if (!d._ok) { ev.disabled = false; toast(d.error || 'Could not save.', true); return; }
-          toast(d.stage ? 'Saved. Moved to ' + d.stage : 'Saved');
-          reloadFor(leadPage);
+        // "I sent the quote" / "I sent the payment link": the amount can be put right at the same time
+        var amount0 = leadPage.dataset.amount || '';
+        choose(ev.textContent.trim() + '?', 'This only notes it down. Nothing is sent to them.',
+          [{ label: 'Save', value: 'yes' }], amountField(amount0)).then(function (v) {
+          if (v !== 'yes') return;
+          var body = { code: ev.dataset.code }, amt = askedAmount();
+          if (amt && amt !== amount0) body.amount = amt;
+          ev.disabled = true;
+          post('lead/' + leadId + '/event', body).then(function (d) {
+            if (!d._ok) { ev.disabled = false; toast(d.error || 'Could not save.', true); return; }
+            if (body.amount) leadPage.dataset.amount = body.amount;
+            toast(d.stage ? 'Saved. Moved to ' + d.stage : 'Saved');
+            reloadFor(leadPage);
+          });
         });
         return;
       }
@@ -961,6 +1049,49 @@
   var board = document.querySelector('[data-board]');
   if (board) {
     var dragging = null, moved = false;
+    // a column's count and money (and the strip above) follow a card that moved, without a reload. The server
+    // counts more than the 60 cards a column shows, so the numbers move by the card, not by counting cards.
+    var SYM = { INR: '₹', USD: '$', EUR: '€', GBP: '£', AED: 'AED ', CAD: 'C$', AUD: 'A$', SGD: 'S$' };
+    var indian = function (n) {
+      var s = String(n);
+      if (s.length <= 3) return s;
+      var head = s.slice(0, -3), parts = [];
+      while (head.length > 2) { parts.unshift(head.slice(-2)); head = head.slice(0, -2); }
+      if (head) parts.unshift(head);
+      return parts.concat([s.slice(-3)]).join(',');
+    };
+    var moneyShort = function (n) {          // crm_money.money(compact=True): ₹29,400 / ₹1.2 L / ₹1.5 Cr
+      var code = board.dataset.currency || 'INR', sym = SYM[code] || (code + ' ');
+      var neg = n < 0 ? '-' : '';
+      n = Math.abs(n);
+      if (code === 'INR' && n >= 100000) {
+        var big = n >= 10000000, v = n / (big ? 10000000 : 100000);
+        return neg + sym + v.toFixed(1).replace(/\.0$/, '') + (big ? ' Cr' : ' L');
+      }
+      var whole = Math.round(n);
+      return neg + sym + (code === 'INR' ? indian(whole) : whole.toLocaleString('en-US'));
+    };
+    var bump = function (stageId, count, value) {
+      var col = board.querySelector('[data-col="' + stageId + '"]');
+      if (col) {
+        var c = col.querySelector('[data-col-count]'), v = col.querySelector('[data-col-value]');
+        if (c) { c.dataset.colCount = Math.max(0, (+c.dataset.colCount || 0) + count); c.textContent = c.dataset.colCount; }
+        if (v) {
+          var sum = Math.max(0, (parseFloat(v.dataset.colSum) || 0) + value);
+          v.dataset.colSum = sum;
+          v.textContent = sum > 0 ? '· ' + moneyShort(sum) : '';
+        }
+      }
+      var strip = document.querySelector('[data-strip="' + stageId + '"] b');
+      if (strip) strip.textContent = Math.max(0, (+strip.textContent || 0) + count);
+    };
+    var recount = function (card, fromStage, toStage, res) {
+      var before = parseFloat(card.dataset.value) || 0;
+      var after = (res && res.value != null) ? (parseFloat(res.value) || 0) : before;
+      card.dataset.value = after;
+      bump(fromStage, -1, -before);
+      bump(toStage, 1, after);
+    };
     board.addEventListener('dragstart', function (e) {
       var c = e.target.closest('.crm-card');
       if (!c) return;
@@ -989,9 +1120,11 @@
       var card = dragging;
       if (card.parentElement === d) return;
       moved = true;
-      moveLead(card.dataset.lead, d, board).then(function (res) {
+      var fromStage = card.closest('[data-drop]').dataset.stage;
+      moveLead(card.dataset.lead, d, board, card.dataset.amount || '').then(function (res) {
         if (!res) return;
         d.insertBefore(card, d.firstChild);
+        recount(card, fromStage, d.dataset.stage, res);
       });
     });
     // a drag that ends on a card must not also open it
@@ -1013,12 +1146,18 @@
         choose('Move ' + name + ' to…', '', stages.filter(function (s) { return String(s.stage) !== here.dataset.stage; })
           .map(function (s) { return { label: s.name, value: s }; })).then(function (s) {
           if (!s) return;
-          moveLead(card.dataset.lead, s, board).then(function (res) {
+          moveLead(card.dataset.lead, s, board, card.dataset.amount || '').then(function (res) {
             if (!res) return;
             var to = board.querySelector('[data-drop][data-stage="' + s.stage + '"]');
             if (to) to.insertBefore(card, to.firstChild); else card.remove();
+            recount(card, here.dataset.stage, s.stage, res);
           });
         });
+      } else if (b.dataset.act === 'show-more') {
+        // the cards past the first 20 are already on the page, only hidden
+        var drop = b.closest('[data-drop]');
+        drop.querySelectorAll('.crm-card[data-extra]').forEach(function (c) { c.hidden = false; c.removeAttribute('data-extra'); });
+        b.remove();
       } else if (b.dataset.act === 'stage-broadcast') {
         var can = +b.dataset.can > 0;
         choose('Message everyone in this stage', b.dataset.reach || '',
@@ -1086,11 +1225,12 @@
               if (!d._ok && d.need_reason) {
                 // a finish line: ask why once, with the pipeline's own reasons
                 var reasons = (d.reasons && d.reasons.length) ? d.reasons : ['No response', 'Not interested'];
-                return choose('Why did they fall out?', '', reasons.map(function (r) { return { label: r, value: r }; }))
+                return choose('Why did we lose them?', '', reasons.map(function (r) { return { label: r, value: r }; }))
                   .then(function (r) { if (r) go(r); });
               }
               if (!d._ok) { toast(d.error || 'Could not do that.', true); return null; }
               toast(d.message || 'Done');
+              if (d.not_moved_url) { setTimeout(function () { location.href = d.not_moved_url; }, 2500); return d; }
               reloadSoon(700);
               return d;
             });
@@ -1171,7 +1311,15 @@
     addForm.addEventListener('change', function (e) {
       if (e.target.name !== 'product') return;
       addForm.querySelectorAll('[data-add-fields]').forEach(function (g) { g.hidden = g.dataset.addFields !== e.target.value; });
+      // the product's usual price, unless somebody typed an amount themselves
+      var amt = addForm.querySelector('[data-add-amount]'), cur = addForm.querySelector('[data-add-currency]');
+      if (amt && amt.dataset.typed !== '1') {
+        amt.value = e.target.dataset.price || '';
+        if (cur && e.target.dataset.currency) cur.value = e.target.dataset.currency;
+      }
     });
+    var typed = addForm.querySelector('[data-add-amount]');
+    if (typed) typed.addEventListener('input', function () { typed.dataset.typed = '1'; });
   }
 
   /* -------------------------------------------------------------- set-up: {name} buttons */

@@ -1,9 +1,11 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_tabs.html' import tab_strip with context %}
 {% from 'cs/crm/setup/_macros.html' import csrf with context %}
-{% block crm_title %}WhatsApp connection{% endblock %}
+{% block crm_title %}WhatsApp{% endblock %}
 {% block crm %}
-{{ page_head('WhatsApp connection', 'fa-solid fa-plug',
+{{ tab_strip('crm_connection') }}
+{{ page_head('WhatsApp — connection', 'fa-solid fa-plug',
              'Whether the Sales CRM and WhatsApp are talking to each other, and what to fix if not.',
              help=['The checks at the top say whether WhatsApp can be reached, replies arrive and the team can sign in.',
                    'Not yet writes nothing to WhatsApp. Leave it there on a test or laptop copy of the site.',
@@ -12,6 +14,23 @@
              primary={'label': 'Check again', 'href': crm_url('connection'), 'icon': 'fa-solid fa-rotate'},
              full_screen=True) }}
 
+{% if wa_elsewhere %}
+{# a second workspace: WhatsApp belongs to the workspace it is linked to (Sales CRM 2.0, run 5a) #}
+<section class="card" data-wa-elsewhere>
+  {% if not wa_elsewhere_linked %}
+  <h2>WhatsApp isn't linked to this workspace yet</h2>
+  <p>Leads in this workspace have WhatsApp off for now. Nothing about them is written to WhatsApp or sent from here.</p>
+  <p class="muted">WhatsApp works in one workspace: the one linked to the WhatsApp CRM. Calls, e-mails and notes work
+     here as usual.</p>
+  {% else %}
+  <h2>WhatsApp is linked to {{ wa_elsewhere.name }}</h2>
+  <p>Leads in this workspace have WhatsApp off for now. Nothing about them is written to WhatsApp or sent from here,
+     and WhatsApp replies go to the leads of {{ wa_elsewhere.name }}.</p>
+  <p class="muted">To work on WhatsApp chats, switch to {{ wa_elsewhere.name }} at the top of the page. Calls,
+     e-mails and notes work here as usual.</p>
+  {% endif %}
+</section>
+{% else %}
 {# the live checks load after the page has drawn (static/js/crm-connection.js) #}
 <section class="card" data-conn-checks data-src="{{ crm_url('connection_checks') }}">
   <p class="muted">Checking the connection…</p>
@@ -118,5 +137,6 @@
   <ul class="conn-env">{% for name, on in env.items() %}<li><code>{{ name }}</code> — {{ 'set' if on else 'not set' }}</li>{% endfor %}</ul>
   <p class="hint">Forms on other websites send leads to <code>{{ intake_url }}</code> (list those sites in <code>CRM_INTAKE_ORIGINS</code>); the form script is <code>{{ snippet_url }}</code>.</p>
 </details>
+{% endif %}
 {% endblock %}
 {% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/crm-connection.js') }}" defer></script>{% endblock %}

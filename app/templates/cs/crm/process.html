@@ -1,5 +1,6 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_tabs.html' import leads_switch with context %}
 {% block crm_title %}How we sell{% endblock %}
 {% macro status_class(note) -%}
 {%- set n = (note or '')|lower -%}
@@ -8,6 +9,7 @@
 {%- else -%}idle{%- endif -%}
 {%- endmacro %}
 {% block crm %}
+<div class="leads-switch-row">{{ leads_switch('process', board_href=crm_url('board', view='board'), list_href=crm_url('board', view='list')) }}</div>
 {{ page_head('How we sell', 'fa-solid fa-route', "Our sales path for each product, with today's numbers. Click a stage to see its leads.",
              help=["Where leads come from, each product's stages and our lead channels.",
                    'Open leads in each stage now; won and lost over the last 30 days.'],
@@ -19,7 +21,7 @@
     <p class="muted" style="margin:2px 0 0">Every form, pop-up and inbox sends its leads straight to the CRM. Last 30 days:</p></div></div>
   <div class="inlets">
     {% for src, n in inlets %}
-    <div class="inlet{{ ' quiet' if not n }}"><b>{{ n }}</b><span>{{ src.name }}</span></div>
+    <div class="inlet{{ ' quiet' if not n }}"><b>{{ n }}</b><span>{{ SOURCE_NAME(src.name) }}</span></div>
     {% endfor %}
   </div>
 </section>
@@ -50,7 +52,7 @@
     <div class="proc-loss">
       {% for st in losses %}
       <a class="proc-stage lost" href="{{ crm_url('board', p=p.key, stage=st.id, owner='all', view='board') }}">
-        <span class="cnt">{{ closed_counts.get(st.id, 0) }}</span><b>{{ st.name }}</b><small>fell out, last 30 days</small>
+        <span class="cnt">{{ closed_counts.get(st.id, 0) }}</span><b>{{ st.name }}</b><small>lost, last 30 days</small>
       </a>
       {% endfor %}
     </div>

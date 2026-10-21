@@ -17,7 +17,8 @@ from sqlalchemy import func
 
 from app import db
 from app.models import (CrmChannelCheck, CrmLead, CrmStage, CrmStageChange, CrmTask, CrmTouchpoint,
-                        CRM_CHECK_HOURS)
+                        CRM_CHANNEL_LABELS, CRM_CHECK_HOURS)
+from app.services import crm_words
 
 IST = timedelta(hours=5, minutes=30)
 
@@ -31,7 +32,7 @@ METRICS = [
     ('done', 'Follow-ups done'),
     ('moved', 'Leads moved on'),
     ('won', 'Won'),
-    ('lost', 'Fell out'),
+    ('lost', 'Lost'),
 ]
 CODE = re.compile(r'^[A-Z]+')
 
@@ -40,72 +41,43 @@ def ist_day(dt):
     return (dt + IST).date() if dt else None
 
 
+# the per-person download's columns, and the registry number each one is (services/crm_numbers.py)
+KPI_NUMBER = {'leads': 'new_leads', 'added': 'leads_added', 'replies': 'replies_in', 'messages': 'messages_by_agent',
+              'calls': 'calls', 'talked': 'calls_connected', 'done': 'followups_done', 'moved': 'moves',
+              'won': 'won', 'lost': 'lost'}
+
+
 def kpis(since, until=None, user_ids=None):
     """({user_id: {metric: n, 'codes': {prefix: n}, 'first_reply_h': median hours}},
-        {user_id: {ist date: {metric: n}}}) for activity between `since` and `until` (UTC)."""
+        {user_id: {ist date: {metric: n}}}) for activity between `since` and `until` (UTC). The numbers are the
+    registry's (crm_numbers), saved days where they are there."""
+    from app.services import crm_numbers
     # a second of slack: the clock can read the same as a row written a moment ago
     until = until or datetime.utcnow() + timedelta(seconds=1)
     total = defaultdict(lambda: defaultdict(int))
     daily = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
-
-    def add(uid, when, metric):
-        if uid is None or (user_ids is not None and uid not in user_ids):
-            return
-        total[uid][metric] += 1
-        daily[uid][ist_day(when)][metric] += 1
-
-    rng = lambda col: (col >= since, col < until)        # noqa: E731
-    for owner, created_by, created in (db.session.query(CrmLead.owner_id, CrmLead.created_by_id, CrmLead.created_at)
-                                       .filter(*rng(CrmLead.created_at))):
-        add(owner, created, 'leads')
-        add(created_by, created, 'added')
-    for owner, status, closed in (db.session.query(CrmLead.owner_id, CrmLead.status, CrmLead.closed_at)
-                                  .filter(CrmLead.status.in_(('won', 'lost')), *rng(CrmLead.closed_at))):
-        add(owner, closed, status)
-    for agent, ch, direction, outcome, code, when, owner, tp_status in (
-            db.session.query(CrmTouchpoint.agent_id, CrmTouchpoint.channel, CrmTouchpoint.direction,
-                             CrmTouchpoint.outcome, CrmTouchpoint.code, CrmTouchpoint.created_at,
-                             CrmLead.owner_id, CrmTouchpoint.status)
-            .outerjoin(CrmLead, CrmLead.id == CrmTouchpoint.lead_id)
-            .filter(*rng(CrmTouchpoint.created_at))):
-        if tp_status == 'imported':
-            continue                 # older messages brought onto the lead page are history, not work
-        if direction == 'in':
-            if ch != 'form':
-                add(owner, when, 'replies')
-        elif direction == 'out':
-            if ch == 'call':
-                add(agent, when, 'calls')
-                if outcome == 'connected':
-                    add(agent, when, 'talked')
-            else:
-                add(agent, when, 'messages')
-            m = CODE.match(code or '')
-            if m and agent is not None and (user_ids is None or agent in user_ids):
-                codes = total[agent].setdefault('codes', defaultdict(int))
-                codes[m.group(0)] += 1
-    for by, when in (db.session.query(CrmTask.done_by_id, CrmTask.done_at)
-                     .filter(CrmTask.status == 'done', *rng(CrmTask.done_at))):
-        add(by, when, 'done')
-    for by, when in (db.session.query(CrmStageChange.by_id, CrmStageChange.created_at)
-                     .join(CrmStage, CrmStage.id == CrmStageChange.to_stage_id)
-                     .filter(CrmStageChange.from_stage_id.isnot(None), CrmStage.kind == 'open',
-                             *rng(CrmStageChange.created_at))):
-        add(by, when, 'moved')
-
-    # how long the first message took, for leads that came in during the period
-    first_out = (db.session.query(CrmTouchpoint.lead_id, func.min(CrmTouchpoint.created_at).label('t'))
-                 .filter(CrmTouchpoint.direction == 'out',
-                         db.or_(CrmTouchpoint.status.is_(None), CrmTouchpoint.status != 'imported'))
-                 .group_by(CrmTouchpoint.lead_id).subquery())
-    waits = defaultdict(list)
-    for owner, created, t in (db.session.query(CrmLead.owner_id, CrmLead.created_at, first_out.c.t)
-                              .join(first_out, first_out.c.lead_id == CrmLead.id)
-                              .filter(*rng(CrmLead.created_at))):
-        if owner is not None and t and created and (user_ids is None or owner in user_ids):
-            waits[owner].append(max((t - created).total_seconds() / 3600, 0))
-    for uid, hours in waits.items():
-        total[uid]['first_reply_h'] = round(median(hours), 1)
+    by_key = {v: k for k, v in KPI_NUMBER.items()}
+    for uid, days in crm_numbers.daily_by_owner(list(by_key), since, until, user_ids).items():
+        for day, vals in days.items():
+            for key, n in vals.items():
+                total[uid][by_key[key]] += int(n)
+                daily[uid][day][by_key[key]] += int(n)
+    # which kind of message each person sent: the first letters of the step's code
+    tp = CrmTouchpoint
+    q = (db.session.query(tp.agent_id, tp.code, func.count(tp.id))
+         .filter(tp.direction == 'out', tp.agent_id.isnot(None), tp.code.isnot(None),
+                 func.coalesce(tp.status, '') != 'imported', tp.created_at >= since, tp.created_at < until))
+    if user_ids is not None:
+        q = q.filter(tp.agent_id.in_(list(user_ids)))
+    for agent, code, n in q.group_by(tp.agent_id, tp.code).all():
+        m = CODE.match(code or '')
+        if m:
+            codes = total[agent].setdefault('codes', defaultdict(int))
+            codes[m.group(0)] += n
+    # how long the first message took (people only), for leads that came in during the period
+    scope = crm_numbers.scope(owner_ids=None if user_ids is None else list(user_ids))
+    for uid, minutes in crm_numbers.by_owner('first_contact_minutes', since, until, scope).items():
+        total[uid]['first_reply_h'] = round(minutes / 60, 1)
     return total, daily
 
 
@@ -294,16 +266,19 @@ def day_sheet(day, users):
         s = sheet.get(who)
         if s is None:
             continue
-        s['checklist'][t.lead].append({'task': t, 'state': state, 'at': t.done_at})
+        if t.lead is not None:          # tasks with no lead are counted below, not listed under a lead
+            s['checklist'][t.lead].append({'task': t, 'state': state, 'at': t.done_at})
         if due_today:
             s['counts']['due'] += 1
         s['counts'][{'done': 'done', 'late': 'done', 'missed': 'missed', 'pending': 'pending',
                      'moved': 'moved'}[state]] += 1
         if t.done_at and start <= t.done_at < end and t.status == 'done':
-            s['timeline'].append((t.done_at, t.lead, 'fa-check', 'Did %s · %s' % (t.code or '', t.title)))
+            if t.lead is not None:
+                s['timeline'].append((t.done_at, t.lead, 'fa-check', 'Did: %s' % crm_words.message_name(t.code, t.title)))
             touch(who, t.done_at)
 
     # messages and calls they made
+    titles = crm_words.step_titles()
     for tp in (CrmTouchpoint.query.filter(CrmTouchpoint.agent_id.in_(ids), CrmTouchpoint.direction == 'out',
                                           CrmTouchpoint.created_at >= start, CrmTouchpoint.created_at < end)):
         s = sheet[tp.agent_id]
@@ -313,7 +288,8 @@ def day_sheet(day, users):
         else:
             s['counts']['messages'] += 1
             s['timeline'].append((tp.created_at, tp.lead, 'fa-paper-plane',
-                                  'Sent %s on %s' % (tp.code or 'a message', tp.channel)))
+                                  'Sent %s on %s' % (crm_words.message_name(tp.code, titles.get(tp.code)).lower()
+                                                     if tp.code else 'a message', CRM_CHANNEL_LABELS.get(tp.channel, tp.channel))))
         touch(tp.agent_id, tp.created_at)
     # notes they wrote
     for tp in (CrmTouchpoint.query.filter(CrmTouchpoint.agent_id.in_(ids), CrmTouchpoint.direction == 'none',
@@ -368,23 +344,23 @@ def day_sheet(day, users):
 def visible_staff(user, staff):
     """Who of `staff` the person sees on Team today. Admins, and anybody who can open the workspace's
     people page, see everybody; a team lead sees their own workspace teams (and themselves)."""
-    from app.services import access
+    from app.services import access, crm_access
     if user.is_admin or access.can(user, 'ws_members'):
-        return list(staff)
+        return crm_access.limit_users(user, staff)          # a role that sees only its own leads sees only those people
     ws = access.current_workspace(user)
     member = next((m for m in access.memberships(user) if ws is not None and m.workspace_id == ws.id), None)
     ids = {user.id}
     if member is not None:
         ids |= {u.id for t in access.teams_of(member) for u in t.users}
-    return [u for u in staff if u.id in ids]
+    return crm_access.limit_users(user, [u for u in staff if u.id in ids])
 
 
 def team_numbers(day, users, now=None):
-    """{user id: {'open', 'late', 'waiting', 'replies', 'unanswered', 'first_reply'}} for Team today,
-    from seven queries however many people there are. The first three are as things stand now; the
-    rest are about `day` (India time). first_reply: median minutes for a person's first answer, or
-    None."""
-    from app.services import crm_metrics
+    """{user id: {'open', 'late', 'waiting', 'replies', 'unanswered', 'first_reply'}} for Team today, from the
+    registry (crm_numbers) in one grouped query per number however many people there are. The first three are as
+    things stand now; the rest are about `day` (India time). first_reply: median minutes for a person's first
+    answer, or None."""
+    from app.services import crm_numbers
     now = now or datetime.utcnow()
     ids = [u.id for u in users]
     out = {i: {'open': 0, 'late': 0, 'waiting': 0, 'replies': 0, 'unanswered': 0, 'first_reply': None}
@@ -392,28 +368,13 @@ def team_numbers(day, users, now=None):
     if not ids:
         return out
     start, end = day_bounds(day)
-    for owner, n in (db.session.query(CrmLead.owner_id, func.count(CrmLead.id))
-                     .filter(CrmLead.status == 'open', CrmLead.owner_id.in_(ids))
-                     .group_by(CrmLead.owner_id)):
-        out[owner]['open'] = n
-    for owner, n in overdue_by_owner().items():
-        if owner in out:
-            out[owner]['late'] = n
-    for owner, n in crm_metrics.waiting_by_owner(ids).items():
-        out[owner]['waiting'] = n
-    for owner, n in (db.session.query(CrmLead.owner_id, func.count(CrmTouchpoint.id))
-                     .join(CrmLead, CrmLead.id == CrmTouchpoint.lead_id)
-                     .filter(CrmTouchpoint.channel == 'whatsapp', CrmTouchpoint.direction == 'in',
-                             func.coalesce(CrmTouchpoint.status, '') != 'imported',
-                             CrmTouchpoint.created_at >= start, CrmTouchpoint.created_at < end,
-                             CrmLead.owner_id.in_(ids))
-                     .group_by(CrmLead.owner_id)):
-        out[owner]['replies'] = n
-    for owner, n in crm_metrics.unanswered_by_owner(start, min(end, now), ids).items():
-        out[owner]['unanswered'] = n
-    for agent, minutes in crm_metrics.first_reply_minutes(start, end, now).items():
-        if agent in out:
-            out[agent]['first_reply'] = minutes
+    scope = crm_numbers.scope(owner_ids=ids, now=now)
+    for field, key, span in (('open', 'open_leads', (start, end)), ('late', 'late_followups', (start, end)),
+                             ('waiting', 'waiting_now', (start, end)), ('replies', 'whatsapp_replies', (start, end)),
+                             ('unanswered', 'unanswered', (start, end)), ('first_reply', 'reply_minutes', (start, end))):
+        for owner, n in crm_numbers.by_owner(key, span[0], span[1], scope).items():
+            if owner in out:
+                out[owner][field] = n
     return out
 
 

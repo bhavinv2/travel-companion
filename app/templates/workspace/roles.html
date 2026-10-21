@@ -16,7 +16,7 @@
   <div class="ws-role">
     <h3>{{ r.name }}{% if r.system_key == 'admin' %} <span class="ws-pill owner" title="Comes with every workspace">Everything</span>{% elif r.system_key %} <span class="ws-pill" title="Comes with every workspace">Built in</span>{% endif %}</h3>
     {% if r.description %}<p>{{ r.description }}</p>{% endif %}
-    <div class="ws-muted" style="font-size:13px"><span class="ws-count">{{ pages|length }}</span> page{{ 's' if pages|length != 1 }}</div>
+    <div class="ws-muted" style="font-size:13px"><span class="ws-count">{{ pages|length }}</span> page{{ 's' if pages|length != 1 }}{% if r.crm_scope in ('team', 'own') %} · sees {{ "their team's" if r.crm_scope == 'team' else 'only their own' }} leads{% endif %}</div>
     <div class="foot">
       <span class="ws-muted" style="font-size:13px">{{ used.get(r.id, 0) }} {{ 'person' if used.get(r.id, 0) == 1 else 'people' }}</span>
       <span style="display:flex;gap:6px">

@@ -1,0 +1,95 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from 'cs/crm/_bits.html' import my_task_card with context %}
+{% from '_page_head.html' import page_head %}
+{% block crm_title %}Calendar{% endblock %}
+{% block crm %}
+{{ page_head('Calendar', 'fa-solid fa-calendar-days', 'Tasks, calls, meetings and follow-ups by day, and the dates people travel and their cover ends.',
+             help=['Month or week: every task, call and meeting with its time, the follow-ups that are due, and — all day — when a customer travels or their cover ends.',
+                   'Choose Mine, My team or Everyone. Click an item to open the lead or the contact.',
+                   'The List tab shows everything still open, as Late, Today, This week and Later. Press Done to tick one off.',
+                   'Add a task from a lead page or a contact page with “Task”.'],
+             full_screen=True) }}
+
+<div class="cal-tabs">
+  <div class="seg">
+    <a href="{{ crm_url('calendar', who=who) }}" class="{{ 'on' if tab == 'calendar' }}">Calendar</a>
+    <a href="{{ crm_url('calendar', tab='list', who=who) }}" class="{{ 'on' if tab == 'list' }}">List</a>
+  </div>
+  <div class="seg" role="group" aria-label="Whose">
+    {% for key, label in who_options %}
+    <a href="{{ crm_url('calendar', tab=('list' if tab == 'list' else None), view=(view if tab == 'calendar' else None), on=(day.isoformat() if tab == 'calendar' else None), who=key, kind=(kind or None), priority=(prio or None)) }}" class="{{ 'on' if who == key }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+{% if tab == 'calendar' %}
+<section class="card cal">
+  <div class="cal-bar">
+    <div class="row">
+      <a class="cb sm" href="{{ crm_url('calendar', view=view, on=prev.isoformat(), who=who) }}" aria-label="Earlier">‹</a>
+      <a class="cb sm" href="{{ crm_url('calendar', view=view, who=who) }}">Today</a>
+      <a class="cb sm" href="{{ crm_url('calendar', view=view, on=next.isoformat(), who=who) }}" aria-label="Later">›</a>
+    </div>
+    <h2>{{ cal_title }}</h2>
+    <div class="seg">
+      <a href="{{ crm_url('calendar', view='month', on=day.isoformat(), who=who) }}" class="{{ 'on' if view == 'month' }}">Month</a>
+      <a href="{{ crm_url('calendar', view='week', on=day.isoformat(), who=who) }}" class="{{ 'on' if view == 'week' }}">Week</a>
+    </div>
+  </div>
+
+  {% macro cal_item(it) -%}
+  {%- set tag = 'a' if it.href else 'span' -%}
+  <{{ tag }} class="cal-it k-{{ it.kind }}{{ ' done' if it.done }}"{% if it.href %} href="{{ it.href }}"{% endif %} title="{{ it.title }}{% if it.who %} - {{ it.who }}{% endif %}{% if it.place %} - {{ it.place }}{% endif %}">
+    <i class="fa-solid {{ icons.get(it.kind, 'fa-circle') }}" aria-hidden="true"></i>
+    {% if it.time %}<b>{{ it.time }}{% if it.end %}-{{ it.end }}{% endif %}</b> {% endif %}{{ it.title }}{% if it.who %} <span class="muted">· {{ it.who }}</span>{% endif %}
+  </{{ tag }}>
+  {%- endmacro %}
+
+  <div class="cal-grid cal-{{ view }}" role="grid">
+    <div class="cal-head" role="row">{% for n in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}<span role="columnheader">{{ n }}</span>{% endfor %}</div>
+    {% for week in weeks %}
+    <div class="cal-week" role="row">
+      {% for d in week %}
+      <div class="cal-day{{ ' today' if d == today }}{{ ' other' if view == 'month' and d.month != day.month }}" role="gridcell">
+        <div class="cal-num">{{ d.day }}{% if d.day == 1 or loop.first and view == 'week' %} <small>{{ d.strftime('%b') }}</small>{% endif %}</div>
+        {% for it in items.get(d, []) %}{{ cal_item(it) }}{% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="cal-daylist">
+    {% for d in days %}
+    {% if items.get(d) or d == today %}
+    {% if view == 'week' or d.month == day.month %}
+    <div class="cal-dl{{ ' today' if d == today }}"><h3>{{ d.strftime('%A') }} {{ d.day }} {{ d.strftime('%B') }}{% if d == today %} · today{% endif %}</h3>
+      {% for it in items.get(d, []) %}{{ cal_item(it) }}{% else %}<p class="muted small">Nothing planned.</p>{% endfor %}
+    </div>
+    {% endif %}
+    {% endif %}
+    {% endfor %}
+  </div>
+  <p class="muted small cal-key"><i class="fa-solid fa-plane-departure"></i> travels · <i class="fa-solid fa-shield-halved"></i> cover ends · <i class="fa-solid fa-bolt"></i> follow-up step · <i class="fa-solid fa-handshake"></i> meeting · <i class="fa-solid fa-phone"></i> call · <i class="fa-solid fa-list-check"></i> to-do</p>
+</section>
+
+{% else %}
+<section class="card">
+  <form method="GET" action="{{ crm_url('calendar') }}" class="row cal-filters">
+    <input type="hidden" name="tab" value="list"/><input type="hidden" name="who" value="{{ who }}"/>
+    <label>Type <select name="kind" onchange="this.form.submit()"><option value="">All</option>{% for k, label in kinds.items() %}<option value="{{ k }}"{{ ' selected' if kind == k }}>{{ label }}</option>{% endfor %}</select></label>
+    <label>Priority <select name="priority" onchange="this.form.submit()"><option value="">All</option>{% for k, label in priorities.items() %}<option value="{{ k }}"{{ ' selected' if prio == k }}>{{ label }}</option>{% endfor %}</select></label>
+    <noscript><button class="cb sm">Show</button></noscript>
+  </form>
+  {% if not total %}<p class="empty"><i class="fa-solid fa-circle-check"></i> Nothing open. Add a task from a lead page or a contact page.</p>{% endif %}
+  {% for key, label, tasks in groups %}
+  {% if tasks %}
+  <details class="step" open data-group="{{ key }}">
+    <summary class="step-head"><span class="num"></span><div class="what"><h2>{{ label }} ({{ tasks|length }})</h2></div><span class="count">{{ tasks|length }}</span></summary>
+    <div class="step-body">{% for t in tasks %}{{ my_task_card(t, utcnow, who != 'mine') }}{% endfor %}</div>
+  </details>
+  {% endif %}
+  {% endfor %}
+</section>
+{% endif %}
+{% endblock %}

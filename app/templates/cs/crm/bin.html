@@ -1,0 +1,39 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% block crm_title %}Recycle bin{% endblock %}
+{% block crm %}
+{{ page_head('Recycle bin', 'fa-solid fa-trash-can-arrow-up',
+             'Leads that were removed in the last ' ~ keep ~ ' days. Put one back, and it returns where it was.',
+             help=['Removing a lead does not delete it. It waits here for ' ~ keep ~ ' days, with its messages, follow-ups and notes.',
+                   'Put back returns the lead to the board with everything on it.',
+                   'After ' ~ keep ~ ' days a removed lead is deleted for good. The contact stays in Contacts.',
+                   ('Delete now removes a lead for good, straight away. Only a Super admin can do that.' if can_purge else 'Only a Super admin can delete a lead for good before the ' ~ keep ~ ' days are over.')]) }}
+<section class="card">
+  {% if rows %}
+  <table class="crmbin-table">
+    <thead><tr><th>Lead</th><th>Removed by</th><th>When</th><th>Deleted for good in</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td><b>{{ r.person.display_name }}</b><br/><small class="muted">{{ PRODUCTS.get(r.lead.product, r.lead.product) }}</small></td>
+        <td>{{ r.who }}</td>
+        <td>{{ r.when.strftime('%d %b %H:%M') }}</td>
+        <td>{{ r.days_left }} day{{ 's' if r.days_left != 1 }}</td>
+        <td class="crmbin-act">
+          <form method="POST" action="{{ crm_url('bin_restore', lead_id=r.lead.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button class="cb sm primary">Put back</button></form>
+          {% if can_purge %}
+          <details class="fam-remove"><summary class="cb sm danger">Delete now</summary>
+            <form method="POST" action="{{ crm_url('bin_purge', lead_id=r.lead.id) }}" class="fam-confirm"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <span>Delete this lead for good? This cannot be undone.</span><button class="cb sm danger">Yes, delete for good</button></form></details>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">The bin is empty. Leads you remove from the lead page (&#8943; More) wait here for {{ keep }} days.</p>
+  {% endif %}
+</section>
+{% endblock %}

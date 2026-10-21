@@ -1,0 +1,26 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% from '_empty.html' import empty with context %}
+{% block crm_title %}Possible duplicates{% endblock %}
+{% block crm %}
+<p class="small"><a href="{{ crm_url('contacts') }}">‹ Contacts</a></p>
+{{ page_head('Possible duplicates', 'fa-solid fa-clone',
+             'Contacts that look like the same person. Compare them, and merge the ones that are.',
+             help=['A pair shows when two contacts share an e-mail, or have the same name and country with phone numbers that differ only by country code or a leading zero, or the same name added within a day.',
+                   '"Compare & merge" shows what would move. Nothing changes until you press Merge there.',
+                   'Only contacts you may see are listed.']) }}
+<section class="card">
+  {% for p in pairs %}
+  <div class="dup-row">
+    <div><a href="{{ crm_url('contact', person_id=p.a.id) }}"><b>{{ p.a.display_name }}</b></a>
+      <small class="muted">{{ PHONE.pretty(p.a.phone) if p.a.phone }} {{ p.a.email or '' }}</small></div>
+    <div><a href="{{ crm_url('contact', person_id=p.b.id) }}"><b>{{ p.b.display_name }}</b></a>
+      <small class="muted">{{ PHONE.pretty(p.b.phone) if p.b.phone }} {{ p.b.email or '' }}</small></div>
+    <div class="muted small">{{ p.why|join('; ') }}</div>
+    <a class="cb sm primary" href="{{ crm_url('contact_merge', person_id=p.a.id, **{'with': p.b.id}) }}">Compare &amp; merge</a>
+  </div>
+  {% else %}
+  {{ empty('fa-solid fa-clone', 'No possible duplicates found.', None) }}
+  {% endfor %}
+</section>
+{% endblock %}

@@ -1,0 +1,38 @@
+{# Files on a person or an enquiry (Sales CRM 2.0). Needs: person, files; lead (optional: files go on the enquiry). #}
+{% from 'cs/crm/_bits.html' import when with context %}
+{% set on_lead = lead is defined and lead %}
+<section class="card wide fl-box" id="files" data-files-box>
+  <div class="card-head"><h2>Files <small class="muted">({{ files|length }})</small></h2></div>
+  <form method="POST" action="{{ crm_url('file_upload') }}" enctype="multipart/form-data" class="fl-up" data-files-form>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <input type="hidden" name="person_id" value="{{ person.id }}"/>
+    {% if on_lead %}<input type="hidden" name="lead_id" value="{{ lead.id }}"/>{% endif %}
+    <label class="fl-drop" data-files-drop>
+      <i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i>
+      <span>Drop files here, or <u>pick files</u></span>
+      <small class="muted">{{ FILE_TYPES() }} &middot; up to 10 MB each</small>
+      <input type="file" name="file" multiple data-files-input accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.csv,.txt"/>
+    </label>
+    <button class="cb sm primary" data-files-go>Upload</button>
+  </form>
+  {% for f in files %}
+  <div class="fl-row">
+    <i class="fa-solid fa-file" aria-hidden="true"></i>
+    <div class="fl-what"><a href="{{ crm_url('file_download', file_id=f.id) }}"><b>{{ f.filename }}</b></a>
+      <span class="muted small">{{ FILE_SIZE(f.size) }} &middot; {{ f.uploaded_by.full_name if f.uploaded_by else 'Someone who left' }} &middot; {{ when(f.uploaded_at, utcnow) if f.uploaded_at }}</span>
+      {% if f.lead_id and not on_lead %}<a class="pill" href="{{ crm_url('lead', lead_id=f.lead_id) }}">on an enquiry</a>{% endif %}
+    </div>
+    {% if CAN_DELETE_FILE(f) %}
+    <details class="fam-remove">
+      <summary class="cb sm quiet">Delete</summary>
+      <form method="POST" action="{{ crm_url('file_delete', file_id=f.id) }}" class="fam-confirm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="hidden" name="next" value="{{ crm_url('lead', lead_id=lead.id) if on_lead else crm_url('contact', person_id=person.id) }}"/>
+        <span>Delete {{ f.filename }} for good?</span>
+        <button class="cb sm danger">Yes, delete</button>
+      </form>
+    </details>
+    {% endif %}
+  </div>
+  {% else %}<p class="muted small">No files yet. A passport copy, a policy or a quote PDF can be kept here.</p>{% endfor %}
+</section>

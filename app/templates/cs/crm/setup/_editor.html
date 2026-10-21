@@ -47,6 +47,19 @@
       <div class="pe-err" data-err="{{ ref }}.on_reply"></div></div>
     <div class="pe-row"><label>Warn the person looking after it after <input type="number" data-k="sla_hours" min="1" max="2000" placeholder="24" value="{{ st.sla_hours if st and st.sla_hours else '' }}"/> hours in this stage</label>
       <div class="pe-err" data-err="{{ ref }}.sla_hours"></div></div>
+    {% set auto_fc = CRM_AUTO_FORECAST(st) if st else ('pipeline', 25) %}
+    <div class="pe-row"><label>Counts in the forecast as
+        <select data-k="forecast">
+          <option value="">Automatic ({{ FORECASTS[auto_fc[0]] }})</option>
+          {% for k, label in FORECASTS.items() %}<option value="{{ k }}"{{ ' selected' if st and st.forecast == k }}>{{ label }}</option>{% endfor %}
+        </select></label>
+      <label>Chance to win <input type="number" data-k="probability" min="0" max="100" placeholder="{{ auto_fc[1] }}" value="{{ st.probability if st and st.probability is not none else '' }}"/> %</label>
+      <div class="hint">Forecast shows the money in this stage as Pipeline, Best case or Committed. Leave it on Automatic unless this stage is different.</div>
+      <div class="pe-err" data-err="{{ ref }}.forecast"></div><div class="pe-err" data-err="{{ ref }}.probability"></div></div>
+    {% set asked = (st.requires or []) if st else [] %}
+    <div class="pe-row pe-needs"><span class="lbl">Before a lead moves here, ask for</span>
+      <span class="pe-needs-list">{% for k, label, typ in NEEDS %}<label class="check"><input type="checkbox" data-req="{{ k }}"{{ ' checked' if k in asked }}/> {{ label }}</label>{% endfor %}</span>
+      <div class="hint">When someone moves a lead here, a small form asks for anything still empty. Moves the system makes by itself are never stopped.</div></div>
     <div class="pe-row pe-auto"><label>Move by itself: if
         <select data-k="auto_kind">
           <option value="">— never —</option>

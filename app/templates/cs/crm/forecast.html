@@ -1,0 +1,161 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% block crm_title %}Forecast{% endblock %}
+
+{% macro m(v) -%}{{ MONEY(v, report_currency) }}{%- endmacro %}
+{% macro mc(v) -%}{{ MONEY_C(v, report_currency) }}{%- endmacro %}
+{% macro cell(v, href, n=none) -%}
+{%- if v or n -%}<a class="fc-num" href="{{ href }}">{{ mc(v) }}{% if n %} <small>({{ n }})</small>{% endif %}</a>{%- else -%}<span class="fc-zero">—</span>{%- endif -%}
+{%- endmacro %}
+{% macro progress(row) -%}
+{%- if row.target -%}
+<span class="fc-prog" title="{{ row.pct }}% of the target won"><i style="width:{{ [row.pct or 0, 100]|min }}%"></i></span>
+{%- else -%}<span class="fc-zero" title="No target set">No target</span>{%- endif -%}
+{%- endmacro %}
+
+{% block crm %}
+{{ page_head('Forecast', 'fa-solid fa-bullseye',
+             'Money won against the target for the ' ~ ('quarter' if quarter else 'month') ~ ', and what is likely to come.',
+             help=['Closed won is money already paid: leads won in these days. The rest counts open leads whose close date falls in these days.',
+                   'Committed means the payment link was sent or they promised to pay. Best case means the quote is out. Pipeline means they are talking or still early.',
+                   'Every number opens the leads behind it. Change a lead value, close date or category on the lead page.',
+                   'Targets are set under Targets in Set-up. Money is added up in ' ~ report_currency ~ ' using the exchange rates in Pipelines & products.',
+                   ('You see your own numbers.' if not sees_all and not teams else 'You see the people and teams your role includes.')],
+             primary=({'label': 'Download for Excel', 'href': crm_url('forecast_csv', month=period, span='quarter' if quarter else None, pipeline=pipe.id if pipe else None, team=team.id if team else None, who=person.id if person else None), 'icon': 'fa-solid fa-file-csv'} if can_export else None),
+             full_screen=True) }}
+
+<div class="ui-filters fc-controls">
+  <div class="fc-months">
+    <a class="cb sm quiet" href="{{ crm_url('forecast', month=prev_period, span='quarter' if quarter else None, pipeline=pipe.id if pipe else None, team=team.id if team else None, who=person.id if person else None) }}" aria-label="Earlier">‹</a>
+    <b>{{ period_label }}</b>
+    <a class="cb sm quiet" href="{{ crm_url('forecast', month=next_period, span='quarter' if quarter else None, pipeline=pipe.id if pipe else None, team=team.id if team else None, who=person.id if person else None) }}" aria-label="Later">›</a>
+  </div>
+  <div class="chips">
+    <a class="chip{{ ' on' if not quarter }}" href="{{ crm_url('forecast', month=period, pipeline=pipe.id if pipe else None, team=team.id if team else None, who=person.id if person else None) }}">Month</a>
+    <a class="chip{{ ' on' if quarter }}" href="{{ crm_url('forecast', month=period, span='quarter', pipeline=pipe.id if pipe else None, team=team.id if team else None, who=person.id if person else None) }}">Quarter</a>
+  </div>
+  <form method="GET" class="row" style="gap:6px">
+    <input type="hidden" name="month" value="{{ period }}"/>
+    {% if quarter %}<input type="hidden" name="span" value="quarter"/>{% endif %}
+    <select name="pipeline" onchange="this.form.submit()" aria-label="Pipeline" style="width:auto">
+      <option value="">Every pipeline</option>
+      {% for p in pipelines %}<option value="{{ p.id }}"{{ ' selected' if pipe and pipe.id == p.id }}>{{ p.name }}</option>{% endfor %}
+    </select>
+    {% if sees_all or teams or staff|length > 1 %}
+    <select onchange="var v=this.value; this.form.elements.team.value = v.charAt(0)=='t' ? v.slice(1) : ''; this.form.elements.who.value = v.charAt(0)=='u' ? v.slice(1) : ''; this.form.submit()" aria-label="Whose numbers" style="width:auto">
+      <option value="">The whole team</option>
+      {% if teams %}<optgroup label="A team">{% for t in teams %}<option value="t{{ t.id }}"{{ ' selected' if team and team.id == t.id }}>{{ t.name }}</option>{% endfor %}</optgroup>{% endif %}
+      <optgroup label="A person">{% for u in staff %}<option value="u{{ u.id }}"{{ ' selected' if person and person.id == u.id }}>{{ u.full_name }}</option>{% endfor %}</optgroup>
+    </select>
+    <input type="hidden" name="team" value="{{ team.id if team else '' }}"/><input type="hidden" name="who" value="{{ person.id if person else '' }}"/>
+    {% endif %}
+  </form>
+</div>
+
+{% if rate_warning %}
+<div class="card warn fc-warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> <span>{{ rate_warning }}</span>
+  {% if can_rates %}<a class="cb sm" href="{{ crm_url('pipelines', tab='products') }}#exchange-rates">Set the rate</a>{% endif %}</div>
+{% endif %}
+
+{# ------------------------------------------------------------------ five numbers #}
+{% set t = total %}
+<div class="fc-tiles">
+  <div class="fc-tile"><span class="lbl">Target <span class="tt-i" tabindex="0" title="{{ metric_tip('forecast_target') }}" aria-label="{{ metric_tip('forecast_target') }}">ⓘ</span></span><b>{{ m(t.target) if t.target is not none else '—' }}</b>
+    <small>{% if t.members_target is defined and t.members_target is not none and t.target is not none and t.target != t.members_target %}Team target {{ mc(t.target) }} · members' targets {{ mc(t.members_target) }}{% elif t.target is none %}Not set{% else %}for {{ period_label }}{% endif %}</small></div>
+  <a class="fc-tile won" href="{{ leads_link(solo, forecast='won', closes=token) }}"><span class="lbl">Closed won <span class="tt-i" tabindex="0" title="{{ metric_tip('forecast_won') }}" aria-label="{{ metric_tip('forecast_won') }}">ⓘ</span></span><b>{{ m(t.won) }}</b>
+    <small>{{ t.won_n }} deal{{ '' if t.won_n == 1 else 's' }}{% if t.pct is not none %} · {{ t.pct }}% of target{% endif %}</small></a>
+  <a class="fc-tile commit" href="{{ leads_link(solo, forecast='commit', closes=token) }}"><span class="lbl">Committed <span class="tt-i" tabindex="0" title="{{ metric_tip('forecast_commit') }}" aria-label="{{ metric_tip('forecast_commit') }}">ⓘ</span></span><b>{{ m(t.commit) }}</b>
+    <small>{{ t.commit_n }} lead{{ '' if t.commit_n == 1 else 's' }} · payment link sent</small></a>
+  <a class="fc-tile best" href="{{ leads_link(solo, forecast='best_case', closes=token) }}"><span class="lbl">Best case <span class="tt-i" tabindex="0" title="{{ metric_tip('forecast_best_case') }}" aria-label="{{ metric_tip('forecast_best_case') }}">ⓘ</span></span><b>{{ m(t.best_case) }}</b>
+    <small>{{ t.best_case_n }} lead{{ '' if t.best_case_n == 1 else 's' }} · quote sent</small></a>
+  <div class="fc-tile gap"><span class="lbl">Gap to target <span class="tt-i" tabindex="0" title="{{ metric_tip('forecast_gap') }}" aria-label="{{ metric_tip('forecast_gap') }}">ⓘ</span></span><b>{{ m(t.gap) if t.target is not none else '—' }}</b>
+    <small>{% if t.target is none %}Set a target to see it{% elif t.gap == 0 %}Target reached{% else %}still to win{% endif %}</small></div>
+</div>
+
+{% if bar.segs %}
+<div class="card fc-bar-card">
+  <div class="fc-bar" role="img" aria-label="Won, committed, best case and pipeline against the target">
+    {% for s in bar.segs %}<span class="seg {{ s.key }}" style="width:{{ '%.2f'|format(s.pct) }}%" title="{{ s.label }}: {{ m(s.value) }}"></span>{% endfor %}
+    {% if bar.marker is not none %}<i class="mark" style="left:{{ '%.2f'|format([bar.marker, 99.5]|min) }}%" title="Target {{ m(t.target) }}"></i>{% endif %}
+  </div>
+  <p class="fc-legend">
+    <span><i class="seg won"></i> Closed won {{ mc(t.won) }}</span>
+    <span><i class="seg commit"></i> Committed {{ mc(t.commit) }}</span>
+    <span><i class="seg best_case"></i> Best case {{ mc(t.best_case) }}</span>
+    <span title="{{ metric_tip('forecast_pipeline') }}"><i class="seg pipeline"></i> Pipeline {{ mc(t.pipeline) }}</span>
+    {% if bar.marker is not none %}<span><i class="mark-key"></i> Target {{ mc(t.target) }}</span>{% endif %}
+  </p>
+</div>
+{% endif %}
+
+{% if t.leads_target or t.new_leads %}
+<div class="card fc-leads">
+  <b>New leads: {{ t.new_leads }}{% if t.leads_target %} of {{ '{:,}'.format(t.leads_target) }}{% endif %}</b>
+  {% if t.leads_target %}<span class="fc-prog" title="{{ [(t.new_leads * 100 / t.leads_target)|int, 100]|min }}% of the new-leads target"><i style="width:{{ [(t.new_leads * 100 / t.leads_target), 100]|min }}%"></i></span>{% endif %}
+</div>
+{% endif %}
+
+{# ------------------------------------------------------------------ one row per person #}
+<div class="table-wrap">
+<table class="crm-table fc-table">
+  <thead><tr><th>Person</th><th class="num">Target</th><th class="num">Closed won</th><th>Progress</th><th class="num">Committed</th><th class="num">Best case</th><th class="num">Pipeline</th><th class="num">Gap</th><th class="num">Deals</th></tr></thead>
+  <tbody>
+  {% for p in people %}
+  {% set r = p.row %}
+  <tr>
+    <td><b>{{ p.user.full_name }}</b>{% if p.user.id == current_user.id %} <small class="muted">(you)</small>{% endif %}</td>
+    <td class="num">{{ mc(r.target) if r.target is not none else '—' }}</td>
+    <td class="num">{{ cell(r.won, leads_link(p.user.id, forecast='won', closes=token)) }}{% if r.pct is not none %} <small class="muted">{{ r.pct }}%</small>{% endif %}</td>
+    <td>{{ progress(r) }}</td>
+    <td class="num">{{ cell(r.commit, leads_link(p.user.id, forecast='commit', closes=token), r.commit_n) }}</td>
+    <td class="num">{{ cell(r.best_case, leads_link(p.user.id, forecast='best_case', closes=token), r.best_case_n) }}</td>
+    <td class="num">{{ cell(r.pipeline, leads_link(p.user.id, forecast='pipeline', closes=token), r.pipeline_n) }}</td>
+    <td class="num">{{ mc(r.gap) if r.target is not none else '—' }}</td>
+    <td class="num">{% if r.won_n %}<a class="fc-num" href="{{ leads_link(p.user.id, forecast='won', closes=token) }}">{{ r.won_n }}</a>{% else %}0{% endif %}{% if r.deals_target %} <small class="muted">of {{ r.deals_target }}</small>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="9" class="muted">Nobody to show.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% if team_rows and not person %}
+<h2 class="fc-h2">By team</h2>
+<div class="table-wrap">
+<table class="crm-table fc-table">
+  <thead><tr><th>Team</th><th class="num">Target</th><th class="num">Closed won</th><th>Progress</th><th class="num">Committed</th><th class="num">Best case</th><th class="num">Pipeline</th><th class="num">Gap</th><th class="num">Deals</th></tr></thead>
+  <tbody>
+  {% for tr in team_rows %}
+  {% set r = tr.row %}
+  <tr>
+    <td><b>{{ tr.team.name }}</b> <small class="muted">{{ tr.n }} {{ 'person' if tr.n == 1 else 'people' }}</small></td>
+    <td class="num">{% if r.target is none %}—{% elif r.own_target is not none and r.members_target is not none and r.members_target != r.target %}Team target {{ mc(r.target) }}<br/><small class="muted">members' targets {{ mc(r.members_target) }}</small>{% else %}{{ mc(r.target) }}{% endif %}</td>
+    <td class="num">{{ mc(r.won) if r.won else '—' }}{% if r.pct is not none %} <small class="muted">{{ r.pct }}%</small>{% endif %}</td>
+    <td>{{ progress(r) }}</td>
+    <td class="num">{{ mc(r.commit) if r.commit else '—' }}</td>
+    <td class="num">{{ mc(r.best_case) if r.best_case else '—' }}</td>
+    <td class="num">{{ mc(r.pipeline) if r.pipeline else '—' }}</td>
+    <td class="num">{{ mc(r.gap) if r.target is not none else '—' }}</td>
+    <td class="num">{{ r.won_n }}{% if r.deals_target %} <small class="muted">of {{ r.deals_target }}</small>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+{# ------------------------------------------------------------------ what to put right #}
+{% set fx = fix %}
+{% if fx.no_close or fx.no_value or fx.won_no_value or fx.no_rate %}
+<div class="card fc-fix">
+  <h2>To put right</h2>
+  <ul>
+    {% if fx.no_close %}<li><a href="{{ leads_link(solo, no_close=1) }}">{{ fx.no_close }} open lead{{ ' has' if fx.no_close == 1 else 's have' }} no close date</a>: they are not in any month until you set one.</li>{% endif %}
+    {% if fx.no_value %}<li><a href="{{ leads_link(solo, no_value=1, status='open') }}">{{ fx.no_value }} open lead{{ ' has' if fx.no_value == 1 else 's have' }} no value</a>: they add nothing to the money above.</li>{% endif %}
+    {% if fx.won_no_value %}<li><a href="{{ leads_link(solo, forecast='won', closes=token, no_value=1) }}">{{ fx.won_no_value }} won lead{{ ' has' if fx.won_no_value == 1 else 's have' }} no value</a>: Closed won is too low until you add it.</li>{% endif %}
+    {% if fx.no_rate %}<li>{% if can_rates %}<a href="{{ crm_url('pipelines', tab='products') }}#exchange-rates">{{ rate_warning }}</a>{% else %}{{ rate_warning }}{% endif %}</li>{% endif %}
+  </ul>
+</div>
+{% endif %}
+{% endblock %}

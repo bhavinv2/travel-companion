@@ -1,0 +1,165 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_tabs.html' import tab_strip with context %}
+{% from 'cs/crm/_bits.html' import ist with context %}
+{% from '_empty.html' import empty %}
+{% block crm_title %}Rules{% endblock %}
+{% macro opt(value, label, current) -%}<option value="{{ value }}"{{ ' selected' if current is not none and current|string == value|string }}>{{ label }}</option>{%- endmacro %}
+{% block crm %}
+{{ tab_strip('crm_rules') }}
+{{ page_head('Automation rules', 'fa-solid fa-code-branch',
+             'When something happens to a lead, the CRM does these things by itself.',
+             help=['A rule has three parts: When (what starts it), If (which leads) and Then (what to do).',
+                   'Rules never message a customer. When a rule moves a lead, the stage plans its follow-up as usual, but one that would go by itself waits for a click.',
+                   'A rule’s move is a system move, like a stage’s own automatic move: “Before a lead moves here, ask for” does not stop it.',
+                   'A rule runs once per lead for each thing that happens. When rules start other rules, it stops after three in a row. Leads in the recycle bin are left alone.',
+                   'Days without activity and dates are checked every few minutes. Press “Which open leads would this match now?” to try a rule: nothing changes.'],
+             primary=({'label': 'New rule', 'href': crm_url('rules', edit='new'), 'icon': 'fa-solid fa-plus'} if not edit else None),
+             full_screen=True) }}
+
+{% if errors %}
+<section class="card warn rl-errors" role="alert"><b>Check the rule:</b>
+  <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></section>
+{% endif %}
+
+{% if edit %}
+{% set trig = v.get('trigger') or 'lead_created' %}
+<form method="POST" action="{{ crm_url('rule_save') }}" class="card rl-editor" data-rule-form>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  {% if edit != 'new' %}<input type="hidden" name="id" value="{{ edit.id }}"/>{% endif %}
+  <h2>{{ 'New rule' if edit == 'new' else 'Change “' ~ edit.name ~ '”' }}</h2>
+  <label class="lb" for="rl-name">Name</label>
+  <input id="rl-name" type="text" name="name" maxlength="120" required value="{{ v.get('name') or '' }}" placeholder="e.g. Quote sent: call in two days"/>
+
+  <fieldset class="rl-part"><legend>When</legend>
+    <select name="trigger" data-rule-trigger aria-label="When">
+      {% for k, label in R.TRIGGERS.items() %}{{ opt(k, label, trig) }}{% endfor %}
+    </select>
+    <span data-when="stage_changed"{{ ' hidden' if trig != 'stage_changed' }}>
+      <select name="t_stage" aria-label="Which stage"><option value="">Any stage</option>
+        {% for k, label in ch.stage %}{{ opt(k, label, v.get('t_stage')) }}{% endfor %}</select></span>
+    <span data-when="field_changed"{{ ' hidden' if trig != 'field_changed' }}>
+      <select name="t_field" aria-label="Which detail">
+        {% for k, label in R.WATCH_FIELDS.items() %}{{ opt(k, label, v.get('t_field')) }}{% endfor %}</select></span>
+    <span data-when="no_activity"{{ ' hidden' if trig != 'no_activity' }}>
+      for <input type="number" name="t_days" min="1" max="365" value="{{ v.get('t_days') or 7 }}" style="width:80px" aria-label="Days"/> days</span>
+    <span data-when="date_reached"{{ ' hidden' if trig != 'date_reached' }}>
+      <input type="number" name="t_offset" min="0" max="365" value="{{ v.get('t_offset') or 3 }}" style="width:80px" aria-label="Days"/> days
+      <select name="t_when" aria-label="Before or after">{{ opt('before', 'before', v.get('t_when') or 'before') }}{{ opt('after', 'after', v.get('t_when') or 'before') }}</select>
+      the <select name="t_date" aria-label="Which date">{% for k, label in R.DATE_FIELDS.items() %}{{ opt(k, label|lower, v.get('t_date')) }}{% endfor %}</select></span>
+  </fieldset>
+
+  <fieldset class="rl-part"><legend>If <small class="muted">(leave empty for every lead)</small></legend>
+    {% set shown = namespace(n=0) %}
+    {% for i in range(R.MAX_CONDITIONS) %}
+    {% set f = v.get('cf_%d' % i) or '' %}
+    {% set hide = not f and shown.n > 0 %}
+    {% if not f %}{% set shown.n = shown.n + 1 %}{% endif %}
+    <div class="rl-row" data-cond-row{{ ' hidden' if hide }}>
+      <select name="cf_{{ i }}" data-cond-field aria-label="Field">
+        <option value="">Choose…</option>
+        {% for k, label in R.COND_FIELDS.items() %}{{ opt(k, label, f) }}{% endfor %}
+        {% for k, label in ch.details %}{{ opt('details.' ~ k, label, f) }}{% endfor %}
+      </select>
+      <select name="co_{{ i }}" data-cond-op aria-label="How">
+        {% for k, label in R.OPS.items() %}{{ opt(k, label, v.get('co_%d' % i) or 'is') }}{% endfor %}
+      </select>
+      <input type="text" name="cv_{{ i }}" data-cond-text value="{{ v.get('cv_%d' % i) or '' }}" maxlength="200" aria-label="Value"/>
+      {% for cf in R.CHOICE_FIELDS %}
+      <select name="cv_{{ i }}_{{ cf }}" data-cond-choice="{{ cf }}" aria-label="Value">
+        {% for k, label in ch[cf] %}{{ opt(k, label, v.get('cv_%d_%s' % (i, cf))) }}{% endfor %}
+      </select>
+      {% endfor %}
+    </div>
+    {% endfor %}
+    <button type="button" class="cb sm quiet" data-rule-add="cond">+ Another condition</button>
+  </fieldset>
+
+  <fieldset class="rl-part"><legend>Then</legend>
+    {% set shown = namespace(n=0) %}
+    {% for j in range(R.MAX_ACTIONS) %}
+    {% set t = v.get('at_%d' % j) or '' %}
+    {% set hide = not t and shown.n > 0 %}
+    {% if not t %}{% set shown.n = shown.n + 1 %}{% endif %}
+    <div class="rl-row" data-act-row{{ ' hidden' if hide }}>
+      <select name="at_{{ j }}" data-act-type aria-label="What to do">
+        <option value="">Choose…</option>
+        {% for k, label in R.ACTIONS.items() %}{{ opt(k, label, t) }}{% endfor %}
+      </select>
+      <span data-act="create_task">
+        <input type="text" name="a_title_{{ j }}" value="{{ v.get('a_title_%d' % j) or '' }}" maxlength="160" placeholder="What the task says" aria-label="Task title"/>
+        due in <input type="number" name="a_hours_{{ j }}" min="0" max="2160" value="{{ v.get('a_hours_%d' % j) or 24 }}" style="width:80px" aria-label="Hours"/> hours, for
+        <select name="a_owner_{{ j }}" aria-label="For whom">{{ opt('lead_owner', 'whoever looks after it', v.get('a_owner_%d' % j) or 'lead_owner') }}
+          {% for k, label in ch.staff %}{{ opt(k, label, v.get('a_owner_%d' % j)) }}{% endfor %}</select></span>
+      <span data-act="assign">
+        <select name="a_to_{{ j }}" aria-label="Give it to">{{ opt('round_robin', 'the next person in turn', v.get('a_to_%d' % j)) }}
+          {% for k, label in ch.staff %}{{ opt(k, label, v.get('a_to_%d' % j)) }}{% endfor %}</select>
+        <select name="a_via_{{ j }}" aria-label="In turn among">{{ opt('', 'among the people of its lead source', v.get('a_via_%d' % j) or '') }}
+          {% for k, label in ch.teams %}{{ opt('team:%s' % k, 'among the team ' ~ label, v.get('a_via_%d' % j)) }}{% endfor %}
+          {% for k, label in ch.source %}{{ opt('source:%s' % k, 'among the people of “' ~ SOURCE_NAME(label) ~ '”', v.get('a_via_%d' % j)) }}{% endfor %}</select></span>
+      <span data-act="set_field">
+        <select name="a_field_{{ j }}" data-set-field aria-label="Which detail">
+          {% for k, label in R.SET_FIELDS.items() %}{{ opt(k, label, v.get('a_field_%d' % j)) }}{% endfor %}
+          {% for k, label in ch.details %}{{ opt('details.' ~ k, label, v.get('a_field_%d' % j)) }}{% endfor %}</select>
+        <select name="a_rating_{{ j }}" data-set-value="rating" aria-label="Rating">{% for k, label in ch.rating %}{{ opt(k, label, v.get('a_rating_%d' % j)) }}{% endfor %}</select>
+        <select name="a_forecast_{{ j }}" data-set-value="forecast" aria-label="Forecast">{% for k in ['pipeline', 'best_case', 'commit'] %}{{ opt(k, FORECASTS[k], v.get('a_forecast_%d' % j)) }}{% endfor %}</select>
+        <input type="text" name="a_value_{{ j }}" data-set-value="text" value="{{ v.get('a_value_%d' % j) or '' }}" maxlength="300" placeholder="The new value" aria-label="New value"/></span>
+      <span data-act="move_stage">
+        <select name="a_stage_{{ j }}" aria-label="Stage">{% for k, label in ch.stage %}{{ opt(k, label, v.get('a_stage_%d' % j)) }}{% endfor %}</select></span>
+      <span data-act="notify">
+        <select name="a_notify_{{ j }}" aria-label="Who gets the bell">{% for k, label in R.NOTIFY_TO.items() %}{{ opt(k, label, v.get('a_notify_%d' % j) or 'owner') }}{% endfor %}
+          {% for k, label in ch.staff %}{{ opt(k, label, v.get('a_notify_%d' % j)) }}{% endfor %}</select>
+        <input type="text" name="a_text_{{ j }}" value="{{ v.get('a_text_%d' % j) or '' }}" maxlength="200" placeholder="What the bell says" aria-label="Bell text"/></span>
+      <span data-act="webhook">
+        <input type="url" name="a_url_{{ j }}" value="{{ v.get('a_url_%d' % j) or '' }}" maxlength="500" placeholder="https://" aria-label="Web address"/>
+        <small class="muted">Gets the lead’s sales details (never a phone number or e-mail), signed.{% if not webhook_ready %} The server has no rules secret yet, so it is skipped until it has one.{% endif %}</small></span>
+    </div>
+    {% endfor %}
+    <button type="button" class="cb sm quiet" data-rule-add="act">+ Another thing to do</button>
+  </fieldset>
+
+  {% if test %}
+  <section class="rl-test" aria-live="polite">
+    <p><b>{{ test.count }}</b> {{ test.what }} would match now{{ ' (of the newest 2000 looked at)' if test.capped }}. Nothing was changed.</p>
+    {% if test.examples %}<ul>{% for l in test.examples %}<li><a href="{{ crm_url('lead', lead_id=l.id) }}">{{ l.person.display_name }}</a> · {{ PRODUCTS.get(l.product, l.product) }} · {{ l.stage.name if l.stage else 'Not routed yet' }}</li>{% endfor %}</ul>{% endif %}
+  </section>
+  {% endif %}
+
+  <div class="row">
+    <button class="cb primary">Save the rule</button>
+    <button class="cb" formaction="{{ crm_url('rule_test') }}" formnovalidate>Which open leads would this match now?</button>
+    <a class="cb quiet" href="{{ crm_url('rules') }}">Cancel</a>
+  </div>
+  <p class="hint">A new rule is off until you switch it on.</p>
+</form>
+{% endif %}
+
+{% if rules %}
+<section class="card rl-list">
+  {% for r in rules %}
+  <div class="rl-item{{ ' off' if not r.active }}">
+    <div class="rl-main">
+      <b>{{ r.name }}</b> <span class="ui-chip {{ 'ok' if r.active else '' }}">{{ 'On' if r.active else 'Off' }}</span>
+      {% if clashes.get(r.id) %}<span class="ui-chip warn" title="{{ clashes[r.id] }}">may fight a stage’s own move</span>{% endif %}
+      <p class="muted small">{{ describe(r) }}</p>
+      {% if clashes.get(r.id) %}<p class="small rl-warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> This rule {{ clashes[r.id] }}.</p>{% endif %}
+      <p class="small muted">{% if r.last_run_at %}Ran {{ r.run_count }} time{{ '' if r.run_count == 1 else 's' }} · last {{ ist(r.last_run_at) }}{% else %}Has not run yet{% endif %}</p>
+      {% if r.last_error %}<p class="small rl-warn">Last problem{% if r.last_error_at %} ({{ ist(r.last_error_at) }}){% endif %}: {{ r.last_error }}</p>{% endif %}
+    </div>
+    <div class="rl-acts">
+      <form method="POST" action="{{ crm_url('rule_toggle', rule_id=r.id) }}" class="inl">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="on" value="{{ 0 if r.active else 1 }}"/>
+        <button class="cb sm{{ '' if r.active else ' primary' }}">{{ 'Switch off' if r.active else 'Switch on' }}</button></form>
+      <a class="cb sm" href="{{ crm_url('rules', edit=r.id) }}">Edit</a>
+      <details class="fam-remove"><summary class="cb sm quiet">Delete</summary>
+        <form method="POST" action="{{ crm_url('rule_delete', rule_id=r.id) }}" class="fam-confirm"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <span>Delete “{{ r.name }}”?</span><button class="cb sm danger">Yes, delete</button></form></details>
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% elif not edit %}
+{{ empty('fa-solid fa-code-branch', 'No rules yet. Press “New rule” to make the first one.') }}
+{% endif %}
+{% endblock %}
+{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/crm-rules.js') }}" defer></script>{% endblock %}

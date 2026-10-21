@@ -16,19 +16,19 @@ BUILDER = '/admin/workspace/menu'
 
 
 def custom():
-    """The standard menu with: a Favourites section first holding Visual flow, Leads moved into Overview,
+    """The standard menu with: a Favourites section first holding Contacts, Leads moved into Overview,
     My day renamed Today, Match quality left off and the Sales section renamed Sales."""
     lay = access.default_layout()
     for s in lay['sections']:
         for holder in s.get('subs') or [s]:
-            for k in ('crm_flow', 'crm_board'):
+            for k in ('crm_people', 'crm_board'):
                 if k in holder['pages']:
                     holder['pages'].remove(k)
         if s['key'] == 'overview':
             s['pages'].append('crm_board')
         if s['key'] == 'sales':
             s['label'] = 'Sales'
-    lay['sections'].insert(0, {'key': 'favourites', 'label': 'Favourites', 'icon': 'fa-star', 'pages': ['crm_flow']})
+    lay['sections'].insert(0, {'key': 'favourites', 'label': 'Favourites', 'icon': 'fa-star', 'pages': ['crm_people']})
     lay['labels'] = {'crm_today': 'Today'}
     lay['hidden'] = ['metrics']
     return lay
@@ -115,9 +115,9 @@ def test_the_preview_shows_one_roles_menu(client, app, admin_user):
     out = client.post(BUILDER + '/preview', json={'layout': custom(), 'role': cs_role.id}).get_json()
     labels = [i['label'] for g in out['groups'] for i in g['items']]
     assert out['groups'][0]['label'] == 'Favourites' and 'Today' in labels
-    assert 'Pipelines' not in labels and 'Menu builder' not in labels           # not the agent's
+    assert 'Pipelines & products' not in labels and 'Menu builder' not in labels           # not the agent's
     admin = client.post(BUILDER + '/preview', json={'layout': None, 'role': access.system_role(ws, 'admin').id}).get_json()
-    assert 'Pipelines' in [i['label'] for g in admin['groups'] for i in g['items']]
+    assert 'Pipelines & products' in [i['label'] for g in admin['groups'] for i in g['items']]
 
 
 def test_only_people_whose_role_has_it_arrange_the_menu(client, app, admin_user, cs_user):
@@ -131,7 +131,7 @@ def test_only_people_whose_role_has_it_arrange_the_menu(client, app, admin_user,
 
 def test_where_a_refused_person_lands_does_not_follow_the_arranged_menu(client, app, admin_user, cs_user):
     ws = access.ensure_defaults()
-    ws.menu = access.clean_layout(custom())                       # Visual flow first in the arranged menu
+    ws.menu = access.clean_layout(custom())                       # Contacts first in the arranged menu
     _db.session.commit()
     login(client, cs_user.email)
     assert client.get('/cs/crm/insights').headers['Location'].endswith('/cs/crm/today')

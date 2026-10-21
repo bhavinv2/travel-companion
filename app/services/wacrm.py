@@ -87,7 +87,15 @@ def webhook_secret():
 
 
 def enabled():
-    return bool(base_url() and api_key())
+    """The Sales CRM may use the WhatsApp CRM: its address and key are set, and the CRM being read or written just now
+    is the workspace WhatsApp is linked to (a second workspace's leads have WhatsApp off -- services/crm_scope)."""
+    if not (base_url() and api_key()):
+        return False
+    try:
+        from app.services import crm_scope
+        return crm_scope.wa_here()
+    except RuntimeError:       # no app context
+        return True
 
 
 def _never_connected(exc):

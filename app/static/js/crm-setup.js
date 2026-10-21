@@ -605,6 +605,8 @@
         return {
           id: li.dataset.id ? +li.dataset.id : null, ref: li.dataset.ref, name: kOf(li, 'name').value.trim(),
           means: kOf(li, 'means').value, on_reply: kOf(li, 'on_reply').checked, sla_hours: kOf(li, 'sla_hours').value.trim(),
+          forecast: kOf(li, 'forecast').value, probability: kOf(li, 'probability').value.trim(),
+          requires: qa('[data-req]:checked', li).map(function (c) { return c.dataset.req; }),
           auto: kind ? { kind: kind, field: field, days: kOf(li, 'auto_days').value, to: kOf(li, 'auto_to').value,
                          reason: kOf(li, 'auto_reason').value } : {},
           button: { label: label, code: label ? kOf(li, 'button_code').value.trim() : '' },

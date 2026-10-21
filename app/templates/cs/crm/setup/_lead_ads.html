@@ -1,0 +1,19 @@
+{# "Lead ads": how Facebook / Instagram and Google lead forms reach the CRM (Sales CRM 2.0, run 4b). #}
+<section class="card" id="lead-ads">
+  <div class="card-head"><h2>Lead ads</h2></div>
+  <p class="muted">Leads from Facebook, Instagram and Google ad forms come in by themselves. Each form shows up above as its own source, <b>needing set-up</b>, until you choose its pipeline and who gets its leads. Until then nobody is messaged.</p>
+  <h3 class="small">Facebook and Instagram forms {% if lead_ads.meta_on %}<span class="chip ok">Connected</span>{% else %}<span class="chip">Not connected</span>{% endif %}</h3>
+  <ol class="small">
+    <li>In your Meta app, ask for the permission <b>leads_retrieval</b> (and <b>pages_manage_metadata</b> to subscribe the Page), and use the same Page token as for Messenger and Instagram.</li>
+    <li>In the Meta app's Webhooks, choose <b>Page</b>, use this address and subscribe to the field <b>leadgen</b>:<br/>
+      <code>{{ lead_ads.meta_url }}</code></li>
+    <li>The first lead from a form creates the source “Facebook/Instagram form &lt;number&gt;”. Open it here and choose the pipeline.</li>
+  </ol>
+  <h3 class="small">Google Ads forms {% if lead_ads.google_on %}<span class="chip ok">Ready</span>{% else %}<span class="chip">Not switched on</span>{% endif %}</h3>
+  <ol class="small">
+    <li>Ask your developer to set a secret key on the server (<code>CRM_GOOGLE_LEADS_KEY</code>). Until it is set, this address answers “not found”.</li>
+    <li>In Google Ads, on the lead form's <b>Lead delivery</b> step, paste this webhook URL and the same key:<br/>
+      <code>{{ lead_ads.google_url }}</code></li>
+    <li>Use “Send test data” in Google Ads: test leads are accepted and not saved. Real ones become the source “Google Ads form &lt;number&gt;”.</li>
+  </ol>
+</section>

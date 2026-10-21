@@ -199,7 +199,7 @@ def test_the_dashboard_counts_what_the_team_does(app, client, cs_user, admin_use
     client.post('/auth/logout')
     login(client, 'admin@test.com')
     page = client.get('/admin/crm/insights?days=7').get_data(as_text=True)
-    assert 'From lead to customer' in page and 'Messages, by who sent them' in page and 'Log today' not in page
+    assert 'Leads that came in these days' in page and 'Messages, by who sent them' in page and 'Log today' not in page
 
 
 def test_logging_todays_work(app, client, cs_user):
@@ -240,10 +240,14 @@ def test_the_sales_process_page(app, client, admin_user, cs_user):
     assert 'Organic posting in groups' in page and 'Gaps to close' not in page
     assert client.post('/cs/crm/process', data={'what': 'channels', 'channels': 'x | y'}).status_code == 302
     assert 'channels' not in crm.crm_settings_raw()                    # not theirs to edit
+    from app.models import CrmCampaign
+    assert CrmCampaign.query.count() == 0
     client.post('/auth/logout')
     login(client, admin_user.email)
     client.post('/admin/crm/process', data={'what': 'channels', 'channels': 'Facebook | Groups | Sales | Ongoing'})
-    assert crm.crm_settings_raw()['channels'] == [['Facebook', 'Groups', 'Sales', 'Ongoing']]
+    # run 5b: the marketing activities are rows of crm_campaigns (per workspace), not the 'crm' setting
+    from app.services import crm_campaigns
+    assert crm_campaigns.channels() == [['Facebook', 'Groups', 'Sales', 'Ongoing']]
 
 
 def test_focus_mode_button_is_on_every_crm_screen(app, client, cs_user):

@@ -2,12 +2,13 @@
 {% from '_page_head.html' import page_head %}
 {% block crm_title %}Bring in &amp; download{% endblock %}
 {% block crm %}
-{{ page_head('Bring in & download', 'fa-solid fa-file-arrow-up',
+{{ page_head('Import & export', 'fa-solid fa-file-arrow-up',
              'Bring leads in from a spreadsheet or old website records, and download lists. Nobody is messaged when you import.',
-             help=['Nobody is messaged when you import. Imported people reach WhatsApp only when an admin presses "Add existing leads and customers to WhatsApp" on WhatsApp connection.',
+             help=['Nobody is messaged when you import. Imported people reach WhatsApp only when an admin presses "Add existing leads and customers to WhatsApp" on WhatsApp.',
                    'Everything here is safe to run again: rows already here are skipped.',
                    'People on the do-not-contact list are skipped.'],
              full_screen=True) }}
+{% if CAN('crm_bin') %}<p><a class="cb sm" href="{{ crm_url('bin') }}"><i class="fa-solid fa-trash-can-arrow-up"></i> Recycle bin</a> <span class="muted">Removed leads wait there for 30 days.</span></p>{% endif %}
 {% include 'cs/crm/setup/_csv.html' %}
 {% include 'cs/crm/setup/_import.html' %}
 {% include 'cs/crm/setup/_download.html' %}

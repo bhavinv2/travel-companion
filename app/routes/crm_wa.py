@@ -19,6 +19,10 @@ from app.services import (access, crm, crm_connection, crm_people, crm_products,
                            wacrm_team)
 
 
+WA_LINKED_ELSEWHERE = ('WhatsApp is linked to %s. Leads in this workspace have WhatsApp off for now, so nothing '
+                       'about it is changed from here.')
+
+
 def _ws():
     ws = access.current_workspace(current_user)
     if ws is None:
@@ -43,10 +47,21 @@ def _quick_context(form=None, error=None):
                              if access.can(current_user, 'wa_quick') or access.can(current_user, 'crm_quick') else None),
                 GENERAL=crm_products.general_code(), FILLS=wa_templates.FILL_LABELS, STEP_KINDS=CRM_STEP_KINDS,
                 form=form, error=error, can_push=access.can(current_user, 'crm_connection'),
+                email_sender=_email_sender(),
                 writes_on=crm.wa_writes_on(), wa_enabled=wacrm_team.enabled(),
                 NEEDS_UPDATE=crm_people.NEEDS_UPDATE, QR_BUTTON_CONFLICT=wa_templates.QR_BUTTON_CONFLICT,
                 QUICK_WAITING=wa_templates.QUICK_WAITING, WORKS_HELP=wa_templates.WORKS_HELP,
                 WORKS_BUTTONS=wa_templates.WORKS_BUTTONS, **_common())
+
+
+def _email_sender():
+    """The e-mail sender card on Messages: the saved name and reply-to (blank = defaults), and whether this server
+    can send customer e-mail at all."""
+    from app.services import crm_email, settings as app_settings
+    cfg = app_settings.get_setting(crm_email.SETTING_KEY) or {}
+    cfg = cfg if isinstance(cfg, dict) else {}
+    return {'name': (cfg.get('name') or '').strip(), 'reply_to': (cfg.get('reply_to') or '').strip(),
+            'default_name': crm_email.DEFAULT_NAME, 'can_send': crm_email.can_send()}
 
 
 def _form_of(a):
@@ -152,7 +167,7 @@ def quick_replies_push():
 @admin_only
 def quick_replies_import():
     """One-off (admins): WhatsApp's own text quick replies become quick replies here."""
-    if not wacrm_team.enabled():
+    if not crm.wa_team_on():
         flash(crm_people.WA_FEED_OFF, 'warning')
         return redirect(crm_url('quick_replies'))
     try:
@@ -174,6 +189,27 @@ def quick_replies_import():
     return redirect(crm_url('quick_replies'))
 
 
+@crm_bp.route('/quick-replies/email-sender', methods=['POST'])
+@cs_required
+@admin_only
+def email_sender_save():
+    """Messages -> E-mails to customers: the name they come from and where replies go (setting crm.email_from).
+    An empty reply-to sends replies to the agent who wrote. Changes nothing that was already sent."""
+    from app.services import crm_email, settings as app_settings
+    name = ' '.join((request.form.get('name') or '').split())[:80]
+    reply_to = (request.form.get('reply_to') or '').strip()[:200]
+    if reply_to and not crm_email.EMAIL_RE.match(reply_to):
+        flash('Type the reply-to address as an e-mail address, like sales@example.com, or leave it empty.', 'danger')
+        return redirect(crm_url('quick_replies') + '#email-sender')
+    app_settings.set_setting(crm_email.SETTING_KEY, {'name': name, 'reply_to': reply_to}, current_user)
+    ActivityEvent.log('crm_email_sender_saved', actor=current_user)
+    db.session.commit()
+    who = name or crm_email.DEFAULT_NAME
+    flash('Saved. E-mails to customers come from “%s”; replies go to %s.'
+          % (who, reply_to or 'the person who wrote'), 'success')
+    return redirect(crm_url('quick_replies') + '#email-sender')
+
+
 # ============================================================================================ WhatsApp connection
 
 def _connection_context(**extra):
@@ -181,7 +217,12 @@ def _connection_context(**extra):
     attention, and the addresses to give out. It makes no call to the WhatsApp CRM (checks() does, afterwards)."""
     ws = _ws()
     settings = crm.crm_settings()
-    ctx = {'intake_url': crm_routes._public_url('crm_public.intake'),
+    from app.services import crm_scope
+    elsewhere = crm_scope.whatsapp_elsewhere()          # WhatsApp is linked to another workspace (run 5a)
+    ctx = {'wa_elsewhere': elsewhere,
+           # ... or to no workspace yet: then this one only says it is not linked here (no other name)
+           'wa_elsewhere_linked': bool(elsewhere is not None and (elsewhere.wacrm or {}).get('account_id')),
+           'intake_url': crm_routes._public_url('crm_public.intake'),
            'webhook_url': crm_routes._public_url('crm_public.wacrm_webhook'),
            'meta_url': crm_routes._public_url('crm_public.meta_webhook'),
            'snippet_url': url_for('static', filename='js/lead-capture.js', _external=True),
@@ -216,6 +257,9 @@ def connection():
 @admin_only
 def connection_checks():
     """The live checks, drawn as two pieces of html for the page's script."""
+    from app.services import crm_scope
+    if crm_scope.whatsapp_elsewhere() is not None:          # nothing to check here: WhatsApp is another workspace's
+        return jsonify({'cards': '', 'rules': ''})
     c = crm_connection.checks(_ws())
     return jsonify({'cards': render_template('cs/crm/_connection_cards.html', c=c, **_common()),
                     'rules': render_template('cs/crm/_connection_rules.html', c=c, **_common())})
@@ -226,6 +270,12 @@ def connection_checks():
 @admin_only
 def save_whatsapp():
     action = request.form.get('action')
+    from app.services import crm_scope
+    elsewhere = crm_scope.whatsapp_elsewhere()
+    if elsewhere is not None and action != 'channels':
+        # the switch and the replies link are the linked workspace's: never changed from another one
+        flash(WA_LINKED_ELSEWHERE % elsewhere.name, 'warning')
+        return redirect(crm_url('connection'))
     if action == 'mode':
         mode = request.form.get('mode')
         if mode not in crm.WA_MODES:
@@ -322,6 +372,11 @@ def connection_team(action):
     if action not in ('link', 'sync', 'unlink', 'remove-extra', 'retry'):
         abort(404)
     ws = _ws()
+    from app.services import crm_scope
+    elsewhere = crm_scope.whatsapp_elsewhere()
+    if elsewhere is not None:
+        flash(WA_LINKED_ELSEWHERE % elsewhere.name, 'warning')
+        return redirect(crm_url('connection'))
     try:
         if action == 'link':
             ok, failed = wacrm_team.link(ws)
@@ -398,5 +453,12 @@ def automatic():
     """Automatic messages -> What goes out by itself (E14): follow-ups and stage moves set in Pipelines, and
     the reply rules, chatbot and AI replies set in WhatsApp."""
     page = crm_connection.automatic_page()
+    from app.models import CrmRule
+    from app.services import crm_ai, crm_rules
+    # run 5b: the automation rules (their own tab) in one line, and the "AI on the lead page" switch
+    lead_rules = CrmRule.query.order_by(CrmRule.position, CrmRule.id).all()
     return render_template('cs/crm/automatic.html', RULE_STRIP=crm.rule_strip(page['conflicts']),
-                           NEEDS_UPDATE=crm_people.NEEDS_UPDATE, **page, **_common())
+                           NEEDS_UPDATE=crm_people.NEEDS_UPDATE, lead_rules=lead_rules,
+                           rule_clashes=crm_rules.stage_conflicts([r for r in lead_rules if r.active]),
+                           ai_on=crm_ai.switched_on(), ai_key=crm_ai.has_key(), AI_NOTE=crm_ai.NOTE,
+                           **page, **_common())

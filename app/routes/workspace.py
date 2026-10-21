@@ -13,12 +13,12 @@ import json
 import secrets
 from functools import wraps
 
-from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user
 
 from app import db
 from app.models import ActivityEvent, User, WorkspaceMember, WorkspaceRole, WorkspaceTeam
-from app.services import access, urls
+from app.services import access, crm_scope, urls
 
 workspace_bp = Blueprint('workspace', __name__, url_prefix='/admin/workspace')
 
@@ -265,7 +265,8 @@ def member(member_id):
                            by_module=[b for b in by_module if b['pages']],
                            open_leads=CrmLead.query.filter_by(owner_id=m.user_id, status='open').count(),
                            open_tasks=CrmTask.query.filter_by(owner_id=m.user_id, status='open').count(),
-                           takers=[u for u in cs_access.recipients('crm_board', limit=None) if u.id != m.user_id],
+                           takers=[u for u in crm_scope.in_workspace(cs_access.recipients('crm_board', limit=None), ws.id)
+                                   if u.id != m.user_id],
                            is_self=(m.user_id == current_user.id and not current_user.is_admin))
 
 
@@ -300,7 +301,8 @@ def remove_member(member_id):
     to = team = None
     if hand == 'person':
         to = db.session.get(User, request.form.get('to_id', type=int) or 0)
-        if to is None or to.id == m.user_id or to not in cs_access.recipients('crm_board', limit=None):
+        if to is None or to.id == m.user_id or to not in crm_scope.in_workspace(
+                cs_access.recipients('crm_board', limit=None), ws.id):
             return _say('Choose who gets their leads.', 'warning', url_for('workspace.member', member_id=m.id), 400)
     else:
         tid = request.form.get('team_id', type=int)
@@ -478,10 +480,11 @@ def role(role_id):
     chosen = access.role_pages(r) if r else (access.role_pages(copy_of) if copy_of else frozenset())
     on = set(access.enabled_modules(ws))
     modules = [{'key': m['key'], 'label': m['label'], 'icon': m['icon'], 'desc': m.get('desc', ''), 'on': m['key'] in on,
-                'pages': [p for p in m['pages'] if not p['with'] and p['key'] not in access.SUPER_ONLY]}
+                'pages': [p for p in m['pages'] if (not p['with'] or p['grant']) and p['key'] not in access.SUPER_ONLY]}
                for m in access.MODULES]
+    from app.services import crm_access
     return render_template('workspace/role.html', ws=ws, r=r, modules=modules, chosen=chosen,
-                           copy_of=copy_of, locked=bool(r and r.system_key == 'admin'))
+                           CRM_SCOPES=crm_access.SCOPE_LABELS, copy_of=copy_of, locked=bool(r and r.system_key == 'admin'))
 
 
 @workspace_bp.route('/roles/save', methods=['POST'])
@@ -507,6 +510,8 @@ def save_role():
     r.description = (request.form.get('description') or '').strip()[:255] or None
     if r.system_key != 'admin':
         r.pages = access.clean_pages(request.form.getlist('pages'), keep=r.pages or [])
+        scope = request.form.get('crm_scope')
+        r.crm_scope = scope if scope in ('team', 'own') else None          # NULL: everyone's leads, as always
     db.session.flush()
     _log('workspace_role_saved', workspace=ws.id, role=r.name, pages=len(access.role_pages(r)))
     db.session.commit()
@@ -567,6 +572,7 @@ def create_workspace():
                                  description=request.form.get('description'))
     _log('workspace_created', workspace=ws.id, name=ws.name)
     db.session.commit()
+    _seed_crm(ws)
     access.set_current_workspace(ws)
     flash('%s is ready. Add its members and roles below.' % ws.name, 'success')
     return redirect(url_for('workspace.overview'))
@@ -665,8 +671,19 @@ def _create_from_plan(plan):
     _log('workspace_created', workspace=ws.id, name=ws.name, people=len(done), teams=len(team_rows),
          whatsapp=ws.whatsapp_phone)
     db.session.commit()
+    _seed_crm(ws)
     access.set_current_workspace(ws)
     return [], ws, made
+
+
+def _seed_crm(ws):
+    """A new workspace's own Sales CRM: a copy of the starting pipelines, products, lead sources and ready answers
+    (Sales CRM 2.0, run 5a). Best effort: the first CRM page opened in the workspace makes them anyway."""
+    try:
+        crm_scope.seed(ws.id)
+    except Exception:          # noqa: BLE001 -- the workspace is made; never undo it for its CRM set-up
+        db.session.rollback()
+        current_app.logger.exception('CRM defaults not seeded for workspace %s', ws.id)
 
 
 @workspace_bp.route('/new', methods=['GET', 'POST'])

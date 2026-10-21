@@ -1,0 +1,80 @@
+{# The Family card on the contact page (Sales CRM 2.0). Needs: person, family (crm_household.card or None),
+   fq (the search text), family_results. Plain forms: nothing here needs JavaScript. #}
+{% from '_phone_field.html' import phone_field with context %}
+{% macro role_select(name, current) -%}
+<select name="{{ name }}" aria-label="Their part in the family">
+  {% for k, label in HOUSEHOLD_ROLES() %}<option value="{{ k }}"{{ ' selected' if current == k }}>{{ label }}</option>{% endfor %}
+</select>
+{%- endmacro %}
+<section class="card wide fam-card" id="family">
+  <div class="card-head"><h2>Family</h2></div>
+  {% if family %}
+  <form method="POST" action="{{ crm_url('contact_family_rename', person_id=person.id) }}" class="row fam-name">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <label class="lb" for="fam-name">Family name</label>
+    <input id="fam-name" name="name" value="{{ family.household.name }}" maxlength="120" style="max-width:260px"/>
+    <button class="cb sm">Save name</button>
+  </form>
+  {% for m in family.members %}
+  <div class="fam-row">
+    <div class="fam-who">
+      {% if m.me %}<b>{{ m.person.display_name }}</b> <small class="muted">(this contact)</small>
+      {% else %}<a href="{{ crm_url('contact', person_id=m.person.id) }}"><b>{{ m.person.display_name }}</b></a>{% endif %}
+      {% if m.person.phone %}<small class="muted"> &middot; {{ PHONE.pretty(m.person.phone) }}</small>{% endif %}
+      <div class="fam-leads">
+        {% for l in m.leads %}<a class="pill" href="{{ crm_url('lead', lead_id=l.id) }}">{{ PRODUCTS.get(l.product, l.product) }}{% if l.stage %} &middot; {{ l.stage.name }}{% endif %}</a>{% else %}<span class="muted small">No open enquiry</span>{% endfor %}
+      </div>
+    </div>
+    <form method="POST" action="{{ crm_url('contact_family_role', person_id=person.id) }}" class="fam-role">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <input type="hidden" name="member_id" value="{{ m.person.id }}"/>
+      {{ role_select('role', m.role) }}
+      <button class="cb sm quiet">Change</button>
+    </form>
+    <details class="fam-remove">
+      <summary class="cb sm quiet">Remove from family</summary>
+      <form method="POST" action="{{ crm_url('contact_family_remove', person_id=person.id) }}" class="fam-confirm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="hidden" name="member_id" value="{{ m.person.id }}"/>
+        <span>Take {{ m.person.display_name }} out of the {{ family.household.name }}? Their details stay.</span>
+        <button class="cb sm danger">Yes, remove</button>
+      </form>
+    </details>
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="muted">Not linked to a family yet. Add the child abroad who pays, a parent or a carer, and everyone's enquiries show together.</p>
+  {% endif %}
+
+  <details class="fam-add"{{ ' open' if fq }}>
+    <summary class="cb sm"><i class="fa-solid fa-plus"></i> Add a family member</summary>
+    <div class="fam-add-body">
+      <form method="GET" action="{{ crm_url('contact', person_id=person.id) }}#family" class="row">
+        <label class="lb" for="fam-q">Find someone we already know</label>
+        <input id="fam-q" type="search" name="fq" value="{{ fq }}" placeholder="Name, phone, e-mail or handle" style="max-width:280px"/>
+        <button class="cb sm">Search</button>
+      </form>
+      {% if fq %}
+        {% for r in family_results %}
+        <form method="POST" action="{{ crm_url('contact_family_add', person_id=person.id) }}" class="fam-result">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <input type="hidden" name="other_id" value="{{ r.id }}"/>
+          <span><b>{{ r.name }}</b> <small class="muted">{{ r.phone or r.email }}</small></span>
+          {{ role_select('role', 'other') }}
+          <button class="cb sm primary">Add</button>
+        </form>
+        {% else %}<p class="muted small">No one found. Add them as a new person below.</p>{% endfor %}
+      {% endif %}
+      <form method="POST" action="{{ crm_url('contact_family_add', person_id=person.id) }}" class="fam-new">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="lb">Or add someone new</div>
+        <div class="row">
+          <input name="name" placeholder="Name" maxlength="120" aria-label="Name" required/>
+          {{ phone_field('phone', value='', iso='', label='Phone', required=True) }}
+          {{ role_select('role', 'other') }}
+          <button class="cb sm primary">Add new person</button>
+        </div>
+      </form>
+    </div>
+  </details>
+</section>

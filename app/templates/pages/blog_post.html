@@ -1,18 +1,20 @@
 {% extends 'base.html' %}
 {% block title %}{{ post.title }} – NRI Parent Service{% endblock %}
+{% block meta_description %}{{ post.summary or post.excerpt(160) }}{% endblock %}
 {% block content %}
+{% if preview %}<div class="blog-preview-bar"><i class="fa-solid fa-eye"></i> Preview — this is how the post will look. {{ 'It is live.' if post.is_published else 'It is not published.' }}</div>{% endif %}
 <div class="static-page">
   <div class="blog-post-header">
     {% set fallback_covers = ['l4.jpg','l5.jpg','l6.jpg','l7.jpg','l8.jpg','l9.jpg'] %}
-    <img src="{{ post.cover_image_url or url_for('static', filename='img/landing/' ~ fallback_covers[post.id % 6]) }}" alt="{{ post.title }}" class="blog-cover"/>
+    <img src="{{ app_url(post.cover_image_url) if post.cover_image_url else url_for('static', filename='img/landing/' ~ fallback_covers[post.id % 6]) }}" alt="{{ post.cover_alt or post.title }}" class="blog-cover"/>
     <h1>{{ post.title }}</h1>
     <div class="blog-meta">
-      <span><i class="fa-solid fa-user"></i> {{ post.author.username }}</span>
+      <span><i class="fa-solid fa-user"></i> {{ post.author.username if post.author else 'NRI Parent Service' }}</span>
       <span><i class="fa-solid fa-calendar"></i> {{ post.published_at|istd('%B %d, %Y') if post.published_at else '' }}</span>
     </div>
   </div>
   <div class="static-content blog-post-content">
-    {{ post.content | safe }}
+    {{ post.content|blog_html }}
   </div>
   <div class="blog-back">
     <a href="{{ url_for('blog.blog_list') }}" class="btn btn-outline-coral">← Back to Blog</a>

@@ -1,0 +1,11 @@
+{# AI help on the lead page (Sales CRM 2.0, run 5b; only while services/crm_ai.enabled()). "Summarise" asks the
+   server (crm-ai.js); the suggested message goes into the message box with the quotes card's own button
+   (data-qp-box, crm-quotes.js) -- the agent edits it and presses Send. Nothing is sent by itself. #}
+<section class="card ai-card" data-ai data-lead-id="{{ lead.id }}">
+  <div class="card-head">
+    <h2><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Summary</h2>
+    <button type="button" class="cb sm" data-ai-go>Summarise</button>
+  </div>
+  <div data-ai-out aria-live="polite"></div>
+  <p class="hint">Written by AI from their recent messages and notes (no phone numbers or e-mail addresses are sent). Check it before you use it; nothing is sent by itself.</p>
+</section>

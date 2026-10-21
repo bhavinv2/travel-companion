@@ -1,0 +1,108 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_report_result.html' import report_result with context %}
+{% block crm_title %}Report builder{% endblock %}
+{% block crm %}
+{{ page_head('Report builder', 'fa-solid fa-chart-column',
+             'Build your own report: pick what to count, how to group it, and read a chart and a table.',
+             help=['Choose what to count (leads, people, or activities such as messages, calls and tasks), then how to measure it.',
+                   'Group by one thing, or two to get a table with columns. Dates, pipeline, person, status and source narrow it down.',
+                   'Money is added up in ' ~ (result.currency if result else REPORT_CURRENCY()) ~ ' using the exchange rates in Pipelines & products. Leads in the recycle bin are never counted.',
+                   'You only see what your role lets you see. Save a report to find it again, and pin it to show at the bottom of Sales results.'],
+             primary=({'label': 'Download for Excel', 'href': crm_url('report_builder_csv', **cfg), 'icon': 'fa-solid fa-file-csv'} if result and CAN('crm_export') else None),
+             full_screen=True) }}
+
+{% if error %}<div class="card warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> {{ error }}</div>{% endif %}
+
+<form method="GET" action="{{ crm_url('report_builder') }}" class="card rb-form" data-rb-form>
+  <input type="hidden" name="run" value="1"/>
+  <div class="rb-grid">
+    <label class="flt">What to count
+      <select name="what" onchange="this.form.elements.run.value=''; this.form.submit()">
+        {% for k, label in SOURCES.items() %}<option value="{{ k }}"{{ ' selected' if cfg.what == k }}>{{ label }}</option>{% endfor %}
+      </select></label>
+    <label class="flt">Measure
+      <select name="measure">
+        {% for k, label in MEASURES.items() if cfg.what == 'leads' or k == 'count' %}<option value="{{ k }}"{{ ' selected' if cfg.measure == k }}>{{ label }}</option>{% endfor %}
+      </select></label>
+    <label class="flt">Group by
+      <select name="group">
+        {% for k, label in GROUPS[cfg.what].items() %}<option value="{{ k }}"{{ ' selected' if cfg.group == k }}>{{ label }}</option>{% endfor %}
+      </select></label>
+    <label class="flt">Then by (optional)
+      <select name="group2">
+        <option value="">Nothing</option>
+        {% for k, label in GROUPS[cfg.what].items() %}<option value="{{ k }}"{{ ' selected' if cfg.group2 == k }}>{{ label }}</option>{% endfor %}
+      </select></label>
+  </div>
+  <div class="rb-grid">
+    <label class="flt">Dates are about
+      <select name="date">{% for k, label in DATE_FIELDS[cfg.what].items() %}<option value="{{ k }}"{{ ' selected' if cfg.date == k }}>{{ label }}</option>{% endfor %}</select></label>
+    <label class="flt">From <input type="date" name="from" value="{{ cfg['from'] }}"/></label>
+    <label class="flt">To <input type="date" name="to" value="{{ cfg.to }}"/></label>
+    {% if cfg.what != 'people' %}
+    <label class="flt">Pipeline
+      <select name="pipeline"><option value="">Every pipeline</option>{% for p in pipelines %}<option value="{{ p.id }}"{{ ' selected' if cfg.pipeline == p.id|string }}>{{ p.name }}</option>{% endfor %}</select></label>
+    <label class="flt">{{ 'Who looks after it' if cfg.what == 'leads' else 'Who did it' }}
+      <select name="owner"><option value="">Anyone</option><option value="mine"{{ ' selected' if cfg.owner == 'mine' }}>Me</option><option value="none"{{ ' selected' if cfg.owner == 'none' }}>Nobody</option>
+        {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if cfg.owner == u.id|string }}>{{ u.full_name }}</option>{% endfor %}</select></label>
+    {% endif %}
+    {% if cfg.what == 'leads' %}
+    <label class="flt">Status
+      <select name="status"><option value="">Any</option>{% for k, label in STATUSES.items() %}<option value="{{ k }}"{{ ' selected' if cfg.status == k }}>{{ label }}</option>{% endfor %}</select></label>
+    <label class="flt">Where it came from
+      <select name="source"><option value="">Anywhere</option>{% for s in sources %}<option value="{{ s.id }}"{{ ' selected' if cfg.source == s.id|string }}>{{ SOURCE_NAME(s.name) }}</option>{% endfor %}</select></label>
+    {% endif %}
+    {% if cfg.what in ('leads', 'people') %}
+    <label class="flt">OK to send offers
+      <select name="offers"><option value="">Anyone</option>{% for k, label in OFFERS.items() %}<option value="{{ k }}"{{ ' selected' if cfg.offers == k }}>{{ label }}</option>{% endfor %}</select></label>
+    {% endif %}
+  </div>
+  <div class="row"><button class="cb primary"><i class="fa-solid fa-chart-column"></i> Show the report</button>
+    <a class="cb quiet" href="{{ crm_url('report_builder') }}">Start again</a></div>
+</form>
+
+{% if result %}
+<section class="card rb-out">
+  <div class="card-head"><h2>{{ result.title }}</h2></div>
+  {{ report_result(result) }}
+  <details class="rb-save">
+    <summary class="cb sm">Save as a report…</summary>
+    <form method="POST" action="{{ crm_url('report_save') }}" class="rb-saveform">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      {% for k, v in cfg.items() %}<input type="hidden" name="c_{{ k }}" value="{{ v }}"/>{% endfor %}
+      <label class="lb" for="rb-name">Call it</label>
+      <input id="rb-name" type="text" name="name" maxlength="80" required placeholder="e.g. Won value by person"/>
+      <label class="small"><input type="checkbox" name="shared"/> Share with the team</label>
+      <button class="cb primary sm">Save</button>
+    </form>
+  </details>
+</section>
+{% endif %}
+
+{% macro saved_row(r, mine) %}
+<div class="rb-srow">
+  <a class="rb-sname" href="{{ crm_url('report_builder', run=1, **r.config) }}"><b>{{ r.name }}</b></a>
+  <span class="muted small">{% if r.shared %}shared{% endif %}{% if not mine and r.owner %} &middot; by {{ r.owner.first_name or r.owner.username }}{% endif %}{% if r.pinned %} &middot; on Sales results{% endif %}</span>
+  {% if mine or current_user.is_admin %}
+  <span class="rb-sacts">
+    <form method="POST" action="{{ crm_url('report_pin', report_id=r.id) }}" class="inl"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <input type="hidden" name="pinned" value="{{ 0 if r.pinned else 1 }}"/><button class="cb sm quiet">{{ 'Take off Sales results' if r.pinned else 'Pin to Sales results' }}</button></form>
+    {% if r.pinned %}
+    <form method="POST" action="{{ crm_url('report_move', report_id=r.id) }}" class="inl"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="dir" value="up"/><button class="cb sm quiet" aria-label="Move up">▲</button></form>
+    <form method="POST" action="{{ crm_url('report_move', report_id=r.id) }}" class="inl"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="dir" value="down"/><button class="cb sm quiet" aria-label="Move down">▼</button></form>
+    {% endif %}
+    <details class="fam-remove"><summary class="cb sm quiet">Delete</summary>
+      <form method="POST" action="{{ crm_url('report_delete', report_id=r.id) }}" class="fam-confirm"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <span>Delete “{{ r.name }}”?</span><button class="cb sm danger">Yes, delete</button></form></details>
+  </span>
+  {% endif %}
+</div>
+{% endmacro %}
+<section class="card rb-saved" id="saved">
+  <div class="card-head"><h2>Saved reports</h2></div>
+  {% for r in saved.mine %}{{ saved_row(r, true) }}{% endfor %}
+  {% for r in saved.shared %}{{ saved_row(r, false) }}{% endfor %}
+  {% if not saved.mine and not saved.shared %}<p class="muted small">Nothing saved yet. Show a report, then “Save as a report”.</p>{% endif %}
+</section>
+{% endblock %}

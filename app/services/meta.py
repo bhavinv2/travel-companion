@@ -133,6 +133,15 @@ def profile(sender_id, channel):
     return {'name': name or None, 'username': d.get('username')}
 
 
+LEAD_FIELDS = 'created_time,field_data,ad_id,ad_name,campaign_id,campaign_name,form_id'
+
+
+def fetch_lead(leadgen_id):
+    """A lead-ad answer (Page token): {'field_data': [{'name', 'values'}], 'ad_id', 'form_id', 'campaign_name', ...}.
+    The webhook only carries the ids. Needs the app permission leads_retrieval. Raises MetaError."""
+    return _call('GET', str(leadgen_id), params={'fields': LEAD_FIELDS})
+
+
 def send_text(recipient_id, text):
     """Answer a message (Messenger or Instagram -- the Page sends both). Returns Meta's message id."""
     d = _call('POST', 'me/messages', payload={'recipient': {'id': recipient_id},

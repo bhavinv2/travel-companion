@@ -166,7 +166,29 @@ def user_panel(user_id):
         open_leads=CrmLead.query.filter_by(owner_id=u.id, status='open').count() if m else 0,
         open_tasks=CrmTask.query.filter_by(owner_id=u.id, status='open').count() if m else 0,
         trips=CompanionRequest.query.filter_by(user_id=u.id).count(), person=person,
-        is_self=u.id == current_user.id, locked=u.is_super and not current_user.is_super)
+        is_self=u.id == current_user.id, locked=u.is_super and not current_user.is_super,
+        utcnow=datetime.utcnow())
+
+
+@admin_bp.route('/users/<int:user_id>/away', methods=['POST'])
+@login_required
+@admin_required
+def user_away(user_id):
+    """Users -> Manage: mark somebody away until a day (no new leads are shared with them) or back."""
+    from app.services import crm_assign
+    u = User.query.get_or_404(user_id)
+    if request.form.get('back'):
+        crm_assign.set_away(u, None)
+        flash('%s is back: new leads can come to them again.' % (u.first_name or u.username), 'success')
+    else:
+        until = crm_assign.parse_until(request.form.get('until'))
+        if until is None:
+            flash('Pick a day after today.', 'warning')
+        else:
+            crm_assign.set_away(u, until)
+            flash('%s is away until %s.' % (u.first_name or u.username, (until + crm_assign.IST).strftime('%d %b')), 'success')
+    db.session.commit()
+    return redirect(url_for('admin.users'))
 
 
 @admin_bp.route('/users/<int:user_id>/send-reset', methods=['POST'])
@@ -513,6 +535,9 @@ def insurance_quotes():
     q = (request.args.get('q') or '').strip()
 
     query = InsuranceQuote.query
+    rec_id = request.args.get('id', type=int)          # one record, from a contact page's "Records on the site"
+    if rec_id:
+        query = query.filter(InsuranceQuote.id == rec_id)
     if status in ('quoted', 'failed'):
         query = query.filter(InsuranceQuote.status == status)
     if ins_type in ('visitors', 'health', 'schengen'):
@@ -593,6 +618,9 @@ def sahayak_bookings():
     q = (request.args.get('q') or '').strip()
 
     query = SahayakBooking.query
+    rec_id = request.args.get('id', type=int)          # one record, from a contact page's "Records on the site"
+    if rec_id:
+        query = query.filter(SahayakBooking.id == rec_id)
     if status in SAHAYAK_STATUSES:
         query = query.filter(SahayakBooking.status == status)
     if service_key:
@@ -663,6 +691,9 @@ def voices():
     status = request.args.get('status') or ''
     q = (request.args.get('q') or '').strip()
     cq = ContactMessage.query
+    rec_id = request.args.get('id', type=int)          # one record, from a contact page's "Records on the site"
+    if rec_id:
+        cq = cq.filter(ContactMessage.id == rec_id)
     topic = request.args.get('topic') or ''
     if topic in CONTACT_TOPICS:
         cq = cq.filter(ContactMessage.topic == topic)
@@ -1412,11 +1443,12 @@ def new_blog():
             flash('Title and content are required.', 'danger')
             return render_template('admin/blog_form.html', form=request.form)
 
+        from app.services import blog_engine
         post = Blog(
             author_id=current_user.id,
             title=title,
             slug=_unique_slug(title),
-            content=content,
+            content=blog_engine.sanitize(content),
             cover_image_url=cover,
             is_published=is_published,
             published_at=datetime.utcnow() if is_published else None,
@@ -1428,10 +1460,11 @@ def new_blog():
         if is_published and send_notif:
             _notify_all_blog(post)
 
-        flash('Blog post created!', 'success')
         if is_published:
-            return redirect(f'/blog/{post.slug}')
-        return redirect(url_for('admin.dashboard'))
+            flash('Blog post created!', 'success')
+            return redirect(url_for('blog.blog_post', slug=post.slug))     # a bare f'/blog/..' left the app's prefix
+        flash('Draft saved. Check it here, then publish.', 'success')
+        return redirect(url_for('admin.blog_edit', post_id=post.id))
 
     return render_template('admin/blog_form.html')
 

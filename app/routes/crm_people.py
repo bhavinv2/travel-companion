@@ -11,10 +11,11 @@ from flask_login import current_user
 from sqlalchemy.orm import joinedload, selectinload
 
 from app import db
-from app.models import ActivityEvent, CrmLead, CrmPerson, CrmSource
+from app.models import ActivityEvent, CrmLead, CrmPerson, CrmSource, CRM_FORECASTS
 from app.routes.crm import IMPORT_DIR, CHAT_FILTERS, _common, _json, _staff, admin_only, crm_bp, crm_url
 from app.routes.cs import cs_required
-from app.services import access, crm, crm_people, crm_products, wacrm, wacrm_team
+from app.services import (access, crm, crm_access, crm_audit, crm_files, crm_household, crm_merge, crm_money, crm_people,
+                          crm_products, crm_records, crm_scope, wacrm, wacrm_team)
 from app.services import phone as phone_svc
 
 PER_PAGE = 50
@@ -22,7 +23,7 @@ PER_PAGE = 50
 
 def _person_or_404(person_id):
     person = db.session.get(CrmPerson, person_id)
-    if person is None:
+    if person is None or not crm_access.can_see_person(current_user, person) or not crm_scope.visible(person):
         abort(404)
     return person
 
@@ -51,6 +52,10 @@ def contacts():
     """Contacts (E6): one row per person with their enquiries and WhatsApp state, 50 a page, from a fixed
     set of queries."""
     f = _contact_filters()
+    from app.routes.crm_family import can_merge
+    if request.args.get('dups') and can_merge(current_user):
+        pairs = crm_merge.find_pairs(current_user)
+        return render_template('cs/crm/duplicates.html', pairs=pairs, **_common())
     query = crm_people.contacts_filter(f, current_user)
     total = query.count()
     pages = max(1, -(-total // PER_PAGE))
@@ -64,6 +69,7 @@ def contacts():
                            ENQ_FILTERS=crm_people.ENQ_FILTERS, staff=_staff(),
                            can_export=access.can(current_user, 'crm_export'),
                            can_import=access.can(current_user, 'crm_data'), crm_people=crm_people,
+                           can_merge=can_merge(current_user), view_params={k: v for k, v in f.items() if v},
                            **_common())
 
 
@@ -82,12 +88,19 @@ def contact(person_id):
     sync = None
     if current_user.is_admin or any(l.owner_id == current_user.id for l in leads):
         sync = crm.wa_sync_state(person)
+    from app.routes.crm_family import can_merge
+    fq = ' '.join((request.args.get('fq') or '').split())[:80]
     return render_template('cs/crm/contact.html', person=person, leads=leads,
+                           family=crm_household.card(person, current_user), fq=fq,
+                           family_results=crm_merge.search(person, fq, current_user) if fq else [],
+                           site_records=crm_records.records_for(person, current_user),
+                           files=crm_files.for_person(person.id), can_merge=can_merge(current_user),
                            permission=crm_people.permission(person), sales_tags=crm_people.sales_tags(person),
                            recent=crm_people.recent(person), sync=sync, writes=crm.wa_writes_on(),
                            linked=bool(person.wacrm_contact_id or person.wacrm_conversation_id),
                            can_erase=can_erase, can_add=access.can(current_user, 'crm_add'),
                            erase=crm_people.erase_plan(person) if (request.args.get('erase') and can_erase) else None,
+                           history=crm_audit.history_for('person', person.id),
                            crm_people=crm_people, **_common())
 
 
@@ -219,7 +232,9 @@ def flow():
     for raw in request.args.getlist('person_id'):
         if raw.isdigit() and int(raw) not in ids:
             ids.append(int(raw))
-    by_id = {p.id: p for p in CrmPerson.query.filter(CrmPerson.id.in_(ids)).all()} if ids else {}
+    seen = crm_access.person_filter(current_user)
+    by_id = ({p.id: p for p in CrmPerson.query.filter(CrmPerson.id.in_(ids), *([seen] if seen is not None else [])).all()}
+             if ids else {})
     people = [by_id[i] for i in ids if i in by_id]
     maps = crm_people.flow_data(people)
     order = {p.id: n for n, p in enumerate(people)}
@@ -236,7 +251,7 @@ def flow():
 def flow_find():
     """Visual Flow's own search: people only (crm_people.find_people), not the general record search."""
     q = ' '.join((request.args.get('q') or '').split())[:80]
-    return jsonify({'items': crm_people.find_people(q) if len(q) >= 2 else []})
+    return jsonify({'items': crm_people.find_people(q, user=current_user) if len(q) >= 2 else []})
 
 
 # ============================================================================================ downloads
@@ -261,7 +276,13 @@ def export_leads():
     closed_days = 30 if a.get('win') == '30' else None
     query = crm.lead_filter(pipe, owner_id=owner_id, q=(a.get('q') or '').strip()[:80], chat=chat,
                             stage_id=a.get('stage', type=int), closed_days=closed_days,
-                            follow='late' if a.get('follow') == 'late' else None)
+                            follow=a.get('follow') if a.get('follow') in ('late', 'today') else None,
+                            quoted='week' if a.get('quoted') == 'week' else None,
+                            closes=a.get('closes') if crm_money.closes_bounds(a.get('closes')) else None,
+                            forecast=a.get('forecast') if a.get('forecast') in CRM_FORECASTS else None,
+                            no_value=bool(a.get('no_value')), no_close=bool(a.get('no_close')),
+                            status=a.get('status'),
+                            ids=[int(x) for x in (a.get('ids') or '').split(',') if x.strip().isdigit()][:200] or None)
     query = query.order_by(CrmLead.last_activity_at.desc(), CrmLead.id.desc())
     return crm_people.export(query, 'leads', current_user, {k: v for k, v in a.items() if v})
 
@@ -383,7 +404,7 @@ def import_csv_confirm():
 # ============================================================================================ From WhatsApp (one-off)
 
 def _wa_feed(kind):
-    if not wacrm_team.enabled():
+    if not crm.wa_team_on():
         return jsonify({'error': crm_people.WA_FEED_OFF}), 409
     since = (_json().get('since') or '').strip() or None
     run = crm_people.wa_import_contacts if kind == 'contacts' else crm_people.wa_import_notes
@@ -440,9 +461,16 @@ def save_inboxes():
 @cs_required
 @admin_only
 def save_activities():
-    rows = crm_people.parse_activities(request.form)
-    crm.save_settings(current_user, channels=rows)
-    ActivityEvent.log('crm_activities_saved', actor=current_user, rows=len(rows))
+    """Marketing activities and their campaign details (run 5b: crm_campaigns, per workspace)."""
+    from app.services import crm_campaigns
+    rows, errors = crm_campaigns.parse(request.form)
+    if errors:
+        db.session.rollback()
+        for e in errors:
+            flash(e, 'danger')
+        return redirect(crm_url('sources', tab='activities'))
+    n = crm_campaigns.save(rows)
+    ActivityEvent.log('crm_activities_saved', actor=current_user, rows=n)
     db.session.commit()
     flash('Saved.', 'success')
     return redirect(crm_url('sources', tab='activities'))

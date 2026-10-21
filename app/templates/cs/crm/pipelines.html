@@ -1,9 +1,9 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
 {% from '_empty.html' import empty %}
-{% block crm_title %}Pipelines{% endblock %}
+{% block crm_title %}Pipelines & products{% endblock %}
 {% block crm %}
-{{ page_head('Pipelines', 'fa-solid fa-diagram-project',
+{{ page_head('Pipelines & products', 'fa-solid fa-diagram-project',
              'The path a lead follows for each product: its stages, and the follow-ups each stage plans.',
              help=["Each pipeline is the path one product's leads follow: its stages and the follow-ups each stage plans.",
                    'Open a pipeline to change it, then press Save changes once.',
@@ -17,11 +17,14 @@
 <nav class="subtabs" aria-label="Pipelines">
   <a href="{{ crm_url('pipelines') }}" class="{{ 'on' if tab == 'pipelines' }}"><i class="fa-solid fa-diagram-next"></i> Pipelines</a>
   <a href="{{ crm_url('pipelines', tab='products') }}" class="{{ 'on' if tab == 'products' }}"><i class="fa-solid fa-boxes-stacked"></i> Products</a>
+  <a href="{{ crm_url('pipelines', tab='scoring') }}" class="{{ 'on' if tab == 'scoring' }}"><i class="fa-solid fa-gauge-high"></i> Scoring</a>
   <a href="{{ crm_url('pipelines', show='templates') }}" class="{{ 'on' if tab == 'templates' }}"><i class="fa-solid fa-file-lines"></i> Needs a WhatsApp template{% if needs %} <span class="chip bad">{{ needs }}</span>{% endif %}</a>
 </nav>
 
 {% if tab == 'products' %}
   {% include 'cs/crm/setup/_products.html' %}
+{% elif tab == 'scoring' %}
+  {% include 'cs/crm/setup/_scoring.html' %}
 {% elif tab == 'templates' %}
   {% include 'cs/crm/setup/_checklist.html' %}
 {% elif pipelines %}

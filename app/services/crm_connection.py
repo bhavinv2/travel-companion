@@ -155,7 +155,7 @@ def _template_words(step):
 def automatic_page(now=None):
     """What goes out by itself: {'steps', 'moves', 'rules', 'rules_state', 'conflicts', 'sending', 'mode_label',
     'flows_active', 'ai_auto_reply'} -- the last two are None when the WhatsApp CRM did not say."""
-    enabled = wacrm_team.enabled()
+    enabled = crm.wa_team_on()          # another workspace's leads have WhatsApp off: its rules are not theirs
     steps = []
     rows = (CrmPlaybookStep.query.join(CrmStage, CrmPlaybookStep.stage_id == CrmStage.id)
             .join(CrmPipeline, CrmStage.pipeline_id == CrmPipeline.id)

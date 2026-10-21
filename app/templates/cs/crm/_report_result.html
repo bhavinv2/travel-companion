@@ -1,0 +1,30 @@
+{# One report's answer: a bar chart (plain HTML and CSS, no chart library) and the table behind it. Needs res
+   (crm_report_builder.run). Used by the report builder and, for pinned reports, at the bottom of Sales results. #}
+{% macro report_result(res) -%}
+{%- set money = res.unit == 'money' -%}
+{% for n in res.notes %}<p class="rb-note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> {{ n }}</p>{% endfor %}
+{% if not res.rows %}
+<p class="muted">Nothing matches these choices. Try wider dates or fewer filters.</p>
+{% else %}
+<div class="rb-bars" role="img" aria-label="Bar chart: {{ res.title }}">
+  {% for r in res.rows[:30] %}
+  <div class="rb-r"><span class="rb-l" title="{{ r.label }}">{{ r.label }}</span>
+    <span class="rb-bar"><i style="width:{{ RB_PCT(r.total, res.max) }}%"></i></span>
+    <span class="rb-n">{{ MONEY_C(r.total, res.currency) if money else r.total }}</span></div>
+  {% endfor %}
+  {% if res.rows|length > 30 %}<p class="muted small">The chart shows the first 30 of {{ res.rows|length }}. The table has them all.</p>{% endif %}
+</div>
+<div class="table-wrap">
+<table class="crm-table rb-table">
+  <thead><tr><th>{{ res.group_label }}</th>{% for c in res.cols %}<th>{{ c }}</th>{% endfor %}<th>{{ 'Total' if res.cols else ('Value' if money else 'Number') }}</th></tr></thead>
+  <tbody>
+  {% for r in res.rows %}
+  <tr><td class="nm">{{ r.label }}</td>{% for v in r.cells %}<td>{{ (MONEY(v, res.currency) if v else '–') if money else (v or '–') }}</td>{% endfor %}<td><b>{{ MONEY(r.total, res.currency) if money else r.total }}</b></td></tr>
+  {% endfor %}
+  </tbody>
+  <tfoot><tr><td><b>Total</b></td>{% for v in res.col_totals %}<td><b>{{ MONEY(v, res.currency) if money else v }}</b></td>{% endfor %}<td><b>{{ MONEY(res.total, res.currency) if money else res.total }}</b></td></tr></tfoot>
+</table>
+</div>
+<p class="muted small">{{ res.count }} {{ 'record' if res.count == 1 else 'records' }}{% if money %} &middot; amounts in {{ res.currency }}{% endif %}. Removed leads are never counted.</p>
+{% endif %}
+{%- endmacro %}

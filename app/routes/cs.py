@@ -198,9 +198,12 @@ def sahayak_bookings():
     q = (request.args.get('q') or '').strip()
 
     query = SahayakBooking.query
+    rec_id = request.args.get('id', type=int)          # one record, from a contact page's "Records on the site"
+    if rec_id:
+        query = query.filter(SahayakBooking.id == rec_id)
     if status in SAHAYAK_STATUSES:
         query = query.filter(SahayakBooking.status == status)
-    else:
+    elif not rec_id:
         # the working queue is what still needs somebody; finished work is a filter away
         query = query.filter(SahayakBooking.status.in_(('new', 'assigned')))
     if service_key:
@@ -278,6 +281,9 @@ def insurance_quotes():
     q = (request.args.get('q') or '').strip()
 
     query = InsuranceQuote.query
+    rec_id = request.args.get('id', type=int)          # one record, from a contact page's "Records on the site"
+    if rec_id:
+        query = query.filter(InsuranceQuote.id == rec_id)
     if status in ('quoted', 'failed'):
         query = query.filter(InsuranceQuote.status == status)
     if ins_type in ('visitors', 'health', 'schengen'):
@@ -316,6 +322,9 @@ def voices():
     page = max(_int_or_none(request.args.get('page')) or 1, 1)
 
     query = ContactMessage.query
+    rec_id = request.args.get('id', type=int)          # one record, from a contact page's "Records on the site"
+    if rec_id:
+        query = query.filter(ContactMessage.id == rec_id)
     topic = request.args.get('topic') or ''
     if topic in CONTACT_TOPICS:
         query = query.filter(ContactMessage.topic == topic)

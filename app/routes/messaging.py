@@ -73,9 +73,9 @@ SCREENS = {
     'settings': {'page': 'wa_settings', 'path': '/settings?tab=whatsapp', 'tabs': ('whatsapp', 'api'),
                  'heading': 'WhatsApp number',
                  'helper': 'The number customers write to, and its Meta account details. Messages not reaching leads? '
-                           'Check WhatsApp connection.',
+                           'Check WhatsApp in Set-up.',
                  'help': ['This is the number customers write to, connected to Meta.',
-                          'If messages are not reaching leads, check WhatsApp connection in Set-up.']},
+                          'If messages are not reaching leads, check WhatsApp in Set-up.']},
 }
 INBOX_HELPER_ALONE = 'Every WhatsApp conversation.'      # nobody draws the lead panel for them
 EXTRA_HEADINGS = {'/settings?tab=quick-replies': 'Quick replies'}   # framed only by a link inside the CRM
@@ -281,8 +281,10 @@ def sso():
 
 def _lead(lead_id):
     from app.models import CrmLead
+    from app.services import crm_access, crm_scope
     lead = db.session.get(CrmLead, lead_id)
-    if lead is None:
+    if lead is None or lead.deleted_at is not None or not crm_access.can_see_lead(current_user, lead) \
+            or not crm_scope.visible(lead):
         abort(404)
     if not (access.can(current_user, 'crm_board') or access.can(current_user, 'crm_today')):
         abort(403)

@@ -698,6 +698,10 @@ class Blog(db.Model):
     slug = db.Column(db.String(350), unique=True, nullable=False)
     content = db.Column(db.Text)
     cover_image_url = db.Column(db.String(500))
+    # what Google, shares and the blog list show; empty: the first lines of the post
+    summary = db.Column(db.String(300))
+    cover_alt = db.Column(db.String(300))          # what the cover shows, for search and screen readers
+    source_file = db.Column(db.String(255))        # the Word document it was imported from (blog_engine)
     is_published = db.Column(db.Boolean, default=False)
     published_at = db.Column(db.DateTime)
     send_notification = db.Column(db.Boolean, default=True)
@@ -1656,8 +1660,8 @@ CRM_CHANNEL_LABELS = {'whatsapp': 'WhatsApp', 'call': 'Call', 'email': 'E-mail',
                       'chat': 'Chat', 'note': 'Note', 'form': 'Form', 'system': 'System',
                       'wa_other': 'WhatsApp (other number)', 'todo': 'To-do'}
 # the read-only "Replies" line: what the temperature codes mean, in plain words
-CRM_REPLIES = {'L': 'Comes back', 'R': 'Replies', 'U': 'Not replying', 'Z': 'Stopped replying',
-               'DL': 'Number not working', 'EL': 'Cover ended'}
+CRM_REPLIES = {'L': 'Comes back', 'R': 'Replied', 'U': 'Not replying', 'Z': 'Stopped replying',
+               'DL': 'Wrong number', 'EL': 'Cover ended'}
 CRM_CALL_OUTCOMES = {'connected': 'Talked', 'no_answer': 'No answer', 'busy': 'Busy',
                      'call_back': 'Asked us to call back', 'wrong_number': 'Wrong number',
                      'switched_off': 'Switched off'}
@@ -1684,6 +1688,9 @@ CRM_CHECK_CHANNELS = ['Tawk', 'FB Messenger', 'Instagram Messenger', 'FB Comment
 CRM_CHECK_HOURS = (7, 24)     # IST, half-hour slots from 07:00 to midnight
 # How ready to buy -- the colour of the row in the sales sheet (green: ready, yellow: thinking).
 CRM_LIKELIHOOD = {'hot': 'Ready to buy', 'warm': 'Thinking about it', 'cold': 'Not likely'}
+# How sure a deal is, for the Forecast page (a stage's "Counts in the forecast as"; a lead may override it)
+CRM_FORECASTS = {'pipeline': 'Pipeline', 'best_case': 'Best case', 'commit': 'Committed', 'won': 'Closed won',
+                 'lost': 'Lost'}
 # What a stage does by itself: move a lead on after N days without a reply, or once the trip
 # has started or passed another date (N days after it), or sat in the stage for N days.
 CRM_AUTO_KINDS = {'no_reply': 'days with no reply from them', 'in_stage': 'days in this stage',
@@ -1692,9 +1699,12 @@ CRM_AUTO_KINDS = {'no_reply': 'days with no reply from them', 'in_stage': 'days 
 
 class CrmPipeline(db.Model):
     __tablename__ = 'crm_pipelines'
+    __table_args__ = (db.UniqueConstraint('workspace_id', 'key', name='uq_crm_pipelines_ws_key'),)
 
     id = db.Column(db.Integer, primary_key=True)
-    key = db.Column(db.String(40), unique=True, nullable=False)
+    # the workspace whose CRM this belongs to (Sales CRM 2.0, run 5a; NULL = the default workspace, services/crm_scope)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
+    key = db.Column(db.String(40), nullable=False)
     name = db.Column(db.String(80), nullable=False)
     product = db.Column(db.String(8), nullable=False, default='GEN')
     is_active = db.Column(db.Boolean, nullable=False, default=True)
@@ -1727,9 +1737,12 @@ class CrmProduct(db.Model):
     """What a lead asks about (Set-up -> Pipelines -> Products, U6). The code is in WhatsApp tags
     ("TI", "TI: Prospect"); read through services/crm_products.py, never the seed constants."""
     __tablename__ = 'crm_products'
+    __table_args__ = (db.UniqueConstraint('workspace_id', 'code', name='uq_crm_products_ws_code'),)
 
     id = db.Column(db.Integer, primary_key=True)
-    code = db.Column(db.String(8), unique=True, nullable=False)
+    # the workspace whose CRM this belongs to (Sales CRM 2.0, run 5a; NULL = the default workspace, services/crm_scope)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
+    code = db.Column(db.String(8), nullable=False)
     name = db.Column(db.String(60), nullable=False)
     icon = db.Column(db.String(40), nullable=False, default='fa-layer-group')
     offered = db.Column(db.Boolean, nullable=False, default=True)
@@ -1737,6 +1750,14 @@ class CrmProduct(db.Model):
     currency = db.Column(db.String(3), nullable=False, default='INR')
     kpi_row = db.Column(db.String(30))        # a crm_kpi row its new leads also count in (TC: tc_posts)
     position = db.Column(db.Integer, nullable=False, default=0)
+    # money (Phase 1): the usual amount, what we earn on it ('fixed' amount / 'percent' of it / NULL: all of it),
+    # and the usual days from enquiry to sale (the default close date; NULL: 14)
+    price = db.Column(db.Numeric(12, 2), nullable=True)
+    revenue_kind = db.Column(db.String(8), nullable=True)
+    revenue_value = db.Column(db.Numeric(12, 2), nullable=True)
+    close_days = db.Column(db.Integer, nullable=True)
+    # the biggest discount an agent may quote without asking (percent of the price); NULL: no limit
+    max_discount_pct = db.Column(db.Numeric(5, 2), nullable=True)
 
     default_pipeline = db.relationship('CrmPipeline')
 
@@ -1789,11 +1810,17 @@ class CrmStage(db.Model):
     auto_to_id = db.Column(db.Integer, db.ForeignKey('crm_stages.id', use_alter=True,
                                                      name='fk_crm_stage_auto_to'), nullable=True)
     auto_reason = db.Column(db.String(80))
+    # what a person must fill in before a lead moves in (run 3b): field keys -- amount, close_date,
+    # departure_date, ends_on, or one of the pipeline's own fields. NULL / empty: nothing.
+    requires = db.Column(db.JSON, nullable=True)
     # "This stage means" (CRM_STAGE_MEANS): kind and the funnel role follow it
     means = db.Column(db.String(8))
     # the lead page's button for this stage ("I sent the quote" / Q)
     button_label = db.Column(db.String(60))
     button_code = db.Column(db.String(20))
+    # the forecast category (CRM_FORECASTS) and the chance to win (0-100) its leads count with; NULL: automatic
+    forecast = db.Column(db.String(10), nullable=True)
+    probability = db.Column(db.Integer, nullable=True)
 
     auto_to = db.relationship('CrmStage', remote_side='CrmStage.id', foreign_keys=[auto_to_id], post_update=True)
 
@@ -1845,9 +1872,12 @@ def _crm_stage_kind(mapper, connection, target):
 
 class CrmSource(db.Model):
     __tablename__ = 'crm_sources'
+    __table_args__ = (db.UniqueConstraint('workspace_id', 'key', name='uq_crm_sources_ws_key'),)
 
     id = db.Column(db.Integer, primary_key=True)
-    key = db.Column(db.String(60), unique=True, nullable=False)
+    # the workspace whose CRM this belongs to (Sales CRM 2.0, run 5a; NULL = the default workspace, services/crm_scope)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
+    key = db.Column(db.String(60), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     kind = db.Column(db.String(10), nullable=False, default='form')
     product = db.Column(db.String(8), nullable=False, default='GEN')
@@ -1862,20 +1892,49 @@ class CrmSource(db.Model):
     last_lead_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    # how new leads are shared: NULL / 'fewest' = whoever has the fewest open leads, 'round_robin' = in turn
+    assign_mode = db.Column(db.String(12), nullable=True)
+    rr_last_user_id = db.Column(db.Integer, nullable=True)
 
     pipeline = db.relationship('CrmPipeline')
 
 
-class CrmPerson(db.Model):
-    __tablename__ = 'crm_people'
+class CrmHousehold(db.Model):
+    """A family (Sales CRM 2.0): the child abroad who pays, the parents, the carer. People link to it with
+    CrmPerson.household_id; services/crm_household.py keeps it (made with the first link, deleted when empty)."""
+    __tablename__ = 'crm_households'
 
     id = db.Column(db.Integer, primary_key=True)
-    phone = db.Column(db.String(20), unique=True, nullable=True)          # E.164
+    # the workspace whose CRM this belongs to (Sales CRM 2.0, run 5a; NULL = the default workspace, services/crm_scope)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
+    name = db.Column(db.String(120), nullable=False)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+
+HOUSEHOLD_ROLES = (('payer', 'Pays (child abroad)'), ('parent', 'Parent'), ('carer', 'Carer'), ('other', 'Other'))
+
+
+class CrmPerson(db.Model):
+    __tablename__ = 'crm_people'
+    # one contact per number in each workspace (the same number can be a contact in two workspaces)
+    __table_args__ = (db.UniqueConstraint('workspace_id', 'phone', name='uq_crm_people_ws_phone'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    # the workspace whose CRM this belongs to (Sales CRM 2.0, run 5a; NULL = the default workspace, services/crm_scope)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
+    phone = db.Column(db.String(20), nullable=True)          # E.164
     email = db.Column(db.String(255), nullable=True, index=True)
     name = db.Column(db.String(120))
     country = db.Column(db.String(2))                                     # ISO code of the number
     consent_whatsapp = db.Column(db.Boolean, nullable=False, default=False)
+    # "OK to send offers" (Sales CRM 2.0, run 5b): never the WhatsApp tick above. When it was last given or taken
+    # back, how ("form: Diwali offer", "contact page", "merge"), and by whom on the staff (NULL: the person on a form)
     consent_marketing = db.Column(db.Boolean, nullable=False, default=False)
+    consent_marketing_at = db.Column(db.DateTime, nullable=True)
+    consent_marketing_how = db.Column(db.String(120), nullable=True)
+    consent_marketing_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     wacrm_contact_id = db.Column(db.String(64), nullable=True, index=True)
     wacrm_conversation_id = db.Column(db.String(64), nullable=True)
@@ -1898,7 +1957,11 @@ class CrmPerson(db.Model):
     wa_history_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # the family they belong to (services/crm_household.py) and their part in it: payer / parent / carer / other
+    household_id = db.Column(db.Integer, db.ForeignKey('crm_households.id'), nullable=True, index=True)
+    household_role = db.Column(db.String(10), nullable=True)
 
+    household = db.relationship('CrmHousehold', backref=db.backref('members', order_by='CrmPerson.id'))
     leads = db.relationship('CrmLead', backref='person', order_by='CrmLead.created_at.desc()')
     identities = db.relationship('CrmIdentity', backref='person', cascade='all, delete-orphan',
                                  order_by='CrmIdentity.id')
@@ -1921,8 +1984,28 @@ class CrmIdentity(db.Model):
     kind = db.Column(db.String(20), nullable=False)
     value = db.Column(db.String(190), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # its person's workspace, kept here only so the same handle can be a contact in two workspaces
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
 
-    __table_args__ = (db.UniqueConstraint('kind', 'value', name='uq_crm_identity'),)
+    __table_args__ = (db.UniqueConstraint('workspace_id', 'kind', 'value', name='uq_crm_identities_ws'),)
+
+
+class CrmFile(db.Model):
+    """A document kept on a person (and maybe one of their enquiries): a passport copy, a policy, a quote PDF.
+    The bytes live in PRIVATE_UPLOAD_FOLDER/crm/<stored_name>, never under static (services/crm_files.py)."""
+    __tablename__ = 'crm_files'
+
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.Integer, db.ForeignKey('crm_people.id'), nullable=False, index=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey('crm_leads.id'), nullable=True, index=True)
+    filename = db.Column(db.String(200), nullable=False)
+    stored_name = db.Column(db.String(80), nullable=False, unique=True)
+    size = db.Column(db.Integer, nullable=False, default=0)
+    content_type = db.Column(db.String(100))
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    uploaded_by = db.relationship('User', foreign_keys=[uploaded_by_id])
 
 
 class CrmChannelCheck(db.Model):
@@ -1936,15 +2019,19 @@ class CrmChannelCheck(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     checked_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
+
     user = db.relationship('User')
 
-    __table_args__ = (db.UniqueConstraint('day', 'slot', 'channel', name='uq_crm_check'),)
+    __table_args__ = (db.UniqueConstraint('workspace_id', 'day', 'slot', 'channel', name='uq_crm_checks_ws'),)
 
 
 class CrmLead(db.Model):
     __tablename__ = 'crm_leads'
 
     id = db.Column(db.Integer, primary_key=True)
+    # the workspace whose CRM this belongs to (Sales CRM 2.0, run 5a; NULL = the default workspace, services/crm_scope)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
     person_id = db.Column(db.Integer, db.ForeignKey('crm_people.id'), nullable=False, index=True)
     product = db.Column(db.String(8), nullable=False, default='GEN')
     source_id = db.Column(db.Integer, db.ForeignKey('crm_sources.id'), nullable=True, index=True)
@@ -1975,12 +2062,29 @@ class CrmLead(db.Model):
     closed_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)   # staff who added it
+    # money (Phase 1): the deal value in its own currency, what we earn on it (same currency), the day it
+    # should count in, and the agent's own forecast category (NULL: the stage's)
+    amount = db.Column(db.Numeric(12, 2), nullable=True)
+    currency = db.Column(db.String(3), nullable=True)
+    revenue = db.Column(db.Numeric(12, 2), nullable=True)
+    close_date = db.Column(db.Date, nullable=True)
+    forecast = db.Column(db.String(10), nullable=True)
+    # the recycle bin (run 3b): a removed lead is only marked; crm_bin hides it everywhere
+    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
+    deleted_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    # lead scoring (run 5b, services/crm_scoring): the points it has now (NULL: not scored / scoring off), and
+    # whether a person picked the rating ("Ready to buy?") -- then the score never changes it
+    score = db.Column(db.Integer, nullable=True)
+    likelihood_manual = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    # "Summarise" on the lead page (services/crm_ai): {touch_id, summary, next, at} -- good until a newer touch
+    ai_cache = db.Column(db.JSON, nullable=True)
 
     source = db.relationship('CrmSource')
     pipeline = db.relationship('CrmPipeline')
     stage = db.relationship('CrmStage')
     owner = db.relationship('User', foreign_keys=[owner_id])
     created_by = db.relationship('User', foreign_keys=[created_by_id])
+    deleted_by = db.relationship('User', foreign_keys=[deleted_by_id])
     tasks = db.relationship('CrmTask', backref='lead', order_by='CrmTask.due_at',
                             cascade='all, delete-orphan')
     touchpoints = db.relationship('CrmTouchpoint', backref='lead',
@@ -1991,13 +2095,29 @@ class CrmLead(db.Model):
 
     @property
     def open_task(self):
-        return next((t for t in self.tasks if t.status == 'open'), None)
+        # the next STEP; tasks, calls and meetings added by hand are not "the next step"
+        return next((t for t in self.tasks if t.status == 'open' and t.is_step), None)
 
     @property
     def days_to_departure(self):
         if not self.departure_date:
             return None
         return (self.departure_date - date.today()).days
+
+    @property
+    def forecast_category(self):
+        from app.services import crm_money
+        return crm_money.lead_forecast(self)
+
+    @property
+    def win_chance(self):
+        from app.services import crm_money
+        return crm_money.lead_chance(self)
+
+    @property
+    def expected(self):
+        from app.services import crm_money
+        return crm_money.lead_expected(self)
 
     @property
     def stuck_hours(self):
@@ -2007,6 +2127,236 @@ class CrmLead(db.Model):
             return None
         over = (datetime.utcnow() - self.entered_stage_at).total_seconds() / 3600 - st.sla_hours
         return int(over) if over > 0 else None
+
+
+class CrmCurrencyRate(db.Model):
+    """Reporting-currency units for one unit of `code` (the reporting currency is the app setting crm.currency)."""
+    __tablename__ = 'crm_currency_rates'
+
+    code = db.Column(db.String(3), primary_key=True)
+    rate = db.Column(db.Numeric(14, 6), nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+
+class CrmTarget(db.Model):
+    """What a person (or a team) aims for in one month: money won (reporting currency), deals, new leads.
+    One of user / team is set -- both empty is the whole company (new-leads target only). Uniqueness is kept in
+    code (crm_money.save_target), because NULLs in a unique constraint differ between SQLite and PostgreSQL."""
+    __tablename__ = 'crm_targets'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # the workspace whose CRM this belongs to (Sales CRM 2.0, run 5a; NULL = the default workspace, services/crm_scope)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
+    period = db.Column(db.String(7), nullable=False, index=True)          # 'YYYY-MM'
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    team_id = db.Column(db.Integer, db.ForeignKey('workspace_teams.id', ondelete='CASCADE'), nullable=True, index=True)
+    pipeline_id = db.Column(db.Integer, db.ForeignKey('crm_pipelines.id'), nullable=True)
+    amount = db.Column(db.Numeric(12, 2), nullable=True)
+    deals = db.Column(db.Integer, nullable=True)
+    leads = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+
+class CrmDailyStat(db.Model):
+    """One saved number for one India day (Sales CRM 2.0, services/crm_numbers.py): an 'event' metric -- something that
+    happened that day -- for one person (user_id NULL = the whole company) in one pipeline (NULL = all pipelines).
+    Uniqueness (day, metric, user, pipeline) is kept in code (an upsert), because NULLs in a unique constraint differ
+    between SQLite and PostgreSQL."""
+    __tablename__ = 'crm_daily_stats'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # the workspace whose CRM this belongs to (Sales CRM 2.0, run 5a; NULL = the default workspace, services/crm_scope)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
+    day = db.Column(db.Date, nullable=False)
+    metric = db.Column(db.String(40), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    pipeline_id = db.Column(db.Integer, db.ForeignKey('crm_pipelines.id'), nullable=True)
+    value = db.Column(db.Numeric(14, 2), nullable=False, default=0)
+    computed_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (db.Index('ix_crm_daily_stats_day_metric', 'day', 'metric'),)
+
+
+CRM_QUOTE_STATUSES = ('draft', 'sent', 'accepted', 'declined', 'expired')
+CRM_PAYMENT_STATUSES = ('pending', 'paid', 'failed', 'refunded')
+
+
+class CrmQuote(db.Model):
+    """A quote on a lead (Sales CRM 2.0, run 4b): what we offered, for how much, until when. Hangs on the lead
+    (hidden with it in the recycle bin and by visibility). services/crm_quotes.py keeps it."""
+    __tablename__ = 'crm_quotes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey('crm_leads.id'), nullable=False, index=True)
+    title = db.Column(db.String(160), nullable=False)
+    details = db.Column(db.Text)
+    amount = db.Column(db.Numeric(12, 2), nullable=True)
+    currency = db.Column(db.String(3), nullable=True)
+    valid_until = db.Column(db.Date, nullable=True)
+    status = db.Column(db.String(10), nullable=False, default='draft')
+    needs_approval = db.Column(db.Boolean, nullable=False, default=False)
+    approved_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    approved_at = db.Column(db.DateTime, nullable=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    sent_at = db.Column(db.DateTime, nullable=True)
+    # the "Quote sent" milestone line that Mark as sent logged (the numbers then count that line, not this row)
+    sent_touch_id = db.Column(db.Integer, nullable=True)
+
+    lead = db.relationship('CrmLead', backref=db.backref('quotes', cascade='all, delete-orphan',
+                                                          order_by='CrmQuote.id.desc()'))
+    approved_by = db.relationship('User', foreign_keys=[approved_by_id])
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+
+    @property
+    def reference(self):
+        return 'Q-%d' % self.id
+
+
+class CrmPayment(db.Model):
+    """A payment link (or a bank transfer) asked for on a lead; paid when someone marks it or the provider says so."""
+    __tablename__ = 'crm_payments'
+
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey('crm_leads.id'), nullable=False, index=True)
+    quote_id = db.Column(db.Integer, db.ForeignKey('crm_quotes.id'), nullable=True)
+    amount = db.Column(db.Numeric(12, 2), nullable=True)
+    currency = db.Column(db.String(3), nullable=True)
+    link_url = db.Column(db.String(500))
+    provider = db.Column(db.String(30))
+    reference = db.Column(db.String(80), index=True)
+    status = db.Column(db.String(10), nullable=False, default='pending')
+    paid_at = db.Column(db.DateTime, nullable=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # the "Payment link sent" milestone line it logged (see CrmQuote.sent_touch_id)
+    link_touch_id = db.Column(db.Integer, nullable=True)
+
+    lead = db.relationship('CrmLead', backref=db.backref('payments', cascade='all, delete-orphan',
+                                                          order_by='CrmPayment.id.desc()'))
+    quote = db.relationship('CrmQuote', foreign_keys=[quote_id])
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+
+
+class CrmView(db.Model):
+    """A saved view of Leads or Contacts: the page's filters under a name (Sales CRM 2.0, run 4b). Not
+    SavedFilter: that one is bound to the post listings' filter engine (see services/crm_views.py)."""
+    __tablename__ = 'crm_views'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # the workspace whose CRM this belongs to (Sales CRM 2.0, run 5a; NULL = the default workspace, services/crm_scope)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
+    owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    scope = db.Column(db.String(20), nullable=False, default='crm_leads')        # crm_leads / crm_contacts
+    name = db.Column(db.String(60), nullable=False)
+    params = db.Column(db.JSON, nullable=False, default=dict)
+    shared = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    owner = db.relationship('User', foreign_keys=[owner_id])
+
+
+class CrmSavedReport(db.Model):
+    """A report somebody built on the report builder, kept by name (config: whitelisted keys only)."""
+    __tablename__ = 'crm_saved_reports'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # the workspace whose CRM this belongs to (Sales CRM 2.0, run 5a; NULL = the default workspace, services/crm_scope)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
+    name = db.Column(db.String(80), nullable=False)
+    owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    shared = db.Column(db.Boolean, nullable=False, default=False)
+    config = db.Column(db.JSON, nullable=False, default=dict)
+    pinned = db.Column(db.Boolean, nullable=False, default=False)
+    position = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    owner = db.relationship('User', foreign_keys=[owner_id])
+
+
+class CrmRule(db.Model):
+    """An automation rule (Sales CRM 2.0, run 5b, services/crm_rules): WHEN something happens to a lead (trigger +
+    trigger_args), IF its fields say so (conditions [{field, op, value}]), THEN do these (actions [{type, ...}]).
+    Every choice comes from the whitelists in crm_rules; nothing a rule does messages a customer."""
+    __tablename__ = 'crm_rules'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # the workspace whose CRM this belongs to (NULL = the default workspace, services/crm_scope)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
+    name = db.Column(db.String(120), nullable=False)
+    active = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    trigger = db.Column(db.String(20), nullable=False)
+    trigger_args = db.Column(db.JSON, nullable=True)
+    conditions = db.Column(db.JSON, nullable=True)
+    actions = db.Column(db.JSON, nullable=True)
+    position = db.Column(db.Integer, nullable=False, default=0)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_run_at = db.Column(db.DateTime, nullable=True)
+    run_count = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+    last_error = db.Column(db.String(300), nullable=True)
+    last_error_at = db.Column(db.DateTime, nullable=True)
+    # the clash with a stage's own automatic move last rung about (check_automation_conflicts); NULL: none
+    conflict = db.Column(db.String(300), nullable=True)
+
+
+class CrmRuleRun(db.Model):
+    """A rule ran for a lead on one triggering event: at most once (the unique key), so a repeat of the same event,
+    a second worker or a chain coming back round never runs it twice."""
+    __tablename__ = 'crm_rule_runs'
+    __table_args__ = (db.UniqueConstraint('rule_id', 'lead_id', 'event_key', name='uq_crm_rule_runs'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    rule_id = db.Column(db.Integer, db.ForeignKey('crm_rules.id'), nullable=False, index=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey('crm_leads.id'), nullable=False, index=True)
+    event_key = db.Column(db.String(120), nullable=False)
+    ok = db.Column(db.Boolean, nullable=False, default=True)
+    at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class CrmScoreRule(db.Model):
+    """One line of lead scoring (run 5b, services/crm_scoring): a signal ("they replied", "the trip is within 14
+    days") and the points it is worth (minus for a bad sign)."""
+    __tablename__ = 'crm_score_rules'
+
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
+    name = db.Column(db.String(120), nullable=False)
+    points = db.Column(db.Integer, nullable=False, default=0)
+    signal = db.Column(db.String(30), nullable=False)
+    args = db.Column(db.JSON, nullable=True)
+    active = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
+    position = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class CrmCampaign(db.Model):
+    """A marketing activity or paid campaign (Lead sources -> Marketing activities; run 5b moved them here from the
+    'crm' setting): who does it and where it stands, and -- for the Campaigns table on Sales results -- the
+    utm_campaign it carries in its links, the lead source it feeds, its dates and what it cost."""
+    __tablename__ = 'crm_campaigns'
+
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
+    platform = db.Column(db.String(200), nullable=True)
+    name = db.Column(db.String(200), nullable=True)               # the activity ("Search ads")
+    who = db.Column(db.String(200), nullable=True)
+    status = db.Column(db.String(200), nullable=True)             # where it stands ("Ongoing")
+    utm_campaign = db.Column(db.String(120), nullable=True, index=True)
+    source_id = db.Column(db.Integer, db.ForeignKey('crm_sources.id'), nullable=True)
+    starts_on = db.Column(db.Date, nullable=True)
+    ends_on = db.Column(db.Date, nullable=True)
+    cost = db.Column(db.Numeric(12, 2), nullable=True)
+    currency = db.Column(db.String(3), nullable=True)
+    position = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    source = db.relationship('CrmSource')
 
 
 class CrmTouchpoint(db.Model):
@@ -2037,7 +2387,7 @@ class CrmTask(db.Model):
     __tablename__ = 'crm_tasks'
 
     id = db.Column(db.Integer, primary_key=True)
-    lead_id = db.Column(db.Integer, db.ForeignKey('crm_leads.id'), nullable=False, index=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey('crm_leads.id'), nullable=True, index=True)
     step_id = db.Column(db.Integer, db.ForeignKey('crm_playbook_steps.id'), nullable=True)
     code = db.Column(db.String(20))
     title = db.Column(db.String(160), nullable=False)
@@ -2050,13 +2400,47 @@ class CrmTask(db.Model):
     done_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     note = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # tasks, calls and meetings that people add by hand (Sales CRM 2.0). kind 'step' is a follow-up step
+    # of a pipeline (or a call-back / imported follow-up): only those have a lead for certain.
+    person_id = db.Column(db.Integer, db.ForeignKey('crm_people.id'), nullable=True, index=True)
+    kind = db.Column(db.String(10), nullable=False, default='step', server_default='step')
+    ends_at = db.Column(db.DateTime, nullable=True)
+    location = db.Column(db.String(200), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    priority = db.Column(db.String(8), nullable=True)           # low / normal / high
 
     step = db.relationship('CrmPlaybookStep')
     owner = db.relationship('User', foreign_keys=[owner_id])
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+    person = db.relationship('CrmPerson', backref=db.backref('tasks', cascade='all, delete-orphan'))
+
+    @property
+    def is_step(self):
+        return (self.kind or 'step') == 'step'
 
     @property
     def is_overdue(self):
         return self.status == 'open' and self.due_at < datetime.utcnow()
+
+
+class CrmAudit(db.Model):
+    """One changed field of a lead, a person, a task...: who, when, what it was and what it became.
+    Raw values (ids, ISO dates); services/crm_audit turns them into words when they are shown."""
+    __tablename__ = 'crm_audit'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # the workspace whose CRM this belongs to (Sales CRM 2.0, run 5a; NULL = the default workspace, services/crm_scope)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
+    at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    user_id = db.Column(db.Integer, nullable=True)           # NULL: the system (a job, a reply, an import)
+    record_type = db.Column(db.String(12), nullable=False)    # lead / person / task / quote ...
+    record_id = db.Column(db.Integer, nullable=False)
+    field = db.Column(db.String(40), nullable=False)
+    old = db.Column(db.Text)
+    new = db.Column(db.Text)
+
+    __table_args__ = (db.Index('ix_crm_audit_record', 'record_type', 'record_id'),)
 
 
 class CrmStageChange(db.Model):
@@ -2108,6 +2492,8 @@ class CrmAnswer(db.Model):
     __tablename__ = 'crm_answers'
 
     id = db.Column(db.Integer, primary_key=True)
+    # the workspace whose CRM this belongs to (Sales CRM 2.0, run 5a; NULL = the default workspace, services/crm_scope)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
     title = db.Column(db.String(160), nullable=False)       # the question, in their words
     keywords = db.Column(db.String(400))                    # more words that should find it
     # set on a ready message rather than an answer: BW, FM, HJ... picked from "Quick messages"
@@ -2127,6 +2513,8 @@ class CrmActivity(db.Model):
     __tablename__ = 'crm_activities'
 
     id = db.Column(db.Integer, primary_key=True)
+    # the workspace whose CRM this belongs to (Sales CRM 2.0, run 5a; NULL = the default workspace, services/crm_scope)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
     day = db.Column(db.Date, nullable=False, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
     metric = db.Column(db.String(30), nullable=False)
@@ -2206,6 +2594,9 @@ class WorkspaceRole(db.Model):
     # 'admin' / 'cs' for the two every workspace starts with; NULL for the ones staff make. The
     # administrator's pages cannot be edited: a workspace must always have a way back in.
     system_key = db.Column(db.String(20))
+    # which leads people with this role see in the Sales CRM: NULL / 'all' = everyone's, 'team' = their
+    # team's, 'own' = only their own (services/crm_access)
+    crm_scope = db.Column(db.String(8), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -2240,6 +2631,8 @@ class WorkspaceMember(db.Model):
     wacrm_role = db.Column(db.String(20))
     wacrm_synced_at = db.Column(db.DateTime)
     wacrm_error = db.Column(db.String(255))
+    # away until this moment (UTC): no new leads are shared with them (services/crm_assign)
+    away_until = db.Column(db.DateTime, nullable=True)
 
     user = db.relationship('User', foreign_keys=[user_id])
     role = db.relationship('WorkspaceRole')

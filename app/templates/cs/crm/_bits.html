@@ -6,7 +6,7 @@
 {%- endmacro %}
 
 {% macro temp_dot(t) -%}
-<span class="temp t-{{ t or 'none' }}" title="{{ TEMPS.get(t, 'Not contacted yet') if t else 'Not contacted yet' }}"></span>
+<span class="temp t-{{ t or 'none' }}" title="{{ REPLIES.get(t, 'Not replied yet') if t else 'Not replied yet' }}"></span>
 {%- endmacro %}
 
 {# The pipeline symbol: one colour per kind of stage, and dots for how far along the journey they
@@ -58,6 +58,26 @@
 {% macro ist(dt) -%}{{ (dt + IST_OFFSET).strftime('%d %b, %I:%M %p') if dt else '' }}{%- endmacro %}
 
 {% macro initials(name) -%}{{ ((name or '?').split()|map('first')|list)[:2]|join|upper }}{%- endmacro %}
+
+{# a task, call or meeting somebody added by hand, as a card: what, with whom, when -- and one button, Done #}
+{% macro my_task_card(t, utcnow, show_owner=false) -%}
+{%- set p = t.lead.person if t.lead else t.person -%}
+<article class="crm-task crm-mytask{{ ' late' if t.due_at < utcnow }}" id="task-{{ t.id }}" data-task="{{ t.id }}"{% if t.lead_id %} data-lead="{{ t.lead_id }}"{% endif %}>
+  <div>
+    <div class="who">
+      {% if p %}<a class="nm" href="{{ crm_url('lead', lead_id=t.lead_id) if t.lead_id else crm_url('contact', person_id=p.id) }}">{{ p.display_name }}</a>{% endif %}
+      <span class="chip tk-{{ t.kind }}"><i class="fa-solid {{ {'todo': 'fa-list-check', 'call': 'fa-phone', 'meeting': 'fa-handshake'}.get(t.kind, 'fa-list-check') }}"></i> {{ {'todo': 'To-do', 'call': 'Call', 'meeting': 'Meeting'}.get(t.kind, 'To-do') }}</span>
+      {% if t.priority == 'high' %}<span class="chip bad">High</span>{% elif t.priority == 'low' %}<span class="chip">Low</span>{% endif %}
+    </div>
+    <div class="what"><b>{{ t.title }}</b> <span class="due">· {{ TASK_WHEN(t) }}{% if t.due_at < utcnow %} (late){% endif %}{% if show_owner %} · {{ t.owner.full_name if t.owner else 'nobody' }}{% endif %}</span></div>
+    {% if t.location %}<div class="muted small"><i class="fa-solid fa-location-dot"></i> {{ t.location }}</div>{% endif %}
+    {% if t.notes %}<div class="msg clamp">{{ t.notes }}</div>{% endif %}
+  </div>
+  <div class="btns">
+    {% if CAN_CHANGE_TASK(t) %}<button type="button" class="cb primary" data-act="done"><i class="fa-solid fa-check"></i> Done</button>{% endif %}
+  </div>
+</article>
+{%- endmacro %}
 
 {# a follow-up as a card: who, what to do, the words (two lines), and ONE button -- the one the send plan
    chose (crm.task_plan) -- with the quiet ways out under it #}

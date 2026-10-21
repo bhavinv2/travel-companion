@@ -27,7 +27,7 @@ def ti_lead(phone='+919876543210', **kw):
 def test_customer_service_sees_only_the_days_work(app, client, cs_user):
     login(client, cs_user.email)
     page = client.get('/cs/crm/today').get_data(as_text=True)
-    for label in ('My day', 'Leads', 'Add a lead', 'Half-hourly check', 'How we sell'):   # U2 renamed Inbox check
+    for label in ('My day', 'Leads', 'Add a lead'):   # U2 renamed Inbox check
         assert label in page, label
     for label in ('Team today', 'Results', 'Where leads come from', 'Site dashboard'):
         assert label not in page, label
@@ -83,7 +83,7 @@ def test_the_daily_tracker(app, client, admin_user, cs_user):
     assert sheet['counts']['done'] == 1 and sheet['counts']['missed'] == 1 and sheet['counts']['messages'] == 1
     states = {lead_.person.name: [i['state'] for i in items] for lead_, items in sheet['checklist']}
     assert states['Ramesh Kumar'] == ['done'] and states['Missed Person'] == ['missed']
-    assert any('Sent TI #1' in text for _, _, _, text in sheet['timeline'])
+    assert any(text.startswith('Sent ') and 'TI #' not in text for _, _, _, text in sheet['timeline'])
 
     client.post('/auth/logout')
     login(client, admin_user.email)

@@ -13,7 +13,7 @@ Every function reads in one query for all the people or leads it is given -- nev
     unanswered_by_owner()  customers who wrote in a time span and had no answer when it ended
     first_reply_minutes()  per person, the median wait for a person's first answer
     reply_minutes() / first_contact_minutes() / waiting_people()  the same for Results: one median or count
-    DEFINITIONS          the words behind each number's (i) on Results
+    DEFINITIONS          the words behind each table's (i) on Results (the numbers' are in crm_numbers.METRICS)
     waiting_rows() / window_open_people()  the SQL forms of waiting_on_us / window_left_hours, for
                          filtering and counting in the database
     via_expr() / via_of()  who sent an outbound message, with the rule for rows from before `via`
@@ -30,7 +30,7 @@ from app import db
 from app.models import CrmLead, CrmPerson, CrmTouchpoint
 from app.services.crm import WINDOW_HOURS
 
-REPLY_CHANNELS = ('whatsapp', 'instagram', 'facebook')    # where they write and we answer from here
+REPLY_CHANNELS = ('whatsapp', 'instagram', 'facebook', 'email')    # where they write and we answer from here
 
 
 def _ranked(person_filter, until=None):
@@ -147,17 +147,18 @@ def window_open_people(person_filter, now=None):
     return select(r.c.person_id).where(r.c.real_in == 1, r.c.in_n == 1, r.c.created_at > since)
 
 
-def waiting_by_owner(owner_ids):
-    """{owner_id: n}: waiting_count() for many owners in one query. Snoozed leads still count: a
-    snooze hides a row on My day, it does not change a number."""
+def waiting_by_owner(owner_ids, pipeline_id=None):
+    """{owner_id: n}: waiting_count() for many owners in one query (`pipeline_id`: only their leads in that
+    pipeline). Snoozed leads still count: a snooze hides a row on My day, it does not change a number."""
     ids = sorted({int(i) for i in owner_ids if i})
     if not ids:
         return {}
-    owned = select(CrmLead.person_id).where(CrmLead.status == 'open', CrmLead.owner_id.in_(ids))
+    scope = [CrmLead.pipeline_id == pipeline_id] if pipeline_id else []
+    owned = select(CrmLead.person_id).where(CrmLead.status == 'open', CrmLead.owner_id.in_(ids), *scope)
     w = waiting_rows(CrmTouchpoint.person_id.in_(owned)).subquery()
     rows = (db.session.query(CrmLead.owner_id, func.count(func.distinct(CrmLead.person_id)))
             .join(w, w.c.person_id == CrmLead.person_id)
-            .filter(CrmLead.status == 'open', CrmLead.owner_id.in_(ids))
+            .filter(CrmLead.status == 'open', CrmLead.owner_id.in_(ids), *scope)
             .group_by(CrmLead.owner_id).all())
     return {o: n for o, n in rows}
 
@@ -240,18 +241,25 @@ def reply_minutes(start, end, person_ids=None, now=None):
     return round(median(got)) if got else None
 
 
-def first_contact_minutes(lead_ids):
-    """Median minutes from a lead coming in to the first message or call a PERSON made on it, for the leads
-    `lead_ids` (a select of CrmLead.id). Automatic messages are not counted; a lead nobody has contacted yet gives
-    no sample. None without samples."""
+def first_contact_samples(lead_ids):
+    """[(owner_id, minutes)]: from a lead coming in to the first message or call a PERSON made on it, for the
+    leads `lead_ids` (a select of CrmLead.id). Automatic messages are not counted; a lead nobody has contacted
+    yet gives no sample. One query."""
     tp = CrmTouchpoint
     first = (select(tp.lead_id.label('lead_id'), func.min(tp.created_at).label('t'))
              .where(tp.lead_id.in_(lead_ids), tp.direction == 'out', tp.channel.notin_(('system', 'note', 'form')),
                     func.coalesce(tp.status, '') != 'imported', via_expr() == VIA_PERSON)
              .group_by(tp.lead_id).subquery())
-    rows = (db.session.query(CrmLead.created_at, first.c.t)
+    rows = (db.session.query(CrmLead.owner_id, CrmLead.created_at, first.c.t)
             .join(first, first.c.lead_id == CrmLead.id).all())
-    got = [max((t - created).total_seconds() / 60, 0) for created, t in rows if created and t]
+    return [(owner, max((t - created).total_seconds() / 60, 0)) for owner, created, t in rows if created and t]
+
+
+def first_contact_minutes(lead_ids):
+    """Median minutes from a lead coming in to the first message or call a PERSON made on it, for the leads
+    `lead_ids` (a select of CrmLead.id). Automatic messages are not counted; a lead nobody has contacted yet gives
+    no sample. None without samples."""
+    got = [m for _, m in first_contact_samples(lead_ids)]
     return round(median(got)) if got else None
 
 
@@ -262,22 +270,16 @@ def waiting_people(person_ids):
 
 
 DEFINITIONS = {
-    'new_leads': 'Leads that came in during these days. Leads brought in from a list or the sales sheet are not counted.',
-    'replied': 'Leads whose customer wrote back for the first time during these days, on any channel. A form is not a reply.',
-    'quoted': 'Leads that reached a stage meaning Quoted for the first time during these days.',
-    'won': 'Leads marked won during these days.',
-    'first_contact': ('How long new leads waited for the first message or call from a person; half waited less. '
-                      'Automatic messages are not counted, nor leads nobody has contacted yet.'),
-    'reply_time': ("How long customers waited for a person's answer after they wrote; half waited less. "
-                   'Automatic replies are not counted.'),
-    'waiting_now': 'Customers who wrote last on WhatsApp, Instagram or Facebook and have no answer yet. Right now.',
-    'funnel': 'Of the leads that came in during these days: how many got this far.',
+    # the numbers' own definitions (new leads, replied, won ...) live in crm_numbers.METRICS; these are the
+    # tables and charts of Results
+    'funnel': 'The leads that came in during these days, and how far each one got: how many reached each step.',
+    'won_so_far': 'Of the leads that came in these days, how many are won by now.',
     'sources': ('Leads that came in during these days, by where they came from: how many replied and how many '
                 'are customers now.'),
     'campaigns': "The same, by the campaign name in the ad's link.",
     'by_sender': ('Messages we sent during these days: by a person, by itself (follow-ups, reply rules, the chatbot, '
                   'AI replies) or in a broadcast. Calls are not messages.'),
-    'milestones': 'How often somebody pressed I sent the quote or I sent the payment link on a lead.',
+    'milestones': 'How often somebody marked a quote or a payment link as sent on a lead during these days.',
     'lost': 'Leads lost during these days, by the reason given.',
     'day_by_day': 'Every number of the sales sheet, day by day. It counts every pipeline.',
 }

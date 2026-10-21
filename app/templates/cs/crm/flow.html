@@ -1,5 +1,6 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_tabs.html' import leads_switch with context %}
 {% from 'cs/crm/_bits.html' import when, initials, product_chip, channel_icon with context %}
 {% block crm_title %}Visual flow{% endblock %}
 
@@ -21,6 +22,7 @@
 {%- endmacro %}
 
 {% block crm %}
+<div class="leads-switch-row">{{ leads_switch('flow', board_href=crm_url('board', view='board'), list_href=crm_url('board', view='list')) }}</div>
 {{ page_head('Visual flow', 'fa-solid fa-diagram-project',
              'Every step from the first message to won or lost. Pick a customer to see where they are, how they got there and exactly what to do next.',
              help=['The coloured strip on each flow is the whole journey. Click a stage to read what happens there.',
@@ -111,7 +113,7 @@
     <h4 class="fw-sub">How they got here</h4>
     <ol class="flow-trail">
       <li><a href="{{ crm_url('lead', lead_id=l.id) }}#conversation"><b>Came in</b></a>
-        <span class="muted">{{ when(l.created_at, utcnow) }}{% if l.source %} · from “{{ l.source.name }}”{% endif %}</span></li>
+        <span class="muted">{{ when(l.created_at, utcnow) }}{% if l.source %} · from “{{ SOURCE_NAME(l.source.name) }}”{% endif %}</span></li>
       {% for s in e.path %}
       <li class="{{ 'now' if loop.last }}"><a href="{{ crm_url('lead', lead_id=l.id) }}#conversation"><b>{{ s.name }}</b></a>
         <span class="muted">{{ when(s.at, utcnow) }}{% if s.by %} · {{ s.by }}{% endif %}{% if s.reason %} · “{{ s.reason }}”{% endif %}</span></li>
@@ -178,7 +180,7 @@
         <div class="fg-body">
           <h3>How they come in</h3>
           {% if m.sources %}
-          <ul class="fg-do">{% for s in m.sources %}<li><i class="fa-solid fa-arrow-right-to-bracket" aria-hidden="true"></i> {{ s.name }} <span class="muted">· {{ KINDS.get(s.kind, s.kind) }}</span></li>{% endfor %}</ul>
+          <ul class="fg-do">{% for s in m.sources %}<li><i class="fa-solid fa-arrow-right-to-bracket" aria-hidden="true"></i> {{ SOURCE_NAME(s.name) }} <span class="muted">· {{ KINDS.get(s.kind, s.kind) }}</span></li>{% endfor %}</ul>
           {% else %}
           <p class="muted small">No form or channel sends leads here directly: they arrive when someone adds them, or are passed on from another flow.</p>
           {% endif %}

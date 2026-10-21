@@ -54,6 +54,6 @@
 <section class="card" id="whatsapp">
   <p class="ws-line"><i class="fa-brands fa-whatsapp" style="color:#25a244"></i>
     WhatsApp: {% if whatsapp.linked %}connected ✓{% elif not whatsapp.configured %}not set up on this server{% else %}not connected yet{% endif %}
-    {% if CAN('crm_connection') %}<a class="cb sm" href="{{ url_for('admin_crm.connection') }}">Open WhatsApp connection</a>{% endif %}</p>
+    {% if CAN('crm_connection') %}<a class="cb sm" href="{{ url_for('admin_crm.connection') }}">Open WhatsApp</a>{% endif %}</p>
 </section>
 {% endblock %}

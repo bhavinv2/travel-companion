@@ -144,18 +144,22 @@ def run_all():
     out.update(run_retention())
     out['scrape_stale_recovered'] = scraper_worker.recover_stale_runs()
     out['scrape_runs_started'] = scraper_worker.enqueue_scheduled()
-    from app.services import crm
+    from app.services import crm, crm_scope
+    # Each workspace has its own Sales CRM (run 5a): the CRM steps below run once per workspace
+    # (crm_scope.each_workspace), so an automation of one never touches another's leads; the WhatsApp ones run
+    # only for the workspace WhatsApp is linked to (crm_scope.in_whatsapp_workspace).
+    each, wa_only = crm_scope.each_workspace, crm_scope.in_whatsapp_workspace
     # Sales CRM <- WhatsApp CRM first: our webhook back on if the CRM switched it off, and the
     # replies it missed brought in -- so nothing below sends, or moves a lead for "no reply",
     # as if they had not written
     try:
-        out.update(crm.wa_webhook_health())
+        out.update(wa_only(crm.wa_webhook_health))
     except Exception:          # noqa: BLE001
         from app import db
         db.session.rollback()
         out['crm_wa_webhook'] = 'failed'
     try:
-        out.update(crm.wa_catch_up())
+        out.update(wa_only(crm.wa_catch_up))
     except Exception:          # noqa: BLE001
         from app import db
         db.session.rollback()
@@ -165,35 +169,53 @@ def run_all():
     # mid-send never sends one twice; the run stops taking steps after a minute, and a step that
     # may have gone is left for a person to check (crm.stuck_sends)
     try:
-        out.update(crm.run_auto_steps())
+        out.update(each(crm.run_auto_steps))
     except Exception:          # noqa: BLE001 -- one job failing must not stop the others reporting
         from app import db
         db.session.rollback()
         out['crm_auto_sent'] = 'failed'
     try:
-        out.update(crm.run_stage_automations())
-        out.update(crm.run_sla_alerts())
+        out.update(each(crm.run_stage_automations))
+        out.update(each(crm.run_sla_alerts))
     except Exception:          # noqa: BLE001
         from app import db
         db.session.rollback()
         out['crm_auto_moved'] = 'failed'
     # Sales CRM: somebody waiting on us longer than 15 minutes rings whoever looks after them (07:00-24:00 India)
     try:
-        out.update(crm.run_waiting_alerts())
+        out.update(each(crm.run_waiting_alerts))
     except Exception:          # noqa: BLE001
         from app import db
         db.session.rollback()
         out['crm_waiting_alerts'] = 'failed'
     # Sales CRM -> WhatsApp CRM: which tags are the Sales CRM's, once a day (contract 16)
     try:
-        out.update(crm.wa_tag_rule_daily())
+        out.update(wa_only(crm.wa_tag_rule_daily))
     except Exception:          # noqa: BLE001
         from app import db
         db.session.rollback()
         out['crm_wa_tag_rule'] = 'failed'
-    # Sales CRM <- WhatsApp CRM: reply rules that may repeat our follow-ups, once a day; a new one rings the admins
+    # Sales CRM: automation rules started by the calendar (days without activity, a date of the lead), per workspace
     try:
-        out.update(crm.check_automation_conflicts())
+        from app.services import crm_rules
+        out.update(each(crm_rules.run_time_triggers))
+    except Exception:          # noqa: BLE001
+        from app import db
+        db.session.rollback()
+        out['crm_rules_ran'] = 'failed'
+    # Sales CRM: lead scores, once a day per workspace (the trip comes nearer, a reply grows older) -- only where on
+    try:
+        from app.services import crm_scoring
+        out.update(each(crm_scoring.nightly))
+    except Exception:          # noqa: BLE001
+        from app import db
+        db.session.rollback()
+        out['crm_scores_changed'] = 'failed'
+    # Sales CRM <- WhatsApp CRM: reply rules that may repeat our follow-ups, once a day; a new one rings the admins.
+    # Per workspace, because it also rings when an automation rule's stage move fights a stage's own move; the
+    # WhatsApp part runs only in the workspace WhatsApp is linked to (crm_scope.wa_here)
+    try:
+        out.update(each(crm.check_automation_conflicts))
     except Exception:          # noqa: BLE001
         from app import db
         db.session.rollback()
@@ -201,7 +223,7 @@ def run_all():
     # Sales CRM -> WhatsApp CRM: whoever is still marked (a save whose sync failed, the backfill),
     # a few at a time; never a message
     try:
-        out.update(crm.run_wa_sync())
+        out.update(wa_only(crm.run_wa_sync))
     except Exception:          # noqa: BLE001
         from app import db
         db.session.rollback()
@@ -209,9 +231,25 @@ def run_all():
     # Sales CRM -> WhatsApp CRM: quick replies a save could not copy there
     try:
         from app.services import wa_templates
-        out.update(wa_templates.run_quick_replies())
+        out.update(wa_only(wa_templates.run_quick_replies))
     except Exception:          # noqa: BLE001
         from app import db
         db.session.rollback()
         out['crm_wa_quick'] = 'failed'
+    # Sales CRM 2.0: the numbers of yesterday and earlier days, saved once (a few days a run; safe to repeat)
+    try:
+        from app.services import crm_numbers
+        out.update(each(crm_numbers.snapshot_missing_days, limit_days=5))
+    except Exception:          # noqa: BLE001
+        from app import db
+        db.session.rollback()
+        out['crm_snapshot_days'] = 'failed'
+    # Sales CRM 2.0: leads removed more than 30 days ago are deleted for good (the Recycle bin)
+    try:
+        from app.services import crm_bin
+        out.update(each(crm_bin.purge_old))
+    except Exception:          # noqa: BLE001
+        from app import db
+        db.session.rollback()
+        out['crm_bin_purged'] = 'failed'
     return out

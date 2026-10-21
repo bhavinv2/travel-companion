@@ -24,6 +24,16 @@
     <p class="ws-muted" style="margin:0"><span class="ws-count" data-role-count>{{ chosen|length }}</span> page(s) chosen</p>
   </section>
 
+  {% set scope = (r.crm_scope if r else (copy_of.crm_scope if copy_of else None)) or 'all' %}
+  <section class="card" data-crm-scope>
+    <h3 style="margin:0 0 6px">Which leads can people with this role see?</h3>
+    <p class="ws-muted" style="margin:0 0 8px">In the Sales CRM. Leads that nobody looks after yet are seen by everyone.
+      Admins always see all.</p>
+    {% for key, label in CRM_SCOPES %}
+    <label style="display:block;margin:4px 0"><input type="radio" name="crm_scope" value="{{ key }}" {{ 'checked' if scope == key }} {{ 'disabled' if locked }}/> {{ label }}</label>
+    {% endfor %}
+  </section>
+
   {% for m in modules %}
   {% set mine = m.pages|selectattr('key', 'in', chosen)|list %}
   <section class="ws-role-mod{{ ' off' if not m.on }}" data-role-module>

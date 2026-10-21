@@ -1,25 +1,46 @@
-{# Where leads come from -> Marketing activities: platform, activity, who, where it stands. #}
+{# Where leads come from -> Marketing activities: platform, activity, who, where it stands -- and, for a campaign we
+   pay for, its campaign key (utm_campaign), lead source, dates and cost (Sales CRM 2.0, run 5b: crm_campaigns). #}
 {% from 'cs/crm/setup/_macros.html' import csrf with context %}
+{% macro act_row(r) -%}
+<tbody class="act-row" data-act-row>
+  <tr>
+    <td><input type="hidden" name="act_id" value="{{ r.id or '' }}"/><input type="text" name="platform" value="{{ r.platform or '' }}" maxlength="200" aria-label="Platform"/></td>
+    <td><input type="text" name="activity" value="{{ r.name or '' }}" maxlength="200" aria-label="Activity"/></td>
+    <td><input type="text" name="who" value="{{ r.who or '' }}" maxlength="200" aria-label="Who"/></td>
+    <td><input type="text" name="status" value="{{ r.status or '' }}" maxlength="200" aria-label="Where it stands"/></td>
+    <td><button type="button" class="cb quiet sm" data-act-remove aria-label="Remove this row">×</button></td>
+  </tr>
+  <tr class="act-camp">
+    <td colspan="5">
+      <span class="act-lbl">Campaign:</span>
+      <input type="text" name="utm" value="{{ r.utm_campaign or '' }}" maxlength="120" placeholder="campaign key in its links" aria-label="Campaign key (utm_campaign)"/>
+      <select name="source" aria-label="Lead source"><option value="">any lead source</option>
+        {% for s in sources %}<option value="{{ s.id }}"{{ ' selected' if r.source_id == s.id }}>{{ SOURCE_NAME(s.name) }}</option>{% endfor %}</select>
+      <label>from <input type="date" name="starts" value="{{ r.starts_on.isoformat() if r.starts_on else '' }}" aria-label="First day"/></label>
+      <label>to <input type="date" name="ends" value="{{ r.ends_on.isoformat() if r.ends_on else '' }}" aria-label="Last day"/></label>
+      <label>cost <input type="text" inputmode="decimal" name="cost" value="{{ PLAIN_AMOUNT(r.cost) }}" placeholder="25000" style="max-width:110px" aria-label="Cost"/></label>
+      <select name="currency" aria-label="Currency" style="width:auto">{% for c in CURRENCY_CHOICES() %}<option value="{{ c }}"{{ ' selected' if c == (r.currency or REPORT_CURRENCY()) }}>{{ c }}</option>{% endfor %}</select>
+    </td>
+  </tr>
+</tbody>
+{%- endmacro %}
 <section class="card">
   <h2>Marketing activities</h2>
   <p class="muted">The ways we find people, who does each, and where it stands. They are shown on How we sell.</p>
+  <details class="help-fold"><summary>(?) How this works</summary><ul>
+    <li>Each row is one way we find people. “Ongoing” in Where it stands shows as running on How we sell.</li>
+    <li>For a campaign we pay for, fill the second line: the campaign key its links carry (utm_campaign), the lead source it feeds, its dates and what it cost.</li>
+    <li>Sales results then shows its leads, customers won, won value, cost per lead, cost per customer and return. Money is counted in {{ REPORT_CURRENCY() }} with the exchange rates in Pipelines & products.</li>
+    <li>A lead belongs to a campaign when its link carried the key (and, if a source is chosen, it came from that source), between the first and last day.</li>
+  </ul></details>
   <form method="POST" action="{{ crm_url('save_activities') }}" data-act-form>
     {{ csrf() }}
     <table class="act-rows">
       <thead><tr><th>Platform</th><th>Activity</th><th>Who</th><th>Where it stands</th><th></th></tr></thead>
-      <tbody data-act-rows>
-      {% for platform, activity, who, status in activities + [['', '', '', '']] %}
-      <tr data-act-row>
-        <td><input type="text" name="platform" value="{{ platform }}" maxlength="200" aria-label="Platform"/></td>
-        <td><input type="text" name="activity" value="{{ activity }}" maxlength="200" aria-label="Activity"/></td>
-        <td><input type="text" name="who" value="{{ who }}" maxlength="200" aria-label="Who"/></td>
-        <td><input type="text" name="status" value="{{ status }}" maxlength="200" aria-label="Where it stands"/></td>
-        <td><button type="button" class="cb quiet sm" data-act-remove aria-label="Remove this row">×</button></td>
-      </tr>
-      {% endfor %}
-      </tbody>
+      {% for r in activities %}{{ act_row(r) }}{% endfor %}
+      {{ act_row(blank_activity) }}
     </table>
-    <p class="hint">Where it stands as Ongoing shows as running on How we sell.</p>
+    <p class="hint">Where it stands as Ongoing shows as running on How we sell. Leave the campaign line empty for anything that is not a paid campaign.</p>
     <div class="row">
       <button type="button" class="cb" data-act-add>+ Add row</button>
       <button class="cb primary">Save</button>

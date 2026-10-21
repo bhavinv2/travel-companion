@@ -7,7 +7,10 @@
   <main class="admin-main">
     <div class="card-head">
       <h1>New Blog Post</h1>
-      <a class="btn-sm" href="{{ url_for('blog.blog_list') }}" target="_blank"><i class="fa-solid fa-up-right-from-square"></i> View blog</a>
+      <span class="bs-head-links">
+        <a class="btn-sm" href="{{ url_for('admin.blog_import') }}"><i class="fa-solid fa-file-import"></i> Import from Word</a>
+        <a class="btn-sm" href="{{ url_for('blog.blog_list') }}" target="_blank"><i class="fa-solid fa-up-right-from-square"></i> View blog</a>
+      </span>
     </div>
 
     <div class="bf-restore" id="bfRestore" hidden>

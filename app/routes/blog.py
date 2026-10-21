@@ -24,7 +24,28 @@ def blog_list():
 @blog_bp.route('/blog/<slug>')
 def blog_post(slug):
     post = Blog.query.filter_by(slug=slug, is_published=True).first_or_404()
-    return render_template('pages/blog_post.html', post=post)
+    return render_template('pages/blog_post.html', post=post, **share_card(post))
+
+
+def share_card(post):
+    """The cover as the picture WhatsApp and Facebook show when the post is shared (base.html)."""
+    if not post.cover_image_url:
+        return {}
+    from app.services.blog_engine import site_url
+    url = site_url(post.cover_image_url)
+    if url.startswith('/'):
+        url = request.host_url.rstrip('/') + url
+    return {'share_image': url, 'share_image_alt': post.cover_alt or post.title}
+
+
+@blog_bp.app_template_filter('blog_html')
+def blog_html(content):
+    """A post's content as its public page shows it: rebuilt through the blog allowlist (a script,
+    an iframe, an onclick never reach a reader, whoever wrote the post), its pictures and site links
+    inside the app's prefix, and a picture nobody uploaded left out."""
+    from markupsafe import Markup
+    from app.services.blog_engine import render
+    return Markup(render(content or ''))
 
 
 @blog_bp.route('/api/feedback', methods=['POST'])

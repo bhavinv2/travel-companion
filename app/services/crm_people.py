@@ -19,13 +19,13 @@ from collections import Counter
 from datetime import datetime, timedelta
 
 from flask import Response, current_app, stream_with_context
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, true
 from sqlalchemy.orm import joinedload, selectinload
 
 from app import db
 from app.models import (ActivityEvent, CrmDoNotContact, CrmIdentity, CrmLead, CrmPerson, CrmSource, CrmStageChange,
                         CrmTask, CrmTouchpoint, Notification, User)
-from app.services import crm, crm_products, wacrm_team
+from app.services import crm, crm_money, crm_products, wacrm_team
 from app.services import phone as phone_svc
 
 # ------------------------------------------------------------------------------ wording
@@ -61,7 +61,7 @@ ERASE_WA = {'off': 'The WhatsApp chat was not erased because WhatsApp is not con
 ERASE_NO_ANSWER = 'WhatsApp did not answer, so nothing was erased. Try again in a minute.'
 LOGIN_STAYS = 'Their website login (%s) stays: remove it in Site settings → Users'
 DNC_LINE = 'They go on the do-not-contact list: imports skip them. If they fill in a form again, they are added back.'
-WA_FEED_OFF = 'WhatsApp is not connected yet. Connect it in Set-up → WhatsApp connection.'
+WA_FEED_OFF = 'WhatsApp is not connected yet. Connect it in Set-up → WhatsApp.'
 IMPORT_NOTE = 'Brought in from the list “%s”'
 NOTE_FROM = 'From WhatsApp: %s'
 FREE_SECONDS = 60
@@ -141,10 +141,10 @@ def dnc_since(rows):
 
 # ------------------------------------------------------------------------------ the matcher
 
-def person_match(q):
+def person_match(q, user=None):
     """SQL condition on CrmPerson: `q` is part of their name (every word), their phone in any format
     (phone_svc.matches; and the last 9 digits of a longer number), their e-mail, or an Instagram /
-    Facebook handle. None for an empty q. Display only: it never links people."""
+    Facebook handle, or the name of their family. None for an empty q. Display only: it never links people."""
     q = ' '.join((q or '').split())[:80]
     if not q:
         return None
@@ -156,6 +156,12 @@ def person_match(q):
     words = q.split()
     if len(words) > 1:
         parts.append(and_(*[CrmPerson.name.ilike('%%%s%%' % w) for w in words]))
+    from app.services import crm_household
+    parts.append(crm_household.match_condition(q))
+    from app.services import crm_quotes
+    ref = crm_quotes.ref_condition(q, user)           # "Q-12" or a payment reference
+    if ref is not None:
+        parts.append(ref)
     h = crm.clean_identity('instagram', q) or q.strip().lstrip('@').lower()
     if h:
         parts.append(CrmPerson.id.in_(select(CrmIdentity.person_id).where(
@@ -191,23 +197,28 @@ def find(q, user, limit=8):
     (crm.search_records), to fill up to `limit`. A fixed number of queries. Display only."""
     q = ' '.join((q or '').split())[:80]
     out = {'items': [], 'contacts_url': _crm_url('contacts', q=q), 'add_url': _crm_url('add', name=q)}
-    cond = person_match(q)
+    cond = person_match(q, user)
     if cond is None or len(q) < 2:
         return out
+    from app.services import crm_access
+    seen = crm_access.person_filter(user)
     people = (CrmPerson.query.options(selectinload(CrmPerson.identities)).filter(cond)
+              .filter(seen if seen is not None else true())
               .order_by(*_activity_order()).limit(limit).all())
     leads = {}
     if people:
         for l in (CrmLead.query.options(joinedload(CrmLead.stage))
                   .filter(CrmLead.person_id.in_([p.id for p in people]))):
             leads.setdefault(l.person_id, []).append(l)
+    names = crm_products.labels() if people else {}
     for p in people:
         ls = _by_importance(leads.get(p.id, []))
         out['items'].append({
             'kind': 'person', 'name': p.display_name, 'phone': phone_svc.pretty(p.phone) if p.phone else '',
             'email': p.email or '', 'url': _crm_url('contact', person_id=p.id),
-            'chips': [{'text': '%s %s' % (l.product, l.stage.name if l.stage else 'Not routed'), 'state': l.status,
-                       'url': _crm_url('lead', lead_id=l.id)} for l in ls]})
+            # the product's name, never its code (run 5b)
+            'chips': [{'text': '%s · %s' % (names.get(l.product, l.product), l.stage.name if l.stage else 'Not routed'),
+                       'state': l.status, 'url': _crm_url('lead', lead_id=l.id)} for l in ls]})
     free = limit - len(out['items'])
     if free > 0:
         for r in crm.search_records(q, limit=min(free, 4)):
@@ -217,13 +228,16 @@ def find(q, user, limit=8):
     return out
 
 
-def find_people(q, limit=8):
+def find_people(q, limit=8, user=None):
     """Visual Flow's "Add someone to track": people only, newest activity first -- no fallback to
     site records, since a record with no lead has nothing to put on a flow map."""
-    cond = person_match(q)
+    cond = person_match(q, user)
     if cond is None or len(q) < 2:
         return []
+    from app.services import crm_access
+    seen = crm_access.person_filter(user)
     people = (CrmPerson.query.options(selectinload(CrmPerson.identities)).filter(cond)
+              .filter(seen if seen is not None else true())
               .order_by(*_activity_order()).limit(limit).all())
     return [{'id': p.id, 'name': p.display_name,
              'phone': phone_svc.pretty(p.phone) if p.phone else '', 'email': p.email or ''} for p in people]
@@ -321,8 +335,11 @@ def tag_choices():
 def contacts_filter(f, user):
     """The people Contacts shows, as a query (none runs here). `f`: tag, wa, enq, owner ('' anyone,
     'mine', 'none', '<user id>' -- whoever looks after one of their OPEN leads), q."""
-    from app.services import crm_metrics
+    from app.services import crm_access, crm_metrics
     query = CrmPerson.query
+    seen = crm_access.person_filter(user)          # a role that sees only its own / its team's leads
+    if seen is not None:
+        query = query.filter(seen)
     tag = (f.get('tag') or '').strip().lower()
     if tag == crm.OPT_OUT_TAG:
         query = query.filter(CrmPerson.wa_opt_out_at.isnot(None))
@@ -356,7 +373,7 @@ def contacts_filter(f, user):
             uid = getattr(user, 'id', None) if owner == 'mine' else (int(owner) if owner.isdigit() else 0)
             opened = opened.where(CrmLead.owner_id == uid)
         query = query.filter(CrmPerson.id.in_(opened))
-    cond = person_match(f.get('q'))
+    cond = person_match(f.get('q'), user)
     if cond is not None:
         query = query.filter(cond)
     return query.order_by(*_activity_order())
@@ -578,10 +595,13 @@ def erase_plan(person):
     'chat': bool, 'records': [{'kind', 'id', 'label'}], 'kept': [label], 'login': e-mail or None, 'bells'}.
     A fixed number of queries."""
     from app.models import ContactMessage, InsuranceQuote, SahayakBooking
-    leads = CrmLead.query.filter_by(person_id=person.id).all()
+    leads = CrmLead.query.execution_options(include_deleted=True).filter_by(person_id=person.id).all()
     lead_ids = [l.id for l in leads] or [0]
-    touches = db.session.query(func.count(CrmTouchpoint.id)).filter(CrmTouchpoint.person_id == person.id).scalar() or 0
-    tasks = db.session.query(func.count(CrmTask.id)).filter(CrmTask.lead_id.in_(lead_ids)).scalar() or 0
+    touches = (db.session.query(func.count(CrmTouchpoint.id)).filter(CrmTouchpoint.person_id == person.id)
+               .execution_options(include_deleted=True).scalar() or 0)
+    tasks = (db.session.query(func.count(CrmTask.id))
+             .filter(or_(CrmTask.lead_id.in_(lead_ids), CrmTask.person_id == person.id))
+             .execution_options(include_deleted=True).scalar() or 0)
     refs = {(l.ref_type, l.ref_id) for l in leads if l.ref_type and l.ref_id}
     records, kept = [], []
     for ref_type, rid in sorted(refs, key=lambda r: (r[0], r[1])):
@@ -609,7 +629,9 @@ def erase_plan(person):
     if leads:
         bells = (db.session.query(func.count(Notification.id))
                  .filter(or_(*[Notification.link.like('%%/crm/lead/%d' % i) for i in lead_ids])).scalar() or 0)
-    return {'leads': len(leads), 'touches': touches, 'tasks': tasks,
+    from app.models import CrmFile
+    files = db.session.query(func.count(CrmFile.id)).filter(CrmFile.person_id == person.id).scalar() or 0
+    return {'leads': len(leads), 'touches': touches, 'tasks': tasks, 'files': files,
             # only promise the chat goes when erase() will really reach WhatsApp
             'chat': bool((person.wacrm_contact_id or person.phone) and crm.wa_writes_on() and wacrm_team.enabled()),
             'records': records, 'kept': kept, 'login': user.email if user is not None else None, 'bells': bells}
@@ -667,15 +689,20 @@ def erase(person, actor, now=None):
             admin_delete._cascade_contact(row, actor, [])
         else:
             db.session.delete(row)
-    leads = CrmLead.query.filter_by(person_id=pid).all()
+    leads = CrmLead.query.execution_options(include_deleted=True).filter_by(person_id=pid).all()
     lead_ids = [l.id for l in leads]
     if lead_ids:
         Notification.query.filter(or_(*[Notification.link.like('%%/crm/lead/%d' % i) for i in lead_ids])) \
             .delete(synchronize_session=False)
+    from app.services import crm_audit, crm_bin, crm_files, crm_household
+    file_paths = crm_files.delete_for_person(pid)       # rows now, the bytes once the save went through
+    crm_household.leave(person)                         # out of the family; an empty family goes too
+    db.session.flush()                                  # (its history line is written here, deleted below)
     for l in leads:
-        db.session.delete(l)
+        crm_bin.hard_delete(l)
     db.session.flush()
     CrmTouchpoint.query.filter_by(person_id=pid).delete(synchronize_session=False)
+    crm_audit.forget_record('person', [pid])             # their history goes with them
     db.session.expire_all()
     person = db.session.get(CrmPerson, pid)
     db.session.delete(person)
@@ -684,6 +711,7 @@ def erase(person, actor, now=None):
                       touches=plan['touches'], tasks=plan['tasks'],
                       records=[{'kind': r['kind'], 'id': r['id']} for r in plan['records']], whatsapp=outcome)
     db.session.commit()
+    crm_files.remove_from_disk(file_paths)
     crm._wa_inbound.pop(crm._digits(phone), None)
     forget(cid)
     return outcome
@@ -697,6 +725,8 @@ LEAD_COLS = ['Name', 'Phone (with country code)', 'E-mail', 'Product', 'Pipeline
 CONTACT_COLS = ['Name', 'Phone (with country code)', 'E-mail', 'Instagram', 'Facebook', 'Enquiries',
                 'Looked after by', 'Added on', 'Last contact']
 WA_COLS = ['In WhatsApp', 'Opted out of WhatsApp', 'Last WhatsApp message', 'WhatsApp chat open']
+MONEY_COLS = ['Amount', 'Currency', 'What we earn', 'Closes on', 'Counts in the forecast as']      # leads only
+OFFERS_COLS = ['OK to send offers', 'Offers OK since']          # run 5b: the person's "OK to send offers"
 EXPORT_BATCH = 500
 
 
@@ -727,6 +757,11 @@ def _wa_cells(person, entry, now):
             ('Yes (%dh left)' % left) if left and left >= 1 else ('Yes (under 1h left)' if left else 'No')]
 
 
+def _offers_cells(person):
+    from app.services import crm_consent
+    return [crm_consent.cell(person), _stamp(person.consent_marketing_at) if person.consent_marketing else '']
+
+
 def export(query, kind='leads', actor=None, filters=None):
     """The one "Download this list" (F3, H13): every row of `query` (CrmLead for 'leads', CrmPerson for
     'contacts') as a CSV that opens straight in Excel -- UTF-8 with a BOM -- 500 rows at a time, with the
@@ -744,7 +779,8 @@ def export(query, kind='leads', actor=None, filters=None):
         return buf.getvalue()
 
     def rows():
-        yield '﻿' + line((LEAD_COLS if kind == 'leads' else CONTACT_COLS) + WA_COLS)
+        yield '﻿' + line((LEAD_COLS if kind == 'leads' else CONTACT_COLS) + WA_COLS
+                              + (MONEY_COLS if kind == 'leads' else []) + OFFERS_COLS)
         now = datetime.utcnow()
         for i in range(0, len(ids), EXPORT_BATCH):
             chunk = ids[i:i + EXPORT_BATCH]
@@ -763,7 +799,13 @@ def export(query, kind='leads', actor=None, filters=None):
                         l.owner.full_name if l.owner else '', l.source.name if l.source else '',
                         _stamp(l.created_at), _stamp(c['last_contact']), _stamp(task.due_at) if task else '',
                         l.departure_date.isoformat() if l.departure_date else '', l.fallout_reason or '']]
-                        + _wa_cells(p, c['touch'], now))
+                        + _wa_cells(p, c['touch'], now)
+                        + [_cell(v) for v in [
+                            l.amount if l.amount is not None else '', l.currency or '',
+                            l.revenue if l.revenue is not None else '',
+                            l.close_date.isoformat() if l.close_date else '',
+                            crm_money.forecast_label(l.forecast_category)]]
+                        + _offers_cells(p))
             else:
                 found = {p.id: p for p in CrmPerson.query.options(selectinload(CrmPerson.identities))
                          .filter(CrmPerson.id.in_(chunk))}
@@ -776,7 +818,7 @@ def export(query, kind='leads', actor=None, filters=None):
                         p.identity('instagram'), p.identity('facebook'),
                         ', '.join('%s %s' % (l.product, l.stage.name if l.stage else 'Not routed') for l in r['leads']),
                         r['owner'] or '', _stamp(p.created_at), _stamp(r['last_contact'])]]
-                        + _wa_cells(p, r['touch'], now))
+                        + _wa_cells(p, r['touch'], now) + _offers_cells(p))
 
     return Response(stream_with_context(rows()), mimetype='text/csv; charset=utf-8',
                     headers={'Content-Disposition': 'attachment; filename=%s-%s.csv' % (kind, today)})

@@ -17,8 +17,8 @@ from app import db as _db
 from app.models import Workspace, WorkspaceMember, WorkspaceRole
 from app.services import access
 
-SECTION_ORDER = ['overview', 'sales', 'companion', 'insurance', 'sahayak', 'team', 'site', 'help']
-SALES_SUBS = ['daily', 'messaging', 'automatic', 'setup']
+SECTION_ORDER = ['overview', 'sales', 'companion', 'insurance', 'sahayak', 'team', 'site']
+SALES_SUBS = ['daily', 'setup']
 
 
 def labels(groups):
@@ -47,13 +47,14 @@ def test_every_page_is_in_exactly_one_section_in_the_agreed_order():
 def test_every_dashboard_and_report_is_in_overview():
     for key in ('dashboard', 'crm_insights', 'crm_tracker', 'metrics'):
         assert access.PAGES[key]['section'] == 'overview', key
-    assert access.PAGES['wa_flows']['sub'] == 'automatic'
+    assert access.PAGES['wa_flows']['sub'] == 'setup'
 
 
-def test_help_holds_the_read_only_screens_that_explain_the_work():
-    help_ = next(s for s in access.SECTIONS if s['key'] == 'help')
-    assert help_['pages'] == ('crm_flow', 'crm_process', 'crm_auto')
-    assert all('sub' not in access.PAGES[k] for k in help_['pages'])
+def test_there_is_no_help_section_and_the_screens_that_explained_the_work_are_tabs_or_switches():
+    assert 'help' not in [s['key'] for s in access.SECTIONS]
+    for key in ('crm_flow', 'crm_process', 'crm_checks', 'wa_templates', 'wa_broadcasts', 'wa_tags', 'wa_automations',
+                'wa_flows', 'wa_ai', 'wa_settings'):
+        assert access.PAGES[key]['nav'] is False, key
 
 
 def test_the_old_page_keys_are_gone_and_the_new_ones_exist():
@@ -71,11 +72,12 @@ def test_the_area_labels_and_the_wording_of_the_main_lines():
     assert mods['crm']['label'] == 'Sales' and mods['whatsapp']['label'] == 'WhatsApp messaging'
     assert mods['crm']['desc'] == 'Leads, follow-ups, contacts, quick replies, the half-hourly check, reports and set-up.'
     want = {'crm_today': 'My day', 'wa_inbox': 'WhatsApp chats', 'crm_board': 'Leads', 'crm_people': 'Contacts',
-            'crm_checks': 'Half-hourly check', 'crm_process': 'How we sell', 'crm_quick': 'Quick replies',
+            'crm_checks': 'Half-hourly check', 'crm_process': 'How we sell', 'crm_quick': 'Messages',
             'wa_templates': 'WhatsApp templates', 'wa_broadcasts': 'Broadcasts', 'wa_tags': 'Tags',
             'wa_automations': 'Reply rules', 'wa_flows': 'Chatbot', 'wa_ai': 'AI replies', 'crm_tracker': 'Team today',
-            'crm_insights': 'Sales results', 'crm_pipelines': 'Pipelines', 'crm_sources': 'Where leads come from',
-            'crm_connection': 'WhatsApp connection', 'wa_settings': 'WhatsApp number',
+            'crm_insights': 'Sales results', 'crm_pipelines': 'Pipelines & products', 'crm_sources': 'Lead sources',
+            'crm_connection': 'WhatsApp', 'wa_settings': 'WhatsApp number', 'crm_auto': 'Automation',
+            'crm_data': 'Import & export',
             'ws_members': 'Team members', 'ws_roles': 'Roles', 'ws_settings': 'Workspace',
             'dashboard': 'Site dashboard', 'home': 'Service to-do', 'metrics': 'Match quality',
             'messages': 'Trip post texts & e-mails', 'crm_add': 'Add a lead'}
@@ -119,19 +121,19 @@ def test_built_in_roles(app):
 
 def test_an_agent_sees_the_days_work_and_nothing_to_manage(app, cs_user):
     flat = [l for ls in labels(_nav_for(app, cs_user)).values() for l in ls]
-    for line in ('My day', 'Leads', 'Half-hourly check', 'How we sell'):
+    for line in ('My day', 'Leads'):
         assert line in flat, line
-    for line in ('Team today', 'Sales results', 'Where leads come from', 'Pipelines', 'WhatsApp connection', 'Roles',
-                 'Team members', 'Tags', 'Broadcasts'):
+    for line in ('Team today', 'Sales results', 'Lead sources', 'Pipelines & products', 'WhatsApp', 'Roles',
+                 'Team members', 'Tags', 'Broadcasts', 'Half-hourly check', 'How we sell', 'Visual flow'):
         assert line not in flat, line
 
 
-def test_one_sub_menu_is_shown_as_plain_lines(app, cs_user):
-    """An agent's Sales CRM is only Daily work: a "Daily work" heading over all of it would be one click too many."""
+def test_an_agent_sees_daily_work_as_plain_lines(app, cs_user):
+    """An agent's Sales CRM is only Daily work: a heading over all of it would be one click too many."""
     sales = next(g for g in _nav_for(app, cs_user) if g['key'] == 'sales')
-    assert sales['subs'] == [] and 'My day' in [i['label'] for i in sales['items']]
-    help_ = next(g for g in _nav_for(app, cs_user) if g['key'] == 'help')
-    assert [i['label'] for i in help_['items']] == ['Visual flow', 'How we sell']      # What goes out: admins
+    assert sales['subs'] == []
+    assert 'My day' in [i['label'] for i in sales['items']]
+    assert 'help' not in [g['key'] for g in _nav_for(app, cs_user)]
 
 
 def _nav_for(app, user):
@@ -150,21 +152,24 @@ def test_the_administrator_sees_every_section_in_order(app, admin_user):
     sales = next(g for g in groups if g['key'] == 'sales')
     assert [s['key'] for s in sales['subs']] == ['sales.' + k for k in SALES_SUBS]
     assert [i['label'] for i in sales['subs'][0]['items']][:2] == ['My day', 'WhatsApp chats']
-    help_ = next(g for g in groups if g['key'] == 'help')
-    assert [i['label'] for i in help_['items']] == ['Visual flow', 'How we sell', 'What goes out by itself']
+    assert 'help' not in keys
+    assert [i['label'] for i in sales['subs'][1]['items']] == [
+        'Pipelines & products', 'Automation', 'Messages', 'Lead sources', 'Targets', 'WhatsApp', 'Import & export']
     overview = [i['label'] for i in next(g for g in groups if g['key'] == 'overview')['items']]
-    assert {'Site dashboard', 'Sales results', 'Team today', 'Match quality'} <= set(overview)
+    assert {'Site dashboard', 'Sales results', 'Forecast', 'Team today', 'Match quality'} <= set(overview)
+    assert overview.index('Forecast') == overview.index('Sales results') + 1
     flat = [l for ls in labels(groups).values() for l in ls]
     for line in ('Dashboard', 'Queues', 'Promotion'):
         assert line not in flat
-    for line in ('Site dashboard', 'My day', 'Leads', 'Tags', 'Reply rules', 'Chatbot', 'AI replies', 'Team today',
-                 'Sales results', 'Pipelines', 'Where leads come from', 'WhatsApp connection', 'WhatsApp number',
+    for line in ('Site dashboard', 'My day', 'Leads', 'Messages', 'Automation', 'Team today',
+                 'Sales results', 'Pipelines & products', 'Lead sources', 'WhatsApp', 'Import & export',
                  'Team members', 'Teams', 'Roles', 'Workspace'):
         assert line in flat, line
     # lines with no menu entry: reachable from the page that needs them
     # Contacts is on the menu from U7 (the portal's own page)
     assert 'Contacts' in flat
-    for hidden in ('Add a lead', 'Download lists of leads and contacts', 'Auto', 'All workspaces'):
+    for hidden in ('Add a lead', 'Download lists of leads and contacts', 'Auto', 'All workspaces', 'Tags', 'Chatbot',
+                   'Reply rules', 'AI replies', 'WhatsApp number', 'Visual flow', 'How we sell', 'Half-hourly check'):
         assert hidden not in flat, hidden
 
 
@@ -174,7 +179,7 @@ def test_switching_an_area_off_removes_its_lines(app, admin_user):
     _db.session.commit()
     access._cache().clear()
     flat = [l for ls in labels(_nav_for(app, admin_user)).values() for l in ls]
-    assert 'My day' not in flat and 'Pipelines' not in flat and 'Chatbot' not in flat
+    assert 'My day' not in flat and 'Pipelines & products' not in flat and 'Messages' not in flat
 
 
 def test_where_each_person_lands(app, client, cs_user, admin_user):
@@ -206,7 +211,7 @@ def test_every_menu_line_opens_something(app, client, admin_user):
             r = client.get(i['url'])
             assert r.status_code < 400, '%s (%s) answered %s' % (i['label'], i['url'], r.status_code)
             seen.append(i['label'])
-    assert 'My day' in seen and 'Leads' in seen and 'Pipelines' in seen and len(seen) > 20
+    assert 'My day' in seen and 'Leads' in seen and any(l.startswith('Pipelines') for l in seen) and len(seen) > 15
 
 
 def _nav_for_client(client):

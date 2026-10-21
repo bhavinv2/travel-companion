@@ -5,7 +5,7 @@
   <div class="row">
     <a class="cb" href="{{ crm_url('export_leads', p='all', owner='all', win='all') }}"><i class="fa-solid fa-file-csv"></i> Leads</a>
     <a class="cb" href="{{ crm_url('export_contacts') }}"><i class="fa-solid fa-file-csv"></i> Contacts</a>
-    <form method="GET" action="{{ crm_url('insights_csv') }}" class="row">
+    <form method="GET" action="{{ crm_url('insights_people_csv') }}" class="row">
       <label class="lb" style="margin:0" for="dl-days">Numbers, day by day</label>
       <select id="dl-days" name="days" style="max-width:140px">{% for d in [7, 30, 90] %}<option value="{{ d }}"{{ ' selected' if d == 30 }}>{{ d }} days</option>{% endfor %}</select>
       <button class="cb"><i class="fa-solid fa-file-csv"></i> Download</button>

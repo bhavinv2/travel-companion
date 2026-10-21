@@ -76,7 +76,7 @@
       <span class="lb">1. What do they want?</span>
       <div class="choice-tiles">
         {% for p in tiles %}
-        <label><input type="radio" name="product" value="{{ p.code }}"{{ ' checked' if chosen == p.code }}/> <i class="fa-solid {{ p.icon }}" aria-hidden="true"></i> {{ p.name }}</label>
+        <label><input type="radio" name="product" value="{{ p.code }}" data-price="{{ PLAIN_AMOUNT(p.price) }}" data-currency="{{ p.currency }}"{{ ' checked' if chosen == p.code }}/> <i class="fa-solid {{ p.icon }}" aria-hidden="true"></i> {{ p.name }}</label>
         {% endfor %}
         <label><input type="radio" name="product" value=""{{ ' checked' if chosen == '' and form.get('product') is not none }}/> Something else</label>
       </div>
@@ -108,8 +108,17 @@
       <div><label class="lb" for="a-src">3. Where did they come from?</label>
         <select id="a-src" name="source" required>
           <option value="">Choose…</option>
-          {% for s in sources %}<option value="{{ s.key }}"{{ ' selected' if form.get('source') == s.key }}>{{ s.name }}</option>{% endfor %}
+          {% for s in sources %}<option value="{{ s.key }}"{{ ' selected' if form.get('source') == s.key }}>{{ SOURCE_NAME(s.name) }}</option>{% endfor %}
         </select></div>
+      <div><label class="lb" for="a-amount">What could it be worth? <small class="muted">(optional)</small></label>
+        <div class="row" style="gap:6px;flex-wrap:nowrap">
+          <input type="text" inputmode="decimal" id="a-amount" name="amount" data-add-amount value="{{ form.get('amount', '') }}" placeholder="e.g. 18500" autocomplete="off"/>
+          <select name="currency" data-add-currency aria-label="Currency" style="max-width:90px">
+            {% for c in CURRENCY_CHOICES() %}<option value="{{ c }}"{{ ' selected' if form.get('currency') == c }}>{{ c }}</option>{% endfor %}
+          </select></div></div>
+      <div><label class="lb" for="a-close">Should close by <small class="muted">(optional)</small></label>
+        <input type="date" id="a-close" name="close_date" value="{{ form.get('close_date', '') }}"/>
+        <small class="muted">Left empty, it is worked out from the trip date or the product.</small></div>
       <div><span class="lb">4. Who looks after them?</span>
         {% set oc = form.get('owner') or 'me' %}
         <div class="choice-tiles">

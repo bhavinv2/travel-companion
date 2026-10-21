@@ -1,6 +1,6 @@
 {# The product's fields, for Products and for the wizard's "+ New product" (prefix 'np_').
    p: the product (or None); form: what was typed; errors: {field: message}; locked_n: leads using the code. #}
-{% macro product_fields(prefix, p, form, errors, locked_n, with_default=False, pipelines=()) %}
+{% macro product_fields(prefix, p, form, errors, locked_n, with_default=False, pipelines=(), with_money=False) %}
 {% set f = form or {} %}
 {% set code = f.get(prefix ~ 'code', p.code if p else '') %}
 {% set icon = f.get(prefix ~ 'icon', p.icon if p and p.icon else 'fa-layer-group') %}
@@ -23,6 +23,31 @@
     <select id="{{ prefix }}currency" name="{{ prefix }}currency">{% for k, label in CURRENCIES.items() %}<option value="{{ k }}"{{ ' selected' if f.get(prefix ~ 'currency', p.currency if p else 'INR') == k }}>{{ label }}</option>{% endfor %}</select></div>
   <div><label class="lb" for="{{ prefix }}kpi_row">Counts in the sales-sheet row <small class="muted">(optional)</small></label>
     <select id="{{ prefix }}kpi_row" name="{{ prefix }}kpi_row"><option value="">— none —</option>{% for k, label in KPI_ROWS %}<option value="{{ k }}"{{ ' selected' if f.get(prefix ~ 'kpi_row', p.kpi_row if p else '') == k }}>{{ label }}</option>{% endfor %}</select></div>
+  {% if with_money %}
+  {% set rk = f.get(prefix ~ 'revenue_kind', p.revenue_kind if p and p.revenue_kind else '') %}
+  <div><label class="lb" for="{{ prefix }}price">Usual price <small class="muted">(optional)</small></label>
+    <input type="text" inputmode="decimal" id="{{ prefix }}price" name="{{ prefix }}price" value="{{ f.get(prefix ~ 'price', PLAIN_AMOUNT(p.price) if p else '') }}" placeholder="e.g. 18500" autocomplete="off"/>
+    <div class="hint">Filled in on a new lead of this product, in the currency above.</div>
+    <div class="pe-err">{{ errors.get(prefix ~ 'price', '') }}</div></div>
+  <div><label class="lb" for="{{ prefix }}revenue_kind">What we earn on a sale</label>
+    <select id="{{ prefix }}revenue_kind" name="{{ prefix }}revenue_kind">
+      <option value=""{{ ' selected' if not rk }}>The whole amount</option>
+      <option value="fixed"{{ ' selected' if rk == 'fixed' }}>A fixed amount</option>
+      <option value="percent"{{ ' selected' if rk == 'percent' }}>A percentage of the amount</option>
+    </select></div>
+  <div><label class="lb" for="{{ prefix }}revenue_value">The amount, or the percentage</label>
+    <input type="text" inputmode="decimal" id="{{ prefix }}revenue_value" name="{{ prefix }}revenue_value" value="{{ f.get(prefix ~ 'revenue_value', PLAIN_AMOUNT(p.revenue_value) if p else '') }}" placeholder="e.g. 1500, or 12" autocomplete="off"/>
+    <div class="hint">Only used when "a fixed amount" or "a percentage" is chosen.</div>
+    <div class="pe-err">{{ errors.get(prefix ~ 'revenue_value', '') }}</div></div>
+  <div><label class="lb" for="{{ prefix }}close_days">Usual days from enquiry to sale</label>
+    <input type="text" inputmode="numeric" id="{{ prefix }}close_days" name="{{ prefix }}close_days" value="{{ f.get(prefix ~ 'close_days', p.close_days if p and p.close_days else '') }}" placeholder="14" autocomplete="off"/>
+    <div class="hint">Sets the close date of a new lead. Empty means 14 days.</div>
+    <div class="pe-err">{{ errors.get(prefix ~ 'close_days', '') }}</div></div>
+  <div><label class="lb" for="{{ prefix }}max_discount_pct">Biggest discount without approval (%) <small class="muted">(optional)</small></label>
+    <input type="text" inputmode="decimal" id="{{ prefix }}max_discount_pct" name="{{ prefix }}max_discount_pct" value="{{ f.get(prefix ~ 'max_discount_pct', PLAIN_AMOUNT(p.max_discount_pct) if p and p.max_discount_pct is not none else '') }}" placeholder="e.g. 10" autocomplete="off"/>
+    <div class="hint">A quote below the usual price less this percentage needs an admin or team lead to approve it before it is sent. Empty means no limit.</div>
+    <div class="pe-err">{{ errors.get(prefix ~ 'max_discount_pct', '') }}</div></div>
+  {% endif %}
   {% if with_default %}
   <div><label class="lb" for="{{ prefix }}default_pipeline_id">Default pipeline</label>
     <select id="{{ prefix }}default_pipeline_id" name="{{ prefix }}default_pipeline_id"><option value="">— the first pipeline of this product —</option>{% for pl in pipelines %}<option value="{{ pl.id }}"{{ ' selected' if (f.get(prefix ~ 'default_pipeline_id') or (p.default_pipeline_id|string if p.default_pipeline_id else '')) == pl.id|string }}>{{ pl.name }}</option>{% endfor %}</select></div>

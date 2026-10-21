@@ -1,0 +1,51 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% block crm_title %}Merge {{ person.display_name }}{% endblock %}
+{% block crm %}
+<p class="small"><a href="{{ crm_url('contact', person_id=person.id) }}">‹ {{ person.display_name }}</a></p>
+{{ page_head('Merge with another person', 'fa-solid fa-code-merge',
+             'Two contacts that are really one person become one. ' ~ person.display_name ~ ' is the one that stays.',
+             help=['Search for the other person. Nothing changes until you press Merge.',
+                   'Their enquiries, messages, tasks, files, handles and history move to ' ~ person.display_name ~ '.',
+                   'What ' ~ person.display_name ~ ' already has is kept. Only empty details are filled from the other person.',
+                   'The other contact is deleted. In the WhatsApp CRM nothing is deleted: its contact is left as it is.']) }}
+
+{% if not other %}
+<section class="card">
+  <form method="GET" class="row">
+    <label class="lb" for="mg-q">Who is the other contact?</label>
+    <input id="mg-q" type="search" name="q" value="{{ q }}" placeholder="Name, phone, e-mail or handle" style="max-width:320px" autofocus/>
+    <button class="cb primary">Search</button>
+  </form>
+  {% if q %}
+    {% for r in results %}
+    <div class="fam-result">
+      <span><b>{{ r.name }}</b> <small class="muted">{{ r.phone }} {{ r.email }}</small></span>
+      <a class="cb sm primary" href="{{ crm_url('contact_merge', person_id=person.id, **{'with': r.id}) }}">Compare &amp; merge</a>
+    </div>
+    {% else %}<p class="muted">No one found.</p>{% endfor %}
+  {% endif %}
+</section>
+{% else %}
+<section class="card mg-preview">
+  <div class="mg-pair">
+    <div><small class="muted">Stays</small><br/><b>{{ person.display_name }}</b><br/><small>{{ PHONE.pretty(person.phone) if person.phone else '' }} {{ person.email or '' }}</small></div>
+    <div class="mg-arrow"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i></div>
+    <div><small class="muted">Merged in, then deleted</small><br/><b>{{ other.display_name }}</b><br/><small>{{ PHONE.pretty(other.phone) if other.phone else '' }} {{ other.email or '' }}</small></div>
+  </div>
+  <p><b>Will move:</b> {{ preview.moves|join(', ') if preview.moves else 'nothing' }}.</p>
+  {% if preview.kept %}<p><b>Kept from {{ person.display_name }}:</b> {{ preview.kept|join(', ') }}.</p>{% endif %}
+  {% if preview.filled %}<p><b>Filled from {{ other.display_name }}:</b> {{ preview.filled|join(', ') }}.</p>{% endif %}
+  {% for n in preview.notes %}<p class="hint">{{ n[0]|upper }}{{ n[1:] }}.</p>{% endfor %}
+  <div class="row">
+    <form method="POST" action="{{ crm_url('contact_merge_do', person_id=person.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <input type="hidden" name="other_id" value="{{ other.id }}"/>
+      <button class="cb primary danger">Merge {{ other.display_name }} into {{ person.display_name }}</button>
+    </form>
+    <a class="cb" href="{{ crm_url('contact_merge', person_id=other.id, **{'with': person.id}) }}">Keep {{ other.display_name }} instead</a>
+    <a class="cb ghost" href="{{ crm_url('contact_merge', person_id=person.id) }}">Cancel</a>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

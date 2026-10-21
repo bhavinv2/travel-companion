@@ -1,0 +1,73 @@
+{# Tasks, calls and meetings on a lead or a person, the "+ Task" form and the e-mail composer (crm-activities.js).
+   Needs: person; lead (optional). The two dialogs live here, outside the live regions that refresh themselves. #}
+{% set open_tasks = TASKS_FOR(lead=lead, person=person) if lead is defined and lead else TASKS_FOR(person=person) %}
+<section class="card tk-box" data-tasks-box data-lead="{{ lead.id if lead is defined and lead else '' }}" data-person="{{ person.id }}"
+         data-compose="{{ crm_url('lead_email') }}" data-send="{{ crm_url('lead_email_send') }}"
+         data-add="{{ crm_url('task_add') }}" data-edit-base="{{ crm_url('task_edit', task_id=0) }}" data-delete-base="{{ crm_url('task_delete', task_id=0) }}"
+         data-done-base="{{ crm_url('task_action', task_id=0, action='done') }}">
+  <div class="card-head">
+    <h2>Tasks, calls and meetings</h2>
+    <div class="row">
+      <button type="button" class="cb sm" data-tk-new><i class="fa-solid fa-plus"></i> Task</button>
+      <button type="button" class="cb sm" data-email-open title="{{ person.email or 'No e-mail address yet' }}"><i class="fa-solid fa-envelope"></i> E-mail</button>
+    </div>
+  </div>
+  {% for t in open_tasks %}
+  <div class="tk-row{{ ' late' if t.due_at < utcnow }}" data-task="{{ t.id }}" data-json="{{ {'id': t.id, 'title': t.title, 'kind': t.kind, 'due': TASK_INPUT(t.due_at), 'ends': TASK_INPUT(t.ends_at), 'location': t.location or '', 'notes': t.notes or '', 'priority': t.priority or 'normal', 'owner_id': t.owner_id or ''}|tojson|forceescape }}">
+    <span class="chip tk-{{ t.kind }}"><i class="fa-solid {{ {'todo': 'fa-list-check', 'call': 'fa-phone', 'meeting': 'fa-handshake'}.get(t.kind, 'fa-list-check') }}"></i> {{ {'todo': 'To-do', 'call': 'Call', 'meeting': 'Meeting'}.get(t.kind, 'To-do') }}</span>
+    <div class="tk-what"><b>{{ t.title }}</b>
+      <span class="muted small">{{ TASK_WHEN(t) }}{% if t.due_at < utcnow %} (late){% endif %} · {{ t.owner.full_name if t.owner else 'nobody' }}</span>
+      {% if t.priority == 'high' %}<span class="chip bad">High</span>{% elif t.priority == 'low' %}<span class="chip">Low</span>{% endif %}
+      {% if t.location %}<div class="muted small"><i class="fa-solid fa-location-dot"></i> {{ t.location }}</div>{% endif %}
+      {% if t.notes %}<div class="muted small">{{ t.notes }}</div>{% endif %}
+    </div>
+    {% if CAN_CHANGE_TASK(t) %}
+    <div class="tk-acts">
+      <button type="button" class="cb sm ok" data-tk-done="{{ t.id }}">Done</button>
+      <button type="button" class="cb sm quiet" data-tk-edit>Edit</button>
+      <button type="button" class="cb sm quiet" data-tk-del="{{ t.id }}">Delete</button>
+    </div>
+    {% endif %}
+  </div>
+  {% else %}<p class="muted small">Nothing planned. Add a to-do, a call or a meeting with “Task”.</p>{% endfor %}
+</section>
+
+<dialog class="crm-dialog" id="task-dialog"><form class="in stack" data-tk-form>
+  <h3 data-tk-title>New task</h3>
+  <div><label class="lb" for="tk-title">Title</label><input type="text" id="tk-title" name="title" maxlength="160" required/></div>
+  <div class="tk-two">
+    <div><label class="lb" for="tk-kind">Type</label>
+      <select id="tk-kind" name="kind"><option value="todo">To-do</option><option value="call">Call</option><option value="meeting">Meeting</option></select></div>
+    <div><label class="lb" for="tk-prio">Priority</label>
+      <select id="tk-prio" name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="low">Low</option></select></div>
+  </div>
+  <div class="tk-two">
+    <div><label class="lb" for="tk-due">Date and time</label><input type="datetime-local" id="tk-due" name="due" value="{{ TASK_DEFAULT_DUE() }}" required/></div>
+    <div data-tk-meeting hidden><label class="lb" for="tk-ends">Ends</label><input type="datetime-local" id="tk-ends" name="ends"/></div>
+  </div>
+  <div data-tk-meeting hidden><label class="lb" for="tk-loc">Place or video link</label><input type="text" id="tk-loc" name="location" maxlength="200"/></div>
+  <div><label class="lb" for="tk-owner">For</label>
+    <select id="tk-owner" name="owner_id">
+      {% for u in TASK_STAFF() %}<option value="{{ u.id }}"{{ ' selected' if u.id == current_user.id }}>{{ u.full_name }}{{ ' (me)' if u.id == current_user.id }}</option>{% endfor %}
+    </select></div>
+  <div><label class="lb" for="tk-notes">Notes</label><textarea id="tk-notes" name="notes" rows="3" maxlength="4000"></textarea></div>
+  <p class="tk-err" data-tk-err hidden></p>
+  <div class="row end"><button type="button" class="cb ghost sm" data-tk-cancel>Cancel</button><button type="submit" class="cb primary">Save</button></div>
+</form></dialog>
+
+<dialog class="crm-dialog" id="email-dialog"><form class="in stack" data-em-form>
+  <h3>E-mail {{ person.display_name }}</h3>
+  <div><label class="lb" for="em-to">To</label><input type="email" id="em-to" value="{{ person.email or '' }}" readonly/></div>
+  <p class="tk-err" data-em-note hidden></p>
+  <div><label class="lb" for="em-subject">Subject</label><input type="text" id="em-subject" name="subject" maxlength="200"/></div>
+  <div><label class="lb" for="em-ans">Insert a ready answer</label>
+    <select id="em-ans" data-em-answers><option value="">Choose…</option></select></div>
+  <div><label class="lb" for="em-body">Message</label><textarea id="em-body" name="body" rows="8" maxlength="20000"></textarea></div>
+  <label class="small" data-em-logrow hidden><input type="checkbox" data-em-log checked/> Log it on the timeline</label>
+  <p class="tk-err" data-em-err hidden></p>
+  <div class="row end">
+    <button type="button" class="cb ghost sm" data-em-cancel>Cancel</button>
+    <a class="cb sm" data-em-mailto hidden href="#"><i class="fa-solid fa-envelope-open-text"></i> Open in my mail app</a>
+    <button type="submit" class="cb primary" data-em-send><i class="fa-solid fa-paper-plane"></i> Send</button>
+  </div>
+</form></dialog>

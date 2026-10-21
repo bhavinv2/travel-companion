@@ -40,9 +40,9 @@
       <a class="btn-sm-outline {{ 'active' if status == s }}" href="{{ url_for('admin.voices', tab='contact', status=s) }}">{{ CONTACT_STATUS_LABELS[s] }} ({{ counts[s] }})</a>
       {% endfor %}
       <a class="btn-sm-outline {{ 'active' if unread }}" href="{{ url_for('admin.voices', tab='contact', status=status or None, topic=topic or None, unread=None if unread else 1) }}">Unread only</a>
-      {# one inbox for both services; which one an enquiry is about is a filter, not a screen #}
+      {# one inbox for every service; which one an enquiry is about is a filter, not a screen #}
       <span class="cm-filter-sep"></span>
-      <a class="btn-sm-outline {{ 'active' if not topic }}" href="{{ url_for('admin.voices', tab='contact', status=status) }}">Both services</a>
+      <a class="btn-sm-outline {{ 'active' if not topic }}" href="{{ url_for('admin.voices', tab='contact', status=status) }}">All services</a>
       {% for t in CONTACT_TOPICS %}
       <a class="btn-sm-outline {{ 'active' if topic == t }}" href="{{ url_for('admin.voices', tab='contact', status=status, topic=t) }}">{{ CONTACT_TOPIC_LABELS[t] }}</a>
       {% endfor %}

@@ -9,10 +9,10 @@
   <div class="blog-grid">
     {% for post in posts %}
     <a href="{{ url_for('blog.blog_post', slug=post.slug) }}" class="blog-card">
-      <img src="{{ post.cover_image_url or url_for('static', filename='img/landing/' ~ fallback_covers[loop.index0 % 6]) }}" alt="{{ post.title }}"/>
+      <img src="{{ app_url(post.cover_image_url) if post.cover_image_url else url_for('static', filename='img/landing/' ~ fallback_covers[loop.index0 % 6]) }}" alt="{{ post.cover_alt or post.title }}"/>
       <div class="blog-card-body">
         <h3>{{ post.title }}</h3>
-        <p>{{ post.excerpt() }}</p>
+        <p>{{ post.summary or post.excerpt() }}</p>
         <div class="blog-meta">
           <span><i class="fa-solid fa-user"></i> {{ post.author.username }}</span>
           <span><i class="fa-solid fa-calendar"></i> {{ post.published_at|istd('%b %d, %Y') if post.published_at else '' }}</span>

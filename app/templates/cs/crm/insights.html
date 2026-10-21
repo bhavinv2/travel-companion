@@ -1,5 +1,6 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_report_result.html' import report_result with context %}
 {% block crm_title %}Results{% endblock %}
 
 {% macro num(v) -%}
@@ -37,9 +38,22 @@
              'How sales are going: new leads, replies and customers won, by product, source and person.',
              help=['Counted from the Sales CRM as the team works: nothing to fill in.',
                    'Pick the days, one pipeline and one person to look closer. Each ⓘ says what a number counts.',
-                   'Numbers the CRM cannot see are written down on My day.'],
-             primary=({'label': 'Download for Excel', 'href': crm_url('insights_csv', days=days), 'icon': 'fa-solid fa-file-csv'} if CAN('crm_export') else None),
+                   'Numbers the CRM cannot see are written down on My day.',
+                   "Days before today are saved at night; later changes to old leads don't rewrite them. Use 'Recalculate' to rebuild.",
+                   'Campaigns shows each paid campaign from Lead sources › Marketing activities over its own dates: leads, customers, won value, cost and return.'],
+             primary=({'label': 'Download for Excel', 'href': crm_url('insights_csv', days=days, who=person.id if person else None, pipeline=pipe.id if pipe else None), 'icon': 'fa-solid fa-file-csv'} if CAN('crm_export') else None),
+             more=([{'label': 'Download per person', 'href': crm_url('insights_people_csv', days=days), 'icon': 'fa-solid fa-file-csv'}] if CAN('crm_export') else None),
              full_screen=True) }}
+{% if current_user.is_admin %}
+<details class="fam-remove res-recalc" style="margin:0 0 10px">
+  <summary class="cb sm quiet" title="Forget the numbers saved for the last 90 days and save them again."><i class="fa-solid fa-rotate"></i> Recalculate the last 90 days</summary>
+  <form method="POST" action="{{ crm_url('insights_recalculate') }}" class="fam-confirm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="days" value="{{ days }}"/>
+    <span>Rebuild the saved numbers of the last 90 days? Results stays correct meanwhile.</span>
+    <button type="submit" class="cb sm primary">Yes, recalculate</button>
+  </form>
+</details>
+{% endif %}
 <div class="ui-filters">
   <form method="GET" class="row" style="gap:6px">
     <input type="hidden" name="days" value="{{ days }}"/>
@@ -59,7 +73,7 @@
 {# ------------------------------------------------------------------ the headline numbers #}
 <div class="kpi-cards">
   {% for key, label, icon in [('new_leads', 'New leads', 'fa-user-plus'), ('replied', 'Replied', 'fa-comments'),
-                              ('quoted', 'Quoted', 'fa-file-invoice'), ('won', 'Customers won', 'fa-trophy')] %}
+                              ('quoted', 'Quoted', 'fa-file-invoice'), ('won', 'Won in these days', 'fa-trophy')] %}
   <div class="kpi-card">
     <div class="top"><i class="fa-solid {{ icon }}"></i><span>{{ label }}</span> {{ info(DEFS[key]) }}</div>
     <b>{{ num(cards.get(key)) }}</b>
@@ -74,6 +88,16 @@
     <small class="muted">{{ note }}</small>
   </div>
   {% endfor %}
+  {% for key, label, icon, tip in [('amount', 'Won value', 'fa-sack-dollar', metric_tip('won_value')),
+                                   ('revenue', 'Our revenue', 'fa-coins', metric_tip('revenue'))] %}
+  {% set now_v = money[key] %}{% set was_v = money_before[key] %}
+  <div class="kpi-card">
+    <div class="top"><i class="fa-solid {{ icon }}"></i><span>{{ label }}</span> {{ info(tip) }}</div>
+    <b class="res-money">{{ MONEY_C(now_v, REPORT_CURRENCY()) }}</b>
+    {% if was_v %}{% set pct = ((now_v - was_v) / was_v * 100)|round|int %}<span class="delta {{ 'good' if pct > 0 else 'bad' if pct != 0 else '' }}" title="Previous {{ days }} days: {{ MONEY(was_v, REPORT_CURRENCY()) }}">{{ '▲' if pct > 0 else '▼' if pct < 0 else '=' }} {{ pct|abs }}%</span>
+    {% elif now_v %}<span class="delta good">new</span>{% endif %}
+  </div>
+  {% endfor %}
   <div class="kpi-card">
     <div class="top"><i class="fa-solid fa-hourglass-half"></i><span>Customers waiting now</span> {{ info(DEFS.waiting_now) }}</div>
     <b>{{ num(cards.get('waiting_now')) }}</b>
@@ -81,15 +105,31 @@
   </div>
 </div>
 
+{% if rate_warning %}<div class="card warn fc-warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> <span>{{ rate_warning }}</span>
+  {% if CAN('crm_pipelines') %}<a class="cb sm" href="{{ crm_url('pipelines', tab='products') }}#exchange-rates">Set the rate</a>{% endif %}</div>{% endif %}
+
+{% if top %}
+<section class="card">
+  <h2>Top sellers {{ info('People ranked by the money on the leads they won in these days. The last column is how much of their target (for the same days) that is.') }}</h2>
+  <div class="table-wrap">
+  <table class="crm-table">
+    <thead><tr><th>Person</th><th class="num">Deals won</th><th class="num">Won value</th><th class="num">% of their target</th></tr></thead>
+    <tbody>{% for r in top %}<tr><td class="nm">{{ r.user.full_name }}</td><td class="num">{{ r.deals }}</td><td class="num">{{ MONEY(r.amount, REPORT_CURRENCY()) }}</td><td class="num">{{ (r.pct ~ '%') if r.pct is not none else '—' }}</td></tr>{% endfor %}</tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
 {# ------------------------------------------------------------------ the funnel #}
 <section class="card">
-  <h2>From lead to customer {{ info(DEFS.funnel) }}</h2>
+  <h2>Leads that came in these days {{ info(DEFS.funnel) }}</h2>
+  <p class="muted" style="margin:2px 0 12px">…and how far each one got</p>
   {% set f_top = [funnel.total, 1]|max %}
   {% if funnel.total %}
   <div class="funnel">
     {% for r in funnel.rows %}
     <div class="f-row">
-      <span class="f-label">{{ r.label }}</span>
+      <span class="f-label">{{ r.label }}{% if r.tip %} {{ info(r.tip) }}{% endif %}</span>
       <span class="f-bar {{ 'won' if r.won }}" style="width:{{ [100 * r.n / f_top, 3]|max }}%"><b>{{ r.n }}</b></span>
       <span class="f-conv">{% if r.pct is not none %}{{ r.pct }}% of the step before{% endif %}</span>
     </div>
@@ -106,7 +146,7 @@
   <div class="table-wrap">
   <table class="crm-table">
     <thead><tr><th>Source</th><th>Leads</th><th>Replied</th><th>Won</th><th>Won %</th></tr></thead>
-    <tbody>{% for r in sources.rows %}<tr><td class="nm">{{ r.name }}</td><td>{{ r.leads }}</td><td>{{ r.replied }}</td><td>{{ r.won }}</td><td>{{ r.pct }}%</td></tr>{% endfor %}</tbody>
+    <tbody>{% for r in sources.rows %}<tr><td class="nm">{{ SOURCE_NAME(r.name) }}</td><td>{{ r.leads }}</td><td>{{ r.replied }}</td><td>{{ r.won }}</td><td>{{ r.pct }}%</td></tr>{% endfor %}</tbody>
   </table>
   </div>
   {% if sources.campaigns %}
@@ -120,6 +160,27 @@
   {% endif %}
   {% else %}<p class="muted" style="margin:0">Nothing in these days yet.</p>{% endif %}
 </section>
+
+{# ------------------------------------------------------------------ paid campaigns: cost and return #}
+{% if campaigns and campaigns.rows %}
+<section class="card cp-box">
+  <h2>Campaigns {{ info('Each campaign set up on Lead sources › Marketing activities, over its own dates (not the days picked above): its leads, the customers it won, what they were worth, and what it cost, in ' ~ campaigns.currency ~ '. Return is won value divided by cost.') }}</h2>
+  {% for n in campaigns.notes %}<p class="rb-note">{{ n }}</p>{% endfor %}
+  <div class="table-wrap">
+  <table class="crm-table">
+    <thead><tr><th>Campaign</th><th class="num">Leads</th><th class="num">Won</th><th class="num">Won value</th><th class="num">Cost</th><th class="num">Cost per lead</th><th class="num">Cost per customer</th><th class="num">Return</th></tr></thead>
+    <tbody>{% for r in campaigns.rows %}<tr>
+      <td class="nm">{{ r.name }}{% if not r.counted %} <small class="muted">(add its campaign key or lead source to count its leads)</small>{% endif %}</td>
+      <td class="num">{{ r.leads }}</td><td class="num">{{ r.won }}</td>
+      <td class="num">{{ MONEY(r.won_value, campaigns.currency) }}</td>
+      <td class="num">{{ MONEY(r.cost, campaigns.currency) if r.cost is not none else '—' }}</td>
+      <td class="num">{{ MONEY(r.per_lead, campaigns.currency) if r.per_lead is not none else '—' }}</td>
+      <td class="num">{{ MONEY(r.per_customer, campaigns.currency) if r.per_customer is not none else '—' }}</td>
+      <td class="num">{{ RET_TEXT(r.ret) }}</td></tr>{% endfor %}</tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
 
 <div class="grid2">
   <section class="card"><h2>Messages, by who sent them {{ info(DEFS.by_sender) }}</h2>{{ bars(senders) }}</section>
@@ -146,4 +207,13 @@
   </table>
   </div>
 </details>
+
+{# ------------------------------------------------------------------ reports pinned from the report builder #}
+{% for item in pinned or [] %}
+<section class="card rb-pinned">
+  <div class="card-head"><h2>{{ item.report.name }}</h2><a class="cb sm quiet" href="{{ crm_url('report_builder', run=1, **item.report.config) }}">Open in the report builder</a></div>
+  <p class="muted small">{{ item.result.title }}</p>
+  {{ report_result(item.result) }}
+</section>
+{% endfor %}
 {% endblock %}

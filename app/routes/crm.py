@@ -6,6 +6,7 @@ code or a URL pattern. The logic lives in services/crm.py; this file only reads 
 pages.
 """
 import json
+import os
 import re
 from datetime import datetime, timedelta
 from functools import wraps
@@ -25,9 +26,9 @@ from app.models import (ActivityEvent, CrmAnswer, CrmIdentity, CrmLead, CrmPerso
                         CRM_SOURCE_KIND_LABELS, CRM_SOURCE_KINDS, CRM_SOURCE_STATUSES,
                         CRM_STAGE_KINDS, CRM_STEP_TRIGGERS, CRM_TEMPERATURES, CRM_LIKELIHOOD, CRM_VIA,
                         CRM_AUTO_KINDS, CRM_DATE_FIELDS, CRM_LEGACY_TRIGGERS, CRM_MEANS_LABELS,
-                        CRM_STAGE_MEANS, CRM_STEP_CHANNELS, CRM_STEP_KINDS, ROLE_MEANS, CrmField)
+                        CRM_STAGE_MEANS, CRM_STEP_CHANNELS, CRM_STEP_KINDS, ROLE_MEANS, CrmField, CRM_FORECASTS)
 from app.routes.cs import cs_required
-from app.services import (crm, crm_answers, crm_defaults, crm_kpi, crm_people, crm_products, crm_reports, crm_timeline, meta, urls,
+from app.services import (crm, crm_access, crm_answers, crm_audit, crm_files, crm_household, crm_stage_rules, crm_defaults, crm_kpi, crm_money, crm_people, crm_products, crm_quotes, crm_reports, crm_scope, crm_tasks, crm_timeline, meta, urls,
                           wa_templates, wacrm)
 from app.services.ratelimit import rate_limit
 
@@ -43,12 +44,18 @@ CRM_BLUEPRINTS = ('crm', 'admin_crm')
 # Set-up, reports and imports are management pages: they open in the admin portal. Quick replies
 # is an agent page.
 MANAGE = {'setup', 'pipelines', 'sources', 'connection', 'data', 'save_source', 'save_pipeline', 'save_step',
-          'save_whatsapp', 'backfill', 'import_sheet', 'import_confirm', 'insights', 'insights_csv', 'tracker',
+          'save_whatsapp', 'backfill', 'import_sheet', 'import_confirm', 'insights', 'insights_csv', 'insights_people_csv', 'tracker',
           'save_process', 'setup_templates', 'pipeline_new', 'pipeline_edit', 'pipeline_save', 'pipeline_active',
           'pipeline_tag_check', 'pipeline_tag', 'tag_check', 'save_product', 'product_offered', 'template_draft',
           'import_csv', 'import_csv_confirm', 'wa_contacts_import', 'wa_notes_import', 'save_inboxes',
           'save_activities', 'source_tag_check', 'export_leads', 'export_contacts', 'automatic', 'connection_checks',
-          'connection_team', 'connection_retry', 'connection_settle', 'quick_replies_push', 'quick_replies_import'}
+          'connection_team', 'connection_retry', 'connection_settle', 'quick_replies_push', 'quick_replies_import', 'save_rates', 'targets', 'targets_save', 'targets_copy', 'insights_recalculate',
+          'bin', 'bin_restore', 'bin_purge',
+          # run 5b: automation rules, scoring, the AI switch
+          'rules', 'rule_save', 'rule_test', 'rule_toggle', 'rule_delete', 'ai_switch', 'scoring_switch', 'scoring_save',
+          'score_rule_save', 'score_rule_delete',
+          # final review: the e-mail sender (Messages, for whoever has the WhatsApp set-up page)
+          'email_sender_save'}
 
 
 def _portal_bp():
@@ -90,6 +97,95 @@ def crm_lead_for(ref_type, ref_id, phone=None, email=None):
                            or (person.leads[0] if person.leads else None)) if person else None
         lead = cache[pkey]
     return lead
+
+
+@crm_bp.app_template_global('STAGE_AGE')
+def stage_age(since, now):
+    from app.services import crm_words
+    return crm_words.age_text(since, now)
+
+
+@crm_bp.app_template_global('SOURCE_NAME')
+def source_name(name):
+    """A lead source's name for a screen: the product's name instead of its code prefix (crm_words)."""
+    from app.models import request_cache
+    from app.services import crm_words
+    cache = request_cache('crm_words')
+    if 'products' not in cache:
+        cache['products'] = crm_words.product_names()
+    return crm_words.source_display(name, cache['products'])
+
+
+@crm_bp.app_template_global('MONEY')
+def money_text(amount, currency=None):
+    """₹1,20,000 (a lead's own currency, else the reporting one)."""
+    return crm_money.money(amount, currency or crm_money.reporting_currency())
+
+
+@crm_bp.app_template_global('MONEY_C')
+def money_compact(amount, currency=None):
+    """₹1.2 L: the same, short, for cards and column heads."""
+    return crm_money.money_c(amount, currency or crm_money.reporting_currency())
+
+
+@crm_bp.app_template_global('PLAIN_AMOUNT')
+def plain_amount(amount):
+    return crm_money.plain_amount(amount)
+
+
+@crm_bp.app_template_global('BASE_AMOUNT')
+def base_amount(amount, currency=None):
+    """A lead's value in the reporting currency, plain ('12000'), for the board's column totals after a drag; '0'
+    when it has none. The rates are read once per request."""
+    from app.models import request_cache
+    cache = request_cache('crm_money')
+    if 'rates' not in cache:
+        cache['rates'] = crm_money.rates()
+    return crm_money.plain_amount(crm_money.to_base(amount, currency, cache['rates'])) or '0'
+
+
+@crm_bp.app_template_global('CURRENCY_CHOICES')
+def currency_choices():
+    return crm_money.currency_choices()
+
+
+@crm_bp.app_template_global('metric_tip')
+def metric_tip(key):
+    """The one sentence behind a number's (i): crm_numbers.METRICS[key].definition."""
+    from app.services import crm_numbers
+    return crm_numbers.definition(key)
+
+
+@crm_bp.app_template_global('REPORT_CURRENCY')
+def report_currency():
+    return crm_money.reporting_currency()
+
+
+@crm_bp.app_template_global('DUE_CHIP')
+def due_chip(due_at, now):
+    """One coloured chip for a step's due day (India time): Today (amber), a past day red, a later day green."""
+    from markupsafe import Markup, escape
+    if due_at is None:
+        return ''
+    day, today = (due_at + crm.IST).date(), (now + crm.IST).date()
+    if day == today:
+        cls, text = 'due-today', 'Today'
+    else:
+        cls = 'due-past' if day < today else 'due-next'
+        text = '%d %s' % (day.day, day.strftime('%b'))
+    return Markup('<span class="due-chip %s">%s</span>') % (cls, escape(text))
+
+
+@crm_bp.app_template_global('CRM_AUTO_FORECAST')
+def crm_auto_forecast(stage):
+    """(category, chance) a stage gives by itself, for the editor's placeholders."""
+    return crm_money.auto_forecast(stage)
+
+
+@crm_bp.app_template_global('FORECAST_AUTO')
+def forecast_auto(lead):
+    """What the lead's stage gives it in the forecast, ignoring any override on the lead itself."""
+    return crm_money.stage_forecast(lead.stage)
 
 
 @crm_bp.app_template_global('CRM_ROLE')
@@ -140,8 +236,9 @@ def admin_only(f):
 
 
 def _staff():
+    """The sales staff of the workspace being worked in (everyone with Leads, while there is one workspace)."""
     from app.services import cs_access
-    return cs_access.recipients('crm_board', limit=None)
+    return crm_scope.in_workspace(cs_access.recipients('crm_board', limit=None))
 
 
 def _common():
@@ -154,7 +251,8 @@ def _common():
             'STEP_WHEN': crm.step_when, 'AUTO_TEXT': crm.auto_text,
             'STEP_SENTENCE': crm.step_sentence, 'AUTO_SENTENCE': crm.auto_sentence,
             'wa_mode': crm.wa_mode(), 'REPLY_LABELS': crm.REPLY_LABELS,
-            'unrouted_count': CrmSource.query.filter_by(status='unrouted').count()}
+            'unrouted_count': CrmSource.query.filter_by(status='unrouted').count(),
+            'FORECASTS': CRM_FORECASTS}
 
 
 @crm_bp.app_template_global('CRM_PRODUCT_ICON')
@@ -175,7 +273,8 @@ def _sees_team():
 
 def _lead_or_404(lead_id):
     lead = db.session.get(CrmLead, lead_id)
-    if lead is None:
+    if lead is None or lead.deleted_at is not None or not crm_access.can_see_lead(current_user, lead) \
+            or not crm_scope.visible(lead):              # another workspace's lead does not exist here
         abort(404)
     return lead
 
@@ -257,8 +356,23 @@ def board():
     closed_days = 30 if win == '30' else None
     stage_id = a.get('stage', type=int)
     q = (a.get('q') or '').strip()[:80]
-    follow = 'late' if a.get('follow') == 'late' else None
+    follow = a.get('follow') if a.get('follow') in ('late', 'today') else None
+    quoted = 'week' if a.get('quoted') == 'week' else None
     page = max(1, a.get('page', type=int) or 1)
+    # Forecast's links: leads that close in a month, a forecast category, no value / no close date
+    closes = a.get('closes') if crm_money.closes_bounds(a.get('closes')) else None
+    fc = a.get('forecast') if a.get('forecast') in CRM_FORECASTS else None
+    no_value, no_close = bool(a.get('no_value')), bool(a.get('no_close'))
+    money_filter = bool(closes or fc or no_value or no_close)
+    if money_filter:
+        closed_days = None              # a link to won leads must show every one of them, not the last 30 days
+    extra = dict(closes=closes, forecast=fc, no_value=no_value, no_close=no_close, quoted=quoted)
+    only_ids = [int(x) for x in (a.get('ids') or '').split(',') if x.strip().isdigit()][:200]
+    if only_ids:
+        extra['ids'] = only_ids              # "3 not moved: they need a value" links to exactly those leads
+        closed_days = None
+    if a.get('status') in ('open', 'won', 'lost'):
+        extra['status'] = a.get('status')
 
     prefs.update(p=p_key, view=view, owner=owner, chat=chat, win=win)
     session[BOARD_PREFS] = prefs
@@ -269,7 +383,7 @@ def board():
     columns, cards, listing, reach = [], {}, None, {}
     with wa_templates.cache_only():
         if pipe is not None and view == 'board':
-            data = crm.board(pipe, owner_id, q, chat, closed_days, hidden=hidden)
+            data = crm.board(pipe, owner_id, q, chat, closed_days, hidden=hidden, follow=follow, **extra)
             columns, cards = data['columns'], data['cards']
             if can_broadcast:
                 reach = crm.stage_reach(pipe, [c['stage'] for c in columns])
@@ -278,7 +392,7 @@ def board():
                                        p='/broadcasts/new?' + urlencode([('tag', t) for t in r['tags']]))
         elif view == 'list' and (pipe is not None or all_pipes):
             listing = crm.lead_list(pipe, page, owner_id=owner_id, q=q, chat=chat, stage_id=stage_id,
-                                    closed_days=closed_days, follow=follow)
+                                    closed_days=closed_days, follow=follow, **extra)
             cards = listing['cards']
     unrouted_q = CrmLead.query.filter(CrmLead.pipeline_id.is_(None), CrmLead.status == 'open')
     unrouted = unrouted_q.order_by(CrmLead.created_at.desc()).limit(12).all()
@@ -291,19 +405,53 @@ def board():
 
     def link(**kw):
         """This page's address with some words changed (None drops one)."""
-        vals = {'p': p_key, 'view': view, 'owner': owner, 'chat': chat, 'win': win, 'stage': stage_id, 'q': q}
+        vals = {'p': p_key, 'view': view, 'owner': owner, 'chat': chat, 'win': win, 'stage': stage_id, 'q': q,
+                'closes': closes, 'forecast': fc, 'no_value': 1 if no_value else None,
+                'no_close': 1 if no_close else None, 'status': extra.get('status'), 'follow': follow,
+                'quoted': quoted,
+                'ids': ','.join(map(str, only_ids)) if only_ids else None}
         vals.update(kw)
         return crm_url('board', **{k: v for k, v in vals.items() if v not in (None, '')})
 
-    defaults = (owner == ('all' if access.can(current_user, 'crm_insights') else 'mine') and not chat
-                and win == '30' and not q and not stage_id)
+    # what Download this list and Save this view carry: the filters on screen, nothing more
+    view_params = {k: v for k, v in {
+        'p': p_key, 'view': view, 'owner': owner, 'chat': chat, 'win': win, 'stage': stage_id, 'q': q,
+        'closes': closes, 'forecast': fc, 'no_value': 1 if no_value else None, 'no_close': 1 if no_close else None,
+        'status': extra.get('status'), 'follow': follow, 'quoted': quoted}.items() if v not in (None, '')}
+    export_args = dict(view_params, ids=','.join(map(str, only_ids)) if only_ids else None)
+    export_args.pop('view', None)
+
+    defaults = (not only_ids and owner == ('all' if access.can(current_user, 'crm_insights') else 'mine') and not chat
+                and win == '30' and not q and not stage_id and not money_filter and not extra.get('status')
+                and not follow and not quoted)
+    chips = []
+    if closes:
+        chips.append(('Closes in ' + (crm_money.month_label(closes) if crm_money.PERIOD_RE.match(closes) else closes.upper()),
+                      link(closes=None, page=None)))
+    if fc:
+        chips.append(('Counts as: ' + CRM_FORECASTS[fc], link(forecast=None, page=None)))
+    if no_value:
+        chips.append(('No value yet', link(no_value=None, page=None)))
+    if no_close:
+        chips.append(('No close date', link(no_close=None, page=None)))
+    if only_ids:
+        chips.append(('Only the %d leads that were not moved' % len(only_ids), link(ids=None, page=None)))
+    if follow:
+        chips.append(({'late': 'Follow-up is late', 'today': 'Follow-up due today'}[follow], link(follow=None, page=None)))
+    if quoted:
+        chips.append(('Quote sent this week', link(quoted=None, page=None)))
+    if extra.get('status'):
+        chips.append(({'open': 'Still open', 'won': 'Won', 'lost': 'Lost'}[extra['status']],
+                      link(status=None, page=None)))
     return render_template('cs/crm/board.html', pipelines=pipelines, pipe=pipe, p_key=p_key, counts=counts,
                            columns=columns, cards=cards, listing=listing, reach=reach, view=view,
                            view_auto=view_auto, owner=owner, chat=chat, win=win, q=q, stage_id=stage_id,
-                           staff=staff, staff_json=[[0, crm.NOBODY]] + [[u.id, u.full_name] for u in staff],
-                           hidden_n=len(hidden), link=link, filters_on=not defaults,
+                           staff=staff, owner_options=crm_access.limit_users(current_user, staff),
+                           staff_json=[[0, crm.NOBODY]] + [[u.id, u.full_name] for u in staff],
+                           hidden_n=len(hidden), link=link, filters_on=not defaults, filter_chips=chips,
                            CHAT_FILTERS=CHAT_FILTERS, can_bulk=access.can(current_user, 'crm_tracker'),
                            can_broadcast=can_broadcast, can_export=access.can(current_user, 'crm_export'),
+                           view_params=view_params, export_args=export_args,
                            stages_json=stages_json, unrouted=unrouted,
                            unrouted_total=unrouted_total, has_leads=has_leads, **_common())
 
@@ -320,7 +468,10 @@ def bulk():
     ids = [i for i in (data.get('lead_ids') or []) if isinstance(i, int) and i > 0][:200]
     if not ids:
         return jsonify({'error': 'Choose some leads first.'}), 400
-    leads = CrmLead.query.options(*crm.lead_load()).filter(CrmLead.id.in_(ids)).all()
+    from app.services import crm_access
+    seen = crm_access.lead_filter(current_user)          # only leads this person may see
+    leads = (CrmLead.query.options(*crm.lead_load()).filter(CrmLead.id.in_(ids), *([seen] if seen is not None else []))
+             .all())
     action = data.get('action')
     if action == 'give':
         uid = int(data.get('owner_id') or 0) or None
@@ -343,20 +494,35 @@ def bulk():
         reason = (data.get('reason') or '').strip()[:160] or None
         lost = stage.kind == 'lost'
         if lost and not reason:
-            return jsonify({'error': 'Pick why these leads fell out.', 'need_reason': True,
+            return jsonify({'error': 'Pick why these leads were lost.', 'need_reason': True,
                             'reasons': stage.pipeline.fallout_reasons or []}), 400
         moved = other = 0
+        blocked, needs = [], []
         for l in leads:
             if l.pipeline_id != stage.pipeline_id:
                 other += 1
-            elif crm.move_stage(l, stage, user=current_user, reason=None if lost else reason,
-                                fallout_reason=reason if lost else None):
+                continue
+            if stage.requires and l.stage_id != stage.id:
+                left = crm_stage_rules.missing(l, stage)
+                if left:
+                    # people's moves wait for what the stage needs; the leads are listed for them to fill in
+                    blocked.append(l.id)
+                    needs += [m['label'].lower() for m in left if m['label'].lower() not in needs]
+                    continue
+            if crm.move_stage(l, stage, user=current_user, reason=None if lost else reason,
+                              fallout_reason=reason if lost else None):
                 moved += 1
         db.session.commit()
         msg = crm.BULK_MOVED % (moved, '' if moved == 1 else 's', stage.name)
         if other:
             msg += crm.BULK_OTHER_PIPE % (other, 'was' if other == 1 else 'were')
-        return jsonify({'success': True, 'done': moved, 'message': msg})
+        out = {'success': True, 'done': moved}
+        if blocked:
+            msg += ' %d not moved: they need %s.' % (len(blocked), ', '.join(needs))
+            out.update(not_moved=len(blocked),
+                       not_moved_url=crm_url('board', p=stage.pipeline.key, view='list', ids=','.join(map(str, blocked))))
+        out['message'] = msg
+        return jsonify(out)
     return jsonify({'error': 'Unknown action.'}), 400
 
 
@@ -391,13 +557,15 @@ def today():
                                joinedload(CrmTask.lead).joinedload(CrmLead.stage),
                                joinedload(CrmTask.lead).joinedload(CrmLead.pipeline),
                                joinedload(CrmTask.step), joinedload(CrmTask.owner))
-         .filter(CrmTask.status == 'open', CrmTask.due_at <= now + timedelta(days=3)))
+         .filter(CrmTask.status == 'open', CrmTask.kind == 'step', CrmTask.due_at <= now + timedelta(days=3)))
     if who == 'me':
         q = q.filter(CrmTask.owner_id == current_user.id)
     tasks = q.order_by(CrmTask.due_at).limit(300).all()
     end_of_day = (datetime.combine((now + crm.IST).date(), datetime.max.time()) - crm.IST)
     texts = {t.id: crm.fill(t.step.body, t.lead, current_user) if t.step and t.step.body else ''
              for t in tasks}
+    # tasks, calls and meetings people added by hand: their own card, due today or late
+    my_tasks = crm_tasks.my_open(current_user, end_of_day, everybody=(who == 'all'))
     due_now = [t for t in tasks if t.due_at <= end_of_day]
     # a lead's very first message: "welcome the new ones" comes before the other follow-ups
     welcome = [t for t in due_now if t.step is not None and t.step.position == 0 and t.lead.stage is not None
@@ -464,8 +632,17 @@ def today():
     first = (('wait-%d' % waiting[0]['lead'].id, waiting[0]['short'], 'Reply') if waiting else
              next((('task-%d' % t.id, _short_name(t.lead.person), plans[t.id].get('label') or 'Open')
                    for t in welcome + follow), None))
+    # a slim bar when this month has a target for them: what is won and committed so far
+    my_target = crm_money.my_target_line(current_user, today_ist)
+    target_href = None
+    if my_target:
+        target_href = (crm_url('forecast') if access.can(current_user, 'crm_forecast') else
+                       crm_url('board', p='all', view='list', owner=current_user.id, forecast='commit',
+                               closes=my_target['period']))
     return render_template('cs/crm/today.html', texts=texts, plans=plans, who=who, team=team, waiting=waiting,
+                           my_target=my_target, target_href=target_href,
                            stuck=stuck, welcome=welcome, follow=follow, later=later, done_today=done_today,
+                           my_tasks=my_tasks, approvals=crm_quotes.waiting_for(current_user),
                            slot=slot, slot_label=crm_reports.slot_label,
                            slot_done=sum(1 for c in channels if (slot, c) in ticks), channels=channels,
                            checks_line=checks_line, coverage=crm_reports.coverage(day, channels),
@@ -594,15 +771,12 @@ def _timeline(lead):
 
 
 def _ref_url(lead):
-    """Where the record a lead came from can be opened, when it has a screen of its own."""
-    try:
-        if lead.ref_type == 'companion_requests' and lead.ref_id:
-            return url_for('cs.post_detail', trip_id=lead.ref_id)
-        return {'insurance_quotes': url_for('cs.insurance_quotes'),
-                'sahayak_bookings': url_for('cs.sahayak_bookings'),
-                'contact_messages': url_for('cs.voices')}.get(lead.ref_type)
-    except Exception:      # noqa: BLE001 -- a screen that is not there must not break the lead page
-        return None
+    """Where the record a lead came from can be opened: its own screen, or the list page filtered to it
+    (services/crm_records.record_url -- the same helper the contact page's "Records on the site" uses)."""
+    from app.services import crm_records
+    person = lead.person
+    return crm_records.url_for_ref(lead.ref_type, lead.ref_id, email=person.email if person else None,
+                                   viewer=current_user)
 
 
 def lead_card_context(lead, compact=False):
@@ -626,7 +800,28 @@ def lead_card_context(lead, compact=False):
                 ref_url=_ref_url(lead), timeline=_timeline(lead) if compact else [],
                 others=[l for l in lead.person.leads if l.id != lead.id], staff=_staff(),
                 no_answers=crm.no_answer_streak(lead), compact=compact,
-                quick=crm.quick_replies_for(lead, current_user), wa_off=crm.wa_mode() == 'off')
+                quick=crm.quick_replies_for(lead, current_user), wa_off=crm.wa_mode() == 'off',
+                score=_score_line(lead))
+
+
+def _score_line(lead):
+    """The lead card's "Score 72 — They replied +20 · trip in 9 days +20" (None while scoring is off)."""
+    from app.services import crm_scoring
+    try:
+        return crm_scoring.breakdown(lead)
+    except Exception:          # noqa: BLE001 -- a score must never cost somebody the lead page
+        return None
+
+
+@crm_bp.app_template_global('SCORING_ON')
+def scoring_on():
+    """Is lead scoring on in the workspace being worked in (the board's score chip)? Once a request."""
+    from app.models import request_cache
+    from app.services import crm_scoring
+    c = request_cache('crm_scoring')
+    if 'on' not in c:
+        c['on'] = crm_scoring.is_on()
+    return c['on']
 
 
 def lead_page_context(lead, confirm=False):
@@ -640,7 +835,7 @@ def lead_page_context(lead, confirm=False):
     social_open = crm.social_windows(lead)
     admin_or_owner = bool(current_user.is_admin or lead.owner_id == current_user.id)
     chat_url = (url_for('messaging.lead_chat', lead_id=lead.id)
-                if wacrm_team.enabled() and crm_role(current_user) and (person.phone or person.wacrm_conversation_id)
+                if crm.wa_team_on() and crm_role(current_user) and (person.phone or person.wacrm_conversation_id)
                 else None)
     via = request.args.get('via')
     back = session.get('crm_back') or ''
@@ -648,7 +843,7 @@ def lead_page_context(lead, confirm=False):
         back_url = back
     else:
         back_url = crm_url('board', p=lead.pipeline.key if lead.pipeline else None)
-    ctx.update(back_url=back_url, back_label='My day' if '/today' in back_url.split('?')[0] else 'Leads',
+    ctx.update(money_currencies=crm_money.currency_choices(lead), back_url=back_url, back_label='My day' if '/today' in back_url.split('?')[0] else 'Leads',
                pipelines=CrmPipeline.query.filter_by(is_active=True).order_by(CrmPipeline.id).all(),
                has_moves=any(ch.from_stage_id for ch in lead.stage_changes),
                can_remove=crm.can_remove(lead, current_user),
@@ -657,9 +852,17 @@ def lead_page_context(lead, confirm=False):
                              for ch, ok in social_open.items()},
                sync=crm.wa_sync_state(person) if admin_or_owner else None,
                can_opt_in=bool(current_user.is_admin and wa['state'] in ('opted_out', 'opted_out_open')),
+               history=crm_audit.history_for('lead', lead.id, lead.currency),
+               family=crm_household.line(person, current_user), files=crm_files.for_lead(lead.id),
+               qp=crm_quotes.card(lead, current_user), ai_on=_ai_on(),
                chat_url=chat_url, stream=crm_timeline.build(lead), tpl=crm.box_templates(lead, current_user),
                via0=via if via in ('whatsapp', 'instagram', 'facebook') else '')
     return ctx
+
+
+def _ai_on():
+    from app.services import crm_ai
+    return crm_ai.enabled()
 
 
 def _send_answer(result):
@@ -706,8 +909,24 @@ def move(lead_id):
         return jsonify({'error': 'That stage is not in this lead\'s pipeline.'}), 400
     reason = (data.get('reason') or '').strip()[:160] or None
     if stage.kind == 'lost' and not reason:
-        return jsonify({'error': 'Pick why this lead fell out.', 'need_reason': True,
+        return jsonify({'error': 'Pick why this lead was lost.', 'need_reason': True,
                         'reasons': lead.pipeline.fallout_reasons or []}), 400
+    if stage.requires and stage.id != lead.stage_id:
+        # what this stage needs before a lead moves in: ask for it (the dialog posts again with `fields`). An amount
+        # typed in "Did you send the quote?" already answers "Value": it is not asked for a second time.
+        fields = dict(data.get('fields')) if isinstance(data.get('fields'), dict) else {}
+        if data.get('amount') not in (None, '') and not fields.get('amount'):
+            fields['amount'] = data.get('amount')
+        try:
+            ok, left = crm_stage_rules.check(lead, stage, fields or None)
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'error': str(exc), 'need_fields': crm_stage_rules.missing(lead, stage),
+                            'stage_name': stage.name}), 400
+        if not ok:
+            db.session.rollback()
+            return jsonify({'error': crm_stage_rules.sentence(stage, left), 'need_fields': left,
+                            'stage_name': stage.name}), 400
     moved = crm.move_stage(lead, stage, user=current_user,
                            reason=None if stage.kind == 'lost' else reason,
                            fallout_reason=reason if stage.kind == 'lost' else None)
@@ -716,8 +935,15 @@ def move(lead_id):
     logged = bool(moved and data.get('log_milestone') is True and code and stage.kind == 'open')
     if logged:
         crm.log_touch(lead, 'system', 'none', body=stage.button_label, code=code, user=current_user)
+    if moved and data.get('amount') not in (None, ''):
+        try:
+            crm_money.change_value(lead, amount=data.get('amount'), currency=data.get('currency'), user=current_user)
+        except ValueError:
+            pass            # the move itself already happened; a bad amount is simply not saved
     db.session.commit()
+    # the board keeps its column totals right without a reload: the lead's value now, in the reporting currency
     return jsonify({'success': True, 'stage': stage.name, 'status': lead.status, 'logged': logged,
+                    'value': crm_money.plain_amount(crm_money.to_base(lead.amount, lead.currency)) or '0',
                     **({'logged_label': stage.button_label} if logged else {})})
 
 
@@ -743,8 +969,16 @@ def route_lead(lead_id):
 @cs_required
 def task_action(task_id, action):
     task = db.session.get(CrmTask, task_id)
-    if task is None:
+    if task is None or not crm_scope.visible(task):
         abort(404)
+    if task.lead_id is not None:
+        _lead_or_404(task.lead_id)           # a lead this person may not see has no tasks for them to touch
+    if not task.is_step:
+        # a task, call or meeting someone added: its owner, whoever made it, or an admin
+        if not crm_tasks.can_change(current_user, task):
+            return jsonify({'error': crm_tasks.NOT_YOURS}), 403
+        if action == 'skip':
+            return jsonify({'error': 'Unknown action'}), 400
     if action == 'done':
         crm.complete_task(task, user=current_user, note=_json().get('note'))
     elif action == 'skip':
@@ -754,7 +988,7 @@ def task_action(task_id, action):
     else:
         return jsonify({'error': 'Unknown action'}), 400
     db.session.commit()
-    nxt = task.lead.open_task
+    nxt = task.lead.open_task if task.lead is not None else None
     return jsonify({'success': True, 'next': ({'code': nxt.code, 'title': nxt.title,
                                                'due': nxt.due_at.isoformat()} if nxt else None)})
 
@@ -922,7 +1156,7 @@ def update(lead_id):
                           user=current_user, activity=False)
         lead.owner_id = uid or None
         for t in lead.tasks:
-            if t.status == 'open':
+            if t.status == 'open' and t.is_step:
                 t.owner_id = lead.owner_id
     if 'temperature' in data:
         t = data['temperature'] or None
@@ -934,6 +1168,11 @@ def update(lead_id):
         if v and v not in CRM_LIKELIHOOD:
             return jsonify({'error': 'Unknown choice.'}), 400
         lead.likelihood = v
+        # a person's pick: lead scoring never changes it; cleared, the score decides again (run 5b)
+        lead.likelihood_manual = v is not None
+        if v is None:
+            from app.services import crm_scoring
+            crm_scoring.touched(lead)
     for col in ('departure_date', 'ends_on'):
         if col in data:
             raw = (data[col] or '').strip()
@@ -1023,6 +1262,8 @@ def update(lead_id):
 def suggest():
     text = (request.args.get('q') or '')[:1000]
     lead = db.session.get(CrmLead, int(request.args.get('lead') or 0)) if request.args.get('lead') else None
+    if lead is not None and (lead.deleted_at is not None or not crm_access.can_see_lead(current_user, lead)):
+        lead = None
     out = crm_answers.suggest(text, lead.product if lead else request.args.get('product'), limit=4)
     if lead:
         for s in out:
@@ -1050,6 +1291,8 @@ def _add_prefill():
                                                  'product', 'source') if a.get(k)}
     pid = a.get('person', type=int)
     person = db.session.get(CrmPerson, pid) if pid else None
+    if person is not None and not crm_access.can_see_person(current_user, person):
+        person = None
     if person is not None:
         from app.services import phone as phone_svc
         form.update(name=person.name or '', phone=person.phone or '', email=person.email or '',
@@ -1127,22 +1370,28 @@ def add():
         clean_idents = [(k, crm.clean_identity(k, v)) for k, v in idents]
         existing = crm.find_person(e164, email_clean, clean_idents)
         dup = f.get('dup')
+        # somebody whose leads this person may not see is not named: only that someone else looks after them
+        hidden_person = existing is not None and not crm_access.can_see_person(current_user, existing)
+        shown = 'This person' if hidden_person else (existing.display_name if existing is not None else '')
+        first = 'them' if hidden_person else ((existing.display_name.split() or [existing.display_name])[0]
+                                              if existing is not None else '')
         if existing is not None and dup not in ('same', 'new') and str(existing.id) != (f.get('person_id') or ''):
-            first = (existing.display_name.split() or [existing.display_name])[0]
+            if hidden_person:
+                return again({'kind': 'dup', 'text': crm_access.OTHER_PERSON + ' Add this enquiry to them?',
+                              'add': 'Add to them', 'other': crm_people.DUP_OTHER, 'person_id': existing.id})
             return again({'kind': 'dup', 'text': crm_people.DUP_ASK % (existing.display_name,
                                                                         crm_people.short_reach(existing)),
                           'add': crm_people.DUP_ADD % first, 'other': crm_people.DUP_OTHER,
                           'person_id': existing.id})
         person = None
         if existing is not None and dup == 'new':
-            first = (existing.display_name.split() or [existing.display_name])[0]
             if e164 and existing.phone == e164:
-                flash(crm_people.DUP_SAME_PHONE % (existing.display_name, first), 'danger')
+                flash(crm_people.DUP_SAME_PHONE % (shown, first), 'danger')
                 return again()
             held = next((k for k, v in clean_idents if v and CrmIdentity.query.filter_by(kind=k, value=v).first()),
                         None)
             if held:
-                flash(crm_people.DUP_SAME_HANDLE % (existing.display_name, held.capitalize(), first), 'danger')
+                flash(crm_people.DUP_SAME_HANDLE % (shown, held.capitalize(), first), 'danger')
                 return again()
             # the same e-mail only: a different person
             person = CrmPerson(phone=e164, email=email_clean, name=(f.get('name') or '').strip()[:120] or None)
@@ -1164,6 +1413,17 @@ def add():
             flash('Could not add that lead.', 'danger')
             return redirect(crm_url('add'))
         session['crm_add_product'] = (product or '')
+        # the value and the day it should close, when typed (a lead made just now; one it merged into keeps its own)
+        if lead.created_by_id == current_user.id and lead.created_at and                 (datetime.utcnow() - lead.created_at).total_seconds() < 120:
+            try:
+                if (f.get('amount') or '').strip():
+                    crm_money.set_amount(lead, f.get('amount'), f.get('currency'))
+                if (f.get('close_date') or '').strip():
+                    lead.close_date = datetime.strptime(f['close_date'].strip(), '%Y-%m-%d').date()
+                db.session.commit()
+            except ValueError:
+                db.session.rollback()
+                flash('The amount or the close date did not look right, so they were left as they were.', 'warning')
         # whoever added it takes it, unless they chose to share it out
         if mine:
             lead.owner_id = current_user.id
@@ -1263,7 +1523,39 @@ def remove(lead_id):
 def insights():
     """Reports -> Results (E17): how sales are going for 7, 30 or 90 days, one pipeline and one person; every
     number has its definition (crm_metrics.DEFINITIONS). The site owner's start page."""
-    from app.services import crm_metrics, crm_results
+    from app.services import crm_metrics, crm_numbers
+    data = _results_data()
+    defs = dict(crm_metrics.DEFINITIONS)
+    defs.update({card: crm_numbers.card_definition(card) for card in crm_numbers.CARD_METRIC})
+    from app.services import crm_report_builder
+    # reports pinned from the report builder: extra sections at the bottom, in their saved order
+    return render_template('cs/crm/insights.html', DEFS=defs, pinned=crm_report_builder.pinned_for(current_user),
+                           **data, **_common())
+
+
+@crm_bp.route('/insights/recalculate', methods=['POST'])
+@cs_required
+@admin_only
+def insights_recalculate():
+    """Admin only: forget the saved daily numbers of the last 90 days and save them again (the newest ones now, the
+    rest tonight). Until a day is saved again it is counted live, so Results is never wrong or empty."""
+    from app.services import crm_numbers
+    if not current_user.is_admin:
+        flash('Only an admin can recalculate the saved numbers.', 'danger')
+        return redirect(crm_url('insights'))
+    out = crm_numbers.recalculate(90)
+    ActivityEvent.log('crm_numbers_recalculated', actor=current_user, days=90)
+    db.session.commit()
+    flash('Recalculated: the last %d days are saved again%s.' % (
+        out['rebuilt_now'], (' and the other %d days follow tonight' % out['left_for_tonight'])
+        if out['left_for_tonight'] else ''), 'success')
+    return redirect(crm_url('insights', days=request.form.get('days', type=int) or None))
+
+
+def _results_data():
+    """Everything Results shows for the chosen days, pipeline and person -- the page and its Excel download
+    both read it, so the download is what the screen says."""
+    from app.services import crm_numbers, crm_results
     days = request.args.get('days', type=int) or 30
     days = days if days in (7, 30, 90) else 30
     staff = crm_reports.visible_staff(current_user, _staff())
@@ -1276,15 +1568,25 @@ def insights():
     psince, puntil = crm_kpi.utc_bounds(first - timedelta(days=days), first - timedelta(days=1))
     pid, oid = (pipe.id if pipe else None), (person.id if person else None)
     day_list, groups = crm_kpi.table(first, today, oid)
-    return render_template('cs/crm/insights.html', days=days, staff=staff, person=person, pipelines=pipelines,
-                           pipe=pipe, cards=crm_results.cards(since, until, pid, oid),
-                           before=crm_results.counts(psince, puntil, pid, oid),
-                           funnel=crm_results.funnel(since, until, pipe, oid),
-                           sources=crm_results.sources(since, until, pid, oid),
-                           senders=crm_results.by_sender(since, until, pid, oid),
-                           milestones=crm_results.milestones(since, until, pid, oid),
-                           reasons=crm_results.lost_reasons(since, until, pid, oid),
-                           day_list=day_list, groups=groups, DEFS=crm_metrics.DEFINITIONS, **_common())
+    money = crm_money.won_value(since, until, pid, oid)
+    money_before = crm_money.won_value(psince, puntil, pid, oid)
+    for m_, a_, b_ in ((money, since, until), (money_before, psince, puntil)):      # the same numbers as everywhere
+        got = crm_numbers.bundle(['won_value', 'revenue'], a_, b_, crm_numbers.scope(pid, [oid] if oid else None))
+        m_['amount'], m_['revenue'] = got['won_value'], got['revenue']
+    return dict(days=days, first=first, today=today, staff=staff, person=person, pipelines=pipelines,
+                pipe=pipe, cards=crm_results.cards(since, until, pid, oid),
+                money=money, money_before=money_before,
+                top=crm_money.top_sellers(since, until, [person] if person else staff, pid),
+                rate_warning=crm_money.rate_warning(money['missing_counts']),
+                before=crm_results.counts(psince, puntil, pid, oid),
+                funnel=crm_results.funnel(since, until, pipe, oid),
+                sources=crm_results.sources(since, until, pid, oid),
+                senders=crm_results.by_sender(since, until, pid, oid),
+                milestones=crm_results.milestones(since, until, pid, oid),
+                reasons=crm_results.lost_reasons(since, until, pid, oid),
+                day_list=day_list, groups=groups,
+                # run 5b: paid campaigns (Lead sources > Marketing activities), each over its own dates
+                campaigns=_campaigns().results(current_user, first, today))
 
 
 @crm_bp.route('/insights/log', methods=['POST'])
@@ -1316,8 +1618,8 @@ def process():
     with today's counts and its messages, and the fallouts."""
     from app.services import crm_defaults
     crm.ensure_defaults()
-    settings_ = crm.crm_settings_raw()
-    channels = settings_.get('channels') or [list(c) for c in crm_defaults.CHANNELS]
+    from app.services import crm_campaigns
+    channels = crm_campaigns.channels()        # Lead sources > Marketing activities (run 5b: a table, per workspace)
     pipelines = CrmPipeline.query.filter_by(is_active=True).order_by(CrmPipeline.id).all()
     open_counts = dict(db.session.query(CrmLead.stage_id, func.count(CrmLead.id))
                        .filter(CrmLead.status == 'open').group_by(CrmLead.stage_id).all())
@@ -1340,12 +1642,9 @@ def process():
 def save_process():
     f = request.form
     if f.get('what') == 'channels':
-        rows = []
-        for line in (f.get('channels') or '').splitlines():
-            parts = [x.strip() for x in line.split('|')]
-            if parts and parts[0]:
-                rows.append((parts + ['', '', '', ''])[:4])
-        crm.save_settings(current_user, channels=rows[:80])
+        from app.services import crm_campaigns
+        crm_campaigns.save_lines(f.get('channels'))
+        db.session.commit()
     flash('Saved.', 'success')
     return redirect(crm_url('sources', tab='activities'))
 
@@ -1361,15 +1660,70 @@ def event(lead_id):
     code = (_json().get('code') or '').upper()
     if crm.milestone_stage(lead.pipeline, code) is None:
         return jsonify({'error': 'Unknown action.'}), 400
-    moved = crm.mark_event(lead, code, user=current_user, note=(_json().get('note') or '').strip()[:500] or None)
+    data = _json()
+    try:
+        moved = crm.mark_event(lead, code, user=current_user, note=(data.get('note') or '').strip()[:500] or None,
+                               amount=data.get('amount'), currency=data.get('currency'))
+    except ValueError:
+        db.session.rollback()
+        return jsonify({'error': 'Type the amount as a number, like 18500.'}), 400
     return jsonify({'success': True, 'stage': moved.name if moved else None})
+
+
+@crm_bp.route('/lead/<int:lead_id>/money', methods=['POST'])
+@cs_required
+def lead_money(lead_id):
+    """Change what a lead is worth, when it closes and how the forecast counts it. A line on its history
+    ("Value ₹12,000 → ₹18,500"); nothing goes to the customer and nothing to WhatsApp."""
+    lead = _lead_or_404(lead_id)
+    data = request.get_json(silent=True) or request.form
+    kw = {}
+    try:
+        if 'amount' in data:
+            kw['amount'] = crm_money.money_amount(data.get('amount')) if str(data.get('amount')).strip() else None
+            if 'currency' in data:
+                kw['currency'] = data.get('currency')
+        if 'close_date' in data:
+            raw = str(data.get('close_date') or '').strip()
+            kw['close_date'] = datetime.strptime(raw, '%Y-%m-%d').date() if raw else None
+        if 'forecast' in data and lead.status == 'open':
+            kw['forecast'] = (data.get('forecast') or '').strip() or None
+        lines = crm_money.change_value(lead, user=current_user, **kw)
+    except ValueError:
+        db.session.rollback()
+        return jsonify({'error': 'Check the amount, the date and the forecast choice.'}), 400
+    db.session.commit()
+    return jsonify({'success': True, 'changed': lines})
 
 
 @crm_bp.route('/insights.csv')
 @cs_required
 @admin_only
 def insights_csv():
-    """The per-person numbers, day by day, for a spreadsheet -- the old KPI tabs."""
+    """Download for Excel on Results: what the screen shows for the chosen days, pipeline and person -- the
+    cards with the days before, the funnel, sources, messages, quotes, lost reasons and the day-by-day grid."""
+    import csv
+    import io
+    from app.services import crm_results_export
+    d = _results_data()
+    buf = io.StringIO()
+    csv.writer(buf).writerows(crm_results_export.rows(
+        d['days'], d['first'], d['today'], d['pipe'], d['person'], d['cards'], d['before'], d['funnel'],
+        d['sources'], d['senders'], d['milestones'], d['reasons'], d['day_list'], d['groups'],
+        money=d['money'], money_before=d['money_before'], top=d['top']))
+    ActivityEvent.log('crm_export', actor=current_user, kind='results', days=d['days'])
+    db.session.commit()
+    resp = make_response('\ufeff' + buf.getvalue())
+    resp.headers['Content-Type'] = 'text/csv; charset=utf-8'
+    resp.headers['Content-Disposition'] = 'attachment; filename=sales-results-%dd.csv' % d['days']
+    return resp
+
+
+@crm_bp.route('/insights-people.csv')
+@cs_required
+@admin_only
+def insights_people_csv():
+    """The per-person numbers, day by day, for a spreadsheet -- the old KPI tabs ("Download per person")."""
     import csv
     import io
     days = request.args.get('days', type=int) or 30
@@ -1410,6 +1764,11 @@ def setup():
     return redirect(crm_url('pipelines', p=a.get('p') or None))      # no tab, pipelines, messages, anything else
 
 
+def _campaigns():
+    from app.services import crm_campaigns
+    return crm_campaigns
+
+
 def _sources_context(**extra):
     """What Where leads come from draws, for the list and for the editor shown again with its errors."""
     from app.services import access, crm_editor, crm_people
@@ -1440,8 +1799,11 @@ def _sources_context(**extra):
                intake_url=_public_url('crm_public.intake'), snippet_url=snippet_url, snippet=None,
                check_rows=crm.crm_settings()['check_rows'], wa_key=current_app.config.get('WACRM_SOURCE_KEY', 'wa-india'),
                replies_linked=crm.wa_replies_linked(), source_keys=[(s.key, s.name) for s in rows],
-               activities=crm.crm_settings_raw().get('channels') or [list(c) for c in crm_defaults.CHANNELS],
-               form={}, errors={}, clash=None, take_over=set())
+               activities=_campaigns().rows(), blank_activity=_campaigns().Default(0, '', '', '', ''),
+               form={}, errors={}, clash=None, take_over=set(),
+               lead_ads={'meta_url': _public_url('crm_public.meta_webhook'), 'meta_on': meta.enabled(),
+                         'google_url': _public_url('crm_public.google_leads'),
+                         'google_on': bool((os.environ.get('CRM_GOOGLE_LEADS_KEY') or '').strip())})
     if edit is not None and edit.key:
         ctx['snippet'] = crm_editor.form_snippet(edit.key, edit.product, snippet_url)
     ctx.update(extra)
@@ -1570,6 +1932,7 @@ def save_source():
     status = f.get('status') if f.get('status') in ('live', 'paused') else 'live'
     src.status = status if pipe else 'unrouted'
     src.team = team
+    src.assign_mode = 'round_robin' if f.get('assign_mode') == 'round_robin' else None     # NULL: the fewest open leads
     src.crm_tags = new_tag_list or None
     src.pages = [p.strip()[:200] for p in (f.get('pages') or '').split(',') if p.strip()][:10] or None
     try:
@@ -1969,7 +2332,8 @@ def _cors(resp):
 @rate_limit(20, 3600)
 def intake():
     """The one door every landing page can use: {source, name, phone, phone_cc, email, message,
-    product, fields{...}}. A source nobody set up yet is accepted and shows up as unrouted."""
+    product, fields{...}, consent (WhatsApp), offers_consent ("OK to send offers")}. A source nobody set up yet is
+    accepted and shows up as unrouted."""
     if request.method == 'OPTIONS':
         return _cors(make_response('', 204))
     data = request.get_json(silent=True) or request.form.to_dict()
@@ -2001,7 +2365,9 @@ def intake():
                               product=data.get('product'), message=(data.get('message') or '')[:2000] or None,
                               details=fields, utm=utm,
                               consent=bool(data.get('consent')) or crm.ticked(data.get('wa_consent')),
-                              consent_from='lead form')
+                              consent_from='lead form',
+                              # the form's own "OK to send offers" tick -- never the WhatsApp one above
+                              offers_consent=crm.ticked(data.get('offers_consent')))
     if lead is None:
         return _cors(make_response(jsonify({'success': False,
                                             'error': 'Sorry, that did not go through. Please try again.'}), 500))
@@ -2031,7 +2397,8 @@ def wacrm_webhook():
     if handler is None:
         return jsonify({'ok': True})
     try:
-        return handler(data if isinstance(data, dict) else {})
+        with crm_scope.in_whatsapp():          # the workspace linked to the WhatsApp CRM (run 5a)
+            return handler(data if isinstance(data, dict) else {})
     except Exception:          # noqa: BLE001 -- answered, logged, caught up by the jobs runner
         db.session.rollback()
         current_app.logger.exception('WhatsApp CRM %s event not stored', event)
@@ -2224,5 +2591,14 @@ def meta_webhook():
         except Exception:      # noqa: BLE001 -- Meta retries the whole delivery on an error; keep the rest
             db.session.rollback()
             current_app.logger.exception('Meta event not stored')
+    # lead-ad forms (the Page's `leadgen` field): fetch each lead and capture it, unrouted until an admin routes its form
+    from app.services import crm_lead_ads
+    for lead_ev in crm_lead_ads.meta_leads(payload):
+        try:
+            if crm_lead_ads.handle_meta(lead_ev) is not None:
+                stored += 1
+        except Exception:      # noqa: BLE001 -- as above: one bad lead must not make Meta resend the delivery
+            db.session.rollback()
+            current_app.logger.exception('Meta lead-ad lead not stored')
     # always 200 once verified: anything else makes Meta resend, and in time switch us off
     return jsonify({'ok': True, 'stored': stored})

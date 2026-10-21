@@ -37,6 +37,7 @@
       </form>
     </div>
 
+    {% set rec_id = (request.args.get('id') or '')|int(0) %}{% if rec_id %}<p class="admin-count"><i class="fa-solid fa-filter"></i> Showing one record (#{{ rec_id }}). <a href="{{ url_for(request.endpoint) }}">Show all</a></p>{% endif %}
     {% if can_delete %}{{ bulk_bar('insurance_quote', 'quote requests') }}{% endif %}
     <div class="admin-panel" id="leadResults">
     <div class="table-wrap">
@@ -48,7 +49,7 @@
       </thead>
       <tbody>
         {% for iq in quotes %}
-        <tr data-hd-row="insurance_quote-{{ iq.id }}">
+        <tr id="rec-{{ iq.id }}" data-hd-row="insurance_quote-{{ iq.id }}">
           {% if can_delete %}<td class="hd-pick" data-label="">{{ row_check('insurance_quote', iq.id) }}</td>{% endif %}
           <td data-label="When">{{ iq.created_at|istd('%d %b %Y') }}<br><small>{{ iq.created_at|ist('%H:%M') }}</small></td>
           <td data-label="Who">

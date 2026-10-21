@@ -76,19 +76,30 @@ def register(app):
     @click.option('--days', default=180, show_default=True, help='How far back to go.')
     def crm_backfill(days):
         """Bring the site's past enquiries into the Sales CRM (safe to run twice)."""
-        from app.services import crm_import
-        result = crm_import.backfill(days=days)
+        from app.services import crm_import, crm_scope
+        with crm_scope.use(crm_scope.default_id()):          # the site's own enquiries: the first workspace's CRM
+            result = crm_import.backfill(days=days)
         click.echo(', '.join('%s=%s' % kv for kv in sorted(result.items())) or 'nothing to bring in')
+
+    @app.cli.command('crm-snapshot')
+    @click.option('--days', default=180, show_default=True, help='How many days back to save (yesterday and earlier).')
+    def crm_snapshot(days):
+        """Save the Sales CRM's daily numbers for the last days at once (the jobs runner does 5 a run)."""
+        from app.services import crm_numbers, crm_scope
+        # each workspace saves its own numbers
+        n = crm_scope.each_workspace(lambda: {'days': crm_numbers.snapshot_range(days=days)})['days']
+        click.echo('%d days saved.' % n)
 
     @app.cli.command('crm-wa-backfill')
     def crm_wa_backfill():
         """Bring every lead with a phone (open, won or lost) into the WhatsApp CRM as a contact with its tags (no chat
         is made and nothing is sent). The jobs runner does it, a few people every run."""
-        from app.services import crm
-        if not crm.wa_writes_on():
-            click.echo('WhatsApp is off (Set-up → WhatsApp connection): nothing was marked.')
-            return
-        n = crm.wa_backfill()
+        from app.services import crm, crm_scope
+        with crm_scope.in_whatsapp():                         # the workspace linked to WhatsApp
+            if not crm.wa_writes_on():
+                click.echo('WhatsApp is off (Set-up → WhatsApp): nothing was marked.')
+                return
+            n = crm.wa_backfill()
         click.echo('%d people marked. The jobs runner brings them in, %d a run; nothing is sent to them.'
                    % (n, crm.WA_SYNC_BATCH))
 
@@ -97,13 +108,14 @@ def register(app):
     @click.option('--dry-run', is_flag=True, help='Only count what would come in.')
     def crm_import_sheet(path, dry_run):
         """Import the "Sales Process" workbook into the Sales CRM (safe to run twice)."""
-        from app.services import crm_import
+        from app.services import crm_import, crm_scope
         rows, stats = crm_import.read_sheet(path)
         for sheet, c in stats.items():
             click.echo('%-22s %s' % (sheet, ', '.join('%s=%s' % kv for kv in sorted(c.items()))))
         if dry_run:
             return
-        result = crm_import.import_sheet(rows)
+        with crm_scope.use(crm_scope.default_id()):          # the sales sheet is the first workspace's
+            result = crm_import.import_sheet(rows)
         click.echo('imported: ' + (', '.join('%s=%s' % kv for kv in sorted(result.items())) or 'nothing'))
 
     # ----------------------------------------------------------------- scraper

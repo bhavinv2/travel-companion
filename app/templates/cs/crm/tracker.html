@@ -43,16 +43,16 @@
   <table class="crm-table">
     <thead><tr>
       <th>Person</th>
-      {{ th('Open leads', 'Leads they look after that are not won or lost yet. Right now.') }}
-      {{ th('Follow-ups done (of due)', 'Follow-ups due that day that they did, of all that were due.') }}
-      {{ th('Late', 'Their follow-ups past due and not done yet. Right now.') }}
-      {{ th('Waiting now', 'Customers on their leads who wrote last and have no answer yet. Right now.') }}
-      {{ th('WhatsApp replies received', 'WhatsApp messages customers sent on their leads that day.') }}
-      {{ th('Left unanswered at day end', 'Customers who wrote that day and had no answer when it ended (today: so far).') }}
-      {{ th('First reply time (median)', "How long customers waited for a person's answer that day; half waited less. Automatic replies are not counted.") }}
-      {{ th('Calls', 'Calls they logged that day.') }}
-      {{ th('Checks', 'Half hours they ticked on the half-hourly check that day.') }}
-      {{ th('Last active', 'Their last action in the Sales CRM that day (India time).') }}
+      {{ th('Open leads', metric_tip('open_leads')) }}
+      {{ th('Follow-ups done (of due)', metric_tip('followups_done_of_due')) }}
+      {{ th('Late', metric_tip('late_followups')) }}
+      {{ th('Waiting now', metric_tip('waiting_now')) }}
+      {{ th('WhatsApp replies received', metric_tip('whatsapp_replies')) }}
+      {{ th('Left unanswered at day end', metric_tip('unanswered')) }}
+      {{ th('First reply time (median)', metric_tip('reply_minutes')) }}
+      {{ th('Calls', metric_tip('calls')) }}
+      {{ th('Checks', metric_tip('checks')) }}
+      {{ th('Last active', metric_tip('last_active')) }}
     </tr></thead>
     <tbody>
     {% for u in staff %}{% set s = sheet[u.id] %}{% set c = s.counts %}{% set n = nums[u.id] %}
@@ -177,7 +177,7 @@
             {% set t = it.task %}
             <li>
               <span class="mark {{ it.state }}" title="{{ {'done': 'Done on time', 'late': 'Done late', 'missed': 'Missed', 'pending': 'Still to do', 'moved': 'Not needed: the lead moved on'}[it.state] }}">{{ {'done': '✓', 'late': '✓', 'missed': '✕', 'pending': '·', 'moved': '↷'}[it.state] }}</span>
-              <span>{{ t.code ~ ' · ' if t.code }}{{ t.title }}</span>
+              <span>{{ t.title }}</span>
               <span class="muted small">{% if it.at %}{{ hm(it.at) }}{% else %}due {{ hm(t.due_at) }}{% endif %}</span>
             </li>
             {% endfor %}

@@ -71,6 +71,31 @@ def switch_view(view):
     return redirect(staff_home(current_user))
 
 
+@main_bp.route('/away', methods=['POST'])
+@login_required
+def set_away():
+    """Account menu: "I'm away until ..." (no new leads are shared with you) or "I'm back"."""
+    from flask import abort
+    from app import db
+    from app.services import access, crm_assign
+    if not access.is_staff(current_user):
+        abort(404)
+    if request.form.get('back'):
+        crm_assign.set_away(current_user, None)
+        flash('Welcome back. New leads can come to you again.', 'success')
+    else:
+        until = crm_assign.parse_until(request.form.get('until'))
+        if until is None:
+            flash('Pick the day you are back, after today.', 'warning')
+        else:
+            crm_assign.set_away(current_user, until)
+            flash('You are away until %s. No new leads are shared with you until then.'
+                  % (until + crm_assign.IST).strftime('%d %b'), 'success')
+    db.session.commit()
+    nxt = request.form.get('next') or ''
+    return redirect(nxt if nxt.startswith('/') and not nxt.startswith('//') else access.home_url(current_user))
+
+
 @main_bp.route('/work-as/<int:role_id>')
 @login_required
 def work_as(role_id):
@@ -327,6 +352,31 @@ def promo_dashboard():
         flash('That dashboard is for the promotion team.', 'warning')
         return redirect(url_for('main.index'))
     return render_template('pages/promo_dashboard.html', data=promo.snapshot())
+
+
+# The installable staff app (Sales CRM 2.0, run 5b): linked only from staff pages (base.html), no service worker.
+# Public, because a browser fetches a manifest without the sign-in cookie; it says nothing about anybody.
+STAFF_APP_NAME = 'NRI Parent Service CRM'
+STAFF_APP_THEME = '#1f6fd6'           # the consoles' blue (style.css .admin-page / ui.css --ui-primary)
+STAFF_APP_BACKGROUND = '#f4f9ff'      # the consoles' page colour (style.css .admin-page --bg)
+
+
+@main_bp.route('/manifest.webmanifest')
+def staff_manifest():
+    from flask import Response
+    start = url_for('crm.today')                       # My day, under the app's prefix (url_for carries it)
+    # square icons (the logo on a transparent square): a browser offers "Install" only with one of at least 192 px
+    icons = [{'src': url_for('static', filename='img/app-icon-%d.png' % n), 'sizes': '%dx%d' % (n, n),
+              'type': 'image/png', 'purpose': 'any'} for n in (192, 512)]
+    body = {
+        'id': start, 'name': STAFF_APP_NAME, 'short_name': 'CRM', 'start_url': start,
+        'scope': url_for('main.index'), 'display': 'standalone',
+        'theme_color': STAFF_APP_THEME, 'background_color': STAFF_APP_BACKGROUND,
+        'icons': icons,
+    }
+    resp = Response(json.dumps(body), mimetype='application/manifest+json')
+    resp.headers['Cache-Control'] = 'public, max-age=3600'
+    return resp
 
 
 @main_bp.route('/robots.txt')

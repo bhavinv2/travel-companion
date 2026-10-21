@@ -59,10 +59,12 @@
     const pop = document.createElement('div');
     pop.className = 'ss-pop';
     pop.hidden = true;
+    // The popup's own search box belongs to no form (form="" names no element): a text box inside the form would
+    // stop Enter from sending a filter form that has one search box and no button (Leads' "Find in these").
     pop.innerHTML =
       '<div class="ss-search"><span class="ss-search-in">' +
       '<i class="fa-solid fa-magnifying-glass"></i>' +
-      '<input type="text" placeholder="Search…" autocomplete="off" spellcheck="false"/>' +
+      '<input type="text" form="ss-no-form" placeholder="Search…" autocomplete="off" spellcheck="false"/>' +
       '</span></div>' +
       '<div class="ss-list" role="listbox"></div>' +
       '<div class="ss-none" hidden>No matches</div>';
@@ -92,6 +94,7 @@
       list.innerHTML = '';
       let shown = 0;
       [...sel.options].forEach((o, i) => {
+        if (o.hidden) return;                // as the native list: an option a page hid is not offered
         const text = o.textContent.trim();
         if (q && !text.toLowerCase().includes(q)) return;
         shown++;

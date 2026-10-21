@@ -218,8 +218,8 @@ def test_there_is_still_one_alembic_head_after_release_two():
     cfg = Config()
     cfg.set_main_option('script_location', mig)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ['t4su015']               # Menu builder, Super admin, workspace number, sign-ups
-    for rev, down in (('t4su015', 't3ws014'), ('t3ws014', 't2su013'), ('t2su013', 't1ws012'), ('t1ws012', 's7crm011'), ('s7crm011', 's6crm010'),
+    assert script.get_heads() == ['u8crm024']               # Sales CRM 2.0 (u1..u8) on top of the blog studio (t5bl016)
+    for rev, down in (('u8crm024', 'u7crm023'), ('u7crm023', 'u6crm022'), ('u6crm022', 'u5crm021'), ('u5crm021', 'u4crm020'), ('u4crm020', 'u3crm019'), ('u3crm019', 'u2crm018'), ('u2crm018', 'u1crm017'), ('u1crm017', 't5bl016'), ('t5bl016', 't4su015'), ('t4su015', 't3ws014'), ('t3ws014', 't2su013'), ('t2su013', 't1ws012'), ('t1ws012', 's7crm011'), ('s7crm011', 's6crm010'),
                       ('s6crm010', 's5crm009'), ('s5crm009', 's4crm008')):
         assert script.get_revision(rev).down_revision == down
 
@@ -394,7 +394,7 @@ def test_results_draws_with_every_filter_and_junk_filters(app, client, admin_use
         r = client.get('/admin/crm/insights' + q)
         assert r.status_code == 200, q
     page = client.get('/admin/crm/insights').get_data(as_text=True)
-    assert 'Log today' not in page and 'From lead to customer' in page
+    assert 'Log today' not in page and 'Leads that came in these days' in page
 
 
 def test_results_is_not_for_agents(app, client, cs_user):

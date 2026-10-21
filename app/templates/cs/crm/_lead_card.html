@@ -124,7 +124,7 @@
 {% else %}
 <section class="card warn">
   <div class="t" style="display:flex;gap:10px;align-items:center"><span class="ico amber"><i class="fa-solid fa-route"></i></span>
-    <div><h2 style="font-size:16px">Not in a pipeline yet</h2><p class="muted small">"{{ lead.source.name if lead.source else 'A form' }}" is not set up. <a href="{{ crm_url('lead', lead_id=lead.id) }}" target="_top">Choose one on the lead page</a>.</p></div></div>
+    <div><h2 style="font-size:16px">Not in a pipeline yet</h2><p class="muted small">"{{ SOURCE_NAME(lead.source.name) if lead.source else 'A form' }}" is not set up. <a href="{{ crm_url('lead', lead_id=lead.id) }}" target="_top">Choose one on the lead page</a>.</p></div></div>
 </section>
 {% endif %}
 {% endif %}
@@ -140,9 +140,11 @@
     <div><span class="lbl">Ready to buy?</span>
       <div class="chips" data-likelihood>
         {% for k, label in LIKELIHOOD.items() %}<button type="button" class="chip lk-{{ k }}{{ ' on' if lead.likelihood == k }}" data-lk="{{ k }}">{{ label }}</button>{% endfor %}
-      </div></div>
+      </div>
+      {% if score %}<p class="sc-line" data-score>Score {{ score.score }}{% if score.text %} — {{ score.text }}{% endif %}</p>
+      {% if lead.likelihood_manual and lead.likelihood %}<p class="hint">Picked by a person, so the score does not change it. Press it again to let the score decide.</p>{% endif %}{% endif %}</div>
     <div><span class="lbl">Replies</span>
-      <span class="replies-line">{{ REPLIES.get(lead.temperature, '—') }}</span></div>
+      <span class="replies-line">{{ REPLIES.get(lead.temperature, 'Not replied yet') }}</span></div>
   </div>
 </section>
 

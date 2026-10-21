@@ -1,0 +1,97 @@
+{# Pipelines & products > Scoring (Sales CRM 2.0, run 5b): the scoring lines, the thresholds and the switch.
+   Needs: score_state, score_lines, SIGNALS, DAY_SIGNALS, describe_line, score_fields, score_sources. #}
+{% macro csrf() -%}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>{%- endmacro %}
+{% macro line_fields(d, idp) -%}
+<div class="sc-grid">
+  <label class="flt">Looks for
+    <select name="signal" data-sc-signal>
+      {% for k, label in SIGNALS.items() %}<option value="{{ k }}"{{ ' selected' if d.signal == k }}>{{ label }}</option>{% endfor %}
+    </select></label>
+  <label class="flt" data-sc-for="trip_within_days no_reply_days">Days
+    <input type="number" name="days" min="1" max="365" value="{{ (d.args or {}).get('days', 7) }}"/></label>
+  <label class="flt" data-sc-for="source_is">Lead source
+    <select name="source_id">{% for s in score_sources %}<option value="{{ s.id }}"{{ ' selected' if (d.args or {}).get('source_id') == s.id }}>{{ SOURCE_NAME(s.name) }}</option>{% endfor %}</select></label>
+  <label class="flt" data-sc-for="field_is">Detail
+    <select name="field">{% for k, label in score_fields %}<option value="{{ k }}"{{ ' selected' if (d.args or {}).get('field') == k }}>{{ label }}</option>{% endfor %}</select></label>
+  <label class="flt" data-sc-for="field_is">Is
+    <input type="text" name="value" maxlength="80" value="{{ (d.args or {}).get('value', '') }}"/></label>
+  <label class="flt">Points
+    <input type="number" name="points" min="-100" max="100" value="{{ d.points if d.points is not none else 10 }}" required/></label>
+  <label class="flt">Name (optional)
+    <input type="text" name="name" maxlength="120" value="{{ d.name or '' }}"/></label>
+  <label class="small sc-on"><input type="checkbox" name="active" value="1"{{ ' checked' if d.active is none or d.active }}/> Counts</label>
+</div>
+{%- endmacro %}
+<section class="card sc-box">
+  <div class="card-head">
+    <h2>Lead scoring</h2>
+    <form method="POST" action="{{ crm_url('scoring_switch') }}" class="inl">{{ csrf() }}
+      <input type="hidden" name="on" value="{{ 0 if score_state.on else 1 }}"/>
+      <button class="cb {{ '' if score_state.on else 'primary' }}">{{ 'Turn scoring off' if score_state.on else 'Turn scoring on' }}</button></form>
+  </div>
+  <p class="{{ 'sc-state on' if score_state.on else 'sc-state' }}"><b>Scoring is {{ 'on' if score_state.on else 'off' }}.</b>
+    {% if score_state.on %}Each open lead gets points for the lines below, and its rating follows the score.{% else %}Nothing is scored and no rating changes until you turn it on.{% endif %}</p>
+  <details class="help-fold"><summary>(?) How this works</summary><ul>
+    <li>Each line gives points (or takes them away) when a lead meets it. A lead’s score is the total, from 0 to 100.</li>
+    <li>“Ready to buy?” follows the score: Ready to buy from {{ score_state.hot }}, Thinking about it from {{ score_state.warm }}, else Not likely.</li>
+    <li>A rating somebody picked on the lead stays theirs: the score never changes it. Clear it on the lead to let the score decide.</li>
+    <li>Scores change when something happens on a lead, and again every night, because trips come nearer and replies get older.</li>
+    <li>“They replied”, “A quote was sent” and “A payment link was sent” count exactly what Sales results counts.</li>
+  </ul></details>
+</section>
+
+<section class="card">
+  <h2>When a lead is “Ready to buy”</h2>
+  <form method="POST" action="{{ crm_url('scoring_save') }}" class="sc-grid">{{ csrf() }}
+    <label class="flt">Ready to buy from a score of <input type="number" name="hot" min="2" max="100" value="{{ score_state.hot }}" required/></label>
+    <label class="flt">Thinking about it from <input type="number" name="warm" min="1" max="99" value="{{ score_state.warm }}" required/></label>
+    <div class="flt"><span>&nbsp;</span><button class="cb primary">Save</button></div>
+  </form>
+  <p class="hint">Below “Thinking about it” a lead is Not likely.</p>
+</section>
+
+<section class="card">
+  <h2>Scoring lines</h2>
+  {% if score_lines %}
+  <div class="table-wrap">
+  <table class="crm-table">
+    <thead><tr><th>Line</th><th>Looks for</th><th class="num">Points</th><th>Counts</th><th></th></tr></thead>
+    <tbody>
+    {% for l in score_lines %}
+    <tr>
+      <td class="nm">{{ l.name }}</td><td>{{ describe_line(l) }}</td>
+      <td class="num">{{ '+' if l.points > 0 }}{{ l.points }}</td><td>{{ 'Yes' if l.active else 'No' }}</td>
+      <td class="sc-acts">
+        <details class="sc-edit"><summary class="cb sm">Change</summary>
+          <form method="POST" action="{{ crm_url('score_rule_save') }}" class="sc-form" data-sc-form>{{ csrf() }}
+            <input type="hidden" name="id" value="{{ l.id }}"/>
+            {{ line_fields(l, 'sc' ~ l.id) }}
+            <button class="cb primary sm">Save</button></form></details>
+        <details class="fam-remove"><summary class="cb sm quiet">Delete</summary>
+          <form method="POST" action="{{ crm_url('score_rule_delete', line_id=l.id) }}" class="fam-confirm">{{ csrf() }}
+            <span>Delete “{{ l.name }}”?</span><button class="cb sm danger">Yes, delete</button></form></details>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p class="muted">No lines yet. Add the first one below.</p>{% endif %}
+  <details class="sc-add"><summary class="cb sm"><i class="fa-solid fa-plus"></i> Add a line</summary>
+    <form method="POST" action="{{ crm_url('score_rule_save') }}" class="sc-form" data-sc-form>{{ csrf() }}
+      {{ line_fields({'signal': 'replied', 'args': None, 'points': 10, 'name': '', 'active': none}, 'scn') }}
+      <button class="cb primary sm">Add the line</button></form></details>
+</section>
+<script>
+(function () {
+  document.querySelectorAll('[data-sc-form]').forEach(function (f) {
+    var sel = f.querySelector('[data-sc-signal]');
+    function sync() {
+      f.querySelectorAll('[data-sc-for]').forEach(function (el) {
+        el.hidden = el.getAttribute('data-sc-for').split(' ').indexOf(sel.value) < 0;
+      });
+    }
+    sel.addEventListener('change', sync); sync();
+  });
+})();
+</script>

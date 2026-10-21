@@ -5,15 +5,17 @@
   <div class="id">
     <h1>{{ person.display_name }} {{ stage_pill(lead, link=false) }}</h1>
     <p class="sub">Asked about {{ PRODUCTS.get(lead.product, lead.product) }} · {{ when(lead.created_at, utcnow) }}
-      {%- if lead.source %} from “{{ lead.source.name }}”{% endif %} · Looked after by
+      {%- if lead.source %} from “{{ SOURCE_NAME(lead.source.name) }}”{% endif %} · Looked after by
       <select class="lead-owner" data-update="owner_id" aria-label="Looked after by">
         <option value="">Not given to anyone</option>
         {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if lead.owner_id == u.id }}>{{ u.full_name }}{{ ' (you)' if u.id == current_user.id }}</option>{% endfor %}
       </select></p>
+    {% if family %}<p class="sub lead-family">Family: {% for m in family %}<a href="{{ crm_url('contact', person_id=m.person.id) }}">{{ m.text }}</a>{{ ' · ' if not loop.last }}{% endfor %}</p>{% endif %}
+    {% include 'cs/crm/_lead_value.html' %}
   </div>
   <div class="acts">
     {% if person.phone %}<a class="cb" href="tel:{{ person.phone }}"><i class="fa-solid fa-phone"></i> {{ PHONE.pretty(person.phone) }}</a>{% endif %}
-    {% if person.email %}<a class="cb" href="mailto:{{ person.email }}" title="{{ person.email }}"><i class="fa-solid fa-envelope"></i> E-mail</a>{% endif %}
+    {% if person.email %}<a class="cb" href="mailto:{{ person.email }}" title="{{ person.email }}" data-email-open><i class="fa-solid fa-envelope"></i> E-mail</a>{% endif %}
     {% set ig = person.identity('instagram') %}{% set fb = person.identity('facebook') %}
     {% if ig %}<a class="cb" href="https://www.instagram.com/{{ ig }}" target="_blank" rel="noopener"><i class="fa-brands fa-instagram"></i> {{ ig }}</a>{% endif %}
     {% if fb %}<a class="cb" href="https://www.facebook.com/{{ fb }}" target="_blank" rel="noopener"><i class="fa-brands fa-facebook"></i> Facebook</a>{% endif %}
@@ -25,7 +27,7 @@
         <a href="{{ crm_url('contact', person_id=person.id) }}"><i class="fa-solid fa-address-card"></i><span>Their contact page<small>permission, tags, every enquiry</small></span></a>
         {% if has_moves %}<button type="button" data-act="undo"><i class="fa-solid fa-rotate-left"></i><span>Undo last stage change<small>put them back in the stage before</small></span></button>{% endif %}
         {% if lead.status != 'open' %}<button type="button" data-act="reopen"><i class="fa-solid fa-box-open"></i><span>Work on it again<small>back to work, in their last open stage</small></span></button>{% endif %}
-        {% if can_remove %}<button type="button" class="danger" data-act="remove" data-name="{{ person.display_name }}"><i class="fa-solid fa-trash"></i><span>Remove this lead<small>Removes this enquiry. {{ person.display_name }} stays in Contacts.</small></span></button>{% endif %}
+        {% if can_remove %}<button type="button" class="danger" data-act="remove" data-name="{{ person.display_name }}"><i class="fa-solid fa-trash"></i><span>Remove this lead<small>Moves this enquiry to the Recycle bin for 30 days. {{ person.display_name }} stays in Contacts.</small></span></button>{% endif %}
         {% if CAN('delete_records') %}<a class="danger" href="{{ crm_url('contact', person_id=person.id, erase=1) }}"><i class="fa-solid fa-user-slash"></i><span>Erase this person<small>everything we hold about them, at their request</small></span></a>{% endif %}
       </div>
     </details>

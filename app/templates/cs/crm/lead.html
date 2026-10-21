@@ -6,7 +6,7 @@
    -- every message and event in one timeline, with the message box under it -- beside the lead
    card. The regions marked data-lead-live are swapped by crm.js every few seconds (_lead_live.html),
    so nobody reloads. Photos, documents and voice notes: "Open full chat" (a drawer). #}
-<div data-lead-page data-lead="{{ lead.id }}" data-product="{{ lead.product }}" data-phone="{{ person.phone or '' }}"
+<div data-lead-page data-lead="{{ lead.id }}" data-product="{{ lead.product }}" data-amount="{{ PLAIN_AMOUNT(lead.amount) }}" data-currency="{{ lead.currency or '' }}" data-phone="{{ person.phone or '' }}"
      data-live="{{ crm_url('live', lead_id=lead.id) }}" data-chat-src="{{ chat_url or '' }}"
      data-reasons='{{ ((lead.pipeline.fallout_reasons if lead.pipeline else []) or [])|tojson|forceescape }}'>
 
@@ -18,7 +18,7 @@
   {% if not lead.pipeline %}
   <form method="POST" action="{{ crm_url('route_lead', lead_id=lead.id) }}" class="row lead-route">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-    <span><i class="fa-solid fa-route"></i> They came from "{{ lead.source.name if lead.source else 'a form' }}", which is not set up yet. Which pipeline?</span>
+    <span><i class="fa-solid fa-route"></i> They came from "{{ SOURCE_NAME(lead.source.name) if lead.source else 'a form' }}", which is not set up yet. Which pipeline?</span>
     <select name="pipeline" style="max-width:280px" required>
       <option value="">Choose…</option>
       {% for p in pipelines %}<option value="{{ p.key }}"{{ ' selected' if p.product == lead.product }}>{{ p.name }}</option>{% endfor %}
@@ -30,6 +30,14 @@
 
 {% include 'cs/crm/_journey.html' %}
 
+{% include 'cs/crm/_tasks.html' %}
+
+{% include 'cs/crm/_quotes.html' %}
+
+{% include 'cs/crm/_files.html' %}
+
+{% if ai_on %}{% include 'cs/crm/_ai.html' %}{% endif %}
+
 <div class="lead-ws">
   <div class="lead-main">
     {% include 'cs/crm/_timeline.html' %}
@@ -40,6 +48,8 @@
   </aside>
 </div>
 
+{% include 'cs/crm/_history.html' %}
+
 <div class="lead-drawer" data-chat-drawer hidden role="dialog" aria-label="Full chat">
   <div class="lead-drawer-head"><b>Full chat</b><button type="button" class="cb sm quiet" data-act="close-chat">Close</button></div>
   <iframe data-chat-frame title="WhatsApp chat with {{ person.display_name }}" allow="microphone; clipboard-write"></iframe>
@@ -47,4 +57,4 @@
 </div>
 {% endblock %}
 
-{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/crm-people.js') }}" defer></script>{% endblock %}
+{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/crm-people.js') }}" defer></script><script src="{{ url_for('static', filename='js/crm-activities.js') }}" defer></script><script src="{{ url_for('static', filename='js/crm-files.js') }}" defer></script><script src="{{ url_for('static', filename='js/crm-quotes.js') }}" defer></script>{% if ai_on %}<script src="{{ url_for('static', filename='js/crm-ai.js') }}" defer></script>{% endif %}{% endblock %}

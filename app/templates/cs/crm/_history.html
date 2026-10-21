@@ -1,0 +1,13 @@
+{# History of every change (Sales CRM 2.0). `history`: [{who, what, at}] newest first. #}
+<section class="card crmh" id="history">
+  <h2>History <small class="muted">({{ history|length }})</small></h2>
+  {% if history %}
+  <ul class="crmh-list">
+    {% for h in history %}
+    <li><b>{{ h.who }}</b> {{ h.what }} <span class="muted">&middot; {{ h.at }}</span></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Nothing has been changed yet. Every change to the value, stage, owner and dates shows here, with who made it and when.</p>
+  {% endif %}
+</section>

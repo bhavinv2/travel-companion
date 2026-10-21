@@ -1,0 +1,169 @@
+{% extends 'base.html' %}
+{% block title %}Import blog posts – Admin{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='blog_import' %}{% include 'admin/_sidebar.html' %}{% endwith %}
+  <main class="admin-main bs-import">
+    <div class="card-head">
+      <div>
+        <h1>Import blog posts</h1>
+        <p class="muted">Write the post in Word like any other document, upload it here, and it becomes a draft you check and publish.</p>
+      </div>
+      <a class="btn-sm" href="{{ url_for('admin.blog_list') }}"><i class="fa-solid fa-newspaper"></i> All blog posts</a>
+    </div>
+
+    <ol class="bs-steps">
+      <li>
+        <span class="bs-n">1</span>
+        <strong>Download the template</strong>
+        <p>A Word file with a box for the title, summary and cover, and an example post to type over.</p>
+        <a class="btn btn-primary btn-sm" href="{{ url_for('admin.blog_template') }}"><i class="fa-solid fa-file-word"></i> Blog template (.docx)</a>
+      </li>
+      <li>
+        <span class="bs-n">2</span>
+        <strong>Write it like any Word document</strong>
+        <p>Headings, bold, lists and links as usual. Start a line with <b>Tip:</b>, <b>Quote:</b> or <b>Button:</b> for the special boxes. <a href="#bs-format">How each thing comes out</a></p>
+      </li>
+      <li>
+        <span class="bs-n">3</span>
+        <strong>Paste the pictures in</strong>
+        <p>Right where they belong. The one at the top is the cover. Right-click → Edit Alt Text to describe it. <a href="#bs-pictures">Picture tips</a></p>
+      </li>
+      <li>
+        <span class="bs-n">4</span>
+        <strong>Upload it here</strong>
+        <p>One document or several at once. Each becomes a draft — nothing is published until you say so.</p>
+      </li>
+    </ol>
+
+    <form method="POST" enctype="multipart/form-data" class="admin-card bs-upload" id="bsUpload">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <label class="bs-drop">
+        <i class="fa-solid fa-file-word"></i>
+        <span><strong>Word documents</strong><small>One or several .docx files, with their pictures inside. Google Docs: File → Download → Microsoft Word.</small></span>
+        <input type="file" name="documents" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple required/>
+        <em class="bs-picked" data-for="documents">None chosen</em>
+      </label>
+      <button type="submit" class="btn btn-primary"><i class="fa-solid fa-wand-magic-sparkles"></i> Create drafts</button>
+      <details class="bs-adv" id="bs-adv">
+        <summary>Keeping the pictures as separate files instead? <span class="muted">(advanced)</span></summary>
+        <label class="bs-drop">
+          <i class="fa-solid fa-file-zipper"></i>
+          <span><strong>Pictures</strong><small>One .zip of the pictures, or the picture files — named as in the document (see the advanced format below).</small></span>
+          <input type="file" name="pictures" accept=".zip,image/jpeg,image/png,image/webp" multiple/>
+          <em class="bs-picked" data-for="pictures">None chosen</em>
+        </label>
+      </details>
+    </form>
+
+    {% if results %}
+    <section class="bs-results" id="bs-results">
+      <h2>What was imported</h2>
+      {% for r in results %}
+      {% set errs = (r.checks or [])|selectattr('level', 'equalto', 'error')|list %}
+      {% set warns = (r.checks or [])|selectattr('level', 'equalto', 'warn')|list %}
+      <article class="admin-card bs-result {{ 'is-failed' if r.error }}">
+        <div class="bs-r-head">
+          {% if r.error %}
+            <span class="chip chip-closed"><i class="fa-solid fa-xmark"></i> Not imported</span>
+            <strong>{{ r.file }}</strong>
+          {% else %}
+            <span class="chip chip-open"><i class="fa-solid fa-check"></i> {{ 'Draft updated' if r.status == 'updated' else 'Draft created' }}</span>
+            <strong>{{ r.post.title }}</strong>
+            <small class="muted">/blog/{{ r.post.slug }} · {{ r.words }} words · {{ r.pictures }} picture{{ '' if r.pictures == 1 else 's' }} · from {{ r.file }}</small>
+          {% endif %}
+        </div>
+        {% if r.error %}
+          <p class="bs-r-error">{{ r.error }}</p>
+        {% else %}
+          <ul class="bs-r-sum">
+            <li class="{{ 'is-bad' if errs else 'is-good' }}"><i class="fa-solid {{ 'fa-circle-exclamation' if errs else 'fa-circle-check' }}"></i>
+              {{ errs|length ~ ' to fix before publishing' if errs else 'Nothing blocks publishing' }}</li>
+            {% if warns %}<li class="is-warn"><i class="fa-solid fa-lightbulb"></i> {{ warns|length }} suggestion{{ '' if warns|length == 1 else 's' }} in the editor</li>{% endif %}
+            {% if r.missing %}<li class="is-bad"><i class="fa-solid fa-image"></i> Missing picture{{ '' if r.missing|length == 1 else 's' }}: {{ r.missing|join(', ') }}</li>{% endif %}
+          </ul>
+          {% if r.notes %}
+          <ul class="bs-r-notes">{% for n in r.notes %}<li>{{ n }}</li>{% endfor %}</ul>
+          {% endif %}
+          <div class="bs-r-actions">
+            <a class="btn btn-primary btn-sm" href="{{ url_for('admin.blog_edit', post_id=r.post.id) }}"><i class="fa-solid fa-pen"></i> Check and publish</a>
+            <a class="btn-sm" href="{{ url_for('admin.blog_preview', post_id=r.post.id) }}" target="_blank" rel="noopener"><i class="fa-solid fa-eye"></i> Preview</a>
+          </div>
+        {% endif %}
+      </article>
+      {% endfor %}
+      {% if notes %}
+      <div class="admin-card bs-pic-notes">
+        <h3 class="bf-h"><i class="fa-solid fa-images"></i> Picture files</h3>
+        <ul>{% for n in notes %}<li>{{ n }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <section class="admin-card bs-rules" id="bs-format">
+      <h2>How each thing comes out</h2>
+      <p class="muted">There is nothing special to learn: write in Word the way you always do. This is what each part becomes on the website.</p>
+      <div class="table-wrap">
+      <table class="admin-table">
+        <thead><tr><th>In Word</th><th>On the website</th></tr></thead>
+        <tbody>
+          {% for what, becomes in rules %}
+          <tr><td>{{ what }}</td><td>{{ becomes }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="admin-card bs-rules" id="bs-pictures">
+      <h2>Pictures</h2>
+      <ul class="bs-list">{% for r in image_rules %}<li>{{ r }}</li>{% endfor %}</ul>
+    </section>
+
+    <section class="admin-card bs-rules">
+      <h2>What the editor checks before publishing</h2>
+      <ul class="bs-list">
+        <li><span class="bs-dot is-bad"></span> <strong>Stops publishing:</strong> no title, an address another post already uses, an empty post, a picture that could not be read.</li>
+        <li><span class="bs-dot is-warn"></span> <strong>Suggestions:</strong> a long title, a summary that is too short or too long, no cover picture, pictures without a description,
+          fewer than 300 words, no section headings, very long paragraphs, http:// links.</li>
+      </ul>
+    </section>
+
+    <details class="admin-card bs-rules bs-adv-format">
+      <summary><h2>Advanced: labels and separate picture files</h2></summary>
+      <p class="muted">For writers who keep pictures as separate files: name them in the document with these labels and upload the pictures as a zip (under “Keeping the pictures as separate files?” above). Both ways can be mixed.</p>
+      <div class="table-wrap">
+      <table class="admin-table">
+        <thead><tr><th>Write this in Word</th><th>It becomes</th></tr></thead>
+        <tbody>{% for code, what in advanced_rules %}<tr><td><code>{{ code }}</code></td><td>{{ what }}</td></tr>{% endfor %}</tbody>
+      </table>
+      </div>
+      <ul class="bs-list">{% for r in advanced_image_rules %}<li>{{ r }}</li>{% endfor %}</ul>
+    </details>
+  </main>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  // say which files were picked: the browser's own text is easy to miss
+  document.querySelectorAll('.bs-drop input[type=file]').forEach(input => {
+    const out = document.querySelector('.bs-picked[data-for="' + input.name + '"]');
+    input.addEventListener('change', () => {
+      const names = Array.from(input.files).map(f => f.name);
+      out.textContent = names.length ? names.join(', ') : 'None chosen';
+      input.closest('.bs-drop').classList.toggle('has-files', names.length > 0);
+    });
+  });
+  const form = document.getElementById('bsUpload');
+  form.addEventListener('submit', () => {
+    const b = form.querySelector('button[type=submit]');
+    b.disabled = true;
+    b.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Reading the documents…';
+  });
+  {% if results %}document.getElementById('bs-results').scrollIntoView({ block: 'start' });{% endif %}
+})();
+</script>
+{% endblock %}

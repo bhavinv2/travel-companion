@@ -14,6 +14,10 @@ ACCOUNT MAIL AND EVERYTHING ELSE. Two kinds of message, treated differently:
   everything     match alerts, blog announcements, CS replies, enquiry copies to the team.
     else
 
+ONE-TO-ONE MAIL AN AGENT WRITES. category='crm' is an e-mail a salesperson typed to one customer and pressed Send
+on (services/crm_email.py). It is not a notification, so it has no switch and is always sent with force=True;
+it travels like "everything else" (never over the Gmail mailbox), from the CRM sender (`from_name`, reply-to the agent).
+
 The SMTP mailbox is a Gmail account by default (MAIL_SERVER smtp.gmail.com), and Gmail is kept for
 account mail ONLY: a personal mailbox has a small daily allowance and gets flagged when it sends in
 bulk, and a blocked mailbox would take sign-up and password reset down with it. Everything else goes
@@ -55,17 +59,20 @@ def transport_for(account):
     return 'smtp'
 
 
-def _send_smtp(subject, recipients, body, reply_to):
+def _send_smtp(subject, recipients, body, reply_to, from_name=None):
     if not current_app.config.get('MAIL_PASSWORD'):
         log.info('SMTP mail not configured; would have sent %r to %s', subject, recipients)
         return False
-    msg = MailMessage(subject=subject, recipients=list(recipients), body=body,
+    sender = current_app.config.get('MAIL_DEFAULT_SENDER')
+    if from_name and isinstance(sender, str):
+        sender = (from_name, sender)
+    msg = MailMessage(subject=subject, recipients=list(recipients), body=body, sender=sender,
                       reply_to=reply_to or current_app.config.get('MAIL_DEFAULT_SENDER'))
     mail.send(msg)
     return True
 
 
-def _send_sendgrid(subject, recipients, body, reply_to):
+def _send_sendgrid(subject, recipients, body, reply_to, from_name=None):
     import requests
     key = current_app.config.get('SENDGRID_API_KEY')
     if not key:
@@ -73,7 +80,7 @@ def _send_sendgrid(subject, recipients, body, reply_to):
         return False
     payload = {
         'personalizations': [{'to': [{'email': r} for r in recipients]}],
-        'from': {'email': current_app.config.get('MAIL_DEFAULT_SENDER'), 'name': 'NRI Parent Service'},
+        'from': {'email': current_app.config.get('MAIL_DEFAULT_SENDER'), 'name': from_name or 'NRI Parent Service'},
         'subject': subject,
         'content': [{'type': 'text/plain', 'value': body}],
     }
@@ -87,7 +94,7 @@ def _send_sendgrid(subject, recipients, body, reply_to):
     return True
 
 
-def send(subject, recipients, body, reply_to=None, category='other', force=False, account=False):
+def send(subject, recipients, body, reply_to=None, category='other', force=False, account=False, from_name=None):
     """Return True if the message was handed to the mail provider, False otherwise.
 
     `category` is one of app.models.NOTIFY_CATEGORIES ('account', 'match_alerts', …) and is checked
@@ -113,13 +120,14 @@ def send(subject, recipients, body, reply_to=None, category='other', force=False
         log.info('Not e-mailed (the Gmail mailbox is kept for sign-in/sign-up mail): %r', subject)
         return False
     OUTBOX.append({'subject': subject, 'recipients': list(recipients), 'body': body, 'category': category,
-                   'account': bool(account), 'transport': transport})
+                   'account': bool(account), 'transport': transport, 'reply_to': reply_to,
+                   'from_name': from_name})
     if current_app.config.get('TESTING') or current_app.config.get('MAIL_SUPPRESS_SEND'):
         return True
     try:
         if transport == 'sendgrid':
-            return _send_sendgrid(subject, recipients, body, reply_to)
-        return _send_smtp(subject, recipients, body, reply_to)
+            return _send_sendgrid(subject, recipients, body, reply_to, from_name)
+        return _send_smtp(subject, recipients, body, reply_to, from_name)
     except Exception:  # pragma: no cover - network failure
         log.exception('Failed to send e-mail %r to %s', subject, recipients)
         return False

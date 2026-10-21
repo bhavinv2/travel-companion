@@ -1,6 +1,8 @@
 {% extends 'cs/crm/_layout.html' %}
-{% from 'cs/crm/_bits.html' import product_chip, temp_dot, when, initials, stage_pill with context %}
+{% from 'cs/crm/_bits.html' import product_chip, temp_dot, when, ist, initials, stage_pill with context %}
 {% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_tabs.html' import leads_switch with context %}
+{% from 'cs/crm/_views.html' import views_menu with context %}
 {% block crm_title %}Leads{% endblock %}
 {% block crm %}
 {{ page_head('Leads', 'fa-solid fa-table-columns', 'Every enquiry, by where it is now. Drag a card, or use ⋯ Move to.',
@@ -17,7 +19,7 @@
     {% if CAN('crm_sources') %}<a class="cb sm" href="{{ crm_url('sources') }}">Set it up</a>{% endif %}</div>
   <p class="muted" style="margin-bottom:10px">They are safe. Open one and choose its pipeline, or set the form up once so the next ones go there by themselves.</p>
   <div class="chips">
-    {% for l in unrouted %}<a class="chip" href="{{ crm_url('lead', lead_id=l.id) }}"><b>{{ l.person.display_name }}</b> · {{ l.source.name if l.source else 'Unknown' }}</a>{% endfor %}
+    {% for l in unrouted %}<a class="chip" href="{{ crm_url('lead', lead_id=l.id) }}"><b>{{ l.person.display_name }}</b> · {{ SOURCE_NAME(l.source.name) if l.source else 'Unknown' }}</a>{% endfor %}
   </div>
 </div>
 {% endif %}
@@ -32,10 +34,9 @@
     <i class="fa-solid {{ CRM_PRODUCT_ICON(p.product) }}"></i> {{ p.name }}{% if not p.is_active %} <small class="muted">not taking new leads</small>{% endif %} <span class="c">{{ counts.get(p.id, 0) }}</span></a>
   {% endfor %}
 </nav>
-<div class="seg" role="group" aria-label="How to look at the leads">
-  {% if p_key != 'all' %}<a class="{{ 'on' if view == 'board' }}" href="{{ link(view='board', page=None) }}">Board</a>{% endif %}
-  <a class="{{ 'on' if view == 'list' }}" href="{{ link(view='list', page=None) }}">List</a>
-</div>
+{{ leads_switch(view, board_href=(link(view='board', page=None) if p_key != 'all' else none), list_href=link(view='list', page=None)) }}
+{{ views_menu('crm_leads', view_params) }}
+{% if CAN('crm_bin') %}<a class="cb quiet sm" href="{{ crm_url('bin') }}" title="Leads removed in the last 30 days"><i class="fa-solid fa-trash-can-arrow-up"></i> Recycle bin</a>{% endif %}
 </div>
 
 <form class="toolbar leads-filters" method="GET">
@@ -46,7 +47,7 @@
       <option value="mine"{{ ' selected' if owner == 'mine' }}>Mine</option>
       <option value="all"{{ ' selected' if owner == 'all' }}>Anyone</option>
       <option value="none"{{ ' selected' if owner == 'none' }}>Not given to anyone</option>
-      {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if owner == u.id|string }}>{{ u.full_name }}{{ ' (you)' if u.id == current_user.id }}</option>{% endfor %}
+      {% for u in owner_options %}<option value="{{ u.id }}"{{ ' selected' if owner == u.id|string }}>{{ u.full_name }}{{ ' (you)' if u.id == current_user.id }}</option>{% endfor %}
     </select></label>
   {% if pipe %}
   <label class="flt">Stage
@@ -77,6 +78,12 @@
   {% endfor %}
 </div>
 
+{% if filter_chips %}
+<p class="active-filters">
+  {% for text, href in filter_chips %}<a class="chip on rm" href="{{ href }}" title="Remove this filter">{{ text }} <i class="fa-solid fa-xmark"></i></a>{% endfor %}
+</p>
+{% endif %}
+
 <p class="crm-legend" aria-label="What the colours mean">
   {% for role, name in ROLE_STEPS %}<span class="r-{{ role }}">● {{ name }}</span>{% endfor %}
 </p>
@@ -92,7 +99,7 @@
 {# the journey as a picture: how many people are in each stage right now #}
 <div class="stage-strip" aria-label="People in each stage">
   {% for col in columns %}
-  <div class="ss r-{{ CRM_ROLE_OF(col.stage) }}">
+  <div class="ss r-{{ CRM_ROLE_OF(col.stage) }}" data-strip="{{ col.stage.id }}">
     <b>{{ col.total }}</b><span>{{ col.stage.name }}</span>
     {% if col.stage.auto_kind and col.stage.auto_to %}<i class="fa-solid fa-robot" title="Moves by itself: {{ AUTO_TEXT(col.stage) }}"></i>{% endif %}
   </div>
@@ -105,14 +112,15 @@
 <div class="crm-board" data-board data-pipeline="{{ pipe.key }}"
      data-reasons='{{ (pipe.fallout_reasons or [])|tojson|forceescape }}'
      data-stages='{{ stages_json|tojson|forceescape }}'
-     data-focus-stage="{{ stage_id or '' }}" data-view-auto="{{ 1 if view_auto else 0 }}"
+     data-focus-stage="{{ stage_id or '' }}" data-view-auto="{{ 1 if view_auto else 0 }}" data-currency="{{ REPORT_CURRENCY() }}"
      data-list-url="{{ link(view='list') }}">
   {% for col in columns %}
   {% set st = col.stage %}
   <section class="crm-col r-{{ CRM_ROLE_OF(st) }}" data-col="{{ st.id }}">
     <header>
-      <b>{% if st.kind == 'won' %}<i class="fa-solid fa-trophy" style="color:var(--c-ok)"></i> {% elif st.kind == 'lost' %}<i class="fa-solid fa-circle-xmark" style="color:var(--c-bad)"></i> {% endif %}{{ st.name }}</b>
-      <span>{{ col.total }}{% if st.kind != 'open' and win == '30' %} · 30 days{% endif %}</span>
+      <b title="{{ st.name }}">{% if st.kind == 'won' %}<i class="fa-solid fa-trophy" style="color:var(--c-ok)"></i> {% elif st.kind == 'lost' %}<i class="fa-solid fa-circle-xmark" style="color:var(--c-bad)"></i> {% endif %}{{ st.name }}</b>
+      <span class="col-n" data-col-count="{{ col.total }}"{% if st.kind != 'open' and win == '30' %} title="Moved here in the last 30 days"{% endif %}>{{ col.total }}</span>
+      <small class="col-value" data-col-value data-col-sum="{{ PLAIN_AMOUNT(col.value) or 0 }}" title="What the leads in this column are worth, in {{ REPORT_CURRENCY() }}">{% if col.value %}· {{ MONEY_C(col.value) }}{% endif %}</small>
       <details class="col-more">
         <summary aria-label="More for {{ st.name }}">⋯</summary>
         <div class="menu">
@@ -123,31 +131,33 @@
         </div>
       </details>
     </header>
+    {% if st.kind != 'open' and win == '30' %}<p class="col-window">Last 30 days</p>{% endif %}
     <div class="drop" data-drop data-stage="{{ st.id }}" data-kind="{{ st.kind }}" data-name="{{ st.name }}"
          data-milestone="{{ st.button_code if st.button_label else '' }}" data-ask="{{ MILESTONE_ASK(st) }}">
       {% for l in col.leads %}
       {% set cd = cards.get(l.id) %}
       {% set t = cd.task if cd else none %}
-      <a class="crm-card{{ ' lk-' ~ l.likelihood if l.likelihood }}" href="{{ crm_url('lead', lead_id=l.id) }}" draggable="true" data-lead="{{ l.id }}"
-         title="{{ LIKELIHOOD.get(l.likelihood, '') }}">
+      {# a compact card: who, product, the next step, how long in this stage, who looks after it. Late and Stuck are one small badge each. #}
+      <a class="crm-card{{ ' lk-' ~ l.likelihood if l.likelihood }}" href="{{ crm_url('lead', lead_id=l.id) }}" draggable="true" data-lead="{{ l.id }}" data-amount="{{ PLAIN_AMOUNT(l.amount) }}" data-value="{{ BASE_AMOUNT(l.amount, l.currency) }}"
+         title="{{ LIKELIHOOD.get(l.likelihood, '') }}"{{ ' hidden data-extra' if loop.index > 20 }}>
         <div class="top">{{ temp_dot(l.temperature) }}<span class="nm">{{ l.person.display_name }}</span>
           {% if l.owner %}<span class="av" title="{{ l.owner.full_name }}">{{ initials(l.owner.full_name) }}</span>{% endif %}
           <button type="button" class="card-more" data-act="move-to" title="Move to…" aria-label="Move {{ l.person.display_name }} to another stage">⋯</button></div>
         <div class="meta">
           {{ product_chip(l.product) }}
-          {% if l.days_to_departure is not none and l.days_to_departure >= 0 and l.status == 'open' %}
-          <span class="chip {{ 'bad' if l.days_to_departure <= 3 else 'due' if l.days_to_departure <= 15 else '' }}"><i class="fa-solid fa-plane-departure"></i> {{ l.days_to_departure }}d</span>
-          {% endif %}
+          {% if l.score is not none and SCORING_ON() %}<span class="sc-chip" title="Lead score">{{ l.score }}</span>{% endif %}
+          {% if l.amount is not none %}<span class="card-value" title="What this is worth{% if l.revenue is not none and l.revenue != l.amount %}; we earn {{ MONEY(l.revenue, l.currency) }}{% endif %}">{{ MONEY_C(l.amount, l.currency) }}</span>{% endif %}
           {% if l.fallout_reason %}<span class="chip bad">{{ l.fallout_reason }}</span>{% endif %}
-          {% if cd %}{% for cls, text, tip in cd.chips %}
-          <span class="chip {{ cls }}" title="{{ tip }}">{% if cls.startswith('tick') %}<i class="fa-solid {{ {'t-sent': 'fa-check', 't-delivered': 'fa-check-double', 't-read': 'fa-check-double', 't-failed': 'fa-xmark', 't-opened': 'fa-arrow-up-right-from-square', 't-sending': 'fa-clock'}.get(cls.split(' ')[-1], 'fa-check') }}"></i> {% endif %}{{ text }}</span>
-          {% endfor %}{% endif %}
+          {% if cd %}{% for cls, text, tip in cd.chips if cls == 'stuck' %}<span class="chip {{ cls }}" title="{{ tip }}">{{ text }}</span>{% endfor %}{% endif %}
         </div>
-        {% if t %}<div class="nx{{ ' late' if t.due_at < utcnow }}"><i class="fa-regular fa-clock"></i> {{ t.title }} · {{ when(t.due_at, utcnow) }}</div>
-        {% elif l.status == 'open' %}<div class="nx"><i class="fa-regular fa-circle-check"></i> Nothing planned</div>{% endif %}
+        <div class="nx">{% if t and t.due_at < utcnow %}<span class="late-badge" title="Was due {{ ist(t.due_at) }}">Late</span>{% endif %}
+          {% if t %}<span class="nx-step" title="{{ t.title }}"><i class="fa-regular fa-clock"></i> {{ t.title }}</span>
+          {% elif l.status == 'open' %}<span class="nx-step"><i class="fa-regular fa-circle-check"></i> Nothing planned</span>{% else %}<span class="nx-step"></span>{% endif %}
+          {% if l.entered_stage_at %}<span class="nx-age" title="In this stage since {{ ist(l.entered_stage_at) }}">{{ STAGE_AGE(l.entered_stage_at, utcnow) }}</span>{% endif %}</div>
       </a>
       {% endfor %}
-      {% if col.total > col.leads|length %}<a class="more" href="{{ link(view='list', stage=st.id, page=None) }}">+ {{ col.total - col.leads|length }} more — see them in the list</a>{% endif %}
+      {% if col.leads|length > 20 %}<button type="button" class="more-btn" data-act="show-more" data-n="{{ col.leads|length - 20 }}">Show {{ col.leads|length - 20 }} more</button>{% endif %}
+      {% if col.total > col.leads|length %}<p class="more" data-cap>Showing {{ col.leads|length }} of {{ col.total }} — <a href="{{ link(view='list', stage=st.id, page=None) }}">use List for all</a></p>{% endif %}
     </div>
   </section>
   {% endfor %}
@@ -166,7 +176,7 @@
   <table class="crm-table">
     <thead><tr>
       {% if can_bulk %}<th class="chk"><input type="checkbox" data-bulk-all aria-label="Choose every lead on this page"/></th>{% endif %}
-      <th>Name</th><th>Product</th><th>Stage</th><th>Looked after by</th><th>Next follow-up</th><th>Chat</th><th>Travels on</th><th>Last contact</th>
+      <th>Name</th><th>Product</th><th>Stage</th><th class="num">Value</th><th>Closes</th><th>Looked after by</th><th>Next step</th><th>Chat</th><th>Travels on</th><th>Last contact</th>
     </tr></thead>
     <tbody>
     {% for l in rows %}
@@ -177,8 +187,10 @@
       <td><a class="nm" href="{{ crm_url('lead', lead_id=l.id) }}">{{ l.person.display_name }}</a></td>
       <td>{{ product_chip(l.product) }}</td>
       <td>{{ stage_pill(l) }}</td>
+      <td class="num">{% if l.amount is not none %}<span title="{{ MONEY(l.amount, l.currency) }}">{{ MONEY_C(l.amount, l.currency) }}</span>{% else %}—{% endif %}</td>
+      <td>{{ l.close_date.strftime('%d %b') if l.close_date else '—' }}</td>
       <td>{{ l.owner.full_name if l.owner else 'Not given to anyone' }}</td>
-      <td>{% if t %}{{ t.title }} · {{ when(t.due_at, utcnow) }}{% else %}—{% endif %}</td>
+      <td>{% if t %}{{ DUE_CHIP(t.due_at, utcnow) }}<small class="nx-title">{{ t.title }}</small>{% else %}—{% endif %}</td>
       <td class="chat-{{ cd.chat[0] if cd else '' }}">{{ cd.chat[1] if cd else '—' }}</td>
       <td>{{ l.departure_date.strftime('%d %b') if l.departure_date else '—' }}</td>
       <td>{{ when(cd.last_contact, utcnow) if cd and cd.last_contact else '—' }}</td>
@@ -200,9 +212,9 @@
 <p class="pager muted">Showing {{ first }}–{{ first + rows|length - 1 }} of {{ listing.total }}
   {% if listing.page > 1 %}<a class="cb sm" href="{{ link(page=listing.page - 1) }}">‹ Previous</a>{% endif %}
   {% if listing.page < listing.pages %}<a class="cb sm" href="{{ link(page=listing.page + 1) }}">Next ›</a>{% endif %}
-  {% if can_export %} <a class="cb quiet sm" href="{{ crm_url('export_leads', p=p_key, owner=owner, chat=chat or None, win=win, stage=stage_id or None, q=q or None) }}"><i class="fa-solid fa-file-csv"></i> Download this list</a>{% endif %}</p>
+  {% if can_export %} <a class="cb quiet sm" href="{{ crm_url('export_leads', **export_args) }}"><i class="fa-solid fa-file-csv"></i> Download this list</a>{% endif %}</p>
 {% else %}
-<p class="pager muted">Showing {{ listing.total }} of {{ listing.total }}{% if can_export %} <a class="cb quiet sm" href="{{ crm_url('export_leads', p=p_key, owner=owner, chat=chat or None, win=win, stage=stage_id or None, q=q or None) }}"><i class="fa-solid fa-file-csv"></i> Download this list</a>{% endif %}</p>
+<p class="pager muted">Showing {{ listing.total }} of {{ listing.total }}{% if can_export %} <a class="cb quiet sm" href="{{ crm_url('export_leads', **export_args) }}"><i class="fa-solid fa-file-csv"></i> Download this list</a>{% endif %}</p>
 {% endif %}
 {% endif %}
 {% endif %}

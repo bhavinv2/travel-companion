@@ -40,9 +40,9 @@
       <input type="hidden" name="tab" value="contact"/>
       {% if filters.unread %}<input type="hidden" name="unread" value="1"/>{% endif %}
       <input type="search" name="q" value="{{ filters.q }}" placeholder="Search name, e-mail, phone or message…"/>
-      {# one inbox for both services; which one an enquiry is about is a filter, not a screen #}
+      {# one inbox for every service; which one an enquiry is about is a filter, not a screen #}
       <select name="topic" onchange="this.form.submit()">
-        <option value="">Both services</option>
+        <option value="">All services</option>
         {% for t in CONTACT_TOPICS %}
         <option value="{{ t }}" {{ 'selected' if topic == t }}>{{ CONTACT_TOPIC_LABELS[t] }}</option>
         {% endfor %}

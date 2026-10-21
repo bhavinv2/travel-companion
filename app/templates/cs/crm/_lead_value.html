@@ -1,0 +1,31 @@
+{# What the lead is worth, when it should close, and how sure it is: "₹18,500 · closes 12 Nov · Committed".
+   Click it to change them. Needs: lead, money_currencies. Part of the live head region. #}
+{% set cat = lead.forecast_category %}
+{% set auto_cat = FORECAST_AUTO(lead) %}
+<details class="lv" data-money data-lead="{{ lead.id }}">
+  <summary title="Change the value, the close date or how sure this is">
+    {% if lead.amount is not none %}<span class="lv-amount">{{ MONEY(lead.amount, lead.currency) }}</span>
+    {% else %}<span class="lv-edit-hint"><i class="fa-solid fa-indian-rupee-sign"></i> Add a value</span>{% endif %}
+    {% if lead.close_date %}<span>· closes {{ lead.close_date.day }} {{ lead.close_date.strftime('%b') }}</span>{% elif lead.status == 'open' %}<span class="lv-edit-hint">· no close date</span>{% endif %}
+    <span class="lv-cat {{ cat }}" title="{{ 'How the forecast counts this lead' }}">{{ FORECASTS[cat] }}</span>
+    <i class="fa-solid fa-pen lv-edit-hint" aria-hidden="true"></i>
+  </summary>
+  <form data-money-form method="post" action="{{ crm_url('lead_money', lead_id=lead.id) }}">
+    <div><label for="lv-amount-{{ lead.id }}">Amount</label>
+      <div class="lv-amt">
+        <input type="text" inputmode="decimal" id="lv-amount-{{ lead.id }}" name="amount" value="{{ PLAIN_AMOUNT(lead.amount) }}" placeholder="e.g. 18500" autocomplete="off"/>
+        <select name="currency" aria-label="Currency">
+          {% for c in money_currencies %}<option value="{{ c }}"{{ ' selected' if c == (lead.currency or REPORT_CURRENCY()) }}>{{ c }}</option>{% endfor %}
+        </select></div></div>
+    <div><label for="lv-close-{{ lead.id }}">Close date</label>
+      <input type="date" id="lv-close-{{ lead.id }}" name="close_date" value="{{ lead.close_date.isoformat() if lead.close_date }}"/></div>
+    <div><label for="lv-fc-{{ lead.id }}">Counts in the forecast as</label>
+      <select id="lv-fc-{{ lead.id }}" name="forecast"{{ ' disabled' if lead.status != 'open' }}>
+        <option value="">Automatic ({{ FORECASTS[auto_cat] }})</option>
+        {% for k in ('pipeline', 'best_case', 'commit') %}<option value="{{ k }}"{{ ' selected' if lead.forecast == k }}>{{ FORECASTS[k] }}</option>{% endfor %}
+      </select></div>
+    <p class="lv-note">Only changes the numbers on Forecast and Results. Nothing is sent to {{ lead.person.display_name }}.
+      {% if lead.revenue is not none and lead.revenue != lead.amount %}We earn {{ MONEY(lead.revenue, lead.currency) }} on it.{% endif %}</p>
+    <div class="row"><button type="submit" class="cb primary sm">Save</button></div>
+  </form>
+</details>

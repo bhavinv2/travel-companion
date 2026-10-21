@@ -9,10 +9,10 @@ from flask_login import current_user
 from markupsafe import Markup, escape
 
 from app import db
-from app.models import CrmPipeline, CrmPlaybookStep, CrmProduct
+from app.models import ActivityEvent, CrmPipeline, CrmPlaybookStep, CrmProduct
 from app.routes.crm import _common, _json, admin_only, crm_bp, crm_url
 from app.routes.cs import cs_required
-from app.services import crm, crm_editor
+from app.services import crm, crm_editor, crm_money
 
 
 @crm_bp.app_template_filter('quote_ok')
@@ -45,8 +45,12 @@ def pipelines():
     if a.get('p'):
         pipe = CrmPipeline.query.filter_by(key=a['p']).first()
         return redirect(crm_url('pipeline_edit', pid=pipe.id) if pipe is not None else crm_url('pipelines'))
-    tab = 'products' if a.get('tab') == 'products' else 'templates' if a.get('show') == 'templates' else 'pipelines'
+    tab = ('products' if a.get('tab') == 'products' else 'scoring' if a.get('tab') == 'scoring'
+           else 'templates' if a.get('show') == 'templates' else 'pipelines')
     ctx = {**_common(), **crm_editor.list_context(tab, edit=a.get('edit'))}
+    if tab == 'scoring':                       # lead scoring (run 5b): routes/crm_rules.py
+        from app.routes.crm_rules import scoring_context
+        ctx.update(scoring_context())
     return render_template('cs/crm/pipelines.html', **ctx)
 
 
@@ -144,6 +148,22 @@ def save_product():
         return render_template('cs/crm/pipelines.html', **ctx), 400
     flash('Saved “%s”.' % prod.name, 'success')
     return redirect(crm_url('pipelines', tab='products'))
+
+
+@crm_bp.route('/pipelines/rates', methods=['POST'])
+@cs_required
+@admin_only
+def save_rates():
+    """Products tab -> Exchange rates: the reporting currency and what each other currency is worth in it."""
+    n, errors = crm_money.save_rates(request.form, current_user)
+    if errors:
+        db.session.rollback()
+        flash('Check the rates: ' + ' '.join(errors.values()), 'danger')
+        return redirect(crm_url('pipelines', tab='products') + '#exchange-rates')
+    ActivityEvent.log('crm_rates_saved', actor=current_user, changed=n)
+    db.session.commit()
+    flash('Saved the exchange rates.' if n else 'Nothing changed.', 'success' if n else 'info')
+    return redirect(crm_url('pipelines', tab='products') + '#exchange-rates')
 
 
 @crm_bp.route('/pipelines/products/<int:prod_id>/offered', methods=['POST'])
