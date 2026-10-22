@@ -1,6 +1,7 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from 'cs/crm/_bits.html' import stage_pill, initials with context %}
 {% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_tabs.html' import tab_strip with context %}
 {% block crm_title %}Team today{% endblock %}
 {% macro score(c) -%}
 {%- if c.score is none -%}<span class="muted small">nothing was due</span>
@@ -17,6 +18,7 @@
 <th>{{ label }} <span class="tt-i" tabindex="0" title="{{ tip }}" aria-label="{{ tip }}">ⓘ</span></th>
 {%- endmacro %}
 {% block crm %}
+{{ tab_strip('crm_tracker') }}
 {{ page_head('Team today', 'fa-solid fa-people-line', "How each person's day is going. Click a name for their customer-by-customer list.",
              help=['One row per person: what was due, what they did, who is waiting on them, and how fast they answered.',
                    'Every number opens Leads, filtered to those people. Pick another day with the arrows or the date.'],
@@ -81,8 +83,9 @@
     <div class="t"><span class="ico"><i class="fa-solid fa-clipboard-check"></i></span>
       <div><h2>Half-hourly checks, team by team</h2>
         <p class="muted small">Who ticked which inbox, half hour by half hour (India time): ✓ every inbox ({{ check_channels }}),
-          a number for some of them. A team's score counts the half hours in which every inbox was ticked by one of its
-          people, or by itself (a connected inbox).</p></div></div>
+          a number for some of them; point at a box to see which inboxes and when. A team's score counts the half hours in
+          which every inbox was ticked by one of its people, or by itself (a connected inbox). Open “What was checked” under a
+          team for each inbox, who ticked it, at what time, and what the team did in that half hour.</p></div></div>
     <a class="cb sm" href="{{ crm_url('checks') }}"><i class="fa-solid fa-clipboard-check"></i> Open the check</a>
   </div>
   {% set hours = slots[::2] %}
@@ -103,7 +106,7 @@
         <td class="who"><a href="{{ crm_url('tracker', day=day.isoformat(), who=r.user.id) }}#person">{{ r.user.full_name }}</a></td>
         {% for s in slots %}{% set n = r.by_slot.get(s, 0) %}
         <td class="{{ 'full' if n >= check_channels else ('some' if n else ('later' if s not in check_over else '')) }}"
-            title="{{ slot_label(s) }}: {{ n }} of {{ check_channels }} inbox{{ 'es' if check_channels != 1 }}">{{ '✓' if n >= check_channels else (n if n else '') }}</td>
+            title="{{ slot_label(s) }}: {{ n }} of {{ check_channels }} inbox{{ 'es' if check_channels != 1 }}{{ ' — ' ~ r.detail[s] if r.detail.get(s) }}">{{ '✓' if n >= check_channels else (n if n else '') }}</td>
         {% endfor %}
         <td class="tot">{{ r.total }}</td>
       </tr>
@@ -119,6 +122,41 @@
       </tbody>
     </table>
     </div>
+    {% if g.inboxes and g.due %}
+    <p class="chk-inboxes" aria-label="Half hours each inbox was checked">
+      {% for ib in g.inboxes %}<span class="chip {{ 'ok' if ib.done == ib.due else ('due' if ib.done >= ib.due * 0.7 else 'bad') }}" title="{{ ib.channel }}: checked in {{ ib.done }} of the {{ ib.due }} half hours so far">{{ ib.channel }} {{ ib.done }}/{{ ib.due }}</span>{% endfor %}
+    </p>
+    {% endif %}
+    {% if g.log %}
+    <details class="chk-log">
+      <summary><i class="fa-solid fa-list-check" aria-hidden="true"></i> What was checked, half hour by half hour
+        <span class="muted small">· each inbox: who ticked it and when, newest first</span></summary>
+      <div class="table-wrap">
+      <table class="crm-table chk-log-t">
+        <thead><tr><th>Half hour</th>{% for ch in check_names %}<th>{{ ch }}</th>{% endfor %}<th>What the team did then</th></tr></thead>
+        <tbody>
+        {% for e in g.log %}
+        {% set missed = e.cells|selectattr('state', 'equalto', 'miss')|list|length %}
+        <tr class="{{ 'gap' if e.over and not e.full }}">
+          <td class="when"><b>{{ e.label }}–{{ e.until }}</b>
+            {% if not e.over %}<small>going on now</small>{% elif e.full %}<small class="ok">every inbox</small>{% elif not missed %}<small class="bulk">some by another team</small>{% else %}<small class="bad">{{ missed }} not checked</small>{% endif %}
+            {% if e.bulk %}<small class="bulk" title="Several inboxes ticked in one press, within a few seconds">Tick all: {{ e.bulk|join(', ') }}</small>{% endif %}</td>
+          {% for c in e.cells %}
+          <td class="c-{{ c.state }}">
+            {%- if c.state in ('ok', 'late') -%}
+            <span class="who">{{ c.who }}</span><span class="at">{{ c.at }}{% if c.state == 'late' %} · late{% endif %}</span>{% if c.other %}<span class="note">another team</span>{% endif %}
+            {%- elif c.state == 'miss' -%}<span class="x">✗ not checked</span>
+            {%- else -%}<span class="muted">—</span>{%- endif -%}
+          </td>
+          {% endfor %}
+          <td class="work">{{ e.work or '—' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </details>
+    {% endif %}
   </div>
   {% else %}
   <p class="muted">Nobody to show for this day.</p>

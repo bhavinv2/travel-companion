@@ -155,21 +155,22 @@ def test_the_administrator_sees_every_section_in_order(app, admin_user):
     assert 'help' not in keys
     assert [i['label'] for i in sales['subs'][1]['items']] == [
         'Pipelines & products', 'Automation', 'Messages', 'Lead sources', 'Targets', 'WhatsApp', 'Import & export']
+    # every report is one line, All reports, first in Overview: the reports are its tabs, not lines of their own
     overview = [i['label'] for i in next(g for g in groups if g['key'] == 'overview')['items']]
-    assert {'Site dashboard', 'Sales results', 'Forecast', 'Team today', 'Match quality'} <= set(overview)
-    assert overview.index('Forecast') == overview.index('Sales results') + 1
+    assert overview[0] == 'All reports'
     flat = [l for ls in labels(groups).values() for l in ls]
     for line in ('Dashboard', 'Queues', 'Promotion'):
         assert line not in flat
-    for line in ('Site dashboard', 'My day', 'Leads', 'Messages', 'Automation', 'Team today',
-                 'Sales results', 'Pipelines & products', 'Lead sources', 'WhatsApp', 'Import & export',
+    for line in ('All reports', 'My day', 'Leads', 'Messages', 'Automation',
+                 'Pipelines & products', 'Lead sources', 'WhatsApp', 'Import & export',
                  'Team members', 'Teams', 'Roles', 'Workspace'):
         assert line in flat, line
     # lines with no menu entry: reachable from the page that needs them
     # Contacts is on the menu from U7 (the portal's own page)
     assert 'Contacts' in flat
     for hidden in ('Add a lead', 'Download lists of leads and contacts', 'Auto', 'All workspaces', 'Tags', 'Chatbot',
-                   'Reply rules', 'AI replies', 'WhatsApp number', 'Visual flow', 'How we sell', 'Half-hourly check'):
+                   'Reply rules', 'AI replies', 'WhatsApp number', 'Visual flow', 'How we sell', 'Half-hourly check',
+                   'Site dashboard', 'Sales results', 'Forecast', 'Report builder', 'Team today', 'Match quality'):
         assert hidden not in flat, hidden
 
 

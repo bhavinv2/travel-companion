@@ -1,5 +1,6 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_tabs.html' import tab_strip with context %}
 {% block crm_title %}Forecast{% endblock %}
 
 {% macro m(v) -%}{{ MONEY(v, report_currency) }}{%- endmacro %}
@@ -14,6 +15,7 @@
 {%- endmacro %}
 
 {% block crm %}
+{{ tab_strip('crm_forecast') }}
 {{ page_head('Forecast', 'fa-solid fa-bullseye',
              'Money won against the target for the ' ~ ('quarter' if quarter else 'month') ~ ', and what is likely to come.',
              help=['Closed won is money already paid: leads won in these days. The rest counts open leads whose close date falls in these days.',

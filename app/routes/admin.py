@@ -59,6 +59,15 @@ def admin_login():
     return render_template('admin/login.html')
 
 
+@admin_bp.route('/reports')
+@login_required
+@admin_required
+def reports():
+    """Overview's Reports line: the first report this person may open; the others are its tabs."""
+    from app.services import access
+    return redirect(access.first_tab_url('reports') or access.home_url(current_user))
+
+
 @admin_bp.route('/')
 @login_required
 @admin_required

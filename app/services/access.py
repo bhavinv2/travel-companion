@@ -74,11 +74,22 @@ SCRAPER = tuple('scraper.' + n for n in (
     'run_status', 'cancel_run', 'create_posts', 'skip_rows', 'row_detail', 'row_edit', 'export_run',
     'export_recipe'))
 
+# the reports gathered under Overview's one Reports line, as tabs, in this order (TAB_GROUPS['reports'])
+REPORT_TABS = (('crm_insights', 'Sales results'), ('crm_forecast', 'Forecast'), ('crm_report_builder', 'Report builder'),
+               ('crm_tracker', 'Team today'), ('dashboard', 'Site dashboard'), ('metrics', 'Match quality'))
+REPORT_PAGES = tuple(k for k, _ in REPORT_TABS)
+
 MODULES = [
     {'key': 'console', 'label': 'Overview', 'icon': 'fa-gauge',
      'desc': 'Service to-do, notifications and the site dashboard.',
      'pages': [
-         _page('dashboard', 'Site dashboard', 'fa-gauge', ['admin.dashboard'], admin='admin.dashboard',
+         # one menu line for every report, All reports (TAB_GROUPS['reports']): whoever may open any of them has
+         # it; it opens the first one they may open, and the reports are its tabs
+         _page('reports', 'All reports', 'fa-chart-pie', ['admin.reports', 'cs.reports'], admin='admin.reports',
+               cs='cs.reports', with_=REPORT_PAGES,
+               tip='Every report in one place: sales results, forecast, your own reports, team today, the site '
+                   'numbers and match quality.'),
+         _page('dashboard', 'Site dashboard', 'fa-gauge', ['admin.dashboard'], admin='admin.dashboard', nav=False,
                desc='Numbers across every product on the site.', tip='Numbers across every product on the site.'),
          _page('home', 'Service to-do', 'fa-inbox', ['cs.home'], cs='cs.home',
                desc='What is waiting for customer service.'),
@@ -123,18 +134,18 @@ MODULES = [
                admin='admin_crm.quick_replies', cs='crm.quick_replies',
                with_=('wa_templates', 'wa_broadcasts', 'wa_tags'), grant=True,
                tip='Quick replies, WhatsApp templates, broadcasts and tags.'),
-         _page('crm_tracker', 'Team today', 'fa-people-line', _both('tracker'), admin='admin_crm.tracker',
+         _page('crm_tracker', 'Team today', 'fa-people-line', _both('tracker'), admin='admin_crm.tracker', nav=False,
                desc="Each person's checklist and timeline, day by day.", tip="How each person's day is going."),
          _page('crm_insights', 'Sales results', 'fa-chart-line', _both('insights', 'insights_recalculate') + ('messaging.overview',),
-               admin='admin_crm.insights',
+               admin='admin_crm.insights', nav=False,
                tip='New leads, replies and customers won, by product, source and person.'),
          _page('crm_forecast', 'Forecast', 'fa-bullseye', _both('forecast', 'forecast_csv'),
-               admin='admin_crm.forecast', cs='crm.forecast', with_=('crm_insights',), grant=True,
+               admin='admin_crm.forecast', cs='crm.forecast', nav=False, with_=('crm_insights',), grant=True,
                desc='Money won against target, and what is committed, for the month.',
                tip='Money won against target, and what is committed, for the month or quarter.'),
          _page('crm_report_builder', 'Report builder', 'fa-chart-column',
                _both('report_builder', 'report_builder_csv', 'report_save', 'report_pin', 'report_move', 'report_delete'),
-               admin='admin_crm.report_builder', cs='crm.report_builder', with_=('crm_insights',), grant=True,
+               admin='admin_crm.report_builder', cs='crm.report_builder', nav=False, with_=('crm_insights',), grant=True,
                desc='Build your own report: what to count, how to group it, a chart and a table to download.',
                tip='Build your own report, save it, and pin it to Sales results.'),
          _page('crm_auto', 'Automation', 'fa-list-check', _both('automatic', 'ai_switch'), admin='admin_crm.automatic',
@@ -185,7 +196,7 @@ MODULES = [
                 'cs.reopen_post', 'cs.issue_claim_link', 'cs.log_manual_event', 'cs.check_duplicates'],
                cs='cs.posts'),
          _page('matches', 'Match queue', 'fa-handshake', MATCHES, cs='matches.cs_match_queue'),
-         _page('metrics', 'Match quality', 'fa-chart-simple', ['cs.metrics'], cs='cs.metrics',
+         _page('metrics', 'Match quality', 'fa-chart-simple', ['cs.metrics'], cs='cs.metrics', nav=False,
                desc='How matches turn out, and hints for the match weights.'),
          _page('new', 'New post', 'fa-plus', ['cs.new_post'], cs='cs.new_post'),
          _page('import', 'Import', 'fa-file-import', ['imports.import_page', 'imports.import_template'],
@@ -339,7 +350,8 @@ MODULES = [
 # the menu's order lives.
 SECTIONS = [
     {'key': 'overview', 'label': 'Overview', 'icon': 'fa-gauge',
-     'pages': ('dashboard', 'crm_insights', 'crm_forecast', 'crm_report_builder', 'crm_tracker', 'metrics', 'home', 'notifications', 'voices_general')},
+     'pages': ('reports', 'dashboard', 'crm_insights', 'crm_forecast', 'crm_report_builder', 'crm_tracker', 'metrics', 'home',
+               'notifications', 'voices_general')},
     {'key': 'sales', 'label': 'Sales CRM', 'icon': 'fa-filter-circle-dollar', 'subs': (
         # pages with no line of their own (nav=False) are tabs of a line next to them: TAB_GROUPS
         {'key': 'daily', 'label': 'Daily work', 'icon': 'fa-sun',
@@ -411,6 +423,8 @@ TAB_GROUPS = {
     'crm_auto': (('crm_auto', 'Overview'), ('crm_rules', 'Rules'), ('wa_automations', 'Reply rules'),
                  ('wa_flows', 'Chatbot'), ('wa_ai', 'AI replies')),
     'crm_connection': (('crm_connection', 'Connection'), ('wa_settings', 'Number')),
+    # every report is a tab of Overview's Reports line (the line itself has no screen: it opens the first tab)
+    'reports': REPORT_TABS,
 }
 # the menu line a nav=False page lives under (the line that lights up while it is open)
 TAB_HOST = {k: host for host, tabs in TAB_GROUPS.items() for k, _ in tabs if k != host}
@@ -429,15 +443,30 @@ def tabs_for(page_key, user=None):
     user = user or current_user
     host = TAB_HOST.get(page_key, page_key)
     out = []
+    for key, label, url in _open_tabs(host, user):
+        links = PAGES[key]['links']
+        out.append({'key': key, 'label': label, 'url': url,
+                    'active': request.endpoint in (links['admin'], links['cs'])})
+    return out if len(out) > 1 else []
+
+
+def _open_tabs(host, user):
+    """(key, tab name, address) of each tab of `host` this person may open, whose area is switched on in the
+    workspace (as the menu hides a line whose area is off)."""
+    on = set(enabled_modules(current_workspace(user)))
     for key, label in TAB_GROUPS.get(host, ()):
-        if not can(user, key):
+        if PAGES[key]['module'] not in on or not can(user, key):
             continue
         url = page_url(PAGES[key])
         if url:
-            links = PAGES[key]['links']
-            out.append({'key': key, 'label': label, 'url': url,
-                        'active': request.endpoint in (links['admin'], links['cs'])})
-    return out if len(out) > 1 else []
+            yield key, label, url
+
+
+def first_tab_url(host, user=None):
+    """Where a line that gathers tabs and has no screen of its own (Reports) opens: its first tab this person
+    may open, or None."""
+    from flask_login import current_user
+    return next((url for _k, _l, url in _open_tabs(host, user or current_user)), None)
 
 
 # The consoles' blueprints, for "which console am I in" when choosing a menu link.

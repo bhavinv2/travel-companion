@@ -36,7 +36,7 @@ def test_customer_service_sees_only_the_days_work(app, client, cs_user):
 def test_the_admin_sees_the_management_screens(app, client, admin_user):
     login(client, admin_user.email)
     page = client.get('/admin/crm/today').get_data(as_text=True)
-    assert 'Team today' in page and 'Site dashboard' in page and 'Set-up' in page
+    assert 'All reports' in page and 'Set-up' in page          # Team today and Site dashboard are its tabs
     # an admin who opens a management screen in the CS console lands in the admin portal
     r = client.get('/cs/crm/setup?tab=answers')
     assert r.status_code == 307 and r.headers['Location'].endswith('/admin/crm/setup?tab=answers')

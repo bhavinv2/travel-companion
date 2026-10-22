@@ -577,6 +577,15 @@ def contact_status(mid):
 # Metrics (plan §13 2D: time-to-match, % manual, claim rate, connected rate, tuning hints)
 # ---------------------------------------------------------------------------
 
+@cs_bp.route('/reports')
+@login_required
+@cs_required
+def reports():
+    """Overview's Reports line: the first report this person may open; the others are its tabs."""
+    from app.services import access
+    return redirect(access.first_tab_url('reports') or access.home_url(current_user))
+
+
 @cs_bp.route('/metrics')
 @login_required
 @cs_required

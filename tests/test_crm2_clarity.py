@@ -49,7 +49,8 @@ def test_the_sales_menu_has_daily_work_and_set_up_only_and_no_help_section(app, 
     assert [i['label'] for i in sales['subs'][1]['items']] == [
         'Pipelines & products', 'Automation', 'Messages', 'Lead sources', 'Targets', 'WhatsApp', 'Import & export']
     overview = [i['label'] for i in groups['overview']['items']]
-    assert 'Sales results' in overview and 'Team today' in overview
+    # the reports are one line; Sales results, Team today and the others are its tabs
+    assert overview[0] == 'All reports' and 'Sales results' not in overview and 'Team today' not in overview
 
 
 def _groups(app, user):

@@ -170,33 +170,113 @@ def coverage(day, channels):
             'pct': round(100 * len(full) / len(upto)) if upto else None}
 
 
-def checks_by_team(day, users, channels, teams):
+BULK_SECONDS = 5        # three or more inboxes ticked this close together by one person: one press of "Tick all"
+# what a line of a person's day (day_sheet's timeline, by its icon) counts as, for "what they did that half hour":
+# (one, several), in the order they are said
+WORK_KINDS = {'fa-paper-plane': ('message', 'messages'), 'fa-phone': ('call', 'calls'),
+              'fa-check': ('follow-up done', 'follow-ups done'),
+              'fa-arrow-right-arrow-left': ('lead moved', 'leads moved'), 'fa-user-plus': ('lead added', 'leads added'),
+              'fa-note-sticky': ('note', 'notes'), 'fa-flag': ('note', 'notes')}
+
+
+def slot_end(day, s):
+    """The moment half hour `s` of `day` (India time) is over, in UTC."""
+    return datetime.combine(day, datetime.min.time()) + timedelta(minutes=30 * (s + 1)) - IST
+
+
+def ist_hm(dt):
+    return (dt + IST).strftime('%H:%M') if dt else ''
+
+
+def _work_text(counts):
+    """{'message': 3, 'call': 1} -> '3 messages · 1 call', in WORK_KINDS' order."""
+    return ' · '.join('%d %s' % (counts[one], one if counts[one] == 1 else many)
+                      for one, many in dict.fromkeys(WORK_KINDS.values()) if counts.get(one))
+
+
+def checks_by_team(day, users, channels, teams, sheet=None):
     """Team today's "Half-hourly checks, team by team": each of `teams` (then everybody of `users` in none of
     them) with, for each member, how many inboxes they ticked in each half hour -- one inbox is ticked once
     per half hour, by whoever checks it -- and the team's coverage: the half hours so far in which every
     inbox was ticked by one of its members or by itself (a connected inbox). One query.
-    [{'name', 'rows': [{'user', 'by_slot': {slot: n}, 'total'}], 'covered', 'due', 'pct', 'missed'}]"""
+    `log`: what was checked, half hour by half hour, newest first -- for each inbox who ticked it and when (late:
+    after that half hour was over; "Tick all": several inboxes in one press), and, from `sheet` (day_sheet), what
+    the team's people did in that half hour. `inboxes`: each inbox's half hours checked by the team.
+    [{'name', 'rows': [{'user', 'by_slot': {slot: n}, 'detail': {slot: text}, 'total'}], 'covered', 'due', 'pct',
+      'missed', 'log': [{'slot', 'label', 'cells': [...], 'full', 'over', 'bulk', 'work'}], 'inboxes': [...]}]"""
     from app.services import crm
     upto = slots_so_far(day)
-    by_slot, mine = {}, {}
+    over = set(upto)
+    by_slot, mine, at = {}, {}, {}
     for c in CrmChannelCheck.query.filter_by(day=day).all():
         ch = crm.CHECK_RENAMED.get(c.channel, c.channel)
         if ch not in channels:
             continue
         by_slot.setdefault(c.slot, {})[ch] = c.user_id
+        at[(c.slot, ch)] = c
         if c.user_id:
             mine.setdefault(c.user_id, {}).setdefault(c.slot, set()).add(ch)
     wanted = {u.id for u in users}
+    names = {u.id: u.full_name for u in users}
+    for c in at.values():
+        if c.user_id and c.user_id not in names and c.user is not None:
+            names[c.user_id] = c.user.full_name
+    # "Tick all": one person's three or more ticks in a half hour, all within a few seconds
+    bulk = set()
+    for uid, slots_ in mine.items():
+        for s, chs in slots_.items():
+            times = sorted(at[(s, ch)].checked_at for ch in chs if at[(s, ch)].checked_at)
+            if len(times) >= 3 and (times[-1] - times[0]).total_seconds() <= BULK_SECONDS:
+                bulk.add((uid, s))
+    # what each person did, half hour by half hour (their day's timeline, the checks themselves left out)
+    work = {}
+    for uid, s in (sheet or {}).items():
+        for when, _lead, icon, _text in s['timeline']:
+            kind = WORK_KINDS.get(icon)
+            local = when + IST if when else None
+            if kind and local is not None and local.date() == day:
+                cnt = work.setdefault(uid, {}).setdefault(slot_of(local), {})
+                cnt[kind[0]] = cnt.get(kind[0], 0) + 1
+
+    def detail(uid, s):
+        return ', '.join('%s %s' % (ch, ist_hm(at[(s, ch)].checked_at)) for ch in channels if ch in mine[uid][s])
 
     def group(name, members):
         ids = {u.id for u in members}
         covered = [s for s in upto if channels and all(
             ch in by_slot.get(s, {}) and (by_slot[s][ch] is None or by_slot[s][ch] in ids) for ch in channels)]
         rows = [{'user': u, 'by_slot': {s: len(chs) for s, chs in mine.get(u.id, {}).items()},
+                 'detail': {s: detail(u.id, s) for s in mine.get(u.id, {})},
                  'total': sum(len(chs) for chs in mine.get(u.id, {}).values())} for u in members]
+        shown = sorted({s for s in upto} | {s for s in by_slot if any(
+            v is None or v in ids for v in by_slot[s].values())}, reverse=True)
+        log = []
+        for s in shown:
+            cells = []
+            for ch in channels:
+                c = at.get((s, ch))
+                if c is None:
+                    cells.append({'channel': ch, 'state': 'miss' if s in over else 'open'})
+                    continue
+                late = c.checked_at is not None and c.checked_at > slot_end(day, s)
+                cells.append({'channel': ch, 'state': 'late' if late else 'ok', 'at': ist_hm(c.checked_at),
+                              'who': names.get(c.user_id, 'Someone') if c.user_id else 'Ticked itself',
+                              'auto': c.user_id is None, 'other': c.user_id is not None and c.user_id not in ids,
+                              'bulk': (c.user_id, s) in bulk})
+            done = {}
+            for uid in ids:
+                for k, n in work.get(uid, {}).get(s, {}).items():
+                    done[k] = done.get(k, 0) + n
+            log.append({'slot': s, 'label': slot_label(s), 'until': slot_label(s + 1), 'cells': cells,
+                        'full': s in covered, 'over': s in over,
+                        'bulk': sorted({names.get(uid, '') for uid, bs in bulk if bs == s and uid in ids}),
+                        'work': _work_text(done)})
+        inboxes = [{'channel': ch, 'due': len(upto),
+                    'done': sum(1 for s in upto if ch in by_slot.get(s, {})
+                                and (by_slot[s][ch] is None or by_slot[s][ch] in ids))} for ch in channels]
         return {'name': name, 'rows': rows, 'covered': len(covered), 'covered_slots': set(covered), 'due': len(upto),
                 'pct': round(100 * len(covered) / len(upto)) if upto else None,
-                'missed': [slot_label(s) for s in upto if s not in covered]}
+                'missed': [slot_label(s) for s in upto if s not in covered], 'log': log, 'inboxes': inboxes}
 
     out, placed = [], set()
     for t in teams:
@@ -314,18 +394,29 @@ def day_sheet(day, users):
         s['counts']['added'] += 1
         s['timeline'].append((l.created_at, l, 'fa-user-plus', 'Added this lead'))
         touch(l.created_by_id, l.created_at)
-    # the inbox check
+    # the inbox check: a line per half hour they checked -- which inboxes, and whether it was late or "Tick all"
+    from app.services import crm
+    ticks = defaultdict(list)
     for c in CrmChannelCheck.query.filter(CrmChannelCheck.day == day, CrmChannelCheck.user_id.in_(ids)):
         s = sheet[c.user_id]
         s['counts']['checks'] += 1
         s.setdefault('slots', set()).add(c.slot)
+        ticks[(c.user_id, c.slot)].append(c)
         touch(c.user_id, c.checked_at)
+    for (uid, slot), cs in ticks.items():
+        cs.sort(key=lambda c: c.checked_at or start)
+        names = [crm.CHECK_RENAMED.get(c.channel, c.channel) for c in cs]
+        when = cs[0].checked_at or start
+        notes = []
+        if any(c.checked_at and c.checked_at > slot_end(day, slot) for c in cs):
+            notes.append('late, after %s' % slot_label(slot + 1))
+        times = [c.checked_at for c in cs if c.checked_at]
+        if len(times) >= 3 and (times[-1] - times[0]).total_seconds() <= BULK_SECONDS:
+            notes.append('all with Tick all')
+        sheet[uid]['timeline'].append((when, None, 'fa-clipboard-check', 'Checked %s for %s–%s%s' % (
+            ', '.join(names), slot_label(slot), slot_label(slot + 1), (' (%s)' % '; '.join(notes)) if notes else '')))
     for s in sheet.values():
-        n = len(s.get('slots') or ())
-        if n:
-            s['timeline'].append((s['first'] or start, None, 'fa-clipboard-check',
-                                  'Checked the inboxes in %d half hour%s' % (n, '' if n == 1 else 's')))
-        s['counts']['slots'] = n
+        s['counts']['slots'] = len(s.get('slots') or ())
     # what they logged by hand
     for a in CrmActivity.query.filter(CrmActivity.day == day, CrmActivity.user_id.in_(ids),
                                       CrmActivity.source == 'manual'):

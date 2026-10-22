@@ -1,5 +1,6 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_tabs.html' import tab_strip with context %}
 {% from 'cs/crm/_report_result.html' import report_result with context %}
 {% block crm_title %}Results{% endblock %}
 
@@ -34,6 +35,7 @@
 {%- endmacro %}
 
 {% block crm %}
+{{ tab_strip('crm_insights') }}
 {{ page_head(person.full_name ~ "'s results" if person else 'Results', 'fa-solid fa-chart-line',
              'How sales are going: new leads, replies and customers won, by product, source and person.',
              help=['Counted from the Sales CRM as the team works: nothing to fill in.',

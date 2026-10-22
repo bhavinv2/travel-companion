@@ -1,11 +1,13 @@
 {% extends 'base.html' %}
 {% from 'admin/_hard_delete.html' import del_btn %}
+{% from 'cs/crm/_tabs.html' import tab_strip with context %}
 {% block title %}Admin Dashboard – NRI Parent Service{% endblock %}
 {% block content %}
 <div class="admin-page">
   {% with active='dashboard' %}{% include 'admin/_sidebar.html' %}{% endwith %}
 
   <main class="admin-main">
+    {{ tab_strip('dashboard') }}
     <h1>Dashboard</h1>
     <div class="admin-stats">
       <div class="stat-card blue">

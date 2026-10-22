@@ -1,8 +1,10 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_tabs.html' import tab_strip with context %}
 {% from 'cs/crm/_report_result.html' import report_result with context %}
 {% block crm_title %}Report builder{% endblock %}
 {% block crm %}
+{{ tab_strip('crm_report_builder') }}
 {{ page_head('Report builder', 'fa-solid fa-chart-column',
              'Build your own report: pick what to count, how to group it, and read a chart and a table.',
              help=['Choose what to count (leads, people, or activities such as messages, calls and tasks), then how to measure it.',

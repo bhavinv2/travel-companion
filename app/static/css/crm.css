@@ -1133,6 +1133,36 @@ button.pe-chip:hover { border-color: var(--c-blue); }
 .chk-grid .who { min-width: 150px; padding-right: 10px; white-space: nowrap; background: none; box-shadow: none; text-align: left; font-weight: 600; }
 .chk-grid td.who a { color: var(--c-ink); }
 .chk-grid .tot { min-width: 44px; background: none; box-shadow: none; color: var(--c-ink); text-align: right; padding-right: 4px; }
+/* under each team's grid: each inbox's half hours, then "What was checked" -- who ticked each inbox and when */
+.chk-inboxes { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px !important; }
+.crm .chk-inboxes .chip { font-size: 12px; }
+.chk-log { margin-top: 10px; border: 1px solid var(--c-line); border-radius: 10px; background: var(--c-card); }
+.chk-log > summary { cursor: pointer; padding: 10px 12px; font-weight: 600; font-size: 14px; list-style: none; display: flex; gap: 8px;
+  align-items: baseline; flex-wrap: wrap; }
+.chk-log > summary::-webkit-details-marker { display: none; }
+.chk-log > summary::after { content: '▾'; margin-left: auto; color: var(--c-muted); }
+.chk-log[open] > summary::after { content: '▴'; }
+.chk-log[open] > summary { border-bottom: 1px solid var(--c-line); }
+.chk-log .table-wrap { max-height: 520px; overflow: auto; }
+.chk-log-t { font-size: 12.5px; }
+.chk-log-t thead th { position: sticky; top: 0; background: var(--c-card); z-index: 1; white-space: nowrap; }
+.chk-log-t td { vertical-align: top; padding: 6px 8px; }
+.chk-log-t td.when, .chk-log-t thead th:first-child { white-space: nowrap; position: sticky; left: 0; z-index: 2; background: var(--c-card);
+  box-shadow: 1px 0 0 var(--c-line); }
+.chk-log-t thead th:first-child { z-index: 3; }
+.chk-log-t td.when small { display: block; font-size: 11.5px; color: var(--c-muted); }
+.chk-log-t td.when small.ok { color: var(--c-ok-ink); }
+.chk-log-t td.when small.bad { color: var(--c-bad-ink); font-weight: 600; }
+.chk-log-t td.when small.bulk { color: var(--c-warn-ink); }
+.chk-log-t tr.gap td.when { box-shadow: inset 3px 0 0 var(--c-bad), 1px 0 0 var(--c-line); }
+.chk-log-t .who { display: block; font-weight: 600; white-space: nowrap; }
+.chk-log-t .at { display: block; color: var(--c-muted); font-size: 11.5px; }
+.chk-log-t .note { display: block; color: var(--c-warn-ink); font-size: 11px; }
+.chk-log-t td.c-ok { background: var(--c-ok-soft); }
+.chk-log-t td.c-late { background: var(--c-warn-soft); }
+.chk-log-t td.c-late .at { color: var(--c-warn-ink); font-weight: 600; }
+.chk-log-t td.c-miss { background: var(--c-bad-soft); color: var(--c-bad-ink); font-weight: 600; white-space: nowrap; }
+.chk-log-t td.work { color: var(--c-ink); min-width: 140px; }
 
 /* Visual Flow (E26): the people being tracked, the add-person search, and the maps themselves */
 .flow-track { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 4px; }
