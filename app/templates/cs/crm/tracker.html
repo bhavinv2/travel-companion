@@ -39,6 +39,7 @@
     <div class="t"><span class="ico"><i class="fa-solid fa-users"></i></span>
       <div><h2>{{ 'Today' if day == today else day.strftime('%A %d %B') }} — the team</h2>
         <p class="muted small">Inbox check for the whole team: {{ '%d%%' % coverage.pct if coverage.pct is not none else 'not started yet' }} of half hours fully checked{% if coverage.missed %} · missed {{ coverage.missed|length }}{% endif %}</p></div></div>
+    <a class="cb sm" href="{{ crm_url('check_report', day=day.isoformat()) }}"><i class="fa-solid fa-user-check"></i> Who checked what</a>
   </div>
   {% if team_note %}<p class="muted small">{{ team_note }}</p>{% endif %}
   <div class="table-wrap">
@@ -68,99 +69,13 @@
       <td>{{ num(n.unanswered, crm_url('board', p='all', view='list', owner=u.id, chat='waiting')) }}</td>
       <td>{{ mins(n.first_reply) }}</td>
       <td>{% if c.calls %}<a href="{{ crm_url('tracker', day=day.isoformat(), who=u.id) }}">{{ c.calls }}</a>{% else %}<span class="muted">0</span>{% endif %}</td>
-      <td>{% if c.slots %}<a href="#checks" title="See them half hour by half hour">{{ c.slots }}</a>{% else %}<span class="muted">0</span>{% endif %}</td>
+      <td>{% if c.slots %}<a href="{{ crm_url('check_report', day=day.isoformat(), who=u.id) }}#p-{{ u.id }}" title="Their checks, half hour by half hour">{{ c.slots }}</a>{% else %}<span class="muted">0</span>{% endif %}</td>
       <td class="muted">{% if s.first %}{{ hm(s.last) }}{% else %}no activity{% endif %}</td>
     </tr>
     {% endfor %}
     </tbody>
   </table>
   </div>
-</section>
-
-{# ================================================================ the half-hourly checks, team by team #}
-<section class="card" id="checks">
-  <div class="card-head">
-    <div class="t"><span class="ico"><i class="fa-solid fa-clipboard-check"></i></span>
-      <div><h2>Half-hourly checks, team by team</h2>
-        <p class="muted small">Who ticked which inbox, half hour by half hour (India time): ✓ every inbox ({{ check_channels }}),
-          a number for some of them; point at a box to see which inboxes and when. A team's score counts the half hours in
-          which every inbox was ticked by one of its people, or by itself (a connected inbox). Open “What was checked” under a
-          team for each inbox, who ticked it, at what time, and what the team did in that half hour.</p></div></div>
-    <a class="cb sm" href="{{ crm_url('checks') }}"><i class="fa-solid fa-clipboard-check"></i> Open the check</a>
-  </div>
-  {% set hours = slots[::2] %}
-  {% for g in check_teams %}
-  <div class="chk-team">
-    <div class="chk-team-head">
-      <h3>{{ g.name }} <span class="muted small">· {{ g.rows|length }} {{ 'person' if g.rows|length == 1 else 'people' }}</span></h3>
-      {% if g.pct is none %}<span class="chip">Not started yet</span>
-      {% else %}<span class="chip {{ 'ok' if g.pct == 100 else ('due' if g.pct >= 70 else 'bad') }}">{{ g.covered }} of {{ g.due }} half hours fully checked · {{ g.pct }}%</span>{% endif %}
-      {% if g.missed %}<span class="muted small" title="{{ g.missed|join(', ') }}">missed: {{ g.missed[:6]|join(', ') }}{{ ' …' if g.missed|length > 6 }}</span>{% endif %}
-    </div>
-    <div class="table-wrap">
-    <table class="chk-grid">
-      <thead><tr><th class="who">Person</th>{% for s in hours %}<th colspan="2">{{ s // 2 }}</th>{% endfor %}<th class="tot">Ticks</th></tr></thead>
-      <tbody>
-      {% for r in g.rows %}
-      <tr>
-        <td class="who"><a href="{{ crm_url('tracker', day=day.isoformat(), who=r.user.id) }}#person">{{ r.user.full_name }}</a></td>
-        {% for s in slots %}{% set n = r.by_slot.get(s, 0) %}
-        <td class="{{ 'full' if n >= check_channels else ('some' if n else ('later' if s not in check_over else '')) }}"
-            title="{{ slot_label(s) }}: {{ n }} of {{ check_channels }} inbox{{ 'es' if check_channels != 1 }}{{ ' — ' ~ r.detail[s] if r.detail.get(s) }}">{{ '✓' if n >= check_channels else (n if n else '') }}</td>
-        {% endfor %}
-        <td class="tot">{{ r.total }}</td>
-      </tr>
-      {% endfor %}
-      <tr class="team-row">
-        <td class="who">Team</td>
-        {% for s in slots %}
-        <td class="{{ 'full' if s in g.covered_slots else ('later' if s not in check_over else 'miss') }}"
-            title="{{ slot_label(s) }}: {{ 'every inbox checked' if s in g.covered_slots else ('not over yet' if s not in check_over else 'not every inbox checked') }}">{{ '✓' if s in g.covered_slots else ('✗' if s in check_over else '') }}</td>
-        {% endfor %}
-        <td class="tot">{{ g.pct ~ '%' if g.pct is not none else '' }}</td>
-      </tr>
-      </tbody>
-    </table>
-    </div>
-    {% if g.inboxes and g.due %}
-    <p class="chk-inboxes" aria-label="Half hours each inbox was checked">
-      {% for ib in g.inboxes %}<span class="chip {{ 'ok' if ib.done == ib.due else ('due' if ib.done >= ib.due * 0.7 else 'bad') }}" title="{{ ib.channel }}: checked in {{ ib.done }} of the {{ ib.due }} half hours so far">{{ ib.channel }} {{ ib.done }}/{{ ib.due }}</span>{% endfor %}
-    </p>
-    {% endif %}
-    {% if g.log %}
-    <details class="chk-log">
-      <summary><i class="fa-solid fa-list-check" aria-hidden="true"></i> What was checked, half hour by half hour
-        <span class="muted small">· each inbox: who ticked it and when, newest first</span></summary>
-      <div class="table-wrap">
-      <table class="crm-table chk-log-t">
-        <thead><tr><th>Half hour</th>{% for ch in check_names %}<th>{{ ch }}</th>{% endfor %}<th>What the team did then</th></tr></thead>
-        <tbody>
-        {% for e in g.log %}
-        {% set missed = e.cells|selectattr('state', 'equalto', 'miss')|list|length %}
-        <tr class="{{ 'gap' if e.over and not e.full }}">
-          <td class="when"><b>{{ e.label }}–{{ e.until }}</b>
-            {% if not e.over %}<small>going on now</small>{% elif e.full %}<small class="ok">every inbox</small>{% elif not missed %}<small class="bulk">some by another team</small>{% else %}<small class="bad">{{ missed }} not checked</small>{% endif %}
-            {% if e.bulk %}<small class="bulk" title="Several inboxes ticked in one press, within a few seconds">Tick all: {{ e.bulk|join(', ') }}</small>{% endif %}</td>
-          {% for c in e.cells %}
-          <td class="c-{{ c.state }}">
-            {%- if c.state in ('ok', 'late') -%}
-            <span class="who">{{ c.who }}</span><span class="at">{{ c.at }}{% if c.state == 'late' %} · late{% endif %}</span>{% if c.other %}<span class="note">another team</span>{% endif %}
-            {%- elif c.state == 'miss' -%}<span class="x">✗ not checked</span>
-            {%- else -%}<span class="muted">—</span>{%- endif -%}
-          </td>
-          {% endfor %}
-          <td class="work">{{ e.work or '—' }}</td>
-        </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-      </div>
-    </details>
-    {% endif %}
-  </div>
-  {% else %}
-  <p class="muted">Nobody to show for this day.</p>
-  {% endfor %}
 </section>
 
 {# ================================================================ how each follow-up went out #}

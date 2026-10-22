@@ -194,100 +194,127 @@ def _work_text(counts):
                       for one, many in dict.fromkeys(WORK_KINDS.values()) if counts.get(one))
 
 
-def checks_by_team(day, users, channels, teams, sheet=None):
-    """Team today's "Half-hourly checks, team by team": each of `teams` (then everybody of `users` in none of
-    them) with, for each member, how many inboxes they ticked in each half hour -- one inbox is ticked once
-    per half hour, by whoever checks it -- and the team's coverage: the half hours so far in which every
-    inbox was ticked by one of its members or by itself (a connected inbox). One query.
-    `log`: what was checked, half hour by half hour, newest first -- for each inbox who ticked it and when (late:
-    after that half hour was over; "Tick all": several inboxes in one press), and, from `sheet` (day_sheet), what
-    the team's people did in that half hour. `inboxes`: each inbox's half hours checked by the team.
-    [{'name', 'rows': [{'user', 'by_slot': {slot: n}, 'detail': {slot: text}, 'total'}], 'covered', 'due', 'pct',
-      'missed', 'log': [{'slot', 'label', 'cells': [...], 'full', 'over', 'bulk', 'work'}], 'inboxes': [...]}]"""
+def check_report(day, users, channels, sheet=None, names=None):
+    """The "Inbox checks" report, for `day` (India time), in plain words. A half hour is fully checked when
+    every inbox of `channels` was ticked -- by anybody, or by itself (a connected inbox). For each of `users`:
+    the hours they worked (their first to last action, from `sheet`, day_sheet's), the half hours they
+    ticked, how many of those were late (their first tick in it came after it was over -- one tick late
+    of several on time is shown, not counted) or one press of "Tick all",
+    the half hours nobody fully checked while they were working, and a strip of their day; then the half
+    hours not fully checked, with who was working then, and each inbox's half hours. A tick by somebody not
+    in `users` says "someone in another team" -- `names` ({user id: name}) may name them.
+    {'due', 'full', 'pct', 'gap_count', 'late', 'checking', 'people': [...], 'gaps': [...], 'inboxes': [...]}"""
     from app.services import crm
+    every = slots()
     upto = slots_so_far(day)
     over = set(upto)
-    by_slot, mine, at = {}, {}, {}
+    at = {}                                                   # (slot, inbox) -> its tick
     for c in CrmChannelCheck.query.filter_by(day=day).all():
         ch = crm.CHECK_RENAMED.get(c.channel, c.channel)
-        if ch not in channels:
-            continue
-        by_slot.setdefault(c.slot, {})[ch] = c.user_id
-        at[(c.slot, ch)] = c
-        if c.user_id:
-            mine.setdefault(c.user_id, {}).setdefault(c.slot, set()).add(ch)
-    wanted = {u.id for u in users}
-    names = {u.id: u.full_name for u in users}
-    for c in at.values():
-        if c.user_id and c.user_id not in names and c.user is not None:
-            names[c.user_id] = c.user.full_name
-    # "Tick all": one person's three or more ticks in a half hour, all within a few seconds
-    bulk = set()
-    for uid, slots_ in mine.items():
-        for s, chs in slots_.items():
-            times = sorted(at[(s, ch)].checked_at for ch in chs if at[(s, ch)].checked_at)
-            if len(times) >= 3 and (times[-1] - times[0]).total_seconds() <= BULK_SECONDS:
-                bulk.add((uid, s))
-    # what each person did, half hour by half hour (their day's timeline, the checks themselves left out)
-    work = {}
+        if ch in channels:
+            at[(c.slot, ch)] = c
+    full = {s for s in every if channels and all((s, ch) in at for ch in channels)}
+    seen = {u.id: u.full_name for u in users}
+    seen.update(names or {})
+
+    def late(c, s):
+        return c.checked_at is not None and c.checked_at > slot_end(day, s)
+
+    def who(c):
+        return 'ticked itself' if c.user_id is None else seen.get(c.user_id, 'someone in another team')
+
+    def window(uid):
+        s = (sheet or {}).get(uid)
+        if not s or not s.get('first'):
+            return set()
+        first, last = s['first'] + IST, s['last'] + IST
+        a = slot_of(first) if first.date() == day else every[0]
+        b = slot_of(last) if last.date() == day else every[-1]     # a late tick for 23:30 lands after midnight
+        return {x for x in every if a <= x <= b}
+
+    did = {}                                                  # what each person did, half hour by half hour
     for uid, s in (sheet or {}).items():
         for when, _lead, icon, _text in s['timeline']:
             kind = WORK_KINDS.get(icon)
             local = when + IST if when else None
             if kind and local is not None and local.date() == day:
-                cnt = work.setdefault(uid, {}).setdefault(slot_of(local), {})
+                cnt = did.setdefault(uid, {}).setdefault(slot_of(local), {})
                 cnt[kind[0]] = cnt.get(kind[0], 0) + 1
 
-    def detail(uid, s):
-        return ', '.join('%s %s' % (ch, ist_hm(at[(s, ch)].checked_at)) for ch in channels if ch in mine[uid][s])
+    people, windows = [], {}
+    for u in users:
+        mine = {}
+        for (s, ch), c in at.items():
+            if c.user_id == u.id:
+                mine.setdefault(s, []).append((ch, c))
+        work = windows[u.id] = window(u.id)
+        strip_, rows = [], []
+        for s in every:
+            got = sorted(mine.get(s, []), key=lambda t: channels.index(t[0]))
+            when = '%s–%s' % (slot_label(s), slot_label(s + 1))
+            if got:
+                was_late = all(late(c, s) for _, c in got)       # they only started after it was over
+                state = 'late' if was_late else ('all' if len(got) == len(channels) else 'some')
+                times = sorted(c.checked_at for _, c in got if c.checked_at)
+                bulk = len(times) >= 3 and (times[-1] - times[0]).total_seconds() <= BULK_SECONDS
+                said = '%s: ticked %s' % (when, ', '.join('%s %s' % (ch, ist_hm(c.checked_at)) for ch, c in got))
+                rows.append({'slot': s, 'when': when, 'state': state, 'bulk': bulk,
+                             'ticks': [{'channel': ch, 'at': ist_hm(c.checked_at), 'late': late(c, s)} for ch, c in got],
+                             'others': [ch for ch in channels if (s, ch) not in at],
+                             'did': _work_text(did.get(u.id, {}).get(s, {}))})
+            elif s not in over:
+                state, said = 'open', '%s: not over yet' % when
+            elif s not in work:
+                state, said = 'off', '%s: not working then' % when
+            elif s in full:
+                state = 'covered'
+                said = '%s: others checked every inbox' % when
+            else:
+                state = 'gap'
+                missing = [ch for ch in channels if (s, ch) not in at]
+                said = '%s: working, but %s not checked by anybody' % (when, ', '.join(missing))
+                rows.append({'slot': s, 'when': when, 'state': 'gap', 'bulk': False, 'ticks': [], 'others': missing,
+                             'did': _work_text(did.get(u.id, {}).get(s, {}))})
+            strip_.append({'slot': s, 'state': state, 'title': said, 'hour': s % 2 == 0})
+        checked = sorted(mine)
+        n_late = sum(1 for r in rows if r['state'] == 'late')
+        n_bulk = sum(1 for r in rows if r['bulk'])
+        missed = sum(1 for r in rows if r['state'] == 'gap')
+        working_due = [s for s in upto if s in work]
+        if not checked:
+            status = ('none', 'No checks') if working_due else ('off', 'Nothing due yet' if work else 'No activity')
+        elif n_late * 4 >= len(checked) and n_late:
+            status = ('late', 'Often late')
+        elif missed:
+            status = ('gaps', 'Some missed')
+        else:
+            status = ('good', 'Checking well')
+        s = (sheet or {}).get(u.id) or {}
+        people.append({'user': u, 'status': status[0], 'label': status[1], 'strip': strip_,
+                       'rows': sorted(rows, key=lambda r: r['slot'], reverse=True),
+                       'checked': len(checked), 'ticks': sum(len(v) for v in mine.values()), 'late': n_late,
+                       'bulk': n_bulk, 'missed': missed, 'working_due': len(working_due),
+                       'start': ist_hm(s.get('first')), 'end': ist_hm(s.get('last'))})
+    order = {'none': 0, 'gaps': 1, 'late': 2, 'good': 3, 'off': 4}
+    people.sort(key=lambda p: (order[p['status']], p['user'].full_name.lower()))
 
-    def group(name, members):
-        ids = {u.id for u in members}
-        covered = [s for s in upto if channels and all(
-            ch in by_slot.get(s, {}) and (by_slot[s][ch] is None or by_slot[s][ch] in ids) for ch in channels)]
-        rows = [{'user': u, 'by_slot': {s: len(chs) for s, chs in mine.get(u.id, {}).items()},
-                 'detail': {s: detail(u.id, s) for s in mine.get(u.id, {})},
-                 'total': sum(len(chs) for chs in mine.get(u.id, {}).values())} for u in members]
-        shown = sorted({s for s in upto} | {s for s in by_slot if any(
-            v is None or v in ids for v in by_slot[s].values())}, reverse=True)
-        log = []
-        for s in shown:
-            cells = []
-            for ch in channels:
-                c = at.get((s, ch))
-                if c is None:
-                    cells.append({'channel': ch, 'state': 'miss' if s in over else 'open'})
-                    continue
-                late = c.checked_at is not None and c.checked_at > slot_end(day, s)
-                cells.append({'channel': ch, 'state': 'late' if late else 'ok', 'at': ist_hm(c.checked_at),
-                              'who': names.get(c.user_id, 'Someone') if c.user_id else 'Ticked itself',
-                              'auto': c.user_id is None, 'other': c.user_id is not None and c.user_id not in ids,
-                              'bulk': (c.user_id, s) in bulk})
-            done = {}
-            for uid in ids:
-                for k, n in work.get(uid, {}).get(s, {}).items():
-                    done[k] = done.get(k, 0) + n
-            log.append({'slot': s, 'label': slot_label(s), 'until': slot_label(s + 1), 'cells': cells,
-                        'full': s in covered, 'over': s in over,
-                        'bulk': sorted({names.get(uid, '') for uid, bs in bulk if bs == s and uid in ids}),
-                        'work': _work_text(done)})
-        inboxes = [{'channel': ch, 'due': len(upto),
-                    'done': sum(1 for s in upto if ch in by_slot.get(s, {})
-                                and (by_slot[s][ch] is None or by_slot[s][ch] in ids))} for ch in channels]
-        return {'name': name, 'rows': rows, 'covered': len(covered), 'covered_slots': set(covered), 'due': len(upto),
-                'pct': round(100 * len(covered) / len(upto)) if upto else None,
-                'missed': [slot_label(s) for s in upto if s not in covered], 'log': log, 'inboxes': inboxes}
-
-    out, placed = [], set()
-    for t in teams:
-        members = [u for u in t.users if u.id in wanted]
-        if members:
-            out.append(group(t.name, members))
-            placed |= {u.id for u in members}
-    rest = [u for u in users if u.id not in placed]
-    if rest:
-        out.append(group('Not in a team' if out else 'Everybody', rest))
-    return out
+    gaps = []
+    for s in sorted(upto, reverse=True):
+        if s in full:
+            continue
+        missing = [ch for ch in channels if (s, ch) not in at]
+        gaps.append({'slot': s, 'when': '%s–%s' % (slot_label(s), slot_label(s + 1)), 'missing': missing,
+                     'none': len(missing) == len(channels),
+                     'ticked': [{'channel': ch, 'who': who(at[(s, ch)]), 'at': ist_hm(at[(s, ch)].checked_at)}
+                                for ch in channels if (s, ch) in at],
+                     'working': [u.full_name for u in users if s in windows[u.id]]})
+    done = [s for s in upto if s in full]
+    return {'due': len(upto), 'full': len(done), 'pct': round(100 * len(done) / len(upto)) if upto else None,
+            'gap_count': len(gaps), 'late': sum(p['late'] for p in people),
+            'checking': sum(1 for p in people if p['checked']), 'people': people, 'gaps': gaps,
+            'hours': [slot_label(s)[:2] for s in every if s % 2 == 0],
+            'inboxes': [{'channel': ch, 'due': len(upto), 'done': sum(1 for s in upto if (s, ch) in at)}
+                        for ch in channels]}
 
 
 def current_slot_done(channels):

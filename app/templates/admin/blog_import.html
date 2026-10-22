@@ -9,7 +9,10 @@
         <h1>Import blog posts</h1>
         <p class="muted">Write the post in Word like any other document, upload it here, and it becomes a draft you check and publish.</p>
       </div>
-      <a class="btn-sm" href="{{ url_for('admin.blog_list') }}"><i class="fa-solid fa-newspaper"></i> All blog posts</a>
+      <span class="bs-head-links">
+        <a class="btn-sm" href="{{ url_for('admin.new_blog') }}"><i class="fa-solid fa-pen"></i> Write one here instead</a>
+        <a class="btn-sm" href="{{ url_for('admin.blog_list') }}"><i class="fa-solid fa-newspaper"></i> All blog posts</a>
+      </span>
     </div>
 
     <ol class="bs-steps">
@@ -101,45 +104,64 @@
     </section>
     {% endif %}
 
-    <section class="admin-card bs-rules" id="bs-format">
-      <h2>How each thing comes out</h2>
-      <p class="muted">There is nothing special to learn: write in Word the way you always do. This is what each part becomes on the website.</p>
-      <div class="table-wrap">
-      <table class="admin-table">
-        <thead><tr><th>In Word</th><th>On the website</th></tr></thead>
-        <tbody>
-          {% for what, becomes in rules %}
-          <tr><td>{{ what }}</td><td>{{ becomes }}</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    {# The writing guide: the same lists the Word template ends with (blog_engine), folded until asked for #}
+    <details class="admin-card bs-guide" id="bs-guide">
+      <summary>
+        <span class="bs-guide-ico"><i class="fa-solid fa-book-open"></i></span>
+        <span><strong>Writing guide</strong>
+          <small>What each thing in Word becomes, picture tips, what is checked before publishing, and the advanced labels.
+            The same guide is at the end of the Word template.</small></span>
+        <i class="fa-solid fa-chevron-down bs-guide-arrow"></i>
+      </summary>
+      <div class="bs-guide-body">
+        <nav class="bs-guide-nav">
+          <a href="#bs-format">How each thing comes out</a>
+          <a href="#bs-pictures">Pictures</a>
+          <a href="#bs-checks">What is checked</a>
+          <a href="#bs-advanced">Advanced: labels and separate picture files</a>
+        </nav>
+
+        <section class="bs-rules bs-guide-sec" id="bs-format">
+          <h2>How each thing comes out</h2>
+          <p class="muted">There is nothing special to learn: write in Word the way you always do. This is what each part becomes on the website.</p>
+          <div class="table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>In Word</th><th>On the website</th></tr></thead>
+            <tbody>
+              {% for what, becomes in rules %}
+              <tr><td>{{ what }}</td><td>{{ becomes }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          </div>
+        </section>
+
+        <section class="bs-rules bs-guide-sec" id="bs-pictures">
+          <h2>Pictures</h2>
+          <ul class="bs-list">{% for r in image_rules %}<li>{{ r }}</li>{% endfor %}</ul>
+        </section>
+
+        <section class="bs-rules bs-guide-sec" id="bs-checks">
+          <h2>What is checked before publishing</h2>
+          <ul class="bs-list">
+            {% for what, which in check_rules %}
+            <li><span class="bs-dot {{ 'is-bad' if loop.first else 'is-warn' }}"></span> <strong>{{ what }}:</strong> {{ which }}</li>
+            {% endfor %}
+          </ul>
+        </section>
+
+        <details class="bs-rules bs-adv-format bs-guide-sec" id="bs-advanced">
+          <summary><h2>Advanced: labels and separate picture files</h2></summary>
+          <p class="muted">For writers who keep pictures as separate files: name them in the document with these labels and upload the pictures as a zip (under “Keeping the pictures as separate files?” above). Both ways can be mixed.</p>
+          <div class="table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>Write this in Word</th><th>It becomes</th></tr></thead>
+            <tbody>{% for code, what in advanced_rules %}<tr><td><code>{{ code }}</code></td><td>{{ what }}</td></tr>{% endfor %}</tbody>
+          </table>
+          </div>
+          <ul class="bs-list">{% for r in advanced_image_rules %}<li>{{ r }}</li>{% endfor %}</ul>
+        </details>
       </div>
-    </section>
-
-    <section class="admin-card bs-rules" id="bs-pictures">
-      <h2>Pictures</h2>
-      <ul class="bs-list">{% for r in image_rules %}<li>{{ r }}</li>{% endfor %}</ul>
-    </section>
-
-    <section class="admin-card bs-rules">
-      <h2>What the editor checks before publishing</h2>
-      <ul class="bs-list">
-        <li><span class="bs-dot is-bad"></span> <strong>Stops publishing:</strong> no title, an address another post already uses, an empty post, a picture that could not be read.</li>
-        <li><span class="bs-dot is-warn"></span> <strong>Suggestions:</strong> a long title, a summary that is too short or too long, no cover picture, pictures without a description,
-          fewer than 300 words, no section headings, very long paragraphs, http:// links.</li>
-      </ul>
-    </section>
-
-    <details class="admin-card bs-rules bs-adv-format">
-      <summary><h2>Advanced: labels and separate picture files</h2></summary>
-      <p class="muted">For writers who keep pictures as separate files: name them in the document with these labels and upload the pictures as a zip (under “Keeping the pictures as separate files?” above). Both ways can be mixed.</p>
-      <div class="table-wrap">
-      <table class="admin-table">
-        <thead><tr><th>Write this in Word</th><th>It becomes</th></tr></thead>
-        <tbody>{% for code, what in advanced_rules %}<tr><td><code>{{ code }}</code></td><td>{{ what }}</td></tr>{% endfor %}</tbody>
-      </table>
-      </div>
-      <ul class="bs-list">{% for r in advanced_image_rules %}<li>{{ r }}</li>{% endfor %}</ul>
     </details>
   </main>
 </div>
@@ -163,6 +185,20 @@
     b.disabled = true;
     b.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Reading the documents…';
   });
+  // a link to part of the writing guide opens it there
+  const guide = document.getElementById('bs-guide');
+  function openAt(id) {
+    const sec = id && guide.querySelector('#' + CSS.escape(id));
+    if (!sec) return false;
+    guide.open = true;
+    if (sec.tagName === 'DETAILS') sec.open = true;
+    sec.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    return true;
+  }
+  document.querySelectorAll('a[href^="#bs-"]').forEach(a => a.addEventListener('click', e => {
+    if (openAt(a.getAttribute('href').slice(1))) e.preventDefault();
+  }));
+  if (location.hash) openAt(location.hash.slice(1));
   {% if results %}document.getElementById('bs-results').scrollIntoView({ block: 'start' });{% endif %}
 })();
 </script>

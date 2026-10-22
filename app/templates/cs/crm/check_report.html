@@ -1,0 +1,157 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from 'cs/crm/_bits.html' import initials with context %}
+{% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_tabs.html' import tab_strip with context %}
+{% block crm_title %}Inbox checks{% endblock %}
+{% block crm %}
+{{ tab_strip('crm_check_report') }}
+{{ page_head('Inbox checks', 'fa-solid fa-user-check', 'Who checked the inboxes, person by person, and the half hours nobody fully checked.',
+             help=['Every half hour from 07:00 to midnight (India time) somebody ticks each inbox on the Half-hourly check. A half hour is fully checked when every inbox was ticked, by anybody, or ticked itself (a connected inbox).',
+                   'Late: the person only started ticking after the half hour was over (one inbox ticked late among others on time shows in amber, and does not count). Tick all: several inboxes ticked in one press, within a few seconds.',
+                   'Working: from the person’s first to their last action in the CRM that day.'],
+             full_screen=True) }}
+<div class="ui-filters ck-filters">
+  <form class="daynav" method="GET">
+    {% if team %}<input type="hidden" name="team" value="{{ team.id }}"/>{% endif %}
+    <a class="cb sm" href="{{ crm_url('check_report', day=prev_day.isoformat(), team=team.id if team else None) }}" aria-label="Day before"><i class="fa-solid fa-chevron-left"></i></a>
+    <input type="date" name="day" value="{{ day.isoformat() }}" max="{{ today.isoformat() }}" onchange="this.form.submit()" aria-label="Day"/>
+    {% if day < today %}<a class="cb sm" href="{{ crm_url('check_report', day=next_day.isoformat(), team=team.id if team else None) }}" aria-label="Next day"><i class="fa-solid fa-chevron-right"></i></a>
+    <a class="cb sm ghost" href="{{ crm_url('check_report', team=team.id if team else None) }}">Today</a>{% endif %}
+  </form>
+  {% if teams %}
+  <nav class="ck-teams" aria-label="Team">
+    <a class="{{ 'on' if not team }}" href="{{ crm_url('check_report', day=day.isoformat()) }}">Everybody</a>
+    {% for t in teams %}<a class="{{ 'on' if team and team.id == t.id }}" href="{{ crm_url('check_report', day=day.isoformat(), team=t.id) }}">{{ t.name }}</a>{% endfor %}
+  </nav>
+  {% endif %}
+  <a class="cb sm ghost" href="{{ crm_url('checks') }}"><i class="fa-solid fa-clipboard-check"></i> Open the check</a>
+</div>
+
+{# ================================================================ the day in four numbers #}
+{% if r.due %}
+<div class="ck-cards">
+  <div class="ck-card {{ 'ok' if r.pct == 100 else ('due' if r.pct >= 70 else 'bad') }}">
+    <b>{{ r.full }}<small> of {{ r.due }}</small></b><span>half hours had every inbox checked · {{ r.pct }}%</span></div>
+  <div class="ck-card {{ 'bad' if r.gap_count else 'ok' }}">
+    <b>{{ r.gap_count }}</b><span>half hour{{ '' if r.gap_count == 1 else 's' }} with an inbox nobody ticked</span></div>
+  <div class="ck-card {{ 'due' if r.late else '' }}">
+    <b>{{ r.late }}</b><span>half hour{{ '' if r.late == 1 else 's' }} checked late, only after {{ 'it was' if r.late == 1 else 'they were' }} over</span></div>
+  <div class="ck-card">
+    <b>{{ r.checking }}<small> of {{ r.people|length }}</small></b><span>{{ 'person' if r.people|length == 1 else 'people' }} ticked at least once</span></div>
+</div>
+{% else %}
+<p class="ck-empty muted">The checking day runs from 07:00 to midnight (India time): no half hour is over yet.</p>
+{% endif %}
+
+{# ================================================================ person by person #}
+<section class="card">
+  <div class="card-head">
+    <div class="t"><span class="ico"><i class="fa-solid fa-users"></i></span>
+      <div><h2>Person by person</h2>
+        <p class="muted small">Whoever needs a word comes first. Each square is a half hour — point at one to see it; open a person for every check they made.</p></div></div>
+  </div>
+  {% if r.people %}
+  <div class="ck-legend" aria-hidden="true">
+    <span><i class="ck-sw all"></i> ticked every inbox</span>
+    <span><i class="ck-sw some"></i> ticked some</span>
+    <span><i class="ck-sw late"></i> ticked late</span>
+    <span><i class="ck-sw covered"></i> others checked</span>
+    <span><i class="ck-sw gap"></i> working, nobody checked</span>
+    <span><i class="ck-sw off"></i> not working</span>
+    <span><i class="ck-sw open"></i> not over yet</span>
+  </div>
+  <div class="ck-people">
+    <div class="ck-axis" aria-hidden="true">{% for h in r.hours %}<span>{{ h }}</span>{% endfor %}</div>
+    {% for p in r.people %}
+    <details class="ck-person s-{{ p.status }}" id="p-{{ p.user.id }}" {{ 'open' if focus == p.user.id }}>
+      <summary>
+        <span class="ck-av">{{ initials(p.user.full_name) }}</span>
+        <span class="ck-who"><b>{{ p.user.full_name }}</b>
+          <small>{% if team_of.get(p.user.id) %}{{ team_of[p.user.id]|join(', ') }} · {% endif %}{% if p.start %}working {{ p.start }}–{{ p.end }}{% else %}no activity this day{% endif %}</small></span>
+        <span class="ck-badge">{{ p.label }}</span>
+        <span class="ck-say">
+          {%- if p.checked -%}checked {{ p.checked }}{% if p.working_due %} of the {{ p.working_due }} half hours they worked{% else %} half hour{{ '' if p.checked == 1 else 's' }}{% endif %}
+          {%- elif p.working_due -%}ticked nothing in the {{ p.working_due }} half hours they worked
+          {%- else -%}nothing to check{%- endif -%}
+          {%- if p.late %} · <em class="late">{{ p.late }} late</em>{% endif -%}
+          {%- if p.missed %} · <em class="gap">{{ p.missed }} not checked by anybody</em>{% endif -%}
+          {%- if p.bulk %} · Tick all {{ p.bulk }}×{% endif -%}
+        </span>
+        {% if p.checked or p.start %}<span class="ck-strip">{% for c in p.strip %}<i class="{{ c.state }}{{ ' h' if c.hour }}" title="{{ c.title }}"></i>{% endfor %}</span>{% endif %}
+        <i class="fa-solid fa-chevron-down ck-open" aria-hidden="true"></i>
+      </summary>
+      <div class="ck-detail">
+        {% if p.rows %}
+        <table class="crm-table ck-t">
+          <thead><tr><th>Half hour</th><th>What they ticked</th><th>What they did then</th></tr></thead>
+          <tbody>
+          {% for row in p.rows %}
+          <tr class="r-{{ row.state }}">
+            <td class="when"><b>{{ row.when }}</b>
+              {% if row.state == 'gap' %}<small class="gap">not checked</small>
+              {% elif row.state == 'late' %}<small class="late">late</small>
+              {% elif row.state == 'all' %}<small class="ok">every inbox</small>
+              {% else %}<small>some inboxes</small>{% endif %}
+              {% if row.bulk %}<small class="bulk" title="Several inboxes ticked in one press, within a few seconds">Tick all</small>{% endif %}</td>
+            <td>
+              {% if row.ticks %}
+              <span class="ck-ticks">{% for t in row.ticks %}<span class="{{ 'late' if t.late }}">{{ t.channel }} <i>{{ t.at }}</i></span>{% endfor %}</span>
+              {% if row.others and row.state != 'gap' %}<small class="muted">Not ticked by anybody: {{ row.others|join(', ') }}</small>{% endif %}
+              {% else %}
+              <span class="gap">Nothing ticked — {{ row.others|join(', ') }} {{ 'was' if row.others|length == 1 else 'were' }} not checked by anybody</span>
+              {% endif %}
+            </td>
+            <td class="did">{{ row.did or '—' }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="muted small">No checks this day{% if not p.start %}, and no other activity{% endif %}.</p>
+        {% endif %}
+        <p class="ck-more"><a href="{{ crm_url('tracker', day=day.isoformat(), who=p.user.id) }}#person">Their whole day on Team today</a></p>
+      </div>
+    </details>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">Nobody to show{{ ' in ' ~ team.name if team }}.</p>
+  {% endif %}
+</section>
+
+{# ================================================================ the half hours not fully checked #}
+<div class="ck-two">
+<section class="card">
+  <div class="card-head">
+    <div class="t"><span class="ico"><i class="fa-solid fa-triangle-exclamation"></i></span>
+      <div><h2>Half hours not fully checked</h2>
+        <p class="muted small">Newest first, with who was working then.</p></div></div>
+  </div>
+  {% for g in r.gaps %}
+  <div class="ck-gap">
+    <b class="when">{{ g.when }}</b>
+    <span class="what">{% if g.none %}<b class="gap">No inbox was checked</b>{% else %}<b class="gap">Not checked:</b> {{ g.missing|join(', ') }}
+      <small class="muted" title="{% for t in g.ticked %}{{ t.channel }}: {{ t.who }} {{ t.at }}{{ '; ' if not loop.last }}{% endfor %}">· {{ g.ticked|length }} of {{ g.ticked|length + g.missing|length }} ticked</small>{% endif %}</span>
+    <span class="muted small">{% if g.working %}Working then: {{ g.working|join(', ') }}{% else %}Nobody was working then{% endif %}</span>
+  </div>
+  {% else %}
+  <p class="muted">{{ 'Every half hour so far had every inbox checked.' if r.due else 'No half hour is over yet.' }}</p>
+  {% endfor %}
+</section>
+
+{# ================================================================ each inbox #}
+<section class="card">
+  <div class="card-head">
+    <div class="t"><span class="ico"><i class="fa-solid fa-inbox"></i></span>
+      <div><h2>Each inbox</h2><p class="muted small">Half hours it was checked{{ ', of ' ~ r.due ~ ' so far' if r.due }}.</p></div></div>
+  </div>
+  <ul class="ck-inboxes">
+    {% for ib in r.inboxes %}
+    <li><span>{{ ib.channel }}</span>
+      <span class="bar"><i class="{{ 'ok' if ib.done == ib.due else ('due' if ib.done >= ib.due * 0.7 else 'bad') }}" style="width:{{ (100 * ib.done / ib.due)|round|int if ib.due else 0 }}%"></i></span>
+      <b>{{ ib.done }}<small>/{{ ib.due }}</small></b></li>
+    {% endfor %}
+  </ul>
+</section>
+</div>
+{% endblock %}

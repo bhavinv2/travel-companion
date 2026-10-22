@@ -6,7 +6,9 @@ styles, and lines starting Tip: / Quote: / Button:. The older @label format with
 still works (the "advanced" tests)."""
 import io
 import os
+import re
 import zipfile
+from html import unescape
 
 from conftest import login
 from app import db as _db
@@ -99,6 +101,30 @@ def test_the_template_reads_as_a_clean_post_and_leaves_its_samples_out():
     assert '<aside class="blog-note">Check whether' in h and '<blockquote>The best plan' in h
     assert ('<a class="blog-cta" href="https://nriparentservice.com/travel-insurance">Get a free travel insurance quote</a>'
             in h)
+
+
+def test_the_template_carries_the_whole_writing_guide_and_never_publishes_it():
+    """The guide on the import page and the one at the end of the template are the same lists."""
+    data = be.template_docx()
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        text = unescape(re.sub(r'<[^>]+>', '', z.read('word/document.xml').decode()))
+    for what, becomes in be.FORMAT_RULES + be.CHECK_RULES + be.ADVANCED_RULES:
+        assert what in text and becomes in text, what
+    for rule in be.IMAGE_RULES + be.ADVANCED_IMAGE_RULES:
+        assert rule in text, rule
+    assert 'The full writing guide is at the end of this document' in text
+    html = be.parse_docx(data)['html']
+    for guide_bit in ('WRITING GUIDE', 'On the website', '@title', 'Stops publishing', 'never published'):
+        assert guide_bit not in html
+
+
+def test_the_import_page_folds_the_guide_until_asked(client, admin_user):
+    login(client, 'admin@test.com')
+    page = client.get('/admin/blog/import').data.decode()
+    assert '<details class="admin-card bs-guide" id="bs-guide">' in page        # closed: no "open"
+    for part in ('id="bs-format"', 'id="bs-pictures"', 'id="bs-checks"', 'id="bs-advanced"'):
+        assert part in page
+    assert be.CHECK_RULES[1][1] in page and be.FORMAT_RULES[0][0] in page
 
 
 def test_a_writers_document_with_pasted_pictures():

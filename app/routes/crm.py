@@ -44,7 +44,7 @@ CRM_BLUEPRINTS = ('crm', 'admin_crm')
 # Set-up, reports and imports are management pages: they open in the admin portal. Quick replies
 # is an agent page.
 MANAGE = {'setup', 'pipelines', 'sources', 'connection', 'data', 'save_source', 'save_pipeline', 'save_step',
-          'save_whatsapp', 'backfill', 'import_sheet', 'import_confirm', 'insights', 'insights_csv', 'insights_people_csv', 'tracker',
+          'save_whatsapp', 'backfill', 'import_sheet', 'import_confirm', 'insights', 'insights_csv', 'insights_people_csv', 'tracker', 'check_report',
           'save_process', 'setup_templates', 'pipeline_new', 'pipeline_edit', 'pipeline_save', 'pipeline_active',
           'pipeline_tag_check', 'pipeline_tag', 'tag_check', 'save_product', 'product_offered', 'template_draft',
           'import_csv', 'import_csv_confirm', 'wa_contacts_import', 'wa_notes_import', 'save_inboxes',
@@ -756,9 +756,8 @@ def signoff():
 @cs_required
 @admin_only
 def tracker():
-    """Team today: for any day, what each person had to do and what they did -- and their half-hourly
-    checks, team by team (every team for an admin, their own teams for a team lead)."""
-    from app.services import access
+    """Team today: for any day, what each person had to do and what they did (everybody for an admin,
+    their own teams for a team lead). Their half-hourly checks are a report of their own: check_report."""
     today_ = (datetime.utcnow() + crm.IST).date()
     try:
         day = datetime.strptime(request.args.get('day') or '', '%Y-%m-%d').date()
@@ -779,18 +778,41 @@ def tracker():
         names = sorted({t.name for t in _my_teams()})
         team_note = ('You see your own teams: %s.' % ', '.join(names)) if names else \
             'You are not in a team yet, so only your own day shows.'
-    # the half-hourly checks, team by team: every team for those who see everybody, their own teams for a lead
-    ws = access.current_workspace(current_user)
-    teams = (list(ws.teams) if ws is not None else []) if sees_all else _my_teams()
     return render_template('cs/crm/tracker.html', day=day, today=today_, sheet=sheet, staff=staff, person=person,
                            prev_day=day - timedelta(days=1), next_day=day + timedelta(days=1), nums=nums,
-                           steps=steps, team_note=team_note,
-                           check_teams=crm_reports.checks_by_team(day, staff, channels, teams, sheet=sheet),
-                           check_names=channels,
-                           check_channels=len(channels), check_over=set(crm_reports.slots_so_far(day)),
-                           coverage=crm_reports.coverage(day, channels), slot_label=crm_reports.slot_label,
-                           slots=crm_reports.slots(), MANUAL=dict((k, crm_kpi.METRICS[k][0]) for k in crm_kpi.MANUAL),
-                           **_common())
+                           steps=steps, team_note=team_note, coverage=crm_reports.coverage(day, channels),
+                           MANUAL=dict((k, crm_kpi.METRICS[k][0]) for k in crm_kpi.MANUAL), **_common())
+
+
+@crm_bp.route('/checks/report')
+@cs_required
+@admin_only
+def check_report():
+    """Inbox checks: for any day, who ticked which inbox on the half-hourly check, person by person, and the
+    half hours nobody fully checked -- everybody for those who see everybody, a team lead's own teams; one
+    team at a time with ?team=."""
+    from app.services import access
+    today_ = (datetime.utcnow() + crm.IST).date()
+    try:
+        day = datetime.strptime(request.args.get('day') or '', '%Y-%m-%d').date()
+    except ValueError:
+        day = today_
+    day = min(day, today_)
+    everyone = _staff()
+    staff = crm_reports.visible_staff(current_user, everyone)
+    ws = access.current_workspace(current_user)
+    teams = (list(ws.teams) if ws is not None else []) if len(staff) == len(everyone) else _my_teams()
+    seen = {u.id for u in staff}
+    teams = [t for t in teams if any(u.id in seen for u in t.users)]
+    team = next((t for t in teams if t.id == request.args.get('team', type=int)), None)
+    shown = [u for u in staff if team is None or u.id in {m.id for m in team.users}]
+    channels = crm.crm_settings()['check_channels']
+    report = crm_reports.check_report(day, shown, channels, sheet=crm_reports.day_sheet(day, shown),
+                                      names={u.id: u.full_name for u in staff})
+    return render_template('cs/crm/check_report.html', day=day, today=today_, r=report, teams=teams, team=team,
+                           prev_day=day - timedelta(days=1), next_day=day + timedelta(days=1),
+                           team_of={u.id: [t.name for t in teams if u.id in {m.id for m in t.users}] for u in shown},
+                           focus=request.args.get('who', type=int), **_common())
 
 
 def _my_teams():

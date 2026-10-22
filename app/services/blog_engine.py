@@ -18,6 +18,9 @@ Writers are not technical, so the format is Word itself -- nothing to learn but 
   Tip: ...   Quote: ...   Button: <linked words>   a tip box, a pull quote, a button
   everything else                            as written: bold, italics, underline, links, lists, tables
 
+The template's yellow boxes (the "how to use" box at the top, the writing guide at the end) are for
+the writer and never published: a table whose first words are in GUIDE_MARKS is skipped.
+
 The older label format still reads, for anyone who keeps pictures as separate files (a zip):
 @title: @slug: @summary: @cover: @cover-alt: @h2 @h3 @image: file | alt | caption, @quote: @note:
 @cta: text | link, @divider, and // writer notes.
@@ -79,7 +82,8 @@ LABELS = {
 }
 DETAILS = ('title', 'slug', 'summary', 'cover', 'cover-alt')
 
-# What the guide page shows: (what you do in Word, what it becomes)
+# What the guide shows -- on the import page and at the end of the Word template, from these same
+# lists, so the two never differ: (what you do in Word, what it becomes)
 FORMAT_RULES = (
     ('The Title box — or simply the first line', 'The post title.'),
     ('The Summary box', 'What Google, WhatsApp shares and the blog list show. 1–2 sentences, 70–160 characters.'),
@@ -118,11 +122,21 @@ IMAGE_RULES = (
     'Photos and screenshots (JPG or PNG) work best. Only use pictures you have the right to use.',
     'Do not put text inside a picture: write it in the post, where Google and phones can read it.',
 )
+# What the checks in the editor stop and suggest (blog_engine.checks): (what happens, which ones)
+CHECK_RULES = (
+    ('Stops publishing', 'No title, an address another post already uses, an empty post, a picture that could not be read.'),
+    ('Suggestions', 'A long title, a summary that is too short or too long, no cover picture, pictures without a '
+                    'description, fewer than %d words, no section headings, very long paragraphs, http:// links.' % MIN_WORDS),
+)
 ADVANCED_IMAGE_RULES = (
     'Name each file in lowercase with hyphens, no spaces: parents-insurance-cover.jpg, parents-insurance-1.jpg …',
     'Use exactly the file name you wrote after @cover or @image, and put all of them in one .zip.',
     'JPG, PNG or WebP, under 10 MB each.',
 )
+
+
+# The first words of the template's boxes for the writer: a table starting with one is never published
+GUIDE_MARKS = ('how to use this template', 'writing guide')
 
 
 class DocxError(ValueError):
@@ -759,7 +773,7 @@ class _Builder:
     def table(self, rows):
         if not rows or not rows[0]:
             return
-        if _cell_text(rows[0][0]).lower().startswith('how to use this template'):
+        if _cell_text(rows[0][0]).lower().startswith(GUIDE_MARKS):
             return
         details = [(k, row) for row in rows if len(row) >= 2 for k in [_detail_key(_first_line(row[0]))] if k]
         if len(details) >= 2:
@@ -1377,6 +1391,9 @@ def build_docx(items, links=None):
                     runs a string or [(text, {'b': True, 'i': True, 'link': rid})]
       ('picture', {'data': bytes, 'alt': str})
       ('box', [runs, ...])                       a shaded one-cell table (the instructions)
+      ('guide', (title, intro, head, rows, bullets))  a shaded two-column table of the writing guide:
+                                                 head (col 1, col 2) or None, rows [(col 1, col 2)], bullets [text]
+      ('pagebreak', None)
       ('details', [(label, hint, value), ...])   the Post details table; value a string or a picture dict
       ('table', [[cell text, ...], ...])
     `links`: {rid: url}."""
@@ -1426,6 +1443,22 @@ def build_docx(items, links=None):
             body.append(picture(value))
         elif kind == 'box':
             body.append(table([cell(''.join(_p(r) for r in value), 9500, fill='FFF4D6')], [9500], color='F0D58C'))
+        elif kind == 'guide':
+            title, intro, head, lines, bullets = value
+            grid = [3700, 5800]
+            rows = [cell(_p([(title, {'b': True, 'color': '7A5A00'}),
+                             ('   — never published', {'i': True, 'color': '7A5A00'})])
+                         + (_p([(intro, {'i': True, 'color': '6B5A2A'})]) if intro else ''), 9500, fill='FCE7B2', span=2)]
+            if head:
+                rows.append(''.join(cell(_p([(h, {'b': True})]), w, fill='FFF4D6') for h, w in zip(head, grid)))
+            for a, b in lines:
+                rows.append(cell(_p(a if head else [(a, {'b': True})]), grid[0], fill='FFFBEE')
+                            + cell(_p(b), grid[1], fill='FFFBEE'))
+            if bullets:
+                rows.append(cell(''.join(_p(t, 'bullet') for t in bullets), 9500, fill='FFFBEE', span=2))
+            body.append(table(rows, grid, color='F0D58C'))
+        elif kind == 'pagebreak':
+            body.append('<w:p><w:r><w:br w:type="page"/></w:r></w:p>')
         elif kind == 'details':
             rows = [cell(_p([('POST DETAILS', {'b': True, 'color': '1F4E8C'})]), 9500, fill='DCE9F7', span=2)]
             for label, hint, val in value:
@@ -1515,8 +1548,10 @@ def build_docx(items, links=None):
 
 
 def template_docx():
-    """The writer's template: a "how to use" box (never published), the Post details box, and an
-    example post written the way the writer will write theirs -- ready to be typed over."""
+    """The writer's template: a "how to use" box (never published), the Post details box, an example
+    post written the way the writer will write theirs -- ready to be typed over -- and, on its own
+    page at the end, the whole writing guide (never published either): the same lists the import
+    page shows."""
     pics = sample_pictures()
     items = [
         ('box', [
@@ -1529,8 +1564,11 @@ def template_docx():
             'Edit Alt Text and say what it shows. Type the caption in italics on the line right under it.',
             '4.  Special boxes: start a line with Tip: for a tip box, or Quote: for a big quote. For a button, '
             'start a line with Button: then select the button’s words and press Ctrl+K to link them.',
-            '5.  Save, then upload the file in the admin portal: Website → Import blog posts. It becomes a draft '
-            'you can check before anything is published.',
+            '5.  Save, then upload the file in the admin portal: Travel Companion → Website → Import blog posts. '
+            'It becomes a draft you can check before anything is published.',
+            [('The full writing guide is at the end of this document: ', {'b': True}),
+             ('what each thing becomes on the website, picture tips, what is checked before publishing, and the '
+              'advanced labels.', {})],
             [('Using Google Docs? ', {'b': True}), ('Write it the same way, then File → Download → Microsoft Word (.docx).', {})],
         ]),
         ('details', [
@@ -1564,5 +1602,17 @@ def template_docx():
         ('p', [('Compare plans carefully and read the policy before your parents travel. See our ', {}),
                ('travel insurance page', {'link': 'rIdTi'}), (' for plans that fit.', {})]),
         ('p', [('Button: ', {'b': True}), ('Get a free travel insurance quote', {'link': 'rIdTi'})]),
+        ('pagebreak', None),
+        ('guide', ('WRITING GUIDE · How each thing comes out',
+                   'There is nothing special to learn: write in Word the way you always do. This is what each '
+                   'part becomes on the website.', ('In Word', 'On the website'), FORMAT_RULES, ())),
+        ('guide', ('WRITING GUIDE · Pictures', None, None, (), IMAGE_RULES)),
+        ('guide', ('WRITING GUIDE · What is checked before publishing',
+                   'The editor checks the post when it is imported. Fix the first kind; the second are suggestions.',
+                   None, CHECK_RULES, ())),
+        ('guide', ('WRITING GUIDE · Advanced: labels and separate picture files',
+                   'Only for writers who keep pictures as separate files: name them with these labels and upload '
+                   'the pictures as one .zip next to the document. Both ways can be mixed.',
+                   ('Write this in Word', 'It becomes'), ADVANCED_RULES, ADVANCED_IMAGE_RULES)),
     ]
     return build_docx(items, links={'rIdTi': 'https://nriparentservice.com/travel-insurance'})

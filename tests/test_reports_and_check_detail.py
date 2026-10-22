@@ -1,12 +1,13 @@
-"""Overview's reports are one menu line, and Team today says what each half-hourly check covered.
+"""Overview's reports are one menu line, and Inbox checks says, person by person, what was checked.
 
     All reports   one line first in Overview for every report (Sales results, Forecast, Report builder, Team today,
-                  Site dashboard, Match quality); it opens the first one the person may open, and each report shows
-                  the others as tabs; a person with one report sees that line and no strip of one; an area switched
-                  off takes its reports out of the line and the tabs
-    what checked  for each team and half hour: each inbox, who ticked it and at what time, late when ticked after the
-                  half hour, "Tick all" when one press ticked several, the inboxes not checked, and what the team did
-                  then; each inbox's half hours; and a person's own day lists each check with its inboxes
+                  Inbox checks, Site dashboard, Match quality); it opens the first one the person may open, and each
+                  report shows the others as tabs; Inbox checks comes with Team today; an area switched off takes its
+                  reports out of the line and the tabs
+    Inbox checks  for each person: the hours they worked, the half hours they ticked (late when after the half hour,
+                  "Tick all" when one press ticked several), the half hours nobody fully checked while they worked,
+                  a strip of the day and a plain status; then the half hours not fully checked, with who was working
+                  then, and each inbox's half hours; a person's own day lists each check with its inboxes
 """
 import re
 from datetime import date, datetime, timedelta
@@ -36,18 +37,20 @@ def test_the_reports_are_one_line_that_opens_the_first_and_shows_the_rest_as_tab
     html = client.get('/admin/crm/today').get_data(as_text=True)
     nav = html.split('admin-nav-items', 1)[1] if 'admin-nav-items' in html else html
     assert 'All reports' in nav
-    for gone in ('Sales results', 'Forecast', 'Report builder', 'Team today', 'Site dashboard', 'Match quality'):
+    for gone in ('Sales results', 'Forecast', 'Report builder', 'Team today', 'Inbox checks', 'Site dashboard',
+                 'Match quality'):
         assert '>%s<' % gone not in nav.split('</nav>', 1)[0], gone
     r = client.get('/admin/reports')
     assert r.status_code == 302 and r.headers['Location'].endswith('/admin/crm/insights')
-    tabs = ['Sales results', 'Forecast', 'Report builder', 'Team today', 'Site dashboard', 'Match quality']
-    for path in ('/admin/crm/insights', '/admin/crm/forecast', '/admin/crm/reports/build', '/admin/crm/tracker', '/admin/'):
+    tabs = ['Sales results', 'Forecast', 'Report builder', 'Team today', 'Inbox checks', 'Site dashboard', 'Match quality']
+    for path in ('/admin/crm/insights', '/admin/crm/forecast', '/admin/crm/reports/build', '/admin/crm/tracker',
+                 '/admin/crm/checks/report', '/admin/'):
         page = client.get(path, follow_redirects=True).get_data(as_text=True)
         assert strip(page) == tabs, path
     assert strip(client.get('/cs/metrics').get_data(as_text=True)) == tabs
 
 
-def test_somebody_with_one_report_has_the_line_and_no_strip_of_one(app, client):
+def test_team_today_brings_inbox_checks_and_nothing_else(app, client):
     ws = access.ensure_defaults()
     u = make_user('lead@test.com', 'teamlead', role='cs')
     role = WorkspaceRole(workspace_id=ws.id, name='Tracker only', pages=['crm_today', 'crm_board', 'crm_tracker'])
@@ -59,7 +62,8 @@ def test_somebody_with_one_report_has_the_line_and_no_strip_of_one(app, client):
     r = client.get('/cs/reports')
     assert r.status_code == 302 and r.headers['Location'].endswith('/crm/tracker')
     page = client.get('/cs/crm/tracker', follow_redirects=True).get_data(as_text=True)      # it lives in /admin
-    assert 'All reports' in page and strip(page) == []
+    assert 'All reports' in page and strip(page) == ['Team today', 'Inbox checks']
+    assert client.get('/admin/crm/checks/report').status_code == 200
 
 
 def test_an_area_switched_off_takes_its_reports_out(app, client, admin_user):
@@ -85,38 +89,56 @@ def start_of(slot, minute=0):
     return datetime.combine(PAST, datetime.min.time()) + timedelta(minutes=30 * slot + minute) - crm_reports.IST
 
 
-def test_each_half_hour_says_who_ticked_each_inbox_when_and_what_was_missed(app, admin_user):
+def test_inbox_checks_says_person_by_person_what_they_checked(app, admin_user):
     crm.ensure_defaults()
-    ws = access.ensure_defaults()
     channels = crm.crm_settings()['check_channels']
-    a, b = (make_user('%s@test.com' % n, n, role='cs') for n in ('asha', 'bala'))
-    team = WorkspaceTeam(workspace_id=ws.id, name='North')
-    team.users.extend([a, b])
-    _db.session.add(team)
-    _db.session.commit()
+    a, b, c = (make_user('%s@test.com' % n, n, role='cs') for n in ('asha', 'bala', 'chitra'))
     first = crm_reports.slots()[0]
     t0 = start_of(first, 10)
-    for i, ch in enumerate(channels[:3]):                     # Asha: three inboxes in one press of Tick all
-        tick(a, first, ch, t0 + timedelta(seconds=i))
-    tick(b, first, channels[3], start_of(first, 45))           # Bala: one, after the half hour was over
-    sheet = {a.id: {'timeline': [(start_of(first, 12), None, 'fa-paper-plane', 'Sent'),
-                                 (start_of(first, 14), None, 'fa-paper-plane', 'Sent'),
-                                 (start_of(first, 20), None, 'fa-phone', 'Called')]},
-             b.id: {'timeline': [(start_of(first, 20), None, 'fa-check', 'Did')]}}
-    g = crm_reports.checks_by_team(PAST, [a, b], channels, [team], sheet=sheet)[0]
-    row = next(e for e in g['log'] if e['slot'] == first)
-    cells = {c['channel']: c for c in row['cells']}
-    assert cells[channels[0]]['who'] == a.full_name and cells[channels[0]]['state'] == 'ok'
-    assert cells[channels[0]]['at'] == (t0 + crm_reports.IST).strftime('%H:%M') and cells[channels[0]]['bulk']
-    assert cells[channels[3]]['who'] == b.full_name and cells[channels[3]]['state'] == 'late'
-    assert all(cells[ch]['state'] == 'miss' for ch in channels[4:])
-    assert row['bulk'] == [a.full_name] and not row['full']
-    assert row['work'] == '2 messages · 1 call · 1 follow-up done'
-    assert g['log'][0]['slot'] > g['log'][-1]['slot']                                      # newest first
-    by = {i['channel']: i for i in g['inboxes']}
-    assert by[channels[0]]['done'] == 1 and by[channels[-1]]['done'] == 0 and by[channels[0]]['due'] == g['due']
-    rows = {r['user'].id: r for r in g['rows']}
-    assert channels[0] in rows[a.id]['detail'][first]
+    for i, ch in enumerate(channels):                          # Asha: every inbox in one press of Tick all
+        tick(a, first, ch, t0 + timedelta(milliseconds=100 * i))
+    tick(b, first + 1, channels[0], start_of(first + 1, 45))   # Bala: one inbox, after its half hour was over
+    sheet = {a.id: {'first': start_of(first, 5), 'last': start_of(first + 2, 10),
+                    'timeline': [(start_of(first, 12), None, 'fa-paper-plane', 'Sent')]},
+             b.id: {'first': start_of(first + 1, 5), 'last': start_of(first + 1, 45), 'timeline': []},
+             c.id: {'first': None, 'last': None, 'timeline': []}}
+    r = crm_reports.check_report(PAST, [c, b, a], channels, sheet=sheet)
+    p = {x['user'].id: x for x in r['people']}
+    pa, pb, pc = p[a.id], p[b.id], p[c.id]
+    # Asha worked three half hours: ticked every inbox in the first, nobody fully checked the other two
+    assert pa['checked'] == 1 and pa['bulk'] == 1 and pa['late'] == 0 and pa['missed'] == 2 and pa['working_due'] == 3
+    assert [x['state'] for x in pa['strip'][:4]] == ['all', 'gap', 'gap', 'off']
+    assert (pa['status'], pa['label']) == ('gaps', 'Some missed')
+    assert pa['start'] == (start_of(first, 5) + crm_reports.IST).strftime('%H:%M')
+    oldest = pa['rows'][-1]
+    assert oldest['state'] == 'all' and oldest['bulk'] and oldest['did'] == '1 message'
+    assert [t['channel'] for t in oldest['ticks']] == channels
+    assert pa['rows'][0]['state'] == 'gap' and pa['rows'][0]['others'] == channels      # newest first
+    # Bala ticked once, late
+    assert pb['late'] == 1 and (pb['status'], pb['label']) == ('late', 'Often late') and pb['rows'][-1]['ticks'][0]['late']
+    # Chitra did nothing that day
+    assert (pc['status'], pc['label']) == ('off', 'No activity') and {x['state'] for x in pc['strip']} == {'off'}
+    assert [x['user'].id for x in r['people']] == [a.id, b.id, c.id]                   # whoever needs a word first
+    gap = next(g for g in r['gaps'] if g['slot'] == first + 1)
+    assert gap['missing'] == channels[1:] and sorted(gap['working']) == sorted([a.full_name, b.full_name])
+    assert gap['ticked'] == [{'channel': channels[0], 'who': b.full_name,
+                              'at': (start_of(first + 1, 45) + crm_reports.IST).strftime('%H:%M')}]
+    assert r['full'] == 1 and r['due'] == len(crm_reports.slots()) and r['gap_count'] == r['due'] - 1
+    assert r['gaps'][0]['slot'] > r['gaps'][-1]['slot'] and r['checking'] == 2 and r['late'] == 1
+    by = {i['channel']: i for i in r['inboxes']}
+    assert by[channels[0]]['done'] == 2 and by[channels[1]]['done'] == 1 and by[channels[0]]['due'] == r['due']
+
+
+def test_a_tick_by_somebody_not_shown_is_not_named(app, admin_user):
+    crm.ensure_defaults()
+    channels = crm.crm_settings()['check_channels']
+    a, z = make_user('asha@test.com', 'asha', role='cs'), make_user('zed@test.com', 'zed', role='cs')
+    first = crm_reports.slots()[0]
+    tick(z, first, channels[0], start_of(first, 3))
+    tick(None, first, channels[1], start_of(first, 4))                                 # a connected inbox
+    r = crm_reports.check_report(PAST, [a], channels, sheet={})
+    who = {t['channel']: t['who'] for t in r['gaps'][-1]['ticked']}
+    assert who == {channels[0]: 'someone in another team', channels[1]: 'ticked itself'}
 
 
 def test_a_persons_day_lists_each_check_with_its_inboxes(app, admin_user):
@@ -133,15 +155,47 @@ def test_a_persons_day_lists_each_check_with_its_inboxes(app, admin_user):
                                                                 label(first + 3))]
 
 
-def test_team_today_shows_what_was_checked(app, client, admin_user):
+def test_inbox_checks_is_its_own_report_and_team_today_links_to_it(app, client, admin_user):
     crm.ensure_defaults()
     access.ensure_defaults()
     channels = crm.crm_settings()['check_channels']
     first = crm_reports.slots()[0]
     tick(admin_user, first, channels[0], start_of(first, 7))
     login(client, admin_user.email)
-    html = client.get('/admin/crm/tracker?day=%s' % PAST.isoformat()).get_data(as_text=True)
+    html = client.get('/admin/crm/checks/report?day=%s' % PAST.isoformat()).get_data(as_text=True)
     t = words(html)
-    assert 'What was checked, half hour by half hour' in t and '✗ not checked' in t
-    assert (start_of(first, 7) + crm_reports.IST).strftime('%H:%M') in t
-    assert '%s 1/' % channels[0] in t                                                      # the inbox's half hours
+    for part in ('Person by person', 'Half hours not fully checked', 'Each inbox', 'with an inbox nobody ticked',
+                 'working, nobody checked'):
+        assert part in t, part
+    assert (start_of(first, 7) + crm_reports.IST).strftime('%H:%M') in html
+    assert 'Inbox checks' in strip(html)
+    tracker = client.get('/admin/crm/tracker?day=%s' % PAST.isoformat()).get_data(as_text=True)
+    assert '/admin/crm/checks/report?day=%s' % PAST.isoformat() in tracker
+    assert 'Half-hourly checks, team by team' not in tracker and 'chk-grid' not in tracker
+
+
+def test_inbox_checks_needs_team_today(app, client):
+    ws = access.ensure_defaults()
+    u = make_user('agent@test.com', 'agent', role='cs')
+    role = WorkspaceRole(workspace_id=ws.id, name='Leads only', pages=['crm_today', 'crm_board'])
+    _db.session.add(role)
+    _db.session.commit()
+    access.add_member(ws, u, role=role)
+    access._cache().clear()
+    login(client, u.email)
+    r = client.get('/cs/crm/checks/report')
+    assert r.status_code == 302 and '/checks/report' not in r.headers['Location']
+
+
+def test_one_inbox_ticked_late_among_others_on_time_is_not_a_late_half_hour(app, admin_user):
+    crm.ensure_defaults()
+    channels = crm.crm_settings()['check_channels']
+    a = make_user('asha@test.com', 'asha', role='cs')
+    first = crm_reports.slots()[0]
+    tick(a, first, channels[0], start_of(first, 5))
+    tick(a, first, channels[1], start_of(first, 40))                                   # a straggler, after it
+    tick(a, first + 1, channels[0], start_of(first + 1, 35))                             # started only after it
+    p = crm_reports.check_report(PAST, [a], channels, sheet={})['people'][0]
+    states = {x['slot']: x['state'] for x in p['strip']}
+    assert states[first] == 'some' and states[first + 1] == 'late' and p['late'] == 1
+    assert [t['late'] for t in p['rows'][-1]['ticks']] == [False, True]                  # the straggler still shows

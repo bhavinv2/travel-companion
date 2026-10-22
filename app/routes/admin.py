@@ -10,7 +10,6 @@ from app.services import phone as phone_svc
 from app.models import User, CompanionRequest, Feedback, Blog, Notification, AppSetting, USER_ROLES
 from flask_mail import Message as MailMessage
 from datetime import datetime, timedelta
-from slugify import slugify
 
 admin_bp = Blueprint('admin', __name__)
 SUPER_ONLY_SAYS = 'Only a Super admin can change Super admin, or change a Super admin\'s account.'
@@ -1409,21 +1408,12 @@ def reject_feedback(fid):
     return jsonify({'success': True})
 
 
-def _unique_slug(title):
-    base = slugify(title)[:300] or 'post'
-    slug, n = base, 1
-    while Blog.query.filter_by(slug=slug).first():
-        n += 1
-        slug = f'{base}-{n}'
-    return slug
-
-
 @admin_bp.route('/blog')
 @login_required
 @admin_required
 def blog_list():
     """Every blog post, drafts included -- nothing else lists the unpublished ones -- with the
-    delete buttons. Writing one is still /admin/blog/new."""
+    delete buttons. Writing one is /admin/blog/new (routes/admin_blog.py)."""
     page, per_page = _page_args(30)
     q = (request.args.get('q') or '').strip()
     query = Blog.query
@@ -1435,47 +1425,6 @@ def blog_list():
     page = min(page, pages)
     posts = query.order_by(Blog.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
     return render_template('admin/blog_list.html', posts=posts, q=q, page=page, pages=pages, total=total)
-
-
-@admin_bp.route('/blog/new', methods=['GET', 'POST'])
-@login_required
-@admin_required
-def new_blog():
-    if request.method == 'POST':
-        title = request.form.get('title', '').strip()
-        content = request.form.get('content', '').strip()
-        cover = request.form.get('cover_image_url', '').strip()[:500] or None
-        is_published = request.form.get('is_published') == 'on'
-        send_notif = request.form.get('send_notification') == 'on'
-
-        if not title or not content:
-            flash('Title and content are required.', 'danger')
-            return render_template('admin/blog_form.html', form=request.form)
-
-        from app.services import blog_engine
-        post = Blog(
-            author_id=current_user.id,
-            title=title,
-            slug=_unique_slug(title),
-            content=blog_engine.sanitize(content),
-            cover_image_url=cover,
-            is_published=is_published,
-            published_at=datetime.utcnow() if is_published else None,
-            send_notification=send_notif,
-        )
-        db.session.add(post)
-        db.session.commit()
-
-        if is_published and send_notif:
-            _notify_all_blog(post)
-
-        if is_published:
-            flash('Blog post created!', 'success')
-            return redirect(url_for('blog.blog_post', slug=post.slug))     # a bare f'/blog/..' left the app's prefix
-        flash('Draft saved. Check it here, then publish.', 'success')
-        return redirect(url_for('admin.blog_edit', post_id=post.id))
-
-    return render_template('admin/blog_form.html')
 
 
 def _notify_all_blog(post):
