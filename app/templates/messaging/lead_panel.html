@@ -1,26 +1,63 @@
 {# The sales lead beside the WhatsApp inbox (messaging.lead_panel). Loaded into the panel when a
-   conversation is opened; crm.js binds it (CRM_bindLead). A fragment, not a page. #}
+   conversation is opened; crm.js binds it (CRM_bindLead). A fragment, not a page.
+   On top: who, whether WhatsApp lets us write freely, and the quick replies -- filled in for them, one click puts
+   one in the chat's box (contract 25: it never sends). The lead card follows. #}
+{% from 'cs/crm/_bits.html' import initials %}
 {% if state == 'lead' %}
+{% set first = (person.name or '').split(' ')[0] or 'them' %}
+{% set template_only = window_left is none or window_left <= 0 %}
 <div data-lead-page data-lead="{{ lead.id }}" data-product="{{ lead.product }}" data-phone="{{ person.phone or '' }}"
      data-conversation="{{ conversation or '' }}"
      data-reasons='{{ ((lead.pipeline.fallout_reasons if lead.pipeline else []) or [])|tojson|forceescape }}'>
   <div class="lp-head">
-    <div><b>{{ person.display_name }}</b>
-      <span class="muted small">{{ PRODUCTS.get(lead.product, lead.product) }}{% if lead.owner %} · {{ lead.owner.full_name }}{% endif %}</span></div>
-    <a class="cb sm" href="{{ crm_url('lead', lead_id=lead.id) }}" target="_top" title="The whole lead page"><i class="fa-solid fa-up-right-and-down-left-from-center"></i> Open lead</a>
+    <span class="lp-av" aria-hidden="true">{{ initials(person.display_name) }}</span>
+    <div class="lp-who"><b>{{ person.display_name }}</b>
+      <span>{{ PRODUCTS.get(lead.product, lead.product) }} · {{ lead.owner.full_name if lead.owner else 'Not given to anyone' }}</span></div>
+    <a class="lp-open" href="{{ crm_url('lead', lead_id=lead.id) }}" target="_top" title="Open the whole lead page"><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i> Lead</a>
   </div>
+  {% if window_left is none %}
+  <p class="lp-window w-shut"><i class="fa-solid fa-lock" aria-hidden="true"></i><span>{{ first }} hasn't written on WhatsApp yet, so start with an approved template: <b>Templates</b>, under the chat.</span></p>
+  {% elif window_left <= 0 %}
+  <p class="lp-window w-shut"><i class="fa-solid fa-lock" aria-hidden="true"></i><span>More than 24 hours since {{ first }} wrote: only an approved template can go (<b>Templates</b>, under the chat).</span></p>
+  {% else %}
+  <p class="lp-window w-open"><i class="fa-solid fa-circle" aria-hidden="true"></i><span>Free to write for {{ '%d more hours' % window_left if window_left >= 2 else 'about an hour more' if window_left >= 1 else 'less than an hour' }}.</span></p>
+  {% endif %}
   {% if belongs %}<p class="lp-belongs">This chat belongs to their {{ PRODUCTS.get(lead.product, lead.product) }} enquiry</p>{% endif %}
-  {% if suggested %}
-  <div class="lp-suggest"><span class="lbl">Suggested reply</span>
-    <p>“{{ suggested.text|truncate(180) }}”</p>
-    <button type="button" class="cb sm" data-act="compose" data-text="{{ suggested.text }}">Put it in the chat</button></div>
+
+  {% set rest = quick|rejectattr('0.id', 'equalto', suggested.id if suggested else none)|list %}
+  {% if suggested or rest %}
+  <section class="lp-replies{{ ' shut' if template_only }}" data-replies aria-labelledby="lp-replies-h">
+    <div class="lp-rh">
+      <h3 id="lp-replies-h"><i class="fa-solid fa-bolt" aria-hidden="true"></i> Quick replies</h3>
+      <span class="lp-rhint">Click one: it goes into the chat's box. You press Send.</span>
+      {% if CAN('crm_quick') %}<a class="lp-redit" href="{{ crm_url('quick_replies') }}" target="_top" title="Add or change quick replies">Edit</a>{% endif %}
+    </div>
+    {% if template_only %}<p class="lp-rnote">They work once {{ first }} writes back.</p>{% endif %}
+    {% if rest|length > 5 %}
+    <label class="lp-rfind"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+      <input type="search" placeholder="Find a reply" aria-label="Find a quick reply" data-reply-find autocomplete="off"/></label>
+    {% endif %}
+    <div class="lp-rlist" data-reply-list>
+      {% if suggested %}
+      <button type="button" class="lp-reply sug" data-act="compose" data-text="{{ suggested.text }}" data-find="{{ (suggested.title ~ ' ' ~ suggested.text)|lower }}">
+        <span class="t"><span class="sg"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Fits what they asked</span>{{ suggested.title }}</span>
+        <span class="x">{{ suggested.text }}</span>
+        <span class="go" aria-hidden="true">Put it in the chat</span>
+      </button>
+      {% endif %}
+      {% for a, text in rest %}
+      <button type="button" class="lp-reply" data-act="compose" data-text="{{ text }}" data-find="{{ (a.title ~ ' ' ~ text)|lower }}"{{ ' hidden data-more' if loop.index > 5 }}>
+        <span class="t">{{ a.title }}</span>
+        <span class="x">{{ text }}</span>
+        <span class="go" aria-hidden="true">Put it in the chat</span>
+      </button>
+      {% endfor %}
+      <p class="lp-rnone" data-reply-none hidden>No quick reply has those words.</p>
+    </div>
+    {% if rest|length > 5 %}<button type="button" class="lp-rmore" data-reply-more data-n="{{ rest|length - 5 }}">{{ rest|length - 5 }} more replies</button>{% endif %}
+  </section>
   {% endif %}
-  {% if quick %}
-  <details class="lp-quick"><summary>Quick replies for {{ (person.name or '').split(' ')[0] or 'them' }} ▾</summary>
-    {% for a, text in quick %}<div class="row between"><span>{{ a.title }}</span>
-      <button type="button" class="cb sm" data-act="compose" data-text="{{ text }}">Put it in the chat</button></div>{% endfor %}
-  </details>
-  {% endif %}
+
   {% include 'cs/crm/_lead_card.html' %}
 </div>
 {% elif state == 'none' %}

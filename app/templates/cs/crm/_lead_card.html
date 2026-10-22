@@ -63,7 +63,7 @@
         <button class="cb wa" data-act="send-step" data-kind="{{ plan.mode }}" data-template="{{ plan.template or '' }}" data-text="{{ next_text }}" data-task="{{ task.id }}"><i class="fa-brands fa-whatsapp"></i> {{ 'Send template' if plan.mode == 'template' else 'Send' }}</button>
           {% if plan.mode == 'text' %}<button type="button" class="cb sm" data-act="compose" data-text="{{ next_text }}">Put it in the chat</button>{% endif %}
         {% else %}
-        <a href="{{ crm_url('lead', lead_id=lead.id) }}" target="_top">Open the lead to choose a template</a>
+        <p class="hint">Send it with <b>Templates</b>, under the chat.</p>
         {% endif %}
       {% endif %}
       {% for ch in social %}<button class="cb primary" data-act="{{ 'fill-box' if not compact else 'send-next' }}" data-via="{{ ch }}" data-text="{{ next_text }}" data-task="{{ task.id }}"><i class="fa-brands fa-{{ 'instagram' if ch == 'instagram' else 'facebook-messenger' }}"></i> {{ 'Instagram' if ch == 'instagram' else 'Messenger' }}</button>{% endfor %}

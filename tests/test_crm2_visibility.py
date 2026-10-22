@@ -166,8 +166,11 @@ def test_sweep_an_own_agent_meets_no_other_agents_lead_anywhere(app, client, wor
     assert hid not in t and 'Ownerone' in t
     t = page('/cs/crm/?p=ti-standard&view=board&owner=all')
     assert hid not in t
-    t = page('/cs/crm/?p=all&view=list&owner=all&q=Otherwoman')
-    assert hid not in t
+    r = client.get('/cs/crm/?p=all&view=list&owner=all&q=Otherwoman')
+    t = words(r.get_data(as_text=True))
+    # the search word comes back in its own "Find: ..." chip; the lead itself must not
+    assert 'Otherwoman Hidden' not in t and 'lead/%d"' % other.id not in r.get_data(as_text=True)
+    assert 'Find: “Otherwoman”' in t
     # the owner filter offers the person and not the colleagues they may not see
     r = client.get('/cs/crm/?p=all&view=list&owner=all')
     assert 'Bela' not in re_select(r.get_data(as_text=True), 'owner')

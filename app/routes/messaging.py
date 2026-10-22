@@ -15,6 +15,7 @@ Screens that moved into the portal (contacts, pipelines, the dashboard...) are r
 WhatsApp CRM: it tells the frame, and the frame moves the whole window to sso?go=<key> (contract
 15), which opens the portal's own page.
 """
+from datetime import datetime
 from urllib.parse import parse_qs, urlsplit
 
 from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
@@ -37,7 +38,9 @@ SCREENS = {
                        'Within 24 hours of their last message you can write freely. After that only an approved '
                        'WhatsApp template can go.',
                        'A chat with a lead shows the lead on the right: the next follow-up, the stage and who looks '
-                       'after it.']},
+                       'after it. Click a quick reply there to put it in the chat.',
+                       'New chat lists new leads with no chat yet, and finds any lead: Message opens their chat on '
+                       'the left, where the first message is an approved template.']},
     'broadcasts': {'page': 'wa_broadcasts', 'path': '/broadcasts', 'heading': 'Broadcasts',
                    'helper': 'Send one approved message to many people at once, for example everyone in a stage.',
                    'help': ['Only an approved WhatsApp template can go to many people.',
@@ -291,6 +294,26 @@ def _lead(lead_id):
     return lead
 
 
+def _lead_conversation(lead):
+    """The lead's chat in the WhatsApp CRM, ensured and certainly theirs (crm.wa_ensure_chat): made when missing
+    while the portal may write there, and then given to the lead's owner if nobody has it; with writes off only
+    looked up. A WhatsApp user without a number has the chat we hold. The conversation id or None; raises
+    crm.WaChatRefused (rolled back). Commits."""
+    from app.services import crm
+    person = lead.person
+    if not person.phone:
+        return person.wacrm_conversation_id
+    writes = crm.wa_writes_on()
+    try:
+        r = crm.wa_ensure_chat(person, create=writes,
+                               assign_email=(lead.owner.email if writes and lead.owner else None))
+    except crm.WaChatRefused:
+        db.session.rollback()
+        raise
+    db.session.commit()
+    return r.get('conversation_id')
+
+
 @messaging_bp.route('/lead/<int:lead_id>/chat')
 @login_required
 def lead_chat(lead_id):
@@ -303,22 +326,91 @@ def lead_chat(lead_id):
     person = lead.person
     if not (wacrm_team.enabled() and role):
         return render_template('messaging/lead_chat.html', lead=lead, state='off', role=role)
-    if person.phone:
-        writes = crm.wa_writes_on()
-        try:
-            r = crm.wa_ensure_chat(person, create=writes,
-                                   assign_email=(lead.owner.email if writes and lead.owner else None))
-        except crm.WaChatRefused as exc:
-            db.session.rollback()
-            return render_template('messaging/lead_chat.html', lead=lead, state='error', error=str(exc), role=role)
-        db.session.commit()
-        conv = r.get('conversation_id')
-    else:
-        conv = person.wacrm_conversation_id          # a WhatsApp user without a number: that thread
+    try:
+        conv = _lead_conversation(lead)
+    except crm.WaChatRefused as exc:
+        return render_template('messaging/lead_chat.html', lead=lead, state='error', error=str(exc), role=role)
     if conv:
         return redirect(wacrm_team.sso_url(current_user, role, '/inbox?c=%s&view=thread' % conv))
     return render_template('messaging/lead_chat.html', lead=lead, state='none', role=role,
                            no_phone=not person.phone, off=not crm.wa_writes_on())
+
+
+# ------------------------------------------------- starting a chat from WhatsApp chats
+
+START_WHO = (('mine', 'Mine'), ('none', 'Not given to anyone'), ('all', 'Everyone'))
+
+
+def _start_who(raw):
+    if raw in dict(START_WHO):
+        return raw
+    return 'all' if access.can(current_user, 'crm_insights') else 'mine'
+
+
+@messaging_bp.route('/start-chat')
+@login_required
+def start_chat_panel():
+    """The panel beside WhatsApp chats when no chat is open, or after "New chat": leads to message. With no search,
+    open leads with a phone and no WhatsApp chat yet, newest first (whose: mine / not given to anyone / everyone);
+    with a search, any lead it finds, open first, each with "Message" or "Open chat". A fragment."""
+    from sqlalchemy import case
+    from app.models import CrmLead, CrmPerson
+    from app.services import crm, crm_people, crm_products
+    if not access.allowed(current_user, request.endpoint):
+        abort(403)
+    if not (access.can(current_user, 'crm_board') or access.can(current_user, 'crm_today')):
+        return render_template('messaging/start_chat.html', state='no_crm')
+    q = ' '.join((request.args.get('q') or '').split())[:80]
+    who = _start_who(request.args.get('who'))
+    query = CrmLead.query.join(CrmPerson, CrmPerson.id == CrmLead.person_id).options(*crm.lead_load())
+    if q:
+        query = (query.filter(crm_people.person_match(q))
+                 .order_by(case((CrmLead.status == 'open', 0), else_=1), CrmLead.last_activity_at.desc()))
+    else:
+        query = query.filter(CrmLead.status == 'open', CrmPerson.phone.isnot(None),
+                             CrmPerson.wacrm_conversation_id.is_(None))
+        if who == 'mine':
+            query = query.filter(CrmLead.owner_id == current_user.id)
+        elif who == 'none':
+            query = query.filter(CrmLead.owner_id.is_(None))
+        query = query.order_by(CrmLead.created_at.desc(), CrmLead.id.desc())
+    total = query.count()
+    leads = query.limit(30).all()
+    return render_template('messaging/start_chat.html', state='list', leads=leads, total=total, q=q, who=who,
+                           WHO=START_WHO, writes=crm.wa_writes_on(), utcnow=datetime.utcnow(),
+                           PRODUCTS=crm_products.labels(),
+                           back=(request.args.get('back') or '').strip()[:120])
+
+
+@messaging_bp.route('/start-chat', methods=['POST'])
+@login_required
+def start_chat():
+    """"Message" beside WhatsApp chats: the lead's chat, made in the WhatsApp CRM when it has none (never sends
+    anything), and the address that opens it in the frame. {ok, conversation, src, name} or {ok: false, error}."""
+    from app.services import crm
+    if not access.allowed(current_user, request.endpoint):
+        abort(403)
+    lead = _lead(request.form.get('lead', type=int) or 0)
+    role = crm_role(current_user)
+    if not (wacrm_team.enabled() and role):
+        return jsonify(ok=False, error='WhatsApp is not connected for you here.')
+    if not lead.person.phone and not lead.person.wacrm_conversation_id:
+        return jsonify(ok=False, error='%s has no phone number. Add one on the lead page first.'
+                       % lead.person.display_name)
+    try:
+        conv = _lead_conversation(lead)
+    except crm.WaChatRefused as exc:
+        return jsonify(ok=False, error=str(exc))
+    if not conv:
+        return jsonify(ok=False, error=START_OFF)
+    granted = wacrm_team.wa_pages(wacrm_team.user_pages(current_user))
+    path = _with_panel('/inbox?mine=1&c=%s' % conv)
+    return jsonify(ok=True, conversation=str(conv), name=lead.person.display_name,
+                   src=wacrm_team.sso_url(current_user, role, path, pages=granted))
+
+
+START_OFF = ("They have no WhatsApp chat yet, and WhatsApp is on “Not yet” in Set-up → WhatsApp, so a new chat "
+             "can't be started from here.")
 
 
 # ------------------------------------------------- the sales lead beside the WhatsApp inbox
@@ -366,10 +458,13 @@ def lead_panel():
         from app.services import crm_products
         return render_template('messaging/lead_panel.html', state='none', phone=digits,
                                name=name[:120], conversation=conversation_id, tiles=crm_products.tiles())
-    from app.services import crm
+    from app.services import crm, crm_metrics
     belongs = sum(1 for l in person.leads if l.status == 'open') > 1
+    # what WhatsApp allows now, from what we hold: free text inside 24 hours of their last message, else a template
+    entry = crm_metrics.last_touches({person.id}).get(person.id) or {}
     return render_template('messaging/lead_panel.html', state='lead', belongs=belongs,
                            suggested=crm.suggested_reply(lead, current_user), conversation=conversation_id,
+                           window_left=crm_metrics.window_left_hours(entry.get('wa_last_in')),
                            **lead_card_context(lead, compact=True), **_common())
 
 

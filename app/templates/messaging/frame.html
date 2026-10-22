@@ -22,6 +22,7 @@
         </div>
         <details class="help-fold wa-frame-help"><summary>(?) How this works</summary>
           <ul data-frame-help>{% for line in help %}<li>{{ line }}</li>{% endfor %}</ul></details>
+        {% if panel %}<button type="button" class="cb primary wa-new-chat" data-new-chat title="Message a lead who has no chat yet, or find any lead"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> New chat</button>{% endif %}
       </div>
       {% if rules %}<p class="ws-note warn" data-frame-rules><i class="fa-solid fa-triangle-exclamation"></i>
         <span>{{ rules_line }}{% if rules|length == 1 %} <a href="{{ url_for('messaging.automations', p='/automations/' ~ rules[0].id ~ '/edit') }}">Open it</a>{% endif %}
@@ -94,7 +95,7 @@
 
   // contract 25: the chat answers each request (wacrm:composed); when it refuses, nothing was filled -- say why
   var COMPOSE_REFUSED = {
-    window_closed: 'Only an approved template can go now.',
+    window_closed: 'WhatsApp only lets an approved template go now. Use Templates, under the chat.',
     busy: 'Finish the attachment or voice note first.',
     read_only: 'You can read this chat but not write in it.',
     not_open: 'Open the chat on the left first.'
@@ -142,11 +143,14 @@
   if (!frame || !panel) return;
   var crmOrigin = {{ (crm_origin or '')|tojson }} || window.location.origin;
   var panelUrl = {{ url_for('messaging.lead_panel')|tojson }};
-  var hint = panel.innerHTML;
-  var current = null;
+  var startUrl = {{ url_for('messaging.start_chat_panel')|tojson }};
+  var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  var current = null;      // the open conversation, whose lead the panel shows
+  var starting = null;     // the "Start a chat" view while it is shown: {q, who}
+  function toast(msg, bad) { if (window.CRM && window.CRM.toast) window.CRM.toast(msg, bad); }
   // contract 10: a message appeared in the open conversation (theirs or ours). Its lead follows once the
   // webhook has landed here, and once more a little later in case it was slow -- never over something
-  // being typed in the panel, or a dialog it opened.
+  // being typed in the panel, a dialog it opened, or the "Start a chat" view.
   var soon = [];
   function busy() {
     var a = document.activeElement, dlg = document.getElementById('crm-dialog');
@@ -155,14 +159,49 @@
   function refreshSoon() {
     soon.forEach(clearTimeout);
     soon = [1500, 6000].map(function (ms) {
-      return setTimeout(function () { if (current && current.conversation && !busy()) load(current); }, ms);
+      return setTimeout(function () { if (!starting && current && current.conversation && !busy()) load(current); }, ms);
+    });
+  }
+
+  // the quick replies: find as you type, the rest on request, and a tick on the one put in the chat
+  function bindReplies(root) {
+    var box = root.querySelector('[data-replies]');
+    if (!box) return;
+    var find = box.querySelector('[data-reply-find]'), more = box.querySelector('[data-reply-more]');
+    var none = box.querySelector('[data-reply-none]');
+    var items = Array.prototype.slice.call(box.querySelectorAll('.lp-reply'));
+    var open = false;
+    function paint() {
+      var words = find ? find.value.toLowerCase().split(/\s+/).filter(Boolean) : [];
+      var shown = 0;
+      items.forEach(function (b) {
+        var hit = words.every(function (w) { return (b.getAttribute('data-find') || '').indexOf(w) >= 0; });
+        var on = words.length ? hit : (open || !b.hasAttribute('data-more'));
+        b.hidden = !on;
+        if (on) shown += 1;
+      });
+      if (none) none.hidden = shown > 0;
+      if (more) more.hidden = open || words.length > 0;
+    }
+    if (find) find.addEventListener('input', paint);
+    if (more) more.addEventListener('click', function () { open = true; paint(); });
+    box.addEventListener('click', function (e) {
+      var b = e.target.closest('.lp-reply');
+      if (!b) return;
+      b.classList.add('done');
+      setTimeout(function () { b.classList.remove('done'); }, 1800);
     });
   }
 
   function show(html) {
+    starting = null;
     panel.innerHTML = html;
+    panel.scrollTop = 0;
     var card = panel.querySelector('[data-lead-page]');
     if (card && window.CRM_bindLead) window.CRM_bindLead(card);
+    var who = panel.querySelector('.lp-who b');
+    if (who && current) current.name = who.textContent.trim();       // "Back to <name>" in Start a chat
+    bindReplies(panel);
     var make = panel.querySelector('[data-lp-make]');
     if (make) make.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -176,11 +215,68 @@
 
   function load(q) {
     current = q;
-    if (!q || !q.conversation) { panel.innerHTML = hint; return; }
-    fetch(panelUrl + '?' + new URLSearchParams(q).toString(), { credentials: 'same-origin' })
+    if (!q || !q.conversation) { showStart({}); return; }
+    fetch(panelUrl + '?' + new URLSearchParams({ conversation: q.conversation, phone: q.phone || '', name: q.name || '' }).toString(),
+          { credentials: 'same-origin' })
       .then(function (r) { return r.ok ? r.text() : ''; })
       .then(function (html) { if (current === q && html) show(html); });
   }
+
+  // ------------------------------------------------ "Start a chat": a lead to message, opened on the left
+  var findTimer = null;
+  function showStart(opts) {
+    var was = starting || {};
+    starting = { q: opts.q != null ? opts.q : (was.q || ''), who: opts.who || was.who || '' };
+    var want = starting;
+    var back = current && current.conversation ? (current.name || 'the open chat') : '';
+    var qs = new URLSearchParams({ q: want.q, who: want.who, back: back });
+    fetch(startUrl + '?' + qs.toString(), { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.text() : ''; })
+      .then(function (html) {
+        if (starting !== want || !html) return;           // a chat was opened, or a newer search went out
+        panel.innerHTML = html;
+        bindStart(opts.focus);
+      });
+  }
+  function bindStart(focus) {
+    var input = panel.querySelector('[data-start-find] input');
+    if (input) {
+      if (focus) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+      input.addEventListener('input', function () {
+        clearTimeout(findTimer);
+        var v = input.value;
+        findTimer = setTimeout(function () { showStart({ q: v, focus: true }); }, 280);
+      });
+    }
+    panel.querySelectorAll('[data-start-who]').forEach(function (b) {
+      b.addEventListener('click', function () { showStart({ who: b.getAttribute('data-start-who') }); });
+    });
+    var back = panel.querySelector('[data-start-back]');
+    if (back) back.addEventListener('click', function () { starting = null; load(current); });
+    panel.querySelectorAll('[data-start-chat]').forEach(function (b) {
+      b.addEventListener('click', function () { startChat(b); });
+    });
+  }
+  function startChat(b) {
+    var label = b.innerHTML;
+    b.disabled = true;
+    b.textContent = 'Opening…';
+    var fd = new FormData();
+    fd.set('lead', b.getAttribute('data-start-chat'));
+    fetch(startUrl, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-CSRFToken': csrf } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) { b.disabled = false; b.innerHTML = label; toast(d.error || 'The chat could not be opened.', true); return; }
+        // the inbox opens on their chat (a fresh hand-off), and their lead shows here at once
+        frame.src = d.src;
+        load({ conversation: d.conversation, phone: '', name: d.name });
+        toast('Chat with ' + d.name + ' is open on the left.');
+      })
+      .catch(function () { b.disabled = false; b.innerHTML = label; toast('The chat could not be opened. Try again.', true); });
+  }
+  document.querySelectorAll('[data-new-chat]').forEach(function (b) {
+    b.addEventListener('click', function () { showStart({ q: '', focus: true }); });
+  });
   window.CRM_reloadPanel = function () { load(current); };
   // contract 25: words for the open conversation's composer -- the WhatsApp CRM fills it and never sends
   window.CRM_compose = function (text) {
@@ -203,10 +299,12 @@
     load(d.conversation_id ? { conversation: String(d.conversation_id), phone: String(c.phone || ''), name: String(c.name || '') } : null);
   });
 
-  // a reload that lands on a conversation (?p=/inbox?c=...) shows its lead straight away
+  // a reload that lands on a conversation (?p=/inbox?c=...) shows its lead straight away; with none open,
+  // the panel offers leads to message
   var p = new URL(window.location.href).searchParams.get('p') || '';
   var m = p.match(/[?&]c=([^&]+)/);
   if (m) load({ conversation: decodeURIComponent(m[1]), phone: '', name: '' });
+  else showStart({});
 })();
 </script>
 {% endif %}

@@ -641,13 +641,94 @@ body.crm-focus .crm-board { grid-auto-columns: minmax(280px, 1fr); }
 body.crm-drawer-open { overflow: hidden; }
 .lc-log details + details { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--c-line); }
 .replies-line { font-size: 14px; }
-/* beside the WhatsApp inbox */
+/* beside the WhatsApp inbox (messaging/lead_panel.html): who, what WhatsApp allows now, the quick replies */
 .lp-belongs { font-size: 13px; color: var(--c-muted); margin: 0 0 10px; }
-.lp-suggest { background: var(--c-soft); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
-.lp-suggest p { font-size: 13.5px; margin: 4px 0 8px; }
-.lp-quick { margin-bottom: 10px; font-size: 13.5px; }
-.lp-quick summary { cursor: pointer; font-weight: 600; }
-.lp-quick .row { padding: 4px 0; gap: 8px; }
+.lp-head { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+.lp-av, .sc-av { flex: none; width: 38px; height: 38px; border-radius: 50%; background: var(--c-blue-soft); color: var(--c-blue-dark);
+  display: grid; place-items: center; font-weight: 700; font-size: 13.5px; letter-spacing: .02em; }
+.lp-who { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.lp-who b { font-size: 15.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lp-who span { font-size: 12.5px; color: var(--c-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crm .lp-open { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; padding: 6px 10px;
+  border-radius: 8px; border: 1px solid var(--c-line); background: var(--c-card); text-decoration: none; }
+.crm .lp-open:hover { border-color: var(--c-blue); }
+.lp-window { display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; line-height: 1.45; border-radius: 9px; padding: 8px 10px;
+  margin: 0 0 10px !important; }
+.lp-window i { flex: none; font-size: 11px; }
+.lp-window.w-open { background: var(--c-ok-soft); color: var(--c-ok-ink); }
+.lp-window.w-open i { font-size: 8px; color: var(--c-ok); }
+.lp-window.w-shut { background: var(--c-warn-soft); color: var(--c-warn-ink); }
+
+.lp-replies { background: var(--c-card); border: 1px solid var(--c-line); border-radius: 12px; padding: 12px; margin-bottom: 10px;
+  box-shadow: var(--shadow-card); }
+.lp-rh { display: flex; align-items: center; gap: 4px 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.lp-rh h3 { font-size: 14.5px; display: inline-flex; gap: 7px; align-items: center; }
+.lp-rh h3 i { color: var(--c-warn); }
+.lp-rhint { order: 3; flex: 1 1 100%; font-size: 12px; color: var(--c-muted); }
+.lp-redit { margin-left: auto; font-size: 12.5px; font-weight: 600; }
+.lp-rnote { font-size: 12.5px; color: var(--c-warn-ink); margin: 0 0 8px !important; }
+.lp-rfind { display: flex; align-items: center; gap: 8px; border: 1px solid var(--c-line); border-radius: 9px; padding: 0 10px;
+  margin-bottom: 8px; background: var(--c-soft); }
+.lp-rfind:focus-within { border-color: var(--c-blue); background: var(--c-card); }
+.lp-rfind i { color: var(--c-muted); font-size: 12px; }
+.crm .lp-rfind input { border: 0; outline: 0; box-shadow: none; background: transparent; padding: 8px 0; font-size: 13.5px; flex: 1; min-width: 0; }
+.lp-rlist { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.crm .lp-reply { position: relative; display: block; width: 100%; text-align: left; border: 1px solid var(--c-line); background: var(--c-card);
+  border-radius: 10px; padding: 8px 10px; cursor: pointer; font: inherit; color: var(--c-ink); transition: border-color .12s, background .12s; }
+.lp-reply[hidden] { display: none !important; }
+.crm .lp-reply:hover, .crm .lp-reply:focus-visible { border-color: var(--c-blue); background: var(--c-blue-soft); outline: none; }
+.lp-reply .t { display: block; font-size: 13px; font-weight: 700; line-height: 1.35; margin-bottom: 2px; }
+.lp-reply .x { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12.5px;
+  color: var(--c-muted); line-height: 1.4; white-space: pre-line; }
+/* "Put it in the chat" appears over the title's end on hover, and says it worked after a click */
+.lp-reply .go { position: absolute; top: 6px; right: 6px; font-size: 11.5px; font-weight: 700; color: var(--c-blue-dark);
+  background: linear-gradient(90deg, transparent, var(--c-blue-soft) 16px); padding: 2px 6px 2px 22px; border-radius: 999px;
+  opacity: 0; transition: opacity .12s; pointer-events: none; }
+.lp-reply:hover .go, .lp-reply:focus-visible .go { opacity: 1; }
+.lp-reply.done .go { opacity: 1; font-size: 0; }
+.lp-reply.done .go::after { content: '✓ In the chat'; font-size: 11.5px; color: var(--c-ok-ink); }
+.crm .lp-reply.sug { border-color: #f6d39a; background: #fffaf0; }
+.lp-reply.sug .sg { display: inline-flex; gap: 5px; align-items: center; font-size: 11px; font-weight: 700; color: var(--c-warn-ink);
+  background: var(--c-warn-soft); border-radius: 999px; padding: 1px 8px; margin-right: 6px; vertical-align: 1px; }
+.lp-replies.shut .lp-reply { opacity: .62; }
+.lp-replies.shut .lp-reply:hover { opacity: 1; }
+.lp-rnone { font-size: 12.5px; color: var(--c-muted); padding: 6px 2px; }
+.lp-rmore { margin-top: 8px; width: 100%; border: 1px dashed var(--c-line); background: none; border-radius: 9px; padding: 7px; font: inherit;
+  font-size: 12.5px; font-weight: 600; color: var(--c-blue-dark); cursor: pointer; }
+.lp-rmore:hover { border-color: var(--c-blue); }
+.lp-rmore[hidden] { display: none; }
+
+/* "Start a chat" beside WhatsApp chats (messaging/start_chat.html) */
+.sc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.sc-head h2 { font-size: 16px; display: inline-flex; gap: 8px; align-items: center; margin-right: auto; }
+.sc-head h2 i { color: var(--c-blue); font-size: 14px; }
+.sc-back { border: 0; background: none; color: var(--c-blue-dark); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 4px 0; }
+.sc-back::before { content: '← '; }
+.sc-lede { font-size: 12.5px; color: var(--c-muted); margin: 0 0 10px !important; line-height: 1.45; }
+.sc-find { display: flex; align-items: center; gap: 8px; border: 1.5px solid var(--c-line); border-radius: 10px; padding: 0 11px;
+  background: var(--c-card); margin-bottom: 10px; }
+.sc-find:focus-within { border-color: var(--c-blue); box-shadow: 0 0 0 3px rgba(31, 111, 214, .14); }
+.sc-find i { color: var(--c-muted); font-size: 13px; }
+.crm .sc-find input { border: 0; outline: 0; box-shadow: none; background: transparent; padding: 9px 0; font-size: 14px; flex: 1; min-width: 0; }
+.sc-who { display: flex; gap: 3px; background: var(--c-soft); border: 1px solid var(--c-line); border-radius: 10px; padding: 3px; margin-bottom: 8px; }
+.sc-who button { flex: 1; border: 0; background: none; border-radius: 7px; padding: 6px 4px; font: inherit; font-size: 12px; font-weight: 600;
+  color: var(--c-muted); cursor: pointer; white-space: nowrap; }
+.sc-who button:hover { color: var(--c-ink); }
+.sc-who button.on { background: var(--c-card); color: var(--c-ink); box-shadow: 0 1px 3px rgba(15, 35, 64, .14); }
+.sc-count { font-size: 12px; color: var(--c-muted); margin: 0 0 6px !important; font-weight: 600; }
+.sc-off { font-size: 12.5px; background: var(--c-warn-soft); color: var(--c-warn-ink); border-radius: 9px; padding: 8px 10px; margin: 0 0 8px !important; }
+.sc-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.sc-row { display: flex; align-items: center; gap: 10px; background: var(--c-card); border: 1px solid var(--c-line); border-radius: 11px; padding: 9px 10px; }
+.sc-av { width: 34px; height: 34px; font-size: 12.5px; }
+.sc-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.sc-main b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-meta { display: flex; gap: 4px; flex-wrap: wrap; }
+.crm .sc-meta .chip { font-size: 11px; padding: 1px 7px; }
+.sc-sub { font-size: 11.5px; color: var(--c-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crm .sc-row .cb { flex: none; padding: 6px 10px; }
+.sc-empty { font-size: 13px; color: var(--c-muted); text-align: center; padding: 18px 8px; background: var(--c-card); border: 1px dashed var(--c-line);
+  border-radius: 11px; }
+.sc-foot { font-size: 12px; color: var(--c-muted); text-align: center; margin-top: 12px !important; }
 /* the full-chat page that the drawer opens first */
 .lc-page { margin: 0; background: #fff; }
 .lc { padding: 18px; max-width: 760px; }

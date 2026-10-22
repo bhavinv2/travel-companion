@@ -91,7 +91,9 @@ def test_put_it_in_the_chat_is_shown_in_the_panel_but_not_on_the_full_lead_page(
     db.session.commit()
     login(client, cs_user.email)
     html = client.get('/admin/messaging/lead-panel?conversation=conv-7&phone=919876543210').get_data(as_text=True)
-    assert 'Suggested reply' in html and 'Quick replies for' in html and 'Put it in the chat' in html
+    # the reply that fits what they asked comes first in Quick replies; each one is "Put it in the chat"
+    assert 'Fits what they asked' in html and 'Quick replies' in html and 'Put it in the chat' in html
+    assert html.index('Fits what they asked') < html.index('class="lp-reply"')
     page = client.get('/cs/crm/lead/%d' % lead.id).get_data(as_text=True)
     assert 'Put it in the chat' not in page
 

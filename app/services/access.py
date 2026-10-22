@@ -245,7 +245,8 @@ MODULES = [
              'AI replies and the number.',
      'pages': [
          _page('wa_inbox', 'WhatsApp chats', 'fa-brands fa-whatsapp',
-               ['messaging.inbox', 'messaging.lead_panel', 'messaging.lead_panel_make'], admin='messaging.inbox',
+               ['messaging.inbox', 'messaging.lead_panel', 'messaging.lead_panel_make', 'messaging.start_chat_panel',
+                'messaging.start_chat'], admin='messaging.inbox',
                cs='messaging.inbox', desc='Every WhatsApp conversation.',
                tip='Every WhatsApp conversation; the lead shows beside the open chat.'),
          _page('wa_templates', 'WhatsApp templates', 'fa-file-lines', ['messaging.templates'],
