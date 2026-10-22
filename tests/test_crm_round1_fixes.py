@@ -58,7 +58,7 @@ def test_the_lead_card_carries_the_tags_box(app, client, admin_user):
 def test_the_frame_says_why_a_fill_was_refused():
     html = read('app', 'templates', 'messaging', 'frame.html')
     assert "wacrm:composed" in html
-    for reason, words in (('window_closed', 'Only an approved template can go now.'),
+    for reason, words in (('window_closed', 'WhatsApp only lets an approved template go now. Use Templates, under the chat.'),
                           ('busy', 'Finish the attachment or voice note first.'),
                           ('read_only', 'You can read this chat but not write in it.'),
                           ('not_open', 'Open the chat on the left first.')):
