@@ -331,6 +331,47 @@ def check_report(day, users, channels, sheet=None, names=None):
                         for ch in channels]}
 
 
+def leads_by_inbox(day, rows):
+    """{inbox name: leads that came in on `day` (India) from the lead source the inbox watches} -- two inboxes on
+    one source (Messenger and Instagram on Meta) both say that source's number."""
+    from app.models import CrmSource
+    from app.services import crm_sources
+    keys = {r['name']: crm_sources.canonical(r['source_key']) for r in rows if r.get('source_key')}
+    if not keys:
+        return {}
+    ids = {s.key: s.id for s in CrmSource.query.filter(CrmSource.key.in_(set(keys.values()))).all()}
+    start, end = day_bounds(day)
+    counts = dict(db.session.query(CrmLead.source_id, func.count(CrmLead.id))
+                  .filter(CrmLead.created_at >= start, CrmLead.created_at < end,
+                          CrmLead.source_id.in_(list(ids.values()) or [0]))
+                  .group_by(CrmLead.source_id).all())
+    return {name: counts.get(ids.get(key), 0) for name, key in keys.items()}
+
+
+def last_ticks(ticks, channels):
+    """{inbox: its latest tick of the day} from grid(day)."""
+    out = {}
+    for (s, ch), c in ticks.items():
+        if ch in channels and (ch not in out or (c.checked_at or datetime.min) > (out[ch].checked_at or datetime.min)):
+            out[ch] = c
+    return out
+
+
+def longest_gap(day, channels, ticks=None):
+    """The longest run of half hours over on `day` that were not fully checked: (first label, last label, how many)
+    or None."""
+    ticks = grid(day) if ticks is None else ticks
+    best, run = None, []
+    for s in slots_so_far(day) + [None]:
+        if s is not None and not all((s, ch) in ticks for ch in channels):
+            run.append(s)
+            continue
+        if run and (best is None or len(run) > best[2]):
+            best = (slot_label(run[0]), slot_label(run[-1] + 1), len(run))
+        run = []
+    return best
+
+
 def current_slot_done(channels):
     day, s = current()
     if s is None:

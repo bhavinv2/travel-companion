@@ -150,11 +150,37 @@ def canonical(key, phone=None):
     return MERGED.get(key, key)
 
 
+CHECKED = ('calls', 'social')       # the groups people write or call us in: the half-hourly check watches these
+
+
+def inbox_row(it, wa_key='wa-india'):
+    """The half-hourly check's row for a list item; the WhatsApp feed's own ticks itself once its replies are
+    connected."""
+    return {'name': it.short.replace(' · ', ' ')[:40], 'source_key': it.key, 'auto': it.key == wa_key}
+
+
 def standard_inboxes(wa_key='wa-india'):
-    """The half-hourly check's rows from the list: a row for each call, chat and social inbox; the WhatsApp feed's
-    own ticks itself once its replies are connected."""
-    return [{'name': it.short.replace(' · ', ' ')[:40], 'source_key': it.key, 'auto': it.key == wa_key}
-            for g, _n, _ic, items in GROUPS if g in ('calls', 'social') for it in items]
+    """The half-hourly check's rows from the list: a row for each call, chat and social inbox."""
+    return [inbox_row(it, wa_key) for g, _n, _ic, items in GROUPS if g in CHECKED for it in items]
+
+
+def check_coverage(rows):
+    """Is every lead source people write or call us on, on the half-hourly check? {'groups': [{'key', 'name',
+    'icon', 'items': [{'item', 'rows': [inbox names watching it]}]}], 'missing': [Item], 'extra': [inbox names that
+    watch nothing on the list -- an e-mail box, a website]}. An inbox watches the source its row names (an old key
+    read as the item it became)."""
+    watched = {}
+    for r in rows:
+        key = canonical(r.get('source_key')) if r.get('source_key') else None
+        watched.setdefault(key, []).append(r['name'])
+    groups, listed = [], set()
+    for g, name, icon, items in GROUPS:
+        if g in CHECKED:
+            groups.append({'key': g, 'name': name, 'icon': icon,
+                           'items': [{'item': it, 'rows': watched.get(it.key, [])} for it in items]})
+            listed.update(it.key for it in items)
+    return {'groups': groups, 'missing': [x['item'] for grp in groups for x in grp['items'] if not x['rows']],
+            'extra': [n for k, names in watched.items() if k not in listed for n in names]}
 
 
 def seed_rows():

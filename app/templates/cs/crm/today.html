@@ -186,6 +186,7 @@
         {% endif %}
         <a class="cb ghost" href="{{ crm_url('checks') }}">Open the half-hourly check</a>
         {% if coverage.pct is not none %}<span class="muted small">Today so far: {{ coverage.pct }}% of half hours fully checked</span>{% endif %}
+        {% if coverage.missed %}<a class="cb sm" href="{{ crm_url('checks') }}#catch-up"><i class="fa-solid fa-clock-rotate-left"></i> Catch up: {{ coverage.missed|length }} missed</a>{% endif %}
       </div>
     </div>
     {% endif %}

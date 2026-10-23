@@ -1207,7 +1207,7 @@ button.pe-chip:hover { border-color: var(--c-blue); }
 .ck-sw.open, .ck-strip i.open { background: var(--c-card); box-shadow: inset 0 0 0 1px var(--c-line); }
 .ck-people { display: flex; flex-direction: column; gap: 8px; }
 /* the hours over the strips: the strips start under the name column, so does this */
-.ck-axis { display: grid; grid-template-columns: repeat(17, 1fr); padding: 0 45px 0 20px; font-size: 11px; color: var(--c-muted); }
+.ck-axis { display: grid; grid-template-columns: repeat(var(--hours, 17), 1fr); padding: 0 45px 0 20px; font-size: 11px; color: var(--c-muted); }
 .ck-person { border: 1px solid var(--c-line); border-radius: 12px; background: var(--c-card); border-left: 4px solid var(--c-line); }
 .ck-person.s-good { border-left-color: var(--c-ok); } .ck-person.s-late { border-left-color: var(--c-warn); }
 .ck-person.s-gaps, .ck-person.s-none { border-left-color: var(--c-bad); }
@@ -1226,7 +1226,7 @@ button.pe-chip:hover { border-color: var(--c-blue); }
 .ck-say { grid-column: 2 / 5; font-size: 13px; color: var(--c-ink); }
 .ck-say em { font-style: normal; font-weight: 600; }
 .ck-say em.late { color: var(--c-warn-ink); } .ck-say em.gap { color: var(--c-bad-ink); }
-.ck-strip { grid-column: 1 / 5; display: grid; grid-template-columns: repeat(34, 1fr); gap: 2px; padding-right: 32px; padding-left: 4px; }
+.ck-strip { grid-column: 1 / 5; display: grid; grid-template-columns: repeat(var(--slots, 34), 1fr); gap: 2px; padding-right: 32px; padding-left: 4px; }
 .ck-strip i { height: 18px; border-radius: 3px; }
 .ck-strip i.h { margin-left: 1px; }
 .ck-person[open] > summary { border-bottom: 1px solid var(--c-line); }
@@ -2003,3 +2003,54 @@ a.cal-card:hover { box-shadow: 0 3px 10px rgba(15, 35, 64, .14); }
   .act-cards { grid-template-columns: minmax(0, 1fr); }
   .act-nums { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+/* the check's extras: the reminder, the day in numbers, catching up, each inbox's share, who checked, every source */
+.hc-nav-r { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hc-remind { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--c-muted); cursor: pointer;
+  padding: 6px 10px; border: 1px solid var(--c-line); border-radius: 999px; background: var(--c-card); }
+.hc-remind input { width: 15px; height: 15px; margin: 0; accent-color: var(--c-blue); }
+.hc-remind:has(input:checked) { color: var(--c-blue-dark); border-color: var(--c-blue); background: var(--c-blue-soft); }
+.hc-leads { grid-column: 2; font-size: 11.5px; font-weight: 700; color: var(--c-blue-dark); }
+.hc-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.hc-stat { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--c-line);
+  border-top: 4px solid var(--c-line); background: var(--c-card); }
+.hc-stat.ok { border-top-color: var(--c-ok); }
+.hc-stat.warn { border-top-color: var(--c-warn); }
+.hc-stat.bad { border-top-color: var(--c-bad); }
+.hc-stat span { font-size: 12.5px; font-weight: 600; color: var(--c-muted); }
+.hc-stat b { font-size: 26px; line-height: 1.15; }
+.hc-stat small { font-size: 12px; color: var(--c-muted); }
+.hc-catch .card-head p { margin: 2px 0 0; }
+.hc-gaps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.hc-gaps li { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 10px;
+  border-radius: 10px; background: var(--c-bad-soft); }
+.hc-missing { font-size: 13px; color: var(--c-bad-ink); }
+.hc-strip th.hc-who { vertical-align: middle; }
+.hc-who-n { display: block; }
+.hc-who-s { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: var(--c-muted); margin-top: 2px; white-space: nowrap; }
+.hc-bar { display: inline-block; width: 36px; height: 5px; border-radius: 3px; background: linear-gradient(90deg, var(--c-ok) var(--p), var(--c-soft) 0); }
+.hc-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px; }
+.hc-ppl { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.hc-ppl li { display: grid; grid-template-columns: 34px minmax(0, 1fr) 90px; gap: 10px; align-items: center; }
+.hc-av { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--c-blue); color: #fff; font-size: 12px; font-weight: 800; }
+.hc-pn { display: flex; flex-direction: column; min-width: 0; }
+.hc-pn small { color: var(--c-muted); font-size: 12px; }
+.hc-pbar { height: 8px; border-radius: 0 4px 4px 0; background: var(--c-soft); }
+.hc-pbar i { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--c-ok); }
+.hc-cover-say { display: flex; gap: 8px; align-items: flex-start; padding: 8px 12px; border-radius: 10px; font-weight: 600; font-size: 13.5px; margin: 10px 0; }
+.hc-cover-say.ok { background: var(--c-ok-soft); color: var(--c-ok-ink); }
+.hc-cover-say.warn { background: var(--c-warn-soft); color: var(--c-warn-ink); }
+.hc-cover-say i { margin-top: 2px; }
+.hc-sub { margin: 10px 0 4px; font-size: 11.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--c-muted); }
+.hc-srcs { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 2px; }
+.hc-srcs li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 5px 8px; border-radius: 8px; font-size: 13.5px; }
+.hc-srcs li.ok i { color: var(--c-ok); }
+.hc-srcs li.miss { background: var(--c-warn-soft); }
+.hc-srcs li.miss i { color: var(--c-warn); }
+.hc-srcs form { margin: 0; }
+@media (max-width: 900px) {
+  .hc-two { grid-template-columns: minmax(0, 1fr); }
+  .hc-gaps li { grid-template-columns: minmax(0, 1fr) auto; }
+  .hc-gaps li .hc-missing { grid-column: 1 / -1; grid-row: 2; }
+}
+.tr-uncov { color: var(--c-warn-ink); font-weight: 700; }
+.ck-uncov { margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: var(--c-warn-soft); color: var(--c-warn-ink); font-size: 13.5px; font-weight: 600; }

@@ -103,6 +103,9 @@
     <div class="ta-pane" data-pane="checks">
       {% set ck = result.checks %}
       {% set due = ck.team|sum(attribute='due') %}{% set full = ck.team|sum(attribute='full') %}
+      {% if uncovered %}
+      <p class="ck-uncov"><i class="fa-solid fa-eye-slash"></i> {{ uncovered|length }} lead source{{ '' if uncovered|length == 1 else 's' }} people write or call us on {{ 'is' if uncovered|length == 1 else 'are' }} not on the check: {{ uncovered|map(attribute='short')|join(', ') }}. <a href="{{ crm_url('checks') }}#lead-sources">Put {{ 'it' if uncovered|length == 1 else 'them' }} on the check</a></p>
+      {% endif %}
       <div class="ck-cards">
         <div class="ck-card {{ '' if not due else ('ok' if full == due else ('due' if full >= due * 0.7 else 'bad')) }}">
           <b>{{ full }}<small> of {{ due }}</small></b><span>half hours had every inbox checked{{ ' · %d%%' % (100 * full / due)|round if due }} — the whole team</span></div>
@@ -123,7 +126,8 @@
           <span><i class="ck-sw gap"></i> working, nobody checked</span><span><i class="ck-sw off"></i> not working</span>
           <span><i class="ck-sw open"></i> not over yet</span>
         </div>
-        <div class="ck-people">
+        {# a day checked round the clock has 24 hours, an older one 17 (07:00 to midnight): the strips fit either #}
+        <div class="ck-people" style="--hours:{{ r.hours|length }};--slots:{{ 2 * r.hours|length }}">
           <div class="ck-axis" aria-hidden="true">{% for h in r.hours %}<span>{{ h }}</span>{% endfor %}</div>
           {% for p in r.people %}
           <details class="ck-person s-{{ p.status }}" data-u="{{ p.user.id }}">

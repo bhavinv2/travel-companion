@@ -175,7 +175,7 @@ MODULES = [
                admin='admin_crm.pipelines', tip='Stages and follow-ups for each product.'),
          _page('crm_sources', 'Lead sources', 'fa-door-open',
                _both('sources', 'save_source', 'save_process', 'setup', 'save_inboxes', 'save_activities',
-                     'source_tag_check', 'standard_inboxes', 'move_source'),
+                     'source_tag_check', 'standard_inboxes', 'move_source', 'check_add'),
                admin='admin_crm.sources', tip='The ways leads reach us, who gets them, the inboxes to check.'),
          _page('crm_targets', 'Targets', 'fa-bullseye', _both('targets', 'targets_save', 'targets_copy'),
                admin='admin_crm.targets', with_=('crm_tracker',), grant=True,

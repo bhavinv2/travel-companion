@@ -36,7 +36,8 @@
   <div class="card-head">
     <div class="t"><span class="ico"><i class="fa-solid fa-users"></i></span>
       <div><h2>{{ 'Today' if day == today else day.strftime('%A %d %B') }} — the team</h2>
-        <p class="muted small">Inbox check for the whole team: {{ '%d%%' % coverage.pct if coverage.pct is not none else 'not started yet' }} of half hours fully checked{% if coverage.missed %} · missed {{ coverage.missed|length }}{% endif %}</p></div></div>
+        <p class="muted small">Inbox check for the whole team: {{ '%d%%' % coverage.pct if coverage.pct is not none else 'not started yet' }} of half hours fully checked{% if coverage.missed %} · missed {{ coverage.missed|length }}{% if day == today %} · <a href="{{ crm_url('checks') }}#catch-up">catch up</a>{% endif %}{% endif %}
+          {%- if uncovered %} · <a class="tr-uncov" href="{{ crm_url('checks') }}#lead-sources"><i class="fa-solid fa-eye-slash"></i> {{ uncovered|length }} lead source{{ '' if uncovered|length == 1 else 's' }} not on the check</a>{% endif %}</p></div></div>
     <a class="cb sm" href="{{ crm_url('team_analysis', period='custom', start=day.isoformat(), end=day.isoformat(), tab='checks') }}"><i class="fa-solid fa-people-arrows"></i> Who checked what</a>
   </div>
   {% if team_note %}<p class="muted small">{{ team_note }}</p>{% endif %}

@@ -48,7 +48,7 @@ MANAGE = {'setup', 'pipelines', 'sources', 'connection', 'data', 'save_source', 
           'save_process', 'setup_templates', 'pipeline_new', 'pipeline_edit', 'pipeline_save', 'pipeline_active',
           'pipeline_tag_check', 'pipeline_tag', 'tag_check', 'save_product', 'product_offered', 'template_draft',
           'import_csv', 'import_csv_confirm', 'wa_contacts_import', 'wa_notes_import', 'save_inboxes',
-          'standard_inboxes', 'move_source',
+          'standard_inboxes', 'move_source', 'check_add',
           'save_activities', 'source_tag_check', 'export_leads', 'export_contacts', 'downloads', 'automatic', 'connection_checks',
           'connection_team', 'connection_retry', 'connection_settle', 'quick_replies_push', 'quick_replies_import', 'save_rates', 'targets', 'targets_save', 'targets_copy', 'insights_recalculate',
           'bin', 'bin_restore', 'bin_purge',
@@ -837,9 +837,11 @@ def tracker():
         names = sorted({t.name for t in _my_teams()})
         team_note = ('You see your own teams: %s.' % ', '.join(names)) if names else \
             'You are not in a team yet, so only your own day shows.'
+    from app.services import crm_sources
     return render_template('cs/crm/tracker.html', day=day, today=today_, sheet=sheet, staff=staff, person=person,
                            prev_day=day - timedelta(days=1), next_day=day + timedelta(days=1), nums=nums,
                            steps=steps, team_note=team_note, coverage=crm_reports.coverage(day, channels),
+                           uncovered=crm_sources.check_coverage(crm.crm_settings()['check_rows'])['missing'],
                            MANUAL=dict((k, crm_kpi.METRICS[k][0]) for k in crm_kpi.MANUAL), **_common())
 
 
@@ -886,7 +888,9 @@ def team_analysis():
             per['first'].isoformat(), per['last'].isoformat())
         return resp
     today_ = crm_reports.current()[0]
-    return render_template('cs/crm/team_analysis.html', per=per, periods=crm_team.PERIODS, groups=groups,
+    from app.services import crm_sources
+    uncovered = crm_sources.check_coverage(crm.crm_settings()['check_rows'])['missing']
+    return render_template('cs/crm/team_analysis.html', per=per, periods=crm_team.PERIODS, groups=groups, uncovered=uncovered,
                            picked=set(picked or seen), result=result, groups_def=crm_team.GROUPS, tip=crm_team.tip,
                            daily_def=crm_team.DAILY, today=today_, tab=request.args.get('tab') or 'scorecard',
                            channels=crm.crm_settings()['check_channels'], **_common())
@@ -2392,8 +2396,15 @@ def checks():
             w['short'] = _short_name(w['lead'].person)
             w['url'] = crm_url('lead', lead_id=w['lead'].id)
     icons = {r['name']: _inbox_icon(r.get('source_key')) for r in rows}
+    from app.services import crm_sources
+    ticks = crm_reports.grid(day)
+    # the day in numbers and by person (as Team analysis counts it), each inbox's leads and last look, and whether
+    # every lead source people write or call us on is on the check
+    report = crm_reports.check_report(day, crm_reports.visible_staff(current_user, _staff()), channels)
     return render_template('cs/crm/checks.html', day=day, today=today, now_slot=now_slot, auto=auto,
-                           channels=channels, ticks=crm_reports.grid(day), slots=crm_reports.slots(day),
+                           channels=channels, ticks=ticks, slots=crm_reports.slots(day), report=report,
+                           leads_by=crm_reports.leads_by_inbox(day, rows), last=crm_reports.last_ticks(ticks, channels),
+                           gap=crm_reports.longest_gap(day, channels, ticks), sources_cover=crm_sources.check_coverage(rows),
                            all_day=crm_reports.hours(day) == (0, 24),
                            label=crm_reports.slot_label, cov=crm_reports.coverage(day, channels),
                            editable=(day == today), can_tick=crm_reports.can_tick, icons=icons,
@@ -2417,6 +2428,26 @@ def _inbox_icon(source_key):
     if key == 'telegram':
         return 'fa-brands fa-telegram'
     return 'fa-solid fa-phone' if kind == 'call' else 'fa-solid fa-comments' if kind == 'chat' else 'fa-solid fa-inbox'
+
+
+@crm_bp.route('/checks/add', methods=['POST'])
+@cs_required
+@admin_only
+def check_add():
+    """The half-hourly check: put a lead source nobody watches on it ('key'), or every one ('all')."""
+    from app.services import crm_sources
+    rows = list(crm.crm_settings()['check_rows'])
+    wa_key = current_app.config.get('WACRM_SOURCE_KEY', 'wa-india')
+    missing = crm_sources.check_coverage(rows)['missing']
+    key = request.form.get('key')
+    add = missing if key == 'all' else [it for it in missing if it.key == key]
+    if add:
+        rows += [crm_sources.inbox_row(it, wa_key) for it in add]
+        crm.save_settings(current_user, check_channels=rows)
+        ActivityEvent.log('crm_inboxes_saved', actor=current_user, rows=len(rows), added=[it.key for it in add])
+        db.session.commit()
+        flash('On the check now: %s.' % ', '.join(it.short for it in add), 'success')
+    return redirect(crm_url('checks'))
 
 
 @crm_bp.route('/checks/tick', methods=['POST'])

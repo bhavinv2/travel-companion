@@ -1,5 +1,6 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_bits.html' import initials %}
 {% block crm_title %}Half-hourly check{% endblock %}
 {# The half-hourly check (routes/crm.checks): every half hour, day and night (07:00 to midnight on the days before
    CRM_CHECK_ALL_DAY_FROM; India time), somebody looks at each inbox and ticks it. Now: a big tile per inbox for this half hour (tap = ticked; it says who and when), and "I
@@ -22,14 +23,18 @@
     {% if day < today %}<a class="cb sm" href="{{ crm_url('checks', day=next_day.isoformat()) }}" aria-label="Next day"><i class="fa-solid fa-chevron-right"></i></a>
     <a class="cb sm ghost" href="{{ crm_url('checks') }}">Today</a>{% endif %}
   </form>
-  {% if CAN('crm_team') %}<a class="cb sm quiet" href="{{ crm_url('team_analysis', tab='checks') }}"><i class="fa-solid fa-people-arrows"></i> Who checked what</a>{% endif %}
+  <div class="hc-nav-r">
+    {% if editable %}<label class="hc-remind" title="A browser notice at the start of every half hour while this page is open">
+      <input type="checkbox" data-hc-remind/> <i class="fa-solid fa-bell"></i> Remind me each half hour</label>{% endif %}
+    {% if CAN('crm_team') %}<a class="cb sm quiet" href="{{ crm_url('team_analysis', tab='checks') }}"><i class="fa-solid fa-people-arrows"></i> Team analysis</a>{% endif %}
+  </div>
 </div>
 
 {% if editable and now_slot is not none %}
 {% set done_now = [] %}
 {% for ch in channels if (now_slot, ch) in ticks %}{% set _ = done_now.append(ch) %}{% endfor %}
 {% set all_done = done_now|length == channels|length %}
-<section class="hc-now{{ ' done' if all_done }}" data-checks>
+<section class="hc-now{{ ' done' if all_done }}" data-checks data-hc-live data-left="{{ left }}" data-slot-label="{{ label(now_slot + 1) if now_slot + 1 < 48 else '00:00' }}" data-all-done="{{ 1 if all_done else 0 }}">
   <div class="hc-now-head">
     <div class="hc-ring" style="--p:{{ (100 * done_now|length / channels|length)|round|int if channels else 0 }}" aria-hidden="true">
       <span><b>{{ done_now|length }}</b>/{{ channels|length }}</span>
@@ -49,6 +54,7 @@
       <span class="hc-ic"><i class="{{ icons.get(ch, 'fa-solid fa-inbox') }}" aria-hidden="true"></i></span>
       <span class="hc-name">{{ ch }}</span>
       <span class="hc-state">{% if t %}<i class="fa-solid fa-check"></i> {{ t.user.first_name or t.user.username if t.user else 'Ticked' }}{% if t.checked_at %} · {{ hm(t.checked_at) }}{% endif %}{% else %}Tap when looked at{% endif %}</span>
+      {% if leads_by.get(ch) %}<span class="hc-leads" title="Leads that came in today from {{ ch }}">{{ leads_by[ch] }} new lead{{ '' if leads_by[ch] == 1 else 's' }}</span>{% endif %}
     </button>
     {% endfor %}
   </div>
@@ -78,6 +84,33 @@
 </section>
 {% endif %}
 
+{# ---------------------------------------------------------------- the day in numbers #}
+<section class="hc-stats" aria-label="{{ 'Today' if day == today else day.strftime('%d %B') }} in numbers">
+  <div class="hc-stat {{ 'none' if report.pct is none else 'ok' if report.pct >= 90 else 'warn' if report.pct >= 60 else 'bad' }}">
+    <span>Fully checked</span><b>{{ '%d%%' % report.pct if report.pct is not none else '—' }}</b><small>{{ report.full }} of {{ report.due }} half hours</small></div>
+  <div class="hc-stat{{ ' bad' if report.gap_count else ' ok' }}"><span>Missed half hours</span><b>{{ report.gap_count }}</b>
+    <small>{% if gap and gap[2] > 1 %}longest gap {{ gap[0] }}–{{ gap[1] }}{% elif report.gap_count %}none longer than one{% else %}none so far{% endif %}</small></div>
+  <div class="hc-stat{{ ' warn' if report.late }}"><span>Ticked late</span><b>{{ report.late }}</b><small>after the half hour was over</small></div>
+  <div class="hc-stat"><span>People checking</span><b>{{ report.checking }}</b><small>ticked at least once</small></div>
+  <div class="hc-stat"><span>New leads</span><b>{{ leads_by.values()|sum if leads_by else 0 }}</b><small>from the checked inboxes</small></div>
+</section>
+
+{% if editable and report.gaps %}
+{# ---------------------------------------------------------------- catch up: what was missed today #}
+<section class="card hc-catch" id="catch-up" data-checks>
+  <div class="card-head"><div class="t"><span class="ico amber"><i class="fa-solid fa-clock-rotate-left"></i></span>
+    <div><h2>Catch up</h2><p class="muted small">Half hours today that are over and not fully checked. Look at what was missed, then tick it late: a late tick still counts.</p></div></div></div>
+  <ul class="hc-gaps">
+    {% for g in report.gaps[:8] %}
+    <li><b>{{ g.when }}</b>
+      <span class="hc-missing">{% if g.none %}Nothing was looked at{% else %}Not looked at: {{ g.missing|join(', ') }}{% endif %}</span>
+      {% if can_tick(day, g.slot) %}<button type="button" class="cb sm" data-tick-all data-slot="{{ g.slot }}"><i class="fa-solid fa-check-double"></i> I looked now</button>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% if report.gaps|length > 8 %}<p class="muted small">And {{ report.gaps|length - 8 }} earlier ones: tick them in the squares below.</p>{% endif %}
+</section>
+{% endif %}
+
 <section class="card hc-day">
   <div class="card-head">
     <div class="t"><span class="ico"><i class="fa-solid fa-table-cells"></i></span>
@@ -94,7 +127,10 @@
         {% for s in slots %}<th scope="col" class="{{ 'now' if editable and s == now_slot }}{{ ' hr' if s % 2 == 0 }}">{% if s % 2 == 0 %}{{ label(s)[:2] }}{% endif %}</th>{% endfor %}</tr></thead>
       <tbody>
       {% for ch in channels %}
-      <tr><th class="hc-who" scope="row"><i class="{{ icons.get(ch, 'fa-solid fa-inbox') }}" aria-hidden="true"></i> {{ ch }}</th>
+      {% set ib = report.inboxes[loop.index0] %}
+      {% set lt = last.get(ch) %}
+      <tr><th class="hc-who" scope="row"><span class="hc-who-n"><i class="{{ icons.get(ch, 'fa-solid fa-inbox') }}" aria-hidden="true"></i> {{ ch }}</span>
+        <small class="hc-who-s">{% if ib.due %}<i class="hc-bar" style="--p:{{ (100 * ib.done / ib.due)|round|int }}%"></i> {{ (100 * ib.done / ib.due)|round|int }}%{% endif %}{% if lt %} · last {{ hm(lt.checked_at) }}{% if lt.user %} {{ lt.user.first_name or lt.user.username }}{% endif %}{% endif %}{% if leads_by.get(ch) %} · {{ leads_by[ch] }} lead{{ '' if leads_by[ch] == 1 else 's' }}{% endif %}</small></th>
         {% for s in slots %}
         {% set t = ticks.get((s, ch)) %}
         {% set open = editable and can_tick(day, s) %}
@@ -116,6 +152,49 @@
   <p class="hc-key"><span><i class="tick on">✓</i> ticked</span><span><i class="tick miss">·</i> missed</span><span><i class="tick"></i> not yet</span>
     {% if cov.missed and day != today %}<span class="muted">Missed: {{ cov.missed|join(', ') }}</span>{% endif %}</p>
 </section>
+
+{% set checkers = report.people|selectattr('checked')|list %}
+<div class="hc-two">
+<section class="card hc-people">
+  <h3>Who checked</h3>
+  {% if checkers %}
+  <ul class="hc-ppl">
+    {% for p in checkers|sort(attribute='checked', reverse=true) %}
+    <li><span class="hc-av" aria-hidden="true">{{ initials(p.user.full_name) }}</span>
+      <span class="hc-pn"><b>{{ p.user.full_name }}</b><small>{{ p.checked }} half hour{{ '' if p.checked == 1 else 's' }} · {{ p.ticks }} tick{{ '' if p.ticks == 1 else 's' }}{% if p.late %} · {{ p.late }} late{% endif %}{% if p.bulk %} · "every inbox" {{ p.bulk }}×{% endif %}</small></span>
+      <span class="hc-pbar" aria-hidden="true"><i style="width:{{ (100 * p.checked / report.due)|round|int if report.due else 0 }}%"></i></span></li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">Nobody has ticked an inbox {{ 'yet today' if day == today else 'on this day' }}.</p>{% endif %}
+</section>
+
+<section class="card hc-cover" id="lead-sources">
+  <h3>Are all lead sources on the check?</h3>
+  {% set nmiss = sources_cover.missing|length %}
+  <p class="hc-cover-say {{ 'ok' if not nmiss else 'warn' }}">{% if not nmiss %}<i class="fa-solid fa-circle-check"></i> Yes: every call, chat and social inbox on the lead sources is watched.{% else %}<i class="fa-solid fa-triangle-exclamation"></i> {{ nmiss }} lead source{{ '' if nmiss == 1 else 's' }} people write or call us on {{ 'is' if nmiss == 1 else 'are' }} not on the check.{% endif %}</p>
+  {% for g in sources_cover.groups %}
+  <p class="hc-sub"><i class="fa-solid {{ g.icon }}" aria-hidden="true"></i> {{ g.name }}</p>
+  <ul class="hc-srcs">
+    {% for x in g['items'] %}
+    <li class="{{ 'ok' if x.rows else 'miss' }}">
+      <i class="fa-solid {{ 'fa-circle-check' if x.rows else 'fa-circle-xmark' }}" aria-hidden="true"></i>
+      <span>{{ x.item.short }}{% if x.rows %} <small class="muted">· {{ x.rows|join(', ') }}</small>{% endif %}</span>
+      {% if not x.rows and CAN('crm_sources') %}
+      <form method="POST" action="{{ crm_url('check_add') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="hidden" name="key" value="{{ x.item.key }}"/><button class="cb sm">Add</button></form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+  {% if sources_cover.extra %}<p class="muted small">Also on the check: {{ sources_cover.extra|join(', ') }}.</p>{% endif %}
+  {% if nmiss > 1 and CAN('crm_sources') %}
+  <form method="POST" action="{{ crm_url('check_add') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <input type="hidden" name="key" value="all"/><button class="cb sm primary"><i class="fa-solid fa-plus"></i> Add all {{ nmiss }}</button></form>
+  {% endif %}
+  <p class="muted small">Forms on the websites, imports and references come in by themselves: nothing to check.</p>
+</section>
+</div>
 
 <section class="card hc-week">
   <h3>The last seven days</h3>

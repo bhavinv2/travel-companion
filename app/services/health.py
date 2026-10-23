@@ -366,12 +366,26 @@ def _system(r):
                             note=('%s to look at' % _plural(stuck, 'message')) if stuck else
                             ('connected' if mode != 'off' else 'the portal does not use WhatsApp yet'),
                             alert='%s on WhatsApp need a look' % _plural(stuck, 'message'), icon='fa-brands fa-whatsapp'))
+        from app.services import crm_sources
         checks = crm.crm_settings()['check_channels']
         done = crm_reports.current_slot_done(checks)
+        cov = crm_reports.coverage(r.today, checks)
         tiles.append(r.tile(area, 'Half-hourly check', 'Ticked' if done else 'Not ticked', r.url('crm_checks'),
-                            state='ok' if done else 'warn', note='this half hour (or outside working hours)'
-                            if done else "this half hour's inboxes",
+                            state='ok' if done else 'warn',
+                            note=('this half hour' + ('; today %d%% fully checked' % cov['pct'] if cov['pct'] is not None else '')),
                             alert="This half hour's inboxes are not ticked", icon='fa-clipboard-check'))
+        missed = len(cov['missed'])
+        tiles.append(r.tile(area, 'Half hours missed today', missed, r.url('crm_checks'), state='warn' if missed else 'ok',
+                            note='not every inbox looked at' if missed else 'none so far',
+                            alert='%s missed on the half-hourly check today' % _plural(missed, 'half hour'),
+                            icon='fa-clock-rotate-left'))
+        uncovered = crm_sources.check_coverage(crm.crm_settings()['check_rows'])['missing']
+        tiles.append(r.tile(area, 'Lead sources nobody checks', len(uncovered), r.url('crm_checks'),
+                            state='warn' if uncovered else 'ok',
+                            note=', '.join(it.short for it in uncovered[:3]) or 'every call, chat and social inbox is on the check',
+                            alert='%s not on the half-hourly check: %s' % (_plural(len(uncovered), 'lead source'),
+                                                                         ', '.join(it.short for it in uncovered)),
+                            icon='fa-eye-slash'))
         unrouted = CrmSource.query.filter_by(status='unrouted').count()
         tiles.append(r.tile(area, 'Lead sources not set up', unrouted, r.url('crm_sources'),
                             state='warn' if unrouted else 'ok',

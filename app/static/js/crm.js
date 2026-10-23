@@ -1299,6 +1299,29 @@
     });
   });
 
+  /* -------------------------------------------------------------- the check, live: a new half hour draws the page
+     again; with "Remind me each half hour" (this browser) a browser notice says so too */
+  var hcLive = document.querySelector('[data-hc-live]');
+  var hcRemind = document.querySelector('[data-hc-remind]');
+  var REMIND = 'crm-check-remind';
+  var reminding = function () { try { return localStorage.getItem(REMIND) === '1'; } catch (e) { return false; } };
+  if (hcRemind) {
+    hcRemind.checked = reminding();
+    hcRemind.addEventListener('change', function () {
+      try { localStorage.setItem(REMIND, hcRemind.checked ? '1' : '0'); } catch (e) { /* private window */ }
+      if (hcRemind.checked && window.Notification && Notification.permission === 'default') Notification.requestPermission();
+    });
+  }
+  if (hcLive) {
+    var untilNext = (+hcLive.dataset.left || 30) * 60000 - new Date().getSeconds() * 1000;
+    setTimeout(function () {
+      if (reminding() && window.Notification && Notification.permission === 'granted') {
+        new Notification('Half-hourly check · ' + hcLive.dataset.slotLabel, { body: 'A new half hour: look at each inbox and tick it.' });
+      }
+      location.reload();
+    }, Math.max(untilNext, 5000) + 2000);
+  }
+
   /* -------------------------------------------------------------- slow forms say they are working */
   document.querySelectorAll('form[data-busy]').forEach(function (f) {
     f.addEventListener('submit', function () {

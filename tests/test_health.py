@@ -12,7 +12,7 @@
     Check         the Half-hourly check is a menu line again, with big tiles for this half hour
 """
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from conftest import login, make_user
 from app import db as _db
@@ -79,9 +79,12 @@ def test_a_site_owner_lands_on_health_and_it_says_what_needs_somebody(app, clien
 
 
 def test_health_with_nothing_waiting_says_all_good(app, client, admin_user, monkeypatch):
-    from app.services import crm_reports
+    from app.services import crm_reports, crm_sources
     monkeypatch.setattr(crm_reports, 'current_slot_done', lambda channels: True)     # whatever the time of day
+    monkeypatch.setattr(crm_reports, 'coverage', lambda day, channels: {'done': 4, 'due': 4, 'missed': [], 'pct': 100})
     access.ensure_defaults()
+    crm.save_settings(admin_user, check_channels=crm_sources.standard_inboxes())        # every lead source watched
+    _db.session.commit()
     login(client, admin_user.email)
     assert health.build(admin_user, 30)['attention'] == []
     text = words(client.get('/admin/health').get_data(as_text=True))
@@ -303,3 +306,70 @@ def test_the_switch_moves_every_shown_time_and_a_typed_one(app, client, admin_us
         assert crm_tasks.input_value(datetime(2026, 12, 1, 15, 0)) == '2026-12-01T20:30'      # India by default
     page = client.get('/admin/crm/lead/%d' % lead.id).get_data(as_text=True)
     assert ' EST' in page or ' EDT' in page                                  # "came in …" says its zone
+
+
+# ================================================================================================ the check, advanced
+
+def test_the_check_says_which_lead_sources_nobody_watches_and_adds_them(app, client, admin_user, monkeypatch):
+    from app.services import crm_reports, crm_sources
+    monkeypatch.setattr(crm_reports, 'ist_now', lambda: datetime(2026, 10, 12, 10, 18))
+    crm.ensure_defaults()
+    access.ensure_defaults()
+    login(client, admin_user.email)
+    rows = crm.crm_settings()['check_rows']
+    missing = [it.key for it in crm_sources.check_coverage(rows)['missing']]
+    assert 'canada-chat' in missing and 'wa-india-call' in missing and 'meta' not in missing     # Messenger watches Meta
+    html = client.get('/admin/crm/checks').get_data(as_text=True)
+    assert 'Are all lead sources on the check?' in html and 'not on the check' in html and 'Email' in html  # an extra
+    client.post('/admin/crm/checks/add', data={'key': 'canada-chat'})
+    rows = crm.crm_settings()['check_rows']
+    assert any(r['source_key'] == 'canada-chat' for r in rows)
+    client.post('/admin/crm/checks/add', data={'key': 'all'})
+    assert crm_sources.check_coverage(crm.crm_settings()['check_rows'])['missing'] == []
+    html = client.get('/admin/crm/checks').get_data(as_text=True)
+    assert 'Yes: every call, chat and social inbox on the lead sources is watched.' in html
+
+
+def test_the_check_shows_the_day_in_numbers_catch_up_who_checked_and_leads_per_inbox(app, client, admin_user, cs_user, monkeypatch):
+    from app.models import CrmChannelCheck
+    from app.services import crm_reports
+    monkeypatch.setattr(crm_reports, 'CRM_CHECK_ALL_DAY_FROM', date.max)                   # 07:00 to midnight
+    monkeypatch.setattr(crm_reports, 'ist_now', lambda: datetime(2026, 10, 12, 9, 10))    # 07:00 to 08:30 are over
+    access.ensure_defaults()
+    channels = crm.crm_settings()['check_channels']
+    day = date(2026, 10, 12)
+    for ch in channels:                                                                    # 07:00 fully, by the agent
+        _db.session.add(CrmChannelCheck(day=day, slot=14, channel=ch, user_id=cs_user.id,
+                                        checked_at=datetime(2026, 10, 12, 1, 35)))
+    _db.session.commit()
+    lead = crm.capture('tawk', name='Tawk Tara', phone='+919811100001', utm={})
+    lead.created_at = datetime(2026, 10, 12, 2, 0)
+    _db.session.commit()
+    login(client, admin_user.email)
+    html = client.get('/admin/crm/checks').get_data(as_text=True)
+    text = words(html)
+    assert 'Fully checked' in text and '25%' in text and 'Missed half hours 3' in text        # 1 of 4
+    assert 'longest gap 07:30–09:00' in text
+    assert 'Catch up' in text and html.count('data-tick-all data-slot="1') >= 3            # 07:30, 08:00, 08:30
+    assert 'Who checked' in text and cs_user.full_name in text and '1 half hour' in text
+    assert re.search(r'Tawk</span>\s*<small class="hc-who-s">.*?1 lead', html, re.S)
+    assert 'Remind me each half hour' in text
+
+
+def test_the_trackers_say_what_the_check_missed_and_which_lead_sources_nobody_checks(app, client, admin_user, monkeypatch):
+    from app.services import crm_reports
+    monkeypatch.setattr(crm_reports, 'CRM_CHECK_ALL_DAY_FROM', date.max)
+    monkeypatch.setattr(crm_reports, 'ist_now', lambda: datetime(2026, 10, 12, 9, 10))    # 07:00 to 08:30 missed
+    access.ensure_defaults()
+    crm.ensure_defaults()
+    login(client, admin_user.email)
+    page = health.build(admin_user, 30, now=datetime(2026, 10, 12, 3, 40))             # the same moment, in UTC
+    said = [a['text'] for a in page['attention']]
+    assert '4 half hours missed on the half-hourly check today' in said
+    assert any(t.startswith('3 lead sources not on the half-hourly check: ') and 'Canada number · chat' in t for t in said)
+    today = words(client.get('/admin/crm/today').get_data(as_text=True))
+    assert 'Catch up: 4 missed' in today
+    tracker = client.get('/admin/crm/tracker').get_data(as_text=True)
+    assert '3 lead sources not on the check' in words(tracker) and '#lead-sources' in tracker
+    analysis = words(client.get('/admin/crm/analysis?tab=checks').get_data(as_text=True))
+    assert 'not on the check: WhatsApp India · call, Canada number · chat, Canada number · call' in analysis
