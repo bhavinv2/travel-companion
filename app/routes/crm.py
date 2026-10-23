@@ -484,60 +484,69 @@ def board():
     defaults = (not only_ids and owner == owner_default and not chat
                 and win == '30' and not q and not stage_id and not money_filter and not extra.get('status')
                 and not follow and not quoted and not (more['dr'] or more['src'] or more['lk'] or more['how']))
-    # every filter that is on, as a chip that takes it off (the panel can be hidden)
+    # every filter that is on, as (its pill on the filter bar, what it says, the link that takes it off)
     chips = []
     if q:
-        chips.append(('Find: “%s”' % q, link(q=None, page=None)))
+        chips.append(('q', 'Find: “%s”' % q, link(q=None, page=None)))
     if owner != owner_default:
         who = {'mine': 'Mine', 'all': 'Anyone', 'none': 'Not given to anyone'}.get(owner)
         if who is None:
             who = next((u.full_name for u in staff if str(u.id) == owner), 'Someone')
-        chips.append(('Looked after by: ' + who, link(owner=owner_default, page=None)))
+        chips.append(('owner', 'Looked after by: ' + who, link(owner=owner_default, page=None)))
     if stage_id and pipe is not None:
         st_name = next((s.name for s in pipe.stages if s.id == stage_id), None)
         if st_name:
-            chips.append(('Stage: ' + st_name, link(stage=None, page=None)))
+            chips.append(('stage', 'Stage: ' + st_name, link(stage=None, page=None)))
     if chat:
-        chips.append((dict(CHAT_FILTERS)[chat], link(chat='', page=None)))
+        chips.append(('chat', dict(CHAT_FILTERS)[chat], link(chat='', page=None)))
     if more['dr']:
-        chips.append((crm.date_words_text(more), link(dr=None, d1=None, d2=None, page=None)))
+        chips.append(('date', crm.date_words_text(more), link(dr=None, d1=None, d2=None, page=None)))
     if more['lk']:
-        chips.append((CRM_LIKELIHOOD[more['lk']], link(lk=None, page=None)))
+        chips.append(('lk', CRM_LIKELIHOOD[more['lk']], link(lk=None, page=None)))
     sources = _lead_sources(pipe, more['src'])
     if more['src']:
         from app.services import crm_sources
         src_name = ('Not known' if more['src'] == 'none' else
                     'all ' + crm_sources.group_name(more['src'][2:])[0].lower() if more['src'].startswith('g:') else
                     next((source_name(s.name) for s in sources if str(s.id) == more['src']), 'A removed source'))
-        chips.append(('Came from: ' + src_name, link(src=None, page=None)))
+        chips.append(('src', 'Came from: ' + src_name, link(src=None, page=None)))
     if more['how']:
         from app.services import crm_sources
-        chips.append(('How it came: ' + crm_sources.ORIGIN[more['how']][0], link(how=None, page=None)))
+        chips.append(('how', 'How it came: ' + crm_sources.ORIGIN[more['how']][0], link(how=None, page=None)))
     if closes:
-        chips.append(('Closes in ' + (crm_money.month_label(closes) if crm_money.PERIOD_RE.match(closes) else closes.upper()),
+        chips.append(('closes', 'Closes in ' + (crm_money.month_label(closes) if crm_money.PERIOD_RE.match(closes) else closes.upper()),
                       link(closes=None, page=None)))
     if fc:
-        chips.append(('Counts as: ' + CRM_FORECASTS[fc], link(forecast=None, page=None)))
+        chips.append(('forecast', 'Counts as: ' + CRM_FORECASTS[fc], link(forecast=None, page=None)))
     if no_value:
-        chips.append(('No value yet', link(no_value=None, page=None)))
+        chips.append(('money', 'No value yet', link(no_value=None, page=None)))
     if no_close:
-        chips.append(('No close date', link(no_close=None, page=None)))
+        chips.append(('money', 'No close date', link(no_close=None, page=None)))
     if only_ids:
-        chips.append(('Only the %d leads that were not moved' % len(only_ids), link(ids=None, page=None)))
+        chips.append(('ids', 'Only the %d leads that were not moved' % len(only_ids), link(ids=None, page=None)))
     if follow:
-        chips.append(({'late': 'Follow-up is late', 'today': 'Follow-up due today',
+        chips.append(('follow', {'late': 'Follow-up is late', 'today': 'Follow-up due today',
                        'none': 'Nothing planned'}[follow], link(follow=None, page=None)))
     if quoted:
-        chips.append(('Quote sent this week', link(quoted=None, page=None)))
+        chips.append(('follow', 'Quote sent this week', link(quoted=None, page=None)))
     if extra.get('status'):
-        chips.append(({'open': 'Still open', 'won': 'Won', 'lost': 'Lost'}[extra['status']],
+        chips.append(('status', {'open': 'Still open', 'won': 'Won', 'lost': 'Lost'}[extra['status']],
                       link(status=None, page=None)))
+    # the filter bar: each pill that is on says what it holds and has one link that takes it all off
+    pills = {}
+    for key, text, href in chips:
+        pill = pills.setdefault(key, {'text': [], 'off': href})
+        pill['text'].append(text.split(': ', 1)[1] if key in ('owner', 'stage', 'src', 'how') else text)
+    if 'follow' in pills:
+        pills['follow']['off'] = link(follow=None, quoted=None, page=None)
+    if 'money' in pills:
+        pills['money']['off'] = link(no_value=None, no_close=None, page=None)
     return render_template('cs/crm/board.html', pipelines=pipelines, pipe=pipe, p_key=p_key, counts=counts,
                            columns=columns, cards=cards, listing=listing, reach=reach, view=view,
                            view_auto=view_auto, owner=owner, chat=chat, win=win, q=q, stage_id=stage_id,
                            staff=staff, owner_options=crm_access.limit_users(current_user, staff),
                            staff_json=[[0, crm.NOBODY]] + [[u.id, u.full_name] for u in staff],
-                           hidden_n=len(hidden), link=link, filters_on=not defaults, filter_chips=chips,
+                           hidden_n=len(hidden), link=link, filters_on=not defaults, filter_chips=chips, pills=pills,
                            CHAT_FILTERS=CHAT_FILTERS, can_bulk=access.can(current_user, 'crm_tracker'),
                            can_broadcast=can_broadcast, can_export=access.can(current_user, 'crm_export'),
                            view_params=view_params, export_args=export_args,

@@ -129,7 +129,6 @@ textarea, input, select, button { font-family: inherit; }
 .nav-cal.active { background: rgba(255,255,255,0.16); color: #fff; }
 @media (max-width: 760px) {
   .tz-btn { padding: 6px 8px; gap: 0; } .tz-btn .tz-caret, .tz-btn .fa-clock { display: none; }
-  .nav-cal { display: none; }            /* a phone reaches the Calendar from the menu and Leads */
   .navbar .nav-right { gap: 6px; }
   .nav-right .site-sw-caret { display: none; }
   .nav-right .site-sw-btn { padding: 7px 10px; }

@@ -4,7 +4,7 @@
     fewest        whoever has the fewest open leads (NULL meant this until 2026-10-23)
     round robin   in turn, remembering the last person (CrmSource.rr_last_user_id)
     away          nobody who is away gets a new lead, in either mode; everyone away -> the normal rule, said on the lead
-    screens       the source form, the account menu ("I'm away until" / "I'm back"), the Users side panel
+    screens       the source form and the Users side panel (the account menu's away form went on 2026-10-24)
     never         a customer is not messaged by any of this
 """
 from datetime import datetime, timedelta
@@ -172,26 +172,14 @@ def test_the_source_form_saves_how_to_share(app, client, team, admin_user):
     assert _db.session.get(CrmSource, src.id).assign_mode is None
 
 
-def test_the_account_menu_sets_away_and_back(app, client, team):
+def test_the_account_menu_has_no_away_form(app, client, team):
+    """The "I'm away until" form left the account menu (user, 2026-10-24): an admin marks somebody away on the Users
+    panel (below)."""
     users, src = team
-    me = users[1]
-    login(client, me.email)
-    tomorrow = (datetime.utcnow() + timedelta(days=4) + timedelta(hours=5, minutes=30)).strftime('%Y-%m-%d')
+    login(client, users[1].email)
     page = client.get('/cs/crm/today').get_data(as_text=True)
-    assert "I'm away until" in page or "I&#39;m away until" in page
-    r = client.post('/away', data={'until': tomorrow}, follow_redirects=True)
-    assert r.status_code == 200
-    _db.session.expire_all()
-    m = WorkspaceMember.query.filter_by(user_id=me.id).one()
-    assert m.away_until is not None and m.away_until > datetime.utcnow()
-    assert crm_assign.away_until(me) is not None
-    assert "I'm back" in client.get('/cs/crm/today').get_data(as_text=True) or "I&#39;m back" in client.get('/cs/crm/today').get_data(as_text=True)
-    # a day in the past is refused
-    r = client.post('/away', data={'until': '2001-01-01'}, follow_redirects=True)
-    assert m.away_until is not None
-    client.post('/away', data={'back': '1'})
-    _db.session.expire_all()
-    assert WorkspaceMember.query.filter_by(user_id=me.id).one().away_until is None
+    assert 'away-form' not in page and "away until" not in page.replace('&#39;', "'")
+    assert client.post('/away', data={'back': '1'}).status_code in (404, 405)
 
 
 def test_an_admin_marks_somebody_away_from_the_users_panel(app, client, team, admin_user):

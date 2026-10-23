@@ -332,24 +332,6 @@
               </div>
             </div>
             {% endif %}{% endif %}
-            {# Away: no new leads are shared with a person who is away (services/crm_assign) #}
-            {% if is_staff %}{% set away = AWAY_UNTIL() %}
-            <div class="dd-section">
-              <span class="dd-label">Leads</span>
-              <form method="post" action="{{ url_for('main.set_away') }}" class="away-form">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                <input type="hidden" name="next" value="{{ here() }}"/>
-                {% if away %}
-                <small>Away until {{ LOCAL(away).strftime('%d %b') }}. No new leads come to you.</small>
-                <button type="submit" name="back" value="1"><i class="fa-solid fa-person-walking-arrow-loop-left"></i> I'm back</button>
-                {% else %}
-                <label for="away-until"><small>I'm away until</small></label>
-                <input type="date" id="away-until" name="until" min="{{ AWAY_MIN() }}" required/>
-                <button type="submit"><i class="fa-solid fa-plane-departure"></i> Set away</button>
-                {% endif %}
-              </form>
-            </div>
-            {% endif %}
             <div class="dd-menu">
             {% if is_staff %}
               <a href="{{ url_for('main.notification_settings') }}"><i class="fa-solid fa-bell"></i> {{ _('Notification settings') }}</a>
@@ -537,6 +519,10 @@
       if (lang && lang !== 'en') document.cookie = 'googtrans=/en/' + lang + '; path=/';
       location.reload();
     }
+    // "How this works" (page_head): a click anywhere else closes it
+    document.addEventListener('click', function (e) {
+      document.querySelectorAll('details.help-pop[open]').forEach(function (d) { if (!d.contains(e.target)) d.open = false; });
+    });
     // the clock switch: a cookie for a year, then the page again in that zone (services/clock.py)
     (function () {
       var dd = document.getElementById('tzDD');

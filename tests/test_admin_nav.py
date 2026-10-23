@@ -51,8 +51,8 @@ def test_the_right_line_is_lit_for_a_shared_screen(app):
         ('/admin/voices?tab=contact', 'voices_contact'),
         ('/admin/voices?tab=feedback', 'voices_feedback'),
         ('/cs/voices?tab=report', 'voices_report'),
-        ('/admin/help?site=insurance', 'help_insurance'),
-        ('/admin/help', 'help'),
+        ('/admin/help?site=insurance', 'guide'),          # the Help & FAQ pages light the one Help centre line
+        ('/admin/help', 'guide'),
         ('/cs/crm/today', 'crm_today'),
         ('/admin/crm/lead/1', 'crm_board'),
     ]

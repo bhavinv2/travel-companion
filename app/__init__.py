@@ -633,7 +633,6 @@ def create_app(test_config=None):
         from app.services import (access, ads, analytics, contact_form, cs_access,
                                   insurance_countries, nav_badges, nri_services, offices, phone,
                                   portals, products, urls, wacrm_team, whats_new)
-        from app.services import crm_assign
         return {
             # Site-wide GA4 / GTM / second Ads account / Search Console verification -- see
             # app/services/analytics.py and _analytics.html. ADS_ACCOUNT_ID reuses ads.py's own
@@ -661,8 +660,6 @@ def create_app(test_config=None):
             'WA_NUMBER': lambda ws: wacrm_team.number_of(ws),
             # the account menu's "Working as": the roles one can take, and the one taken (None: everything)
             'ROLE_CHOICES': lambda: access.roles_to_act(current_user),
-            'AWAY_UNTIL': lambda: crm_assign.away_until(current_user),
-            'AWAY_MIN': lambda: (datetime.utcnow() + timedelta(days=1, hours=5, minutes=30)).strftime('%Y-%m-%d'),
             'IST_OFFSET': timedelta(hours=5, minutes=30),
             'ACTING': lambda: access.acting_role(current_user),
             'CS_ACCESS': cs_access,

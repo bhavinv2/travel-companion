@@ -9,14 +9,18 @@
 {%- endif %}
 {%- endmacro %}
 
-{# The Leads view switch: Board / List / Flow / How we sell, and the Calendar. The two that are the board page itself
-   come with their own addresses (the page keeps its filters); the others are their own pages. #}
+{# The Leads view switch: Board / List in words (the board page itself, with its own addresses: the page keeps its
+   filters), then Flow, How we sell and the Calendar as icons -- each its own page, named in its tooltip. #}
 {% macro leads_switch(active, board_href=none, list_href=none) -%}
+<div class="leads-views">
 <div class="seg" role="group" aria-label="How to look at the leads">
   {%- if board_href and CAN('crm_board') %}<a class="{{ 'on' if active == 'board' }}" href="{{ board_href }}">Board</a>{% endif %}
   {%- if list_href and CAN('crm_board') %}<a class="{{ 'on' if active == 'list' }}" href="{{ list_href }}">List</a>{% endif %}
-  {%- if CAN('crm_flow') %}<a class="{{ 'on' if active == 'flow' }}" href="{{ crm_url('flow') }}">Flow</a>{% endif %}
-  {%- if CAN('crm_process') %}<a class="{{ 'on' if active == 'process' }}" href="{{ crm_url('process') }}">How we sell</a>{% endif %}
-  {%- if CAN('crm_calendar') %}<a href="{{ crm_url('calendar', view='week') }}" title="The leads' tasks, calls, meetings and follow-ups by day"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i> Calendar</a>{% endif %}
+</div>
+<nav class="ic-views" aria-label="More ways to look at the leads">
+  {%- if CAN('crm_flow') %}<a class="ic-btn{{ ' on' if active == 'flow' }}" href="{{ crm_url('flow') }}" title="Flow: every step from first message to won or lost" aria-label="Flow"{% if active == 'flow' %} aria-current="page"{% endif %}><i class="fa-solid fa-diagram-project" aria-hidden="true"></i></a>{% endif %}
+  {%- if CAN('crm_process') %}<a class="ic-btn{{ ' on' if active == 'process' }}" href="{{ crm_url('process') }}" title="How we sell: our sales path per product" aria-label="How we sell"{% if active == 'process' %} aria-current="page"{% endif %}><i class="fa-solid fa-route" aria-hidden="true"></i></a>{% endif %}
+  {%- if CAN('crm_calendar') %}<a class="ic-btn" href="{{ crm_url('calendar', view='week') }}" title="Calendar: the leads' tasks, calls, meetings and follow-ups by day" aria-label="Calendar"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i></a>{% endif %}
+</nav>
 </div>
 {%- endmacro %}

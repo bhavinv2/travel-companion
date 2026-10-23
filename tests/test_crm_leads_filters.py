@@ -1,15 +1,15 @@
-"""Leads' filter panel: the filters moved from the row above the board into a panel on the right, and gained
-a date (came in, last activity, closes, travels on; ready-made ranges in India days or picked dates), where
-they came from, how likely, and "Nothing planned".
+"""Leads' filters: a bar above the board and the list (2026-10-24; before that a panel on the right) -- the search,
+then a pill per filter, each a short menu: a date (came in, last activity, closes, travels on; ready-made ranges in
+India days or picked dates), where they came from, how likely, "Nothing planned" and the rest.
 
-    panel      the board and the list draw it on the right; the old row above the board is gone
+    bar        the board and the list draw it above the leads; no panel on the right
     date       each date and range finds the right leads; India midnight is the edge of a day; picked dates
                count both days in either order; a range the date does not have is dropped; a date range shows
                won and lost leads older than 30 days
     more       came from (a source or "Not known"), how likely, nothing planned
-    chips      every filter that is on is a chip that takes it off; the Filters button counts them
+    chips      every filter that is on lights its pill, which says what it holds and has an × that takes it off
     carried    Download this list and Save this view carry the new words; a saved range stays rolling
-    remembered "Any" chat beats the remembered chat; Clear filters keeps the product and Board / List
+    remembered "Any" chat beats the remembered chat; Clear all keeps the product and Board / List
 """
 import csv
 import io
@@ -63,8 +63,15 @@ def shown(html, *names):
 
 
 def chips(html):
-    m = re.search(r'<p class="active-filters"[^>]*>(.*?)</p>', html, re.S)
-    return words(m.group(1)) if m else ''
+    """What the pills that are on say, and Clear all (the filter bar)."""
+    said = re.findall(r'<b class="fp-v">([^<]*)</b>', html) + re.findall(r'class="chip on rm fb-chip"[^>]*>([^<]*)<', html)
+    return ' | '.join(said + (['Clear all'] if 'class="fb-clear"' in html else []))
+
+
+def off_link(html, said):
+    """The × that takes off the pill saying `said`."""
+    return re.search(r'href="([^"]*)" title="Remove this filter" aria-label="Remove: %s"' % re.escape(said),
+                     html).group(1).replace('&amp;', '&')
 
 
 def today_ist():
@@ -73,17 +80,17 @@ def today_ist():
 
 # ====================================================================================== the panel
 
-def test_the_filters_are_a_panel_on_the_right_of_the_board_and_the_list(app, client, admin_user):
+def test_the_filters_are_a_bar_above_the_board_and_the_list(app, client, admin_user):
     mk('Panel Pia', '+919876610001', admin_user)
     as_user(client, admin_user)
     for view in ('board', 'list'):
         html = client.get('/admin/crm/?view=%s' % view).get_data(as_text=True)
-        assert 'id="leads-side"' in html and 'data-lf-form' in html and 'crm-filters.js' in html, view
-        assert 'toolbar leads-filters' not in html and 'quick-filters' not in html, view
-        # the leads first, then the panel: it sits on their right
-        assert html.index('class="leads-main"') < html.index('id="leads-side"')
+        assert 'class="fb"' in html and 'data-lf-form' in html and 'crm-filters.js' in html, view
+        assert 'id="leads-side"' not in html and 'toolbar leads-filters' not in html, view
+        # the bar, then the leads under it
+        assert html.index('data-lf-form') < html.index('class="crm-legend"')
         for group in ('Looked after by', 'Date', 'Status', 'Follow-up', 'Chat', 'How likely', 'Came from', 'Money'):
-            assert '>%s<' % group in html, (view, group)
+            assert '<span class="fp-l">%s</span>' % group in html, (view, group)
 
 
 # ====================================================================================== date
@@ -185,11 +192,11 @@ def test_every_filter_on_is_a_chip_and_goes_with_the_download_and_a_saved_view(a
     as_user(client, admin_user)
     html = client.get('/admin/crm/?p=all&view=list&owner=all&dr=7d&lk=warm&follow=none&q=Chip').get_data(as_text=True)
     on = chips(html)
-    for chip in ('Came in: Last 7 days', 'Thinking about it', 'Nothing planned', 'Find: “Chip”', 'Clear filters'):
+    for chip in ('Came in: Last 7 days', 'Thinking about it', 'Nothing planned', 'Clear all'):
         assert chip in on, chip
-    assert re.search(r'class="lf-n"[^>]*>(\d+)<', html).group(1) == '4'
-    # each chip takes its own filter off and leaves the others
-    rm = re.search(r'href="([^"]*)"[^>]*title="Remove this filter">Thinking about it', html).group(1).replace('&amp;', '&')
+    assert 'value="Chip"' in html and html.count('class="fp on"') + html.count('class="fp on wide"') == 3
+    # each pill's × takes its own filter off and leaves the others
+    rm = off_link(html, 'Thinking about it')
     assert 'lk=' not in rm and 'dr=7d' in rm and 'follow=none' in rm
     href = re.search(r'href="([^"]*export/leads[^"]*)"', html).group(1).replace('&amp;', '&')
     assert 'dr=7d' in href and 'lk=warm' in href and 'follow=none' in href
@@ -212,9 +219,9 @@ def test_any_chat_beats_the_remembered_chat_and_clear_filters_keeps_the_product_
     as_user(client, admin_user)
     client.get('/admin/crm/?p=all&view=list&chat=waiting&owner=none')
     html = client.get('/admin/crm/').get_data(as_text=True)                  # remembered for the session
-    assert 'Waiting on us' in chips(html) and 'Looked after by: Not given to anyone' in chips(html)
+    assert 'Waiting on us' in chips(html) and 'Not given to anyone' in chips(html)
     # the chip that takes the chat off says "any chat" out loud, so the remembered one does not come back
-    rm = re.search(r'href="([^"]*)"[^>]*title="Remove this filter">Waiting on us', html).group(1).replace('&amp;', '&')
+    rm = off_link(html, 'Waiting on us')
     assert 'chat=&' in rm or rm.endswith('chat=')
     client.get(rm)
     assert 'Waiting on us' not in chips(client.get('/admin/crm/').get_data(as_text=True))

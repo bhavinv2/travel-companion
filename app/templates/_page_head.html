@@ -1,5 +1,5 @@
 {# The same header on every page (design section 3.2 / E0): an h1 with its icon, one helper line,
-   "(?) How this works" (3-5 lines), at most one filled button, other actions under "⋯ More".
+   "How this works" as a ? beside it (3-5 lines, opening over the page), at most one filled button, other actions under "⋯ More".
    icon: the full class, e.g. 'fa-solid fa-sun' or 'fa-brands fa-whatsapp'. help: a list of lines
    (or one string). primary: {'label', 'href', 'icon'?}. more: a list of {'label', 'href', 'icon'?,
    'danger'?}. full_screen: the quiet button that hides the menus (crm.js, data-focus). switch: two screens of one
@@ -8,12 +8,17 @@
 <header class="ui-head{{ ' has-switch' if switch }}">
   <div class="ui-head-text">
     <h1 class="ui-title"><i class="{{ icon }}" aria-hidden="true"></i> {{ title }}</h1>
-    {%- if helper %}<p class="ui-helper">{{ helper }}</p>{% endif %}
-    {%- if help %}
-    <details class="help-fold">
-      <summary>(?) How this works</summary>
-      {%- if help is string %}<p>{{ help }}</p>{% else %}<ul>{% for line in help %}<li>{{ line }}</li>{% endfor %}</ul>{% endif %}
-    </details>
+    {%- if helper or help %}
+    <div class="ui-helper-row">
+      {%- if helper %}<p class="ui-helper">{{ helper }}</p>{% endif %}
+      {%- if help %}
+      {# "How this works" is a ? beside the helper line; it opens over the page (closes with a click elsewhere) #}
+      <details class="help-fold help-pop">
+        <summary title="How this works" aria-label="How this works"><i class="fa-regular fa-circle-question" aria-hidden="true"></i><span class="sr-only">(?) How this works</span></summary>
+        <div class="help-card">{% if help is string %}<p>{{ help }}</p>{% else %}<ul>{% for line in help %}<li>{{ line }}</li>{% endfor %}</ul>{% endif %}</div>
+      </details>
+      {%- endif %}
+    </div>
     {%- endif %}
   </div>
   <div class="ui-head-actions">

@@ -71,32 +71,6 @@ def switch_view(view):
     return redirect(staff_home(current_user))
 
 
-@main_bp.route('/away', methods=['POST'])
-@login_required
-def set_away():
-    """Account menu: "I'm away until ..." (no new leads are shared with you) or "I'm back"."""
-    from flask import abort
-    from app import db
-    from app.services import access, crm_assign
-    if not access.is_staff(current_user):
-        abort(404)
-    if request.form.get('back'):
-        crm_assign.set_away(current_user, None)
-        flash('Welcome back. New leads can come to you again.', 'success')
-    else:
-        until = crm_assign.parse_until(request.form.get('until'))
-        if until is None:
-            flash('Pick the day you are back, after today.', 'warning')
-        else:
-            crm_assign.set_away(current_user, until)
-            from app.services import clock
-            flash('You are away until %s. No new leads are shared with you until then.'
-                  % clock.fmt(until, '%d %b'), 'success')
-    db.session.commit()
-    nxt = request.form.get('next') or ''
-    return redirect(nxt if nxt.startswith('/') and not nxt.startswith('//') else access.home_url(current_user))
-
-
 @main_bp.route('/work-as/<int:role_id>')
 @login_required
 def work_as(role_id):

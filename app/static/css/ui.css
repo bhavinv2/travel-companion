@@ -87,6 +87,15 @@
 .help-fold[open] > summary { margin-bottom: 6px; }
 .help-fold ul { margin: 0; padding-left: 18px; }
 .help-fold li + li { margin-top: 4px; }
+/* page_head's "How this works": a ? beside the helper line, the lines in a card over the page */
+.ui-helper-row { display: flex; align-items: flex-start; gap: 8px; }
+.help-pop { position: relative; flex: none; margin-top: 6px; max-width: none; }
+.help-pop > summary { width: 26px; height: 26px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 15px;
+  color: var(--ui-primary); background: var(--ui-primary-soft); }
+.help-pop > summary:hover, .help-pop[open] > summary { background: var(--ui-primary); color: #fff; margin: 0; }
+.help-card { position: absolute; z-index: 60; top: 34px; right: -6px; width: min(440px, 86vw); padding: 12px 16px; border-radius: 12px;
+  background: #fff; border: 1px solid var(--ui-line); box-shadow: 0 14px 40px rgba(15, 35, 64, .18); color: var(--ui-ink); font-size: 14px; }
+.help-card p { margin: 0; }
 /* filters: one row under the header */
 .ui-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: -6px 0 16px; }
 .ui-more { position: relative; }

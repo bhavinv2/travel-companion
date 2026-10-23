@@ -202,17 +202,18 @@ def test_a_tab_lights_its_menu_line(app, admin_user):
         assert access.active_page() == 'crm_board'
 
 
-def test_leads_has_a_view_switch_with_flow_and_how_we_sell(client, app, admin_user):
+def test_leads_has_a_view_switch_with_flow_and_how_we_sell_as_icons(client, app, admin_user):
     ti_lead()
     login(client, admin_user.email)
     board = client.get('/admin/crm/?p=ti-standard&view=board&owner=all').get_data(as_text=True)
-    seg = board.split('class="seg"', 1)[1].split('</div>', 1)[0]
-    assert all(w in seg for w in ('Board', 'List', 'Flow', 'How we sell'))
+    switch = board.split('class="leads-views"', 1)[1].split('</nav>', 1)[0]
+    assert '>Board<' in switch and '>List<' in switch
+    for name in ('Flow', 'How we sell', 'Calendar'):                         # icons, named in their tooltips
+        assert 'aria-label="%s"' % name in switch and '>%s<' % name not in switch, name
     for url, on in (('/admin/crm/flow', 'Flow'), ('/admin/crm/process', 'How we sell')):
         html = client.get(url).get_data(as_text=True)
-        seg = html.split('class="seg"', 1)[1].split('</div>', 1)[0]
-        assert all(w in seg for w in ('Board', 'List', 'Flow', 'How we sell')), url
-        assert re.search(r'class="on" href="[^"]*">%s<' % on, seg), url
+        switch = html.split('class="leads-views"', 1)[1].split('</nav>', 1)[0]
+        assert re.search(r'class="ic-btn on"[^>]*aria-label="%s" aria-current="page"' % on, switch), url
 
 
 # ================================================================================================ words

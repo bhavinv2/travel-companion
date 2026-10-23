@@ -1,0 +1,128 @@
+{# Leads' filter bar (board.html, crm-filters.js): the search, then a pill per filter. A pill opens a short menu; a
+   choice shows the leads at once, typed things (the search, picked dates) on Enter or Apply. A pill that is on is
+   blue, says what it holds, and has its own × (routes/crm.board's `pills`). The server checks every word again. #}
+{% set date_on = more.dt or 'created' %}
+{% set date_set = 'ahead' if date_on in ('close', 'travel') else 'past' %}
+
+{% macro pill(key, label, icon, wide=false) -%}
+{%- set on = pills.get(key) -%}
+<div class="fp{{ ' on' if on }}{{ ' wide' if wide }}" data-fp>
+  <details>
+    <summary title="{{ label }}"><i class="fa-solid {{ icon }}" aria-hidden="true"></i><span class="fp-l">{{ label }}</span>
+      {%- if on %}<b class="fp-v">{{ on.text|join(' · ') }}</b>{% endif %}<i class="fa-solid fa-chevron-down fp-caret" aria-hidden="true"></i></summary>
+    <div class="fp-pop" role="group" aria-label="{{ label }}">{{ caller() }}</div>
+  </details>
+  {% if on %}<a class="fp-x" href="{{ on.off }}" title="Remove this filter" aria-label="Remove: {{ on.text|join(', ') }}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></a>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro opt(name, value, label, checked, cls='', attrs='') -%}
+<label class="fp-o {{ cls }}"><input type="radio" name="{{ name }}" value="{{ value }}"{{ ' checked' if checked }} {{ attrs|safe }}/><span>{{ label }}</span></label>
+{%- endmacro %}
+
+<form class="fb" method="GET" action="{{ crm_url('board') }}" data-lf-form>
+  <input type="hidden" name="p" value="{{ p_key or '' }}"/>
+  <input type="hidden" name="view" value="{{ view }}"/>
+  {% if closes %}<input type="hidden" name="closes" value="{{ closes }}"/>{% endif %}
+  {% if fc %}<input type="hidden" name="forecast" value="{{ fc }}"/>{% endif %}
+  {% if only_ids %}<input type="hidden" name="ids" value="{{ only_ids|join(',') }}"/>{% endif %}
+
+  <label class="fb-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+    <input type="search" name="q" value="{{ q }}" placeholder="Find a name, phone or e-mail" aria-label="Find in these leads" data-lf-typed/></label>
+
+  <div class="fb-pills" data-lf-body>
+    {% call pill('owner', 'Looked after by', 'fa-user') %}
+      {{ opt('owner', 'mine', 'Mine', owner == 'mine') }}
+      {{ opt('owner', 'all', 'Anyone', owner == 'all') }}
+      {{ opt('owner', 'none', 'Not given to anyone', owner == 'none') }}
+      {% if owner_options %}<p class="fp-sub">People</p>{% endif %}
+      <div class="fp-scroll">{% for u in owner_options %}{{ opt('owner', u.id, u.full_name ~ (' (you)' if u.id == current_user.id else ''), owner == u.id|string) }}{% endfor %}</div>
+    {% endcall %}
+
+    {% if pipe %}
+    {% call pill('stage', 'Stage', 'fa-layer-group') %}
+      {{ opt('stage', '', 'Any stage', not stage_id) }}
+      <div class="fp-scroll">{% for st in pipe.stages %}{{ opt('stage', st.id, st.name, stage_id == st.id) }}{% endfor %}</div>
+      {% if view == 'board' %}<p class="fp-note">On the board this brings its column into view.</p>{% endif %}
+    {% endcall %}
+    {% endif %}
+
+    {% call pill('date', 'Date', 'fa-calendar', wide=true) %}
+      <div class="fp-seg" role="radiogroup" aria-label="Which date">
+        {% for k, label in LEAD_DATES %}
+        <label><input type="radio" name="dt" value="{{ k }}"{{ ' checked' if date_on == k }} data-lf-dt/><span>{{ {'close': 'Closes'}.get(k, label) }}</span></label>
+        {% endfor %}
+      </div>
+      <div class="fp-grid" role="radiogroup" aria-label="When">
+        {{ opt('dr', '', 'Any time', not more.dr) }}
+        {% for k, label, sets in RANGE_CHOICES %}
+        {% set off = date_set not in sets.split() %}
+        <label class="fp-o" data-sets="{{ sets }}"{{ ' hidden' if off }}><input type="radio" name="dr" value="{{ k }}"{{ ' checked' if more.dr == k and not off }}{{ ' disabled' if off }}/><span>{{ label }}</span></label>
+        {% endfor %}
+        {{ opt('dr', 'custom', 'Pick dates', more.dr == 'custom', attrs='data-lf-custom') }}
+      </div>
+      <div class="fp-dates" data-lf-dates{{ ' hidden' if more.dr != 'custom' }}>
+        <label><span>From</span><input type="date" name="d1" value="{{ more.d1 or '' }}" data-lf-typed/></label>
+        <label><span>To</span><input type="date" name="d2" value="{{ more.d2 or '' }}" data-lf-typed/></label>
+        <button type="submit" class="cb sm primary" data-lf-apply>Apply</button>
+      </div>
+    {% endcall %}
+
+    {% call pill('status', 'Status', 'fa-flag') %}
+      {% for k, label in (('', 'Any'), ('open', 'Still open'), ('won', 'Won'), ('lost', 'Lost')) %}{{ opt('status', k, label, (status or '') == k) }}{% endfor %}
+      <label class="fp-sel"><span>Won and lost from</span>
+        <select name="win" aria-label="Won and lost from">
+          <option value="30"{{ ' selected' if win == '30' }}>The last 30 days</option>
+          <option value="all"{{ ' selected' if win == 'all' }}>Any time</option>
+        </select></label>
+      {% if win_lifted %}<p class="fp-note">All of them show while a date or money filter is on.</p>{% endif %}
+    {% endcall %}
+
+    {% call pill('follow', 'Follow-up', 'fa-clock') %}
+      {{ opt('follow', '', 'Any', not follow) }}
+      {% for k, label in FOLLOW_FILTERS %}{{ opt('follow', k, label, follow == k) }}{% endfor %}
+      <label class="fp-check"><input type="checkbox" name="quoted" value="week"{{ ' checked' if quoted }}/> A quote went out in the last 7 days</label>
+    {% endcall %}
+
+    {% call pill('chat', 'Chat', 'fa-comments') %}
+      {{ opt('chat', '', 'Any', not chat, attrs='data-lf-keep') }}
+      {% for k, label in CHAT_FILTERS if k != 'nochat' or wa_mode != 'off' %}{{ opt('chat', k, label, chat == k) }}{% endfor %}
+    {% endcall %}
+
+    {% call pill('lk', 'How likely', 'fa-temperature-half') %}
+      {{ opt('lk', '', 'Any', not more.lk) }}
+      {% for k, label in LIKELIHOOD.items() %}
+      <label class="fp-o lk-{{ k }}"><input type="radio" name="lk" value="{{ k }}"{{ ' checked' if more.lk == k }}/><span><i aria-hidden="true"></i>{{ label }}</span></label>
+      {% endfor %}
+    {% endcall %}
+
+    {% call pill('src', 'Came from', 'fa-door-open', wide=true) %}
+      {{ opt('src', '', 'Any source', not more.src) }}
+      <div class="fp-scroll tall">
+        {% for g, gname, icon, rows_ in SOURCE_GROUPS(sources) %}
+        <p class="fp-sub"><i class="fa-solid {{ icon }}" aria-hidden="true"></i> {{ gname }}</p>
+        {{ opt('src', 'g:' ~ g, 'All ' ~ gname|lower, more.src == 'g:' ~ g, cls='all') }}
+        {% for s in rows_ %}{{ opt('src', s.id, SOURCE_NAME(s.name), more.src == s.id|string) }}{% endfor %}
+        {% endfor %}
+        {{ opt('src', 'none', 'Not known', more.src == 'none') }}
+      </div>
+    {% endcall %}
+
+    {% call pill('how', 'How it came', 'fa-seedling') %}
+      {{ opt('how', '', 'Any', not more.how) }}
+      {% for k, word, says, icon in ORIGINS() %}
+      <label class="fp-o" title="{{ says }}"><input type="radio" name="how" value="{{ k }}"{{ ' checked' if more.how == k }}/><span><i class="fa-solid {{ icon }}" aria-hidden="true"></i> {{ word }}</span></label>
+      {% endfor %}
+    {% endcall %}
+
+    {% call pill('money', 'Money', 'fa-indian-rupee-sign') %}
+      <label class="fp-check"><input type="checkbox" name="no_value" value="1"{{ ' checked' if no_value }}/> No value yet</label>
+      <label class="fp-check"><input type="checkbox" name="no_close" value="1"{{ ' checked' if no_close }}/> No close date</label>
+    {% endcall %}
+
+    {% for key, text, href in filter_chips if key in ('closes', 'forecast', 'ids') %}
+    <a class="chip on rm fb-chip" href="{{ href }}" title="Remove this filter">{{ text }} <i class="fa-solid fa-xmark"></i></a>
+    {% endfor %}
+    {% if filters_on %}<a class="fb-clear" href="{{ crm_url('board', reset=1) }}"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Clear all</a>{% endif %}
+  </div>
+</form>
