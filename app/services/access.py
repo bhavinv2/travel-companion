@@ -76,7 +76,7 @@ SCRAPER = tuple('scraper.' + n for n in (
 
 # the reports gathered under Overview's one Reports line, as tabs, in this order (TAB_GROUPS['reports'])
 REPORT_TABS = (('crm_insights', 'Sales results'), ('crm_forecast', 'Forecast'), ('crm_report_builder', 'Report builder'),
-               ('crm_tracker', 'Team today'), ('crm_check_report', 'Inbox checks'), ('dashboard', 'Site dashboard'),
+               ('crm_tracker', 'Team today'), ('crm_team', 'Team analysis'), ('dashboard', 'Site dashboard'),
                ('metrics', 'Match quality'))
 REPORT_PAGES = tuple(k for k, _ in REPORT_TABS)
 
@@ -137,10 +137,10 @@ MODULES = [
                tip='Quick replies, WhatsApp templates, broadcasts and tags.'),
          _page('crm_tracker', 'Team today', 'fa-people-line', _both('tracker'), admin='admin_crm.tracker', nav=False,
                desc="Each person's checklist and timeline, day by day.", tip="How each person's day is going."),
-         # who ticked the inboxes on the half-hourly check, person by person: whoever has Team today has it
-         _page('crm_check_report', 'Inbox checks', 'fa-user-check', _both('check_report'),
-               admin='admin_crm.check_report', nav=False, with_=('crm_tracker',),
-               tip='Who checked the inboxes, person by person, and the half hours nobody fully checked.'),
+         # the people side by side over a period -- checks, hours, work, speed, results: whoever has Team today
+         _page('crm_team', 'Team analysis', 'fa-people-arrows', _both('team_analysis'),
+               admin='admin_crm.team_analysis', nav=False, with_=('crm_tracker',),
+               tip='Compare people over any period: inbox checks, hours, follow-ups, messages, calls, speed and results.'),
          _page('crm_insights', 'Sales results', 'fa-chart-line', _both('insights', 'insights_recalculate') + ('messaging.overview',),
                admin='admin_crm.insights', nav=False,
                tip='New leads, replies and customers won, by product, source and person.'),
@@ -355,7 +355,7 @@ MODULES = [
 # the menu's order lives.
 SECTIONS = [
     {'key': 'overview', 'label': 'Overview', 'icon': 'fa-gauge',
-     'pages': ('reports', 'dashboard', 'crm_insights', 'crm_forecast', 'crm_report_builder', 'crm_tracker', 'crm_check_report', 'metrics', 'home',
+     'pages': ('reports', 'dashboard', 'crm_insights', 'crm_forecast', 'crm_report_builder', 'crm_tracker', 'crm_team', 'metrics', 'home',
                'notifications', 'voices_general')},
     {'key': 'sales', 'label': 'Sales CRM', 'icon': 'fa-filter-circle-dollar', 'subs': (
         # pages with no line of their own (nav=False) are tabs of a line next to them: TAB_GROUPS

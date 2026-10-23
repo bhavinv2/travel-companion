@@ -44,7 +44,7 @@ CRM_BLUEPRINTS = ('crm', 'admin_crm')
 # Set-up, reports and imports are management pages: they open in the admin portal. Quick replies
 # is an agent page.
 MANAGE = {'setup', 'pipelines', 'sources', 'connection', 'data', 'save_source', 'save_pipeline', 'save_step',
-          'save_whatsapp', 'backfill', 'import_sheet', 'import_confirm', 'insights', 'insights_csv', 'insights_people_csv', 'tracker', 'check_report',
+          'save_whatsapp', 'backfill', 'import_sheet', 'import_confirm', 'insights', 'insights_csv', 'insights_people_csv', 'tracker', 'team_analysis',
           'save_process', 'setup_templates', 'pipeline_new', 'pipeline_edit', 'pipeline_save', 'pipeline_active',
           'pipeline_tag_check', 'pipeline_tag', 'tag_check', 'save_product', 'product_offered', 'template_draft',
           'import_csv', 'import_csv_confirm', 'wa_contacts_import', 'wa_notes_import', 'save_inboxes',
@@ -757,7 +757,7 @@ def signoff():
 @admin_only
 def tracker():
     """Team today: for any day, what each person had to do and what they did (everybody for an admin,
-    their own teams for a team lead). Their half-hourly checks are a report of their own: check_report."""
+    their own teams for a team lead). Their half-hourly checks are compared in Team analysis (team_analysis)."""
     today_ = (datetime.utcnow() + crm.IST).date()
     try:
         day = datetime.strptime(request.args.get('day') or '', '%Y-%m-%d').date()
@@ -784,35 +784,53 @@ def tracker():
                            MANUAL=dict((k, crm_kpi.METRICS[k][0]) for k in crm_kpi.MANUAL), **_common())
 
 
-@crm_bp.route('/checks/report')
+@crm_bp.route('/analysis')
 @cs_required
 @admin_only
-def check_report():
-    """Inbox checks: for any day, who ticked which inbox on the half-hourly check, person by person, and the
-    half hours nobody fully checked -- everybody for those who see everybody, a team lead's own teams; one
-    team at a time with ?team=."""
-    from app.services import access
-    today_ = (datetime.utcnow() + crm.IST).date()
-    try:
-        day = datetime.strptime(request.args.get('day') or '', '%Y-%m-%d').date()
-    except ValueError:
-        day = today_
-    day = min(day, today_)
+def team_analysis():
+    """Team analysis: the sales people side by side over a period -- their inbox checks, the hours they worked,
+    follow-ups, messages and calls, speed and results (services/crm_team.py). Everybody for those who see
+    everybody, a team lead's own teams; who is compared is picked on the page (?p=ids, kept in the address)."""
+    import csv
+    import io
+    from app.services import access, crm_team
+    per = crm_team.period(request.args.get('period'), crm_team.parse_day(request.args.get('start')),
+                          crm_team.parse_day(request.args.get('end')))
     everyone = _staff()
     staff = crm_reports.visible_staff(current_user, everyone)
     ws = access.current_workspace(current_user)
     teams = (list(ws.teams) if ws is not None else []) if len(staff) == len(everyone) else _my_teams()
+    groups, placed = [], set()               # the people beside the page: each team, then whoever is in none
+    for t in teams:
+        ids = {m.id for m in t.users}
+        members = [u for u in staff if u.id in ids]
+        if members:
+            groups.append({'name': t.name, 'id': t.id, 'users': members})
+            placed |= ids
+    rest = [u for u in staff if u.id not in placed]
+    if rest:
+        groups.append({'name': 'Not in a team' if groups else 'Everybody', 'id': None, 'users': rest})
     seen = {u.id for u in staff}
-    teams = [t for t in teams if any(u.id in seen for u in t.users)]
-    team = next((t for t in teams if t.id == request.args.get('team', type=int)), None)
-    shown = [u for u in staff if team is None or u.id in {m.id for m in team.users}]
-    channels = crm.crm_settings()['check_channels']
-    report = crm_reports.check_report(day, shown, channels, sheet=crm_reports.day_sheet(day, shown),
-                                      names={u.id: u.full_name for u in staff})
-    return render_template('cs/crm/check_report.html', day=day, today=today_, r=report, teams=teams, team=team,
-                           prev_day=day - timedelta(days=1), next_day=day + timedelta(days=1),
-                           team_of={u.id: [t.name for t in teams if u.id in {m.id for m in t.users}] for u in shown},
-                           focus=request.args.get('who', type=int), **_common())
+    picked = [int(x) for x in (request.args.get('p') or '').split(',') if x.isdigit() and int(x) in seen]
+    result = crm_team.analysis(per, staff, crm.crm_settings()['check_channels'])
+    if request.args.get('format') == 'csv':
+        keep = set(picked or seen)
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        for row in crm_team.csv_rows({'people': [x for x in result['people'] if x['user'].id in keep]}):
+            w.writerow(row)
+        ActivityEvent.log('crm_export', actor=current_user, kind='team_analysis', days=len(per['days']))
+        db.session.commit()
+        resp = make_response('\ufeff' + buf.getvalue())
+        resp.headers['Content-Type'] = 'text/csv; charset=utf-8'
+        resp.headers['Content-Disposition'] = 'attachment; filename=team-analysis-%s-%s.csv' % (
+            per['first'].isoformat(), per['last'].isoformat())
+        return resp
+    today_ = crm_reports.current()[0]
+    return render_template('cs/crm/team_analysis.html', per=per, periods=crm_team.PERIODS, groups=groups,
+                           picked=set(picked or seen), result=result, groups_def=crm_team.GROUPS, tip=crm_team.tip,
+                           daily_def=crm_team.DAILY, today=today_, tab=request.args.get('tab') or 'scorecard',
+                           channels=crm.crm_settings()['check_channels'], **_common())
 
 
 def _my_teams():

@@ -195,8 +195,9 @@ def _work_text(counts):
 
 
 def check_report(day, users, channels, sheet=None, names=None):
-    """The "Inbox checks" report, for `day` (India time), in plain words. A half hour is fully checked when
-    every inbox of `channels` was ticked -- by anybody, or by itself (a connected inbox). For each of `users`:
+    """One day of the half-hourly check in plain words -- what Team analysis (crm_team) shows when its period is
+    one day. A half hour is fully checked when every inbox of `channels` was ticked -- by anybody, or by itself
+    (a connected inbox). For each of `users`:
     the hours they worked (their first to last action, from `sheet`, day_sheet's), the half hours they
     ticked, how many of those were late (their first tick in it came after it was over -- one tick late
     of several on time is shown, not counted) or one press of "Tick all",

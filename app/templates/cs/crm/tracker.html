@@ -39,7 +39,7 @@
     <div class="t"><span class="ico"><i class="fa-solid fa-users"></i></span>
       <div><h2>{{ 'Today' if day == today else day.strftime('%A %d %B') }} — the team</h2>
         <p class="muted small">Inbox check for the whole team: {{ '%d%%' % coverage.pct if coverage.pct is not none else 'not started yet' }} of half hours fully checked{% if coverage.missed %} · missed {{ coverage.missed|length }}{% endif %}</p></div></div>
-    <a class="cb sm" href="{{ crm_url('check_report', day=day.isoformat()) }}"><i class="fa-solid fa-user-check"></i> Who checked what</a>
+    <a class="cb sm" href="{{ crm_url('team_analysis', period='custom', start=day.isoformat(), end=day.isoformat(), tab='checks') }}"><i class="fa-solid fa-people-arrows"></i> Who checked what</a>
   </div>
   {% if team_note %}<p class="muted small">{{ team_note }}</p>{% endif %}
   <div class="table-wrap">
@@ -69,7 +69,7 @@
       <td>{{ num(n.unanswered, crm_url('board', p='all', view='list', owner=u.id, chat='waiting')) }}</td>
       <td>{{ mins(n.first_reply) }}</td>
       <td>{% if c.calls %}<a href="{{ crm_url('tracker', day=day.isoformat(), who=u.id) }}">{{ c.calls }}</a>{% else %}<span class="muted">0</span>{% endif %}</td>
-      <td>{% if c.slots %}<a href="{{ crm_url('check_report', day=day.isoformat(), who=u.id) }}#p-{{ u.id }}" title="Their checks, half hour by half hour">{{ c.slots }}</a>{% else %}<span class="muted">0</span>{% endif %}</td>
+      <td>{% if c.slots %}<a href="{{ crm_url('team_analysis', period='custom', start=day.isoformat(), end=day.isoformat(), tab='checks', p=u.id) }}" title="Their checks, half hour by half hour">{{ c.slots }}</a>{% else %}<span class="muted">0</span>{% endif %}</td>
       <td class="muted">{% if s.first %}{{ hm(s.last) }}{% else %}no activity{% endif %}</td>
     </tr>
     {% endfor %}

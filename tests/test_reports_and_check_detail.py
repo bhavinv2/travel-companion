@@ -1,10 +1,10 @@
 """Overview's reports are one menu line, and Inbox checks says, person by person, what was checked.
 
     All reports   one line first in Overview for every report (Sales results, Forecast, Report builder, Team today,
-                  Inbox checks, Site dashboard, Match quality); it opens the first one the person may open, and each
-                  report shows the others as tabs; Inbox checks comes with Team today; an area switched off takes its
-                  reports out of the line and the tabs
-    Inbox checks  for each person: the hours they worked, the half hours they ticked (late when after the half hour,
+                  Team analysis, Site dashboard, Match quality); it opens the first one the person may open, and each
+                  report shows the others as tabs; Team analysis comes with Team today; an area switched off takes
+                  its reports out of the line and the tabs (Team analysis itself: tests/test_team_analysis.py)
+    one day       crm_reports.check_report, the day Team analysis shows half hour by half hour -- for each person: the hours they worked, the half hours they ticked (late when after the half hour,
                   "Tick all" when one press ticked several), the half hours nobody fully checked while they worked,
                   a strip of the day and a plain status; then the half hours not fully checked, with who was working
                   then, and each inbox's half hours; a person's own day lists each check with its inboxes
@@ -37,20 +37,20 @@ def test_the_reports_are_one_line_that_opens_the_first_and_shows_the_rest_as_tab
     html = client.get('/admin/crm/today').get_data(as_text=True)
     nav = html.split('admin-nav-items', 1)[1] if 'admin-nav-items' in html else html
     assert 'All reports' in nav
-    for gone in ('Sales results', 'Forecast', 'Report builder', 'Team today', 'Inbox checks', 'Site dashboard',
+    for gone in ('Sales results', 'Forecast', 'Report builder', 'Team today', 'Team analysis', 'Site dashboard',
                  'Match quality'):
         assert '>%s<' % gone not in nav.split('</nav>', 1)[0], gone
     r = client.get('/admin/reports')
     assert r.status_code == 302 and r.headers['Location'].endswith('/admin/crm/insights')
-    tabs = ['Sales results', 'Forecast', 'Report builder', 'Team today', 'Inbox checks', 'Site dashboard', 'Match quality']
+    tabs = ['Sales results', 'Forecast', 'Report builder', 'Team today', 'Team analysis', 'Site dashboard', 'Match quality']
     for path in ('/admin/crm/insights', '/admin/crm/forecast', '/admin/crm/reports/build', '/admin/crm/tracker',
-                 '/admin/crm/checks/report', '/admin/'):
+                 '/admin/crm/analysis', '/admin/'):
         page = client.get(path, follow_redirects=True).get_data(as_text=True)
         assert strip(page) == tabs, path
     assert strip(client.get('/cs/metrics').get_data(as_text=True)) == tabs
 
 
-def test_team_today_brings_inbox_checks_and_nothing_else(app, client):
+def test_team_today_brings_team_analysis_and_nothing_else(app, client):
     ws = access.ensure_defaults()
     u = make_user('lead@test.com', 'teamlead', role='cs')
     role = WorkspaceRole(workspace_id=ws.id, name='Tracker only', pages=['crm_today', 'crm_board', 'crm_tracker'])
@@ -62,8 +62,8 @@ def test_team_today_brings_inbox_checks_and_nothing_else(app, client):
     r = client.get('/cs/reports')
     assert r.status_code == 302 and r.headers['Location'].endswith('/crm/tracker')
     page = client.get('/cs/crm/tracker', follow_redirects=True).get_data(as_text=True)      # it lives in /admin
-    assert 'All reports' in page and strip(page) == ['Team today', 'Inbox checks']
-    assert client.get('/admin/crm/checks/report').status_code == 200
+    assert 'All reports' in page and strip(page) == ['Team today', 'Team analysis']
+    assert client.get('/admin/crm/analysis').status_code == 200
 
 
 def test_an_area_switched_off_takes_its_reports_out(app, client, admin_user):
@@ -153,38 +153,6 @@ def test_a_persons_day_lists_each_check_with_its_inboxes(app, admin_user):
     assert lines == ['Checked %s for %s–%s' % (channels[0], label(first), label(first + 1)),
                      'Checked %s for %s–%s (late, after %s)' % (channels[1], label(first + 2), label(first + 3),
                                                                 label(first + 3))]
-
-
-def test_inbox_checks_is_its_own_report_and_team_today_links_to_it(app, client, admin_user):
-    crm.ensure_defaults()
-    access.ensure_defaults()
-    channels = crm.crm_settings()['check_channels']
-    first = crm_reports.slots()[0]
-    tick(admin_user, first, channels[0], start_of(first, 7))
-    login(client, admin_user.email)
-    html = client.get('/admin/crm/checks/report?day=%s' % PAST.isoformat()).get_data(as_text=True)
-    t = words(html)
-    for part in ('Person by person', 'Half hours not fully checked', 'Each inbox', 'with an inbox nobody ticked',
-                 'working, nobody checked'):
-        assert part in t, part
-    assert (start_of(first, 7) + crm_reports.IST).strftime('%H:%M') in html
-    assert 'Inbox checks' in strip(html)
-    tracker = client.get('/admin/crm/tracker?day=%s' % PAST.isoformat()).get_data(as_text=True)
-    assert '/admin/crm/checks/report?day=%s' % PAST.isoformat() in tracker
-    assert 'Half-hourly checks, team by team' not in tracker and 'chk-grid' not in tracker
-
-
-def test_inbox_checks_needs_team_today(app, client):
-    ws = access.ensure_defaults()
-    u = make_user('agent@test.com', 'agent', role='cs')
-    role = WorkspaceRole(workspace_id=ws.id, name='Leads only', pages=['crm_today', 'crm_board'])
-    _db.session.add(role)
-    _db.session.commit()
-    access.add_member(ws, u, role=role)
-    access._cache().clear()
-    login(client, u.email)
-    r = client.get('/cs/crm/checks/report')
-    assert r.status_code == 302 and '/checks/report' not in r.headers['Location']
 
 
 def test_one_inbox_ticked_late_among_others_on_time_is_not_a_late_half_hour(app, admin_user):

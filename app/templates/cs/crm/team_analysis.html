@@ -1,0 +1,268 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from 'cs/crm/_bits.html' import initials with context %}
+{% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_tabs.html' import tab_strip with context %}
+{% block crm_title %}Team analysis{% endblock %}
+{% macro mins(m) -%}
+{%- if m is none -%}—{%- elif m < 60 -%}{{ m|round|int }} min{%- else -%}{{ (m // 60)|int }} h {{ (m % 60)|round|int }} min{%- endif -%}
+{%- endmacro %}
+{% macro show(v, unit) -%}
+{%- if v is none -%}<span class="muted">—</span>
+{%- elif unit == 'percent' -%}{{ v }}%
+{%- elif unit == 'minutes' -%}{{ mins(v) }}
+{%- elif unit == 'money' -%}{{ MONEY(v) }}
+{%- elif unit == 'hours' -%}{{ v }} h
+{%- else -%}{{ v }}{%- endif -%}
+{%- endmacro %}
+{% macro raw(v, unit) -%}
+{%- if v is none -%}{%- elif unit == 'time' -%}{{ (v[:2]|int) * 60 + (v[3:]|int) }}{%- else -%}{{ v }}{%- endif -%}
+{%- endmacro %}
+{% set people = result.people %}
+{% set keep = {'period': per.key, 'start': per.first.isoformat(), 'end': per.last.isoformat()} %}
+{% block crm %}
+{{ tab_strip('crm_team') }}
+{{ page_head('Team analysis', 'fa-solid fa-people-arrows', 'Tick people on the left, pick a period, and compare them side by side.',
+             help=['Scorecard: every measure, one column per person; the best in a row is green, the weakest red. Together adds up the people ticked.',
+                   'Inbox checks: who ticked the half-hourly check on each day, and the half hours of the day that get missed. One day shows each half hour.',
+                   'Day by day: one measure at a time, one row per person, one column per day.',
+                   'Work and results are counted the same way as Sales results; the checks the way the Half-hourly check counts them (India time).'],
+             full_screen=True) }}
+
+<form class="ta-period" method="GET" id="taPeriod">
+  <input type="hidden" name="p" value=""/>
+  <input type="hidden" name="tab" value="{{ tab }}"/>
+  <div class="ta-chips" role="group" aria-label="Period">
+    {% for k, label in periods if k != 'custom' %}
+    <button type="submit" name="period" value="{{ k }}" class="{{ 'on' if per.key == k }}">{{ label }}</button>
+    {% endfor %}
+  </div>
+  <div class="ta-custom {{ 'on' if per.key == 'custom' }}">
+    <label>From <input type="date" name="start" value="{{ per.first.isoformat() }}" max="{{ today.isoformat() }}"/></label>
+    <label>to <input type="date" name="end" value="{{ per.last.isoformat() }}" max="{{ today.isoformat() }}"/></label>
+    <button type="submit" name="period" value="custom" class="cb sm">Show</button>
+  </div>
+  <span class="ta-range"><b>{{ per.label }}</b> · {{ per.days|length }} day{{ '' if per.days|length == 1 else 's' }}{% if per.days|length > 1 %} ({{ per.first.strftime('%d %b') }} – {{ per.last.strftime('%d %b') }}){% endif %}</span>
+  <a class="cb sm ghost" id="taCsv" data-keep href="{{ crm_url('team_analysis', format='csv', **keep) }}"><i class="fa-solid fa-file-arrow-down"></i> Download</a>
+</form>
+
+<div class="ta" id="ta" data-days='{{ per.days|map("string")|list|tojson }}'>
+  {# ================================================================ who: each team, then whoever is in none #}
+  <aside class="ta-side" id="taSide">
+    <div class="ta-side-head"><b>People</b> <span class="muted small" id="taCount"></span></div>
+    <input type="search" class="ta-find" id="taFind" placeholder="Find a person" aria-label="Find a person"/>
+    <div class="ta-quick"><button type="button" data-pick="all">Everybody</button><button type="button" data-pick="none">Nobody</button></div>
+    {% for g in groups %}{% set gi = loop.index %}
+    <div class="ta-group">
+      <label class="ta-team"><input type="checkbox" data-team="{{ gi }}"/> <b>{{ g.name }}</b> <small class="muted">{{ g.users|length }}</small></label>
+      {% for u in g.users %}{% set v = (people|selectattr('user.id', 'equalto', u.id)|first)['values'] %}
+      <label class="ta-person" data-name="{{ u.full_name|lower }}">
+        <input type="checkbox" value="{{ u.id }}" data-in="{{ gi }}" {{ 'checked' if u.id in picked }}/>
+        <span class="ta-av">{{ initials(u.full_name) }}</span>
+        <span class="ta-nm">{{ u.full_name }}<small>{{ v.days_active }} day{{ '' if v.days_active == 1 else 's' }} active · {{ v.chk_slots }} check{{ '' if v.chk_slots == 1 else 's' }}</small></span>
+      </label>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted small">Nobody to show.</p>
+    {% endfor %}
+  </aside>
+
+  <section class="ta-main">
+    <nav class="ta-tabs" role="tablist">
+      <button type="button" role="tab" data-tab="scorecard"><i class="fa-solid fa-table-columns"></i> Scorecard</button>
+      <button type="button" role="tab" data-tab="checks"><i class="fa-solid fa-clipboard-check"></i> Inbox checks</button>
+      <button type="button" role="tab" data-tab="daily"><i class="fa-solid fa-calendar-days"></i> Day by day</button>
+    </nav>
+    <p class="ta-none muted" id="taNone" hidden>Tick at least one person on the left.</p>
+
+    {# ================================================================ the scorecard #}
+    <div class="ta-pane" data-pane="scorecard">
+      <div class="table-wrap ta-wrap">
+      <table class="crm-table ta-score" id="taScore" data-currency="{{ REPORT_CURRENCY() }}">
+        <thead><tr><th class="m">Measure</th>
+          {% for p in people %}<th class="u" data-u="{{ p.user.id }}" title="{{ p.user.full_name }}"><span class="ta-av">{{ initials(p.user.full_name) }}</span><span class="ta-hn">{{ p.user.full_name }}</span></th>{% endfor %}
+          <th class="tot" title="The people ticked, together">Together</th></tr></thead>
+        {% for gname, icon, rows in groups_def %}
+        <tbody>
+          <tr class="g"><th colspan="{{ people|length + 2 }}"><i class="fa-solid {{ icon }}"></i> {{ gname }}</th></tr>
+          {% for key, label, unit, better in rows %}
+          <tr data-key="{{ key }}" data-unit="{{ unit }}" data-better="{{ better or '' }}">
+            <th class="m">{{ label }} <span class="tt-i" tabindex="0" title="{{ tip(key) }}" aria-label="{{ tip(key) }}">ⓘ</span></th>
+            {% for p in people %}{% set v = p['values'][key] %}
+            <td data-u="{{ p.user.id }}" data-v="{{ raw(v, unit) }}">{{ show(v, unit) }}</td>
+            {% endfor %}
+            <td class="tot"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% endfor %}
+      </table>
+      </div>
+      <p class="muted small ta-foot">Right now = as things stand this minute, whatever the period. Reply and first contact times are the middle wait: half waited less.</p>
+    </div>
+
+    {# ================================================================ the half-hourly check #}
+    <div class="ta-pane" data-pane="checks">
+      {% set ck = result.checks %}
+      {% set due = ck.team|sum(attribute='due') %}{% set full = ck.team|sum(attribute='full') %}
+      <div class="ck-cards">
+        <div class="ck-card {{ '' if not due else ('ok' if full == due else ('due' if full >= due * 0.7 else 'bad')) }}">
+          <b>{{ full }}<small> of {{ due }}</small></b><span>half hours had every inbox checked{{ ' · %d%%' % (100 * full / due)|round if due }} — the whole team</span></div>
+        <div class="ck-card"><b data-sum="chk_slots"></b><span>half hours ticked by the people ticked</span></div>
+        <div class="ck-card"><b data-sum="chk_late"></b><span>of them only started after the half hour was over</span></div>
+        <div class="ck-card"><b data-sum="chk_bulk"></b><span>“Tick all” presses</span></div>
+      </div>
+
+      {% if result.day %}{% set r = result.day %}
+      {# one day: each half hour, person by person #}
+      <section class="card">
+        <div class="card-head"><div class="t"><span class="ico"><i class="fa-solid fa-users"></i></span>
+          <div><h2>{{ per.first.strftime('%A %d %B') }}, half hour by half hour</h2>
+            <p class="muted small">Each square is a half hour — point at one to see it; open a person for every check they made.</p></div></div></div>
+        <div class="ck-legend" aria-hidden="true">
+          <span><i class="ck-sw all"></i> ticked every inbox</span><span><i class="ck-sw some"></i> ticked some</span>
+          <span><i class="ck-sw late"></i> started late</span><span><i class="ck-sw covered"></i> others checked</span>
+          <span><i class="ck-sw gap"></i> working, nobody checked</span><span><i class="ck-sw off"></i> not working</span>
+          <span><i class="ck-sw open"></i> not over yet</span>
+        </div>
+        <div class="ck-people">
+          <div class="ck-axis" aria-hidden="true">{% for h in r.hours %}<span>{{ h }}</span>{% endfor %}</div>
+          {% for p in r.people %}
+          <details class="ck-person s-{{ p.status }}" data-u="{{ p.user.id }}">
+            <summary>
+              <span class="ck-av">{{ initials(p.user.full_name) }}</span>
+              <span class="ck-who"><b>{{ p.user.full_name }}</b>
+                <small>{% if p.start %}working {{ p.start }}–{{ p.end }}{% else %}no activity this day{% endif %}</small></span>
+              <span class="ck-badge">{{ p.label }}</span>
+              <span class="ck-say">
+                {%- if p.checked -%}checked {{ p.checked }}{% if p.working_due %} of the {{ p.working_due }} half hours they worked{% else %} half hour{{ '' if p.checked == 1 else 's' }}{% endif %}
+                {%- elif p.working_due -%}ticked nothing in the {{ p.working_due }} half hours they worked
+                {%- else -%}nothing to check{%- endif -%}
+                {%- if p.late %} · <em class="late">{{ p.late }} late</em>{% endif -%}
+                {%- if p.missed %} · <em class="gap">{{ p.missed }} not checked by anybody</em>{% endif -%}
+                {%- if p.bulk %} · Tick all {{ p.bulk }}×{% endif -%}
+              </span>
+              {% if p.checked or p.start %}<span class="ck-strip">{% for c in p.strip %}<i class="{{ c.state }}{{ ' h' if c.hour }}" title="{{ c.title }}"></i>{% endfor %}</span>{% endif %}
+              <i class="fa-solid fa-chevron-down ck-open" aria-hidden="true"></i>
+            </summary>
+            <div class="ck-detail">
+              {% if p.rows %}
+              <table class="crm-table ck-t">
+                <thead><tr><th>Half hour</th><th>What they ticked</th><th>What they did then</th></tr></thead>
+                <tbody>
+                {% for row in p.rows %}
+                <tr class="r-{{ row.state }}">
+                  <td class="when"><b>{{ row.when }}</b>
+                    {% if row.state == 'gap' %}<small class="gap">not checked</small>
+                    {% elif row.state == 'late' %}<small class="late">started late</small>
+                    {% elif row.state == 'all' %}<small class="ok">every inbox</small>
+                    {% else %}<small>some inboxes</small>{% endif %}
+                    {% if row.bulk %}<small class="bulk" title="Several inboxes ticked in one press, within a few seconds">Tick all</small>{% endif %}</td>
+                  <td>
+                    {% if row.ticks %}
+                    <span class="ck-ticks">{% for t in row.ticks %}<span class="{{ 'late' if t.late }}">{{ t.channel }} <i>{{ t.at }}</i></span>{% endfor %}</span>
+                    {% if row.others and row.state != 'gap' %}<small class="muted">Not ticked by anybody: {{ row.others|join(', ') }}</small>{% endif %}
+                    {% else %}
+                    <span class="gap">Nothing ticked — {{ row.others|join(', ') }} {{ 'was' if row.others|length == 1 else 'were' }} not checked by anybody</span>
+                    {% endif %}
+                  </td>
+                  <td class="did">{{ row.did or '—' }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+              </table>
+              {% else %}<p class="muted small">No checks this day{% if not p.start %}, and no other activity{% endif %}.</p>{% endif %}
+              <p class="ck-more"><a href="{{ crm_url('tracker', day=per.first.isoformat(), who=p.user.id) }}#person">Their whole day on Team today</a></p>
+            </div>
+          </details>
+          {% endfor %}
+        </div>
+      </section>
+      <div class="ck-two">
+      <section class="card">
+        <div class="card-head"><div class="t"><span class="ico"><i class="fa-solid fa-triangle-exclamation"></i></span>
+          <div><h2>Half hours not fully checked</h2><p class="muted small">Newest first, with who was working then.</p></div></div></div>
+        {% for g in r.gaps %}
+        <div class="ck-gap">
+          <b class="when">{{ g.when }}</b>
+          <span class="what">{% if g.none %}<b class="gap">No inbox was checked</b>{% else %}<b class="gap">Not checked:</b> {{ g.missing|join(', ') }}
+            <small class="muted" title="{% for t in g.ticked %}{{ t.channel }}: {{ t.who }} {{ t.at }}{{ '; ' if not loop.last }}{% endfor %}">· {{ g.ticked|length }} of {{ g.ticked|length + g.missing|length }} ticked</small>{% endif %}</span>
+          <span class="muted small">{% if g.working %}Working then: {{ g.working|join(', ') }}{% else %}Nobody was working then{% endif %}</span>
+        </div>
+        {% else %}<p class="muted">{{ 'Every half hour so far had every inbox checked.' if r.due else 'No half hour is over yet.' }}</p>{% endfor %}
+      </section>
+      {% else %}
+      {# several days: a row per person, a column per day #}
+      <section class="card">
+        <div class="card-head"><div class="t"><span class="ico"><i class="fa-solid fa-table-cells"></i></span>
+          <div><h2>Half hours each person checked, day by day</h2>
+            <p class="muted small">Darker = more half hours ticked; an orange corner = some started late. Click a day for its half hours.</p></div></div></div>
+        {% set ns = namespace(top=1) %}{% for p in people %}{% for d, x in (ck.person.get(p.user.id) or {}).items() %}{% if x.slots > ns.top %}{% set ns.top = x.slots %}{% endif %}{% endfor %}{% endfor %}
+        <div class="table-wrap ta-wrap">
+        <table class="ta-grid">
+          <thead><tr><th class="who">Person</th>
+            {% for d in per.days %}<th class="{{ 'we' if d.weekday() >= 5 }}"><a data-keep href="{{ crm_url('team_analysis', period='custom', start=d.isoformat(), end=d.isoformat(), tab='checks') }}" title="{{ d.strftime('%A %d %B') }}">{{ d.strftime('%a')[:2] }}<b>{{ d.day }}</b></a></th>{% endfor %}
+            <th class="sum">All</th></tr></thead>
+          <tbody>
+          {% for p in people %}{% set mine = ck.person.get(p.user.id) or {} %}
+          <tr data-u="{{ p.user.id }}">
+            <td class="who">{{ p.user.full_name }}</td>
+            {% for d in per.days %}{% set x = mine.get(d) %}
+            <td class="l{{ ((4 * x.slots / ns.top)|round(0, 'ceil')|int) if x else 0 }}{{ ' late' if x and x.late }}"
+                title="{{ p.user.full_name }}, {{ d.strftime('%a %d %b') }}: {% if x %}{{ x.slots }} half hour{{ '' if x.slots == 1 else 's' }}{% if x.late %}, {{ x.late }} started late{% endif %}{% if x.bulk %}, Tick all {{ x.bulk }}×{% endif %}{% if x.first %}, first at {{ (x.first + IST_OFFSET).strftime('%H:%M') }}{% endif %}{% else %}no checks{% endif %}">{{ x.slots if x else '' }}</td>
+            {% endfor %}
+            <td class="sum">{{ p['values'].chk_slots }}</td>
+          </tr>
+          {% endfor %}
+          <tr class="team">
+            <td class="who">Fully checked <span class="tt-i" title="Half hours that day in which every inbox was ticked, by anybody — the whole team">ⓘ</span></td>
+            {% for t in ck.team %}
+            <td class="{{ '' if t.pct is none else ('ok' if t.pct == 100 else ('due' if t.pct >= 70 else 'bad')) }}" title="{{ t.day.strftime('%a %d %b') }}: {{ t.full }} of {{ t.due }} half hours">{{ '%d%%' % t.pct if t.pct is not none else '' }}</td>
+            {% endfor %}
+            <td class="sum">{{ '%d%%' % (100 * full / due)|round if due else '' }}</td>
+          </tr>
+          </tbody>
+        </table>
+        </div>
+      </section>
+      <div class="ck-two">
+      <section class="card">
+        <div class="card-head"><div class="t"><span class="ico"><i class="fa-solid fa-clock"></i></span>
+          <div><h2>When the check gets missed</h2>
+            <p class="muted small">Each half hour of the day: on how many of the {{ per.days|length }} days every inbox was ticked. The red ones are the gaps to plan for.</p></div></div></div>
+        <ul class="ta-slots">
+          {% for s in ck.by_slot %}{% if s.due %}
+          <li class="{{ 'ok' if s.pct == 100 else ('due' if s.pct >= 70 else 'bad') }}" title="{{ s.label }}–{{ s.until }}: fully checked on {{ s.full }} of {{ s.due }} days">
+            <span>{{ s.label }}</span><span class="bar"><i style="width:{{ s.pct }}%"></i></span><b>{{ s.full }}<small>/{{ s.due }}</small></b></li>
+          {% endif %}{% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+      <section class="card">
+        <div class="card-head"><div class="t"><span class="ico"><i class="fa-solid fa-inbox"></i></span>
+          <div><h2>Each inbox</h2><p class="muted small">Half hours it was checked, of {{ due }} — the whole team.</p></div></div></div>
+        <ul class="ck-inboxes">
+          {% for ib in ck.inboxes %}
+          <li><span>{{ ib.channel }}</span>
+            <span class="bar"><i class="{{ 'ok' if ib.done == ib.due else ('due' if ib.done >= ib.due * 0.7 else 'bad') }}" style="width:{{ (100 * ib.done / ib.due)|round|int if ib.due else 0 }}%"></i></span>
+            <b>{{ ib.done }}<small>/{{ ib.due }}</small></b></li>
+          {% endfor %}
+        </ul>
+      </section>
+      </div>
+    </div>
+
+    {# ================================================================ day by day, one measure at a time #}
+    <div class="ta-pane" data-pane="daily">
+      <div class="ta-daily-head">
+        <label>Show <select id="taMetric">{% for k, label in daily_def %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</select></label>
+        <span class="muted small">One row per person, one column per day; Together adds up the people ticked, with a bar a day under it.</span>
+      </div>
+      <div class="table-wrap ta-wrap"><table class="ta-grid ta-daily" id="taDaily"></table></div>
+      <script type="application/json" id="taDailyData">{{ result.daily_json|tojson }}</script>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/team-analysis.js') }}" defer></script>{% endblock %}
