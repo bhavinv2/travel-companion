@@ -47,7 +47,7 @@ export default function InsuranceQuoteForm() {
   // The dialling code is chosen, not typed: this was one free-text box with a "+91 98765 43210"
   // placeholder, so a number typed without a code reached the quotes table with nothing to say
   // which country it was. Same control and same default as the "Get a Free Quote" modal.
-  const [cc, setCc] = useState('IN');
+  const [cc, setCc] = useState('US');
   const [phone, setPhone] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -277,7 +277,7 @@ export default function InsuranceQuoteForm() {
               <span className="tel">
                 <DialSelect id="if-dial" value={cc} onChange={setCc} />
                 <span className="iw" style={{ flex: 1 }}><Icon name="i-mobile" className="ico sm" />
-                  <input className="inp" id="if-tel" type="tel" inputMode="tel" required placeholder="98765 43210" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                  <input className="inp" id="if-tel" type="tel" inputMode="tel" required placeholder="Mobile number" value={phone} onChange={(e) => setPhone(e.target.value)} />
                 </span>
               </span>
             </p>

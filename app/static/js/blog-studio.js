@@ -90,13 +90,19 @@
     else if (target && editor.contains(target)) target.after(node);
     else editor.appendChild(node);
   }
+  // the editor's own marks (the hint on an empty line, the picked picture, a block flashed from the list view):
+  // never part of the post, nor of its undo history, nor of copied blocks
+  const MARKS = ['is-picked', 'bs-ph', 'ge-flash'];
+  function unmark(root) {
+    root.querySelectorAll('[contenteditable]').forEach(e => e.removeAttribute('contenteditable'));
+    root.querySelectorAll('.' + MARKS.join(', .')).forEach(e => e.classList.remove(...MARKS));
+    root.querySelectorAll('[class=""]').forEach(e => e.removeAttribute('class'));
+    return root;
+  }
   function serialise() {
     const c = editor.cloneNode(true);
     c.querySelectorAll('.bs-uploading').forEach(e => e.remove());
-    c.querySelectorAll('[contenteditable]').forEach(e => e.removeAttribute('contenteditable'));
-    c.querySelectorAll('.is-picked, .bs-ph').forEach(e => { e.classList.remove('is-picked', 'bs-ph'); });
-    c.querySelectorAll('[class=""]').forEach(e => e.removeAttribute('class'));
-    hidden.value = c.innerHTML.trim();
+    hidden.value = unmark(c).innerHTML.trim();
   }
   function changed() {
     dirty = true;
@@ -128,12 +134,7 @@
     s.removeAllRanges();
     s.addRange(r);
   }
-  function plainHtml() {                     // without the hint and the picked outline, which come and go
-    const c = editor.cloneNode(true);
-    c.querySelectorAll('.bs-ph, .is-picked').forEach(e => e.classList.remove('bs-ph', 'is-picked'));
-    c.querySelectorAll('[class=""]').forEach(e => e.removeAttribute('class'));
-    return c.innerHTML;
-  }
+  function plainHtml() { return unmark(editor.cloneNode(true)).innerHTML; }    // the marks come and go: not a change
   function snap() {
     clearTimeout(snapT);
     const html = plainHtml();
@@ -155,6 +156,7 @@
     editor.focus();
     toCaret(hist[at].caret);
     floating();
+    blockList();
     dirty = true;
     document.getElementById('bsDirty').textContent = 'Unsaved changes';
     scheduleCheck();
@@ -169,6 +171,7 @@
     snap();
     changed();
     floating();
+    blockList();
   }
 
   // ---------------------------------------------------------------- selection
@@ -310,6 +313,7 @@
   function setActive(b) {
     active = b && b.parentNode === editor ? b : null;
     floating();
+    lvHere();
   }
   function floating() {
     // the + on an empty line, the "Type / ..." hint, and the bar over the block the caret is in
@@ -335,28 +339,11 @@
     const b = e.target.closest('[data-bb]');
     if (!b || !active || !editor.contains(active)) return;
     const what = b.dataset.bb, blk = active;
-    const s = window.getSelection();
-    const spot = s.rangeCount && blk.contains(s.anchorNode) ? [s.anchorNode, s.anchorOffset] : null;
-    const back = () => {                                   // the caret stays where it was in the block
-      if (!spot) return;
-      const r = document.createRange();
-      try { r.setStart(spot[0], spot[1]); r.collapse(true); s.removeAllRanges(); s.addRange(r); } catch (err) { /* moved away */ }
-    };
-    const next = blk.nextElementSibling;
-    if (what === 'up' && blk.previousElementSibling) structural(() => blk.previousElementSibling.before(blk));
-    else if (what === 'down' && next && !(isEmpty(next) && next === editor.lastElementChild)) structural(() => next.after(blk));
-    else if (what === 'copy') structural(() => { const c = blk.cloneNode(true); c.classList.remove('is-picked'); blk.after(c); });
-    else if (what === 'remove') {
-      const near = next || blk.previousElementSibling;
-      if (blk === current) closePanel();
-      structural(() => blk.remove());
-      setActive(null);
-      caretIn(near && editor.contains(near) ? near : editor.firstElementChild);
-      return;
-    } else if (/^(row|col|delrow|delcol)$/.test(what)) return tableOp(what, blk);
-    else return;
+    if (/^(row|col|delrow|delcol)$/.test(what)) return tableOp(what, blk);
+    if (what === 'remove') { caretIn(removeBlocks([blk])); return; }
+    if (!/^(up|down|copy)$/.test(what)) return;
+    caretStays(() => what === 'copy' ? duplicateBlocks([blk]) : moveBlocks([blk], what === 'up' ? -1 : 1));
     editor.focus();
-    back();
     keep();
     floating();
   });
@@ -391,6 +378,134 @@
       if (row.cells.length < 2) { toast('A table keeps at least one column.', 'warning'); return; }
       structural(() => { rows.forEach(tr => { if (tr.cells[idx]) tr.cells[idx].remove(); }); caretIn(row.cells[Math.max(0, idx - 1)]); });
     }
+  }
+
+  // ---------------------------------------------------------------- whole blocks: move, duplicate, delete, copy, paste
+  // The bar over a block, the list view and the shortcuts all come here; each change is one step of undo.
+  // Copied blocks are kept in this browser, not only this page, so they can be pasted into another post.
+  const inOrder = bs => Array.from(editor.children).filter(b => bs.includes(b));
+  const trailing = b => !!b && b === editor.lastElementChild && isEmpty(b);   // the line always there to type on
+  const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+  function caretStays(fn) {                        // moving a block must not lose the caret inside it
+    const s = window.getSelection();
+    const spot = s.rangeCount && editor.contains(s.anchorNode) ? [s.anchorNode, s.anchorOffset] : null;
+    const out = fn();
+    if (spot && editor.contains(spot[0])) {
+      try { const r = document.createRange(); r.setStart(spot[0], spot[1]); r.collapse(true); s.removeAllRanges(); s.addRange(r); } catch (err) { /* moved away */ }
+    }
+    return out;
+  }
+  function moveBlocks(bs, step) {
+    bs = inOrder(bs);
+    if (!bs.length) return false;
+    const prev = bs[0].previousElementSibling, next = bs[bs.length - 1].nextElementSibling;
+    if (step < 0 ? !prev : (!next || trailing(next))) return false;
+    structural(() => {
+      if (step < 0) bs.forEach(b => prev.before(b));
+      else bs.slice().reverse().forEach(b => next.after(b));
+    });
+    return true;
+  }
+  function clean(b) {                              // a block as it is saved: without the editor's marks
+    const box = document.createElement('div');
+    box.appendChild(b.cloneNode(true));
+    return unmark(box).firstElementChild;
+  }
+  function duplicateBlocks(bs) {
+    bs = inOrder(bs).filter(b => !isEmpty(b));
+    if (!bs.length) return [];
+    const copies = bs.map(clean);
+    structural(() => { let ref = bs[bs.length - 1]; copies.forEach(c => { ref.after(c); ref = c; }); });
+    return copies;
+  }
+  function removeBlocks(bs) {                      // returns the block next to them, for the caret
+    bs = inOrder(bs);
+    if (!bs.length) return null;
+    const near = bs[bs.length - 1].nextElementSibling || bs[0].previousElementSibling;
+    if (bs.includes(current)) closePanel();
+    structural(() => bs.forEach(b => b.remove()));
+    setActive(null);
+    return near && editor.contains(near) ? near : editor.firstElementChild;
+  }
+  function addLine(b, before) {                    // an empty line before or after a block: type, or "/" or + for a block
+    const p = para();
+    structural(() => { if (before) b.before(p); else b.after(p); });
+    caretIn(p);
+    setActive(p);
+    return p;
+  }
+  // "Turn into": a paragraph, heading, quote or tip box into another of those or into a list; a list into the
+  // other kind of list, or each of its points into a paragraph, heading ...
+  const KINDS = [['p', 'Paragraph'], ['h2', 'Heading'], ['h3', 'Sub-heading'], ['quote', 'Quote'], ['tip', 'Tip box'],
+                 ['ul', 'Bulleted list'], ['ol', 'Numbered list']];
+  const turnable = b => !!b && !isCta(b) && /^(P|H2|H3|BLOCKQUOTE|ASIDE|UL|OL)$/.test(b.tagName);
+  const kindOf = b => ({ BLOCKQUOTE: 'quote', ASIDE: 'tip' })[b.tagName] || b.tagName.toLowerCase();
+  function turnInto(bs, kind) {
+    bs = inOrder(bs).filter(turnable);
+    if (!bs.length) return;
+    const tag = ({ quote: 'blockquote', tip: 'aside' })[kind] || kind;
+    const make = html => { const n = document.createElement(tag); if (kind === 'tip') n.className = 'blog-note'; n.innerHTML = html || '<br>'; return n; };
+    structural(() => bs.forEach(b => {
+      if (/^(UL|OL)$/.test(b.tagName)) {
+        if (kind === 'ul' || kind === 'ol') { const n = document.createElement(tag); while (b.firstChild) n.appendChild(b.firstChild); b.replaceWith(n); }
+        else b.replaceWith(...Array.from(b.children).map(li => make(li.innerHTML)));
+        return;
+      }
+      // a quote or tip box can hold paragraphs: their lines join
+      const inner = b.querySelector('p, h2, h3, ul, ol') ? Array.from(b.children).map(c => c.innerHTML).join('<br>') : b.innerHTML;
+      b.replaceWith(kind === 'ul' || kind === 'ol' ? Object.assign(document.createElement(tag), { innerHTML: '<li>' + (inner || '<br>') + '</li>' }) : make(inner));
+    }));
+  }
+  const CLIP = 'bs.clip';
+  let memClip = null;
+  function clip() {
+    try {
+      const c = JSON.parse(localStorage.getItem(CLIP) || 'null');
+      if (c && c.v === 1 && Array.isArray(c.blocks) && c.blocks.length) return c;
+    } catch (e) { /* private mode */ }
+    return memClip;
+  }
+  function copyBlocks(bs, e) {                     // e: the copy or cut event, when there is one
+    bs = inOrder(bs).filter(b => !isEmpty(b));
+    if (!bs.length) return 0;
+    const c = { v: 1, id: Date.now().toString(36), blocks: bs.map(b => clean(b).outerHTML) };
+    memClip = c;
+    try { localStorage.setItem(CLIP, JSON.stringify(c)); } catch (err) { /* this page only */ }
+    // other programs get the words; this editor knows its own copy by the mark and takes the blocks whole
+    const html = '<div data-bs-clip="' + c.id + '">' + c.blocks.join('') + '</div>';
+    const text = bs.map(b => b.innerText.trim()).filter(Boolean).join('\n\n');
+    if (e && e.clipboardData) { e.preventDefault(); e.clipboardData.setData('text/html', html); e.clipboardData.setData('text/plain', text); }
+    else if (navigator.clipboard && window.ClipboardItem) {
+      navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }),
+                                                     'text/plain': new Blob([text], { type: 'text/plain' }) })]).catch(() => {});
+    }
+    return bs.length;
+  }
+  const ourClip = html => { const m = html && /data-bs-clip="(\w+)"/.exec(html), c = m && clip(); return c && c.id === m[1] ? c : null; };
+  const textHtml = text => text.replace(/\r/g, '').split(/\n{2,}/).map(p => p.trim()).filter(Boolean)
+    .map(p => '<p>' + esc(p).replace(/\n/g, '<br>') + '</p>').join('');
+  const blocky = html => /^\s*<(p|h2|h3|ul|ol|blockquote|aside|table|hr|figure)[\s>]/i.test(html) ? html : '<p>' + html + '</p>';
+  // blocks (as html) into the post after `ref` -- an empty line there is filled -- or at the end
+  function insertBlocks(html, ref) {
+    const box = document.createElement('div');
+    box.innerHTML = html;
+    box.querySelectorAll('script, style, iframe, object, embed').forEach(n => n.remove());
+    box.querySelectorAll('*').forEach(n => Array.from(n.attributes).forEach(a => { if (/^on/i.test(a.name)) n.removeAttribute(a.name); }));
+    const nodes = Array.from(box.children);
+    if (!nodes.length) return [];
+    ref = ref && editor.contains(ref) ? ref : (trailing(editor.lastElementChild) ? editor.lastElementChild : null);
+    structural(() => nodes.forEach((n, i) => {
+      if (i === 0 && ref && isEmpty(ref)) ref.replaceWith(n);
+      else if (ref) ref.after(n);
+      else editor.appendChild(n);
+      ref = n;
+    }));
+    return nodes;
+  }
+  function pasteBlocks(ref) {
+    const c = clip();
+    if (!c) { toast('Nothing copied yet: copy or cut blocks in the list view first.', 'warning'); return []; }
+    return insertBlocks(c.blocks.join(''), ref);
   }
 
   // ---------------------------------------------------------------- the toolbar
@@ -574,6 +689,7 @@
     if (files.length) { e.preventDefault(); insertPictures(files, caretBlock()); return; }
     e.preventDefault();
     const html = cd.getData('text/html');
+    if (ourClip(html)) { pasteBlocks(caretBlock()); return; }         // blocks copied in this editor: whole, pictures and all
     if (html) {
       const got = cleanPaste(html);
       if (got.pictures) toast('Pictures do not come with copied text: add each one with Picture, or paste it on its own.', 'warning');
@@ -585,9 +701,8 @@
     }
     const text = cd.getData('text/plain');
     if (!text) return;
-    const paras = text.replace(/\r/g, '').split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
-    if (paras.length <= 1) document.execCommand('insertText', false, text);
-    else document.execCommand('insertHTML', false, paras.map(p => '<p>' + esc(p).replace(/\n/g, '<br>') + '</p>').join(''));
+    if (!/\n\s*\n/.test(text.replace(/\r/g, '').trim())) document.execCommand('insertText', false, text);
+    else document.execCommand('insertHTML', false, textHtml(text));
     changed();
   });
 
@@ -598,6 +713,12 @@
     if (mod && k.toLowerCase() === 'z') { e.preventDefault(); travel(e.shiftKey ? 1 : -1); return; }
     if (mod && k.toLowerCase() === 'y') { e.preventDefault(); travel(1); return; }
     if (mod && k.toLowerCase() === 'k') { e.preventDefault(); openLink(); return; }
+    // the block the caret is in, as WordPress has it: duplicate, a line before / after, move, delete
+    const here = caretBlock();
+    if (here && mod && e.shiftKey && !e.altKey && k.toLowerCase() === 'd') { e.preventDefault(); caretStays(() => duplicateBlocks([here])); return; }
+    if (here && mod && e.altKey && /^[ty]$/i.test(k)) { e.preventDefault(); addLine(here, k.toLowerCase() === 't'); return; }
+    if (here && e.altKey && e.shiftKey && !mod && (k === 'ArrowUp' || k === 'ArrowDown')) { e.preventDefault(); caretStays(() => moveBlocks([here], k === 'ArrowUp' ? -1 : 1)); return; }
+    if (here && e.altKey && e.shiftKey && !mod && k.toLowerCase() === 'z') { e.preventDefault(); caretIn(removeBlocks([here])); return; }
     if (menuMode === 'slash' && !menu.hidden) {
       if (k === 'ArrowDown' || k === 'ArrowUp') { e.preventDefault(); moveSel(k === 'ArrowDown' ? 1 : -1); return; }
       if ((k === 'Enter' || k === 'Tab') && menuItems.length) { e.preventDefault(); pickMenu(menuItems[menuSel].key); return; }
@@ -966,7 +1087,7 @@
       e.preventDefault(); side();
     } else if (e.key === 'Escape') {
       closePop(); closeMenu(); if (!panel.hidden) closePanel();
-      more(false); prepub(false);
+      more(false); prepub(false); lvMenuClose();
     }
   });
 
@@ -991,7 +1112,8 @@
     if (on == null) on = drawer.hidden;
     drawer.hidden = !on;
     document.getElementById('geListBtn').setAttribute('aria-pressed', on ? 'true' : 'false');
-    if (on) blockList();
+    if (window.innerWidth > 900) store('ge.list', on ? '1' : '0');
+    if (on) blockList(); else lvMenuClose();
   }
   function more(on) {
     const m = document.getElementById('geMore');
@@ -1013,36 +1135,282 @@
     drawer.querySelectorAll('[data-dpane]').forEach(p => { p.hidden = p.dataset.dpane !== b.dataset.dtab; });
   });
 
-  // the list view: every block, a click away
+  // the list view, on the left: every block of the post in order, the one the caret is in marked. A click goes
+  // to a block; the boxes, Ctrl+click and Shift+click pick several; ⋮ or a right-click opens what can be done
+  // to them (the bar at the top does the same to the picked ones); a row drags to move its blocks.
   const ICONS = { P: 'fa-paragraph', H2: 'fa-heading', H3: 'fa-heading', UL: 'fa-list-ul', OL: 'fa-list-ol', BLOCKQUOTE: 'fa-quote-left',
                   ASIDE: 'fa-lightbulb', FIGURE: 'fa-image', TABLE: 'fa-table', HR: 'fa-minus' };
+  const lvList = document.getElementById('geBlocks');
+  const lvMenu = document.getElementById('geLvMenu');
+  let lvRows = [], lvSel = new Set(), lvAnchor = null, lvFocus = 0, lvDrag = null, lvMenuFor = null;
+  const lvPicked = () => inOrder(Array.from(lvSel));
+  const nameOf = b => isCta(b) ? 'Button' : (NAMES[b.tagName] || 'Block');
   function blockList() {
-    const ol = document.getElementById('geBlocks');
-    if (!ol || drawer.hidden) return;
-    ol.innerHTML = '';
-    Array.from(editor.children).forEach(b => {
-      if (isEmpty(b)) return;
-      const cta = isCta(b);
+    if (!lvList || drawer.hidden || lvDrag) return;
+    const had = lvList.contains(document.activeElement) && document.activeElement !== lvList ? lvFocus : null;
+    lvRows = Array.from(editor.children).filter(b => !trailing(b));
+    lvSel = new Set(Array.from(lvSel).filter(b => lvRows.includes(b)));
+    lvList.innerHTML = '';
+    lvRows.forEach((b, i) => {
       const text = b.tagName === 'FIGURE' ? (b.querySelector('img') ? b.querySelector('img').alt || 'no description' : 'missing: ' + (b.dataset.file || ''))
-        : b.tagName === 'HR' ? '' : b.textContent.trim();
+        : b.tagName === 'HR' ? '' : isEmpty(b) ? 'empty line' : b.textContent.trim();
+      const on = lvSel.has(b);
       const li = document.createElement('li');
-      li.className = 'is-' + b.tagName.toLowerCase();
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.innerHTML = '<i class="fa-solid ' + (cta ? 'fa-hand-pointer' : (ICONS[b.tagName] || 'fa-square')) + '"></i><b></b><span></span>';
-      btn.querySelector('b').textContent = cta ? 'Button' : (NAMES[b.tagName] || 'Block');
-      btn.querySelector('span').textContent = text.length > 46 ? text.slice(0, 46) + '…' : text;
-      btn.addEventListener('click', () => {
-        b.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        if (isText(b) || /^(UL|OL|BLOCKQUOTE|ASIDE|TABLE)$/.test(b.tagName)) caretIn(b.querySelector('li, th, td') || b, true);
-        else { picked = b; setActive(b); }
-        b.classList.add('ge-flash');
-        setTimeout(() => b.classList.remove('ge-flash'), 900);
-      });
-      li.appendChild(btn);
-      ol.appendChild(li);
+      li.className = 'ge-lv is-' + b.tagName.toLowerCase() + (on ? ' is-sel' : '') + (b === active ? ' is-here' : '') + (isEmpty(b) ? ' is-empty' : '');
+      li.dataset.i = i;
+      li.tabIndex = -1;
+      li.draggable = true;
+      li.setAttribute('role', 'option');
+      li.setAttribute('aria-selected', on ? 'true' : 'false');
+      li.innerHTML = '<input type="checkbox" data-nodirty tabindex="-1" aria-label="Pick this block"' + (on ? ' checked' : '') + '>' +
+        '<i class="fa-solid ' + (isCta(b) ? 'fa-hand-pointer' : (ICONS[b.tagName] || 'fa-square')) + '"></i><b></b><span></span>' +
+        '<button type="button" class="ge-lv-opt" data-lv="menu" tabindex="-1" aria-label="What to do with this block"><i class="fa-solid fa-ellipsis-vertical"></i></button>';
+      li.querySelector('b').textContent = nameOf(b);
+      li.querySelector('span').textContent = text.length > 60 ? text.slice(0, 60) + '…' : text;
+      lvList.appendChild(li);
     });
-    if (!ol.children.length) ol.innerHTML = '<li class="ge-dim">The post is empty.</li>';
+    if (!lvRows.length) lvList.innerHTML = '<li class="ge-dim ge-lv-none">The post is empty.</li>';
+    lvBar();
+    if (had != null) lvFocusRow(had);
+  }
+  function lvBar() {
+    const n = lvSel.size, all = document.getElementById('geLvAll');
+    document.getElementById('geLvCount').textContent = n ? n + ' picked' : plural(lvRows.length, 'block');
+    all.checked = n > 0 && n === lvRows.length;
+    all.indeterminate = n > 0 && n < lvRows.length;
+    document.getElementById('geLvActs').hidden = !n;
+    const paste = document.getElementById('geLvPaste'), c = clip();
+    paste.hidden = !c;
+    if (c) paste.querySelector('span').textContent = 'Paste ' + plural(c.blocks.length, 'copied block') + (n ? ' after the picked ones' : ' at the end');
+  }
+  function lvPaint() {
+    Array.from(lvList.children).forEach((li, i) => {
+      const on = lvSel.has(lvRows[i]);
+      li.classList.toggle('is-sel', on);
+      li.setAttribute('aria-selected', on ? 'true' : 'false');
+      const box = li.querySelector('input');
+      if (box) box.checked = on;
+    });
+    lvBar();
+  }
+  function lvHere() {                              // the row of the block the caret is in
+    if (!lvList || drawer.hidden) return;
+    lvList.querySelectorAll('.is-here').forEach(li => li.classList.remove('is-here'));
+    const li = lvList.children[lvRows.indexOf(active)];
+    if (li && active) {
+      li.classList.add('is-here');
+      if (!lvList.contains(document.activeElement)) li.scrollIntoView({ block: 'nearest' });
+    }
+  }
+  function lvPick(i, how) {                        // how: 'only', 'toggle', or 'range' (from the last one picked)
+    const b = lvRows[i];
+    if (!b) return;
+    if (how === 'toggle') { if (lvSel.has(b)) lvSel.delete(b); else lvSel.add(b); lvAnchor = i; }
+    else if (how === 'range' && lvAnchor != null) lvSel = new Set(lvRows.slice(Math.min(lvAnchor, i), Math.max(lvAnchor, i) + 1));
+    else { lvSel = new Set([b]); lvAnchor = i; }
+    lvFocus = i;
+    lvPaint();
+  }
+  function lvFocusRow(x) {                         // a row, by its number or its block
+    const i = typeof x === 'number' ? x : lvRows.indexOf(x);
+    const li = lvList.children[Math.max(0, Math.min(i, lvRows.length - 1))];
+    if (li && li.dataset.i != null) { lvFocus = +li.dataset.i; li.focus(); }
+  }
+  function goTo(b, edit) {
+    b.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (isText(b) || /^(UL|OL|BLOCKQUOTE|ASIDE|TABLE)$/.test(b.tagName)) caretIn(b.querySelector('li, th, td') || b, true);
+    else {
+      picked = b;
+      setActive(b);
+      if (edit && b.tagName === 'FIGURE') openPanel(b);
+      else if (edit && isCta(b)) openButton(b, b);
+    }
+    b.classList.add('ge-flash');
+    setTimeout(() => b.classList.remove('ge-flash'), 900);
+  }
+  // what an action is done to: the row it was asked on (with the others picked, when it is one of them), or the
+  // picked ones, or the block the caret is in
+  function lvTargets(b) {
+    if (b && !lvSel.has(b)) return [b];
+    const sel = lvPicked();
+    return sel.length ? sel : (b ? [b] : (active && editor.contains(active) ? [active] : []));
+  }
+  function lvDo(what, b, e) {
+    const bs = lvTargets(b);
+    const keepFocus = lvList.contains(document.activeElement) || lvMenu.contains(document.activeElement);
+    lvMenuClose();
+    if (what === 'paste') {
+      const got = pasteBlocks(b || lvPicked().pop() || null);
+      if (got.length) { lvSel = new Set(got); blockList(); toast('Pasted ' + plural(got.length, 'block') + '.', 'success'); }
+    } else if (!bs.length) {
+      toast('Pick a block first.', 'warning');
+      return;
+    } else if (what === 'edit') {
+      goTo(bs[0], true);
+      return;
+    } else if (what === 'copy' || what === 'cut') {
+      const n = copyBlocks(bs, e);
+      if (!n) { toast('Empty lines are not copied.', 'warning'); return; }
+      if (what === 'cut') { removeBlocks(bs); lvSel.clear(); blockList(); } else lvBar();
+      toast(plural(n, 'block') + (what === 'cut' ? ' cut' : ' copied') + ': paste ' + (n === 1 ? 'it' : 'them') + ' here or in another post.', 'success');
+    } else if (what === 'duplicate') {
+      const c = duplicateBlocks(bs);
+      if (c.length) { lvSel = new Set(c); blockList(); }
+    } else if (what === 'up' || what === 'down') {
+      if (moveBlocks(bs, what === 'up' ? -1 : 1)) blockList();
+      else toast(what === 'up' ? 'Already at the top.' : 'Already at the bottom.', 'info');
+    } else if (what === 'before' || what === 'after') {
+      const list = inOrder(bs);
+      lvSel.clear();
+      addLine(what === 'before' ? list[0] : list[list.length - 1], what === 'before');
+      return;                                      // the caret is on the new line, ready to type
+    } else if (what === 'delete') {
+      removeBlocks(bs);
+      lvSel.clear();
+      blockList();
+      toast(plural(bs.length, 'block') + ' deleted. Ctrl+Z brings ' + (bs.length === 1 ? 'it' : 'them') + ' back.', 'info');
+    } else if (what.startsWith('turn:')) {
+      turnInto(bs, what.slice(5));
+      lvSel.clear();
+      blockList();
+    }
+    if (keepFocus) lvFocusRow(lvSel.size ? lvPicked()[0] : lvFocus);
+  }
+  function lvMenuOpen(b, x, y) {
+    if (!lvSel.has(b)) { lvSel = new Set([b]); lvAnchor = lvRows.indexOf(b); lvPaint(); }
+    lvMenuFor = b;
+    const bs = lvTargets(b), n = bs.length, c = clip();
+    const first = bs[0], next = bs[n - 1].nextElementSibling;
+    const kinds = bs.every(turnable) ? KINDS.filter(([k]) => !bs.every(x => kindOf(x) === k)) : [];
+    const item = (what, icon, label, key, off, cls) => '<button type="button" role="menuitem" data-lv="' + what + '"' + (off ? ' disabled' : '') +
+      (cls ? ' class="' + cls + '"' : '') + '><i class="fa-solid ' + icon + '"></i><span>' + esc(label) + '</span>' + (key ? '<kbd>' + key + '</kbd>' : '') + '</button>';
+    lvMenu.innerHTML = '<div class="ge-lv-mh">' + esc(n > 1 ? plural(n, 'block') : nameOf(b)) + '</div>' +
+      item('edit', 'fa-pen', n > 1 ? 'Go to the first' : 'Edit', 'Enter') +
+      '<hr>' + item('copy', 'fa-copy', 'Copy', 'Ctrl+C') + item('cut', 'fa-scissors', 'Cut', 'Ctrl+X') +
+      item('paste', 'fa-paste', c ? 'Paste ' + plural(c.blocks.length, 'block') + ' after' : 'Paste after (nothing copied)', 'Ctrl+V', !c) +
+      item('duplicate', 'fa-clone', 'Duplicate', 'Ctrl+Shift+D') +
+      '<hr>' + item('before', 'fa-arrow-turn-up', 'Add a block before', 'Ctrl+Alt+T') + item('after', 'fa-arrow-turn-down', 'Add a block after', 'Ctrl+Alt+Y') +
+      item('up', 'fa-arrow-up', 'Move up', 'Alt+Shift+↑', !first.previousElementSibling) +
+      item('down', 'fa-arrow-down', 'Move down', 'Alt+Shift+↓', !next || trailing(next)) +
+      (kinds.length ? '<hr><div class="ge-lv-mh">Turn into</div><div class="ge-lv-kinds">' +
+        kinds.map(([k, l]) => '<button type="button" role="menuitem" data-lv="turn:' + k + '">' + esc(l) + '</button>').join('') + '</div>' : '') +
+      '<hr>' + item('delete', 'fa-trash', n > 1 ? 'Delete ' + plural(n, 'block') : 'Delete', 'Del', false, 'is-bad');
+    lvMenu.hidden = false;
+    lvMenu.style.left = Math.max(8, Math.min(x, window.innerWidth - lvMenu.offsetWidth - 8)) + 'px';
+    lvMenu.style.top = Math.max(8, Math.min(y, window.innerHeight - lvMenu.offsetHeight - 8)) + 'px';
+    lvMenu.querySelector('button:not([disabled])').focus();
+  }
+  function lvMenuClose() { if (lvMenu && !lvMenu.hidden) { lvMenu.hidden = true; lvMenuFor = null; } }
+  if (lvList) {
+    lvList.addEventListener('click', e => {
+      const li = e.target.closest('li[data-i]');
+      if (!li) return;
+      const i = +li.dataset.i, b = lvRows[i];
+      if (e.target.closest('[data-lv=menu]')) { const r = e.target.closest('button').getBoundingClientRect(); lvMenuOpen(b, r.left, r.bottom + 4); return; }
+      if (e.target.matches('input[type=checkbox]') || e.ctrlKey || e.metaKey) { lvPick(i, 'toggle'); return; }
+      if (e.shiftKey) { lvPick(i, 'range'); return; }
+      lvPick(i, 'only');
+      goTo(b);
+      if (window.innerWidth <= 900) listView(false);   // on a phone the list covers the post: get out of the way
+    });
+    lvList.addEventListener('contextmenu', e => {
+      const li = e.target.closest('li[data-i]');
+      if (!li) return;
+      e.preventDefault();
+      lvMenuOpen(lvRows[+li.dataset.i], e.clientX, e.clientY);
+    });
+    lvList.addEventListener('focus', e => { if (e.target === lvList && lvRows.length) lvFocusRow(lvFocus); });
+    lvList.addEventListener('keydown', e => {
+      const li = e.target.closest('li[data-i]');
+      const i = li ? +li.dataset.i : lvFocus, b = lvRows[i];
+      const mod = e.ctrlKey || e.metaKey, k = e.key, low = k.toLowerCase();
+      const tgt = lvSel.size ? null : b;           // from the keys: the picked blocks, or else the row with the focus
+      if (k === 'ArrowDown' || k === 'ArrowUp') {
+        e.preventDefault();
+        if (e.altKey && e.shiftKey) { lvDo(k === 'ArrowUp' ? 'up' : 'down', tgt); return; }
+        const to = Math.max(0, Math.min(lvRows.length - 1, i + (k === 'ArrowDown' ? 1 : -1)));
+        if (e.shiftKey) { if (lvAnchor == null) lvAnchor = i; lvPick(to, 'range'); }
+        lvFocusRow(to);
+      } else if (k === 'Home' || k === 'End') { e.preventDefault(); lvFocusRow(k === 'Home' ? 0 : lvRows.length - 1); }
+      else if (k === ' ' && b) { e.preventDefault(); lvPick(i, 'toggle'); }
+      else if (k === 'Enter' && b) { e.preventDefault(); lvPick(i, 'only'); goTo(b); }
+      else if ((k === 'Delete' || k === 'Backspace') && b) { e.preventDefault(); lvDo('delete', tgt); }
+      else if (mod && low === 'a') { e.preventDefault(); lvSel = new Set(lvRows); lvPaint(); }
+      else if (mod && e.shiftKey && low === 'd') { e.preventDefault(); lvDo('duplicate', tgt); }
+      else if (mod && e.altKey && (low === 't' || low === 'y')) { e.preventDefault(); lvDo(low === 't' ? 'before' : 'after', tgt); }
+      else if (mod && !e.shiftKey && low === 'z') { e.preventDefault(); travel(-1); }
+      else if (mod && (low === 'y' || (e.shiftKey && low === 'z'))) { e.preventDefault(); travel(1); }
+      else if (k === 'Escape' && lvSel.size) { e.preventDefault(); e.stopPropagation(); lvSel.clear(); lvPaint(); }
+      else if ((k === 'ContextMenu' || (e.shiftKey && k === 'F10')) && b) { e.preventDefault(); const r = li.getBoundingClientRect(); lvMenuOpen(b, r.left + 40, r.bottom); }
+    });
+    // rows drag: the picked blocks move together, before or after the row they are dropped on
+    const dropMarks = () => lvList.querySelectorAll('.is-drop-before, .is-drop-after').forEach(li => li.classList.remove('is-drop-before', 'is-drop-after'));
+    const dropSpot = e => {
+      const li = e.target.closest('li[data-i]');
+      if (!li) return null;
+      const r = li.getBoundingClientRect();
+      return { li, b: lvRows[+li.dataset.i], before: e.clientY < r.top + r.height / 2 };
+    };
+    lvList.addEventListener('dragstart', e => {
+      const li = e.target.closest('li[data-i]');
+      if (!li) return;
+      const b = lvRows[+li.dataset.i];
+      lvDrag = lvSel.has(b) ? lvPicked() : [b];
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('application/x-blog-blocks', String(lvDrag.length));   // not text: the post itself takes none of it
+      lvDrag.forEach(x => { const r = lvList.children[lvRows.indexOf(x)]; if (r) r.classList.add('is-dragging'); });
+    });
+    lvList.addEventListener('dragover', e => {
+      if (!lvDrag) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      dropMarks();
+      const s = dropSpot(e);
+      if (s && !lvDrag.includes(s.b)) s.li.classList.add(s.before ? 'is-drop-before' : 'is-drop-after');
+    });
+    lvList.addEventListener('dragleave', e => { if (!lvList.contains(e.relatedTarget)) dropMarks(); });
+    lvList.addEventListener('drop', e => {
+      if (!lvDrag) return;
+      e.preventDefault();
+      const s = dropSpot(e), moving = lvDrag;
+      dropMarks();
+      lvDrag = null;
+      if (s && !moving.includes(s.b)) {
+        structural(() => {
+          if (s.before) moving.forEach(x => s.b.before(x));
+          else { let ref = s.b; moving.forEach(x => { ref.after(x); ref = x; }); }
+        });
+        lvSel = new Set(moving);
+      }
+      blockList();
+    });
+    lvList.addEventListener('dragend', () => { lvDrag = null; dropMarks(); blockList(); });
+    document.getElementById('geLvAll').addEventListener('change', e => { lvSel = e.target.checked ? new Set(lvRows) : new Set(); lvPaint(); });
+    drawer.addEventListener('click', e => { const b = e.target.closest('.ge-lv-bar [data-lv], #geLvPaste'); if (b) lvDo(b.dataset.lv, null); });
+    lvMenu.addEventListener('mousedown', e => e.preventDefault());       // the post keeps its caret
+    lvMenu.addEventListener('click', e => { const b = e.target.closest('[data-lv]'); if (b && !b.disabled) lvDo(b.dataset.lv, lvMenuFor); });
+    lvMenu.addEventListener('keydown', e => {
+      const items = Array.from(lvMenu.querySelectorAll('button:not([disabled])'));
+      const i = items.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); }
+      else if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); const f = lvMenuFor; lvMenuClose(); lvFocusRow(f); }
+    });
+    document.addEventListener('mousedown', e => { if (!lvMenu.hidden && !lvMenu.contains(e.target) && !e.target.closest('[data-lv=menu]')) lvMenuClose(); });
+    // Ctrl+C, X and V with the list in hand: the blocks (and their words for other programs)
+    const inList = () => lvList.contains(document.activeElement);
+    document.addEventListener('copy', e => { if (inList()) lvDo('copy', lvSel.size ? null : lvRows[lvFocus], e); });
+    document.addEventListener('cut', e => { if (inList()) lvDo('cut', lvSel.size ? null : lvRows[lvFocus], e); });
+    document.addEventListener('paste', e => {
+      if (!inList()) return;
+      e.preventDefault();
+      const cd = e.clipboardData, html = cd ? cd.getData('text/html') : '', text = cd ? cd.getData('text/plain') : '';
+      const ref = lvPicked().pop() || lvRows[lvFocus] || null;
+      let got;
+      if (ourClip(html) || (!html && !text)) got = pasteBlocks(ref);
+      else got = insertBlocks(html ? blocky(cleanPaste(html).html) : textHtml(text), ref);
+      if (got.length) { lvSel = new Set(got); blockList(); lvFocusRow(got[0]); toast('Pasted ' + plural(got.length, 'block') + '.', 'success'); }
+    });
+    window.addEventListener('storage', e => { if (e.key === CLIP) lvBar(); });   // copied in another tab
   }
 
   // publish: now, or a time to come (scheduled)
@@ -1393,6 +1761,7 @@
   if (form.dataset.dirty) changed();                      // an earlier version, brought back: not saved yet
   if (store('ge.zen') === '1') body.classList.add('ge-zen');
   if (window.innerWidth <= 900 || store('ge.side') === '0') side(false);
+  if (window.innerWidth > 1100 && store('ge.list') !== '0') listView(true);    // the list view is open on a wide screen
   when();
   seo();
 })();

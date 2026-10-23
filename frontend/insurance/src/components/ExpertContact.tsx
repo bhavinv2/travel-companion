@@ -156,7 +156,7 @@ export default function ExpertContact() {
               <label className="xlbl" htmlFor="x-tel">Mobile number</label>
               <div className="xtel">
                 <PhoneCombo dial={dial} iso={iso} onChange={(c) => { setDial(`+${c.dial}`); setIso(c.iso); }} />
-                <input className="xinp" id="x-tel" type="tel" inputMode="tel" placeholder="00000 00000" required value={tel} onChange={(e) => setTel(e.target.value)} />
+                <input className="xinp" id="x-tel" type="tel" inputMode="tel" placeholder="Mobile number" required value={tel} onChange={(e) => setTel(e.target.value)} />
               </div>
               <label className="xlbl">Destination</label>
               <DestinationCombo

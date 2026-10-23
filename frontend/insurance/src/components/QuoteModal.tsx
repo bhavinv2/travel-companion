@@ -200,7 +200,7 @@ export default function QuoteModal() {
                   <span className="tel">
                     <DialSelect id="m-dial" value={form.cc} onChange={(v) => setForm({ cc: v })} />
                     <span className="iw" style={{ flex: 1 }}><Icon name="i-mobile" className="ico sm" />
-                      <input className="inp" id="m-tel" type="tel" placeholder="00000 00000" value={form.phone} onChange={(e) => setForm({ phone: e.target.value })} />
+                      <input className="inp" id="m-tel" type="tel" placeholder="Mobile number" value={form.phone} onChange={(e) => setForm({ phone: e.target.value })} />
                     </span>
                   </span>
                 </div>

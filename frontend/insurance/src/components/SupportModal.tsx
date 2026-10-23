@@ -184,7 +184,7 @@ export default function SupportModal() {
                 <span className="cfield" style={{ flex: 1 }}>
                   <Icon name="i-phone" className="ico s sm" />
                   <input className="cinp" id="sp-tel" type="tel" inputMode="tel" required
-                         placeholder="00000 00000" autoComplete="tel"
+                         placeholder="Mobile number" autoComplete="tel"
                          value={tel} onChange={(e) => setTel(e.target.value)} />
                 </span>
               </span>

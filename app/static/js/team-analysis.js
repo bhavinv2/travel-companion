@@ -73,7 +73,18 @@
     tab = t;
     root.querySelectorAll('.ta-tabs [data-tab]').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t ? 'true' : 'false'));
     root.querySelectorAll('.ta-pane').forEach(p => { p.hidden = p.dataset.pane !== t; });
+    newest(root.querySelector('[data-pane="' + t + '"]'));
   }
+  // a day grid wider than its pane starts at the newest days; the names and totals stay in view, edged
+  function newest(pane) {
+    pane.querySelectorAll('.ta-wrap').forEach(w => {
+      if (!w.querySelector('.ta-grid')) return;
+      w.scrollLeft = w.scrollWidth;
+      edge(w);
+    });
+  }
+  const edge = w => w.classList.toggle('is-scroll', w.scrollWidth > w.clientWidth + 1);
+  window.addEventListener('resize', () => root.querySelectorAll('.ta-wrap').forEach(edge));
   root.querySelector('.ta-tabs').addEventListener('click', e => {
     const b = e.target.closest('[data-tab]');
     if (!b) return;
@@ -160,9 +171,9 @@
     const together = data.days.map(d => add(rows.map(p => val(p, d))));
     const day = d => { const x = new Date(d + 'T00:00:00'); return { wd: x.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2), n: x.getDate(), we: x.getDay() === 0 || x.getDay() === 6 }; };
     const fmt = v => (Math.round(v * 10) / 10).toString();
-    let h = '<thead><tr><th class="who">' + esc(label) + '</th>' + data.days.map(d => { const x = day(d); return '<th class="' + (x.we ? 'we' : '') + '">' + x.wd + '<b>' + x.n + '</b></th>'; }).join('') + '<th class="sum">All</th></tr></thead><tbody>';
+    let h = '<thead><tr><th class="who" title="' + esc(label) + '">' + esc(label) + '</th>' + data.days.map(d => { const x = day(d); return '<th class="' + (x.we ? 'we' : '') + '">' + x.wd + '<b>' + x.n + '</b></th>'; }).join('') + '<th class="sum">All</th></tr></thead><tbody>';
     rows.forEach(p => {
-      h += '<tr><td class="who">' + esc(p.name) + '</td>' + data.days.map(d => {
+      h += '<tr><td class="who" title="' + esc(p.name) + '">' + esc(p.name) + '</td>' + data.days.map(d => {
         const v = val(p, d);
         return '<td class="l' + (v && top ? Math.ceil(4 * v / top) : 0) + '" title="' + esc(p.name + ', ' + d + ': ' + fmt(v)) + '">' + (v ? fmt(v) : '') + '</td>';
       }).join('') + '<td class="sum">' + fmt(add(data.days.map(d => val(p, d)))) + '</td></tr>';
@@ -171,8 +182,14 @@
     h += '<tr class="team"><td class="who">Together</td>' + together.map(v => '<td>' + (v ? fmt(v) : '') + '</td>').join('') + '<td class="sum">' + fmt(add(together)) + '</td></tr>';
     // the same, as a bar a day, lined up under the days
     h += '<tr class="bars" aria-hidden="true"><td class="who"></td>' + together.map((v, i) =>
-      '<td title="' + esc(data.days[i] + ': ' + fmt(v)) + '"><i style="height:' + Math.round(100 * v / most) + '%"></i></td>').join('') + '<td class="sum"></td></tr></tbody>';
-    out.innerHTML = rows.length ? h : '';
+      '<td title="' + esc(data.days[i] + ': ' + fmt(v)) + '">' + (v ? '<i style="height:' + Math.max(4, Math.round(100 * v / most)) + '%"></i>' : '') + '</td>').join('') + '<td class="sum"></td></tr></tbody>';
+    const any = together.some(v => v);
+    const none = document.getElementById('taDailyNone');
+    none.textContent = 'Nothing to show for “' + label + '” in these days, for the people ticked.';
+    none.hidden = !rows.length || any;
+    out.style.setProperty('--days', data.days.length);
+    out.innerHTML = rows.length && any ? h : '';
+    newest(out.closest('.ta-pane'));
   }
   if (metric) metric.addEventListener('change', daily);
 

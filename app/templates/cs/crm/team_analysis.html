@@ -199,7 +199,7 @@
             <p class="muted small">Darker = more half hours ticked; an orange corner = some started late. Click a day for its half hours.</p></div></div></div>
         {% set ns = namespace(top=1) %}{% for p in people %}{% for d, x in (ck.person.get(p.user.id) or {}).items() %}{% if x.slots > ns.top %}{% set ns.top = x.slots %}{% endif %}{% endfor %}{% endfor %}
         <div class="table-wrap ta-wrap">
-        <table class="ta-grid">
+        <table class="ta-grid" style="--days: {{ per.days|length }}">
           <thead><tr><th class="who">Person</th>
             {% for d in per.days %}<th class="{{ 'we' if d.weekday() >= 5 }}"><a data-keep href="{{ crm_url('team_analysis', period='custom', start=d.isoformat(), end=d.isoformat(), tab='checks') }}" title="{{ d.strftime('%A %d %B') }}">{{ d.strftime('%a')[:2] }}<b>{{ d.day }}</b></a></th>{% endfor %}
             <th class="sum">All</th></tr></thead>
@@ -256,8 +256,9 @@
     <div class="ta-pane" data-pane="daily">
       <div class="ta-daily-head">
         <label>Show <select id="taMetric">{% for k, label in daily_def %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</select></label>
-        <span class="muted small">One row per person, one column per day; Together adds up the people ticked, with a bar a day under it.</span>
+        <span class="muted small">One row per person, one column per day; Together adds up the people ticked, with a bar a day under it. A long period scrolls sideways; the names and totals stay in view.</span>
       </div>
+      <p class="muted ta-empty" id="taDailyNone" hidden></p>
       <div class="table-wrap ta-wrap"><table class="ta-grid ta-daily" id="taDaily"></table></div>
       <script type="application/json" id="taDailyData">{{ result.daily_json|tojson }}</script>
     </div>

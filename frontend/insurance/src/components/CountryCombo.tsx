@@ -90,7 +90,7 @@ export function PhoneCombo({
   // redrew "United States" as whichever of them came first in the list.
   const current = (iso ? COUNTRIES.find((c) => c.iso === iso) : undefined)
     ?? COUNTRIES.find((c) => `+${c.dial}` === dial)
-    ?? COUNTRIES.find((c) => c.name === 'India')!;
+    ?? COUNTRIES.find((c) => c.iso === 'US')!;          // the default, as services/phone.py has it
 
   return (
     <div className="itel" id="x-itel" ref={boxRef}>

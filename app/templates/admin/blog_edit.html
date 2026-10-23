@@ -58,7 +58,7 @@
       <button type="button" data-do="insert" data-block="divider" title="Line across"><i class="fa-solid fa-minus"></i></button>
       <span class="bf-sep"></span>
       <button type="button" data-do="clear" title="Clear formatting"><i class="fa-solid fa-eraser"></i></button>
-      <button type="button" class="ge-ib" id="geListBtn" data-ge="list" title="List view: every block, and the outline" aria-pressed="false"><i class="fa-solid fa-list"></i></button>
+      <button type="button" class="ge-ib" id="geListBtn" data-ge="list" title="List view: every block, to copy, move, duplicate or delete; and the outline" aria-pressed="false"><i class="fa-solid fa-list"></i></button>
     </div>
     <div class="ge-actions">
       <span class="bs-dirty" id="bsDirty"></span>
@@ -93,7 +93,22 @@
         <button type="button" data-dtab="outline" aria-selected="false">Outline</button>
         <button type="button" class="ge-x" data-ge="list" aria-label="Close list view"><i class="fa-solid fa-xmark"></i></button>
       </div>
-      <div data-dpane="list"><ol class="ge-blocks" id="geBlocks"></ol></div>
+      <div data-dpane="list">
+        <div class="ge-lv-bar">
+          <label class="ge-lv-all"><input type="checkbox" id="geLvAll" data-nodirty aria-label="Pick every block"/> <span id="geLvCount"></span></label>
+          <span class="ge-lv-acts" id="geLvActs" hidden>
+            <button type="button" data-lv="copy" title="Copy (Ctrl+C)" aria-label="Copy"><i class="fa-regular fa-copy"></i></button>
+            <button type="button" data-lv="cut" title="Cut (Ctrl+X)" aria-label="Cut"><i class="fa-solid fa-scissors"></i></button>
+            <button type="button" data-lv="duplicate" title="Duplicate (Ctrl+Shift+D)" aria-label="Duplicate"><i class="fa-solid fa-clone"></i></button>
+            <button type="button" data-lv="up" title="Move up (Alt+Shift+↑)" aria-label="Move up"><i class="fa-solid fa-arrow-up"></i></button>
+            <button type="button" data-lv="down" title="Move down (Alt+Shift+↓)" aria-label="Move down"><i class="fa-solid fa-arrow-down"></i></button>
+            <button type="button" data-lv="delete" class="is-bad" title="Delete (Delete)" aria-label="Delete"><i class="fa-solid fa-trash"></i></button>
+          </span>
+        </div>
+        <button type="button" class="ge-lv-paste" id="geLvPaste" data-lv="paste" hidden><i class="fa-solid fa-paste"></i> <span></span></button>
+        <ol class="ge-blocks" id="geBlocks" role="listbox" aria-multiselectable="true" aria-label="Blocks of the post" tabindex="0"></ol>
+        <p class="ge-lv-help">Click a block to go to it. Tick boxes, Ctrl+click or Shift+click pick several. Drag a block to move it; <b>⋮</b> or a right-click for everything else.</p>
+      </div>
       <div data-dpane="outline" hidden>
         <ol class="bs-outline" id="bsOutline"></ol>
         <p class="muted bs-outline-none" id="bsOutlineNone">Headings appear here: add one with <b>H2</b>.</p>
@@ -375,11 +390,17 @@
       <dt><kbd>Ctrl</kbd>+<kbd>B</kbd> <kbd>I</kbd> <kbd>U</kbd></dt><dd>Bold, italic, underline</dd>
       <dt><kbd>Ctrl</kbd>+<kbd>K</kbd></dt><dd>Link</dd>
       <dt><kbd>Tab</kbd></dt><dd>In a table: the next cell (a new row from the last)</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd></dt><dd>Duplicate the block (or the blocks picked in the list view)</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd> / <kbd>Y</kbd></dt><dd>Add a block before / after</dd>
+      <dt><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>↑</kbd> / <kbd>↓</kbd></dt><dd>Move the block up / down</dd>
+      <dt><kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>Z</kbd></dt><dd>Delete the block</dd>
+      <dt>In the list view</dt><dd><kbd>↑</kbd> <kbd>↓</kbd> go through the blocks, <kbd>Space</kbd> picks one, <kbd>Enter</kbd> goes to it, <kbd>Ctrl</kbd>+<kbd>A</kbd> picks all; <kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd> copy, cut and paste blocks (into another post too), <kbd>Delete</kbd> deletes them</dd>
       <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>\</kbd></dt><dd>Distraction free on and off</dd>
       <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>,</kbd></dt><dd>Settings on and off</dd>
       <dt><kbd>Esc</kbd></dt><dd>Close a menu or panel</dd>
     </dl>
   </dialog>
+  <div class="ge-lv-menu" id="geLvMenu" role="menu" hidden></div>
   <input type="file" id="bsFile" accept="image/jpeg,image/png,image/webp" hidden/>
 </form>
 {% endblock %}

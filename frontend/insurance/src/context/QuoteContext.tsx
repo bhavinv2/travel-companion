@@ -30,7 +30,7 @@ const initialForm: QuoteForm = {
   residence: 'India',
   name: '',
   email: '',
-  cc: 'IN',
+  cc: 'US',
   phone: '',
   purpose: 'Visiting family',
   preExisting: 'no',
