@@ -1,0 +1,84 @@
+{% extends 'admin/blog/_layout.html' %}
+{% block title %}Media – Blog{% endblock %}
+{% block wpb_active %}media{% endblock %}
+{% block wpb_main %}
+<div class="wpb-head">
+  <h1>Media library</h1>
+  <button type="button" class="wpb-btn" id="wpbAddMedia"><i class="fa-solid fa-upload"></i> Add new pictures</button>
+</div>
+
+<div class="wpb-drop" id="wpbDrop" data-url="{{ url_for('admin.blog_media_upload') }}" hidden>
+  <i class="fa-solid fa-cloud-arrow-up"></i>
+  <p><b>Drop pictures here</b> or <button type="button" class="wpb-link" data-pick>choose them</button></p>
+  <small>JPG, PNG or WebP, up to 10 MB each. They are made web-sized; nothing is published until a post uses them.</small>
+  <input type="file" id="wpbMediaFile" accept="image/jpeg,image/png,image/webp" multiple hidden/>
+  <p class="wpb-drop-status" id="wpbDropStatus" aria-live="polite"></p>
+</div>
+
+<div class="wpb-views-row">
+  <ul class="wpb-views">
+    <li><a href="{{ url_for('admin.blog_media', q=q or None) }}" class="{{ 'on' if show == 'all' }}">All</a></li>
+    <li><a href="{{ url_for('admin.blog_media', show='used', q=q or None) }}" class="{{ 'on' if show == 'used' }}">In a post</a></li>
+    <li><a href="{{ url_for('admin.blog_media', show='unused', q=q or None) }}" class="{{ 'on' if show == 'unused' }}">Not used</a></li>
+  </ul>
+  <form method="GET" class="wpb-search" role="search">
+    {% if show != 'all' %}<input type="hidden" name="show" value="{{ show }}"/>{% endif %}
+    <input type="search" name="q" value="{{ q }}" placeholder="Search pictures" aria-label="Search pictures"/>
+    <button type="submit" class="wpb-btn">Search</button>
+  </form>
+</div>
+<p class="wpb-count">{{ items|length }} picture{{ '' if items|length == 1 else 's' }}</p>
+
+<div class="wpb-media" id="wpbMedia">
+  {% for m in items %}
+  <button type="button" class="wpb-tile {{ 'is-used' if m.posts }}" data-i="{{ loop.index0 }}" title="{{ m.name }}">
+    <img src="{{ m.src }}" alt="{{ m.alt }}" loading="lazy"/>
+    {% if not m.posts %}<span class="wpb-tile-flag">Not used</span>{% endif %}
+  </button>
+  {% else %}
+  <p class="wpb-empty">{{ 'No picture matches that search.' if q else 'No pictures yet: add some, or upload them from a post.' }}</p>
+  {% endfor %}
+</div>
+
+{# what one picture's panel shows: read by blog-admin.js #}
+<template id="wpbMediaRows">
+  {% for m in items %}
+  <div data-i="{{ loop.index0 }}" data-id="{{ m.id or '' }}" data-src="{{ m.src }}" data-url="{{ m.url }}" data-name="{{ m.name }}"
+       data-alt="{{ m.alt }}" data-size="{{ '%d × %d px'|format(m.width, m.height) if m.width else '' }}"
+       data-bytes="{{ (m.bytes / 1024)|round|int ~ ' KB' if m.bytes else '' }}"
+       data-at="{{ m.at|istd('%d %b %Y, %H:%M') if m.at }}" data-by="{{ m.by }}"
+       data-save="{{ url_for('admin.blog_media_save', media_id=m.id) if m.id }}"
+       data-delete="{{ url_for('admin.blog_media_delete', media_id=m.id) if m.id and not m.posts }}">
+    {% for p in m.posts %}<a href="{{ url_for('admin.blog_edit', post_id=p.id) }}">{{ p.title }}{% if p.trashed_at %} (in the Trash){% elif not p.is_published %} (draft){% endif %}</a>{% endfor %}
+  </div>
+  {% endfor %}
+</template>
+
+<dialog class="wpb-dialog wpb-media-dialog" id="wpbMediaDialog" aria-label="Picture details">
+  <div class="wpb-md">
+    <div class="wpb-md-pic"><img alt=""/></div>
+    <div class="wpb-md-info">
+      <button type="button" class="wpb-x" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+      <h2 class="wpb-md-name"></h2>
+      <dl>
+        <dt>Uploaded</dt><dd data-f="at"></dd>
+        <dt>By</dt><dd data-f="by"></dd>
+        <dt>Size</dt><dd><span data-f="size"></span> <span data-f="bytes"></span></dd>
+      </dl>
+      <label class="wpb-md-alt">Description (alt text)
+        <input type="text" maxlength="300" placeholder="What the picture shows"/>
+        <small>Put in a post from the library, the picture takes this description.</small>
+      </label>
+      <label>Address
+        <span class="wpb-copy"><input type="text" readonly data-f="url"/><button type="button" class="wpb-btn" data-copy>Copy</button></span>
+      </label>
+      <div class="wpb-md-posts"><b>In these posts</b><div data-f="posts"></div></div>
+      <form method="POST" class="wpb-md-del" data-confirm="Delete this picture for good? No post uses it.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <button type="submit" class="wpb-link danger"><i class="fa-solid fa-trash"></i> Delete permanently</button>
+      </form>
+      <p class="wpb-dim wpb-md-keep">A picture a post shows cannot be deleted: take it out of the post first.</p>
+    </div>
+  </div>
+</dialog>
+{% endblock %}

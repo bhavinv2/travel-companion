@@ -945,6 +945,9 @@ def store_image(data, name, width):
                                     prefix=('blog-%s' % stem)[:40])
     if not url:
         raise ImageError('%s could not be stored.' % name)
+    from flask_login import current_user
+    from app.services.blog_posts import record_media
+    record_media(url, name, data, current_user if getattr(current_user, 'is_authenticated', False) else None)
     return url
 
 
@@ -1154,8 +1157,10 @@ def word_count(html):
     return len(plain_text(html).split())
 
 
-def checks(title, slug, summary, html, cover, cover_alt, post_id=None):
-    """What the post breaks: [{'level': 'error' | 'warn' | 'ok', 'text'}]. An error stops publishing."""
+def checks(title, slug, summary, html, cover, cover_alt, post_id=None, keyword=None, seo_title=None):
+    """What the post breaks: [{'level': 'error' | 'warn' | 'ok', 'text'}]. An error stops publishing.
+    `seo_title`: the title Google shows instead of the title, when one is given; `keyword`: the words the
+    post should be found by -- where they are missing is a tip, never an error."""
     from app.models import Blog
     out = []
 
@@ -1171,6 +1176,9 @@ def checks(title, slug, summary, html, cover, cover_alt, post_id=None):
         add('warn', 'The title is short (%d characters); %d–%d reads best in search results.' % ((len(title),) + TITLE_GOOD))
     else:
         add('ok', 'Title length is good (%d characters).' % len(title))
+    seo = (seo_title or '').strip()
+    if seo and len(seo) > TITLE_GOOD[1]:
+        add('warn', 'The SEO title is %d characters; Google cuts it after about %d.' % (len(seo), TITLE_GOOD[1]))
     s = slugify(slug or '', max_length=80, word_boundary=True)
     if not s:
         add('error', 'Add the address (slug).')
@@ -1212,8 +1220,40 @@ def checks(title, slug, summary, html, cover, cover_alt, post_id=None):
             long_ones, '' if long_ones == 1 else 's', LONG_PARAGRAPH, 'it' if long_ones == 1 else 'them'))
     if re.search(r'href="http://', html or ''):
         add('warn', 'A link starts with http:// -- use https:// where the site has it.')
+    out += keyword_checks(keyword, seo or title, s, summary, html)
     if words:
         add('ok', '%d words · about %d min read.' % (words, max(1, round(words / 200))))
+    return out
+
+
+def keyword_checks(keyword, title, slug, summary, html):
+    """Where the focus keyword is, the way Yoast checks it: the title Google shows, the summary, the
+    address, the opening, a section heading -- and not too often."""
+    kw = re.sub(r'\s+', ' ', (keyword or '').strip().lower())
+    if not kw:
+        return []
+    out = []
+
+    def has(text):
+        return kw in re.sub(r'\s+', ' ', (text or '').lower())
+    text = plain_text(html)
+    opening = ' '.join(text.split()[:100])
+    found = {'the title': has(title), 'the summary': has(summary),
+             'the address': slugify(kw) in (slug or ''), 'the first paragraph': has(opening),
+             'a section heading': any(has(plain_text(h)) for h in re.findall(r'<h[23]\b[^>]*>(.*?)</h[23]>', html or '', re.S))}
+    missing = [k for k, ok in found.items() if not ok]
+    if missing:
+        out.append({'level': 'warn', 'text': 'The focus keyword "%s" is not in %s.' % (keyword.strip(), ', '.join(missing))})
+    else:
+        out.append({'level': 'ok', 'text': 'The focus keyword is in the title, summary, address, opening and a heading.'})
+    times = len(re.findall(r'(?<!\w)%s(?!\w)' % re.escape(kw), text.lower()))
+    words = len(text.split())
+    if words >= 100 and times / max(words, 1) > 0.03:
+        out.append({'level': 'warn', 'text': 'The focus keyword is used %d times in %d words: it reads as stuffed. '
+                                             'Use it less, or say it other ways.' % (times, words)})
+    elif words >= MIN_WORDS and times < 2:
+        out.append({'level': 'warn', 'text': 'The focus keyword is used %d time%s: use it a few times in the text.' % (
+            times, '' if times == 1 else 's')})
     return out
 
 
@@ -1278,29 +1318,9 @@ def import_upload(doc_files, picture_files, user):
                 res['notes'].append('%s already uses /blog/%s, so this one is a new draft beside it at /blog/%s.' % (
                     'A published post' if existing.is_published else 'Another draft', slug, post.slug))
 
-        inside, stored = parsed['embedded'], {}
-
-        def take(n, width):
-            """A picture from inside the document (stored once per size), else from the zip."""
-            if n not in inside:
-                return pics.url(n, width)
-            if (n, width) not in stored:
-                try:
-                    stored[(n, width)] = store_image(inside[n], n, width)
-                except ImageError as e:
-                    res['notes'].append(str(e))
-                    stored[(n, width)] = None
-            return stored[(n, width)]
-
-        html, res['missing'] = attach_images(parsed['html'], lambda n: take(n, BODY_WIDTH) or had.get(image_key(n)))
-        cover = parsed['cover']
-        if cover:
-            url = take(cover, COVER_WIDTH)
-            if url:
-                post.cover_image_url = url
-            elif not post.cover_image_url and cover not in inside:
-                res['missing'].append(cover)
-                res['notes'].append('The cover %s was not in the zip.' % cover)
+        html, cover_url = _assemble(parsed, pics, had, res, post.cover_image_url)
+        if cover_url:
+            post.cover_image_url = cover_url
         res['pictures'] = len(re.findall(r'<img\b', html)) + (1 if post.cover_image_url else 0)
         post.title = parsed['title']
         post.content = sanitize(html)
@@ -1312,13 +1332,57 @@ def import_upload(doc_files, picture_files, user):
         touched.add(post.id)
         res['words'] = parsed['words']
         res['checks'] = checks(post.title, post.slug, post.summary, post.content, post.cover_image_url,
-                               post.cover_alt, post.id)
+                               post.cover_alt, post.id, post.focus_keyword, post.seo_title)
+        from app.services.blog_posts import remember
+        remember(post, user, 'Imported from Word: %s' % name)
     db.session.commit()
     notes = list(pics.notes)
     unused = pics.unused()
     if unused:
         notes.append('Not used by any document: %s.' % ', '.join(unused[:12]) + (' …' if len(unused) > 12 else ''))
     return results, notes
+
+
+def _assemble(parsed, pics, had, res, cover_now=None):
+    """One parsed document's pictures stored (each once per size) and put in its HTML: (html, the cover's
+    address or None). A picture comes from inside the document, else from the uploaded ones (`pics`),
+    else stays as the post already had it (`had`); what is found nowhere goes in res['missing']."""
+    inside, stored = parsed['embedded'], {}
+
+    def take(n, width):
+        if n not in inside:
+            return pics.url(n, width)
+        if (n, width) not in stored:
+            try:
+                stored[(n, width)] = store_image(inside[n], n, width)
+            except ImageError as e:
+                res['notes'].append(str(e))
+                stored[(n, width)] = None
+        return stored[(n, width)]
+
+    html, res['missing'] = attach_images(parsed['html'], lambda n: take(n, BODY_WIDTH) or had.get(image_key(n)))
+    cover, url = parsed['cover'], None
+    if cover:
+        url = take(cover, COVER_WIDTH)
+        if not url and not cover_now and cover not in inside:
+            res['missing'].append(cover)
+            res['notes'].append('The cover %s was not in the zip.' % cover)
+    return html, url
+
+
+def read_word(data, post=None):
+    """One Word document for the editor's "Replace from Word": its parts, with its pictures stored, for
+    the editor to show. Nothing is saved to the post -- the writer looks, then saves (or does not).
+    Raises DocxError."""
+    parsed = parse_docx(data)
+    if not parsed['title']:
+        raise DocxError('No title: fill in the Title box at the top (or start the document with the title).')
+    res = {'notes': list(parsed['notes']), 'missing': []}
+    html, cover = _assemble(parsed, Pictures(), known_pictures(post.content) if post else {}, res,
+                            post.cover_image_url if post else None)
+    return {'title': parsed['title'], 'summary': parsed['summary'] or '', 'cover_alt': parsed['cover_alt'] or '',
+            'content': for_editor(sanitize(html)), 'cover': cover, 'cover_src': site_url(cover) if cover else '',
+            'notes': res['notes'], 'missing': res['missing'], 'words': parsed['words']}
 
 
 # ============================================================================== the template

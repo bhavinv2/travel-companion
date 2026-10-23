@@ -222,7 +222,7 @@ def index():
         landing_faqs = [f for _cat, items in help_center.grouped() for f in items]
         # Traveller blogs: the newest published posts, or nothing (the section hides itself).
         from app.models import Blog
-        landing_blogs = (Blog.query.filter_by(is_published=True)
+        landing_blogs = (Blog.live()
                          .order_by(Blog.published_at.desc().nullslast(), Blog.created_at.desc()).limit(3).all())
         return render_template('landing.html', feedbacks=approved_feedback, review_stats=review_stats,
                                landing_colors=_settings.landing_settings()['colors'],
@@ -422,11 +422,15 @@ def sitemap_xml():
         (f'{site}/terms', 'yearly', '0.2', today),
         (f'{site}/privacy', 'yearly', '0.2', today),
     ]
-    posts = Blog.query.filter_by(is_published=True).order_by(Blog.published_at.desc()).limit(500).all()
+    posts = Blog.live().order_by(Blog.published_at.desc()).limit(500).all()
     for p in posts:
         lastmod = (p.updated_at or p.published_at or p.created_at)
         urls.append((f'{site}/blog/{p.slug}', 'monthly', '0.6',
                     lastmod.date().isoformat() if lastmod else today))
+    from app.services.blog_posts import live_terms
+    for kind in ('category', 'tag'):
+        for term, _n in live_terms(kind):
+            urls.append((f'{site}/blog/{kind}/{term.slug}', 'weekly', '0.4', today))
     xml = ['<?xml version="1.0" encoding="UTF-8"?>',
           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for loc, freq, prio, lastmod in urls:

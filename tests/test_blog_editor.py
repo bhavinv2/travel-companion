@@ -30,7 +30,7 @@ def test_new_blog_post_is_the_full_editor(client, admin_user):
     html = client.get('/admin/blog/new').data.decode()
     for bit in ('id="bsEditor"', 'id="bsToolbar"', 'Add block', 'id="bsMenu"', 'id="bsBlockBar"', 'name="summary"',
                 'name="cover_image_url"', 'name="slug"', 'name="slug_auto"', 'Save draft', 'Publish', 'Preview',
-                'blog-studio.js', 'not saved yet', 'The checks appear here as you write'):
+                'blog-studio.js', 'Not saved yet', 'The checks appear here as you write'):
         assert bit in html, bit
     assert 'action="/admin/blog/new"' in html
     assert 'data-check-url="/admin/blog/new/check"' in html and 'data-image-url="/admin/blog/image"' in html

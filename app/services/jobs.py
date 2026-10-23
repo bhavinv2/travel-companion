@@ -144,6 +144,13 @@ def run_all():
     out.update(run_retention())
     out['scrape_stale_recovered'] = scraper_worker.recover_stale_runs()
     out['scrape_runs_started'] = scraper_worker.enqueue_scheduled()
+    # blog posts scheduled for later whose time has come: on the site now, so everybody is told
+    from app.services import blog_posts
+    try:
+        out.update(blog_posts.run_scheduled())
+    except Exception:          # noqa: BLE001
+        db.session.rollback()
+        out['blog_went_live'] = 'failed'
     from app.services import crm, crm_scope
     # Each workspace has its own Sales CRM (run 5a): the CRM steps below run once per workspace
     # (crm_scope.each_workspace), so an automation of one never touches another's leads; the WhatsApp ones run

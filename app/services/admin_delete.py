@@ -270,7 +270,8 @@ def _cascade_report(report, actor, files):
 
 def _cascade_blog(blog, actor, files):
     """Notifications pointing at the post would open a 404."""
-    from app.models import Notification
+    from app.models import BlogRevision, Notification
+    BlogRevision.query.filter_by(blog_id=blog.id).delete(synchronize_session=False)
     if blog.slug:
         Notification.query.filter(Notification.link == '/blog/%s' % blog.slug) \
             .delete(synchronize_session=False)

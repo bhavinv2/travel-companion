@@ -1,207 +1,387 @@
 {% extends 'base.html' %}
-{% block title %}{{ d.title or ('New blog post' if not post else 'Blog post') }} – {{ 'Edit' if post else 'Write' }} – Admin{% endblock %}
+{# The editor, full screen the way WordPress's is: a bar across the top (back to the posts, the blocks and
+   formatting, list view; Save draft, Preview, Publish), the post in the middle as it will look, its settings
+   on the right in three tabs (Post, SEO, Checks). Publish opens a last look first ("Ready to publish?").
+   The site's header and footer are not shown (blog-admin.css). static/js/blog-studio.js drives it. #}
+{% set st = post.status if post else 'new' %}
+{% set live = st == 'published' %}
+{% set scheduled = st == 'scheduled' %}
+{% block title %}{{ d.title or ('New blog post' if not post else 'Blog post') }} – {{ 'Edit' if post else 'Write' }} – Blog{% endblock %}
+{% block body_attrs %} class="wpb-body ge-body"{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/blog-admin.css') }}"/>{% endblock %}
 {% block content %}
 {% set errs = checks|selectattr('level', 'equalto', 'error')|list %}
-{% set live = post and post.is_published %}
-<div class="admin-page">
-  {% with active='blog' if not post else 'blog_list' %}{% include 'admin/_sidebar.html' %}{% endwith %}
-  <main class="admin-main bs-studio">
-    <div class="card-head bs-head">
-      <div>
-        <a class="bs-back" href="{{ url_for('admin.blog_list') }}"><i class="fa-solid fa-arrow-left"></i> All blog posts</a>
-        <h1>{{ 'Edit blog post' if post else 'New blog post' }}</h1>
-        <p class="muted bs-status">
-          {% if live %}<span class="chip chip-open">published</span>
-          {% elif post %}<span class="chip chip-unconfirmed">draft</span>
-          {% else %}<span class="chip chip-unconfirmed">not saved yet</span>{% endif %}
-          {% if post and post.source_file %}· imported from {{ post.source_file }}{% endif %}
-          {% if post and post.updated_at %}· last saved {{ post.updated_at|istd }}{% endif %}
-        </p>
-      </div>
-      <div class="bs-head-links">
-        {% if live %}<a class="btn-sm" href="{{ url_for('blog.blog_post', slug=post.slug) }}" target="_blank" rel="noopener"><i class="fa-solid fa-up-right-from-square"></i> View live</a>{% endif %}
-        <a class="btn-sm" href="{{ url_for('admin.blog_import') }}"><i class="fa-solid fa-file-import"></i> Import from Word</a>
-      </div>
+<form method="POST" id="bsForm" class="ge bs-studio" action="{{ url_for('admin.blog_edit', post_id=post.id) if post else url_for('admin.new_blog') }}"
+      data-check-url="{{ url_for('admin.blog_check', post_id=post.id) if post else url_for('admin.blog_check') }}"
+      data-image-url="{{ url_for('admin.blog_image', post_id=post.id) if post else url_for('admin.blog_image') }}"
+      data-word-url="{{ url_for('admin.blog_word', post_id=post.id) if post else url_for('admin.blog_word') }}"
+      data-term-url="{{ url_for('admin.blog_term_add') }}"
+      data-media-url="{{ url_for('admin.blog_media', format='json') }}"
+      data-site="{{ SITE_URL }}"
+      data-key="{{ 'cd.blog.' ~ (post.id if post else 'new') }}"
+      data-saved="{{ post.updated_at.isoformat() if post and post.updated_at else '' }}"
+      {% if revision %}data-dirty="1"{% endif %}>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  <input type="hidden" name="settings_shown" value="1"/>
+  {% if revision %}<input type="hidden" name="revision" value="{{ revision.id }}"/>{% endif %}
+  <textarea name="content" hidden>{{ d.content }}</textarea>
+  {% if not post %}<input type="hidden" name="slug_auto" value="{{ '0' if d.slug and request.form.get('slug_auto') == '0' else '1' }}"/>{% endif %}
+
+  <header class="ge-top">
+    <a class="ge-back" href="{{ url_for('admin.blog_list') if CAN('blog_list') else url_for('admin.blog_media') }}" title="All posts" aria-label="Back to all posts">
+      <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt=""/><i class="fa-solid fa-chevron-left"></i>
+    </a>
+    <div class="bf-toolbar bs-toolbar ge-tools" id="bsToolbar" role="toolbar" aria-label="Blocks and formatting">
+      <button type="button" class="bs-add" data-do="menu" title="Add a block (or type / on an empty line)"><i class="fa-solid fa-plus"></i><span class="ge-hide-sm"> Add block</span></button>
+      <span class="bf-sep"></span>
+      <button type="button" data-do="undo" title="Undo (Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
+      <button type="button" data-do="redo" title="Redo (Ctrl+Y)"><i class="fa-solid fa-rotate-right"></i></button>
+      <span class="bf-sep"></span>
+      <button type="button" data-do="block" data-tag="h2" title="Section heading">H2</button>
+      <button type="button" data-do="block" data-tag="h3" title="Smaller heading">H3</button>
+      <button type="button" data-do="block" data-tag="p" title="Normal text"><i class="fa-solid fa-paragraph"></i></button>
+      <span class="bf-sep"></span>
+      <button type="button" data-do="cmd" data-cmd="bold" title="Bold (Ctrl+B)"><i class="fa-solid fa-bold"></i></button>
+      <button type="button" data-do="cmd" data-cmd="italic" title="Italic (Ctrl+I)"><i class="fa-solid fa-italic"></i></button>
+      <button type="button" data-do="cmd" data-cmd="underline" title="Underline (Ctrl+U)"><i class="fa-solid fa-underline"></i></button>
+      <button type="button" data-do="link" title="Link (Ctrl+K)"><i class="fa-solid fa-link"></i></button>
+      <span class="bf-sep"></span>
+      <button type="button" data-do="cmd" data-cmd="insertUnorderedList" title="Bulleted list"><i class="fa-solid fa-list-ul"></i></button>
+      <button type="button" data-do="cmd" data-cmd="insertOrderedList" title="Numbered list"><i class="fa-solid fa-list-ol"></i></button>
+      <button type="button" data-do="block" data-tag="blockquote" title="Pull quote"><i class="fa-solid fa-quote-left"></i></button>
+      <button type="button" data-do="note" title="Tip box"><i class="fa-solid fa-lightbulb"></i></button>
+      <span class="bf-sep"></span>
+      <button type="button" data-do="insert" data-block="image" title="Picture: upload one, or drag it in, or paste it"><i class="fa-solid fa-image"></i></button>
+      <button type="button" data-do="library" title="Picture from the media library"><i class="fa-solid fa-photo-film"></i></button>
+      <button type="button" data-do="insert" data-block="button" title="Button"><i class="fa-solid fa-hand-pointer"></i></button>
+      <button type="button" data-do="insert" data-block="table" title="Table"><i class="fa-solid fa-table"></i></button>
+      <button type="button" data-do="insert" data-block="divider" title="Line across"><i class="fa-solid fa-minus"></i></button>
+      <span class="bf-sep"></span>
+      <button type="button" data-do="clear" title="Clear formatting"><i class="fa-solid fa-eraser"></i></button>
+      <button type="button" class="ge-ib" id="geListBtn" data-ge="list" title="List view: every block, and the outline" aria-pressed="false"><i class="fa-solid fa-list"></i></button>
     </div>
-
-    <div class="bs-restore" id="bsRestore" hidden>
-      <i class="fa-solid fa-clock-rotate-left"></i>
-      <span>This computer kept changes that were never saved (<b></b>).</span>
-      <button type="button" class="btn-sm" data-restore="yes">Bring them back</button>
-      <button type="button" class="btn-sm-outline" data-restore="no">Discard</button>
+    <div class="ge-actions">
+      <span class="bs-dirty" id="bsDirty"></span>
+      {% if not live and not scheduled %}
+        <button type="submit" name="action" value="save" class="ge-btn ge-btn-link" id="bsSave">Save draft</button>
+      {% endif %}
+      <button type="submit" formaction="{{ url_for('admin.blog_preview', post_id=post.id) if post else url_for('admin.blog_preview') }}" formtarget="_blank" class="ge-btn" id="bsPreview"><i class="fa-solid fa-eye"></i><span class="ge-hide-sm"> Preview</span></button>
+      {% if live or scheduled %}
+        <button type="submit" name="action" value="save" class="ge-btn ge-btn-primary" id="bsGoLive">{{ 'Update' if live else 'Update schedule' }}</button>
+      {% else %}
+        <button type="button" class="ge-btn ge-btn-primary" id="gePublish" data-ge="prepub">Publish</button>
+      {% endif %}
+      <button type="button" class="ge-ib" id="geSideBtn" data-ge="side" title="Settings" aria-pressed="true"><i class="fa-solid fa-gear"></i></button>
+      <span class="ge-more">
+        <button type="button" class="ge-ib" data-ge="more" title="More" aria-haspopup="true" aria-expanded="false"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+        <span class="ge-menu" id="geMore" hidden>
+          <button type="button" data-ge="zen"><i class="fa-solid fa-expand"></i> Distraction free <kbd>Ctrl+Shift+\</kbd></button>
+          <button type="button" data-ge="keys"><i class="fa-regular fa-keyboard"></i> Keyboard shortcuts</button>
+          {% if post %}<a href="{{ url_for('admin.blog_revisions', post_id=post.id) }}"><i class="fa-solid fa-clock-rotate-left"></i> Versions ({{ versions }})</a>{% endif %}
+          {% if live %}<a href="{{ url_for('blog.blog_post', slug=post.slug) }}" target="_blank" rel="noopener"><i class="fa-solid fa-up-right-from-square"></i> View live post</a>{% endif %}
+          {% if CAN('blog_import') %}<a href="{{ url_for('admin.blog_import') }}"><i class="fa-solid fa-file-import"></i> Import from Word</a>{% endif %}
+          {% if CAN('blog_list') %}<a href="{{ url_for('admin.blog_dashboard') }}"><i class="fa-solid fa-gauge-high"></i> Blog dashboard</a>{% endif %}
+        </span>
+      </span>
     </div>
+  </header>
 
-    <form method="POST" id="bsForm" action="{{ url_for('admin.blog_edit', post_id=post.id) if post else url_for('admin.new_blog') }}"
-          data-check-url="{{ url_for('admin.blog_check', post_id=post.id) if post else url_for('admin.blog_check') }}"
-          data-image-url="{{ url_for('admin.blog_image', post_id=post.id) if post else url_for('admin.blog_image') }}"
-          data-key="{{ 'cd.blog.' ~ (post.id if post else 'new') }}"
-          data-saved="{{ post.updated_at.isoformat() if post and post.updated_at else '' }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-      <textarea name="content" hidden>{{ d.content }}</textarea>
-      {% if not post %}<input type="hidden" name="slug_auto" value="{{ '0' if d.slug and request.form.get('slug_auto') == '0' else '1' }}"/>{% endif %}
+  <div class="ge-body-wrap" id="geWrap">
+    <aside class="ge-drawer" id="geDrawer" hidden aria-label="List view">
+      <div class="ge-drawer-tabs" role="tablist">
+        <button type="button" data-dtab="list" aria-selected="true">List view</button>
+        <button type="button" data-dtab="outline" aria-selected="false">Outline</button>
+        <button type="button" class="ge-x" data-ge="list" aria-label="Close list view"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div data-dpane="list"><ol class="ge-blocks" id="geBlocks"></ol></div>
+      <div data-dpane="outline" hidden>
+        <ol class="bs-outline" id="bsOutline"></ol>
+        <p class="muted bs-outline-none" id="bsOutlineNone">Headings appear here: add one with <b>H2</b>.</p>
+      </div>
+    </aside>
 
-      <div class="bf-layout">
-        <div class="bf-main">
-          <div class="bs-canvas">
-            <div class="bs-bar" id="bsBar">
-              <div class="bf-toolbar bs-toolbar" id="bsToolbar" role="toolbar" aria-label="Formatting">
-                <button type="button" class="bs-add" data-do="menu" title="Add a block (or type / on an empty line)"><i class="fa-solid fa-plus"></i> Add block</button>
-                <span class="bf-sep"></span>
-                <button type="button" data-do="block" data-tag="h2" title="Section heading">H2</button>
-                <button type="button" data-do="block" data-tag="h3" title="Smaller heading">H3</button>
-                <button type="button" data-do="block" data-tag="p" title="Normal text"><i class="fa-solid fa-paragraph"></i></button>
-                <span class="bf-sep"></span>
-                <button type="button" data-do="cmd" data-cmd="bold" title="Bold (Ctrl+B)"><i class="fa-solid fa-bold"></i></button>
-                <button type="button" data-do="cmd" data-cmd="italic" title="Italic (Ctrl+I)"><i class="fa-solid fa-italic"></i></button>
-                <button type="button" data-do="cmd" data-cmd="underline" title="Underline (Ctrl+U)"><i class="fa-solid fa-underline"></i></button>
-                <button type="button" data-do="link" title="Link (Ctrl+K)"><i class="fa-solid fa-link"></i></button>
-                <span class="bf-sep"></span>
-                <button type="button" data-do="cmd" data-cmd="insertUnorderedList" title="Bulleted list"><i class="fa-solid fa-list-ul"></i></button>
-                <button type="button" data-do="cmd" data-cmd="insertOrderedList" title="Numbered list"><i class="fa-solid fa-list-ol"></i></button>
-                <button type="button" data-do="block" data-tag="blockquote" title="Pull quote"><i class="fa-solid fa-quote-left"></i></button>
-                <button type="button" data-do="note" title="Tip box"><i class="fa-solid fa-lightbulb"></i></button>
-                <span class="bf-sep"></span>
-                <button type="button" data-do="insert" data-block="image" title="Picture: or drag one in, or paste it"><i class="fa-solid fa-image"></i></button>
-                <button type="button" data-do="insert" data-block="button" title="Button"><i class="fa-solid fa-hand-pointer"></i></button>
-                <button type="button" data-do="insert" data-block="table" title="Table"><i class="fa-solid fa-table"></i></button>
-                <button type="button" data-do="insert" data-block="divider" title="Line across"><i class="fa-solid fa-minus"></i></button>
-                <span class="bf-sep"></span>
-                <button type="button" data-do="undo" title="Undo (Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
-                <button type="button" data-do="redo" title="Redo (Ctrl+Y)"><i class="fa-solid fa-rotate-right"></i></button>
-                <button type="button" data-do="clear" title="Clear formatting"><i class="fa-solid fa-eraser"></i></button>
-              </div>
-              <div class="bs-bar-actions">
-                <span class="bs-dirty" id="bsDirty"></span>
-                <button type="submit" formaction="{{ url_for('admin.blog_preview', post_id=post.id) if post else url_for('admin.blog_preview') }}" formtarget="_blank" class="btn-sm" id="bsPreview"><i class="fa-solid fa-eye"></i> Preview</button>
-                {% if live %}
-                  <button type="submit" name="action" value="save" class="btn btn-primary btn-sm" id="bsGoLive"><i class="fa-solid fa-floppy-disk"></i> Update</button>
-                {% else %}
-                  <button type="submit" name="action" value="save" class="btn-sm" id="bsSave"><i class="fa-solid fa-floppy-disk"></i> Save draft</button>
-                  <button type="submit" name="action" value="publish" class="btn btn-primary btn-sm" id="bsGoLive"><i class="fa-solid fa-paper-plane"></i> Publish</button>
-                {% endif %}
-              </div>
+    <div class="ge-canvas" id="geCanvas">
+      <h1 class="ge-sr">{{ 'Edit blog post' if post else 'New blog post' }}</h1>
+      {% if st == 'trash' %}
+      <div class="ge-note ge-note-bad"><i class="fa-solid fa-trash"></i> <span>This post is in the Trash: it is not on the site.</span>
+        <button type="submit" formaction="{{ url_for('admin.blog_restore', post_id=post.id) }}" class="ge-btn">Restore it as a draft</button></div>
+      {% endif %}
+      {% if revision %}
+      <div class="ge-note"><i class="fa-solid fa-clock-rotate-left"></i>
+        <span>This is the version of <b>{{ revision.saved_at|istd('%d %b %Y, %H:%M') }}</b>{% if revision.saved_by %} by {{ revision.saved_by.username }}{% endif %} ({{ revision.note or 'saved' }}).
+          {{ 'Update' if live or scheduled else 'Save' }} to bring it back; leave to keep the post as it is.</span>
+        <a class="ge-btn" href="{{ url_for('admin.blog_edit', post_id=post.id) }}">Back to the post as it is</a></div>
+      {% endif %}
+      <div class="bs-restore" id="bsRestore" hidden>
+        <i class="fa-solid fa-clock-rotate-left"></i>
+        <span>This computer kept changes that were never saved (<b></b>).</span>
+        <button type="button" class="btn-sm" data-restore="yes">Bring them back</button>
+        <button type="button" class="btn-sm-outline" data-restore="no">Discard</button>
+      </div>
+      <div class="ge-note" id="geWordNote" hidden><i class="fa-solid fa-file-word"></i><span></span>
+        <button type="button" class="ge-btn" data-ge="word-undo">Undo</button>
+        <button type="button" class="ge-x" data-ge="word-hide" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div>
+
+      <div class="bs-page">
+        <textarea name="title" class="bf-title bs-title" rows="1" maxlength="300" placeholder="Add title" aria-label="Title">{{ d.title }}</textarea>
+        <label class="bs-slug muted"><i class="fa-solid fa-link"></i> {{ SITE_URL }}/blog/<input type="text" name="slug" value="{{ d.slug }}" maxlength="80" spellcheck="false" aria-label="Address" placeholder="made-from-the-title"/></label>
+
+        <div class="bs-editor-wrap" id="bsWrap">
+          <div class="bf-editor bs-editor blog-post-content" id="bsEditor" contenteditable="true"
+               aria-label="Post" data-ph="Type / to choose a block, or just start writing">{{ body|safe }}</div>
+
+          <button type="button" class="bs-plus" id="bsPlus" title="Add a block" hidden><i class="fa-solid fa-plus"></i></button>
+
+          <div class="bs-menu" id="bsMenu" role="listbox" hidden>
+            <input type="text" class="bs-menu-q" placeholder="Search blocks" aria-label="Search blocks"/>
+            <div class="bs-menu-list"></div>
+            <p class="bs-menu-none muted" hidden>No block by that name.</p>
+          </div>
+
+          <div class="bs-blockbar" id="bsBlockBar" hidden>
+            <span class="bs-bb-name"></span>
+            <span class="bs-bb-table">
+              <button type="button" data-bb="row" title="Add a row"><i class="fa-solid fa-plus"></i> Row</button>
+              <button type="button" data-bb="col" title="Add a column"><i class="fa-solid fa-plus"></i> Column</button>
+              <button type="button" data-bb="delrow" title="Remove this row"><i class="fa-solid fa-minus"></i> Row</button>
+              <button type="button" data-bb="delcol" title="Remove this column"><i class="fa-solid fa-minus"></i> Column</button>
+            </span>
+            <button type="button" data-bb="up" title="Move up"><i class="fa-solid fa-arrow-up"></i></button>
+            <button type="button" data-bb="down" title="Move down"><i class="fa-solid fa-arrow-down"></i></button>
+            <button type="button" data-bb="copy" title="Duplicate"><i class="fa-regular fa-copy"></i></button>
+            <button type="button" data-bb="remove" title="Remove this block"><i class="fa-solid fa-trash"></i></button>
+          </div>
+
+          <div class="bs-pop" id="bsPop" hidden>
+            <label data-for="text">Button text<input type="text" data-k="text" maxlength="80" placeholder="e.g. Get a free quote"/></label>
+            <label data-for="url"><span>Link to</span><input type="text" data-k="url" maxlength="500" placeholder="/travel-insurance or https://…"/></label>
+            <p class="bs-pop-err" hidden></p>
+            <div class="bs-pop-actions">
+              <button type="button" class="btn btn-primary btn-sm" data-pop="apply">Apply</button>
+              <button type="button" class="btn-sm" data-pop="remove" hidden>Remove</button>
+              <button type="button" class="btn-sm-outline" data-pop="cancel">Cancel</button>
             </div>
+          </div>
 
-            <div class="bs-page">
-              <textarea name="title" class="bf-title bs-title" rows="1" maxlength="300" placeholder="Add title" aria-label="Title">{{ d.title }}</textarea>
-              <label class="bs-slug muted"><i class="fa-solid fa-link"></i> {{ SITE_URL }}/blog/<input type="text" name="slug" value="{{ d.slug }}" maxlength="80" spellcheck="false" aria-label="Address" placeholder="made-from-the-title"/></label>
-
-              <div class="bs-editor-wrap" id="bsWrap">
-                <div class="bf-editor bs-editor blog-post-content" id="bsEditor" contenteditable="true"
-                     aria-label="Post" data-ph="Type / to choose a block, or just start writing">{{ body|safe }}</div>
-
-                <button type="button" class="bs-plus" id="bsPlus" title="Add a block" hidden><i class="fa-solid fa-plus"></i></button>
-
-                <div class="bs-menu" id="bsMenu" role="listbox" hidden>
-                  <input type="text" class="bs-menu-q" placeholder="Search blocks" aria-label="Search blocks"/>
-                  <div class="bs-menu-list"></div>
-                  <p class="bs-menu-none muted" hidden>No block by that name.</p>
-                </div>
-
-                <div class="bs-blockbar" id="bsBlockBar" hidden>
-                  <span class="bs-bb-name"></span>
-                  <span class="bs-bb-table">
-                    <button type="button" data-bb="row" title="Add a row"><i class="fa-solid fa-plus"></i> Row</button>
-                    <button type="button" data-bb="col" title="Add a column"><i class="fa-solid fa-plus"></i> Column</button>
-                    <button type="button" data-bb="delrow" title="Remove this row"><i class="fa-solid fa-minus"></i> Row</button>
-                    <button type="button" data-bb="delcol" title="Remove this column"><i class="fa-solid fa-minus"></i> Column</button>
-                  </span>
-                  <button type="button" data-bb="up" title="Move up"><i class="fa-solid fa-arrow-up"></i></button>
-                  <button type="button" data-bb="down" title="Move down"><i class="fa-solid fa-arrow-down"></i></button>
-                  <button type="button" data-bb="copy" title="Duplicate"><i class="fa-regular fa-copy"></i></button>
-                  <button type="button" data-bb="remove" title="Remove this block"><i class="fa-solid fa-trash"></i></button>
-                </div>
-
-                <div class="bs-pop" id="bsPop" hidden>
-                  <label data-for="text">Button text<input type="text" data-k="text" maxlength="80" placeholder="e.g. Get a free quote"/></label>
-                  <label data-for="url"><span>Link to</span><input type="text" data-k="url" maxlength="500" placeholder="/travel-insurance or https://…"/></label>
-                  <p class="bs-pop-err" hidden></p>
-                  <div class="bs-pop-actions">
-                    <button type="button" class="btn btn-primary btn-sm" data-pop="apply">Apply</button>
-                    <button type="button" class="btn-sm" data-pop="remove" hidden>Remove</button>
-                    <button type="button" class="btn-sm-outline" data-pop="cancel">Cancel</button>
-                  </div>
-                </div>
-
-                <div class="bs-figpanel" id="bsFigPanel" hidden>
-                  <p class="bs-fp-missing" hidden><i class="fa-solid fa-triangle-exclamation"></i> Missing picture: <b></b></p>
-                  <label>Description (what the picture shows)<input type="text" data-k="alt" maxlength="200" placeholder="e.g. Parents with their suitcases at the airport"/></label>
-                  <label>Caption (optional)<input type="text" data-k="cap" maxlength="200"/></label>
-                  <div class="bs-fp-actions">
-                    <button type="button" class="btn btn-primary btn-sm" data-fp="replace"><i class="fa-solid fa-upload"></i> <span>Upload picture</span></button>
-                    <button type="button" class="btn-sm" data-fp="remove"><i class="fa-solid fa-trash"></i> Remove</button>
-                    <button type="button" class="btn-sm-outline" data-fp="done">Done</button>
-                  </div>
-                </div>
-              </div>
+          <div class="bs-figpanel" id="bsFigPanel" hidden>
+            <p class="bs-fp-missing" hidden><i class="fa-solid fa-triangle-exclamation"></i> Missing picture: <b></b></p>
+            <label>Description (what the picture shows)<input type="text" data-k="alt" maxlength="200" placeholder="e.g. Parents with their suitcases at the airport"/></label>
+            <label>Caption (optional)<input type="text" data-k="cap" maxlength="200"/></label>
+            <div class="bs-fp-actions">
+              <button type="button" class="btn btn-primary btn-sm" data-fp="replace"><i class="fa-solid fa-upload"></i> <span>Upload picture</span></button>
+              <button type="button" class="btn-sm" data-fp="library"><i class="fa-solid fa-photo-film"></i> Media library</button>
+              <button type="button" class="btn-sm" data-fp="remove"><i class="fa-solid fa-trash"></i> Remove</button>
+              <button type="button" class="btn-sm-outline" data-fp="done">Done</button>
             </div>
-            <div class="bf-foot muted bs-foot"><span id="bsCount"></span><span>Type <kbd>/</kbd> on an empty line for blocks · drag or paste pictures in · <kbd>Ctrl</kbd>+<kbd>S</kbd> saves</span></div>
-          </div>
-        </div>
-
-        <div class="bf-side">
-          <div class="admin-card bf-card">
-            <h3 class="bf-h"><i class="fa-solid fa-paper-plane"></i> {{ 'Live post' if live else 'Publish' }}</h3>
-            <p class="bs-state">
-              {% if live %}Live on the site{% if post.published_at %} since {{ post.published_at|istd }}{% endif %}. <b>Update</b> changes it straight away.
-              {% elif post %}A draft: only admins can see it. <b>Publish</b> puts it on the blog.
-              {% else %}Nothing is saved until you press <b>Save draft</b> or <b>Publish</b>.{% endif %}
-            </p>
-            <p class="bs-blocked" id="bsBlocked" {{ '' if errs else 'hidden' }}><i class="fa-solid fa-circle-exclamation"></i> Fix the red items under Checks to {{ 'update' if live else 'publish' }}.</p>
-            {% if not post or not post.published_at %}
-            <input type="hidden" name="send_notification_shown" value="1"/>
-            <label class="bf-toggle">
-              <input type="checkbox" name="send_notification" {{ 'checked' if d.send_notification }}/>
-              <span><strong>Tell everybody when it goes live</strong><small>In-app for everyone; e-mail only to people who opted in.</small></span>
-            </label>
-            {% endif %}
-            {% if live %}
-            <button type="submit" name="action" value="unpublish" class="btn-sm-outline" data-confirm="Take this post off the site? It stays here as a draft."><i class="fa-solid fa-eye-slash"></i> Unpublish</button>
-            {% endif %}
-          </div>
-
-          <div class="admin-card bf-card">
-            <h3 class="bf-h"><i class="fa-solid fa-list-check"></i> Checks</h3>
-            <ul class="bs-checks" id="bsChecks">
-              {% for c in checks %}
-              <li class="bs-c-{{ c.level }}"><i class="fa-solid {{ {'error': 'fa-circle-xmark', 'warn': 'fa-lightbulb', 'ok': 'fa-circle-check'}[c.level] }}"></i> {{ c.text }}</li>
-              {% else %}
-              <li class="bs-c-idle"><i class="fa-regular fa-circle"></i> The checks appear here as you write.</li>
-              {% endfor %}
-            </ul>
-          </div>
-
-          <div class="admin-card bf-card">
-            <h3 class="bf-h"><i class="fa-solid fa-image"></i> Cover picture</h3>
-            <input type="hidden" name="cover_image_url" value="{{ d.cover_image_url or '' }}"/>
-            <div class="bs-cover" id="bsCover" title="Click, or drop a picture here">
-              <img alt="" {% if d.cover_image_url %}src="{{ app_url(d.cover_image_url) }}"{% else %}hidden{% endif %}/>
-              <p class="muted" {{ 'hidden' if d.cover_image_url }}><i class="fa-solid fa-cloud-arrow-up"></i> Click or drop a picture here.<br/>Landscape, 1200 × 630 px works best.</p>
-            </div>
-            <div class="bs-cover-actions">
-              <button type="button" class="btn-sm" data-cover="upload"><i class="fa-solid fa-upload"></i> {{ 'Replace' if d.cover_image_url else 'Upload' }}</button>
-              <button type="button" class="btn-sm-outline" data-cover="remove" {{ '' if d.cover_image_url else 'hidden' }}>Remove</button>
-            </div>
-            <label class="bs-field">Description (alt text)<input type="text" name="cover_alt" maxlength="300" value="{{ d.cover_alt }}" placeholder="What the picture shows"/></label>
-          </div>
-
-          <div class="admin-card bf-card">
-            <h3 class="bf-h"><i class="fa-solid fa-align-left"></i> Summary</h3>
-            <textarea name="summary" rows="4" maxlength="300" class="bs-summary" placeholder="One or two sentences for Google, shares and the blog list.">{{ d.summary }}</textarea>
-            <small class="muted"><span id="bsSumCount">{{ d.summary|length }}</span> characters · 70–160 shows in full</small>
-          </div>
-
-          <div class="admin-card bf-card">
-            <h3 class="bf-h"><i class="fa-solid fa-list"></i> Outline</h3>
-            <ol class="bs-outline" id="bsOutline"></ol>
-            <p class="muted bs-outline-none" id="bsOutlineNone">Headings appear here: add one with <b>H2</b>.</p>
           </div>
         </div>
       </div>
-      <input type="file" id="bsFile" accept="image/jpeg,image/png,image/webp" hidden/>
-    </form>
-  </main>
-</div>
+      <div class="bf-foot muted bs-foot"><span id="bsCount"></span><span>Type <kbd>/</kbd> on an empty line for blocks · drag or paste pictures in · <kbd>Ctrl</kbd>+<kbd>S</kbd> saves</span></div>
+    </div>
+
+    <aside class="ge-side" id="geSide" aria-label="Settings">
+      <div class="ge-side-tabs" role="tablist">
+        <button type="button" data-stab="post" aria-selected="true">Post</button>
+        <button type="button" data-stab="seo" aria-selected="false">SEO</button>
+        <button type="button" data-stab="checks" aria-selected="false">Checks <span class="ge-badge" id="geRed" {{ '' if errs else 'hidden' }}>{{ errs|length }}</span></button>
+        <button type="button" class="ge-x" data-ge="side" aria-label="Close settings"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="ge-pane" data-spane="post">
+        <section class="ge-sec ge-status">
+          <div class="ge-row"><span>Status</span>
+            <b class="ge-st ge-st-{{ st }}">{{ {'new': 'Not saved yet', 'draft': 'Draft', 'published': 'Published', 'scheduled': 'Scheduled', 'trash': 'In the Trash'}[st] }}</b></div>
+          <p class="ge-state bs-state">
+            {% if live %}Live on the site{% if post.published_at %} since {{ post.published_at|istd }}{% endif %}. <b>Update</b> changes it straight away.
+            {% elif scheduled %}Goes live on {{ post.published_at|istd('%d %b %Y at %H:%M') }}. Everybody is told then.
+            {% elif post %}A draft: only admins can see it. <b>Publish</b> puts it on the blog.
+            {% else %}Nothing is kept until you press <b>Save draft</b> or <b>Publish</b>.{% endif %}
+          </p>
+          <div class="ge-row"><span>Publish</span>
+            <button type="button" class="ge-val" id="geWhenBtn" data-ge="when" aria-expanded="false">{{ publish_at|replace('T', ' ') if publish_at else 'Immediately' }}</button></div>
+          <div class="ge-when" id="geWhen" hidden>
+            <input type="datetime-local" name="publish_at" value="{{ publish_at }}" aria-label="Publish on"/>
+            <div class="ge-when-btns">
+              <button type="button" class="ge-btn" data-when="now">Now</button>
+              <button type="button" class="ge-btn" data-when="clear">{{ 'Keep the date' if live else 'Immediately' }}</button>
+            </div>
+            <small>India time. A time still to come schedules the post: it goes live then, and everybody is told then.
+              {% if live %}A live post's date can be moved back or forward.{% endif %}</small>
+          </div>
+          <div class="ge-row"><span>Address</span><a class="ge-val ge-addr" id="geAddr" href="{{ url_for('blog.blog_post', slug=d.slug) if live else '#' }}" {{ 'target=_blank rel=noopener' if live }}>/blog/<b>{{ d.slug or '…' }}</b></a></div>
+          <div class="ge-row"><span>Author</span>
+            <select name="author_id" class="ge-select" aria-label="Author">
+              {% for u in authors %}<option value="{{ u.id }}" {{ 'selected' if u.id == d.author_id }}>{{ u.username }}</option>{% endfor %}
+              {% if d.author_id not in authors|map(attribute='id')|list %}<option value="{{ d.author_id }}" selected>{{ post.author.username if post and post.author else current_user.username }}</option>{% endif %}
+            </select></div>
+          <label class="ge-check"><input type="checkbox" name="is_featured" {{ 'checked' if d.is_featured }}/>
+            <span><b>Featured</b><small>The big post at the top of the blog.</small></span></label>
+          {% if not post or not post.published_at %}
+          <input type="hidden" name="send_notification_shown" value="1"/>
+          <label class="ge-check bf-toggle">
+            <input type="checkbox" name="send_notification" {{ 'checked' if d.send_notification }}/>
+            <span><strong>Tell everybody when it goes live</strong><small>In-app for everyone; e-mail only to people who opted in.</small></span>
+          </label>
+          {% endif %}
+          {% if post %}<div class="ge-row"><span>Versions</span><a class="ge-val" href="{{ url_for('admin.blog_revisions', post_id=post.id) }}"><i class="fa-solid fa-clock-rotate-left"></i> {{ versions }} saved</a></div>{% endif %}
+          <div class="ge-row-btns">
+            {% if live or scheduled %}
+            <button type="submit" name="action" value="unpublish" class="ge-btn" data-confirm="Take this post off the site? It stays here as a draft."><i class="fa-solid fa-eye-slash"></i> Switch to draft</button>
+            {% endif %}
+            {% if post and st != 'trash' and CAN('blog_list') %}
+            <button type="submit" formaction="{{ url_for('admin.blog_trash', post_id=post.id) }}" class="ge-btn ge-btn-danger" data-confirm="Move this post to the Trash? It goes off the site; Restore brings it back as a draft."><i class="fa-solid fa-trash"></i> Move to Trash</button>
+            {% endif %}
+          </div>
+        </section>
+
+        <details class="ge-sec" open>
+          <summary>Categories</summary>
+          <div class="ge-cats" id="geCats">
+            {% for c in categories %}<label><input type="checkbox" name="categories" value="{{ c.id }}" {{ 'checked' if c.id in d.categories }}/> {{ c.name }}</label>
+            {% else %}<p class="ge-dim ge-cats-none">No categories yet.</p>{% endfor %}
+          </div>
+          <button type="button" class="ge-linkbtn" data-ge="cat-new">Add new category</button>
+          <div class="ge-cat-new" id="geCatNew" hidden>
+            <input type="text" id="geCatName" maxlength="80" placeholder="New category name" aria-label="New category name"/>
+            <button type="button" class="ge-btn" data-ge="cat-save">Add</button>
+          </div>
+        </details>
+
+        <details class="ge-sec" open>
+          <summary>Tags</summary>
+          <div class="ge-tags" id="geTags">
+            <span class="ge-tag-list"></span>
+            <input type="text" id="geTagIn" list="geTagSug" placeholder="Add a tag" aria-label="Add a tag" autocomplete="off"/>
+          </div>
+          <input type="hidden" name="tags" value="{{ d.tags }}"/>
+          <datalist id="geTagSug">{% for t in all_tags %}<option value="{{ t.name }}"></option>{% endfor %}</datalist>
+          <small class="ge-dim">Separate with commas or the Enter key.</small>
+        </details>
+
+        <details class="ge-sec" open>
+          <summary>Featured image</summary>
+          <input type="hidden" name="cover_image_url" value="{{ d.cover_image_url or '' }}"/>
+          <div class="bs-cover" id="bsCover" title="Click, or drop a picture here">
+            <img alt="" {% if d.cover_image_url %}src="{{ app_url(d.cover_image_url) }}"{% else %}hidden{% endif %}/>
+            <p class="muted" {{ 'hidden' if d.cover_image_url }}><i class="fa-solid fa-cloud-arrow-up"></i> Click or drop a picture here.<br/>Landscape, 1200 × 630 px works best.</p>
+          </div>
+          <div class="bs-cover-actions">
+            <button type="button" class="btn-sm" data-cover="upload"><i class="fa-solid fa-upload"></i> {{ 'Replace' if d.cover_image_url else 'Upload' }}</button>
+            <button type="button" class="btn-sm" data-cover="library"><i class="fa-solid fa-photo-film"></i> Library</button>
+            <button type="button" class="btn-sm-outline" data-cover="remove" {{ '' if d.cover_image_url else 'hidden' }}>Remove</button>
+          </div>
+          <label class="bs-field">Description (alt text)<input type="text" name="cover_alt" maxlength="300" value="{{ d.cover_alt }}" placeholder="What the picture shows"/></label>
+        </details>
+
+        <details class="ge-sec" open id="geSumSec">
+          <summary>Summary</summary>
+          <textarea name="summary" rows="4" maxlength="300" class="bs-summary" placeholder="One or two sentences for Google, shares and the blog list.">{{ d.summary }}</textarea>
+          <small class="muted"><span id="bsSumCount">{{ d.summary|length }}</span> characters · 70–160 shows in full</small>
+        </details>
+
+        <details class="ge-sec" {{ 'open' if post and post.source_file }}>
+          <summary>Word document</summary>
+          {% if post and post.source_file %}<p class="ge-dim">Imported from <b>{{ post.source_file }}</b>. Change anything here, or replace it with a newer Word file.</p>
+          {% else %}<p class="ge-dim">Wrote it in Word? Bring the document in: its title, summary, text and pictures replace what is here.</p>{% endif %}
+          <button type="button" class="ge-btn" data-ge="word"><i class="fa-solid fa-file-word"></i> {{ 'Replace from a Word document' if post and (post.content or post.source_file) else 'Bring in a Word document' }}</button>
+          <input type="file" id="geWordFile" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden/>
+          <small class="ge-dim">Nothing is saved until you save; Undo brings back what was here. The address and the publish settings stay.
+            {% if CAN('blog_import') %}<a href="{{ url_for('admin.blog_template') }}">Download the template</a>.{% endif %}</small>
+        </details>
+      </div>
+
+      <div class="ge-pane" data-spane="seo" hidden>
+        <section class="ge-sec">
+          <h4 class="ge-h">Google preview</h4>
+          <div class="ge-serp" id="geSerp">
+            <span class="ge-serp-site"><img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt=""/>
+              <span><b>NRI Parent Service</b><small data-site="{{ SITE_URL|replace('https://', '')|replace('http://', '') }}"></small></span></span>
+            <b class="ge-serp-title"></b>
+            <p class="ge-serp-desc"></p>
+          </div>
+          <label class="ge-field">SEO title
+            <input type="text" name="seo_title" maxlength="300" value="{{ d.seo_title }}" placeholder="The post's title"/>
+            <small><span id="geSeoCount">0</span> characters · up to 60 shows in full. Empty: the title.</small></label>
+          <label class="ge-field">Focus keyword
+            <input type="text" name="focus_keyword" maxlength="100" value="{{ d.focus_keyword }}" placeholder="e.g. travel insurance for parents"/>
+            <small>What people would search to find this post. The checks look for it in the title, summary, address, opening and a heading.</small></label>
+          <p class="ge-dim">The description Google shows is the <button type="button" class="ge-linkbtn" data-ge="goto-summary">Summary</button>.</p>
+        </section>
+        <section class="ge-sec">
+          <h4 class="ge-h">Shared on WhatsApp or Facebook</h4>
+          <div class="ge-share" id="geShare">
+            <img alt=""/>
+            <div><small>{{ SITE_URL|replace('https://', '')|replace('http://', '') }}</small><b></b><p></p></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="ge-pane" data-spane="checks" hidden>
+        <section class="ge-sec">
+          <p class="bs-blocked" id="bsBlocked" {{ '' if errs else 'hidden' }}><i class="fa-solid fa-circle-exclamation"></i> Fix the red items to {{ 'update' if live else 'publish' }}.</p>
+          <ul class="bs-checks" id="bsChecks">
+            {% for c in checks %}
+            <li class="bs-c-{{ c.level }}"><i class="fa-solid {{ {'error': 'fa-circle-xmark', 'warn': 'fa-lightbulb', 'ok': 'fa-circle-check'}[c.level] }}"></i> {{ c.text }}</li>
+            {% else %}
+            <li class="bs-c-idle"><i class="fa-regular fa-circle"></i> The checks appear here as you write.</li>
+            {% endfor %}
+          </ul>
+        </section>
+      </div>
+    </aside>
+
+    {% if not live and not scheduled %}
+    <aside class="ge-prepub" id="gePrepub" hidden aria-label="Ready to publish?">
+      <div class="ge-pp-head">
+        <button type="submit" name="action" value="publish" class="ge-btn ge-btn-primary" id="bsGoLive">Publish</button>
+        <button type="button" class="ge-btn" data-ge="prepub-close">Cancel</button>
+      </div>
+      <h3 id="gePpTitle">Are you ready to publish?</h3>
+      <p class="ge-dim">Double-check the settings before it goes on the site.</p>
+      <div class="ge-row"><span>Visibility</span><b>Everybody</b></div>
+      <div class="ge-row"><span>Publish</span><b id="gePpWhen">Immediately</b></div>
+      <div class="ge-row"><span>Categories</span><b id="gePpCats"></b></div>
+      <div class="ge-row"><span>Tags</span><b id="gePpTags"></b></div>
+      <div class="ge-row"><span>Featured image</span><b id="gePpCover"></b></div>
+      <div class="ge-row"><span>Summary</span><b id="gePpSum"></b></div>
+      <div class="ge-row"><span>Telling people</span><b id="gePpTell"></b></div>
+      <p class="ge-pp-red" id="gePpRed" hidden><i class="fa-solid fa-circle-xmark"></i> <span></span>
+        <button type="button" class="ge-linkbtn" data-ge="goto-checks">See the checks</button></p>
+      <p class="ge-pp-warn" id="gePpWarn" hidden><i class="fa-solid fa-lightbulb"></i> <span></span></p>
+    </aside>
+    {% endif %}
+  </div>
+
+  <dialog class="ge-dialog ge-lib" id="geLib" aria-label="Media library">
+    <div class="ge-lib-head">
+      <h3>Media library</h3>
+      <input type="search" id="geLibQ" placeholder="Search pictures" aria-label="Search pictures"/>
+      <button type="button" class="ge-btn" data-ge="lib-upload"><i class="fa-solid fa-upload"></i> Upload</button>
+      <button type="button" class="ge-x" data-ge="lib-close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="ge-lib-grid" id="geLibGrid"><p class="ge-dim">Loading…</p></div>
+    <div class="ge-lib-foot">
+      <span class="ge-dim" id="geLibPicked">Pick a picture.</span>
+      <button type="button" class="ge-btn ge-btn-primary" data-ge="lib-use" disabled>Use this picture</button>
+    </div>
+  </dialog>
+
+  <dialog class="ge-dialog ge-keys" id="geKeys" aria-label="Keyboard shortcuts">
+    <div class="ge-lib-head"><h3>Keyboard shortcuts</h3><button type="button" class="ge-x" data-ge="keys-close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div>
+    <dl>
+      <dt><kbd>Ctrl</kbd>+<kbd>S</kbd></dt><dd>Save (Update a live post)</dd>
+      <dt><kbd>/</kbd></dt><dd>On an empty line: choose a block</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd></dt><dd>Undo / redo</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>B</kbd> <kbd>I</kbd> <kbd>U</kbd></dt><dd>Bold, italic, underline</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>K</kbd></dt><dd>Link</dd>
+      <dt><kbd>Tab</kbd></dt><dd>In a table: the next cell (a new row from the last)</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>\</kbd></dt><dd>Distraction free on and off</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>,</kbd></dt><dd>Settings on and off</dd>
+      <dt><kbd>Esc</kbd></dt><dd>Close a menu or panel</dd>
+    </dl>
+  </dialog>
+  <input type="file" id="bsFile" accept="image/jpeg,image/png,image/webp" hidden/>
+</form>
 {% endblock %}
 
 {% block extra_js %}

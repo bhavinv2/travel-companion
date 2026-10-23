@@ -1,0 +1,50 @@
+{% extends 'admin/blog/_layout.html' %}
+{% block title %}Revisions – {{ post.title }} – Blog{% endblock %}
+{% block wpb_active %}posts{% endblock %}
+{% block wpb_main %}
+<div class="wpb-head">
+  <h1>Compare versions of “{{ post.title }}”</h1>
+  <a class="wpb-btn" href="{{ url_for('admin.blog_edit', post_id=post.id) }}"><i class="fa-solid fa-arrow-left"></i> Back to the editor</a>
+</div>
+<p class="wpb-intro">Every save keeps a version (the last {{ 50 }}). Pick one to see what changed from the one before it;
+  <b>Bring this version back</b> opens it in the editor, and the post changes only when you save it there.</p>
+
+{% if not revs %}
+<div class="wpb-box"><p class="wpb-dim">No versions yet: the first save in the editor keeps one.</p></div>
+{% else %}
+<div class="wpb-revs">
+  <ol class="wpb-rev-list">
+    {% for r in revs %}
+    <li><a href="{{ url_for('admin.blog_revisions', post_id=post.id, r=r.id) }}" class="{{ 'on' if pick and r.id == pick.id }}">
+      <span class="wpb-av sm">{{ (r.saved_by.username if r.saved_by else '?')[:1]|upper }}</span>
+      <span><b>{{ r.saved_at|istd('%d %b %Y, %H:%M') }}</b>
+        <small>{{ r.saved_by.username if r.saved_by else 'Somebody' }} · {{ r.note or 'Saved' }}{% if loop.first and current %} · <em>now</em>{% endif %}</small></span>
+    </a></li>
+    {% endfor %}
+  </ol>
+
+  <section class="wpb-box wpb-diff">
+    <div class="wpb-diff-head">
+      <div>
+        <h2>{{ pick.note or 'Saved' }} <small>{{ pick.saved_at|istd('%d %b %Y, %H:%M') }} by {{ pick.saved_by.username if pick.saved_by else 'somebody' }}</small></h2>
+        <p class="wpb-dim">{% if before %}Compared with the version of {{ before.saved_at|istd('%d %b %Y, %H:%M') }}:
+          <span class="wpb-plus">+{{ diff.added }}</span> <span class="wpb-minus">−{{ diff.removed }}</span> lines
+          {% else %}The first version kept.{% endif %}</p>
+      </div>
+      {% if current %}<span class="wpb-pill">This is the post as it is now</span>
+      {% else %}<a class="wpb-btn wpb-btn-primary" href="{{ url_for('admin.blog_edit', post_id=post.id, revision=pick.id) }}"><i class="fa-solid fa-clock-rotate-left"></i> Bring this version back</a>{% endif %}
+    </div>
+    {% if diff.title %}<p class="wpb-diff-field"><b>Title</b> {{ diff.title|safe }}</p>{% endif %}
+    {% if diff.summary %}<p class="wpb-diff-field"><b>Summary</b> {{ diff.summary|safe }}</p>{% endif %}
+    {% if diff.lines %}
+    <div class="wpb-diff-lines">
+      {% for l in diff.lines %}<p class="d-{{ l.kind }}">{{ l.html|safe }}</p>{% endfor %}
+    </div>
+    {% elif before %}<p class="wpb-dim">The text is the same as the version before{% if diff.title or diff.summary %}; only the {{ 'title' if diff.title }}{{ ' and ' if diff.title and diff.summary }}{{ 'summary' if diff.summary }} changed{% endif %}.</p>
+    {% else %}
+    <div class="wpb-diff-lines">{% for l in diff.lines %}<p>{{ l.html|safe }}</p>{% endfor %}</div>
+    {% endif %}
+  </section>
+</div>
+{% endif %}
+{% endblock %}

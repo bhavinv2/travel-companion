@@ -1,0 +1,94 @@
+{% extends 'admin/blog/_layout.html' %}
+{% block title %}Dashboard – Blog{% endblock %}
+{% block wpb_active %}dashboard{% endblock %}
+{% block wpb_main %}
+<div class="wpb-head">
+  <h1>Dashboard</h1>
+  {% if CAN('blog') %}<a class="wpb-btn" href="{{ url_for('admin.new_blog') }}">Add new post</a>{% endif %}
+</div>
+
+<div class="wpb-welcome">
+  <div>
+    <h2>Welcome to the blog</h2>
+    <p>Write a post here, or in Word and import it. Every post, imported ones too, opens in the same editor.</p>
+  </div>
+  <div class="wpb-welcome-cols">
+    <div>
+      <h3>Get started</h3>
+      {% if CAN('blog') %}<a class="wpb-btn wpb-btn-primary" href="{{ url_for('admin.new_blog') }}"><i class="fa-solid fa-pen"></i> Write a post</a>{% endif %}
+      {% if CAN('blog_import') %}<a class="wpb-link-row" href="{{ url_for('admin.blog_import') }}"><i class="fa-solid fa-file-word"></i> or import Word documents</a>{% endif %}
+    </div>
+    <div>
+      <h3>Next steps</h3>
+      <a class="wpb-link-row" href="{{ url_for('admin.blog_list', status='draft') }}"><i class="fa-solid fa-pen-to-square"></i> Finish a draft</a>
+      <a class="wpb-link-row" href="{{ url_for('admin.blog_terms', kind='category') }}"><i class="fa-solid fa-folder-tree"></i> Sort posts into categories</a>
+      <a class="wpb-link-row" href="{{ url_for('blog.blog_list') }}" target="_blank" rel="noopener"><i class="fa-solid fa-house"></i> See the blog</a>
+    </div>
+    <div>
+      <h3>Writing in Word?</h3>
+      {% if CAN('blog_import') %}<a class="wpb-link-row" href="{{ url_for('admin.blog_template') }}"><i class="fa-solid fa-download"></i> Download the template</a>{% endif %}
+      <span class="wpb-dim">An imported post can be changed in the editor, or replaced with a newer Word file from its settings.</span>
+    </div>
+  </div>
+</div>
+
+<div class="wpb-widgets">
+  <section class="wpb-box">
+    <h2>At a glance</h2>
+    <ul class="wpb-glance">
+      <li><a href="{{ url_for('admin.blog_list', status='published') }}"><i class="fa-solid fa-circle-check"></i> {{ counts.published }} published</a></li>
+      <li><a href="{{ url_for('admin.blog_list', status='scheduled') }}"><i class="fa-solid fa-clock"></i> {{ counts.scheduled }} scheduled</a></li>
+      <li><a href="{{ url_for('admin.blog_list', status='draft') }}"><i class="fa-solid fa-pen-to-square"></i> {{ counts.draft }} draft{{ '' if counts.draft == 1 else 's' }}</a></li>
+      <li><a href="{{ url_for('admin.blog_list', status='word') }}"><i class="fa-solid fa-file-word"></i> {{ counts.word }} from Word</a></li>
+      <li><a href="{{ url_for('admin.blog_terms', kind='category') }}"><i class="fa-solid fa-folder"></i> {{ terms.category }} categor{{ 'y' if terms.category == 1 else 'ies' }}</a></li>
+      <li><a href="{{ url_for('admin.blog_terms', kind='tag') }}"><i class="fa-solid fa-tag"></i> {{ terms.tag }} tag{{ '' if terms.tag == 1 else 's' }}</a></li>
+      <li><a href="{{ url_for('admin.blog_media') }}"><i class="fa-solid fa-image"></i> {{ media }} picture{{ '' if media == 1 else 's' }}</a></li>
+      <li><a href="{{ url_for('admin.blog_list', status='trash') }}"><i class="fa-solid fa-trash"></i> {{ counts.trash }} in the Trash</a></li>
+    </ul>
+  </section>
+
+  {% if CAN('blog') %}
+  <section class="wpb-box">
+    <h2>Quick draft</h2>
+    <form method="POST" action="{{ url_for('admin.blog_quick_draft') }}" class="wpb-quick">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <label>Title<input type="text" name="title" maxlength="300" required/></label>
+      <label>Content<textarea name="content" rows="4" placeholder="What's on your mind? A few lines are enough: you finish it in the editor."></textarea></label>
+      <button type="submit" class="wpb-btn wpb-btn-primary">Save draft</button>
+    </form>
+  </section>
+  {% endif %}
+
+  <section class="wpb-box">
+    <h2>Drafts to finish</h2>
+    {% for p in drafts %}
+      <a class="wpb-li" href="{{ url_for('admin.blog_edit', post_id=p.id) }}"><b>{{ p.title }}</b><small>{{ (p.updated_at or p.created_at)|istd('%d %b, %H:%M') }}{% if p.source_file %} · from Word{% endif %}</small></a>
+    {% else %}<p class="wpb-dim">No drafts. Everything is either live or in the Trash.</p>{% endfor %}
+    {% if counts.draft > drafts|length %}<a class="wpb-more" href="{{ url_for('admin.blog_list', status='draft') }}">All {{ counts.draft }} drafts</a>{% endif %}
+  </section>
+
+  <section class="wpb-box">
+    <h2>Coming up</h2>
+    {% for p in scheduled %}
+      <a class="wpb-li" href="{{ url_for('admin.blog_edit', post_id=p.id) }}"><b>{{ p.title }}</b><small><i class="fa-regular fa-clock"></i> {{ p.published_at|istd('%d %b %Y, %H:%M') }}</small></a>
+    {% else %}<p class="wpb-dim">Nothing scheduled. In the editor, set a date under <b>Publish</b> to have a post go live later.</p>{% endfor %}
+  </section>
+
+  <section class="wpb-box">
+    <h2>Recently published</h2>
+    {% for p in recent %}
+      <div class="wpb-li"><a href="{{ url_for('admin.blog_edit', post_id=p.id) }}"><b>{{ p.title }}</b></a><small>{{ p.published_at|istd('%d %b %Y') if p.published_at }} · <a href="{{ url_for('blog.blog_post', slug=p.slug) }}" target="_blank" rel="noopener">View</a></small></div>
+    {% else %}<p class="wpb-dim">Nothing published yet.</p>{% endfor %}
+  </section>
+
+  <section class="wpb-box">
+    <h2>Activity</h2>
+    {% for r in activity %}
+      <div class="wpb-act"><span class="wpb-av sm">{{ (r.saved_by.username if r.saved_by else '?')[:1]|upper }}</span>
+        <span><b>{{ r.saved_by.username if r.saved_by else 'Somebody' }}</b> · {{ r.note or 'Saved' }} ·
+          <a href="{{ url_for('admin.blog_revisions', post_id=r.blog_id, r=r.id) }}">{{ r.post.title }}</a>
+          <small>{{ r.saved_at|istd('%d %b, %H:%M') }}</small></span></div>
+    {% else %}<p class="wpb-dim">Saves, imports and publishing show here.</p>{% endfor %}
+  </section>
+</div>
+{% endblock %}

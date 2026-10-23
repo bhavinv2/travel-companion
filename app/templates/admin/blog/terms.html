@@ -1,0 +1,65 @@
+{% extends 'admin/blog/_layout.html' %}
+{% block title %}{{ label[1] }} – Blog{% endblock %}
+{% block wpb_active %}{{ 'categories' if kind == 'category' else 'tags' }}{% endblock %}
+{% block wpb_main %}
+{% set one, many = label %}
+<div class="wpb-head"><h1>{{ many }}</h1></div>
+<p class="wpb-intro">
+  {% if kind == 'category' %}Categories are the blog's sections: readers pick one at the top of the blog, and each has its own page.
+  Keep a few broad ones (Visas, Flying with parents, Insurance …).
+  {% else %}Tags are the small subjects a post touches (Air India, wheelchair, OCI …). Each has its own page that lists its posts.
+  They are made as you type them in a post, too.{% endif %}
+</p>
+
+<div class="wpb-terms">
+  <form method="POST" class="wpb-box wpb-term-form" id="wpbTermForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    {% if editing %}<input type="hidden" name="id" value="{{ editing.id }}"/>{% endif %}
+    <h2>{{ ('Edit ' if editing else 'Add new ') ~ one|lower }}</h2>
+    <label>Name<input type="text" name="name" maxlength="80" required value="{{ editing.name if editing }}" {{ 'autofocus' if editing }}/>
+      <small>As it shows on the site.</small></label>
+    <label>Slug<input type="text" name="slug" maxlength="80" value="{{ editing.slug if editing }}" placeholder="made from the name"/>
+      <small>Its address: /blog/{{ kind }}/<b>{{ editing.slug if editing else 'slug' }}</b>. Lower case, letters, numbers and hyphens.</small></label>
+    <label>Description<textarea name="description" rows="4" maxlength="300">{{ editing.description or '' if editing }}</textarea>
+      <small>Shown at the top of its page, and to Google.</small></label>
+    <div class="wpb-row-btns">
+      <button type="submit" class="wpb-btn wpb-btn-primary">{{ 'Update' if editing else 'Add new ' ~ one|lower }}</button>
+      {% if editing %}<a class="wpb-btn" href="{{ url_for('admin.blog_terms', kind=kind) }}">Cancel</a>{% endif %}
+    </div>
+  </form>
+
+  <div>
+    <form method="GET" class="wpb-search wpb-search-right" role="search">
+      <input type="search" name="q" value="{{ q }}" placeholder="Search {{ many|lower }}" aria-label="Search {{ many|lower }}"/>
+      <button type="submit" class="wpb-btn">Search</button>
+    </form>
+    <div class="wpb-tablewrap">
+    <table class="wpb-table">
+      <thead><tr><th>Name</th><th>Description</th><th>Slug</th><th class="wpb-num">Count</th></tr></thead>
+      <tbody>
+        {% for t in rows %}
+        <tr class="{{ 'is-editing' if editing and editing.id == t.id }}">
+          <td data-label="Name"><strong><a class="row-title" href="{{ url_for('admin.blog_terms', kind=kind, edit=t.id) }}">{{ t.name }}</a></strong>
+            <div class="row-actions">
+              <a href="{{ url_for('admin.blog_terms', kind=kind, edit=t.id) }}">Edit</a>
+              <form method="POST" action="{{ url_for('admin.blog_term_delete', term_id=t.id) }}" class="wpb-inline"
+                    data-confirm="Delete the {{ one|lower }} “{{ t.name }}”? The posts in it stay; they just lose it.">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="wpb-link danger">Delete</button>
+              </form>
+              {% if used.get(t.id) %}<a href="{{ url_for('blog.blog_term', kind=kind, slug=t.slug) }}" target="_blank" rel="noopener">View</a>{% endif %}
+            </div>
+          </td>
+          <td data-label="Description">{{ t.description or '' }}{% if not t.description %}<span class="wpb-dim">—</span>{% endif %}</td>
+          <td data-label="Slug"><code>{{ t.slug }}</code></td>
+          <td data-label="Count" class="wpb-num"><a href="{{ url_for('admin.blog_list', **{kind: t.id}) }}">{{ used.get(t.id, 0) }}</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="wpb-empty">{{ 'Nothing matches that search.' if q else 'No ' ~ many|lower ~ ' yet: add the first one on the left.' }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

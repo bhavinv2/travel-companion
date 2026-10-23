@@ -702,13 +702,50 @@ class Blog(db.Model):
     summary = db.Column(db.String(300))
     cover_alt = db.Column(db.String(300))          # what the cover shows, for search and screen readers
     source_file = db.Column(db.String(255))        # the Word document it was imported from (blog_engine)
+    seo_title = db.Column(db.String(300))          # the title Google shows; empty: the title
+    focus_keyword = db.Column(db.String(100))      # the words it should be found by (the checks look for them)
+    is_featured = db.Column(db.Boolean, default=False, nullable=False, server_default=db.false())
+    # Published with a published_at still to come: scheduled -- on the site from then (live()).
     is_published = db.Column(db.Boolean, default=False)
     published_at = db.Column(db.DateTime)
+    trashed_at = db.Column(db.DateTime)            # in the Trash: off the site until restored
     send_notification = db.Column(db.Boolean, default=True)
+    notified_at = db.Column(db.DateTime)           # "went live" was handled (services/blog_posts.went_live)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     author = db.relationship('User', backref='blogs')
+    terms = db.relationship('BlogTerm', secondary='blog_post_terms', lazy='selectin',
+                            order_by='BlogTerm.name', backref=db.backref('posts', lazy='dynamic'))
+
+    @classmethod
+    def live(cls, now=None):
+        """The posts readers see: published, their time come, not in the Trash."""
+        now = now or datetime.utcnow()
+        return cls.query.filter(cls.is_published.is_(True), cls.trashed_at.is_(None),
+                                db.or_(cls.published_at.is_(None), cls.published_at <= now))
+
+    @property
+    def status(self):
+        """trash / scheduled / published / draft -- the one word the screens show."""
+        if self.trashed_at:
+            return 'trash'
+        if self.is_published:
+            return 'scheduled' if self.published_at and self.published_at > datetime.utcnow() else 'published'
+        return 'draft'
+
+    @property
+    def categories(self):
+        return [t for t in self.terms if t.kind == 'category']
+
+    @property
+    def tags(self):
+        return [t for t in self.terms if t.kind == 'tag']
+
+    def reading_minutes(self):
+        import re
+        words = len(re.sub(r'<[^>]+>', ' ', self.content or '').split())
+        return max(1, round(words / 200))
 
     def excerpt(self, length=200):
         if not self.content:
@@ -719,6 +756,65 @@ class Blog(db.Model):
         text = re.sub(r'<[^>]+>', ' ', self.content)
         text = re.sub(r'\s+', ' ', text).strip()
         return text[:length].rstrip() + '...' if len(text) > length else text
+
+
+blog_post_terms = db.Table(
+    'blog_post_terms',
+    db.Column('blog_id', db.Integer, db.ForeignKey('blogs.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('term_id', db.Integer, db.ForeignKey('blog_terms.id', ondelete='CASCADE'), primary_key=True,
+              index=True),
+)
+
+
+class BlogTerm(db.Model):
+    """A category or a tag. Categories are the blog's sections (a few, each with its page); tags are
+    the many small subjects a post touches. Both have an address: /blog/category/<slug>, /blog/tag/<slug>."""
+    __tablename__ = 'blog_terms'
+    __table_args__ = (db.UniqueConstraint('kind', 'slug', name='uq_blog_terms_kind_slug'),)
+    KINDS = ('category', 'tag')
+
+    id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String(10), nullable=False)
+    name = db.Column(db.String(80), nullable=False)
+    slug = db.Column(db.String(90), nullable=False)
+    description = db.Column(db.String(300))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class BlogRevision(db.Model):
+    """One saved version of a post: what it said then, who saved it and why (Draft saved, Published,
+    Imported from Word ...). The newest is the post as it is."""
+    __tablename__ = 'blog_revisions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    blog_id = db.Column(db.Integer, db.ForeignKey('blogs.id', ondelete='CASCADE'), nullable=False, index=True)
+    title = db.Column(db.String(300), nullable=False)
+    summary = db.Column(db.String(300))
+    content = db.Column(db.Text)
+    note = db.Column(db.String(120))
+    saved_by_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'))
+    saved_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    saved_by = db.relationship('User')
+    post = db.relationship('Blog', backref=db.backref('revisions', lazy='dynamic', passive_deletes=True))
+
+
+class BlogMedia(db.Model):
+    """A picture uploaded for the blog -- from the editor, the picture library or a Word document -- so
+    the library can offer it again."""
+    __tablename__ = 'blog_media'
+
+    id = db.Column(db.Integer, primary_key=True)
+    url = db.Column(db.String(500), nullable=False, unique=True)
+    name = db.Column(db.String(255))
+    width = db.Column(db.Integer)
+    height = db.Column(db.Integer)
+    bytes = db.Column(db.Integer)
+    alt = db.Column(db.String(300))
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    uploaded_by = db.relationship('User')
 
 
 # Which product a review is about. The same three the help centre and the admin panel use, and

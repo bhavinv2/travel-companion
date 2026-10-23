@@ -232,8 +232,8 @@ def compute(first, last, user_id=None):
         add('ads_total', created)
         add({'facebook': 'src_fb', 'whatsapp': 'src_wa'}.get(source, 'src_web'), created)
     for published, author in (db.session.query(Blog.published_at, Blog.author_id)
-                              .filter(Blog.is_published.is_(True), Blog.published_at >= since,
-                                      Blog.published_at < until)):
+                              .filter(Blog.is_published.is_(True), Blog.trashed_at.is_(None),
+                                      Blog.published_at >= since, Blog.published_at < until)):
         if mine(author):
             add('blogs', published)
 

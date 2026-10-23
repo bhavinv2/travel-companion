@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}{{ post.title }} – NRI Parent Service{% endblock %}
+{% block title %}{{ post.seo_title or post.title }} – NRI Parent Service{% endblock %}
 {% block meta_description %}{{ post.summary or post.excerpt(160) }}{% endblock %}
 {% block content %}
 {% if preview %}<div class="blog-preview-bar"><i class="fa-solid fa-eye"></i> Preview — this is how the post will look. {{ 'It is live.' if post.is_published else 'It is not published.' }}</div>{% endif %}
@@ -7,15 +7,38 @@
   <div class="blog-post-header">
     {% set fallback_covers = ['l4.jpg','l5.jpg','l6.jpg','l7.jpg','l8.jpg','l9.jpg'] %}
     <img src="{{ app_url(post.cover_image_url) if post.cover_image_url else url_for('static', filename='img/landing/' ~ fallback_covers[post.id % 6]) }}" alt="{{ post.cover_alt or post.title }}" class="blog-cover"/>
+    {% if post.categories %}
+    <p class="blog-cats">{% for c in post.categories %}<a href="{{ url_for('blog.blog_term', kind='category', slug=c.slug) if c.slug else '#' }}" class="blog-cat">{{ c.name }}</a>{% endfor %}</p>
+    {% endif %}
     <h1>{{ post.title }}</h1>
     <div class="blog-meta">
       <span><i class="fa-solid fa-user"></i> {{ post.author.username if post.author else 'NRI Parent Service' }}</span>
       <span><i class="fa-solid fa-calendar"></i> {{ post.published_at|istd('%B %d, %Y') if post.published_at else '' }}</span>
+      <span><i class="fa-regular fa-clock"></i> {{ post.reading_minutes() }} min read</span>
     </div>
   </div>
   <div class="static-content blog-post-content">
     {{ post.content|blog_html }}
   </div>
+  {% if post.tags %}
+  <div class="blog-tags">
+    <i class="fa-solid fa-tags"></i>
+    {% for t in post.tags %}<a href="{{ url_for('blog.blog_term', kind='tag', slug=t.slug) if t.id else '#' }}">#{{ t.name }}</a>{% endfor %}
+  </div>
+  {% endif %}
+  {% if related %}
+  <section class="blog-related" aria-label="Read next">
+    <h2>Read next</h2>
+    <div class="blog-related-grid">
+      {% for r in related %}
+      <a href="{{ url_for('blog.blog_post', slug=r.slug) }}" class="blog-related-card">
+        <img src="{{ app_url(r.cover_image_url) if r.cover_image_url else url_for('static', filename='img/landing/' ~ fallback_covers[r.id % 6]) }}" alt="" loading="lazy"/>
+        <span>{% if r.categories %}<small>{{ r.categories[0].name }}</small>{% endif %}<b>{{ r.title }}</b><small>{{ r.reading_minutes() }} min read</small></span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
   <div class="blog-back">
     <a href="{{ url_for('blog.blog_list') }}" class="btn btn-outline-coral">← Back to Blog</a>
   </div>

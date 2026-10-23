@@ -1408,25 +1408,6 @@ def reject_feedback(fid):
     return jsonify({'success': True})
 
 
-@admin_bp.route('/blog')
-@login_required
-@admin_required
-def blog_list():
-    """Every blog post, drafts included -- nothing else lists the unpublished ones -- with the
-    delete buttons. Writing one is /admin/blog/new (routes/admin_blog.py)."""
-    page, per_page = _page_args(30)
-    q = (request.args.get('q') or '').strip()
-    query = Blog.query
-    if q:
-        pat = f'%{q}%'
-        query = query.filter(db.or_(Blog.title.ilike(pat), Blog.slug.ilike(pat)))
-    total = query.count()
-    pages = max((total + per_page - 1) // per_page, 1)
-    page = min(page, pages)
-    posts = query.order_by(Blog.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
-    return render_template('admin/blog_list.html', posts=posts, q=q, page=page, pages=pages, total=total)
-
-
 def _notify_all_blog(post):
     """In-app notification for everyone; e-mail only to users who opted in (marketing_consent).
     Both go through the notification switches (category 'announcements')."""

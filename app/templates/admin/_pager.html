@@ -1,7 +1,8 @@
 {# Numbered pager with prev/next arrows and windowing: < 1 2 ... 5 [6] 7 ... 19 20 >
-   Needs `page` and `pages` in context; keeps every query arg (q, per_page, status, ...). #}
+   Needs `page` and `pages` in context; keeps every query arg (q, per_page, status, ...) and the
+   address's own parts (/blog/category/<slug>). #}
 {% if pages > 1 %}
-{% set args = request.args.to_dict() %}
+{% set args = dict(request.view_args or {}, **request.args.to_dict()) %}
 <div class="pagination">
   {% if page > 1 %}{% set _ = args.update({'page': page - 1}) %}<a class="page pg-arrow" href="{{ url_for(request.endpoint, **args) }}" aria-label="Previous page">&lsaquo;</a>
   {% else %}<span class="page pg-arrow disabled">&lsaquo;</span>{% endif %}

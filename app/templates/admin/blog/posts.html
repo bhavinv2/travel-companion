@@ -1,0 +1,160 @@
+{% extends 'admin/blog/_layout.html' %}
+{% from 'admin/_hard_delete.html' import del_btn, bulk_bar %}
+{% block title %}Posts – Blog{% endblock %}
+{% block wpb_active %}posts{% endblock %}
+{% macro keep() -%}
+{%- set a = request.args.to_dict() -%}{%- set _ = a.pop('page', None) -%}{%- set _ = a.update(kwargs) -%}
+{{ url_for('admin.blog_list', **a) }}
+{%- endmacro %}
+{% macro sort_link(key, label) -%}
+{%- set on = f.sort == key -%}
+<a href="{{ keep(sort=key, dir='asc' if on and f.direction == 'desc' else 'desc') }}" class="wpb-sort {{ 'on' if on }}">{{ label }}
+  <i class="fa-solid {{ ('fa-caret-up' if f.direction == 'asc' else 'fa-caret-down') if on else 'fa-sort' }}"></i></a>
+{%- endmacro %}
+{% block wpb_main %}
+<div class="wpb-head">
+  <h1>Posts</h1>
+  {% if CAN('blog') %}<a class="wpb-btn" href="{{ url_for('admin.new_blog') }}">Add new post</a>{% endif %}
+  {% if CAN('blog_import') %}<a class="wpb-btn" href="{{ url_for('admin.blog_import') }}"><i class="fa-solid fa-file-word"></i> Import from Word</a>{% endif %}
+</div>
+
+<div class="wpb-views-row">
+  <ul class="wpb-views">
+    {% for key, label in statuses %}
+      {% if key in ('all', 'published', 'draft') or counts[key] %}
+      <li><a href="{{ url_for('admin.blog_list', status=key) if key != 'all' else url_for('admin.blog_list') }}" class="{{ 'on' if status == key }}">{{ label }} <span>({{ counts[key] }})</span></a></li>
+      {% endif %}
+    {% endfor %}
+  </ul>
+  <form method="GET" class="wpb-search" role="search">
+    {% for k, v in request.args.items() if k not in ('q', 'page') %}<input type="hidden" name="{{ k }}" value="{{ v }}"/>{% endfor %}
+    <input type="search" name="q" value="{{ f.q }}" placeholder="Search posts" aria-label="Search posts"/>
+    <button type="submit" class="wpb-btn">Search posts</button>
+  </form>
+</div>
+
+<div class="wpb-tablenav">
+  <form method="POST" action="{{ url_for('admin.blog_bulk') }}" id="wpbBulk" class="wpb-bulk">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <input type="hidden" name="next" value="{{ request.full_path }}"/>
+    <select name="action" aria-label="Bulk actions">
+      <option value="">Bulk actions</option>
+      {% if status == 'trash' %}
+        <option value="restore">Restore</option>
+      {% else %}
+        <option value="publish">Publish</option>
+        <option value="draft">Move to drafts</option>
+        <option value="trash">Move to Trash</option>
+      {% endif %}
+    </select>
+    <button type="submit" class="wpb-btn">Apply</button>
+  </form>
+  <form method="GET" class="wpb-filters">
+    {% if status != 'all' %}<input type="hidden" name="status" value="{{ status }}"/>{% endif %}
+    {% if f.q %}<input type="hidden" name="q" value="{{ f.q }}"/>{% endif %}
+    <select name="month" aria-label="Filter by month">
+      <option value="">All dates</option>
+      {% for ym, label in months %}<option value="{{ ym }}" {{ 'selected' if f.month == ym }}>{{ label }}</option>{% endfor %}
+    </select>
+    <select name="category" aria-label="Filter by category">
+      <option value="">All categories</option>
+      {% for t in categories %}<option value="{{ t.id }}" {{ 'selected' if f.category == t.id }}>{{ t.name }}</option>{% endfor %}
+    </select>
+    {% if tags %}
+    <select name="tag" aria-label="Filter by tag">
+      <option value="">All tags</option>
+      {% for t in tags %}<option value="{{ t.id }}" {{ 'selected' if f.tag == t.id }}>{{ t.name }}</option>{% endfor %}
+    </select>
+    {% endif %}
+    <select name="author" aria-label="Filter by author">
+      <option value="">All authors</option>
+      {% for u in authors %}<option value="{{ u.id }}" {{ 'selected' if f.author == u.id }}>{{ u.username }}</option>{% endfor %}
+    </select>
+    <button type="submit" class="wpb-btn">Filter</button>
+    {% if f.month or f.category or f.tag or f.author %}<a href="{{ url_for('admin.blog_list', status=status if status != 'all' else None, q=f.q or None) }}" class="wpb-clear">Clear filters</a>{% endif %}
+  </form>
+  <span class="wpb-count">{{ total }} item{{ '' if total == 1 else 's' }}</span>
+</div>
+
+{{ bulk_bar('blog', 'blog posts') }}
+<form method="POST" id="wpbRow" hidden>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  <input type="hidden" name="next" value="{{ request.full_path }}"/>
+</form>
+
+<div class="wpb-tablewrap">
+<table class="wpb-table" id="wpbPosts">
+  <thead>
+    <tr>
+      <th class="wpb-cb"><input type="checkbox" id="wpbAll" aria-label="Select all on this page"/></th>
+      <th class="wpb-col-title">{{ sort_link('title', 'Title') }}</th>
+      <th>Author</th>
+      <th>Categories</th>
+      <th>Tags</th>
+      <th class="wpb-col-checks" title="Red checks stop a post going live">Checks</th>
+      <th class="wpb-col-date">{{ sort_link('date', 'Date') }}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for b in posts %}
+    {% set st = b.status %}
+    <tr data-hd-row="blog-{{ b.id }}" class="wpb-row is-{{ st }}">
+      <td class="wpb-cb">
+        {%- if CAN_DELETE() -%}
+        <input type="checkbox" class="hd-check" data-hd-kind="blog" value="{{ b.id }}" name="ids" form="wpbBulk" aria-label="Select {{ b.title }}"/>
+        {%- else -%}
+        <input type="checkbox" class="wpb-check" value="{{ b.id }}" name="ids" form="wpbBulk" aria-label="Select {{ b.title }}"/>
+        {%- endif -%}
+      </td>
+      <td class="wpb-col-title" data-label="Title">
+        <strong>
+          {% if st == 'trash' %}<span class="row-title">{{ b.title }}</span>
+          {% else %}<a class="row-title" href="{{ url_for('admin.blog_edit', post_id=b.id) }}">{{ b.title }}</a>{% endif %}
+          {% if st == 'draft' %}<span class="wpb-state">— Draft</span>{% elif st == 'scheduled' %}<span class="wpb-state">— Scheduled</span>{% endif %}
+          {% if b.is_featured and st != 'trash' %}<span class="wpb-state wpb-star" title="Featured: at the top of the blog"><i class="fa-solid fa-star"></i> Featured</span>{% endif %}
+        </strong>
+        <small class="wpb-slug">/blog/{{ b.slug }}{% if b.source_file %} · <i class="fa-solid fa-file-word"></i> {{ b.source_file }}{% endif %}</small>
+        <div class="row-actions">
+          {% if st == 'trash' %}
+            <button type="submit" form="wpbRow" formaction="{{ url_for('admin.blog_restore', post_id=b.id) }}" class="wpb-link">Restore</button>
+            {{ del_btn('blog', b.id, 'the blog post "' ~ b.title ~ '"', tier='type', label='Delete permanently') }}
+          {% else %}
+            {% if CAN('blog') %}<a href="{{ url_for('admin.blog_edit', post_id=b.id) }}">Edit</a>
+            <button type="submit" form="wpbRow" formaction="{{ url_for('admin.blog_duplicate', post_id=b.id) }}" class="wpb-link">Duplicate</button>{% endif %}
+            {% if st == 'published' %}<a href="{{ url_for('blog.blog_post', slug=b.slug) }}" target="_blank" rel="noopener">View</a>
+            {% elif CAN('blog') %}<a href="{{ url_for('admin.blog_preview', post_id=b.id) }}" target="_blank" rel="noopener">Preview</a>{% endif %}
+            <button type="submit" form="wpbRow" formaction="{{ url_for('admin.blog_trash', post_id=b.id) }}" class="wpb-link danger">Trash</button>
+            {{ del_btn('blog', b.id, 'the blog post "' ~ b.title ~ '"', tier='type', label='Delete permanently') }}
+          {% endif %}
+        </div>
+      </td>
+      <td data-label="Author"><a href="{{ keep(author=b.author_id) }}">{{ b.author.username if b.author else '—' }}</a></td>
+      <td data-label="Categories">
+        {% for t in b.categories %}<a href="{{ keep(category=t.id) }}">{{ t.name }}</a>{{ ', ' if not loop.last }}{% else %}<span class="wpb-dim">—</span>{% endfor %}
+      </td>
+      <td data-label="Tags">
+        {% for t in b.tags %}<a href="{{ keep(tag=t.id) }}">{{ t.name }}</a>{{ ', ' if not loop.last }}{% else %}<span class="wpb-dim">—</span>{% endfor %}
+      </td>
+      <td data-label="Checks" class="wpb-col-checks">
+        {% if red[b.id] %}<span class="wpb-dot bad" title="{{ red[b.id] }} red check{{ '' if red[b.id] == 1 else 's' }}: open it to see">{{ red[b.id] }}</span>
+        {% else %}<span class="wpb-dot ok" title="Nothing stops it going live"><i class="fa-solid fa-check"></i></span>{% endif %}
+      </td>
+      <td data-label="Date" class="wpb-col-date">
+        {% if st == 'published' %}Published<br/><span>{{ b.published_at|istd('%Y/%m/%d at %H:%M') if b.published_at }}</span>
+        {% elif st == 'scheduled' %}<span class="wpb-sched">Scheduled</span><br/><span>{{ b.published_at|istd('%Y/%m/%d at %H:%M') }}</span>
+        {% elif st == 'trash' %}In the Trash<br/><span>{{ b.trashed_at|istd('%Y/%m/%d at %H:%M') }}</span>
+        {% else %}Last modified<br/><span>{{ (b.updated_at or b.created_at)|istd('%Y/%m/%d at %H:%M') }}</span>{% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="wpb-empty">
+      {% if f.q or f.month or f.category or f.tag or f.author %}No posts match those filters.
+      {% elif status == 'trash' %}The Trash is empty.
+      {% else %}No posts here yet. {% if CAN('blog') %}<a href="{{ url_for('admin.new_blog') }}">Write the first one</a>{% endif %}{% endif %}
+    </td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+<div class="wpb-foot">{% include 'admin/_pager.html' %}</div>
+{% endblock %}

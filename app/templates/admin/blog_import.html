@@ -1,19 +1,15 @@
-{% extends 'base.html' %}
-{% block title %}Import blog posts – Admin{% endblock %}
-{% block content %}
-<div class="admin-page">
-  {% with active='blog_import' %}{% include 'admin/_sidebar.html' %}{% endwith %}
-  <main class="admin-main bs-import">
-    <div class="card-head">
-      <div>
-        <h1>Import blog posts</h1>
-        <p class="muted">Write the post in Word like any other document, upload it here, and it becomes a draft you check and publish.</p>
-      </div>
-      <span class="bs-head-links">
-        <a class="btn-sm" href="{{ url_for('admin.new_blog') }}"><i class="fa-solid fa-pen"></i> Write one here instead</a>
-        <a class="btn-sm" href="{{ url_for('admin.blog_list') }}"><i class="fa-solid fa-newspaper"></i> All blog posts</a>
-      </span>
+{% extends 'admin/blog/_layout.html' %}
+{% block title %}Import from Word – Blog{% endblock %}
+{% block wpb_active %}import{% endblock %}
+{% block wpb_main %}
+  <div class="bs-import">
+    <div class="wpb-head">
+      <h1>Import blog posts</h1>
+      <a class="wpb-btn" href="{{ url_for('admin.new_blog') }}"><i class="fa-solid fa-pen"></i> Write one here instead</a>
+      {% if CAN('blog_list') %}<a class="wpb-btn" href="{{ url_for('admin.blog_list', status='word') }}"><i class="fa-solid fa-file-word"></i> Posts from Word</a>{% endif %}
     </div>
+    <p class="wpb-intro">Write the post in Word like any other document, upload it here, and it becomes a draft you check and publish.
+      An imported post is an ordinary post: open it in the editor to change anything, or replace it with a newer Word file from its settings.</p>
 
     <ol class="bs-steps">
       <li>
@@ -163,11 +159,11 @@
         </details>
       </div>
     </details>
-  </main>
-</div>
+  </div>
 {% endblock %}
 
 {% block extra_js %}
+{{ super() }}
 <script>
 (function () {
   // say which files were picked: the browser's own text is easy to miss

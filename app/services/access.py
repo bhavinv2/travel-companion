@@ -220,10 +220,20 @@ MODULES = [
                admin='admin.voices', cs='cs.voices', args={'tab': 'report'}),
          _page('landing', 'Landing page', 'fa-flag', ['admin.landing_page'], admin='admin.landing_page',
                desc='Contact numbers, support addresses and colours.'),
-         _page('blog_list', 'Blog posts', 'fa-newspaper', ['admin.blog_list'], admin='admin.blog_list'),
+         # The blog is a workspace of its own (routes/admin_blog.py, like WordPress): the lists on one
+         # line, writing on the other
+         _page('blog_list', 'Blog posts', 'fa-newspaper',
+               ['admin.blog_list', 'admin.blog_dashboard', 'admin.blog_bulk', 'admin.blog_trash',
+                'admin.blog_restore', 'admin.blog_terms', 'admin.blog_term_delete'],
+               admin='admin.blog_list', desc='All posts, the blog dashboard, categories and tags, the Trash.'),
          _page('blog', 'New blog post', 'fa-pen', ['admin.new_blog', 'admin.blog_edit', 'admin.blog_check',
-                                                  'admin.blog_preview', 'admin.blog_image'],
-               admin='admin.new_blog'),
+                                                  'admin.blog_preview', 'admin.blog_image', 'admin.blog_word',
+                                                  'admin.blog_duplicate', 'admin.blog_revisions',
+                                                  'admin.blog_term_add', 'admin.blog_quick_draft',
+                                                  'admin.blog_media', 'admin.blog_media_upload',
+                                                  'admin.blog_media_save', 'admin.blog_media_delete'],
+               admin='admin.new_blog', desc='Write and edit posts (Word-imported ones too), the picture '
+                                            'library, saved versions.'),
          # Word documents in, draft posts out (services/blog_engine.py): whoever may write a post may
          # import one, so it comes with "New blog post" rather than being granted on its own
          _page('blog_import', 'Import blog posts', 'fa-file-import', ['admin.blog_import', 'admin.blog_template'],

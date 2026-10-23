@@ -1,0 +1,62 @@
+{# The blog workspace, full page, the way WordPress's admin looks: a thin dark bar across the top (the blog,
+   "+ New post", the public blog, back to the admin portal), a dark menu down the left, the screen on the
+   right. The site's own header and footer are not shown here (blog-admin.css).
+
+   A screen extends this and fills: title, wpb_active (dashboard / posts / new / categories / tags / media /
+   import), wpb_main. Menu lines show only what the person's role opens (CAN). The editor does not use this
+   layout: it is full screen on its own (blog_edit.html), the way WordPress's is. #}
+{% extends 'base.html' %}
+{% block body_attrs %} class="wpb-body"{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/blog-admin.css') }}"/>{% endblock %}
+{% block content %}
+{% set active = self.wpb_active()|trim %}
+<div class="wpb" id="wpb">
+  <header class="wpb-top">
+    <button type="button" class="wpb-burger" id="wpbBurger" aria-label="Menu" aria-controls="wpbMenu" aria-expanded="false"><i class="fa-solid fa-bars"></i></button>
+    <a class="wpb-brand" href="{{ url_for('admin.blog_dashboard') if CAN('blog_list') else url_for('admin.new_blog') }}">
+      <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt=""/><span>NRI Parent Service <b>Blog</b></span>
+    </a>
+    {% if CAN('blog') %}<a class="wpb-top-new" href="{{ url_for('admin.new_blog') }}"><i class="fa-solid fa-plus"></i><span> New post</span></a>{% endif %}
+    <a class="wpb-top-link" href="{{ url_for('blog.blog_list') }}" target="_blank" rel="noopener"><i class="fa-solid fa-house"></i><span> View blog</span></a>
+    <span class="wpb-top-gap"></span>
+    <a class="wpb-top-link" href="{{ staff_home(current_user) }}"><i class="fa-solid fa-table-columns"></i><span> Admin portal</span></a>
+    <span class="wpb-me" title="{{ current_user.email }}"><span class="wpb-av">{{ (current_user.username or '?')[:1]|upper }}</span><span class="wpb-me-name">{{ current_user.username }}</span></span>
+  </header>
+
+  <nav class="wpb-menu" id="wpbMenu" aria-label="Blog">
+    {% if CAN('blog_list') %}
+    <a href="{{ url_for('admin.blog_dashboard') }}" class="wpb-mi {{ 'on' if active == 'dashboard' }}"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span></a>
+    {% endif %}
+    <div class="wpb-mgroup {{ 'open' if active in ('posts', 'new', 'categories', 'tags') }}">
+      <a href="{{ url_for('admin.blog_list') if CAN('blog_list') else url_for('admin.new_blog') }}" class="wpb-mi {{ 'on' if active in ('posts', 'new', 'categories', 'tags') }}"><i class="fa-solid fa-thumbtack"></i><span>Posts</span></a>
+      <div class="wpb-sub">
+        {% if CAN('blog_list') %}<a href="{{ url_for('admin.blog_list') }}" class="{{ 'on' if active == 'posts' }}">All posts</a>{% endif %}
+        {% if CAN('blog') %}<a href="{{ url_for('admin.new_blog') }}" class="{{ 'on' if active == 'new' }}">Add new post</a>{% endif %}
+        {% if CAN('blog_list') %}
+        <a href="{{ url_for('admin.blog_terms', kind='category') }}" class="{{ 'on' if active == 'categories' }}">Categories</a>
+        <a href="{{ url_for('admin.blog_terms', kind='tag') }}" class="{{ 'on' if active == 'tags' }}">Tags</a>
+        {% endif %}
+      </div>
+    </div>
+    {% if CAN('blog') %}
+    <a href="{{ url_for('admin.blog_media') }}" class="wpb-mi {{ 'on' if active == 'media' }}"><i class="fa-solid fa-photo-film"></i><span>Media</span></a>
+    {% endif %}
+    {% if CAN('blog_import') %}
+    <a href="{{ url_for('admin.blog_import') }}" class="wpb-mi {{ 'on' if active == 'import' }}"><i class="fa-solid fa-file-word"></i><span>Import from Word</span></a>
+    {% endif %}
+    <span class="wpb-msep"></span>
+    <a href="{{ url_for('blog.blog_list') }}" class="wpb-mi" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i><span>View blog</span></a>
+    <a href="{{ staff_home(current_user) }}" class="wpb-mi"><i class="fa-solid fa-arrow-left"></i><span>Admin portal</span></a>
+    <button type="button" class="wpb-mi wpb-fold" id="wpbFold" aria-label="Collapse menu"><i class="fa-solid fa-circle-chevron-left"></i><span>Collapse menu</span></button>
+  </nav>
+
+  <main class="wpb-main" id="wpbMain">
+    {% block wpb_main %}{% endblock %}
+  </main>
+</div>
+{% endblock %}
+{% block wpb_active %}{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/blog-admin.js') }}"></script>
+{% endblock %}

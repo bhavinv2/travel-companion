@@ -11,7 +11,13 @@
 
    The checks beside the post come from the server (blog_engine.checks), so the rules live in one
    place; this file only asks for them. Whatever the editor produces, the server cleans it again on
-   save. Work that is not saved yet is kept in this browser and offered back after a crash. */
+   save. Work that is not saved yet is kept in this browser and offered back after a crash.
+
+   The page is full screen, the way WordPress's editor is: the settings beside the post are three tabs
+   (Post: status, schedule, author, categories, tags, featured image, summary, Word document; SEO: the
+   Google and share previews; Checks), the list view lists every block, Publish opens a last look first,
+   pictures can come from the media library, and "Replace from Word" brings a document's words and
+   pictures into the editor (unsaved, undoable). */
 (function () {
   const form = document.getElementById('bsForm');
   if (!form) return;
@@ -392,8 +398,9 @@
   toolbar.addEventListener('mousedown', e => { if (e.target.closest('button')) e.preventDefault(); });   // keep the selection
   toolbar.addEventListener('click', e => {
     const b = e.target.closest('button');
-    if (!b) return;
+    if (!b || !b.dataset.do) return;
     const what = b.dataset.do;
+    if (what === 'library') { openLib({ purpose: 'body', target: savedBlock() }); return; }
     if (what === 'menu') { const t = savedBlock() || editor.lastElementChild; openMenu('insert', t, b); return; }
     if (what === 'undo' || what === 'redo') { travel(what === 'undo' ? -1 : 1); return; }
     if (what === 'insert') { insertBlock(b.dataset.block, savedBlock()); return; }
@@ -673,7 +680,7 @@
   }
   function pick(purpose, figure, target) {
     picking = { purpose, figure, target };
-    fileInput.multiple = purpose === 'body' && !figure;
+    fileInput.multiple = (purpose === 'body' && !figure) || purpose === 'library';
     fileInput.value = '';
     fileInput.click();
   }
@@ -683,6 +690,7 @@
     const { purpose, figure, target } = picking;
     picking = null;
     if (purpose === 'cover') return coverUpload(files[0]);
+    if (purpose === 'library') return libUpload(files);
     if (!figure) return insertPictures(files, target);
     let d;
     try { d = await upload(files[0], 'body'); } catch (err) { toast(err.message, 'danger'); return; }
@@ -783,6 +791,7 @@
     const b = e.target.closest('[data-fp]');
     if (!b || !current) return;
     if (b.dataset.fp === 'replace') pick('body', current);
+    else if (b.dataset.fp === 'library') openLib({ purpose: 'body', figure: current });
     else if (b.dataset.fp === 'remove') { const f = current; closePanel(); structural(() => f.remove()); setActive(null); }
     else closePanel();
   });
@@ -799,6 +808,7 @@
     form.querySelector('[data-cover=remove]').hidden = !url;
     form.querySelector('[data-cover=upload]').lastChild.textContent = url ? ' Replace' : ' Upload';
     changed();
+    seo();
   }
   async function coverUpload(file) {
     coverBox.classList.add('is-busy');
@@ -806,7 +816,9 @@
     coverBox.classList.remove('is-busy');
   }
   form.querySelectorAll('[data-cover]').forEach(b => b.addEventListener('click', () => {
-    if (b.dataset.cover === 'upload') pick('cover', null); else setCover('', '');
+    if (b.dataset.cover === 'upload') pick('cover', null);
+    else if (b.dataset.cover === 'library') openLib({ purpose: 'cover' });
+    else setCover('', '');
   }));
   coverBox.addEventListener('click', () => pick('cover', null));
   coverBox.addEventListener('dragover', e => { e.preventDefault(); coverBox.classList.add('is-drop'); });
@@ -835,9 +847,15 @@
     slug.value = slugOf(slug.value);
     if (slugAuto && !slug.value) { slugAuto.value = '1'; slug.value = slugOf(title.value); }
   });
-  form.querySelectorAll('input[type=text], textarea[name=summary], textarea[name=title], input[type=checkbox]').forEach(i => {
-    if (!editor.contains(i) && !pop.contains(i) && !panel.contains(i) && !menu.contains(i)) i.addEventListener('input', changed);
-  });
+  // every setting marks the post changed -- not the editor (it has its own), its panels, or the boxes that
+  // only add something (a new category's name, a tag being typed, the library's search)
+  ['input', 'change'].forEach(ev => form.addEventListener(ev, e => {
+    const t = e.target;
+    if (!t.matches || !t.matches('input, textarea, select') || t === hidden || t.hasAttribute('data-nodirty')) return;
+    if (editor.contains(t) || pop.contains(t) || panel.contains(t) || menu.contains(t) || (lib && lib.contains(t))) return;
+    changed();
+    if (ev === 'input') seo();
+  }));
 
   // ---------------------------------------------------------------- checks, from the server; the outline
   const ICON = { error: 'fa-circle-xmark', warn: 'fa-lightbulb', ok: 'fa-circle-check' };
@@ -863,7 +881,10 @@
       li.appendChild(document.createTextNode(c.text));
       box.appendChild(li);
     });
-    document.getElementById('bsBlocked').hidden = !d.checks.some(c => c.level === 'error');
+    const red = d.checks.filter(c => c.level === 'error').length;
+    document.getElementById('bsBlocked').hidden = !red;
+    const badge = document.getElementById('geRed');
+    if (badge) { badge.textContent = red; badge.hidden = !red; }
     if (slugAuto && slugAuto.value === '1' && d.slug && document.activeElement !== slug) slug.value = d.slug;
     count(d.words);
   }
@@ -886,15 +907,35 @@
       box.appendChild(li);
     });
     document.getElementById('bsOutlineNone').hidden = heads.length > 0;
+    blockList();
   }
 
   // ---------------------------------------------------------------- kept in this browser until saved
   let keepT = null;
   function state() {
     serialise();
+    const val = n => { const i = form.querySelector('[name=' + n + ']'); return i ? i.value : ''; };
     return { title: title.value, slug: slug.value, summary: summary.value, content: hidden.value,
              cover: coverInput.value, coverSrc: coverBox.querySelector('img').getAttribute('src') || '',
-             coverAlt: form.querySelector('[name=cover_alt]').value };
+             coverAlt: form.querySelector('[name=cover_alt]').value,
+             seoTitle: val('seo_title'), keyword: val('focus_keyword'), tags: val('tags'), when: val('publish_at'),
+             cats: Array.from(form.querySelectorAll('[name=categories]:checked')).map(i => i.value) };
+  }
+  // a state() put back: after a crash, or "Undo" after a Word document was brought in
+  function putBack(s) {
+    title.value = s.title; fit();
+    slug.value = s.slug;
+    summary.value = s.summary;
+    document.getElementById('bsSumCount').textContent = summary.value.trim().length;
+    form.querySelector('[name=cover_alt]').value = s.coverAlt;
+    const set = (n, v) => { const i = form.querySelector('[name=' + n + ']'); if (i && v != null) i.value = v; };
+    set('seo_title', s.seoTitle); set('focus_keyword', s.keyword); set('publish_at', s.when);
+    if (s.tags != null) { tagList = splitTags(s.tags); drawTags(); }
+    if (s.cats) form.querySelectorAll('[name=categories]').forEach(i => { i.checked = s.cats.includes(i.value); });
+    structural(() => { editor.innerHTML = s.content; });
+    setCover(s.cover, s.coverSrc);
+    when();
+    changed();
   }
   function backup() { try { localStorage.setItem(KEY, JSON.stringify({ base: form.dataset.saved, at: Date.now(), s: state() })); } catch (e) { /* private mode */ } }
   function dropBackup() { try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ } }
@@ -919,7 +960,412 @@
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
       e.preventDefault();
       (document.getElementById('bsSave') || document.getElementById('bsGoLive')).click();
-    } else if (e.key === 'Escape') { closePop(); closeMenu(); if (!panel.hidden) closePanel(); }
+    } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === '\\' || e.code === 'Backslash')) {
+      e.preventDefault(); zen();
+    } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === ',' || e.key === '<' || e.code === 'Comma')) {
+      e.preventDefault(); side();
+    } else if (e.key === 'Escape') {
+      closePop(); closeMenu(); if (!panel.hidden) closePanel();
+      more(false); prepub(false);
+    }
+  });
+
+  // ---------------------------------------------------------------- the page around the post
+  const body = document.body;
+  const drawer = document.getElementById('geDrawer');
+  const sideEl = document.getElementById('geSide');
+  const store = (k, v) => { try { if (v == null) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } return null; };
+  function side(on) {
+    if (on == null) on = body.classList.contains('ge-noside');
+    body.classList.toggle('ge-noside', !on);
+    document.querySelectorAll('[data-ge=side].ge-ib').forEach(b => b.setAttribute('aria-pressed', on ? 'true' : 'false'));
+    if (window.innerWidth > 900) store('ge.side', on ? '1' : '0');
+  }
+  function zen(on) {
+    if (on == null) on = !body.classList.contains('ge-zen');
+    body.classList.toggle('ge-zen', on);
+    store('ge.zen', on ? '1' : '0');
+    if (on) toast('Distraction free: Ctrl+Shift+\\ (or the ⋮ menu) brings the bars back.', 'info');
+  }
+  function listView(on) {
+    if (on == null) on = drawer.hidden;
+    drawer.hidden = !on;
+    document.getElementById('geListBtn').setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (on) blockList();
+  }
+  function more(on) {
+    const m = document.getElementById('geMore');
+    if (on == null) on = m.hidden;
+    m.hidden = !on;
+    document.querySelector('[data-ge=more]').setAttribute('aria-expanded', on ? 'true' : 'false');
+  }
+  function tab(which) {
+    side(true);
+    sideEl.querySelectorAll('[data-stab]').forEach(b => b.setAttribute('aria-selected', b.dataset.stab === which ? 'true' : 'false'));
+    sideEl.querySelectorAll('[data-spane]').forEach(p => { p.hidden = p.dataset.spane !== which; });
+    if (which === 'seo') seo();
+  }
+  sideEl.addEventListener('click', e => { const b = e.target.closest('[data-stab]'); if (b) tab(b.dataset.stab); });
+  drawer.addEventListener('click', e => {
+    const b = e.target.closest('[data-dtab]');
+    if (!b) return;
+    drawer.querySelectorAll('[data-dtab]').forEach(x => x.setAttribute('aria-selected', x === b ? 'true' : 'false'));
+    drawer.querySelectorAll('[data-dpane]').forEach(p => { p.hidden = p.dataset.dpane !== b.dataset.dtab; });
+  });
+
+  // the list view: every block, a click away
+  const ICONS = { P: 'fa-paragraph', H2: 'fa-heading', H3: 'fa-heading', UL: 'fa-list-ul', OL: 'fa-list-ol', BLOCKQUOTE: 'fa-quote-left',
+                  ASIDE: 'fa-lightbulb', FIGURE: 'fa-image', TABLE: 'fa-table', HR: 'fa-minus' };
+  function blockList() {
+    const ol = document.getElementById('geBlocks');
+    if (!ol || drawer.hidden) return;
+    ol.innerHTML = '';
+    Array.from(editor.children).forEach(b => {
+      if (isEmpty(b)) return;
+      const cta = isCta(b);
+      const text = b.tagName === 'FIGURE' ? (b.querySelector('img') ? b.querySelector('img').alt || 'no description' : 'missing: ' + (b.dataset.file || ''))
+        : b.tagName === 'HR' ? '' : b.textContent.trim();
+      const li = document.createElement('li');
+      li.className = 'is-' + b.tagName.toLowerCase();
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.innerHTML = '<i class="fa-solid ' + (cta ? 'fa-hand-pointer' : (ICONS[b.tagName] || 'fa-square')) + '"></i><b></b><span></span>';
+      btn.querySelector('b').textContent = cta ? 'Button' : (NAMES[b.tagName] || 'Block');
+      btn.querySelector('span').textContent = text.length > 46 ? text.slice(0, 46) + '…' : text;
+      btn.addEventListener('click', () => {
+        b.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        if (isText(b) || /^(UL|OL|BLOCKQUOTE|ASIDE|TABLE)$/.test(b.tagName)) caretIn(b.querySelector('li, th, td') || b, true);
+        else { picked = b; setActive(b); }
+        b.classList.add('ge-flash');
+        setTimeout(() => b.classList.remove('ge-flash'), 900);
+      });
+      li.appendChild(btn);
+      ol.appendChild(li);
+    });
+    if (!ol.children.length) ol.innerHTML = '<li class="ge-dim">The post is empty.</li>';
+  }
+
+  // publish: now, or a time to come (scheduled)
+  const whenIn = form.querySelector('[name=publish_at]');
+  const live = !document.getElementById('gePublish');
+  function later() {
+    const v = whenIn && whenIn.value;
+    if (!v) return false;
+    const t = new Date(v + ':00+05:30');
+    return !isNaN(t) && t.getTime() > Date.now() + 30000;
+  }
+  function whenLabel() {
+    const v = whenIn && whenIn.value;
+    if (!v) return live ? 'As it is' : 'Immediately';
+    const t = new Date(v + ':00+05:30');
+    const shown = isNaN(t) ? v.replace('T', ' ') : t.toLocaleString(undefined, { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return (later() ? 'Scheduled · ' : '') + shown;
+  }
+  function when() {
+    if (!whenIn) return;
+    const btn = document.getElementById('geWhenBtn');
+    btn.textContent = whenLabel();
+    const pub = document.getElementById('gePublish');
+    if (pub) pub.textContent = later() ? 'Schedule…' : 'Publish';
+  }
+  if (whenIn) {
+    whenIn.addEventListener('change', when);
+    document.getElementById('geWhen').addEventListener('click', e => {
+      const b = e.target.closest('[data-when]');
+      if (!b) return;
+      if (b.dataset.when === 'clear') whenIn.value = whenIn.defaultValue && live ? whenIn.defaultValue : '';
+      else {
+        const t = new Date(Date.now() + 330 * 60000);          // India time, as the field shows it
+        whenIn.value = t.toISOString().slice(0, 16);
+      }
+      when();
+      changed();
+    });
+  }
+
+  // the last look before Publish
+  const pp = document.getElementById('gePrepub');
+  async function prepub(open) {
+    if (!pp) return;
+    if (!open) { pp.hidden = true; return; }
+    more(false);
+    pp.hidden = false;
+    const go = document.getElementById('bsGoLive');
+    go.disabled = true;
+    await check();
+    const sched = later();
+    document.getElementById('gePpTitle').textContent = sched ? 'Are you ready to schedule?' : 'Are you ready to publish?';
+    go.textContent = sched ? 'Schedule' : 'Publish';
+    document.getElementById('gePpWhen').textContent = whenLabel();
+    const cats = Array.from(form.querySelectorAll('[name=categories]:checked')).map(i => i.parentNode.textContent.trim());
+    document.getElementById('gePpCats').textContent = cats.length ? cats.join(', ') : 'None';
+    document.getElementById('gePpTags').textContent = tagList.length ? tagList.join(', ') : 'None';
+    document.getElementById('gePpCover').textContent = coverInput.value ? 'Set' : 'None: a stock picture is shown';
+    const sm = summary.value.trim();
+    document.getElementById('gePpSum').textContent = sm ? (sm.length > 70 ? sm.slice(0, 70) + '…' : sm) : 'None: the first lines are used';
+    const tell = form.querySelector('[name=send_notification]');
+    document.getElementById('gePpTell').textContent = !tell ? 'Already told' : tell.checked ? (sched ? 'Everybody, when it goes live' : 'Everybody') : 'Nobody';
+    const red = document.querySelectorAll('#bsChecks .bs-c-error').length;
+    const warn = document.querySelectorAll('#bsChecks .bs-c-warn').length;
+    const r = document.getElementById('gePpRed'), w = document.getElementById('gePpWarn');
+    r.hidden = !red;
+    r.querySelector('span').textContent = red + ' red check' + (red === 1 ? '' : 's') + ' to fix first.';
+    w.hidden = !warn || red > 0;
+    w.querySelector('span').textContent = warn + ' tip' + (warn === 1 ? '' : 's') + ' to make it better: it can go live without.';
+    go.disabled = red > 0;
+    if (!red) go.focus();
+  }
+
+  // the Google and share previews; the address beside "Address"
+  const seoIn = form.querySelector('[name=seo_title]');
+  function seo() {
+    if (!seoIn) return;
+    const t = seoIn.value.trim() || title.value.trim() || 'Add title';
+    const words = editor.innerText.replace(/\s+/g, ' ').trim();
+    const desc = summary.value.trim() || words.slice(0, 155) + (words.length > 155 ? ' …' : '');
+    const serp = document.getElementById('geSerp');
+    serp.querySelector('.ge-serp-title').textContent = t.length > 60 ? t.slice(0, 58) + ' …' : t;
+    const site = serp.querySelector('.ge-serp-site small');
+    site.textContent = site.dataset.site + ' › blog › ' + (slug.value || '…');
+    serp.querySelector('.ge-serp-desc').textContent = desc.length > 160 ? desc.slice(0, 158) + ' …' : desc;
+    document.getElementById('geSeoCount').textContent = seoIn.value.trim().length;
+    const share = document.getElementById('geShare');
+    const src = coverBox.querySelector('img').getAttribute('src');
+    share.querySelector('img').hidden = !src;
+    if (src) share.querySelector('img').src = src;
+    share.querySelector('b').textContent = t;
+    share.querySelector('p').textContent = desc;
+    const addr = document.getElementById('geAddr');
+    if (addr) addr.querySelector('b').textContent = slug.value || '…';
+  }
+  [title, slug, summary].forEach(i => i.addEventListener('input', seo));
+
+  // tags: typed, picked from the ones there are, removed with their ×
+  const tagsHidden = form.querySelector('[name=tags]');
+  const tagBox = document.getElementById('geTags');
+  const tagIn = document.getElementById('geTagIn');
+  const splitTags = v => (v || '').split(',').map(t => t.trim()).filter(Boolean);
+  let tagList = splitTags(tagsHidden ? tagsHidden.value : '');
+  function drawTags() {
+    if (!tagBox) return;
+    tagBox.querySelector('.ge-tag-list').innerHTML = tagList.map((t, i) => '<span class="ge-tag">' + esc(t) +
+      '<button type="button" data-tag-x="' + i + '" aria-label="Remove ' + esc(t) + '">×</button></span>').join('');
+    tagsHidden.value = tagList.join(', ');
+  }
+  function addTags(text) {
+    let added = false;
+    splitTags(text).forEach(t => {
+      if (!tagList.some(x => x.toLowerCase() === t.toLowerCase())) { tagList.push(t.slice(0, 80)); added = true; }
+    });
+    drawTags();
+    if (added) changed();
+  }
+  if (tagIn) {
+    tagIn.setAttribute('data-nodirty', '');
+    tagIn.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTags(tagIn.value); tagIn.value = ''; }
+      else if (e.key === 'Backspace' && !tagIn.value && tagList.length) { tagList.pop(); drawTags(); changed(); }
+    });
+    tagIn.addEventListener('input', e => {
+      if (e.inputType === 'insertReplacementText' || (!e.inputType && tagIn.value)) { addTags(tagIn.value); tagIn.value = ''; }
+    });
+    tagIn.addEventListener('blur', () => { if (tagIn.value.trim()) { addTags(tagIn.value); tagIn.value = ''; } });
+    tagBox.addEventListener('click', e => {
+      const x = e.target.closest('[data-tag-x]');
+      if (x) { tagList.splice(+x.dataset.tagX, 1); drawTags(); changed(); return; }
+      tagIn.focus();
+    });
+    drawTags();
+  }
+
+  // a new category, made without leaving the post
+  const catName = document.getElementById('geCatName');
+  if (catName) catName.setAttribute('data-nodirty', '');
+  async function addCategory() {
+    const name = catName.value.trim();
+    if (!name) { catName.focus(); return; }
+    const fd = new FormData();
+    fd.append('name', name);
+    fd.append('kind', 'category');
+    let d;
+    try {
+      const r = await fetch(form.dataset.termUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd, credentials: 'same-origin' });
+      d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'The category could not be added.');
+    } catch (err) { toast(err.message, 'danger'); return; }
+    const box = document.getElementById('geCats');
+    let input = box.querySelector('[name=categories][value="' + d.id + '"]');
+    if (!input) {
+      const none = box.querySelector('.ge-cats-none');
+      if (none) none.remove();
+      const l = document.createElement('label');
+      l.innerHTML = '<input type="checkbox" name="categories" value="' + d.id + '"/> ';
+      l.appendChild(document.createTextNode(d.name));
+      box.appendChild(l);
+      input = l.querySelector('input');
+    }
+    input.checked = true;
+    catName.value = '';
+    document.getElementById('geCatNew').hidden = true;
+    changed();
+  }
+  if (catName) catName.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addCategory(); } });
+
+  // the media library: a picture already uploaded, for the post or the cover
+  const lib = document.getElementById('geLib');
+  const libQ = document.getElementById('geLibQ');
+  let libFor = null, libItems = [], libPick = null, libT = null;
+  if (libQ) libQ.setAttribute('data-nodirty', '');
+  async function loadLib(selectUrl) {
+    const grid = document.getElementById('geLibGrid');
+    try {
+      const u = new URL(form.dataset.mediaUrl, location.href);
+      if (libQ.value.trim()) u.searchParams.set('q', libQ.value.trim());
+      const r = await fetch(u, { credentials: 'same-origin' });
+      libItems = (await r.json()).items || [];
+    } catch (err) { libItems = []; }
+    grid.innerHTML = libItems.length ? libItems.map((m, i) => '<button type="button" class="ge-lib-tile" data-i="' + i + '" title="' + esc(m.name) +
+      '"><img src="' + esc(m.src) + '" alt="" loading="lazy"/></button>').join('')
+      : '<p class="ge-dim">' + (libQ.value.trim() ? 'No picture matches.' : 'No pictures yet: upload one.') + '</p>';
+    libPick = null;
+    const at = selectUrl ? libItems.findIndex(m => m.url === selectUrl) : -1;
+    if (at >= 0) choose(at);
+    else libFoot();
+  }
+  function libFoot() {
+    const use = lib.querySelector('[data-ge=lib-use]');
+    use.disabled = !libPick;
+    document.getElementById('geLibPicked').textContent = libPick ? libPick.name + (libPick.width ? ' · ' + libPick.width + ' × ' + libPick.height : '') : 'Pick a picture.';
+  }
+  function choose(i) {
+    libPick = libItems[i] || null;
+    lib.querySelectorAll('.ge-lib-tile').forEach(t => t.classList.toggle('is-on', +t.dataset.i === i));
+    libFoot();
+  }
+  function openLib(opts) {
+    if (!lib) return;
+    libFor = opts;
+    keep();
+    if (lib.showModal) lib.showModal(); else lib.setAttribute('open', '');
+    loadLib();
+  }
+  function closeLib() { if (lib.close) lib.close(); else lib.removeAttribute('open'); }
+  function useLib() {
+    const m = libPick, f = libFor;
+    if (!m || !f) return;
+    closeLib();
+    if (f.purpose === 'cover') {
+      setCover(m.url, m.src);
+      const alt = form.querySelector('[name=cover_alt]');
+      if (!alt.value.trim() && m.alt) alt.value = m.alt;
+      return;
+    }
+    const img = '<img src="' + esc(m.src) + '" alt="' + esc(m.alt || '') + '" data-file="' + esc(m.name) + '" loading="lazy">';
+    if (f.figure && editor.contains(f.figure)) {
+      const fig = f.figure, cap = fig.querySelector('figcaption');
+      const alt = (fig.querySelector('img') && fig.querySelector('img').alt) || fig.dataset.alt || m.alt || '';
+      structural(() => {
+        fig.className = 'blog-img';
+        fig.removeAttribute('data-file');
+        fig.removeAttribute('data-alt');
+        fig.innerHTML = '<img src="' + esc(m.src) + '" alt="' + esc(alt) + '" data-file="' + esc(m.name) + '" loading="lazy">' + (cap ? cap.outerHTML : '');
+      });
+      openPanel(fig);
+      return;
+    }
+    const fig = document.createElement('figure');
+    fig.className = 'blog-img';
+    fig.innerHTML = img;
+    structural(() => { place(fig, f.target && editor.contains(f.target) ? f.target : (savedBlock() || editor.lastElementChild)); after(fig); });
+    picked = fig;
+    openPanel(fig);
+    setActive(fig);
+    if (!m.alt) panel.querySelector('[data-k=alt]').focus();
+  }
+  async function libUpload(files) {
+    files = files.filter(f => /\.(jpe?g|png|webp)$/i.test(f.name) || /^image\/(jpeg|png|webp)$/.test(f.type));
+    if (!files.length) { toast('Use a JPG, PNG or WebP picture.', 'danger'); return; }
+    document.getElementById('geLibPicked').textContent = 'Uploading ' + files.length + ' picture' + (files.length === 1 ? '' : 's') + '…';
+    let last = null;
+    for (const file of files) {
+      try { last = (await upload(file, 'body')).url; } catch (err) { toast(err.message, 'danger'); }
+    }
+    libQ.value = '';
+    loadLib(last);
+  }
+  if (lib) {
+    lib.addEventListener('click', e => {
+      const t = e.target.closest('.ge-lib-tile');
+      if (t) choose(+t.dataset.i);
+      else if (e.target === lib) closeLib();             // the dark backdrop
+    });
+    lib.addEventListener('dblclick', e => { if (e.target.closest('.ge-lib-tile')) useLib(); });
+    libQ.addEventListener('input', () => { clearTimeout(libT); libT = setTimeout(() => loadLib(), 300); });
+    libQ.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
+  }
+
+  // "Replace from Word": the document's title, summary, words and pictures, in the editor -- not saved
+  const wordFile = document.getElementById('geWordFile');
+  const wordNote = document.getElementById('geWordNote');
+  let beforeWord = null;
+  async function bringWord(file) {
+    if (!/\.docx$/i.test(file.name)) { toast('Use a Word document (.docx): open it in Word and save it as .docx.', 'danger'); return; }
+    const busy = wordNote;
+    busy.hidden = false;
+    busy.querySelector('span').textContent = 'Reading ' + file.name + '…';
+    busy.querySelector('[data-ge=word-undo]').hidden = true;
+    const fd = new FormData();
+    fd.append('document', file);
+    let d;
+    try {
+      const r = await fetch(form.dataset.wordUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd, credentials: 'same-origin' });
+      d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'The document could not be read.');
+    } catch (err) { busy.hidden = true; toast(err.message, 'danger'); return; }
+    beforeWord = state();
+    title.value = d.title; fit();
+    if (slugAuto && slugAuto.value === '1') slug.value = slugOf(d.title);
+    if (d.summary) { summary.value = d.summary; document.getElementById('bsSumCount').textContent = d.summary.length; }
+    if (d.cover_alt) form.querySelector('[name=cover_alt]').value = d.cover_alt;
+    structural(() => { editor.innerHTML = d.content; });
+    if (d.cover) setCover(d.cover, d.cover_src);
+    const missing = (d.missing || []).length;
+    busy.querySelector('span').textContent = 'Brought in from ' + (d.file || file.name) + ': ' + d.words + ' words' +
+      (missing ? ', ' + missing + ' picture' + (missing === 1 ? '' : 's') + ' missing (the red boxes)' : '') +
+      '. Look it over, then ' + (document.getElementById('bsSave') ? 'Save draft' : 'Update') + '.' +
+      ((d.notes || []).length ? ' ' + d.notes.slice(0, 3).join(' ') : '');
+    busy.querySelector('[data-ge=word-undo]').hidden = false;
+    changed();
+    seo();
+  }
+  if (wordFile) wordFile.addEventListener('change', () => { const f = wordFile.files[0]; wordFile.value = ''; if (f) bringWord(f); });
+
+  // every button of the page around the post
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-ge]');
+    const m = document.getElementById('geMore');
+    if (m && !m.hidden && !e.target.closest('.ge-more')) more(false);
+    if (!b) return;
+    const what = b.dataset.ge;
+    if (what === 'side') side();
+    else if (what === 'list') listView();
+    else if (what === 'more') more();
+    else if (what === 'zen') { more(false); zen(); }
+    else if (what === 'keys') { more(false); document.getElementById('geKeys').showModal(); }
+    else if (what === 'keys-close') document.getElementById('geKeys').close();
+    else if (what === 'prepub') prepub(true);
+    else if (what === 'prepub-close') prepub(false);
+    else if (what === 'when') { const w = document.getElementById('geWhen'); w.hidden = !w.hidden; b.setAttribute('aria-expanded', w.hidden ? 'false' : 'true'); if (!w.hidden) whenIn.focus(); }
+    else if (what === 'cat-new') { const n = document.getElementById('geCatNew'); n.hidden = !n.hidden; if (!n.hidden) catName.focus(); }
+    else if (what === 'cat-save') addCategory();
+    else if (what === 'word') wordFile.click();
+    else if (what === 'word-undo') { if (beforeWord) { putBack(beforeWord); beforeWord = null; } wordNote.hidden = true; }
+    else if (what === 'word-hide') wordNote.hidden = true;
+    else if (what === 'goto-summary') { tab('post'); const sec = document.getElementById('geSumSec'); sec.open = true; summary.focus(); }
+    else if (what === 'goto-checks') { prepub(false); tab('checks'); }
+    else if (what === 'lib-upload') pick('library', null);
+    else if (what === 'lib-close') closeLib();
+    else if (what === 'lib-use') useLib();
   });
 
   // ---------------------------------------------------------------- start
@@ -940,16 +1386,13 @@
       if (!b) return;
       bar.hidden = true;
       if (b.dataset.restore === 'no') { dropBackup(); return; }
-      const s = kept.s;
-      title.value = s.title; fit();
-      slug.value = s.slug;
-      summary.value = s.summary;
-      form.querySelector('[name=cover_alt]').value = s.coverAlt;
-      editor.innerHTML = s.content;
-      lines(); lockBlocks(); snap();
-      setCover(s.cover, s.coverSrc);
-      changed();
+      putBack(kept.s);
     });
   } else if (kept) dropBackup();
   if (!form.dataset.saved && !title.value) title.focus();
+  if (form.dataset.dirty) changed();                      // an earlier version, brought back: not saved yet
+  if (store('ge.zen') === '1') body.classList.add('ge-zen');
+  if (window.innerWidth <= 900 || store('ge.side') === '0') side(false);
+  when();
+  seo();
 })();
