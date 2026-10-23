@@ -124,7 +124,8 @@ MONTH_CAP = 4             # items a month's day shows before "+ N more" (the wee
 @cs_required
 def calendar():
     """Calendar (Daily work, after Leads): month and week views, and a List of everything open."""
-    today = (datetime.utcnow() + crm.IST).date()
+    from app.services import clock
+    today = clock.local(datetime.utcnow()).date()          # the calendar's days are the shown time's days
     tab = 'list' if request.args.get('tab') == 'list' else 'calendar'
     who = request.args.get('who') or 'mine'
     ctx = dict(tab=tab, today=today, who_options=crm_tasks.who_options(current_user), kinds=crm_tasks.KINDS,

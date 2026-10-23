@@ -182,18 +182,35 @@
   }
   var acts = q('[data-act-form]');
   if (acts) {
-    // each activity is a <tbody> of two lines (the activity, and its campaign details)
-    var wireAct = function (row) { q('[data-act-remove]', row).addEventListener('click', function () { row.remove(); }); };
-    qa('[data-act-row]', acts).forEach(wireAct);
-    q('[data-act-add]', acts).addEventListener('click', function () {
-      var all = qa('[data-act-row]', acts), last = all[all.length - 1];
-      var row = last.cloneNode(true);
-      qa('input', row).forEach(function (i) { i.value = ''; });
-      qa('select[name="source"]', row).forEach(function (s) { s.value = ''; });
-      last.parentNode.insertBefore(row, last.nextSibling);
-      wireAct(row);
-      q('input[type=text]', row).focus();
+    // each activity is a card with its fields inside (hidden until Edit): the form posts the list in order
+    var said = q('[data-act-said]', acts);
+    var changed = function () {
+      acts.classList.add('dirty');
+      if (said) said.textContent = 'Not saved yet: press Save to keep your changes.';
+    };
+    acts.addEventListener('click', function (e) {
+      var ed = e.target.closest('[data-act-edit]'), rm = e.target.closest('[data-act-remove]');
+      if (ed) {
+        var card = ed.closest('[data-act-row]');
+        card.classList.toggle('editing');
+        if (card.classList.contains('editing')) q('input[type=text]', card).focus();
+      } else if (rm) {
+        rm.closest('[data-act-row]').remove();
+        changed();
+      }
     });
+    acts.addEventListener('input', changed);
+    var add = q('[data-act-add]'), tpl = q('[data-act-template]'), fresh = q('[data-act-new]', acts);
+    if (add && tpl && fresh) {
+      add.addEventListener('click', function () {
+        fresh.hidden = false;
+        q('.act-cards', fresh).insertAdjacentHTML('afterbegin', tpl.innerHTML);
+        var card = q('[data-act-row]', fresh);
+        card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        q('input[name=platform]', card).focus();
+        changed();
+      });
+    }
   }
 
   /* ------------------------------------------------------------ From WhatsApp (one-off) */

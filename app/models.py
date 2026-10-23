@@ -1801,7 +1801,10 @@ CRM_IDENTITY_KINDS = ('instagram', 'facebook', 'ig_id', 'fb_psid', 'telegram')
 CRM_CHECK_CHANNELS = ['Tawk', 'FB Messenger', 'Instagram Messenger', 'FB Comments', 'Insta Comments',
                       'IND WhatsApp', 'USA WhatsApp', 'Email', 'India Call', 'USA Call', 'Telegram',
                       'TC website']
-CRM_CHECK_HOURS = (7, 24)     # IST, half-hour slots from 07:00 to midnight
+CRM_CHECK_HOURS = (7, 24)     # IST, half-hour slots from 07:00 to midnight -- the days before CRM_CHECK_ALL_DAY_FROM
+# from this India day the half-hourly check runs round the clock, every half hour of the day (user, 2026-10-24); the
+# days before keep 07:00 to midnight, so their percentages still mean what they meant
+CRM_CHECK_ALL_DAY_FROM = date(2026, 10, 24)
 # How ready to buy -- the colour of the row in the sales sheet (green: ready, yellow: thinking).
 CRM_LIKELIHOOD = {'hot': 'Ready to buy', 'warm': 'Thinking about it', 'cold': 'Not likely'}
 # How sure a deal is, for the Forecast page (a stage's "Counts in the forecast as"; a lead may override it)

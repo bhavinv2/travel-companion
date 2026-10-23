@@ -36,7 +36,7 @@ def test_choose_cs_lands_console(client, app):
     login(client, 'multi2@test.com')
     r = client.get('/auth/choose-portal?to=cs')
     # U2: a site owner lands on Results, not on the old /cs/ start page
-    assert r.status_code == 302 and r.headers['Location'].endswith('/admin/crm/insights')
+    assert r.status_code == 302 and r.headers['Location'].endswith('/admin/health')
 
 
 def test_choose_traveller_sets_view(client, app):

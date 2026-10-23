@@ -293,7 +293,8 @@ def came_from(lead):
     gname, icon = group_name(group)
     how = origin(lead)
     by = lead.created_by.full_name if how != 'organic' and lead.created_by is not None else None
-    at = lead.created_at + IST if lead.created_at else None
+    from app.services import clock
+    at = clock.local(lead.created_at)
     return {'group': group, 'group_name': gname, 'icon': icon,
             'name': src.name if src is not None else 'Not known', 'short': short_name(src) if src else 'Not known',
             'origin': how, 'origin_word': ORIGIN[how][0], 'origin_label': ORIGIN[how][1], 'origin_icon': ORIGIN[how][2],

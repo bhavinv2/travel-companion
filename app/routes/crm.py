@@ -49,7 +49,7 @@ MANAGE = {'setup', 'pipelines', 'sources', 'connection', 'data', 'save_source', 
           'pipeline_tag_check', 'pipeline_tag', 'tag_check', 'save_product', 'product_offered', 'template_draft',
           'import_csv', 'import_csv_confirm', 'wa_contacts_import', 'wa_notes_import', 'save_inboxes',
           'standard_inboxes', 'move_source',
-          'save_activities', 'source_tag_check', 'export_leads', 'export_contacts', 'automatic', 'connection_checks',
+          'save_activities', 'source_tag_check', 'export_leads', 'export_contacts', 'downloads', 'automatic', 'connection_checks',
           'connection_team', 'connection_retry', 'connection_settle', 'quick_replies_push', 'quick_replies_import', 'save_rates', 'targets', 'targets_save', 'targets_copy', 'insights_recalculate',
           'bin', 'bin_restore', 'bin_purge',
           # run 5b: automation rules, scoring, the AI switch
@@ -126,9 +126,11 @@ def came_from(lead):
 
 @crm_bp.app_template_global('ADD_TIME_IST')
 def add_time_ist():
-    """This minute in India, as Leads writes when a lead was added: "23 Oct 2026, 14:05"."""
-    t = datetime.utcnow() + crm.IST
-    return '%d %s' % (t.day, t.strftime('%b %Y, %H:%M'))
+    """This minute as Leads writes when a lead was added: "23 Oct 2026, 14:05 IST" (the header's clock)."""
+    from app.services import clock
+    now = datetime.utcnow()
+    t = clock.local(now)
+    return '%d %s %s' % (t.day, t.strftime('%b %Y, %H:%M'), clock.label(now))
 
 
 @crm_bp.app_template_global('SOURCE_SECTIONS')
@@ -1241,7 +1243,8 @@ def call(lead_id):
                           user=current_user, task=task, call_back_at=due)
     when = None
     if due is not None and lead.status == 'open':
-        d = due + crm.IST
+        from app.services import clock
+        d = clock.local(due)
         when = '%s %d %s, %s' % (d.strftime('%a'), d.day, d.strftime('%b'), d.strftime('%H:%M'))
     return jsonify({'success': True, 'no_answers': streak, 'call_back': when,
                     'suggest_fallout': streak >= crm.NO_ANSWER_LIMIT})
@@ -1965,8 +1968,29 @@ def _sources_context(**extra):
                          'google_on': bool((os.environ.get('CRM_GOOGLE_LEADS_KEY') or '').strip())})
     if edit is not None and edit.key:
         ctx['snippet'] = crm_editor.form_snippet(edit.key, edit.product, snippet_url)
+    if tab == 'activities':
+        ctx.update(_activities_context(ctx['activities']))
     ctx.update(extra)
     return {**_common(), **ctx}
+
+
+def _activities_context(rows):
+    """Marketing activities: the rows by platform (in the order the list has them) and what each paid campaign
+    brought in over its own dates (crm_campaigns.results), with the totals for the strip at the top."""
+    from decimal import Decimal
+    res = _campaigns().results(current_user)
+    by_id = {r['campaign'].id: r for r in res['rows']}
+    groups = {}
+    for r in rows:
+        groups.setdefault((r.platform or '').strip() or 'Other', []).append(r)
+    counted = [r for r in res['rows'] if r['counted'] or r['cost'] is not None]
+    spend = sum((r['cost'] for r in counted if r['cost'] is not None), Decimal(0))
+    won_value = sum((r['won_value'] for r in counted), Decimal(0))
+    return {'act_groups': list(groups.items()), 'act_results': by_id, 'act_notes': res['notes'],
+            'act_currency': res['currency'],
+            'act_totals': {'rows': len(rows), 'campaigns': len(counted), 'spend': spend, 'won_value': won_value,
+                           'leads': sum(r['leads'] for r in counted), 'won': sum(r['won'] for r in counted),
+                           'ret': _campaigns().ret_text(won_value / spend) if spend else '—'}}
 
 
 @crm_bp.route('/sources')
@@ -2351,18 +2375,39 @@ def checks():
             day = today
     channels = crm.crm_settings()['check_channels']
     from app.services import crm_people
-    auto = crm_people.check_auto(crm.crm_settings()['check_rows'])
+    rows = crm.crm_settings()['check_rows']
+    auto = crm_people.check_auto(rows)
     for item in auto:
+        item['icon'] = _inbox_icon(item['row'].get('source_key'))
         for w in item['waiting']:
             w['short'] = _short_name(w['lead'].person)
             w['url'] = crm_url('lead', lead_id=w['lead'].id)
+    icons = {r['name']: _inbox_icon(r.get('source_key')) for r in rows}
     return render_template('cs/crm/checks.html', day=day, today=today, now_slot=now_slot, auto=auto,
-                           channels=channels, ticks=crm_reports.grid(day), slots=crm_reports.slots(),
+                           channels=channels, ticks=crm_reports.grid(day), slots=crm_reports.slots(day),
+                           all_day=crm_reports.hours(day) == (0, 24),
                            label=crm_reports.slot_label, cov=crm_reports.coverage(day, channels),
-                           editable=(day == today), can_tick=crm_reports.can_tick,
+                           editable=(day == today), can_tick=crm_reports.can_tick, icons=icons,
+                           left=30 - crm_reports.ist_now().minute % 30,
                            week=[(today - timedelta(days=i), crm_reports.coverage(today - timedelta(days=i), channels))
-                                 for i in range(1, 8)],
+                                 for i in range(6, -1, -1)],
+                           prev_day=day - timedelta(days=1), next_day=day + timedelta(days=1),
                            timedelta=timedelta, **_common())
+
+
+def _inbox_icon(source_key):
+    """The icon of an inbox on the half-hourly check, from the lead source it watches (crm_sources)."""
+    from app.services import crm_sources
+    key = source_key or ''
+    found = crm_sources.item(key)
+    kind = found[1].kind if found else ''
+    if key.startswith('wa-'):
+        return 'fa-brands fa-whatsapp'
+    if key == 'meta':
+        return 'fa-brands fa-meta'
+    if key == 'telegram':
+        return 'fa-brands fa-telegram'
+    return 'fa-solid fa-phone' if kind == 'call' else 'fa-solid fa-comments' if kind == 'chat' else 'fa-solid fa-inbox'
 
 
 @crm_bp.route('/checks/tick', methods=['POST'])

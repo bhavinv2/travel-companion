@@ -80,9 +80,11 @@ def health():
 @login_required
 @admin_required
 def screen_guide():
-    """Help › Screen guide: every screen by product, what it is for and where it sits in the menu."""
+    """Help › Help centre: each product's help screens, then every screen by product -- what it is for and where it
+    sits in the menu."""
     from app.services import access
-    return render_template('admin/screen_guide.html', areas=access.screen_guide(current_user))
+    return render_template('admin/screen_guide.html', helps=access.help_by_product(current_user),
+                           areas=access.screen_guide(current_user))
 
 
 @admin_bp.route('/')
@@ -212,7 +214,8 @@ def user_away(user_id):
             flash('Pick a day after today.', 'warning')
         else:
             crm_assign.set_away(u, until)
-            flash('%s is away until %s.' % (u.first_name or u.username, (until + crm_assign.IST).strftime('%d %b')), 'success')
+            from app.services import clock
+            flash('%s is away until %s.' % (u.first_name or u.username, clock.fmt(until, '%d %b')), 'success')
     db.session.commit()
     return redirect(url_for('admin.users'))
 

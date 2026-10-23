@@ -74,7 +74,7 @@
       <form method="POST" action="{{ url_for('admin.user_away', user_id=u.id) }}" class="upn-away">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         {% if m.away_until and m.away_until > utcnow %}
-        <p class="upn-hint">Away until {{ (m.away_until + IST_OFFSET).strftime('%d %b') }}: no new leads are shared with {{ first }}.
+        <p class="upn-hint">Away until {{ LOCAL(m.away_until).strftime('%d %b') }}: no new leads are shared with {{ first }}.
           <button class="cb sm" name="back" value="1">Mark as back</button></p>
         {% else %}
         <label class="upn-field"><span>Away until <small>(no new leads meanwhile)</small></span>

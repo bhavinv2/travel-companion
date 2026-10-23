@@ -72,7 +72,7 @@
                  help=['The list at the top gathers everything waiting on somebody, the most urgent first. Each line opens the screen to fix it.',
                        'Every number opens the screen behind it. A red edge means act now, amber means waiting, green means nothing is waiting.',
                        '"In 7 / 30 / 90 days" numbers and the charts use the period you pick; the rest is how things stand right now.',
-                       'Times and days are India time. Counted fresh each time the page opens.']) }}
+                       'Days are counted in India time; times show in the zone picked at the top. Counted fresh each time the page opens.']) }}
 
     <div class="hl-bar">
       <div class="seg" role="group" aria-label="Period">
@@ -81,7 +81,7 @@
       <nav class="hl-jump" aria-label="Parts of this page">
         {% for p in h.parts %}<a href="#hl-{{ p.key }}"><i class="fa-solid {{ p.icon }}" aria-hidden="true"></i> {{ p.label }}</a>{% endfor %}
       </nav>
-      <span class="muted small hl-at">As of {{ h.at }} IST · <a href="{{ url_for('admin.health', days=h.days) }}">Refresh</a></span>
+      <span class="muted small hl-at">As of {{ h.at }} · <a href="{{ url_for('admin.health', days=h.days) }}">Refresh</a></span>
     </div>
 
     {# ============================================================ what needs somebody now #}

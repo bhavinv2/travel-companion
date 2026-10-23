@@ -22,7 +22,8 @@ def _line(state, text, **extra):
 
 def _when(value):
     at = crm._parse_utc(value)
-    return (at + crm.IST).strftime('%d %b, %H:%M') if at else None
+    from app.services import clock
+    return clock.fmt(at, '%d %b, %H:%M') + ' ' + clock.label(at) if at else None
 
 
 def _key_line():

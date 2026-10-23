@@ -172,9 +172,12 @@ def working(since, until, ids):
 
 
 def _clock(minutes):
-    """Minutes after midnight (India) -> '09:05'."""
+    """Minutes after midnight (India) -> '09:05', in the shown time (the header's clock: India unless another zone
+    is picked -- moved by today's difference from India, which is what a person reading it means by "09:05")."""
     if minutes is None:
         return None
+    from app.services import clock
+    minutes += (clock.offset() - IST).total_seconds() / 60
     minutes = int(round(minutes)) % (24 * 60)
     return '%02d:%02d' % (minutes // 60, minutes % 60)
 
@@ -221,7 +224,7 @@ def checks(days, ids, channels):
                 if times and (first is None or times[0] < first):
                     first = times[0]
             person[uid][d] = {'slots': len(by_slot), 'late': late, 'bulk': bulk, 'first': first}
-    every = crm_reports.slots()
+    every = sorted({s for d in days for s in crm_reports.slots(d)})     # a day checked round the clock has them all
     team, slot_due, slot_full, inbox_done, due_total = [], defaultdict(int), defaultdict(int), defaultdict(int), 0
     for d in days:
         over = crm_reports.slots_so_far(d)

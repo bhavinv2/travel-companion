@@ -728,8 +728,9 @@ def test_forecast_is_in_the_menu_after_sales_results_and_comes_with_it(app, admi
     assert 'crm_insights' in page['with'] and page['grant'] is True
     assert 'crm.forecast' in page['endpoints'] and 'admin_crm.forecast' in page['endpoints']
     sections = {s['key']: s for s in acc.SECTIONS}
-    overview = sections['overview']['pages']
-    assert overview.index('crm_forecast') == overview.index('crm_insights') + 1
+    reports = sections['reports']['pages']
+    assert reports.index('crm_forecast') == reports.index('crm_insights') + 1
+    assert tuple(k for k, _ in acc.TAB_GROUPS['crm_insights']) == ('crm_insights', 'crm_forecast')
     setup = next(s for s in sections['sales']['subs'] if s['key'] == 'setup')['pages']
     assert setup.index('crm_targets') == setup.index('crm_sources') + 1
 

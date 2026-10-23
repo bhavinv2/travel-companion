@@ -70,7 +70,7 @@
 {% endif %}
 {# Someone new, in the order a person thinks it: where they came from (the lead sources' list, the imports left
    out), what they want, who they are, what it may be worth, who looks after them, what they said. The card on the
-   right is how the lead will show on Leads -- where from, Manual, by whom, when (India time). #}
+   right is how the lead will show on Leads -- where from, Manual, by whom, when (the header's clock). #}
 <form method="POST" id="add-form" class="add-lead" data-add-lead>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
   {% if form.get('person_id') %}<input type="hidden" name="person_id" value="{{ form.get('person_id') }}"/>{% endif %}
@@ -179,7 +179,7 @@
       <dl>
         <dt>Came from</dt><dd data-al-src class="muted">Choose where they came from</dd>
         <dt>How it came</dt><dd><span class="cf-how cf-manual">Manual</span> added by {{ current_user.full_name }}</dd>
-        <dt>Added</dt><dd>{{ ADD_TIME_IST() }} IST <small class="muted">(when you add it)</small></dd>
+        <dt>Added</dt><dd>{{ ADD_TIME_IST() }} <small class="muted">(when you add it)</small></dd>
         <dt>Wants</dt><dd data-al-product class="muted">—</dd>
         <dt>Looked after by</dt><dd data-al-owner>Nobody yet</dd>
       </dl>

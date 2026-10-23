@@ -207,7 +207,7 @@
             <td class="who">{{ p.user.full_name }}</td>
             {% for d in per.days %}{% set x = mine.get(d) %}
             <td class="l{{ ((4 * x.slots / ns.top)|round(0, 'ceil')|int) if x else 0 }}{{ ' late' if x and x.late }}"
-                title="{{ p.user.full_name }}, {{ d.strftime('%a %d %b') }}: {% if x %}{{ x.slots }} half hour{{ '' if x.slots == 1 else 's' }}{% if x.late %}, {{ x.late }} started late{% endif %}{% if x.bulk %}, Tick all {{ x.bulk }}×{% endif %}{% if x.first %}, first at {{ (x.first + IST_OFFSET).strftime('%H:%M') }}{% endif %}{% else %}no checks{% endif %}">{{ x.slots if x else '' }}</td>
+                title="{{ p.user.full_name }}, {{ d.strftime('%a %d %b') }}: {% if x %}{{ x.slots }} half hour{{ '' if x.slots == 1 else 's' }}{% if x.late %}, {{ x.late }} started late{% endif %}{% if x.bulk %}, Tick all {{ x.bulk }}×{% endif %}{% if x.first %}, first at {{ LOCAL(x.first).strftime('%H:%M') }}{% endif %}{% else %}no checks{% endif %}">{{ x.slots if x else '' }}</td>
             {% endfor %}
             <td class="sum">{{ p['values'].chk_slots }}</td>
           </tr>

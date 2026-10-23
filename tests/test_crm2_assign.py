@@ -9,6 +9,8 @@
 """
 from datetime import datetime, timedelta
 
+import re
+
 import pytest
 
 from conftest import login, make_user
@@ -136,7 +138,7 @@ def test_when_everyone_is_away_the_normal_rule_runs_and_the_lead_says_so(app, te
 def test_the_add_lead_form_starts_on_nobody(app, client, team, admin_user):
     users, src = team
     login(client, admin_user.email)
-    assert 'value="none" checked' in client.get('/cs/crm/add').get_data(as_text=True)
+    assert re.search(r'name="owner" value="none"[^>]* checked', client.get('/cs/crm/add').get_data(as_text=True))
     base = {'product': 'TI', 'source': 'instagram', 'note': 'Asked about cover'}
     client.post('/cs/crm/add', data=dict(base, name='Nobody Yet', phone='+919810001001'))
     lead = CrmLead.query.order_by(CrmLead.id.desc()).first()
@@ -151,7 +153,7 @@ def test_the_source_form_saves_how_to_share(app, client, team, admin_user):
     users, src = team
     login(client, admin_user.email)
     page = client.get('/admin/crm/sources?edit=%d' % src.id).get_data(as_text=True)
-    assert 'How to share new leads' in page and 'In turn (round robin)' in page
+    assert 'How a new lead is given out' in page and 'In turn (round robin)' in page
     assert 'Whoever has the fewest open leads' in page and 'Nobody: a new lead waits' in page
     data = {'id': src.id, 'name': src.name, 'kind': src.kind, 'product': src.product, 'pipeline': src.pipeline.key,
             'status': 'live', 'who': 'people', 'team': [u.id for u in users], 'dedupe_days': '30',

@@ -331,11 +331,12 @@ def test_download_for_excel_is_the_table_on_the_screen(app, client, world):
 
 # ====================================================================================== the page
 
-def test_the_page_is_in_overview_after_forecast_and_comes_with_sales_results(app):
+def test_the_page_is_a_line_of_reports_and_comes_with_sales_results(app):
     page = access.PAGES['crm_report_builder']
-    assert 'crm_insights' in page['with'] and 'crm.report_builder' in page['endpoints']
-    overview = {s['key']: s for s in access.SECTIONS}['overview']['pages']
-    assert overview.index('crm_report_builder') == overview.index('crm_forecast') + 1
+    assert 'crm_insights' in page['with'] and 'crm.report_builder' in page['endpoints'] and page['nav']
+    reports = {s['key']: s for s in access.SECTIONS}['reports']
+    sales = next(b for b in reports['subs'] if b['key'] == 'sales')['pages']
+    assert sales[-1] == 'crm_report_builder'
 
 
 def test_the_page_explains_itself_and_draws_the_chart_without_a_library(app, client, world):

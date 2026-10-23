@@ -190,7 +190,7 @@ def test_meta_webhook_verifies_and_files_messages(app, client, meta_keys):
         {'sender': {'id': 'IG1'}, 'message': {'mid': mid, 'text': text}}]}]}
     assert meta_post(client, msg('m1', 'Hi, is my mother covered for diabetes?')).get_json()['stored'] == 1
     lead = CrmLead.query.one()
-    assert lead.source.key == 'instagram' and lead.person.name == 'Anita Rao'
+    assert lead.source.key == 'meta' and lead.person.name == 'Anita Rao'   # Instagram files under Meta (crm_sources.MERGED)
     assert lead.person.identity('ig_id') == 'IG1' and lead.person.identity('instagram') == 'anita.rao'
     meta_post(client, msg('m2', 'Also my father'))
     meta_post(client, msg('m2', 'Also my father'))                    # Meta resends: not twice

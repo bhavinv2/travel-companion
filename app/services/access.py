@@ -93,8 +93,8 @@ MODULES = [
                desc='Numbers across every product on the site.', tip='Numbers across every product on the site.'),
          # every screen, what it is for, by area -- built from this file, so it is never out of date. Whoever
          # has any page has it (its `with` is set below, once every page is known)
-         _page('guide', 'Screen guide', 'fa-book-open', ['admin.screen_guide'], admin='admin.screen_guide',
-               tip='Every screen, what it is for, by area.'),
+         _page('guide', 'Help centre', 'fa-circle-question', ['admin.screen_guide'], admin='admin.screen_guide',
+               tip='All the help in one place: by product, and every screen explained.'),
          _page('home', 'Service to-do', 'fa-inbox', ['cs.home'], cs='cs.home',
                desc='What is waiting for customer service.'),
          _page('notifications', 'Notifications', 'fa-bell',
@@ -128,10 +128,10 @@ MODULES = [
          _page('crm_add', 'Add a lead', 'fa-user-plus', _both('add', 'add_from_record'),
                admin='admin_crm.add', cs='crm.add', nav=False, desc='The Add a lead button on Leads and My day.'),
          _page('crm_checks', 'Half-hourly check', 'fa-clipboard-check', _both('checks', 'check_tick'),
-               admin='admin_crm.checks', cs='crm.checks', nav=False, with_=('crm_today',), grant=True,
+               admin='admin_crm.checks', cs='crm.checks', with_=('crm_today',), grant=True,
                tip='Tick each inbox every half hour; connected ones tick themselves.'),
          _page('crm_process', 'How we sell', 'fa-route', _both('process'),
-               admin='admin_crm.process', cs='crm.process',
+               admin='admin_crm.process', cs='crm.process', nav=False,
                with_=('crm_today', 'crm_board', 'crm_people'), grant=True,
                tip="Our sales path per product, with today's numbers."),
          _page('crm_quick', 'Messages', 'fa-bolt',
@@ -191,9 +191,13 @@ MODULES = [
                _both('data', 'backfill', 'import_sheet', 'import_confirm', 'setup', 'import_csv',
                      'import_csv_confirm', 'wa_contacts_import', 'wa_notes_import'),
                admin='admin_crm.data', tip='Import lists and old enquiries; download lists.'),
-         _page('crm_export', 'Download lists of leads and contacts', 'fa-file-arrow-down', _both('insights_csv', 'insights_people_csv', 'export_leads', 'export_contacts'),
-               admin='admin_crm.insights', nav=False,
-               desc='Download this list on Leads and Contacts, and the downloads on Import & export.'),
+         # every download in one place (Reports › Downloads), and the download buttons on the screens themselves
+         _page('crm_export', 'Downloads', 'fa-file-arrow-down',
+               _both('downloads', 'insights_csv', 'insights_people_csv', 'export_leads', 'export_contacts'),
+               admin='admin_crm.downloads', cs='crm.downloads',
+               desc='Every sales download in one place: Sales results, per person, Forecast, Team analysis, saved '
+                    'reports, and lists of leads and contacts; and Download this list on Leads and Contacts.',
+               tip='Every sales download in one place: reports and lists, for Excel.'),
          _page('crm_bin', 'Recycle bin', 'fa-trash-can-arrow-up', _both('bin', 'bin_restore', 'bin_purge'),
                admin='admin_crm.bin', nav=False, with_=('crm_data',),
                desc='Leads that were removed in the last 30 days: put them back, or delete them for good.'),
@@ -208,7 +212,7 @@ MODULES = [
                desc='Every trip post: find, open, edit, publish, close or reopen one, and send a claim link.'),
          _page('matches', 'Match queue', 'fa-handshake', MATCHES, cs='matches.cs_match_queue',
                desc='Posts with matches waiting for customer service: tell both sides, or dismiss.'),
-         _page('metrics', 'Match quality', 'fa-chart-simple', ['cs.metrics'], cs='cs.metrics',
+         _page('metrics', 'Match quality', 'fa-chart-simple', ['cs.metrics'], cs='cs.metrics', nav=False,
                desc='How matches turn out, and hints for the match weights.',
                tip='How matches turn out, and hints for the match weights.'),
          _page('new', 'New post', 'fa-plus', ['cs.new_post'], cs='cs.new_post',
@@ -254,7 +258,7 @@ MODULES = [
                admin='admin.blog_import', with_=('blog',),
                desc='Turn Word documents into draft blog posts.'),
          _page('help', 'Help & FAQ', 'fa-circle-question', ['admin.help_center_page'],
-               admin='admin.help_center_page',
+               admin='admin.help_center_page', nav=False,
                desc='The questions and answers on the Travel Companion help page.'),
      ]},
     {'key': 'insurance', 'label': 'Travel Insurance', 'icon': 'fa-shield-heart',
@@ -270,7 +274,7 @@ MODULES = [
                admin='admin.insurance_page_content',
                desc='The words on the travel insurance page.'),
          _page('help_insurance', 'Help & FAQ', 'fa-circle-question', ['admin.help_center_page'],
-               admin='admin.help_center_page', args={'site': 'insurance'},
+               admin='admin.help_center_page', args={'site': 'insurance'}, nav=False,
                desc='The questions and answers on the travel insurance help page.'),
      ]},
     {'key': 'sahayak', 'label': 'Sahayak', 'icon': 'fa-house-medical',
@@ -287,7 +291,7 @@ MODULES = [
                admin='admin.sahayak_services',
                desc='The home-care services we offer, and their prices.'),
          _page('help_sahayak', 'Help & FAQ', 'fa-circle-question', ['admin.help_center_page'],
-               admin='admin.help_center_page', args={'site': 'sahayak'},
+               admin='admin.help_center_page', args={'site': 'sahayak'}, nav=False,
                desc='The questions and answers on the Sahayak help page.'),
      ]},
     {'key': 'whatsapp', 'label': 'WhatsApp messaging', 'icon': 'fa-brands fa-whatsapp',
@@ -400,16 +404,17 @@ SECTIONS = [
     {'key': 'reports', 'label': 'Reports', 'icon': 'fa-chart-line', 'subs': (
         # Sales results / Forecast and Team today / Team analysis are one line each, with a switch (TAB_GROUPS)
         {'key': 'sales', 'label': 'Sales CRM', 'icon': 'fa-filter-circle-dollar',
-         'pages': ('reports', 'crm_insights', 'crm_forecast', 'crm_tracker', 'crm_team', 'crm_report_builder')},
+         'pages': ('reports', 'crm_insights', 'crm_forecast', 'crm_tracker', 'crm_team', 'crm_report_builder',
+                   'crm_export')},
         {'key': 'site', 'label': 'Whole site', 'icon': 'fa-globe', 'pages': ('dashboard',)},
     )},
     {'key': 'sales', 'label': 'Sales CRM', 'icon': 'fa-filter-circle-dollar', 'subs': (
         # pages with no line of their own (nav=False) are tabs of a line next to them: TAB_GROUPS
         {'key': 'daily', 'label': 'Daily work', 'icon': 'fa-sun',
-         'pages': ('crm_today', 'wa_inbox', 'crm_board', 'crm_calendar', 'crm_people', 'crm_add', 'crm_checks', 'crm_flow')},
+         'pages': ('crm_today', 'crm_checks', 'wa_inbox', 'crm_board', 'crm_calendar', 'crm_people', 'crm_add', 'crm_flow')},
         {'key': 'setup', 'label': 'Set-up', 'icon': 'fa-sliders',
          'pages': ('crm_pipelines', 'crm_auto', 'crm_rules', 'crm_quick', 'crm_sources', 'crm_targets', 'crm_connection', 'crm_data',
-                   'crm_export', 'crm_bin', 'wa_templates', 'wa_broadcasts', 'wa_tags', 'wa_automations', 'wa_flows',
+                   'crm_bin', 'wa_templates', 'wa_broadcasts', 'wa_tags', 'wa_automations', 'wa_flows',
                    'wa_ai', 'wa_settings')},
     )},
     {'key': 'companion', 'label': 'Travel Companion', 'icon': 'fa-plane-departure', 'subs': (
@@ -423,13 +428,10 @@ SECTIONS = [
      'pages': ('insurance', 'voices_insurance', 'insurance_page')},
     {'key': 'sahayak', 'label': 'Sahayak', 'icon': 'fa-house-medical',
      'pages': ('sahayak', 'voices_sahayak', 'sahayak_services')},
-    {'key': 'help', 'label': 'Help', 'icon': 'fa-circle-question', 'subs': (
-        {'key': 'guide', 'label': 'Every screen', 'icon': 'fa-book-open', 'pages': ('guide',)},
-        {'key': 'sales', 'label': 'Sales CRM', 'icon': 'fa-filter-circle-dollar', 'pages': ('crm_process',)},
-        {'key': 'companion', 'label': 'Travel Companion', 'icon': 'fa-plane-departure', 'pages': ('metrics', 'help')},
-        {'key': 'insurance', 'label': 'Travel Insurance', 'icon': 'fa-shield-heart', 'pages': ('help_insurance',)},
-        {'key': 'sahayak', 'label': 'Sahayak', 'icon': 'fa-house-medical', 'pages': ('help_sahayak',)},
-    )},
+    # one line, the Help centre: the help of each product (HELP_BY_PRODUCT) and every screen, on one page -- what a
+    # person's role includes decides what on it opens, not which menu lines they get
+    {'key': 'help', 'label': 'Help', 'icon': 'fa-circle-question',
+     'pages': ('guide', 'crm_process', 'metrics', 'help', 'help_insurance', 'help_sahayak')},
     {'key': 'team', 'label': 'Team', 'icon': 'fa-users',
      'pages': ('ws_members', 'ws_teams', 'ws_roles', 'ws_menu', 'ws_settings', 'ws_all')},
     {'key': 'site', 'label': 'Site settings', 'icon': 'fa-gear',
@@ -489,10 +491,11 @@ TAB_GROUPS = {
 SWITCHES = frozenset({'crm_insights', 'crm_tracker'})
 # the menu line a nav=False page lives under (the line that lights up while it is open)
 TAB_HOST = {k: host for host, tabs in TAB_GROUPS.items() for k, _ in tabs if k != host}
-TAB_HOST.update({'crm_flow': 'crm_board', 'crm_checks': 'crm_today', 'crm_bin': 'crm_data'})
+TAB_HOST.update({'crm_flow': 'crm_board', 'crm_process': 'crm_board', 'crm_bin': 'crm_data',
+                 'metrics': 'guide', 'help': 'guide', 'help_insurance': 'guide', 'help_sahayak': 'guide'})
 # Pages that can be given on their own AND lost their menu line: somebody who has only that page still sees the
 # line it moved under, opening that page (nothing is taken away from a role that held it).
-LINE_VIA = {'crm_today': ('crm_checks',), 'crm_insights': ('crm_forecast',),
+LINE_VIA = {'crm_board': ('crm_process',), 'crm_insights': ('crm_forecast',),
             'crm_quick': ('wa_templates', 'wa_broadcasts', 'wa_tags'),
             'crm_auto': ('wa_automations', 'wa_flows', 'wa_ai'), 'crm_connection': ('wa_settings',)}
 
@@ -547,9 +550,33 @@ def _menu_place(key):
     words = [sec['label']] + ([sub['label']] if sub else [])
     if host in SWITCHES:
         words.append('%s (switch at the top right)' % p['label'])
+    elif host == 'guide':
+        words.append(p['label'])
     elif host:
         words.append('%s (a tab)' % p['label'])
     return ' › '.join(words)
+
+
+# the top of the Help centre: each product's help screens, in this order
+HELP_BY_PRODUCT = (('crm', 'Sales CRM', 'fa-filter-circle-dollar', ('crm_process',)),
+                   ('companion', 'Travel Companion', 'fa-plane-departure', ('metrics', 'help')),
+                   ('insurance', 'Travel Insurance', 'fa-shield-heart', ('help_insurance',)),
+                   ('sahayak', 'Sahayak', 'fa-house-medical', ('help_sahayak',)))
+
+
+def help_by_product(user):
+    """[{'key', 'label', 'icon', 'pages': [{'key', 'label', 'icon', 'says', 'url'}]}] for the Help centre, a product
+    whose area is switched off left out; `url` only for a screen this person's role includes."""
+    on = set(enabled_modules(current_workspace(user)))
+    out = []
+    for module, label, icon, keys in HELP_BY_PRODUCT:
+        if module not in on:
+            continue
+        pages = [{'key': k, 'label': PAGES[k]['label'], 'icon': PAGES[k]['icon'],
+                  'says': PAGES[k]['tip'] or PAGES[k]['desc'], 'url': page_url(PAGES[k]) if can(user, k) else None}
+                 for k in keys]
+        out.append({'key': module, 'label': label, 'icon': icon, 'pages': pages})
+    return out
 
 
 def screen_guide(user):

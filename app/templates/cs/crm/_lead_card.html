@@ -239,7 +239,7 @@
       <div>
         <div class="h"><b>{% if o.channel == 'system' %}{{ o.body }}{% elif o.direction == 'in' %}{{ 'They filled in a form' if o.channel == 'form' else 'They wrote (' ~ CHANNELS.get(o.channel, o.channel) ~ ')' }}{% elif o.channel == 'call' %}Call — {{ OUTCOMES.get(o.outcome, o.outcome or '') }}{% elif o.direction == 'out' %}{{ CHANNELS.get(o.channel, o.channel) }} sent{% else %}Note{% endif %}</b>
           {% if o.agent %}<span class="muted">by {{ o.agent.full_name }}</span>{% endif %}
-          <time title="{{ ist(o.created_at) }} IST">{{ when(o.created_at, utcnow) }}</time></div>
+          <time title="{{ ist(o.created_at) }} {{ TZ() }}">{{ when(o.created_at, utcnow) }}</time></div>
         {% if o.body and o.channel != 'system' %}<div class="b">{{ o.body }}</div>{% endif %}
       </div>
       {% elif it.kind == 'stage' %}
@@ -247,14 +247,14 @@
       <div>
         <div class="h"><b>{% if o.from_stage %}{{ o.from_stage.name }} → {% endif %}{{ o.to_stage.name if o.to_stage }}</b>
           <span class="muted">{{ 'by ' ~ o.by.full_name if o.by else 'automatically' }}</span>
-          <time title="{{ ist(o.created_at) }} IST">{{ when(o.created_at, utcnow) }}</time></div>
+          <time title="{{ ist(o.created_at) }} {{ TZ() }}">{{ when(o.created_at, utcnow) }}</time></div>
         {% if o.reason %}<div class="b muted">{{ o.reason }}</div>{% endif %}
       </div>
       {% else %}
       <span class="ic"><i class="fa-solid {{ 'fa-check' if o.status == 'done' else 'fa-paper-plane' if o.status == 'sending' else 'fa-forward' }}"></i></span>
       <div>
         <div class="h"><b>{{ 'Done' if o.status == 'done' else 'Sending' if o.status == 'sending' else 'Skipped' }}</b> <span class="muted">{{ o.title }}</span>
-          <time title="{{ ist(o.done_at) }} IST">{{ when(o.done_at, utcnow) }}</time></div>
+          <time title="{{ ist(o.done_at) }} {{ TZ() }}">{{ when(o.done_at, utcnow) }}</time></div>
         {% if o.note and o.note not in ('Stage changed', 'Pipeline changed', 'Waiting for the date') %}<div class="b muted">{{ o.note }}</div>{% endif %}
       </div>
       {% endif %}

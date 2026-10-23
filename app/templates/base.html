@@ -244,6 +244,26 @@
       </div>
       {% endif %}
 
+      {% if is_staff %}
+        {# the time every screen shows (services/clock.py): India, a US zone or UTC -- this person's choice #}
+        {% set clk = CLOCK() %}
+        <div class="tz-dd" id="tzDD">
+          <button type="button" class="tz-btn" id="tzBtn" aria-haspopup="listbox" aria-expanded="false" title="Show every time in…">
+            <i class="fa-regular fa-clock"></i><span class="tz-cur">{{ clk.short }}</span><i class="fa-solid fa-chevron-down tz-caret"></i>
+          </button>
+          <div class="tz-menu" id="tzMenu" role="listbox" aria-label="Show times in">
+            <div class="tz-head">Times shown in</div>
+            {% for z in clk.zones %}
+            <button type="button" role="option" class="tz-item{{ ' on' if z.key == clk.key }}" data-tz="{{ z.key }}" aria-selected="{{ 'true' if z.key == clk.key else 'false' }}">
+              <span><b>{{ z.name }}</b><small>{{ z.label }}</small></span><span class="tz-now">{{ z.now }}</span>
+            </button>
+            {% endfor %}
+          </div>
+        </div>
+        {% if CAN('crm_calendar') %}
+        <a href="{{ crm_url('calendar', view='week') }}" class="notif-btn nav-cal{{ ' active' if request.endpoint in ('crm.calendar', 'admin_crm.calendar') }}" title="Calendar: tasks, calls, meetings and follow-ups" aria-label="Calendar"><i class="fa-solid fa-calendar-days"></i></a>
+        {% endif %}
+      {% endif %}
       {% if current_user.is_authenticated %}
         <!-- Notifications -->
         <div class="notif-wrapper">
@@ -320,7 +340,7 @@
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <input type="hidden" name="next" value="{{ here() }}"/>
                 {% if away %}
-                <small>Away until {{ (away + IST_OFFSET).strftime('%d %b') }}. No new leads come to you.</small>
+                <small>Away until {{ LOCAL(away).strftime('%d %b') }}. No new leads come to you.</small>
                 <button type="submit" name="back" value="1"><i class="fa-solid fa-person-walking-arrow-loop-left"></i> I'm back</button>
                 {% else %}
                 <label for="away-until"><small>I'm away until</small></label>
@@ -517,6 +537,27 @@
       if (lang && lang !== 'en') document.cookie = 'googtrans=/en/' + lang + '; path=/';
       location.reload();
     }
+    // the clock switch: a cookie for a year, then the page again in that zone (services/clock.py)
+    (function () {
+      var dd = document.getElementById('tzDD');
+      if (!dd) return;
+      var btn = document.getElementById('tzBtn');
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var open = !dd.classList.contains('open');
+        dd.classList.toggle('open', open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      document.addEventListener('click', function (e) {
+        if (!dd.contains(e.target)) { dd.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
+      });
+      dd.querySelectorAll('[data-tz]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          document.cookie = 'tz=' + b.dataset.tz + '; path=/; max-age=31536000; samesite=lax';
+          location.reload();
+        });
+      });
+    })();
     function langMenuToggle(e) {
       e.stopPropagation();
       var dd = document.getElementById('langDD');

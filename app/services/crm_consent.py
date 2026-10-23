@@ -38,7 +38,8 @@ def from_form(person, form_name, at=None):
 
 
 def _day(dt):
-    d = dt + IST
+    from app.services import clock
+    d = clock.local(dt)
     return '%d %s %d' % (d.day, d.strftime('%b'), d.year)
 
 

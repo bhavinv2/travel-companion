@@ -89,8 +89,9 @@ def set_away():
             flash('Pick the day you are back, after today.', 'warning')
         else:
             crm_assign.set_away(current_user, until)
+            from app.services import clock
             flash('You are away until %s. No new leads are shared with you until then.'
-                  % (until + crm_assign.IST).strftime('%d %b'), 'success')
+                  % clock.fmt(until, '%d %b'), 'success')
     db.session.commit()
     nxt = request.form.get('next') or ''
     return redirect(nxt if nxt.startswith('/') and not nxt.startswith('//') else access.home_url(current_user))

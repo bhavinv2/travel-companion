@@ -1291,6 +1291,8 @@
       btn.disabled = false;
       if (!d._ok) { toast(d.error || 'Could not save.', true); return; }
       if (all) { toast('All inboxes ticked for this half hour'); reloadSoon(400); return; }
+      // a big tile says who ticked it and when, and the count above it moves: draw the page again
+      if (t.hasAttribute('data-tile')) { t.classList.toggle('on', !!d.ticked); reloadSoon(250); return; }
       t.classList.toggle('on', !!d.ticked);
       t.textContent = d.ticked ? '✓' : '';
       if (d.ticked) t.classList.remove('miss');

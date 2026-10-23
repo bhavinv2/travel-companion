@@ -1,88 +1,132 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
 {% block crm_title %}Half-hourly check{% endblock %}
+{# The half-hourly check (routes/crm.checks): every half hour, day and night (07:00 to midnight on the days before
+   CRM_CHECK_ALL_DAY_FROM; India time), somebody looks at each inbox and ticks it. Now: a big tile per inbox for this half hour (tap = ticked; it says who and when), and "I
+   looked at every inbox". Then the inboxes that tick themselves, the day as a strip per inbox (earlier half hours
+   today can still be ticked), and the last seven days. #}
+{% macro hm(dt) -%}{{ LOCAL(dt).strftime('%H:%M') if dt else '' }}{%- endmacro %}
 {% block crm %}
 {{ page_head('Half-hourly check', 'fa-solid fa-clipboard-check',
-             'From 7:00 to midnight, look at each inbox every half hour and tick it. Connected inboxes tick themselves.',
-             help=['Every half hour from 7:00 to midnight (India time), look at each inbox and tick it.',
-                   'Tick them one by one, or all at once when you have looked at every inbox.',
-                   'The bars show how much of each earlier day was checked.'],
+             ('Every half hour, day and night' if all_day else 'From 7:00 to midnight') ~ ', look at each inbox and tick it. Connected inboxes tick themselves.',
+             help=[('Every half hour, round the clock' if all_day else 'Every half hour from 7:00 to midnight') ~ ' (India time), look at each inbox and tap its tile.',
+                   'Looked at all of them? Press "I looked at every inbox" once.',
+                   'Forgot one earlier today? Tap its square in the day below: a late tick still counts.',
+                   'Green is ticked, red was missed. The last seven days show how much of each day was checked.'],
              full_screen=True) }}
-<form method="GET" class="ui-filters">
-  <input type="date" name="day" value="{{ day.isoformat() }}" max="{{ today.isoformat() }}" onchange="this.form.submit()" style="width:auto" aria-label="Day"/>
-</form>
+
+<div class="ui-filters hc-nav">
+  <form class="daynav" method="GET">
+    <a class="cb sm" href="{{ crm_url('checks', day=prev_day.isoformat()) }}" aria-label="Day before"><i class="fa-solid fa-chevron-left"></i></a>
+    <input type="date" name="day" value="{{ day.isoformat() }}" max="{{ today.isoformat() }}" onchange="this.form.submit()" aria-label="Day"/>
+    {% if day < today %}<a class="cb sm" href="{{ crm_url('checks', day=next_day.isoformat()) }}" aria-label="Next day"><i class="fa-solid fa-chevron-right"></i></a>
+    <a class="cb sm ghost" href="{{ crm_url('checks') }}">Today</a>{% endif %}
+  </form>
+  {% if CAN('crm_team') %}<a class="cb sm quiet" href="{{ crm_url('team_analysis', tab='checks') }}"><i class="fa-solid fa-people-arrows"></i> Who checked what</a>{% endif %}
+</div>
 
 {% if editable and now_slot is not none %}
-<section class="card focus" data-checks>
-  <div class="row between">
-    <div>
-      <h2 style="margin:0">Now: {{ label(now_slot) }}–{{ label(now_slot + 1) if now_slot + 1 < 48 else '00:00' }}</h2>
-      {% set done_now = [] %}
-      {% for ch in channels if (now_slot, ch) in ticks %}{% set _ = done_now.append(ch) %}{% endfor %}
-      <p class="muted" style="margin:4px 0 0">{{ done_now|length }} of {{ channels|length }} inboxes looked at.</p>
+{% set done_now = [] %}
+{% for ch in channels if (now_slot, ch) in ticks %}{% set _ = done_now.append(ch) %}{% endfor %}
+{% set all_done = done_now|length == channels|length %}
+<section class="hc-now{{ ' done' if all_done }}" data-checks>
+  <div class="hc-now-head">
+    <div class="hc-ring" style="--p:{{ (100 * done_now|length / channels|length)|round|int if channels else 0 }}" aria-hidden="true">
+      <span><b>{{ done_now|length }}</b>/{{ channels|length }}</span>
     </div>
-    <button class="cb ok big" data-tick-all data-slot="{{ now_slot }}"{{ ' disabled' if done_now|length == channels|length }}>
+    <div class="hc-when">
+      <h2>Now: {{ label(now_slot) }}–{{ label(now_slot + 1) if now_slot + 1 < 48 else '00:00' }}</h2>
+      <p>{% if all_done %}<i class="fa-solid fa-circle-check"></i> Every inbox is looked at for this half hour.{% else %}{{ done_now|length }} of {{ channels|length }} inboxes looked at · <b>{{ left }} min</b> left in this half hour{% endif %}</p>
+    </div>
+    <button class="cb ok big hc-all" data-tick-all data-slot="{{ now_slot }}"{{ ' disabled' if all_done }}>
       <i class="fa-solid fa-check-double"></i> I looked at every inbox</button>
+  </div>
+  <div class="hc-tiles">
+    {% for ch in channels %}
+    {% set t = ticks.get((now_slot, ch)) %}
+    <button type="button" class="hc-tile{{ ' on' if t }}" data-tick data-tile data-slot="{{ now_slot }}" data-channel="{{ ch }}" aria-pressed="{{ 'true' if t else 'false' }}"
+            title="{{ 'Ticked — tap to undo' if t else 'Tap when you have looked at ' ~ ch }}">
+      <span class="hc-ic"><i class="{{ icons.get(ch, 'fa-solid fa-inbox') }}" aria-hidden="true"></i></span>
+      <span class="hc-name">{{ ch }}</span>
+      <span class="hc-state">{% if t %}<i class="fa-solid fa-check"></i> {{ t.user.first_name or t.user.username if t.user else 'Ticked' }}{% if t.checked_at %} · {{ hm(t.checked_at) }}{% endif %}{% else %}Tap when looked at{% endif %}</span>
+    </button>
+    {% endfor %}
   </div>
 </section>
 {% elif editable %}
-<section class="card flat"><b>Outside checking hours.</b> <span class="muted">The check runs from 7 am to midnight, India time.</span></section>
+<section class="hc-now off">
+  <div class="hc-now-head"><span class="hc-ring off" aria-hidden="true"><span><i class="fa-solid fa-moon"></i></span></span>
+    <div class="hc-when"><h2>Outside checking hours</h2><p>On this day the check ran from 7:00 to midnight, India time. The day so far is below.</p></div></div>
+</section>
 {% endif %}
 
 {% if auto %}
-<section class="card">
-  {% for item in auto %}
-  <div class="check-auto">
-    <b>{{ item.row.name }} (ticks itself)</b>
-    {% if item.n %}<span class="bad">{{ item.n }} waiting →
-      {% for w in item.waiting[:5] %}<a href="{{ w.url }}">{{ w.short }}</a>{{ ', ' if not loop.last }}{% endfor %}{% if item.n > 5 %} +{{ item.n - 5 }}{% endif %}</span>
-    {% else %}<span class="ok">● nobody waiting</span>{% endif %}
+<section class="card hc-auto">
+  <h3>Inboxes that tick themselves</h3>
+  <div class="hc-auto-list">
+    {% for item in auto %}
+    <div class="hc-auto-item{{ ' waiting' if item.n }}">
+      <span class="hc-ic"><i class="{{ item.icon }}" aria-hidden="true"></i></span>
+      <div><b>{{ item.row.name }}</b>
+        {% if item.n %}<span class="hc-wait">{{ item.n }} waiting for a reply:
+          {% for w in item.waiting[:5] %}<a href="{{ w.url }}">{{ w.short }}</a>{{ ', ' if not loop.last }}{% endfor %}{% if item.n > 5 %} +{{ item.n - 5 }}{% endif %}</span>
+        {% else %}<span class="hc-ok"><i class="fa-solid fa-circle-check"></i> nobody waiting</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
   </div>
-  {% endfor %}
 </section>
 {% endif %}
 
-<section class="card">
-  <div class="row between" style="margin-bottom:10px">
-    <h2 style="margin:0">{{ 'Today' if day == today else day.strftime('%a %d %b %Y') }}</h2>
+<section class="card hc-day">
+  <div class="card-head">
+    <div class="t"><span class="ico"><i class="fa-solid fa-table-cells"></i></span>
+      <div><h2>{{ 'Today' if day == today else day.strftime('%A %d %B') }}</h2>
+        <p class="muted small">A square per half hour for each inbox.{% if editable %} Tap an earlier one to tick it late.{% endif %}</p></div></div>
     {% if cov.pct is not none %}
-    <span class="chip {{ 'ok' if cov.pct >= 90 else 'due' if cov.pct >= 60 else 'bad' }}" style="font-size:13px;padding:5px 12px">
-      {{ cov.pct }}% of half hours fully checked ({{ cov.done }}/{{ cov.due }})</span>
+    <span class="hc-cov {{ 'ok' if cov.pct >= 90 else 'warn' if cov.pct >= 60 else 'bad' }}">
+      <b>{{ cov.pct }}%</b> of half hours fully checked <small>({{ cov.done }} of {{ cov.due }})</small></span>
     {% endif %}
   </div>
-  <div style="overflow-x:auto" data-checks>
-  <table class="crm-checks">
-    <thead><tr><th></th>{% for s in slots %}<th class="{{ 'now' if editable and s == now_slot }}">{{ label(s) }}</th>{% endfor %}</tr></thead>
-    <tbody>
-    {% for ch in channels %}
-    <tr><th>{{ ch }}</th>
-      {% for s in slots %}
-      {% set t = ticks.get((s, ch)) %}
-      {% set open = editable and can_tick(day, s) %}
-      <td class="{{ 'now' if editable and s == now_slot }}">
-        {% if open %}
-        <button type="button" class="tick{{ ' on' if t }}{{ ' miss' if not t and now_slot is not none and s < now_slot }}" data-tick data-slot="{{ s }}" data-channel="{{ ch }}"
-                title="{{ ch }} at {{ label(s) }}{{ ' — ticked by ' ~ t.user.username if t and t.user else '' }}">{{ '✓' if t else '' }}</button>
-        {% elif t %}<span class="tick on" title="{{ t.user.username if t.user else '' }}">✓</span>
-        {% elif cov.due and s < (now_slot if day == today and now_slot is not none else 99) %}<span class="tick miss" title="Not checked">·</span>
-        {% else %}<span class="tick"></span>{% endif %}
-      </td>
+  <div class="hc-strip-wrap" data-checks>
+    <table class="hc-strip">
+      <thead><tr><th class="hc-who" scope="col">Inbox</th>
+        {% for s in slots %}<th scope="col" class="{{ 'now' if editable and s == now_slot }}{{ ' hr' if s % 2 == 0 }}">{% if s % 2 == 0 %}{{ label(s)[:2] }}{% endif %}</th>{% endfor %}</tr></thead>
+      <tbody>
+      {% for ch in channels %}
+      <tr><th class="hc-who" scope="row"><i class="{{ icons.get(ch, 'fa-solid fa-inbox') }}" aria-hidden="true"></i> {{ ch }}</th>
+        {% for s in slots %}
+        {% set t = ticks.get((s, ch)) %}
+        {% set open = editable and can_tick(day, s) %}
+        {% set gone = cov.due and s < (now_slot if day == today and now_slot is not none else 99) %}
+        <td class="{{ 'now' if editable and s == now_slot }}{{ ' hr' if s % 2 == 0 }}">
+          {% if open %}
+          <button type="button" class="tick{{ ' on' if t }}{{ ' miss' if not t and now_slot is not none and s < now_slot }}" data-tick data-slot="{{ s }}" data-channel="{{ ch }}"
+                  title="{{ ch }} at {{ label(s) }}{{ ' — ticked by ' ~ t.user.username if t and t.user else '' }}">{{ '✓' if t else '' }}</button>
+          {% elif t %}<span class="tick on" title="{{ ch }} at {{ label(s) }} — {{ t.user.username if t.user else 'ticked' }}">✓</span>
+          {% elif gone %}<span class="tick miss" title="{{ ch }} at {{ label(s) }}: not checked">·</span>
+          {% else %}<span class="tick" title="{{ label(s) }}"></span>{% endif %}
+        </td>
+        {% endfor %}
+      </tr>
       {% endfor %}
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+      </tbody>
+    </table>
   </div>
-  {% if cov.missed and day != today %}<p class="hint">Missed: {{ cov.missed|join(', ') }}</p>{% endif %}
+  <p class="hc-key"><span><i class="tick on">✓</i> ticked</span><span><i class="tick miss">·</i> missed</span><span><i class="tick"></i> not yet</span>
+    {% if cov.missed and day != today %}<span class="muted">Missed: {{ cov.missed|join(', ') }}</span>{% endif %}</p>
 </section>
 
-<section class="card">
+<section class="card hc-week">
   <h3>The last seven days</h3>
-  <div class="crm-bars">
+  <div class="hc-days">
     {% for d, c in week %}
-    <div class="r"><a href="{{ crm_url('checks', day=d.isoformat()) }}">{{ d.strftime('%a %d %b') }}</a>
-      <span class="bar"><i style="width:{{ c.pct or 0 }}%;{{ 'background:var(--crm-bad)' if (c.pct or 0) < 60 }}"></i></span>
-      <span class="n">{{ '%d%%' % c.pct if c.pct is not none else '—' }}</span></div>
+    <a class="hc-dayc {{ 'none' if c.pct is none else 'ok' if c.pct >= 90 else 'warn' if c.pct >= 60 else 'bad' }}{{ ' on' if d == day }}" href="{{ crm_url('checks', day=d.isoformat()) }}">
+      <span>{{ 'Today' if d == today else d.strftime('%a') }}</span>
+      <b>{{ '%d%%' % c.pct if c.pct is not none else '—' }}</b>
+      <i style="--p:{{ c.pct or 0 }}%"></i>
+      <small>{{ d.day }} {{ d.strftime('%b') }}</small>
+    </a>
     {% endfor %}
   </div>
 </section>

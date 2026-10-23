@@ -54,7 +54,8 @@ def test_every_report_is_in_reports_and_every_screen_that_explains_is_in_help():
 
 
 def test_the_screens_that_belong_to_another_are_tabs_or_switches():
-    for key in ('crm_flow', 'crm_checks', 'crm_forecast', 'crm_team', 'wa_templates', 'wa_broadcasts', 'wa_tags',
+    for key in ('crm_flow', 'crm_process', 'metrics', 'help', 'help_insurance', 'help_sahayak', 'crm_forecast',
+                'crm_team', 'wa_templates', 'wa_broadcasts', 'wa_tags',
                 'wa_automations', 'wa_flows', 'wa_ai', 'wa_settings'):
         assert access.PAGES[key]['nav'] is False, key
     assert access.SWITCHES == {'crm_insights', 'crm_tracker'}
@@ -66,7 +67,7 @@ def test_the_old_page_keys_are_gone_and_the_new_ones_exist():
     for new in ('crm_people', 'crm_quick', 'wa_tags', 'crm_pipelines', 'crm_sources', 'crm_connection', 'crm_data',
                 'crm_export', 'crm_tracker', 'crm_insights', 'ws_roles', 'ws_all'):
         assert new in access.PAGES, new
-    assert access.PAGES['crm_export']['nav'] is False and access.PAGES['crm_add']['nav'] is False
+    assert access.PAGES['crm_export']['nav'] is True and access.PAGES['crm_add']['nav'] is False    # Downloads
     assert access.PAGES['ws_all']['nav'] is False
 
 
@@ -127,9 +128,10 @@ def test_an_agent_sees_the_days_work_and_nothing_to_manage(app, cs_user):
     for line in ('My day', 'Leads'):
         assert line in flat, line
     for line in ('Team today', 'Sales results', 'Lead sources', 'Pipelines & products', 'WhatsApp', 'Roles',
-                 'Team members', 'Tags', 'Broadcasts', 'Half-hourly check', 'Visual flow', 'Health'):
+                 'Team members', 'Tags', 'Broadcasts', 'Visual flow', 'Health', 'Downloads'):
         assert line not in flat, line
-    assert labels(_nav_for(app, cs_user))['Help'] == ['Screen guide', 'How we sell', 'Match quality']
+    assert 'Half-hourly check' in flat                         # comes with My day, and has its own line again
+    assert labels(_nav_for(app, cs_user))['Help'] == ['Help centre']
 
 
 def test_an_agent_sees_daily_work_as_plain_lines(app, cs_user):
@@ -154,7 +156,7 @@ def test_the_administrator_sees_every_section_in_order(app, admin_user):
         assert k in keys, k
     sales = next(g for g in groups if g['key'] == 'sales')
     assert [s['key'] for s in sales['subs']] == ['sales.' + k for k in SALES_SUBS]
-    assert [i['label'] for i in sales['subs'][0]['items']][:2] == ['My day', 'WhatsApp chats']
+    assert [i['label'] for i in sales['subs'][0]['items']][:3] == ['My day', 'Half-hourly check', 'WhatsApp chats']
     assert [i['label'] for i in sales['subs'][1]['items']] == [
         'Pipelines & products', 'Automation', 'Messages', 'Lead sources', 'Targets', 'WhatsApp', 'Import & export']
     # Health first in Overview; the reports a menu of their own (tests/test_health.py has the rest)
@@ -163,8 +165,8 @@ def test_the_administrator_sees_every_section_in_order(app, admin_user):
     flat = [l for ls in labels(groups).values() for l in ls]
     for line in ('Dashboard', 'Queues', 'Promotion'):
         assert line not in flat
-    for line in ('Health', 'Sales results', 'Team today', 'Report builder', 'Site dashboard', 'Screen guide',
-                 'How we sell', 'Match quality', 'My day', 'Leads', 'Messages', 'Automation',
+    for line in ('Health', 'Sales results', 'Team today', 'Report builder', 'Downloads', 'Site dashboard',
+                 'Help centre', 'Half-hourly check', 'My day', 'Leads', 'Messages', 'Automation',
                  'Pipelines & products', 'Lead sources', 'WhatsApp', 'Import & export',
                  'Team members', 'Teams', 'Roles', 'Workspace'):
         assert line in flat, line
@@ -172,7 +174,8 @@ def test_the_administrator_sees_every_section_in_order(app, admin_user):
     # Contacts is on the menu from U7 (the portal's own page)
     assert 'Contacts' in flat
     for hidden in ('Add a lead', 'Download lists of leads and contacts', 'Auto', 'All workspaces', 'Tags', 'Chatbot',
-                   'Reply rules', 'AI replies', 'WhatsApp number', 'Visual flow', 'Half-hourly check', 'Forecast',
+                   'Reply rules', 'AI replies', 'WhatsApp number', 'Visual flow', 'How we sell', 'Match quality',
+                   'Help & FAQ', 'Forecast',
                    'Team analysis', 'All reports'):
         assert hidden not in flat, hidden
 

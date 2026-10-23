@@ -29,16 +29,19 @@ IST = timedelta(hours=5, minutes=30)
 
 
 def parse_ist(text):
-    """'2026-10-25T09:30' typed in India time, as the database keeps times (UTC); None when blank."""
+    """'2026-10-25T09:30' typed in the shown time (India unless the header's clock says otherwise), as the
+    database keeps times (UTC); None when blank."""
+    from app.services import clock
     try:
-        return datetime.strptime((text or '').strip()[:16], '%Y-%m-%dT%H:%M') - IST
+        return clock.to_utc(datetime.strptime((text or '').strip()[:16], '%Y-%m-%dT%H:%M'))
     except ValueError:
         return None
 
 
 def ist_input(when):
-    """A time as a datetime-local field shows it, in India time."""
-    return (when + IST).strftime('%Y-%m-%dT%H:%M') if when else ''
+    """A time as a datetime-local field shows it, in the shown time."""
+    from app.services import clock
+    return clock.fmt(when, '%Y-%m-%dT%H:%M') if when else ''
 
 
 # ============================================================================== posts

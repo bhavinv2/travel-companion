@@ -110,6 +110,31 @@ textarea, input, select, button { font-family: inherit; }
 .lang-check { font-size: 12px; color: var(--coral); visibility: hidden; }
 .lang-item.active .lang-check { visibility: visible; }
 
+/* The header's clock switch (staff): every time on the staff screens in India, a US zone or UTC (services/clock.py) */
+.tz-dd { position: relative; }
+.tz-btn { display: inline-flex; align-items: center; gap: 7px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.16); color: rgba(255,255,255,0.9); font-size: 13px; font-weight: 700; padding: 7px 12px; border-radius: 999px; cursor: pointer; }
+.tz-btn:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.32); }
+.tz-btn .fa-clock { color: #f0940a; }
+.tz-caret { font-size: 10px; opacity: 0.7; transition: transform 0.18s; }
+.tz-dd.open .tz-caret { transform: rotate(180deg); }
+.tz-menu { position: absolute; top: calc(100% + 10px); right: 0; width: 260px; background: #fff; border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 18px 44px rgba(15,35,64,0.2); opacity: 0; visibility: hidden; transform: translateY(-6px); transition: opacity 0.18s, transform 0.18s, visibility 0.18s; z-index: 1200; overflow: hidden; padding-bottom: 6px; }
+.tz-dd.open .tz-menu { opacity: 1; visibility: visible; transform: translateY(0); }
+.tz-head { padding: 11px 14px; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #33517a; background: #f4f9ff; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+.tz-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: calc(100% - 12px); margin: 0 6px; border: none; background: none; text-align: left; padding: 9px 10px; border-radius: 10px; cursor: pointer; font-size: 13.5px; color: var(--text); }
+.tz-item:hover { background: var(--coral-light); }
+.tz-item.on { background: #eaf3ff; }
+.tz-item b { display: block; font-weight: 600; }
+.tz-item small { font-size: 11px; color: #7d94b5; font-weight: 700; }
+.tz-now { font-variant-numeric: tabular-nums; font-weight: 700; color: #33517a; }
+.nav-cal.active { background: rgba(255,255,255,0.16); color: #fff; }
+@media (max-width: 760px) {
+  .tz-btn { padding: 6px 8px; gap: 0; } .tz-btn .tz-caret, .tz-btn .fa-clock { display: none; }
+  .nav-cal { display: none; }            /* a phone reaches the Calendar from the menu and Leads */
+  .navbar .nav-right { gap: 6px; }
+  .nav-right .site-sw-caret { display: none; }
+  .nav-right .site-sw-btn { padding: 7px 10px; }
+}
+
 /* Notification btn */
 .notif-btn { position: relative; color: rgba(255,255,255,0.8); font-size: 18px; padding: 6px; }
 .notif-btn:hover { color: white; }

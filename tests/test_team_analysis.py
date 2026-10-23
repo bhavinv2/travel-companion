@@ -13,6 +13,8 @@ import csv
 import io
 from datetime import date, datetime, timedelta
 
+import pytest
+
 from conftest import login, logout, make_user
 from app import db as _db
 from app.models import CrmChannelCheck, CrmTouchpoint, WorkspaceRole, WorkspaceTeam
@@ -22,6 +24,13 @@ from test_crm_wa_sync_engine import ti_lead
 
 TODAY = crm_reports.current()[0]
 PAST = TODAY - timedelta(days=3)
+
+
+@pytest.fixture(autouse=True)
+def _checked_seven_to_midnight(monkeypatch):
+    """Written when the check ran 07:00 to midnight, on days counted back from today; since 2026-10-24 it runs round
+    the clock (crm_reports.hours). These tests keep the old hours; tests/test_health.py checks the new ones."""
+    monkeypatch.setattr(crm_reports, 'CRM_CHECK_ALL_DAY_FROM', date.max)
 
 
 def at(day, slot, minute=0, second=0):

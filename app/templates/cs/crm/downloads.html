@@ -1,0 +1,85 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% block crm_title %}Downloads{% endblock %}
+
+{# Reports › Downloads (routes/crm_report_builder.downloads): every sales download in one place, each the same file as
+   the button on its own screen. A row shows only when this person's role includes that screen. #}
+{% macro row(icon, title, says) -%}
+<li class="dl-row">
+  <span class="dl-ico" aria-hidden="true"><i class="fa-solid {{ icon }}"></i></span>
+  <div class="dl-text"><b>{{ title }}</b><span class="muted">{{ says }}</span></div>
+  <div class="dl-get">{{ caller() }}</div>
+</li>
+{%- endmacro %}
+{% macro get(label, href) -%}
+<a class="cb sm" href="{{ href }}"><i class="fa-solid fa-file-csv" aria-hidden="true"></i> {{ label }}</a>
+{%- endmacro %}
+
+{% block crm %}
+{{ page_head('Downloads', 'fa-solid fa-file-arrow-down', 'Every sales report and list in one place, ready for Excel.',
+             help=['Each button downloads the same file as the button on that report\'s own screen.',
+                   'You only get the numbers and leads your role lets you see.',
+                   'For a list with your own filters, open Leads or Contacts, filter it, and press Download this list.',
+                   'Need something these do not cover? Build it in the Report builder, save it, and it shows here.']) }}
+
+<section class="card dl-card">
+  <div class="card-head"><div class="t"><span class="ico"><i class="fa-solid fa-chart-line"></i></span>
+    <div><h2>Sales reports</h2><p class="muted small">How sales are going, for a period.</p></div></div>
+    {% if CAN('crm_insights') %}<a class="cb sm quiet" href="{{ crm_url('insights') }}">Open Sales results <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>{% endif %}
+  </div>
+  <ul class="dl-list">
+    {% call row('fa-chart-line', 'Sales results', 'New leads, replies, quotes, customers won and money, by product, source and person, against the period before.') %}
+      {% for d in (7, 30, 90) %}{{ get('Last %d days' % d, crm_url('insights_csv', days=d)) }}{% endfor %}
+    {% endcall %}
+    {% call row('fa-user-clock', 'Each person, day by day', 'One row per person per day: follow-ups, messages, calls, moves, leads added and won.') %}
+      {% for d in (7, 30, 90) %}{{ get('Last %d days' % d, crm_url('insights_people_csv', days=d)) }}{% endfor %}
+    {% endcall %}
+    {% if CAN('crm_forecast') %}
+    {% call row('fa-bullseye', 'Forecast', 'Money won against target, committed, best case and pipeline, by person and team.') %}
+      {{ get('This month', crm_url('forecast_csv')) }}{{ get('This quarter', crm_url('forecast_csv', span='quarter')) }}
+    {% endcall %}
+    {% endif %}
+    {% if CAN('crm_team') %}
+    {% call row('fa-people-arrows', 'Team analysis', 'People side by side: inbox checks, hours, follow-ups, messages, calls, reply speed and results.') %}
+      {{ get('Last 7 days', crm_url('team_analysis', period='7d', format='csv')) }}{{ get('Last 30 days', crm_url('team_analysis', period='30d', format='csv')) }}{{ get('This month', crm_url('team_analysis', period='month', format='csv')) }}
+    {% endcall %}
+    {% endif %}
+  </ul>
+</section>
+
+{% if CAN('crm_report_builder') %}
+<section class="card dl-card">
+  <div class="card-head"><div class="t"><span class="ico"><i class="fa-solid fa-chart-column"></i></span>
+    <div><h2>Your reports</h2><p class="muted small">Reports made in the Report builder: yours, and the ones colleagues shared.</p></div></div>
+    <a class="cb sm primary" href="{{ crm_url('report_builder') }}"><i class="fa-solid fa-plus" aria-hidden="true"></i> Build a report</a>
+  </div>
+  {% set reports = saved.mine + saved.shared %}
+  {% if reports %}
+  <ul class="dl-list">
+    {% for r in reports %}
+    {% call row('fa-chart-column', r.name, ('Shared by a colleague' if r in saved.shared else ('Shared with the team' if r.shared else 'Only you see it'))) %}
+      <a class="cb sm quiet" href="{{ crm_url('report_builder', run=1, **r.config) }}">Open</a>{{ get('Download', crm_url('report_builder_csv', **r.config)) }}
+    {% endcall %}
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted dl-empty">No saved reports yet. In the Report builder pick what to count and how to group it, then press Save: it shows here with its Download button.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="card dl-card">
+  <div class="card-head"><div class="t"><span class="ico"><i class="fa-solid fa-list"></i></span>
+    <div><h2>Lists</h2><p class="muted small">Leads and contacts, one row each, with their details.</p></div></div>
+  </div>
+  <ul class="dl-list">
+    {% call row('fa-table-columns', 'Leads', 'Who, what they want, where they came from, stage, who has them, value and dates.') %}
+      {{ get('Open leads', crm_url('export_leads', p='all', owner='all', status='open')) }}{{ get('Not given to anyone', crm_url('export_leads', p='all', owner='none', status='open')) }}{{ get('Came in, last 30 days', crm_url('export_leads', p='all', owner='all', dr='30d')) }}{{ get('Won', crm_url('export_leads', p='all', owner='all', status='won')) }}{{ get('Every lead', crm_url('export_leads', p='all', owner='all')) }}
+    {% endcall %}
+    {% call row('fa-address-book', 'Contacts', 'Everyone we can reach, one row per person.') %}
+      {{ get('Every contact', crm_url('export_contacts')) }}
+    {% endcall %}
+  </ul>
+  <p class="muted small dl-more">A list with your own filters: open {% if CAN('crm_board') %}<a href="{{ crm_url('board', view='list') }}">Leads</a>{% else %}Leads{% endif %} or {% if CAN('crm_people') %}<a href="{{ crm_url('contacts') }}">Contacts</a>{% else %}Contacts{% endif %}, filter it, and press Download this list.{% if CAN('crm_data') %} Imports and the WhatsApp copies are on <a href="{{ crm_url('data') }}">Import &amp; export</a>.{% endif %}</p>
+</section>
+{% endblock %}

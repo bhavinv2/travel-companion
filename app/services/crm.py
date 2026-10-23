@@ -2134,7 +2134,8 @@ def waiting_line(lead):
 
 
 def _day_text(dt):
-    d = (dt + IST).date()
+    from app.services import clock
+    d = clock.local(dt).date()
     return '%d %s' % (d.day, d.strftime('%b'))
 
 
@@ -3129,7 +3130,8 @@ def box_templates(lead, user=None):
 # ======================================================================================= the lead page's strip
 
 def ist_day_text(dt):
-    d = dt + IST
+    from app.services import clock
+    d = clock.local(dt)
     return '%d %s' % (d.day, d.strftime('%b'))
 
 
@@ -3296,20 +3298,21 @@ def wa_import_history(lead, now=None):
 
 
 def call_back_at(choice, at=None, now=None):
-    """When "Call back" is for, as UTC: 'in 1 hour', 'this evening' (6 pm India time, an hour from
-    now at the soonest), 'tomorrow morning' (10 am) or a time they picked ('at', as typed in
-    India: 2026-10-12T17:30). None when it does not parse or is not later than now."""
+    """When "Call back" is for, as UTC: 'in 1 hour', 'this evening' (6 pm in the shown time -- India unless the
+    header's clock says otherwise -- an hour from now at the soonest), 'tomorrow morning' (10 am) or a time they
+    picked ('at', as typed: 2026-10-12T17:30). None when it does not parse or is not later than now."""
+    from app.services import clock
     now = now or datetime.utcnow()
-    today = (now + IST).date()
+    today = clock.local(now).date()
     if choice == '1h':
         return now + timedelta(hours=1)
     if choice == 'evening':
-        return max(datetime.combine(today, time(18, 0)) - IST, now + timedelta(hours=1))
+        return max(clock.to_utc(datetime.combine(today, time(18, 0))), now + timedelta(hours=1))
     if choice == 'morning':
-        return datetime.combine(today + timedelta(days=1), time(10, 0)) - IST
+        return clock.to_utc(datetime.combine(today + timedelta(days=1), time(10, 0)))
     if choice == 'at':
         try:
-            when = datetime.strptime((at or '').strip()[:16], '%Y-%m-%dT%H:%M') - IST
+            when = clock.to_utc(datetime.strptime((at or '').strip()[:16], '%Y-%m-%dT%H:%M'))
         except ValueError:
             return None
         return when if when > now else None

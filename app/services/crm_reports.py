@@ -4,8 +4,8 @@ KPI (HB KPI, AP KPI, HK KPI): per person, per day -- leads they were given or ad
 messages and calls, follow-ups done, stage moves, won and lost, how fast the first message went out.
 Counted from what the CRM already records, so nobody fills a sheet in.
 
-Checker: every half hour from 07:00 to midnight (India time) somebody confirms each inbox was
-looked at -- Tawk, Messenger, Instagram, comments, both WhatsApp numbers, e-mail, calls, Telegram,
+Checker: every half hour, day and night (07:00 to midnight before CRM_CHECK_ALL_DAY_FROM; India time) somebody
+confirms each inbox was looked at -- Tawk, Messenger, Instagram, comments, both WhatsApp numbers, e-mail, calls, Telegram,
 the website. One click ticks them all for the current half hour.
 """
 import re
@@ -17,7 +17,7 @@ from sqlalchemy import func
 
 from app import db
 from app.models import (CrmChannelCheck, CrmLead, CrmStage, CrmStageChange, CrmTask, CrmTouchpoint,
-                        CRM_CHANNEL_LABELS, CRM_CHECK_HOURS)
+                        CRM_CHANNEL_LABELS, CRM_CHECK_ALL_DAY_FROM, CRM_CHECK_HOURS)
 from app.services import crm_words
 
 IST = timedelta(hours=5, minutes=30)
@@ -97,8 +97,17 @@ def slot_of(ist_dt):
     return ist_dt.hour * 2 + (1 if ist_dt.minute >= 30 else 0)
 
 
-def slots():
-    return list(range(CRM_CHECK_HOURS[0] * 2, CRM_CHECK_HOURS[1] * 2))
+def hours(day=None):
+    """The checking hours (India time) of `day`, default today: round the clock from CRM_CHECK_ALL_DAY_FROM, 07:00 to
+    midnight before -- an old day is judged by the hours it was checked to."""
+    day = day or ist_now().date()
+    return (0, 24) if day >= CRM_CHECK_ALL_DAY_FROM else CRM_CHECK_HOURS
+
+
+def slots(day=None):
+    """The half hours of `day` (default today) that are checked."""
+    a, b = hours(day)
+    return list(range(a * 2, b * 2))
 
 
 def slot_label(s):
@@ -109,7 +118,7 @@ def current():
     """(today in India, the half hour now -- None outside the checking hours)."""
     now = ist_now()
     s = slot_of(now)
-    return now.date(), (s if s in slots() else None)
+    return now.date(), (s if s in slots(now.date()) else None)
 
 
 def grid(day):
@@ -125,8 +134,9 @@ def can_tick(day, slot):
     today, now_slot = current()
     if day != today:
         return False
-    last = now_slot if now_slot is not None else (max(slots()) if slot_of(ist_now()) > max(slots()) else -1)
-    return slot in slots() and slot <= last
+    every = slots(day)
+    last = now_slot if now_slot is not None else (max(every) if slot_of(ist_now()) > max(every) else -1)
+    return slot in every and slot <= last
 
 
 def toggle(day, slot, channel, user):
@@ -153,11 +163,12 @@ def slots_so_far(day):
     today, now_slot = current()
     if day > today:
         return []
+    every = slots(day)
     if day < today:
-        return slots()
+        return every
     if now_slot is not None:
-        return [s for s in slots() if s < now_slot]
-    return list(slots()) if slot_of(ist_now()) > max(slots()) else []
+        return [s for s in every if s < now_slot]
+    return every if slot_of(ist_now()) > max(every) else []
 
 
 def coverage(day, channels):
@@ -185,7 +196,9 @@ def slot_end(day, s):
 
 
 def ist_hm(dt):
-    return (dt + IST).strftime('%H:%M') if dt else ''
+    """'14:05': a tick's or an action's time as shown (the header's clock; India unless another zone is picked)."""
+    from app.services import clock
+    return clock.fmt(dt, '%H:%M')
 
 
 def _work_text(counts):
@@ -206,7 +219,7 @@ def check_report(day, users, channels, sheet=None, names=None):
     in `users` says "someone in another team" -- `names` ({user id: name}) may name them.
     {'due', 'full', 'pct', 'gap_count', 'late', 'checking', 'people': [...], 'gaps': [...], 'inboxes': [...]}"""
     from app.services import crm
-    every = slots()
+    every = slots(day)
     upto = slots_so_far(day)
     over = set(upto)
     at = {}                                                   # (slot, inbox) -> its tick

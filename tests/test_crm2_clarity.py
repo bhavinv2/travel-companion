@@ -44,7 +44,8 @@ def test_the_sales_menu_has_daily_work_and_set_up_only(app, admin_user):
     groups = {g['key']: g for g in _groups(app, admin_user)}
     sales = groups['sales']
     assert [s['label'] for s in sales['subs']] == ['Daily work', 'Set-up']
-    assert [i['label'] for i in sales['subs'][0]['items']] == ['My day', 'WhatsApp chats', 'Leads', 'Calendar', 'Contacts']
+    assert [i['label'] for i in sales['subs'][0]['items']] == ['My day', 'Half-hourly check', 'WhatsApp chats', 'Leads',
+                                                              'Calendar', 'Contacts']
     assert [i['label'] for i in sales['subs'][1]['items']] == [
         'Pipelines & products', 'Automation', 'Messages', 'Lead sources', 'Targets', 'WhatsApp', 'Import & export']
     overview = [i['label'] for i in groups['overview']['items']]
@@ -61,7 +62,7 @@ def _groups(app, user):
 
 
 def test_pages_that_lost_their_line_are_not_menu_lines_but_are_still_pages():
-    for key in ('crm_flow', 'crm_checks', 'crm_forecast', 'crm_team', 'wa_templates', 'wa_broadcasts', 'wa_tags',
+    for key in ('crm_flow', 'crm_process', 'crm_forecast', 'crm_team', 'wa_templates', 'wa_broadcasts', 'wa_tags',
                 'wa_automations', 'wa_flows', 'wa_ai', 'wa_settings'):
         assert access.PAGES[key]['nav'] is False and key in access.MENU_ORDER, key
     assert access.PAGES['crm_quick']['label'] == 'Messages'
@@ -107,12 +108,10 @@ def test_a_saved_menu_with_the_old_help_section_and_removed_lines_keeps_working(
     out = access.clean_layout(json.loads(json.dumps(layout)))
     placed = [k for s in out['sections'] for h in (s.get('subs') or [s]) for k in h['pages']]
     assert sorted(placed) == sorted(access.MENU_PAGES) and len(placed) == len(set(placed))
-    assert 'crm_flow' not in placed and 'crm_checks' not in placed and 'wa_tags' not in placed
-    assert 'crm_auto' in placed                       # a line that still exists is placed once, wherever it was
-    # How we sell is a line again and stays where it was saved; the Help screens the old menu did not place join
-    # it, in the order the menu in code has them
-    help_ = next(s for s in out['sections'] if s['key'] == 'help')
-    assert help_['pages'] == ['guide', 'crm_process', 'metrics', 'help', 'help_insurance', 'help_sahayak']
+    assert 'crm_flow' not in placed and 'crm_process' not in placed and 'wa_tags' not in placed
+    assert 'crm_auto' in placed and placed.count('crm_checks') == 1   # placed once, wherever it was
+    # the old Help section lost every line it listed and went with them; the Help centre comes back as in code
+    assert [s['pages'] for s in out['sections'] if s['key'] == 'help'] == [['guide']]
 
 
 def test_a_line_new_since_a_menu_was_saved_goes_back_where_the_code_has_it():

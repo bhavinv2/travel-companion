@@ -58,7 +58,7 @@
       {% elif q.needs_approval %}<span class="chip" title="Approved {{ q.approved_at.strftime('%d %b') if q.approved_at }}">Approved{% if q.approved_by %} by {{ q.approved_by.first_name or q.approved_by.username }}{% endif %}</span>{% endif %}
       <div class="muted small">{{ MONEY(q.amount, q.currency) if q.amount is not none else 'No amount' }}
         {% if q.valid_until %} &middot; valid until {{ q.valid_until.strftime('%d %b %Y') }}{% endif %}
-        {% if q.sent_at %} &middot; sent {{ (q.sent_at + IST_OFFSET).strftime('%d %b') }}{% endif %}
+        {% if q.sent_at %} &middot; sent {{ LOCAL(q.sent_at).strftime('%d %b') }}{% endif %}
         &middot; <span title="Search for this number in Find a person">Q-{{ q.id }}</span></div>
       {% if q.details %}<div class="qp-details small">{{ q.details }}</div>{% endif %}
     </div>
@@ -97,7 +97,7 @@
       <span class="chip qp-{{ p.status }}">{{ PAYMENT_WORDS()[p.status] }}</span>
       <div class="muted small">{% if p.provider %}{{ p.provider }}{% endif %}{% if p.reference %} &middot; reference {{ p.reference }}{% endif %}
         {% if p.quote %} &middot; for “{{ p.quote.title }}”{% endif %}
-        {% if p.paid_at %} &middot; paid {{ (p.paid_at + IST_OFFSET).strftime('%d %b') }}{% endif %}</div>
+        {% if p.paid_at %} &middot; paid {{ LOCAL(p.paid_at).strftime('%d %b') }}{% endif %}</div>
       {% if p.link_url %}<div class="small"><a href="{{ p.link_url }}" target="_blank" rel="noopener noreferrer">Open the payment link</a>
         &middot; <button type="button" class="cb sm quiet" data-qp-copy data-text="{{ p.link_url }}"><i class="fa-regular fa-copy"></i> Copy link</button>
         <button type="button" class="cb sm quiet" data-qp-box data-text="Here is the link to pay: {{ p.link_url }}"><i class="fa-regular fa-comment-dots"></i> Put in the message box</button></div>{% endif %}

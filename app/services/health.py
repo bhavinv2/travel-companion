@@ -417,5 +417,6 @@ def build(user, days=30, now=None):
             parts.append(dict(part, key=key, label=label, icon=icon))
     attention = sorted(r.attention, key=lambda a: SEVERITY[a['state']])
     state = attention[0]['state'] if attention else 'ok'
-    return {'days': r.days, 'at': (now + IST).strftime('%d %b, %H:%M'), 'parts': parts, 'attention': attention,
+    from app.services import clock
+    return {'days': r.days, 'at': clock.fmt(now, '%d %b, %H:%M') + ' ' + clock.label(now), 'parts': parts, 'attention': attention,
             'state': state, 'periods': PERIODS}

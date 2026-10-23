@@ -5,7 +5,7 @@ from conftest import login, logout
 def test_staff_land_on_their_console_after_login(client, cs_user, admin_user, user):
     assert login(client, 'cs@test.com').headers['Location'].endswith('/cs/crm/today')   # U2: staff start on My day
     logout(client)
-    assert login(client, 'admin@test.com').headers['Location'].endswith('/admin/crm/insights')   # U2: site owners start on Results
+    assert login(client, 'admin@test.com').headers['Location'].endswith('/admin/health')   # site owners start on Health (2026-10-24)
     logout(client)
     assert login(client, 'bob@test.com').headers['Location'].endswith('/')
 
@@ -19,8 +19,8 @@ def test_traveller_screens_redirect_staff_to_console(client, cs_user, admin_user
     assert client.get('/settings/notifications').status_code == 200      # their own prefs still reachable
     logout(client)
     login(client, 'admin@test.com')
-    assert client.get('/').headers['Location'].endswith('/admin/crm/insights')
-    assert client.get('/dashboard').headers['Location'].endswith('/admin/crm/insights')
+    assert client.get('/').headers['Location'].endswith('/admin/health')
+    assert client.get('/dashboard').headers['Location'].endswith('/admin/health')
     assert client.get('/cs/').status_code == 200 and client.get('/admin/').status_code == 200
     # logged-in traveller pages keep working for everybody else
     logout(client)

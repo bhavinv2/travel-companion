@@ -16,14 +16,14 @@
   <span class="fc-prog" role="img" title="{{ metric_tip('target_progress') }}" aria-label="{{ my_target.pct }}% of the target won"><i style="width:{{ [my_target.pct, 100]|min }}%"></i></span>
 </a>
 {% endif %}
-{% set hour = (utcnow + IST_OFFSET).hour %}
+{% set hour = LOCAL(utcnow).hour %}
 {% set to_do = welcome|length + follow|length + my_tasks|length %}
 {% set total_today = to_do + done_today %}
 
 <section class="card">
   <div class="hello">
     <div>
-      <p class="when">{{ (utcnow + IST_OFFSET).strftime('%A, %d %B') }}</p>
+      <p class="when">{{ LOCAL(utcnow).strftime('%A, %d %B') }}</p>
       <h2>{{ 'Good morning' if hour < 12 else 'Good afternoon' if hour < 17 else 'Good evening' }}, {{ current_user.first_name or current_user.username }}</h2>
       <p class="muted" style="margin-top:6px">{% if who == 'all' %}Everybody's work for today.{% else %}Here is your day, step by step. Work from the top.{% endif %}</p>
       <p class="alert-ask" data-alerts-ask hidden>Get a desktop alert when a customer writes?

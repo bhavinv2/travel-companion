@@ -51,6 +51,15 @@ def report_builder():
     return _page(cfg=cfg, result=rb.run(cfg, current_user))
 
 
+@crm_bp.route('/downloads')
+@cs_required
+def downloads():
+    """Reports › Downloads: every sales download in one place. Each button is the same file as the one on its own
+    screen (Sales results, Forecast, Team analysis, a saved report, Leads, Contacts); the page shows only the ones
+    this person's role includes."""
+    return render_template('cs/crm/downloads.html', saved=rb.listing(current_user), **_common())
+
+
 @crm_bp.route('/reports/build.csv')
 @cs_required
 def report_builder_csv():

@@ -143,3 +143,17 @@ a.hl-tile:hover { box-shadow: 0 4px 14px rgba(15, 35, 64, .1); border-color: var
   .hl-bars li { grid-template-columns: minmax(80px, 42%) minmax(0, 1fr) 40px; }
   .sg-list { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* the Help centre's top: each product's help screens */
+.sg-h { font-size: 18px; margin: 0 0 10px; color: var(--c-ink); }
+.hc-help { margin-bottom: 22px; }
+.sg-products { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.sg-product { padding: 16px 18px; }
+.sg-product h3 { display: flex; align-items: center; gap: 10px; font-size: 16px; margin: 0 0 10px; }
+.sg-product .sg-ico { grid-row: auto; }
+.sg-product ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.sg-product li { display: flex; flex-direction: column; gap: 2px; font-size: 13.5px; }
+.sg-product li a { text-decoration: none; }
+.sg-product li a:hover b { text-decoration: underline; }
+.sg-product li.off b { color: var(--c-muted); }
+.sg-product .muted { font-size: 12.5px; }

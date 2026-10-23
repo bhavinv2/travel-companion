@@ -34,22 +34,26 @@ BELL = '%s gave you a %s'
 
 # ------------------------------------------------------------------------------------------ time
 
-def to_utc(ist_dt):
-    return ist_dt - IST
+def to_utc(wall):
+    """A time as typed and shown (the header's clock: India unless another zone is picked), as UTC."""
+    from app.services import clock
+    return clock.to_utc(wall)
 
 
 def from_utc(dt):
-    return dt + IST if dt else None
+    """A stored UTC time as it is shown and typed (services/clock.py)."""
+    from app.services import clock
+    return clock.local(dt)
 
 
 def default_due(now=None):
-    """Tomorrow 10:00 India time, as UTC."""
-    today = ((now or datetime.utcnow()) + IST).date()
+    """Tomorrow 10:00 (the shown time), as UTC."""
+    today = from_utc(now or datetime.utcnow()).date()
     return to_utc(datetime.combine(today + timedelta(days=1), time(10, 0)))
 
 
 def parse_when(text):
-    """'2026-10-22T10:00' (or 'YYYY-MM-DD HH:MM', or just a date: 10:00) typed in India time -> UTC; None if
+    """'2026-10-22T10:00' (or 'YYYY-MM-DD HH:MM', or just a date: 10:00) typed in the shown time -> UTC; None if
     it does not look like one."""
     text = (text or '').strip().replace(' ', 'T')
     if not text:
@@ -66,14 +70,14 @@ def parse_when(text):
 
 
 def input_value(dt):
-    """For <input type=datetime-local>: the stored UTC time as India time."""
+    """For <input type=datetime-local>: the stored UTC time as it is shown."""
     return from_utc(dt).strftime('%Y-%m-%dT%H:%M') if dt else ''
 
 
 def end_of_today(now=None):
-    """The end of today in India time, as UTC."""
+    """The end of today in India time (the business day), as UTC."""
     today = ((now or datetime.utcnow()) + IST).date()
-    return to_utc(datetime.combine(today, time.max))
+    return datetime.combine(today, time.max) - IST
 
 
 # ------------------------------------------------------------------------------------------ who
@@ -161,8 +165,10 @@ def _bell(task, giver):
 
 
 def _when_text(due):
+    """'Fri 23 Oct, 10:00 IST' -- in the zone of whoever gave it, said, so the person told can read it right."""
+    from app.services import clock
     d = from_utc(due)
-    return '%s %d %s, %s' % (d.strftime('%a'), d.day, d.strftime('%b'), d.strftime('%H:%M'))
+    return '%s %d %s, %s %s' % (d.strftime('%a'), d.day, d.strftime('%b'), d.strftime('%H:%M'), clock.label(due))
 
 
 def create(user, data, lead=None, person=None):

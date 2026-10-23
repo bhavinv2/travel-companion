@@ -55,7 +55,7 @@
 {%- endif -%}
 {%- endmacro %}
 
-{% macro ist(dt) -%}{{ (dt + IST_OFFSET).strftime('%d %b, %I:%M %p') if dt else '' }}{%- endmacro %}
+{% macro ist(dt) -%}{{ LOCAL(dt).strftime('%d %b, %I:%M %p') if dt else '' }}{%- endmacro %}
 
 {% macro initials(name) -%}{{ ((name or '?').split()|map('first')|list)[:2]|join|upper }}{%- endmacro %}
 

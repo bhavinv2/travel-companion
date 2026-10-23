@@ -9,12 +9,12 @@
         <option value="">Not given to anyone</option>
         {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if lead.owner_id == u.id }}>{{ u.full_name }}{{ ' (you)' if u.id == current_user.id }}</option>{% endfor %}
       </select></p>
-    {# where they came from, how, when (India time) and by whom: services/crm_sources.came_from #}
+    {# where they came from, how, when (the header's clock) and by whom: services/crm_sources.came_from #}
     {% set cf = CAME_FROM(lead) %}
     <p class="came-from" data-origin="{{ cf.origin }}">
       <span class="cf-src" title="{{ cf.group_name }}"><i class="fa-solid {{ cf.icon }}"></i> {{ cf.group_name }} › <b>{{ cf.name }}</b></span>
       <span class="cf-how cf-{{ cf.origin }}" title="{{ cf.origin_label }}"><i class="fa-solid {{ cf.origin_icon }}"></i> {{ cf.origin_word }}{% if cf.by %} · added by {{ cf.by }}{% elif cf.origin == 'organic' %} · came in by itself{% endif %}</span>
-      <span class="cf-at"><i class="fa-regular fa-clock"></i> {{ cf.at }} IST <small>({{ when(lead.created_at, utcnow) }})</small></span>
+      <span class="cf-at"><i class="fa-regular fa-clock"></i> {{ cf.at }} {{ TZ(lead.created_at) }} <small>({{ when(lead.created_at, utcnow) }})</small></span>
     </p>
     {% if family %}<p class="sub lead-family">Family: {% for m in family %}<a href="{{ crm_url('contact', person_id=m.person.id) }}">{{ m.text }}</a>{{ ' · ' if not loop.last }}{% endfor %}</p>{% endif %}
     {% include 'cs/crm/_lead_value.html' %}

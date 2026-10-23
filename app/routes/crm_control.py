@@ -3,7 +3,7 @@
 The rules are on crm_bp (routes/crm.py), so they exist under /cs/crm and /admin/crm. The work is in
 services/crm_bin.py, crm_assign.py and crm_stage_rules.py.
 """
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from flask import abort, flash, jsonify, redirect, render_template, request
 from flask_login import current_user
@@ -11,9 +11,8 @@ from flask_login import current_user
 from app import db
 from app.routes.crm import _common, admin_only, crm_bp, crm_url
 from app.routes.cs import cs_required
-from app.services import access, crm_bin
+from app.services import access, clock, crm_bin
 
-IST = timedelta(hours=5, minutes=30)
 
 
 # ============================================================================================ Recycle bin
@@ -33,7 +32,7 @@ def bin():
     for l in leads:
         left = crm_bin.KEEP_DAYS - (datetime.utcnow() - l.deleted_at).days
         rows.append({'lead': l, 'person': l.person, 'who': users.get(l.deleted_by_id, 'Someone who left'),
-                     'when': l.deleted_at + IST, 'days_left': max(0, left)})
+                     'when': clock.local(l.deleted_at), 'days_left': max(0, left)})
     return render_template('cs/crm/bin.html', rows=rows, keep=crm_bin.KEEP_DAYS,
                            can_purge=access.can(current_user, 'delete_records'), **_common())
 

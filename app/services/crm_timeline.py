@@ -144,15 +144,16 @@ def build(lead, now=None, limit=TIMELINE_LIMIT):
     if p.wa_opt_out_at is not None:
         items.append(_event(p.wa_opt_out_at, 'fa-solid fa-ban', 'Opted out of WhatsApp'))
     items.sort(key=lambda i: (i['at'], i['order']))
-    today = (now + crm.IST).date()
+    from app.services import clock
+    today = clock.local(now).date()
     out, last_day = [], None
     if more:
         out.append({'kind': 'more', 'text': MORE_TEXT})
     for it in items:
-        day = (it['at'] + crm.IST).date()
+        day = clock.local(it['at']).date()
         if day != last_day:
             out.append({'kind': 'day', 'label': day_label(day, today)})
             last_day = day
-        it['time'] = (it['at'] + crm.IST).strftime('%H:%M')
+        it['time'] = clock.fmt(it['at'], '%H:%M')
         out.append(it)
     return out

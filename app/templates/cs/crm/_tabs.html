@@ -9,13 +9,14 @@
 {%- endif %}
 {%- endmacro %}
 
-{# The Leads view switch: Board / List / Flow / How we sell. The two that are the board page itself come with
-   their own addresses (the page keeps its filters); Flow and How we sell are their own pages. #}
+{# The Leads view switch: Board / List / Flow / How we sell, and the Calendar. The two that are the board page itself
+   come with their own addresses (the page keeps its filters); the others are their own pages. #}
 {% macro leads_switch(active, board_href=none, list_href=none) -%}
 <div class="seg" role="group" aria-label="How to look at the leads">
   {%- if board_href and CAN('crm_board') %}<a class="{{ 'on' if active == 'board' }}" href="{{ board_href }}">Board</a>{% endif %}
   {%- if list_href and CAN('crm_board') %}<a class="{{ 'on' if active == 'list' }}" href="{{ list_href }}">List</a>{% endif %}
   {%- if CAN('crm_flow') %}<a class="{{ 'on' if active == 'flow' }}" href="{{ crm_url('flow') }}">Flow</a>{% endif %}
   {%- if CAN('crm_process') %}<a class="{{ 'on' if active == 'process' }}" href="{{ crm_url('process') }}">How we sell</a>{% endif %}
+  {%- if CAN('crm_calendar') %}<a href="{{ crm_url('calendar', view='week') }}" title="The leads' tasks, calls, meetings and follow-ups by day"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i> Calendar</a>{% endif %}
 </div>
 {%- endmacro %}

@@ -119,7 +119,7 @@
   </header>
   <div class="table-wrap">
   <table class="crm-table src-table">
-    <thead><tr><th>Source</th><th>Pipeline</th><th>Who gets its leads</th><th>Status</th><th class="num">Leads · 30 days</th><th>Last lead (IST)</th><th></th></tr></thead>
+    <thead><tr><th>Source</th><th>Pipeline</th><th>Who gets its leads</th><th>Status</th><th class="num">Leads · 30 days</th><th>Last lead ({{ TZ() }})</th><th></th></tr></thead>
     <tbody>
     {% for part, part_rows in SOURCE_SECTIONS(rows_) %}
       {% if part %}<tr class="src-part"><th colspan="7">{{ part }}</th></tr>{% endif %}

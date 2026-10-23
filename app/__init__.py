@@ -321,7 +321,9 @@ def create_app(test_config=None):
         """
         if value is None:
             return ''
-        return (value + IST).strftime(fmt) + ' IST'
+        # the zone the header's clock switch chose (services/clock.py) -- India unless somebody picked another
+        from app.services import clock
+        return clock.fmt(value, fmt) + ' ' + clock.label(value)
 
     @app.template_filter('istd')
     def _istd(value, fmt='%Y-%m-%d'):
@@ -339,7 +341,26 @@ def create_app(test_config=None):
             return ''
         if not isinstance(value, datetime):
             return value.strftime(fmt)
-        return (value + IST).strftime(fmt)
+        from app.services import clock
+        return clock.fmt(value, fmt)
+
+    # the header's clock switch, and any template that prints a time (services/clock.py)
+    @app.template_global('CLOCK')
+    def _clock_switcher():
+        from app.services import clock
+        return clock.switcher()
+
+    @app.template_global('LOCAL')
+    def _clock_local(value):
+        """A stored UTC datetime as the chosen zone's wall clock -- for .strftime in a template."""
+        from app.services import clock
+        return clock.local(value)
+
+    @app.template_global('TZ')
+    def _clock_label(value=None):
+        """What the chosen zone is called now (or at `value`): IST, EDT, PST, UTC."""
+        from app.services import clock
+        return clock.label(value)
 
     # Whether to send http traffic to https. On by default in production; a deployment that
     # genuinely terminates TLS somewhere we cannot see can turn it off rather than loop.

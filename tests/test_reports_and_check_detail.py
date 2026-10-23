@@ -8,12 +8,21 @@
 import re
 from datetime import date, datetime, timedelta
 
+import pytest
+
 from conftest import login, make_user
 from app import db as _db
 from app.models import CrmChannelCheck, WorkspaceRole, WorkspaceTeam
 from app.services import access, crm, crm_reports
 
 PAST = date.today() - timedelta(days=2)          # a past day: every half hour is over
+
+
+@pytest.fixture(autouse=True)
+def _checked_seven_to_midnight(monkeypatch):
+    """Written when the check ran 07:00 to midnight, on days counted back from today; since 2026-10-24 it runs round
+    the clock (crm_reports.hours). These tests keep the old hours; tests/test_health.py checks the new ones."""
+    monkeypatch.setattr(crm_reports, 'CRM_CHECK_ALL_DAY_FROM', date.max)
 
 
 def words(html):

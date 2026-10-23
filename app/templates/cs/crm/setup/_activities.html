@@ -1,49 +1,125 @@
-{# Where leads come from -> Marketing activities: platform, activity, who, where it stands -- and, for a campaign we
-   pay for, its campaign key (utm_campaign), lead source, dates and cost (Sales CRM 2.0, run 5b: crm_campaigns). #}
+{# Lead sources -> Marketing activities (routes/crm._activities_context, services/crm_campaigns): the ways we find people,
+   by platform, as cards -- what it is, who does it, where it stands -- and, for a campaign we pay for, what it brought
+   in over its own dates. Every card carries its fields (hidden until Edit), so the form posts the whole list in
+   order, as before: crm_campaigns.parse reads the same names. #}
 {% from 'cs/crm/setup/_macros.html' import csrf with context %}
-{% macro act_row(r) -%}
-<tbody class="act-row" data-act-row>
-  <tr>
-    <td><input type="hidden" name="act_id" value="{{ r.id or '' }}"/><input type="text" name="platform" value="{{ r.platform or '' }}" maxlength="200" aria-label="Platform"/></td>
-    <td><input type="text" name="activity" value="{{ r.name or '' }}" maxlength="200" aria-label="Activity"/></td>
-    <td><input type="text" name="who" value="{{ r.who or '' }}" maxlength="200" aria-label="Who"/></td>
-    <td><input type="text" name="status" value="{{ r.status or '' }}" maxlength="200" aria-label="Where it stands"/></td>
-    <td><button type="button" class="cb quiet sm" data-act-remove aria-label="Remove this row">×</button></td>
-  </tr>
-  <tr class="act-camp">
-    <td colspan="5">
-      <span class="act-lbl">Campaign:</span>
-      <input type="text" name="utm" value="{{ r.utm_campaign or '' }}" maxlength="120" placeholder="campaign key in its links" aria-label="Campaign key (utm_campaign)"/>
-      <select name="source" aria-label="Lead source"><option value="">any lead source</option>
-        {% for s in sources %}<option value="{{ s.id }}"{{ ' selected' if r.source_id == s.id }}>{{ SOURCE_NAME(s.name) }}</option>{% endfor %}</select>
-      <label>from <input type="date" name="starts" value="{{ r.starts_on.isoformat() if r.starts_on else '' }}" aria-label="First day"/></label>
-      <label>to <input type="date" name="ends" value="{{ r.ends_on.isoformat() if r.ends_on else '' }}" aria-label="Last day"/></label>
-      <label>cost <input type="text" inputmode="decimal" name="cost" value="{{ PLAIN_AMOUNT(r.cost) }}" placeholder="25000" style="max-width:110px" aria-label="Cost"/></label>
-      <select name="currency" aria-label="Currency" style="width:auto">{% for c in CURRENCY_CHOICES() %}<option value="{{ c }}"{{ ' selected' if c == (r.currency or REPORT_CURRENCY()) }}>{{ c }}</option>{% endfor %}</select>
-    </td>
-  </tr>
-</tbody>
+
+{% macro platform_icon(name) -%}
+{%- set n = (name or '')|lower -%}
+{%- if 'facebook' in n %}fa-brands fa-facebook{% elif 'instagram' in n %}fa-brands fa-instagram{% elif 'whatsapp' in n %}fa-brands fa-whatsapp
+{%- elif 'google' in n %}fa-brands fa-google{% elif 'youtube' in n %}fa-brands fa-youtube{% elif 'telegram' in n %}fa-brands fa-telegram
+{%- elif 'linkedin' in n %}fa-brands fa-linkedin{% elif 'mail' in n %}fa-solid fa-envelope{% elif 'web' in n or 'seo' in n %}fa-solid fa-globe
+{%- elif 'tradition' in n or 'event' in n or 'store' in n %}fa-solid fa-store{% else %}fa-solid fa-bullhorn{% endif -%}
 {%- endmacro %}
-<section class="card">
-  <h2>Marketing activities</h2>
-  <p class="muted">The ways we find people, who does each, and where it stands. They are shown on How we sell.</p>
+
+{# where it stands, as a kind: running (green), waiting on something (amber), planned (blue), stopped (grey) #}
+{% macro stands(status) -%}
+{%- set s = (status or '')|lower -%}
+{%- if not s %}none{% elif 'ongoing' in s or 'running' in s or 'live' in s or 'active' in s %}run
+{%- elif 'pause' in s or 'stop' in s or 'done' in s or 'ended' in s or 'finish' in s %}stop
+{%- elif 'need' in s or 'wait' in s or 'block' in s %}warn{% else %}plan{% endif -%}
+{%- endmacro %}
+
+{% macro act_card(r, editing=false) -%}
+{%- set res = act_results.get(r.id) if r.id else none -%}
+{%- set camp = r.utm_campaign or r.source_id or r.cost is not none -%}
+{%- set k = stands(r.status) -%}
+<article class="act-card{{ ' editing' if editing }}" data-act-row>
+  <div class="act-view">
+    <div class="act-top">
+      <b class="act-name">{{ r.name or r.platform or 'New activity' }}</b>
+      <span class="act-st st-{{ k }}">{% if k == 'run' %}<i class="fa-solid fa-circle-play"></i>{% elif k == 'warn' %}<i class="fa-solid fa-hourglass-half"></i>{% elif k == 'stop' %}<i class="fa-solid fa-circle-pause"></i>{% elif k == 'plan' %}<i class="fa-solid fa-circle-dot"></i>{% endif %} {{ r.status or 'No status yet' }}</span>
+    </div>
+    <p class="act-meta"><span><i class="fa-regular fa-user"></i> {{ r.who or 'Nobody named' }}</span>
+      {% if camp %}<span><i class="fa-solid fa-bullseye"></i> Paid campaign{% if r.utm_campaign %} · <code>{{ r.utm_campaign }}</code>{% endif %}</span>
+      {% if r.starts_on or r.ends_on %}<span><i class="fa-regular fa-calendar"></i> {{ r.starts_on.strftime('%d %b %Y') if r.starts_on else '…' }} – {{ r.ends_on.strftime('%d %b %Y') if r.ends_on else 'ongoing' }}</span>{% endif %}{% endif %}</p>
+    {% if res %}
+    <dl class="act-nums">
+      <div><dt>Leads</dt><dd>{{ res.leads }}</dd></div>
+      <div><dt>Won</dt><dd>{{ res.won }}</dd></div>
+      <div><dt>Won value</dt><dd>{{ MONEY_C(res.won_value, act_currency) }}</dd></div>
+      <div><dt>Cost</dt><dd>{{ MONEY_C(res.cost, act_currency) if res.cost is not none else '—' }}</dd></div>
+      <div><dt>Per lead</dt><dd>{{ MONEY_C(res.per_lead, act_currency) if res.per_lead is not none else '—' }}</dd></div>
+      <div><dt>Return</dt><dd class="{{ 'good' if res.ret and res.ret >= 1 else 'bad' if res.ret is not none else '' }}">{{ RET_TEXT(res.ret) }}</dd></div>
+    </dl>
+    {% endif %}
+    <div class="act-actions">
+      <button type="button" class="cb sm" data-act-edit><i class="fa-solid fa-pen"></i> Edit</button>
+      <button type="button" class="cb sm quiet" data-act-remove><i class="fa-solid fa-trash-can"></i> Remove</button>
+    </div>
+  </div>
+  <div class="act-edit">
+    <input type="hidden" name="act_id" value="{{ r.id or '' }}"/>
+    <div class="act-fields">
+      <label>Platform<input type="text" name="platform" value="{{ r.platform or '' }}" maxlength="200" list="act-platforms" placeholder="Facebook, Google, Events…"/></label>
+      <label>Activity<input type="text" name="activity" value="{{ r.name or '' }}" maxlength="200" placeholder="What we do there"/></label>
+      <label>Who does it<input type="text" name="who" value="{{ r.who or '' }}" maxlength="200" placeholder="A person or a team"/></label>
+      <label>Where it stands<input type="text" name="status" value="{{ r.status or '' }}" maxlength="200" list="act-statuses" placeholder="Ongoing, Planned, Paused…"/></label>
+    </div>
+    <fieldset class="act-campaign">
+      <legend>If we pay for it: the campaign</legend>
+      <div class="act-fields">
+        <label>Campaign key <small>(utm_campaign in its links)</small><input type="text" name="utm" value="{{ r.utm_campaign or '' }}" maxlength="120" placeholder="diwali-ads"/></label>
+        <label>Lead source it feeds<select name="source"><option value="">Any lead source</option>
+          {% for s in sources %}<option value="{{ s.id }}"{{ ' selected' if r.source_id == s.id }}>{{ SOURCE_NAME(s.name) }}</option>{% endfor %}</select></label>
+        <label>First day<input type="date" name="starts" value="{{ r.starts_on.isoformat() if r.starts_on else '' }}"/></label>
+        <label>Last day<input type="date" name="ends" value="{{ r.ends_on.isoformat() if r.ends_on else '' }}"/></label>
+        <label>Cost<span class="act-cost"><input type="text" inputmode="decimal" name="cost" value="{{ PLAIN_AMOUNT(r.cost) }}" placeholder="25000"/>
+          <select name="currency" aria-label="Currency">{% for c in CURRENCY_CHOICES() %}<option value="{{ c }}"{{ ' selected' if c == (r.currency or REPORT_CURRENCY()) }}>{{ c }}</option>{% endfor %}</select></span></label>
+      </div>
+    </fieldset>
+    <div class="act-actions">
+      <button type="button" class="cb sm" data-act-edit><i class="fa-solid fa-check"></i> Done</button>
+      <button type="button" class="cb sm quiet" data-act-remove><i class="fa-solid fa-trash-can"></i> Remove</button>
+    </div>
+  </div>
+</article>
+{%- endmacro %}
+
+<section class="card act">
+  <div class="card-head">
+    <div class="t"><span class="ico"><i class="fa-solid fa-bullhorn"></i></span>
+      <div><h2>Marketing activities</h2>
+        <p class="muted small">The ways we find people, who does each and where it stands, and what each paid campaign brought in. They show on How we sell.</p></div></div>
+    <button type="button" class="cb primary" data-act-add><i class="fa-solid fa-plus"></i> Add an activity</button>
+  </div>
   <details class="help-fold"><summary>(?) How this works</summary><ul>
-    <li>Each row is one way we find people. “Ongoing” in Where it stands shows as running on How we sell.</li>
-    <li>For a campaign we pay for, fill the second line: the campaign key its links carry (utm_campaign), the lead source it feeds, its dates and what it cost.</li>
-    <li>Sales results then shows its leads, customers won, won value, cost per lead, cost per customer and return. Money is counted in {{ REPORT_CURRENCY() }} with the exchange rates in Pipelines & products.</li>
-    <li>A lead belongs to a campaign when its link carried the key (and, if a source is chosen, it came from that source), between the first and last day.</li>
+    <li>Each card is one way we find people. Press Edit to change it, then Save at the bottom.</li>
+    <li>Where it stands: "Ongoing" shows as running on How we sell. Green is running, amber is waiting on something, grey is paused or done.</li>
+    <li>For a campaign we pay for, fill the campaign part: the campaign key its links carry (utm_campaign), the lead source it feeds, its dates and what it cost.</li>
+    <li>The card then shows its leads, customers won, won value, cost per lead and return, counted over its own dates in {{ act_currency }} (exchange rates in Pipelines & products). Sales results shows the same.</li>
   </ul></details>
+
+  <div class="act-sum">
+    <div><b>{{ act_totals.rows }}</b><span>activities</span></div>
+    <div><b>{{ act_totals.campaigns }}</b><span>paid campaigns</span></div>
+    <div><b>{{ MONEY_C(act_totals.spend, act_currency) }}</b><span>spent on them</span></div>
+    <div><b>{{ act_totals.leads }}</b><span>leads they brought</span></div>
+    <div><b>{{ MONEY_C(act_totals.won_value, act_currency) }}</b><span>won from them ({{ act_totals.won }})</span></div>
+    <div><b>{{ act_totals.ret }}</b><span>return on cost</span></div>
+  </div>
+  {% for n in act_notes %}<p class="hint">{{ n }}</p>{% endfor %}
+
   <form method="POST" action="{{ crm_url('save_activities') }}" data-act-form>
     {{ csrf() }}
-    <table class="act-rows">
-      <thead><tr><th>Platform</th><th>Activity</th><th>Who</th><th>Where it stands</th><th></th></tr></thead>
-      {% for r in activities %}{{ act_row(r) }}{% endfor %}
-      {{ act_row(blank_activity) }}
-    </table>
-    <p class="hint">Where it stands as Ongoing shows as running on How we sell. Leave the campaign line empty for anything that is not a paid campaign.</p>
-    <div class="row">
-      <button type="button" class="cb" data-act-add>+ Add row</button>
-      <button class="cb primary">Save</button>
+    <div class="act-group act-new" data-act-new hidden>
+      <h3><i class="fa-solid fa-plus"></i> New</h3>
+      <div class="act-cards"></div>
+    </div>
+    {% for platform, rows in act_groups %}
+    <div class="act-group">
+      <h3><i class="{{ platform_icon(platform) }}"></i> {{ platform }} <span class="muted">{{ rows|length }}</span></h3>
+      <div class="act-cards">{% for r in rows %}{{ act_card(r) }}{% endfor %}</div>
+    </div>
+    {% else %}
+    <p class="muted act-empty">No activities yet. Press "Add an activity".</p>
+    {% endfor %}
+    <div class="act-save">
+      <span class="muted" data-act-said>Edit or add cards, then save the list.</span>
+      <button class="cb primary"><i class="fa-solid fa-floppy-disk"></i> Save</button>
     </div>
   </form>
+  <template data-act-template>{{ act_card(blank_activity, editing=true) }}</template>
+  <datalist id="act-platforms">{% for p in ('Facebook', 'Instagram', 'WhatsApp', 'Google', 'YouTube', 'Telegram', 'Website', 'E-mail', 'Events', 'Traditional') %}<option value="{{ p }}">{% endfor %}</datalist>
+  <datalist id="act-statuses">{% for s in ('Ongoing', 'Planned', 'Will engage soon', 'Needs work', 'Waiting', 'Paused', 'Done') %}<option value="{{ s }}">{% endfor %}</datalist>
 </section>

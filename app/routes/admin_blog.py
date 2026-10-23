@@ -26,6 +26,7 @@ from app.models import Blog, BlogMedia, BlogRevision, BlogTerm, User
 from app.routes.admin import _page_args, admin_bp, admin_required
 from app.services import blog_engine as be
 from app.services import blog_posts as bp
+from app.services import clock
 
 
 def _post_or_404(post_id):
@@ -520,7 +521,7 @@ def _save(post):
             bp.went_live(post)                # once per post: the first time it is on the site
         db.session.commit()
     if later and action == 'publish':
-        flash('Scheduled: on the site from %s (India time).' % (post.published_at + bp.IST).strftime('%d %b %Y, %H:%M'),
+        flash('Scheduled: on the site from %s %s.' % (clock.fmt(post.published_at, '%d %b %Y, %H:%M'), clock.label(post.published_at)),
               'success')
     else:
         flash({'publish': 'Published.', 'unpublish': 'Switched to draft: only admins can see it now.'}.get(

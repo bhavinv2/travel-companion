@@ -263,15 +263,15 @@ def test_the_newest_open_lead_is_the_one_that_gets_it(client, lead, inbound):
     assert CrmTouchpoint.query.filter_by(person_id=lead.person_id, channel='email', lead_id=None).count() == 1
 
 
-def test_an_unknown_sender_becomes_a_lead_from_the_email_source_waiting_for_an_admin(client, inbound):
+def test_an_unknown_sender_becomes_a_lead_filed_under_other(client, inbound):
     r = post_mail(client, **{'from': '"Priya Nair" <priya@new.example>', 'subject': 'Insurance for my parents',
                              'text': 'Please call me.'})
     assert r.get_json()['result'] == 'new_lead'
     person = CrmPerson.query.filter_by(email='priya@new.example').one()
     assert person.name == 'Priya Nair'
     lead = CrmLead.query.filter_by(person_id=person.id).one()
-    src = CrmSource.query.filter_by(key='email').one()
-    assert lead.source_id == src.id and src.status == 'unrouted' and lead.pipeline_id is None
+    src = CrmSource.query.filter_by(key='other').one()          # e-mail is not a source of its own (crm_sources)
+    assert lead.source_id == src.id
     tp = CrmTouchpoint.query.filter_by(person_id=person.id).one()
     assert (tp.channel, tp.direction) == ('email', 'in') and 'Please call me' in tp.body
     entry = crm_metrics.last_touches([person.id])[person.id]

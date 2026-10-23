@@ -220,7 +220,7 @@
               <button type="button" class="ge-btn" data-when="now">Now</button>
               <button type="button" class="ge-btn" data-when="clear">{{ 'Keep the date' if live else 'Immediately' }}</button>
             </div>
-            <small>India time. A time still to come schedules the post: it goes live then, and everybody is told then.
+            <small>{{ TZ() }}. A time still to come schedules the post: it goes live then, and everybody is told then.
               {% if live %}A live post's date can be moved back or forward.{% endif %}</small>
           </div>
           <div class="ge-row"><span>Address</span><a class="ge-val ge-addr" id="geAddr" href="{{ url_for('blog.blog_post', slug=d.slug) if live else '#' }}" {{ 'target=_blank rel=noopener' if live }}>/blog/<b>{{ d.slug or '…' }}</b></a></div>

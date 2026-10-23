@@ -6,7 +6,7 @@
 {%- if c.score is none -%}<span class="muted small">nothing was due</span>
 {%- else -%}<span class="score"><span class="bar"><i class="{{ 'low' if c.score < 50 else 'mid' if c.score < 85 else '' }}" style="width:{{ c.score }}%"></i></span><b>{{ c.score }}%</b></span>{%- endif -%}
 {%- endmacro %}
-{% macro hm(dt) -%}{{ (dt + IST_OFFSET).strftime('%I:%M %p').lstrip('0') if dt else '—' }}{%- endmacro %}
+{% macro hm(dt) -%}{{ LOCAL(dt).strftime('%I:%M %p').lstrip('0') if dt else '—' }}{%- endmacro %}
 {% macro num(n, href) -%}
 {%- if n %}<a href="{{ href }}">{{ n }}</a>{% else %}<span class="muted">0</span>{% endif -%}
 {%- endmacro %}
@@ -103,7 +103,7 @@
   <div class="card-head">
     <div class="t"><span class="ico">{{ initials(person.user.full_name) }}</span>
       <div><h2>{{ person.user.full_name }} — {{ 'today' if day == today else day.strftime('%d %B') }}</h2>
-        <p class="muted small">{% if person.first %}Working {{ hm(person.first) }} – {{ hm(person.last) }} (India time){% else %}No activity this day{% endif %}</p></div></div>
+        <p class="muted small">{% if person.first %}Working {{ hm(person.first) }} – {{ hm(person.last) }} ({{ TZ() }}){% else %}No activity this day{% endif %}</p></div></div>
     <a class="cb sm ghost" href="{{ crm_url('tracker', day=day.isoformat()) }}">Close</a>
   </div>
   <div class="row" style="margin-bottom:16px">

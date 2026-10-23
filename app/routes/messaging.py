@@ -197,7 +197,8 @@ def _screen_view(name):
         rules, rules_at = [], None
         if name == 'automations':                  # the strip is what was last seen: no call to the WhatsApp CRM
             rules, seen = crm.known_rule_conflicts()
-            rules_at = (seen + crm.IST).strftime('%d %b, %H:%M') if seen else None
+            from app.services import clock
+            rules_at = clock.fmt(seen, '%d %b, %H:%M') if seen else None
         return render_template('messaging/frame.html', rules=rules, rules_line=crm.rule_strip(rules),
                                rules_at=rules_at, heading=screen['heading'],
                                helper=INBOX_HELPER_ALONE if alone else screen['helper'],
