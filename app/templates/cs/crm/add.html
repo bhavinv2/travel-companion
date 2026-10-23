@@ -55,7 +55,7 @@
 {% else %}
 {# ---------------------------------------------------------------- someone new #}
 {% if ask %}
-<section class="card ask-card" style="max-width:900px">
+<section class="card ask-card" style="max-width:none">
   <p><b>{{ ask.text }}</b></p>
   <div class="row">
     {% if ask.kind == 'dup' %}
@@ -68,24 +68,56 @@
   </div>
 </section>
 {% endif %}
-<form method="POST" id="add-form" class="card" style="max-width:900px" data-add-lead>
+{# Someone new, in the order a person thinks it: where they came from (the lead sources' list, the imports left
+   out), what they want, who they are, what it may be worth, who looks after them, what they said. The card on the
+   right is how the lead will show on Leads -- where from, Manual, by whom, when (India time). #}
+<form method="POST" id="add-form" class="add-lead" data-add-lead>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
   {% if form.get('person_id') %}<input type="hidden" name="person_id" value="{{ form.get('person_id') }}"/>{% endif %}
-  <div class="stack">
-    <div>
-      <span class="lb">1. What do they want?</span>
+  <div class="al-main">
+    <section class="card al-step">
+      <header class="al-h"><span class="al-n">1</span><div><h2>Where did this lead come from?</h2>
+        <p class="muted">The one way they reached us. Every lead list shows it, so the team always knows.</p></div></header>
+      <div class="al-groups">
+        {% for g, gname, icon, rows_ in SOURCE_GROUPS(sources) %}
+        <fieldset class="al-group{{ ' al-wide' if rows_|length > 4 }}">
+          <legend><i class="fa-solid {{ icon }}" aria-hidden="true"></i> {{ gname }}</legend>
+          <div class="al-parts">
+          {% for part, part_rows in SOURCE_SECTIONS(rows_) %}
+          <div class="al-partbox">
+          {% if part %}<p class="al-part">{{ part }}</p>{% endif %}
+          <div class="al-tiles">
+            {% for s in part_rows %}
+            <label class="al-src"><input type="radio" name="source" value="{{ s.key }}" data-product="{{ s.product if s.product != 'GEN' else '' }}"
+                   data-label="{{ gname }} › {{ (part ~ ' › ') if part }}{{ SOURCE_SHORT(s) }}" required{{ ' checked' if form.get('source') == s.key }}/>
+              <span>{{ SOURCE_SHORT(s) }}</span></label>
+            {% endfor %}
+          </div>
+          </div>
+          {% endfor %}
+          </div>
+        </fieldset>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="card al-step">
+      <header class="al-h"><span class="al-n">2</span><div><h2>What do they want?</h2>
+        <p class="muted">Filled in from where they came from when that says it; change it if they asked about something else.</p></div></header>
       <div class="choice-tiles">
         {% for p in tiles %}
-        <label><input type="radio" name="product" value="{{ p.code }}" data-price="{{ PLAIN_AMOUNT(p.price) }}" data-currency="{{ p.currency }}"{{ ' checked' if chosen == p.code }}/> <i class="fa-solid {{ p.icon }}" aria-hidden="true"></i> {{ p.name }}</label>
+        <label><input type="radio" name="product" value="{{ p.code }}" data-price="{{ PLAIN_AMOUNT(p.price) }}" data-currency="{{ p.currency }}" data-label="{{ p.name }}"{{ ' checked' if chosen == p.code }}/> <i class="fa-solid {{ p.icon }}" aria-hidden="true"></i> {{ p.name }}</label>
         {% endfor %}
-        <label><input type="radio" name="product" value=""{{ ' checked' if chosen == '' and form.get('product') is not none }}/> Something else</label>
+        <label><input type="radio" name="product" value="" data-label="Something else"{{ ' checked' if chosen == '' and form.get('product') is not none }}/> Something else</label>
       </div>
-    </div>
-    <div>
-      <span class="lb">2. Who are they?</span>
+    </section>
+
+    <section class="card al-step">
+      <header class="al-h"><span class="al-n">3</span><div><h2>Who are they?</h2>
+        <p class="muted">A phone number, an e-mail or an Instagram / Facebook handle — at least one, so we can follow up.</p></div></header>
       <div class="crm-form">
         <div><label class="lb" for="a-name">Name</label>
-          <input type="text" id="a-name" name="name" value="{{ form.get('name', '') }}" maxlength="120" placeholder="e.g. Lakshmi Rao" autofocus/></div>
+          <input type="text" id="a-name" name="name" value="{{ form.get('name', '') }}" maxlength="120" placeholder="e.g. Lakshmi Rao"/></div>
         <div>{{ phone_field('phone', value=form.get('phone', ''), iso=form.get('phone_cc', ''), label='Phone / WhatsApp') }}</div>
         <div><label class="lb" for="a-email">E-mail <small class="muted">(optional)</small></label>
           <input type="email" id="a-email" name="email" value="{{ form.get('email', '') }}" maxlength="255"/></div>
@@ -102,39 +134,58 @@
           {{ detail_input(f, form.get('detail__%s__%s' % (code or 'none', f.key)), attrs='name="detail__' ~ (code or 'none') ~ '__' ~ f.key ~ '"') }}</div>{% endfor %}
       </div>
       {% endfor %}
-      <p class="hint">A phone number, an e-mail or an Instagram / Facebook handle — at least one, so we can follow up.</p>
-    </div>
-    <div class="crm-form">
-      <div><label class="lb" for="a-src">3. Where did they come from?</label>
-        <select id="a-src" name="source" required>
-          <option value="">Choose…</option>
-          {% for s in sources %}<option value="{{ s.key }}"{{ ' selected' if form.get('source') == s.key }}>{{ SOURCE_NAME(s.name) }}</option>{% endfor %}
-        </select></div>
-      <div><label class="lb" for="a-amount">What could it be worth? <small class="muted">(optional)</small></label>
-        <div class="row" style="gap:6px;flex-wrap:nowrap">
-          <input type="text" inputmode="decimal" id="a-amount" name="amount" data-add-amount value="{{ form.get('amount', '') }}" placeholder="e.g. 18500" autocomplete="off"/>
-          <select name="currency" data-add-currency aria-label="Currency" style="max-width:90px">
-            {% for c in CURRENCY_CHOICES() %}<option value="{{ c }}"{{ ' selected' if form.get('currency') == c }}>{{ c }}</option>{% endfor %}
-          </select></div></div>
-      <div><label class="lb" for="a-close">Should close by <small class="muted">(optional)</small></label>
-        <input type="date" id="a-close" name="close_date" value="{{ form.get('close_date', '') }}"/>
-        <small class="muted">Left empty, it is worked out from the trip date or the product.</small></div>
-      <div><span class="lb">4. Who looks after them?</span>
-        {% set oc = form.get('owner') or 'me' %}
-        <div class="choice-tiles">
-          <label><input type="radio" name="owner" value="me"{{ ' checked' if oc == 'me' }}/> Me</label>
-          <label><input type="radio" name="owner" value="auto"{{ ' checked' if oc == 'auto' }}/> Whoever is least busy</label>
-          <label><input type="radio" name="owner" value="pick"{{ ' checked' if oc == 'pick' }}/> This person:
-            <select name="owner_id" data-owner-pick aria-label="Choose who looks after them">
-              <option value="">Choose…</option>
-              {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if form.get('owner_id') == u.id|string }}>{{ u.full_name }}{{ ' (you)' if u.id == current_user.id }}</option>{% endfor %}
-            </select></label>
-        </div></div>
-    </div>
-    <div><label class="lb" for="a-note">5. What did they say or ask?</label>
-      <textarea id="a-note" name="note" rows="4" placeholder="e.g. Parents (68 and 72) flying Hyderabad to Dallas on 12 Dec, want insurance with pre-existing cover">{{ form.get('note', '') }}</textarea></div>
-    <div class="row end"><button class="cb primary big"><i class="fa-solid fa-user-plus"></i> Add the lead</button></div>
+    </section>
+
+    <section class="card al-step">
+      <header class="al-h"><span class="al-n">4</span><div><h2>What could it be worth?</h2>
+        <p class="muted">Optional. Left empty, the close date is worked out from the trip date or the product.</p></div></header>
+      <div class="crm-form">
+        <div><label class="lb" for="a-amount">Value</label>
+          <div class="row" style="gap:6px;flex-wrap:nowrap">
+            <input type="text" inputmode="decimal" id="a-amount" name="amount" data-add-amount value="{{ form.get('amount', '') }}" placeholder="e.g. 18500" autocomplete="off" style="flex:1;min-width:0"/>
+            <select name="currency" data-add-currency aria-label="Currency" style="flex:none;width:104px">
+              {% for c in CURRENCY_CHOICES() %}<option value="{{ c }}"{{ ' selected' if form.get('currency') == c }}>{{ c }}</option>{% endfor %}
+            </select></div></div>
+        <div><label class="lb" for="a-close">Should close by</label>
+          <input type="date" id="a-close" name="close_date" value="{{ form.get('close_date', '') }}"/></div>
+      </div>
+    </section>
+
+    <section class="card al-step">
+      <header class="al-h"><span class="al-n">5</span><div><h2>Who looks after them?</h2>
+        <p class="muted">Nobody yet leaves it for the team to take: everyone who could take it is told.</p></div></header>
+      {% set oc = form.get('owner') or 'none' %}
+      <div class="choice-tiles">
+        <label><input type="radio" name="owner" value="none" data-label="Nobody yet"{{ ' checked' if oc == 'none' }}/> Nobody yet</label>
+        <label><input type="radio" name="owner" value="me" data-label="{{ current_user.full_name }} (you)"{{ ' checked' if oc == 'me' }}/> Me</label>
+        <label><input type="radio" name="owner" value="auto" data-label="Whoever is least busy"{{ ' checked' if oc == 'auto' }}/> Whoever is least busy</label>
+        <label><input type="radio" name="owner" value="pick" data-label="The person chosen"{{ ' checked' if oc == 'pick' }}/> This person:
+          <select name="owner_id" data-owner-pick aria-label="Choose who looks after them">
+            <option value="">Choose…</option>
+            {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if form.get('owner_id') == u.id|string }}>{{ u.full_name }}{{ ' (you)' if u.id == current_user.id }}</option>{% endfor %}
+          </select></label>
+      </div>
+    </section>
+
+    <section class="card al-step">
+      <header class="al-h"><span class="al-n">6</span><div><h2>What did they say or ask?</h2></div></header>
+      <textarea id="a-note" name="note" rows="4" aria-label="What did they say or ask?" placeholder="e.g. Parents (68 and 72) flying Hyderabad to Dallas on 12 Dec, want insurance with pre-existing cover">{{ form.get('note', '') }}</textarea>
+    </section>
   </div>
+
+  <aside class="al-side">
+    <div class="card al-sum">
+      <h3>How it will show on Leads</h3>
+      <dl>
+        <dt>Came from</dt><dd data-al-src class="muted">Choose where they came from</dd>
+        <dt>How it came</dt><dd><span class="cf-how cf-manual">Manual</span> added by {{ current_user.full_name }}</dd>
+        <dt>Added</dt><dd>{{ ADD_TIME_IST() }} IST <small class="muted">(when you add it)</small></dd>
+        <dt>Wants</dt><dd data-al-product class="muted">—</dd>
+        <dt>Looked after by</dt><dd data-al-owner>Nobody yet</dd>
+      </dl>
+      <button class="cb primary big al-go"><i class="fa-solid fa-user-plus"></i> Add the lead</button>
+    </div>
+  </aside>
 </form>
 {% endif %}
 {% endblock %}

@@ -747,6 +747,26 @@ class Blog(db.Model):
         words = len(re.sub(r'<[^>]+>', ' ', self.content or '').split())
         return max(1, round(words / 200))
 
+    def pictures(self, n=5):
+        """[(address, description)]: the cover, then the post's own pictures, each once, at most `n` -- the
+        pictures a reader swipes through on the blog's list."""
+        import re
+        from html import unescape
+        found = [(self.cover_image_url, self.cover_alt)]
+        for tag in re.findall(r'<img\b[^>]*>', self.content or ''):
+            src, alt = re.search(r'\bsrc="([^"]+)"', tag), re.search(r'\balt="([^"]*)"', tag)
+            if src:
+                found.append((unescape(src.group(1)), unescape(alt.group(1)) if alt else ''))
+        out, seen = [], set()
+        for src, alt in found:
+            key = (src or '').split('?')[0].rstrip('/').rsplit('/', 1)[-1]        # one picture, whatever its address
+            if src and key not in seen:
+                seen.add(key)
+                out.append((src, alt or ''))
+            if len(out) >= n:
+                break
+        return out
+
     def excerpt(self, length=200):
         if not self.content:
             return ''
@@ -1731,8 +1751,8 @@ def _back_in_the_queue_is_new_again(session, flush_context, instances):
 CRM_PRODUCTS = ('TC', 'TI', 'SH', 'GH', 'VC', 'GEN')
 CRM_PRODUCT_LABELS = {'TC': 'Travel Companion', 'TI': 'Travel Insurance', 'SH': 'Sahayak',
                       'GH': 'Gift Health', 'VC': 'Virtual Consultation', 'GEN': 'General'}
-CRM_SOURCE_KINDS = ('form', 'popup', 'chat', 'ads', 'import', 'manual', 'api')
-CRM_SOURCE_KIND_LABELS = {'form': 'Landing-page form', 'popup': 'Pop-up', 'chat': 'Chat / messaging',
+CRM_SOURCE_KINDS = ('form', 'popup', 'chat', 'call', 'ads', 'import', 'manual', 'api')
+CRM_SOURCE_KIND_LABELS = {'form': 'Landing-page form', 'popup': 'Pop-up', 'chat': 'Chat / messaging', 'call': 'Phone call',
                           'ads': 'Ad lead form', 'import': 'Import', 'manual': 'Added by staff',
                           'api': 'Partner site (API)'}
 # live: leads start their pipeline and get their first message. paused: leads are kept, nothing

@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+{% from '_page_head.html' import page_head %}
+{% block title %}Health – Admin{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/crm.css') }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/health.css') }}"/>{% endblock %}
+
+{# Overview › Health (services/health.py): the master screen. What needs somebody now at the top, worst first;
+   then one part per product, each a row of numbers (a coloured edge and a word say its state) and its charts.
+   Every number opens the screen behind it, for whoever may open that screen. #}
+
+{% macro state_word(s) -%}
+{%- if s == 'bad' %}<span class="hl-st bad"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> Act now</span>
+{%- elif s == 'warn' %}<span class="hl-st warn"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i> Waiting</span>
+{%- elif s == 'ok' %}<span class="hl-st ok"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Fine</span>
+{%- endif %}
+{%- endmacro %}
+
+{% macro tile(t) -%}
+{%- set tag = 'a' if t.href else 'div' -%}
+<{{ tag }} class="hl-tile {{ t.state }}"{% if t.href %} href="{{ t.href }}"{% endif %}>
+  <span class="hl-tl">{% if t.icon %}<i class="{{ 'fa-solid ' if not t.icon.startswith('fa-brands') }}{{ t.icon }}" aria-hidden="true"></i>{% endif %} {{ t.label }}</span>
+  <b class="hl-n">{{ '{:,}'.format(t.n) if t.n is number else t.n }}</b>
+  <span class="hl-foot">{{ state_word(t.state) }}{% if t.note %}<span class="hl-note">{{ t.note }}</span>{% endif %}</span>
+</{{ tag }}>
+{%- endmacro %}
+
+{# a column a day: hover a column for its day and count; the same numbers are in the table under it #}
+{% macro day_chart(c, what) -%}
+<figure class="hl-chart">
+  <figcaption><b>{{ what|capitalize }} a day</b> <span class="muted">· {{ '{:,}'.format(c.total) }} in {{ h.days }} days{% if c.peak %}, the most {{ c.peak.n }} on {{ c.peak.label }}{% endif %}</span></figcaption>
+  <div class="hl-plotwrap">
+    <div class="hl-y" aria-hidden="true">{% for t in c.ticks %}<span>{{ t }}</span>{% endfor %}</div>
+    <div class="hl-plot" role="img" aria-label="{{ what|capitalize }} a day over the last {{ h.days }} days: {{ c.total }} in all{% if c.peak %}, the most {{ c.peak.n }} on {{ c.peak.label }}{% endif %}.">
+      <i class="hl-grid" style="bottom:100%"></i><i class="hl-grid" style="bottom:50%"></i>
+      <div class="hl-cols{{ ' dense' if c.points|length > 45 }}">
+        {% for p in c.points %}<span class="hl-col{{ ' today' if loop.last }}" data-tip="{{ p.n }} · {{ p.label }}"><i style="height:{{ p.pct }}%"></i></span>{% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="hl-x" aria-hidden="true"><span>{{ c.first }}</span><span>{{ c.mid }}</span><span>{{ c.last }}</span></div>
+  <details class="hl-table"><summary>Show as a table</summary>
+    <table><thead><tr><th>Day</th><th>{{ what|capitalize }}</th></tr></thead>
+      <tbody>{% for p in c.points|reverse %}<tr><td>{{ p.label }}</td><td>{{ p.n }}</td></tr>{% endfor %}</tbody></table>
+  </details>
+</figure>
+{%- endmacro %}
+
+{# one bar per row, its number at the tip; `kind`: what the rows are (stages, owners, posts, bookings), for the
+   colours that mean something there -- a stage's own colour, amber for waiting, grey for finished #}
+{% macro bars(title, rows, empty='Nothing in these days.', hint=none, kind='') -%}
+<div class="hl-box">
+  <h3>{{ title }}{% if hint %} <span class="tt-i" tabindex="0" title="{{ hint }}" aria-label="{{ hint }}">ⓘ</span>{% endif %}</h3>
+  {% if rows %}
+  <ul class="hl-bars {{ kind }}">
+    {% for b in rows %}
+    <li class="{{ ('r-' ~ b.key) if kind and b.key }}">
+      {% if b.href %}<a href="{{ b.href }}">{{ b.label }}</a>{% else %}<span>{{ b.label }}</span>{% endif %}
+      <span class="hl-track" data-tip="{{ b.n }} ({{ b.share }}%) · {{ b.label }}"><i style="width:{{ b.pct }}%"></i></span>
+      <b>{{ '{:,}'.format(b.n) }}</b>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted small">{{ empty }}</p>{% endif %}
+</div>
+{%- endmacro %}
+
+{% block content %}
+<div class="admin-page">
+  {% include 'admin/_sidebar.html' %}
+  <main class="admin-main crm hl">
+    {{ page_head('Health', 'fa-solid fa-heart-pulse', 'How every part of the portal is doing, and what needs somebody now.',
+                 help=['The list at the top gathers everything waiting on somebody, the most urgent first. Each line opens the screen to fix it.',
+                       'Every number opens the screen behind it. A red edge means act now, amber means waiting, green means nothing is waiting.',
+                       '"In 7 / 30 / 90 days" numbers and the charts use the period you pick; the rest is how things stand right now.',
+                       'Times and days are India time. Counted fresh each time the page opens.']) }}
+
+    <div class="hl-bar">
+      <div class="seg" role="group" aria-label="Period">
+        {% for d in h.periods %}<a href="{{ url_for('admin.health', days=d) }}" class="{{ 'on' if d == h.days }}"{% if d == h.days %} aria-current="true"{% endif %}>{{ d }} days</a>{% endfor %}
+      </div>
+      <nav class="hl-jump" aria-label="Parts of this page">
+        {% for p in h.parts %}<a href="#hl-{{ p.key }}"><i class="fa-solid {{ p.icon }}" aria-hidden="true"></i> {{ p.label }}</a>{% endfor %}
+      </nav>
+      <span class="muted small hl-at">As of {{ h.at }} IST · <a href="{{ url_for('admin.health', days=h.days) }}">Refresh</a></span>
+    </div>
+
+    {# ============================================================ what needs somebody now #}
+    <section class="hl-now {{ h.state }}" aria-labelledby="hl-now-h">
+      <div class="hl-now-head">
+        <span class="hl-now-ico" aria-hidden="true"><i class="fa-solid {{ 'fa-circle-exclamation' if h.state == 'bad' else 'fa-hourglass-half' if h.state == 'warn' else 'fa-circle-check' }}"></i></span>
+        <div>
+          <h2 id="hl-now-h">{% if h.attention %}{{ h.attention|length }} thing{{ '' if h.attention|length == 1 else 's' }} need{{ 's' if h.attention|length == 1 }} somebody{% else %}All good: nothing is waiting{% endif %}</h2>
+          <p class="muted">{% if h.state == 'bad' %}Start with the red ones: a customer or a request is waiting.{% elif h.state == 'warn' %}Nothing urgent, but these are waiting.{% else %}Every queue below is empty.{% endif %}</p>
+        </div>
+      </div>
+      {% if h.attention %}
+      <ul class="hl-list">
+        {% for a in h.attention %}
+        <li class="{{ a.state }}">
+          {{ state_word(a.state) }}
+          <span class="hl-area">{{ a.area }}</span>
+          <span class="hl-what">{{ a.text }}</span>
+          {% if a.href %}<a class="cb sm" href="{{ a.href }}">Open <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </section>
+
+    {% for p in h.parts %}
+    <section class="card hl-part" id="hl-{{ p.key }}" aria-labelledby="hl-{{ p.key }}-h">
+      <div class="card-head">
+        <div class="t"><span class="ico"><i class="fa-solid {{ p.icon }}" aria-hidden="true"></i></span><h2 id="hl-{{ p.key }}-h">{{ p.label }}</h2></div>
+        {% if p.href %}<a class="cb sm quiet" href="{{ p.href }}">Open Leads <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>{% endif %}
+      </div>
+      <div class="hl-tiles">{% for t in p.tiles %}{{ tile(t) }}{% endfor %}</div>
+
+      {% if p.key == 'sales' %}
+      <div class="hl-row two">
+        {{ day_chart(p.daily, 'new leads') }}
+        {{ bars('Where they came from', p.groups, hint='Leads that came in during these ' ~ h.days ~ ' days, by the groups on Lead sources. Click one to see them.') }}
+      </div>
+      <div class="hl-row three">
+        {{ bars('How they came', p.origins, hint='By itself (a form, a message, a post), added by one of us, or brought in from a list.') }}
+        {{ bars('Product', p.products, hint='Leads that came in during these ' ~ h.days ~ ' days, by product.') }}
+        {{ bars('Open leads by stage', p.roles, empty='No open leads.', hint='Every open lead now, by the kind of stage it is in.', kind='stages') }}
+      </div>
+      <div class="hl-row">
+        {{ bars('Who has the open leads', p.owners, empty='No open leads.', hint='Every open lead now, by who looks after it. Not given to anyone comes first.', kind='owners') }}
+      </div>
+      {% elif p.key == 'users' %}
+      <div class="hl-row">{{ day_chart(p.daily, 'new accounts') }}</div>
+      {% elif p.key == 'companion' %}
+      <div class="hl-row">{{ bars('Trip posts by state', p.states, empty='No trip posts yet.', hint='Every trip post now.', kind='posts') }}</div>
+      {% elif p.key == 'insurance' %}
+      <div class="hl-row">{{ bars('Quote requests by plan', p.plans, hint='Quote requests in these ' ~ h.days ~ ' days, by the kind of insurance.') }}</div>
+      {% elif p.key == 'sahayak' %}
+      <div class="hl-row">{{ bars('Bookings by state', p.states, empty='No bookings yet.', hint='Every Sahayak booking now.', kind='bookings') }}</div>
+      {% endif %}
+    </section>
+    {% endfor %}
+  </main>
+</div>
+<div class="hl-tip" id="hl-tip" role="tooltip" hidden></div>
+{% endblock %}
+{% block extra_js %}<script src="{{ url_for('static', filename='js/health.js') }}" defer></script>{% endblock %}

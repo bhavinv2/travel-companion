@@ -74,28 +74,32 @@ SCRAPER = tuple('scraper.' + n for n in (
     'run_status', 'cancel_run', 'create_posts', 'skip_rows', 'row_detail', 'row_edit', 'export_run',
     'export_recipe'))
 
-# the reports gathered under Overview's one Reports line, as tabs, in this order (TAB_GROUPS['reports'])
-REPORT_TABS = (('crm_insights', 'Sales results'), ('crm_forecast', 'Forecast'), ('crm_report_builder', 'Report builder'),
-               ('crm_tracker', 'Team today'), ('crm_team', 'Team analysis'), ('dashboard', 'Site dashboard'),
-               ('metrics', 'Match quality'))
-REPORT_PAGES = tuple(k for k, _ in REPORT_TABS)
+# the reports (the Reports menu), in the order an old "All reports" link (/admin/reports) tries them
+REPORT_PAGES = ('crm_insights', 'crm_forecast', 'crm_report_builder', 'crm_tracker', 'crm_team', 'dashboard')
 
 MODULES = [
     {'key': 'console', 'label': 'Overview', 'icon': 'fa-gauge',
-     'desc': 'Service to-do, notifications and the site dashboard.',
+     'desc': 'Health, Service to-do, notifications and the site dashboard.',
      'pages': [
-         # one menu line for every report, All reports (TAB_GROUPS['reports']): whoever may open any of them has
-         # it; it opens the first one they may open, and the reports are its tabs
+         # the master screen: how every part of the portal is doing, and what needs somebody now (services/health.py)
+         _page('health', 'Health', 'fa-heart-pulse', ['admin.health'], admin='admin.health',
+               desc='Everything at a glance: leads and who has them, follow-ups, enquiries, bookings, posts, '
+                    'users, WhatsApp and the blog -- and what needs somebody now.',
+               tip='Everything at a glance, and what needs somebody now.'),
+         # what an old "All reports" link opens: the first report this person may open (no line of its own)
          _page('reports', 'All reports', 'fa-chart-pie', ['admin.reports', 'cs.reports'], admin='admin.reports',
-               cs='cs.reports', with_=REPORT_PAGES,
-               tip='Every report in one place: sales results, forecast, your own reports, team today, the site '
-                   'numbers and match quality.'),
-         _page('dashboard', 'Site dashboard', 'fa-gauge', ['admin.dashboard'], admin='admin.dashboard', nav=False,
+               cs='cs.reports', nav=False, with_=REPORT_PAGES),
+         _page('dashboard', 'Site dashboard', 'fa-gauge', ['admin.dashboard'], admin='admin.dashboard',
                desc='Numbers across every product on the site.', tip='Numbers across every product on the site.'),
+         # every screen, what it is for, by area -- built from this file, so it is never out of date. Whoever
+         # has any page has it (its `with` is set below, once every page is known)
+         _page('guide', 'Screen guide', 'fa-book-open', ['admin.screen_guide'], admin='admin.screen_guide',
+               tip='Every screen, what it is for, by area.'),
          _page('home', 'Service to-do', 'fa-inbox', ['cs.home'], cs='cs.home',
                desc='What is waiting for customer service.'),
          _page('notifications', 'Notifications', 'fa-bell',
-               ['cs.notifications', 'cs.notifications_read', 'cs.notifications_send'], cs='cs.notifications'),
+               ['cs.notifications', 'cs.notifications_read', 'cs.notifications_send'], cs='cs.notifications',
+               desc='Your notifications, and sending one to a traveller.'),
      ]},
     {'key': 'crm', 'label': 'Sales', 'icon': 'fa-filter-circle-dollar',
      'desc': 'Leads, follow-ups, contacts, quick replies, the half-hourly check, reports and set-up.',
@@ -127,7 +131,7 @@ MODULES = [
                admin='admin_crm.checks', cs='crm.checks', nav=False, with_=('crm_today',), grant=True,
                tip='Tick each inbox every half hour; connected ones tick themselves.'),
          _page('crm_process', 'How we sell', 'fa-route', _both('process'),
-               admin='admin_crm.process', cs='crm.process', nav=False,
+               admin='admin_crm.process', cs='crm.process',
                with_=('crm_today', 'crm_board', 'crm_people'), grant=True,
                tip="Our sales path per product, with today's numbers."),
          _page('crm_quick', 'Messages', 'fa-bolt',
@@ -135,22 +139,23 @@ MODULES = [
                admin='admin_crm.quick_replies', cs='crm.quick_replies',
                with_=('wa_templates', 'wa_broadcasts', 'wa_tags'), grant=True,
                tip='Quick replies, WhatsApp templates, broadcasts and tags.'),
-         _page('crm_tracker', 'Team today', 'fa-people-line', _both('tracker'), admin='admin_crm.tracker', nav=False,
-               desc="Each person's checklist and timeline, day by day.", tip="How each person's day is going."),
+         _page('crm_tracker', 'Team today', 'fa-people-line', _both('tracker'), admin='admin_crm.tracker',
+               desc="Each person's checklist and timeline, day by day.",
+               tip="How each person's day is going; the switch at the top right compares people (Team analysis)."),
          # the people side by side over a period -- checks, hours, work, speed, results: whoever has Team today
          _page('crm_team', 'Team analysis', 'fa-people-arrows', _both('team_analysis'),
                admin='admin_crm.team_analysis', nav=False, with_=('crm_tracker',),
                tip='Compare people over any period: inbox checks, hours, follow-ups, messages, calls, speed and results.'),
          _page('crm_insights', 'Sales results', 'fa-chart-line', _both('insights', 'insights_recalculate') + ('messaging.overview',),
-               admin='admin_crm.insights', nav=False,
-               tip='New leads, replies and customers won, by product, source and person.'),
+               admin='admin_crm.insights',
+               tip='New leads, replies and customers won; the switch at the top right shows the Forecast.'),
          _page('crm_forecast', 'Forecast', 'fa-bullseye', _both('forecast', 'forecast_csv'),
                admin='admin_crm.forecast', cs='crm.forecast', nav=False, with_=('crm_insights',), grant=True,
                desc='Money won against target, and what is committed, for the month.',
                tip='Money won against target, and what is committed, for the month or quarter.'),
          _page('crm_report_builder', 'Report builder', 'fa-chart-column',
                _both('report_builder', 'report_builder_csv', 'report_save', 'report_pin', 'report_move', 'report_delete'),
-               admin='admin_crm.report_builder', cs='crm.report_builder', nav=False, with_=('crm_insights',), grant=True,
+               admin='admin_crm.report_builder', cs='crm.report_builder', with_=('crm_insights',), grant=True,
                desc='Build your own report: what to count, how to group it, a chart and a table to download.',
                tip='Build your own report, save it, and pin it to Sales results.'),
          _page('crm_auto', 'Automation', 'fa-list-check', _both('automatic', 'ai_switch'), admin='admin_crm.automatic',
@@ -170,8 +175,8 @@ MODULES = [
                admin='admin_crm.pipelines', tip='Stages and follow-ups for each product.'),
          _page('crm_sources', 'Lead sources', 'fa-door-open',
                _both('sources', 'save_source', 'save_process', 'setup', 'save_inboxes', 'save_activities',
-                     'source_tag_check'),
-               admin='admin_crm.sources', tip='Forms and channels, who gets their leads, the inboxes to check.'),
+                     'source_tag_check', 'standard_inboxes', 'move_source'),
+               admin='admin_crm.sources', tip='The ways leads reach us, who gets them, the inboxes to check.'),
          _page('crm_targets', 'Targets', 'fa-bullseye', _both('targets', 'targets_save', 'targets_copy'),
                admin='admin_crm.targets', with_=('crm_tracker',), grant=True,
                desc='What each person and team aims for each month. Comes with Team today: a team lead sets the targets of their teams.',
@@ -199,25 +204,34 @@ MODULES = [
          _page('posts', 'All posts', 'fa-list',
                ['cs.posts', 'cs.post_detail', 'cs.post_tree', 'cs.edit_post', 'cs.publish_post', 'cs.close_post',
                 'cs.reopen_post', 'cs.issue_claim_link', 'cs.log_manual_event', 'cs.check_duplicates'],
-               cs='cs.posts'),
-         _page('matches', 'Match queue', 'fa-handshake', MATCHES, cs='matches.cs_match_queue'),
-         _page('metrics', 'Match quality', 'fa-chart-simple', ['cs.metrics'], cs='cs.metrics', nav=False,
-               desc='How matches turn out, and hints for the match weights.'),
-         _page('new', 'New post', 'fa-plus', ['cs.new_post'], cs='cs.new_post'),
+               cs='cs.posts',
+               desc='Every trip post: find, open, edit, publish, close or reopen one, and send a claim link.'),
+         _page('matches', 'Match queue', 'fa-handshake', MATCHES, cs='matches.cs_match_queue',
+               desc='Posts with matches waiting for customer service: tell both sides, or dismiss.'),
+         _page('metrics', 'Match quality', 'fa-chart-simple', ['cs.metrics'], cs='cs.metrics',
+               desc='How matches turn out, and hints for the match weights.',
+               tip='How matches turn out, and hints for the match weights.'),
+         _page('new', 'New post', 'fa-plus', ['cs.new_post'], cs='cs.new_post',
+               desc='Post a trip for somebody who called or wrote in.'),
          _page('import', 'Import', 'fa-file-import', ['imports.import_page', 'imports.import_template'],
-               cs='imports.import_page'),
+               cs='imports.import_page',
+               desc='Bring in many trip posts at once from a spreadsheet.'),
          _page('scraper', 'Scraper', 'fa-spider', SCRAPER, cs='scraper.recipes',
                desc='Bring posts in from other sites.'),
          _page('listings', 'Listings', 'fa-rectangle-list', ['admin.listings', 'admin.disable_listing'],
-               admin='admin.listings'),
+               admin='admin.listings',
+               desc='Every listing on the companion site; switch one off.'),
          _page('voices_contact', 'Contact us', 'fa-envelope', VOICES, admin='admin.voices', cs='cs.voices',
-               args={'tab': 'contact', 'topic': 'companion'}),
+               args={'tab': 'contact', 'topic': 'companion'},
+               desc='Contact us messages about Travel Companion.'),
          _page('voices_feedback', 'Feedback', 'fa-star',
                VOICES + ('cs.feedback_action', 'admin.feedback', 'admin.approve_feedback',
                          'admin.feature_feedback', 'admin.reject_feedback'),
-               admin='admin.voices', cs='cs.voices', args={'tab': 'feedback'}),
+               admin='admin.voices', cs='cs.voices', args={'tab': 'feedback'},
+               desc='Reviews travellers left: approve, feature or turn them down.'),
          _page('voices_report', 'Reports', 'fa-flag-checkered', VOICES + ('cs.report_action',),
-               admin='admin.voices', cs='cs.voices', args={'tab': 'report'}),
+               admin='admin.voices', cs='cs.voices', args={'tab': 'report'},
+               desc='Matches a traveller reported as a problem.'),
          _page('landing', 'Landing page', 'fa-flag', ['admin.landing_page'], admin='admin.landing_page',
                desc='Contact numbers, support addresses and colours.'),
          # The blog is a workspace of its own (routes/admin_blog.py, like WordPress): the lists on one
@@ -237,34 +251,44 @@ MODULES = [
          # Word documents in, draft posts out (services/blog_engine.py): whoever may write a post may
          # import one, so it comes with "New blog post" rather than being granted on its own
          _page('blog_import', 'Import blog posts', 'fa-file-import', ['admin.blog_import', 'admin.blog_template'],
-               admin='admin.blog_import', with_=('blog',)),
+               admin='admin.blog_import', with_=('blog',),
+               desc='Turn Word documents into draft blog posts.'),
          _page('help', 'Help & FAQ', 'fa-circle-question', ['admin.help_center_page'],
-               admin='admin.help_center_page'),
+               admin='admin.help_center_page',
+               desc='The questions and answers on the Travel Companion help page.'),
      ]},
     {'key': 'insurance', 'label': 'Travel Insurance', 'icon': 'fa-shield-heart',
      'desc': 'Quote leads, enquiries and the insurance page.',
      'pages': [
          _page('insurance', 'Quote leads', 'fa-shield-heart', ['admin.insurance_quotes', 'cs.insurance_quotes'],
-               admin='admin.insurance_quotes', cs='cs.insurance_quotes'),
+               admin='admin.insurance_quotes', cs='cs.insurance_quotes',
+               desc='Every travel insurance quote request, and whether the quote went out.'),
          _page('voices_insurance', 'Enquiries', 'fa-envelope', VOICES, admin='admin.voices', cs='cs.voices',
-               args={'tab': 'contact', 'topic': 'insurance'}),
+               args={'tab': 'contact', 'topic': 'insurance'},
+               desc='Contact us messages about travel insurance.'),
          _page('insurance_page', 'Page content', 'fa-quote-left', ['admin.insurance_page_content'],
-               admin='admin.insurance_page_content'),
+               admin='admin.insurance_page_content',
+               desc='The words on the travel insurance page.'),
          _page('help_insurance', 'Help & FAQ', 'fa-circle-question', ['admin.help_center_page'],
-               admin='admin.help_center_page', args={'site': 'insurance'}),
+               admin='admin.help_center_page', args={'site': 'insurance'},
+               desc='The questions and answers on the travel insurance help page.'),
      ]},
     {'key': 'sahayak', 'label': 'Sahayak', 'icon': 'fa-house-medical',
      'desc': 'Home-care bookings, nurse applications and the service list.',
      'pages': [
          _page('sahayak', 'Bookings', 'fa-house-medical',
                ['admin.sahayak_bookings', 'cs.sahayak_bookings', 'cs.sahayak_update'],
-               admin='admin.sahayak_bookings', cs='cs.sahayak_bookings'),
+               admin='admin.sahayak_bookings', cs='cs.sahayak_bookings',
+               desc='Home-care requests: call, give one to somebody by name, mark it done.'),
          _page('voices_sahayak', 'Applications & enquiries', 'fa-user-plus', VOICES, admin='admin.voices',
-               cs='cs.voices', args={'tab': 'contact', 'topic': 'sahayak'}),
+               cs='cs.voices', args={'tab': 'contact', 'topic': 'sahayak'},
+               desc='Nurse and carer applications, and Sahayak enquiries.'),
          _page('sahayak_services', 'Services & prices', 'fa-list-check', ['admin.sahayak_services'],
-               admin='admin.sahayak_services'),
+               admin='admin.sahayak_services',
+               desc='The home-care services we offer, and their prices.'),
          _page('help_sahayak', 'Help & FAQ', 'fa-circle-question', ['admin.help_center_page'],
-               admin='admin.help_center_page', args={'site': 'sahayak'}),
+               admin='admin.help_center_page', args={'site': 'sahayak'},
+               desc='The questions and answers on the Sahayak help page.'),
      ]},
     {'key': 'whatsapp', 'label': 'WhatsApp messaging', 'icon': 'fa-brands fa-whatsapp',
      'desc': 'The WhatsApp screens inside the portal: chats, templates, broadcasts, tags, reply rules, chatbot, '
@@ -301,27 +325,34 @@ MODULES = [
      'desc': 'Accounts, wording, dropdowns, notifications and colours for the whole site.',
      'pages': [
          _page('voices_general', 'Contact us (all services)', 'fa-inbox', VOICES, admin='admin.voices',
-               cs='cs.voices', args={'tab': 'contact', 'topic': 'general'}),
+               cs='cs.voices', args={'tab': 'contact', 'topic': 'general'},
+               desc='Contact us messages about anything, from every site.'),
          _page('users', 'Users', 'fa-users',
                ['admin.users', 'admin.toggle_user', 'admin.set_user_role', 'admin.set_user_roles', 'admin.new_user',
                 'admin.user_panel', 'admin.user_send_reset', 'admin.user_away'],
-               admin='admin.users'),
+               admin='admin.users',
+               desc='Every account: find one, change its role, switch it off, send a password reset.'),
          _page('options', 'Options & dropdowns', 'fa-sliders',
                ['admin.options_page', 'admin.translations_list', 'admin.translations_save', 'admin.save_options',
                 'admin.reset_options', 'admin.airports_search', 'admin.airports_add',
                 'admin.airlines_search', 'admin.airlines_add'],
-               admin='admin.options_page'),
+               admin='admin.options_page',
+               desc='The choices in the dropdowns, airports and airlines, and translated words.'),
          _page('messages', 'Trip post texts & e-mails', 'fa-envelope-open-text',
                ['admin.messages_page', 'admin.test_email', 'admin.save_message', 'admin.reset_message',
                 'admin.save_custom_snippets', 'admin.preview_message'],
-               admin='admin.messages_page'),
+               admin='admin.messages_page',
+               desc='The texts and e-mails sent about trip posts.'),
          _page('notiflog', 'Notification log', 'fa-bell',
                ['admin.notification_log', 'admin.notification_log_send', 'admin.notification_log_read',
                 'admin.broadcast'],
-               admin='admin.notification_log'),
+               admin='admin.notification_log',
+               desc='Every notification sent, and sending one to everybody.'),
          _page('notify_switches', 'Notification switches', 'fa-bell-slash', ['admin.notification_switches'],
-               admin='admin.notification_switches'),
-         _page('themes', 'Colour themes', 'fa-palette', ['admin.themes_page'], admin='admin.themes_page'),
+               admin='admin.notification_switches',
+               desc='Turn each kind of notification on or off.'),
+         _page('themes', 'Colour themes', 'fa-palette', ['admin.themes_page'], admin='admin.themes_page',
+               desc='The site colours.'),
          _page('delete_records', 'Delete records permanently', 'fa-trash-can',
                ['admin.hard_delete', 'admin.hard_delete_bulk', 'admin.delete_user', 'admin.bulk_delete_users',
                 'admin.delete_listing', 'admin.bulk_delete_listings', 'crm.contact_erase', 'admin_crm.contact_erase',
@@ -359,19 +390,23 @@ MODULES = [
 ]
 
 # The menu, in order: one heading per area, each with its pages in this order -- or, for a big area,
-# `subs`: sub-menus that fold again, each with its pages. Every dashboard and report sits in Overview,
-# whatever it is about, so the numbers are in one place. A page's area (its module above) still decides
-# whether the workspace has it switched on; the section only decides where its line sits. The one place
-# the menu's order lives.
+# `subs`: sub-menus that fold again, each with its pages. Health opens the menu; every report sits in
+# Reports and every screen that explains rather than does sits in Help, each by the product it is about.
+# A page's area (its module above) still decides whether the workspace has it switched on; the section
+# only decides where its line sits. The one place the menu's order lives.
 SECTIONS = [
     {'key': 'overview', 'label': 'Overview', 'icon': 'fa-gauge',
-     'pages': ('reports', 'dashboard', 'crm_insights', 'crm_forecast', 'crm_report_builder', 'crm_tracker', 'crm_team', 'metrics', 'home',
-               'notifications', 'voices_general')},
+     'pages': ('health', 'home', 'notifications', 'voices_general')},
+    {'key': 'reports', 'label': 'Reports', 'icon': 'fa-chart-line', 'subs': (
+        # Sales results / Forecast and Team today / Team analysis are one line each, with a switch (TAB_GROUPS)
+        {'key': 'sales', 'label': 'Sales CRM', 'icon': 'fa-filter-circle-dollar',
+         'pages': ('reports', 'crm_insights', 'crm_forecast', 'crm_tracker', 'crm_team', 'crm_report_builder')},
+        {'key': 'site', 'label': 'Whole site', 'icon': 'fa-globe', 'pages': ('dashboard',)},
+    )},
     {'key': 'sales', 'label': 'Sales CRM', 'icon': 'fa-filter-circle-dollar', 'subs': (
         # pages with no line of their own (nav=False) are tabs of a line next to them: TAB_GROUPS
         {'key': 'daily', 'label': 'Daily work', 'icon': 'fa-sun',
-         'pages': ('crm_today', 'wa_inbox', 'crm_board', 'crm_calendar', 'crm_people', 'crm_add', 'crm_checks', 'crm_flow',
-                   'crm_process')},
+         'pages': ('crm_today', 'wa_inbox', 'crm_board', 'crm_calendar', 'crm_people', 'crm_add', 'crm_checks', 'crm_flow')},
         {'key': 'setup', 'label': 'Set-up', 'icon': 'fa-sliders',
          'pages': ('crm_pipelines', 'crm_auto', 'crm_rules', 'crm_quick', 'crm_sources', 'crm_targets', 'crm_connection', 'crm_data',
                    'crm_export', 'crm_bin', 'wa_templates', 'wa_broadcasts', 'wa_tags', 'wa_automations', 'wa_flows',
@@ -382,12 +417,19 @@ SECTIONS = [
          'pages': ('posts', 'matches', 'new', 'import', 'scraper', 'listings')},
         {'key': 'voices', 'label': 'Inbox', 'icon': 'fa-envelope',
          'pages': ('voices_contact', 'voices_feedback', 'voices_report')},
-        {'key': 'website', 'label': 'Website', 'icon': 'fa-globe', 'pages': ('landing', 'blog_list', 'blog', 'blog_import', 'help')},
+        {'key': 'website', 'label': 'Website', 'icon': 'fa-globe', 'pages': ('landing', 'blog_list', 'blog', 'blog_import')},
     )},
     {'key': 'insurance', 'label': 'Travel Insurance', 'icon': 'fa-shield-heart',
-     'pages': ('insurance', 'voices_insurance', 'insurance_page', 'help_insurance')},
+     'pages': ('insurance', 'voices_insurance', 'insurance_page')},
     {'key': 'sahayak', 'label': 'Sahayak', 'icon': 'fa-house-medical',
-     'pages': ('sahayak', 'voices_sahayak', 'sahayak_services', 'help_sahayak')},
+     'pages': ('sahayak', 'voices_sahayak', 'sahayak_services')},
+    {'key': 'help', 'label': 'Help', 'icon': 'fa-circle-question', 'subs': (
+        {'key': 'guide', 'label': 'Every screen', 'icon': 'fa-book-open', 'pages': ('guide',)},
+        {'key': 'sales', 'label': 'Sales CRM', 'icon': 'fa-filter-circle-dollar', 'pages': ('crm_process',)},
+        {'key': 'companion', 'label': 'Travel Companion', 'icon': 'fa-plane-departure', 'pages': ('metrics', 'help')},
+        {'key': 'insurance', 'label': 'Travel Insurance', 'icon': 'fa-shield-heart', 'pages': ('help_insurance',)},
+        {'key': 'sahayak', 'label': 'Sahayak', 'icon': 'fa-house-medical', 'pages': ('help_sahayak',)},
+    )},
     {'key': 'team', 'label': 'Team', 'icon': 'fa-users',
      'pages': ('ws_members', 'ws_teams', 'ws_roles', 'ws_menu', 'ws_settings', 'ws_all')},
     {'key': 'site', 'label': 'Site settings', 'icon': 'fa-gear',
@@ -410,6 +452,7 @@ for _m in MODULES:
         _p['module'] = _m['key']
         PAGES[_p['key']] = _p
 ALL_PAGES = frozenset(PAGES)
+PAGES['guide']['with'] = ALL_PAGES - {'guide'}
 SECTION_BY_KEY = {s['key']: s for s in SECTIONS}
 for _s in SECTIONS:
     for _k in _s['pages']:
@@ -438,15 +481,18 @@ TAB_GROUPS = {
     'crm_auto': (('crm_auto', 'Overview'), ('crm_rules', 'Rules'), ('wa_automations', 'Reply rules'),
                  ('wa_flows', 'Chatbot'), ('wa_ai', 'AI replies')),
     'crm_connection': (('crm_connection', 'Connection'), ('wa_settings', 'Number')),
-    # every report is a tab of Overview's Reports line (the line itself has no screen: it opens the first tab)
-    'reports': REPORT_TABS,
+    # two screens on one line, swapped by the switch at the top right of the page (page_head's `switch`)
+    'crm_insights': (('crm_insights', 'Sales results'), ('crm_forecast', 'Forecast')),
+    'crm_tracker': (('crm_tracker', 'Team today'), ('crm_team', 'Team analysis')),
 }
+# lines whose two screens swap by a switch at the top right of the page rather than a strip of tabs
+SWITCHES = frozenset({'crm_insights', 'crm_tracker'})
 # the menu line a nav=False page lives under (the line that lights up while it is open)
 TAB_HOST = {k: host for host, tabs in TAB_GROUPS.items() for k, _ in tabs if k != host}
-TAB_HOST.update({'crm_flow': 'crm_board', 'crm_process': 'crm_board', 'crm_checks': 'crm_today', 'crm_bin': 'crm_data'})
+TAB_HOST.update({'crm_flow': 'crm_board', 'crm_checks': 'crm_today', 'crm_bin': 'crm_data'})
 # Pages that can be given on their own AND lost their menu line: somebody who has only that page still sees the
 # line it moved under, opening that page (nothing is taken away from a role that held it).
-LINE_VIA = {'crm_board': ('crm_process',), 'crm_today': ('crm_checks',),
+LINE_VIA = {'crm_today': ('crm_checks',), 'crm_insights': ('crm_forecast',),
             'crm_quick': ('wa_templates', 'wa_broadcasts', 'wa_tags'),
             'crm_auto': ('wa_automations', 'wa_flows', 'wa_ai'), 'crm_connection': ('wa_settings',)}
 
@@ -477,11 +523,54 @@ def _open_tabs(host, user):
             yield key, label, url
 
 
-def first_tab_url(host, user=None):
-    """Where a line that gathers tabs and has no screen of its own (Reports) opens: its first tab this person
-    may open, or None."""
+def first_page_url(keys, user=None):
+    """The address of the first of `keys` this person may open whose area is switched on, or None (an old
+    "All reports" link opens the first report)."""
     from flask_login import current_user
-    return next((url for _k, _l, url in _open_tabs(host, user or current_user)), None)
+    user = user or current_user
+    on = set(enabled_modules(current_workspace(user)))
+    for key in keys:
+        if PAGES[key]['module'] in on and can(user, key):
+            url = page_url(PAGES[key])
+            if url:
+                return url
+    return None
+
+
+def _menu_place(key):
+    """Where a page sits in the menu in code, in words: "Reports › Sales CRM", or for a page with no line of its
+    own the line it is a tab of: "Reports › Sales CRM › Sales results (switch at the top right)"."""
+    host = TAB_HOST.get(key)
+    p = PAGES[host or key]
+    sec = SECTION_BY_KEY[p['section']]
+    sub = next((b for b in sec.get('subs', ()) if b['key'] == p.get('sub')), None)
+    words = [sec['label']] + ([sub['label']] if sub else [])
+    if host in SWITCHES:
+        words.append('%s (switch at the top right)' % p['label'])
+    elif host:
+        words.append('%s (a tab)' % p['label'])
+    return ' › '.join(words)
+
+
+def screen_guide(user):
+    """Help › Screen guide: every screen by area (MODULES -- one per product), with what it is for and where it
+    sits in the menu. [{'key', 'label', 'icon', 'desc', 'pages': [{'key', 'label', 'icon', 'says', 'where',
+    'url'}]}]; `url` only for a screen this person may open in an area switched on. Pages that are not screens
+    (a delete permission, the old All reports link) are left out."""
+    on = set(enabled_modules(current_workspace(user)))
+    out = []
+    for m in MODULES:
+        rows = []
+        for p in m['pages']:
+            if not (p['links']['admin'] or p['links']['cs']) or p['key'] in ('reports', 'guide'):
+                continue
+            url = page_url(p) if m['key'] in on and can(user, p['key']) else None
+            rows.append({'key': p['key'], 'label': p['label'], 'icon': p['icon'], 'says': p['tip'] or p['desc'],
+                         'where': _menu_place(p['key']), 'url': url})
+        if rows:
+            out.append({'key': m['key'], 'label': m['label'], 'icon': m['icon'], 'desc': m['desc'], 'pages': rows,
+                        'on': m['key'] in on})
+    return out
 
 
 # The consoles' blueprints, for "which console am I in" when choosing a menu link.
@@ -828,7 +917,8 @@ def current_console(user=None):
     return 'cs'
 
 
-def page_url(page, console=None):
+def page_url(page, console=None, **extra):
+    """The address of `page` in this console (else the other one); `extra`: more of the query string."""
     if console is None:
         from flask_login import current_user
         console = current_console(current_user)
@@ -837,7 +927,7 @@ def page_url(page, console=None):
     if not endpoint:
         return None
     try:
-        return url_for(endpoint, **page['args'])
+        return url_for(endpoint, **dict(page['args'], **extra))
     except Exception:          # noqa: BLE001 -- an endpoint switched off (the scraper flag)
         return None
 
@@ -899,6 +989,14 @@ def _had_lines(section):
     """Did this saved section list any menu line at all (in itself or in a sub-menu)?"""
     lists = [section.get('pages')] + [b.get('pages') for b in section.get('subs') or () if isinstance(b, dict)]
     return any(isinstance(v, list) and v for v in lists)
+
+
+def _put_in_order(lines, key):
+    """Put `key` into a saved list of lines where the menu in code has it: before the first line that comes after
+    it there (Health, new since a menu was saved, goes back to the top of Overview, not the bottom)."""
+    at = MENU_ORDER.index(key)
+    i = next((n for n, k in enumerate(lines) if MENU_ORDER.index(k) > at), len(lines))
+    lines.insert(i, key)
 
 
 def clean_layout(raw):
@@ -969,9 +1067,9 @@ def clean_layout(raw):
             restored.append(sec)
         if 'subs' in sec:
             sub = next((b for b in sec['subs'] if b['key'] == PAGES[k].get('sub')), sec['subs'][-1])
-            sub['pages'].append(k)
+            _put_in_order(sub['pages'], k)
         else:
-            sec['pages'].append(k)
+            _put_in_order(sec['pages'], k)
         seen.add(k)
     for sec in restored:
         if 'subs' in sec:
@@ -1065,13 +1163,12 @@ def menu_for_role(ws, role, layout):
 
 
 def home_url(user):
-    """Where a staff account lands: site owners on Results (the site dashboard when Sales is off),
-    people who work leads on My day, customer service on Service to-do, anybody else on the first
-    page in the menu their roles give them."""
+    """Where a staff account lands: site owners on Health (how everything is doing), people who work
+    leads on My day, customer service on Service to-do, anybody else on the first page in the menu
+    their roles give them."""
     act = acting_role(user)
     if user.is_admin and (act is None or act.system_key == 'admin'):          # a site owner
-        return url_for('admin_crm.insights' if 'crm' in enabled_modules(current_workspace(user))
-                       else 'admin.dashboard')
+        return url_for('admin.health')
     pages = pages_for(user)
     if 'crm_today' in pages:
         return url_for('crm.today')

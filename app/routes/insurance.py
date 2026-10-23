@@ -296,7 +296,8 @@ def enquiry():
                       email=email, destination=destination or None)
     db.session.commit()
     from app.services import crm
-    crm.capture_safely('ti-support' if support else 'ti-expert', name=name, phone=phone, email=email,
+    # the support form and the expert form are one item on the lead sources: "Request (WhatsApp / call)"
+    crm.capture_safely('ti-expert', name=name, phone=phone, email=email,
                        product='TI', message=written or None, ref=('contact_messages', msg.id),
                        user_id=msg.user_id, consent=crm.ticked(data.get('wa_consent')),
                        consent_from='insurance form',

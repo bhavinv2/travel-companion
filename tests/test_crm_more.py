@@ -448,3 +448,10 @@ def test_a_known_product_beats_a_catch_all_source(app):
     assert lead.pipeline.key == 'tc-companion' and lead.open_task.code == 'TC #1'
     plain = crm.capture('instagram', identities=[('instagram', '@someone.else')], utm={})
     assert plain.pipeline.key == 'general'
+
+@pytest.fixture(autouse=True)
+def _leads_shared_out(monkeypatch):
+    """These tests were written when a source gave a new lead to whoever had the fewest open leads unless told
+    otherwise. Since 2026-10-23 nothing set means nobody (crm_assign.DEFAULT; tests/test_crm2_assign.py)."""
+    from app.services import crm_assign
+    monkeypatch.setattr(crm_assign, 'DEFAULT', 'fewest')

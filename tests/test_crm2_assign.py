@@ -1,6 +1,7 @@
 """Sales CRM 2.0, run 3b -- who a new lead goes to.
 
-    fewest        the old rule, unchanged (NULL means this)
+    nobody        NULL, the default since 2026-10-23: the lead waits to be taken, and rings whoever could take it
+    fewest        whoever has the fewest open leads (NULL meant this until 2026-10-23)
     round robin   in turn, remembering the last person (CrmSource.rr_last_user_id)
     away          nobody who is away gets a new lead, in either mode; everyone away -> the normal rule, said on the lead
     screens       the source form, the account menu ("I'm away until" / "I'm back"), the Users side panel
@@ -41,9 +42,24 @@ def set_away(user, days=3):
     _db.session.commit()
 
 
-def test_fewest_is_the_rule_when_nothing_is_set(app, team):
+def test_nobody_gets_a_new_lead_when_nothing_is_set(app, team):
+    from app.models import Notification
     users, src = team
-    assert src.assign_mode is None and crm_assign.mode_of(src) == 'fewest'
+    assert src.assign_mode is None and crm_assign.mode_of(src) == 'none'
+    lead = new_lead(1)
+    assert lead.owner_id is None and src.rr_last_user_id is None
+    # it rings everybody who could take it (not somebody away), not just the admins
+    set_away(users[2])
+    Notification.query.delete()
+    lead = new_lead(2)
+    rung = {n.user_id for n in Notification.query.filter_by(title=crm.UNOWNED_BELL).all()}
+    assert {users[0].id, users[1].id} <= rung and users[2].id not in rung
+
+
+def test_fewest_shares_by_load(app, team):
+    users, src = team
+    src.assign_mode = 'fewest'
+    _db.session.commit()
     first = new_lead(1)
     assert first.owner_id == users[0].id                         # nobody has any: the lowest id
     owners = [new_lead(i).owner_id for i in range(2, 5)]
@@ -75,7 +91,7 @@ def test_round_robin_carries_on_when_the_last_person_is_gone(app, team):
     assert new_lead(1).owner_id == users[0].id                    # nobody after 9999: start again
 
 
-@pytest.mark.parametrize('mode', [None, 'round_robin'])
+@pytest.mark.parametrize('mode', ['fewest', 'round_robin'])
 def test_nobody_away_gets_a_new_lead_in_either_mode(app, team, mode):
     users, src = team
     src.assign_mode = mode
@@ -92,6 +108,7 @@ def test_nobody_away_gets_a_new_lead_in_either_mode(app, team, mode):
 
 def test_an_away_date_in_the_past_means_back(app, team):
     users, src = team
+    src.assign_mode = 'fewest'
     for m in WorkspaceMember.query.filter_by(user_id=users[0].id):
         m.away_until = datetime.utcnow() - timedelta(hours=1)
     _db.session.commit()
@@ -100,6 +117,7 @@ def test_an_away_date_in_the_past_means_back(app, team):
 
 def test_when_everyone_is_away_the_normal_rule_runs_and_the_lead_says_so(app, team):
     users, src = team
+    src.assign_mode = 'fewest'
     for u in users:
         set_away(u)
     lead = new_lead(1)
@@ -115,12 +133,26 @@ def test_when_everyone_is_away_the_normal_rule_runs_and_the_lead_says_so(app, te
     assert not any('was away' in (t.body or '') for t in CrmTouchpoint.query.filter_by(lead_id=ok.id))
 
 
+def test_the_add_lead_form_starts_on_nobody(app, client, team, admin_user):
+    users, src = team
+    login(client, admin_user.email)
+    assert 'value="none" checked' in client.get('/cs/crm/add').get_data(as_text=True)
+    base = {'product': 'TI', 'source': 'instagram', 'note': 'Asked about cover'}
+    client.post('/cs/crm/add', data=dict(base, name='Nobody Yet', phone='+919810001001'))
+    lead = CrmLead.query.order_by(CrmLead.id.desc()).first()
+    assert lead.person.name == 'Nobody Yet' and lead.owner_id is None
+    # "Whoever is least busy" is that, though the source gives its leads to nobody
+    client.post('/cs/crm/add', data=dict(base, name='Least Busy', phone='+919810001002', owner='auto'))
+    lead = CrmLead.query.order_by(CrmLead.id.desc()).first()
+    assert lead.person.name == 'Least Busy' and lead.owner_id is not None
+
+
 def test_the_source_form_saves_how_to_share(app, client, team, admin_user):
     users, src = team
     login(client, admin_user.email)
     page = client.get('/admin/crm/sources?edit=%d' % src.id).get_data(as_text=True)
     assert 'How to share new leads' in page and 'In turn (round robin)' in page
-    assert 'Whoever has the fewest open leads' in page
+    assert 'Whoever has the fewest open leads' in page and 'Nobody: a new lead waits' in page
     data = {'id': src.id, 'name': src.name, 'kind': src.kind, 'product': src.product, 'pipeline': src.pipeline.key,
             'status': 'live', 'who': 'people', 'team': [u.id for u in users], 'dedupe_days': '30',
             'assign_mode': 'round_robin'}
@@ -129,6 +161,10 @@ def test_the_source_form_saves_how_to_share(app, client, team, admin_user):
     _db.session.expire_all()
     assert _db.session.get(CrmSource, src.id).assign_mode == 'round_robin'
     data['assign_mode'] = 'fewest'
+    client.post('/admin/crm/setup/source', data=data)
+    _db.session.expire_all()
+    assert _db.session.get(CrmSource, src.id).assign_mode == 'fewest'
+    data['assign_mode'] = 'none'
     client.post('/admin/crm/setup/source', data=data)
     _db.session.expire_all()
     assert _db.session.get(CrmSource, src.id).assign_mode is None

@@ -67,7 +67,14 @@ def _leads_checks():
             'quoted': _word(('week',)),
             # the filter panel's: which date and its range (a ready-made range stays rolling), source, how likely
             'dt': _word([k for k, _ in crm.LEAD_DATES]), 'dr': _word(sorted(ranges)), 'd1': _day, 'd2': _day,
-            'src': lambda v: v if v == 'none' else _digits(v), 'lk': _word(tuple(CRM_LIKELIHOOD))}
+            'src': _source, 'lk': _word(tuple(CRM_LIKELIHOOD)),
+            'how': _word(('organic', 'manual', 'imported'))}
+
+
+def _source(v):
+    """A lead source id, a group of the lead sources' list ('g:calls'), or 'none'."""
+    from app.services import crm_sources
+    return v if v == 'none' or (v.startswith('g:') and v[2:] in crm_sources.GROUP_NAMES) else _digits(v)
 
 
 def _contacts_checks():

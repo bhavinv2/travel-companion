@@ -3,6 +3,12 @@
 <section class="card">
   <h2>Inboxes to check</h2>
   <p class="muted">These are the rows on the Half-hourly check. A connected inbox ticks itself.</p>
+  <form method="POST" action="{{ crm_url('standard_inboxes') }}" class="row" style="gap:10px;align-items:center;margin:0 0 12px"
+        data-confirm="Set the half-hourly check to the calls and chats on the lead sources? The rows below are replaced.">
+    {{ csrf() }}
+    <button class="cb sm"><i class="fa-solid fa-list-check"></i> Use the lead sources' calls &amp; chats</button>
+    <small class="muted">WhatsApp India chat and call, Company number, USA and Canada numbers, Tawk, Meta and Telegram: a row each.</small>
+  </form>
   <form method="POST" action="{{ crm_url('save_inboxes') }}" data-inbox-form data-wa-key="{{ wa_key }}">
     {{ csrf() }}
     <table class="inbox-rows">
@@ -14,7 +20,7 @@
         <td><input type="hidden" name="row" value="{{ k }}"/><input type="text" name="name_{{ k }}" value="{{ r.name }}" maxlength="40" aria-label="Inbox name"/></td>
         <td><select name="source_{{ k }}" aria-label="Comes from" data-inbox-source>
           <option value="">—</option>
-          {% for key, name in source_keys %}<option value="{{ key }}"{{ ' selected' if r.source_key == key }}>{{ name }}</option>{% endfor %}
+          {% for g, gname, icon, rows_ in SOURCE_GROUPS(on_list) %}<optgroup label="{{ gname }}">{% for s in rows_ %}<option value="{{ s.key }}"{{ ' selected' if r.source_key == s.key }}>{{ SOURCE_SHORT(s) }}</option>{% endfor %}</optgroup>{% endfor %}
         </select></td>
         <td><label class="check"><input type="checkbox" name="auto_{{ k }}" value="1"{{ ' checked' if r.auto }}{{ '' if r.source_key == wa_key else ' disabled' }} data-inbox-auto/>
           {% if r.source_key == wa_key %}<small class="muted">{{ 'Ticks itself now' if replies_linked else 'Ticks itself once WhatsApp replies are connected' }}</small>{% endif %}</label></td>
@@ -28,7 +34,7 @@
         <td><input type="hidden" name="row" value="__K__"/><input type="text" name="name___K__" value="" maxlength="40" aria-label="Inbox name"/></td>
         <td><select name="source___K__" aria-label="Comes from" data-inbox-source>
           <option value="">—</option>
-          {% for key, name in source_keys %}<option value="{{ key }}">{{ name }}</option>{% endfor %}
+          {% for g, gname, icon, rows_ in SOURCE_GROUPS(on_list) %}<optgroup label="{{ gname }}">{% for s in rows_ %}<option value="{{ s.key }}">{{ SOURCE_SHORT(s) }}</option>{% endfor %}</optgroup>{% endfor %}
         </select></td>
         <td><label class="check"><input type="checkbox" name="auto___K__" value="1" disabled data-inbox-auto/></label></td>
         <td><button type="button" class="cb quiet sm" data-inbox-remove aria-label="Remove">×</button></td>

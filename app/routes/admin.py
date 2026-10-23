@@ -44,7 +44,7 @@ def _page_args(default_per=25):
 @admin_bp.route('/login', methods=['GET', 'POST'])
 def admin_login():
     if current_user.is_authenticated and current_user.is_admin:
-        return redirect(url_for('admin.dashboard'))
+        return redirect(url_for('admin.health'))
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
@@ -53,7 +53,7 @@ def admin_login():
             login_user(user)
             user.last_login = datetime.utcnow()
             db.session.commit()
-            return redirect(url_for('admin.dashboard'))
+            return redirect(url_for('admin.health'))
         flash('Invalid credentials or not an admin account.', 'danger')
     return render_template('admin/login.html')
 
@@ -62,9 +62,27 @@ def admin_login():
 @login_required
 @admin_required
 def reports():
-    """Overview's Reports line: the first report this person may open; the others are its tabs."""
+    """An old "All reports" link: the first report this person may open (the reports have their own menu now)."""
     from app.services import access
-    return redirect(access.first_tab_url('reports') or access.home_url(current_user))
+    return redirect(access.first_page_url(access.REPORT_PAGES) or access.home_url(current_user))
+
+
+@admin_bp.route('/health')
+@login_required
+@admin_required
+def health():
+    """Overview › Health: how every part of the portal is doing, and what needs somebody now (services/health.py)."""
+    from app.services import health as health_svc
+    return render_template('admin/health.html', h=health_svc.build(current_user, request.args.get('days', type=int) or 30))
+
+
+@admin_bp.route('/help/screens')
+@login_required
+@admin_required
+def screen_guide():
+    """Help › Screen guide: every screen by product, what it is for and where it sits in the menu."""
+    from app.services import access
+    return render_template('admin/screen_guide.html', areas=access.screen_guide(current_user))
 
 
 @admin_bp.route('/')

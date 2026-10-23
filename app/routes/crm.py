@@ -48,6 +48,7 @@ MANAGE = {'setup', 'pipelines', 'sources', 'connection', 'data', 'save_source', 
           'save_process', 'setup_templates', 'pipeline_new', 'pipeline_edit', 'pipeline_save', 'pipeline_active',
           'pipeline_tag_check', 'pipeline_tag', 'tag_check', 'save_product', 'product_offered', 'template_draft',
           'import_csv', 'import_csv_confirm', 'wa_contacts_import', 'wa_notes_import', 'save_inboxes',
+          'standard_inboxes', 'move_source',
           'save_activities', 'source_tag_check', 'export_leads', 'export_contacts', 'automatic', 'connection_checks',
           'connection_team', 'connection_retry', 'connection_settle', 'quick_replies_push', 'quick_replies_import', 'save_rates', 'targets', 'targets_save', 'targets_copy', 'insights_recalculate',
           'bin', 'bin_restore', 'bin_purge',
@@ -114,6 +115,48 @@ def source_name(name):
     if 'products' not in cache:
         cache['products'] = crm_words.product_names()
     return crm_words.source_display(name, cache['products'])
+
+
+@crm_bp.app_template_global('CAME_FROM')
+def came_from(lead):
+    """Where a lead came from, how (by itself, added by staff, imported), when (India time) and by whom."""
+    from app.services import crm_sources
+    return crm_sources.came_from(lead)
+
+
+@crm_bp.app_template_global('ADD_TIME_IST')
+def add_time_ist():
+    """This minute in India, as Leads writes when a lead was added: "23 Oct 2026, 14:05"."""
+    t = datetime.utcnow() + crm.IST
+    return '%d %s' % (t.day, t.strftime('%b %Y, %H:%M'))
+
+
+@crm_bp.app_template_global('SOURCE_SECTIONS')
+def source_sections(rows):
+    """A group's sources by its parts (Contact us, Travel insurance site ...): [(part or None, rows)]."""
+    from app.services import crm_sources
+    return crm_sources.sections(rows)
+
+
+@crm_bp.app_template_global('SOURCE_SHORT')
+def source_short(src):
+    """How a source reads inside its group ("Search quote" under Websites › Travel insurance site)."""
+    from app.services import crm_sources
+    return crm_sources.short_name(src)
+
+
+@crm_bp.app_template_global('ORIGINS')
+def origins():
+    """How a lead came: [(key, word, what it means, icon)] (organic, manual, imported)."""
+    from app.services import crm_sources
+    return crm_sources.ORIGINS
+
+
+@crm_bp.app_template_global('SOURCE_GROUPS')
+def source_groups(sources):
+    """Sources in the lead sources' groups and order: [(group, name, icon, rows)]."""
+    from app.services import crm_sources
+    return crm_sources.grouped(sources)
 
 
 @crm_bp.app_template_global('MONEY')
@@ -438,7 +481,7 @@ def board():
     owner_default = 'all' if access.can(current_user, 'crm_insights') else 'mine'
     defaults = (not only_ids and owner == owner_default and not chat
                 and win == '30' and not q and not stage_id and not money_filter and not extra.get('status')
-                and not follow and not quoted and not (more['dr'] or more['src'] or more['lk']))
+                and not follow and not quoted and not (more['dr'] or more['src'] or more['lk'] or more['how']))
     # every filter that is on, as a chip that takes it off (the panel can be hidden)
     chips = []
     if q:
@@ -460,9 +503,14 @@ def board():
         chips.append((CRM_LIKELIHOOD[more['lk']], link(lk=None, page=None)))
     sources = _lead_sources(pipe, more['src'])
     if more['src']:
-        src_name = 'Not known' if more['src'] == 'none' else next(
-            (source_name(s.name) for s in sources if str(s.id) == more['src']), 'A removed source')
+        from app.services import crm_sources
+        src_name = ('Not known' if more['src'] == 'none' else
+                    'all ' + crm_sources.group_name(more['src'][2:])[0].lower() if more['src'].startswith('g:') else
+                    next((source_name(s.name) for s in sources if str(s.id) == more['src']), 'A removed source'))
         chips.append(('Came from: ' + src_name, link(src=None, page=None)))
+    if more['how']:
+        from app.services import crm_sources
+        chips.append(('How it came: ' + crm_sources.ORIGIN[more['how']][0], link(how=None, page=None)))
     if closes:
         chips.append(('Closes in ' + (crm_money.month_label(closes) if crm_money.PERIOD_RE.match(closes) else closes.upper()),
                       link(closes=None, page=None)))
@@ -1374,6 +1422,9 @@ def _add_prefill():
     a = request.args
     form = {k: (a.get(k) or '')[:200] for k in ('name', 'phone', 'phone_cc', 'email', 'instagram', 'facebook',
                                                  'product', 'source') if a.get(k)}
+    if form.get('source'):
+        from app.services import crm_sources
+        form['source'] = crm_sources.canonical(form['source'], a.get('phone'))     # a link with an old key
     pid = a.get('person', type=int)
     person = db.session.get(CrmPerson, pid) if pid else None
     if person is not None and not crm_access.can_see_person(current_user, person):
@@ -1390,16 +1441,20 @@ def _add_prefill():
 @crm_bp.route('/add', methods=['GET', 'POST'])
 @cs_required
 def add():
-    from app.services import crm_people
+    from app.services import crm_people, crm_sources
     crm.ensure_defaults()
-    manual = (CrmSource.query.filter(CrmSource.kind.in_(['manual', 'chat']), CrmSource.status != 'unrouted')
-              .order_by(CrmSource.name).all())
+    # every source on the lead sources' list a person can name by hand: not the imports (Bring in & download has
+    # those), not a page nobody has set up
+    manual = [s for s in CrmSource.query.filter(CrmSource.status != 'unrouted').all()
+              if crm_sources.group_of(s) not in ('imports', crm_sources.UNSORTED[0])]
     tiles = crm_products.tiles()
     add_fields = crm.add_fields(tiles)          # {'TI': [CrmField...], ..., '': [...]}: asked when adding a lead
     staff = _staff()
     if request.method == 'POST':
         f = request.form
-        src = CrmSource.query.filter_by(key=f.get('source')).first()
+        # an old key (a bookmark, a script) is read as the item it became: 'call' from a +1 number is the USA line
+        key = crm_sources.canonical(f.get('source'), '+1' if f.get('phone_cc') in ('US', 'CA') else '')
+        src = next((s for s in manual if s.key == key), None)
         chosen_product = crm_products.by_code(f.get('product'))
         product = chosen_product.code if chosen_product is not None and chosen_product.offered else None
         dep = None
@@ -1432,7 +1487,7 @@ def add():
         for k, v in idents:
             if not crm.clean_identity(k, v):
                 errors.append('That %s handle does not look right.' % k.capitalize())
-        owner_choice = f.get('owner') if f.get('owner') in ('me', 'auto', 'pick') else 'auto'
+        owner_choice = f.get('owner') if f.get('owner') in ('none', 'me', 'auto', 'pick') else 'none'
         pick_id = f.get('owner_id', type=int)
         if owner_choice == 'pick' and pick_id not in {u.id for u in staff}:
             errors.append('Choose who looks after them.')
@@ -1493,11 +1548,15 @@ def add():
                            product=product, message=(f.get('note') or '').strip() or None, details=details,
                            departure_date=dep, utm={}, channel='chat' if src.kind == 'chat' else 'note',
                            created_by_id=current_user.id, start_stage=None,
-                           notify=owner_choice == 'auto', person=person)
+                           # "Whoever is least busy" is that, whatever the source does; Me and This person are
+                           # given below, so nobody is chosen (or rung) first
+                           assign='fewest' if owner_choice == 'auto' else 'none',
+                           notify=owner_choice in ('auto', 'none'), person=person)
         if lead is None:
             flash('Could not add that lead.', 'danger')
             return redirect(crm_url('add'))
         session['crm_add_product'] = (product or '')
+        session['crm_add_source'] = src.key
         # the value and the day it should close, when typed (a lead made just now; one it merged into keeps its own)
         if lead.created_by_id == current_user.id and lead.created_at and                 (datetime.utcnow() - lead.created_at).total_seconds() < 120:
             try:
@@ -1525,8 +1584,8 @@ def add():
     q = (request.args.get('q') or '').strip()
     found = crm.search_records(q) if request.args.get('from') == 'existing' else []
     form = _add_prefill()
-    if not form.get('source') and any(s.key == 'call' for s in manual):
-        form['source'] = 'call'                      # most leads added by hand are a phone call
+    if not form.get('source') and any(s.key == session.get('crm_add_source') for s in manual):
+        form['source'] = session['crm_add_source']    # the last one used: people add a run from one channel
     return render_template('cs/crm/add.html', sources=manual, form=form, q=q, found=found,
                            tiles=tiles, add_fields=add_fields,
                            chosen=form.get('product') or session.get('crm_add_product') or '',
@@ -1867,8 +1926,21 @@ def _sources_context(**extra):
     teams = list(ws.teams) if ws is not None else []
     staff_by_id, teams_by_id = {u.id: u for u in staff}, {t.id: t for t in teams}
     since = datetime.utcnow() - timedelta(days=30)
-    counts30 = dict(db.session.query(CrmLead.source_id, func.count(CrmLead.id))
-                    .filter(CrmLead.created_at >= since).group_by(CrmLead.source_id).all())
+    # the last 30 days' leads of each source, and how they came: by themselves, added by staff, imported
+    from app.services import crm_sources
+    got = (db.session.query(CrmLead.source_id, CrmLead.imported, CrmLead.created_by_id, func.count(CrmLead.id))
+           .filter(CrmLead.created_at >= since)
+           .group_by(CrmLead.source_id, CrmLead.imported, CrmLead.created_by_id).all())
+    staff_made = crm_sources.staff_ids([by for _s, _i, by, _n in got])
+    by30, group30 = {}, {}
+    for sid, imported, by, n in got:
+        how = 'imported' if imported else 'manual' if by in staff_made else 'organic'
+        row = by30.setdefault(sid, {'all': 0, 'organic': 0, 'manual': 0, 'imported': 0})
+        row['all'] += n
+        row[how] += n
+    for src in rows:
+        group30[crm_sources.group_of(src)] = group30.get(crm_sources.group_of(src), 0) + by30.get(src.id, {}).get('all', 0)
+    counts30 = {sid: row['all'] for sid, row in by30.items()}
     really = {s.id: crm_people.really_goes(s) for s in rows}
     edit = extra.pop('edit', None)
     if edit is None:
@@ -1879,7 +1951,9 @@ def _sources_context(**extra):
     ctx = dict(tab=tab, sources=rows, edit=edit, is_new=is_new, pipelines=CrmPipeline.query.order_by(CrmPipeline.id).all(),
                staff=staff, teams=teams, STATUSES=CRM_SOURCE_STATUSES,
                goes={s.id: crm_people.goes_to(s, staff_by_id, teams_by_id) for s in rows},
-               really=really, counts30=counts30,
+               really=really, counts30=counts30, by30=by30, group30=group30,
+               source_groups=crm_sources.grouped(rows), GROUP_SAYS=crm_sources.GROUP_SAYS,
+               on_list=[s for s in rows if crm_sources.item(s.key)], ON_LIST=crm_sources.ITEMS,
                tag_names=sorted({str(t).lower() for s in rows for t in s.crm_tags or []}),
                intake_url=_public_url('crm_public.intake'), snippet_url=snippet_url, snippet=None,
                check_rows=crm.crm_settings()['check_rows'], wa_key=current_app.config.get('WACRM_SOURCE_KEY', 'wa-india'),
@@ -2010,6 +2084,10 @@ def save_source():
         db.session.add(src)
     src.name = name
     src.kind = f.get('kind') if f.get('kind') in CRM_SOURCE_KINDS else 'form'
+    from app.services import crm_sources
+    on_list = crm_sources.item(src.key)
+    if on_list is not None:                      # the list's items keep the list's name and type
+        src.name, src.kind = on_list[1].name, on_list[1].kind
     chosen = crm_products.by_code(f.get('product'))
     src.product = chosen.code if chosen is not None else crm_products.general_code()
     pipe = CrmPipeline.query.filter_by(key=f.get('pipeline')).first()
@@ -2017,7 +2095,8 @@ def save_source():
     status = f.get('status') if f.get('status') in ('live', 'paused') else 'live'
     src.status = status if pipe else 'unrouted'
     src.team = team
-    src.assign_mode = 'round_robin' if f.get('assign_mode') == 'round_robin' else None     # NULL: the fewest open leads
+    # NULL: nobody -- a new lead waits to be taken (crm_assign)
+    src.assign_mode = f.get('assign_mode') if f.get('assign_mode') in ('fewest', 'round_robin') else None
     src.crm_tags = new_tag_list or None
     src.pages = [p.strip()[:200] for p in (f.get('pages') or '').split(',') if p.strip()][:10] or None
     try:
@@ -2045,6 +2124,27 @@ def save_source():
         if not members & staff_ids:
             flash('Nobody in that team can take leads yet, so they go to anyone in sales.', 'warning')
     flash('Saved "%s".' % src.name, 'success')
+    return redirect(crm_url('sources'))
+
+
+@crm_bp.route('/setup/source/<int:sid>/move', methods=['POST'])
+@cs_required
+@admin_only
+def move_source(sid):
+    """Lead sources: a source that is not on the list hands everything it has -- leads, campaigns, rules, inbox rows
+    -- to one that is, and goes (services/crm_sources.move)."""
+    from app.services import crm_sources
+    old = db.session.get(CrmSource, sid) or abort(404)
+    new = CrmSource.query.filter_by(key=request.form.get('to') or '').first()
+    if new is None or crm_sources.item(new.key) is None or new.id == old.id:
+        flash('Choose the source on the list its leads belong to.', 'danger')
+        return redirect(crm_url('sources'))
+    name, key = old.name, old.key
+    n = crm_sources.move(old, new)
+    ActivityEvent.log('crm_source_moved', actor=current_user, source=key, to=new.key, leads=n)
+    db.session.commit()
+    flash('%d lead%s from "%s" %s now under "%s".' % (n, '' if n == 1 else 's', name, 'is' if n == 1 else 'are',
+                                                     new.name), 'success')
     return redirect(crm_url('sources'))
 
 

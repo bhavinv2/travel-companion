@@ -93,8 +93,8 @@ def crm_settings():
 CHECK_RENAMED = {'USA WhatsApp': 'USA WhatsApp (on the phone)'}
 # lower name -> (source key, ticks itself); None = the WhatsApp source (config WACRM_SOURCE_KEY)
 CHECK_GUESS = {'ind whatsapp': (None, True), 'usa whatsapp': ('wa-usa', False), 'tawk': ('tawk', False),
-               'fb messenger': ('facebook', False), 'instagram messenger': ('instagram', False),
-               'telegram': ('telegram', False), 'india call': ('call', False), 'usa call': ('call', False)}
+               'fb messenger': ('meta', False), 'instagram messenger': ('meta', False),
+               'telegram': ('telegram', False), 'india call': ('company-call', False), 'usa call': ('usa-call', False)}
 
 
 def wa_replies_linked():
@@ -243,6 +243,10 @@ def ensure_defaults():
             db.session.add(CrmSource(key=key, name=name, kind=kind, product=product, pages=pages,
                                      pipeline=pipes.get(pkey), status=status, built_in=True))
             changed = True
+    if changed:
+        db.session.flush()
+    from app.services import crm_sources
+    changed = crm_sources.tidy() or changed      # the old sources' leads onto the list, once
     if changed:
         db.session.commit()
 
@@ -455,7 +459,7 @@ def _capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, pr
              user_id=None, channel='form', when=None, identities=None, ends_on=None,
              created_by_id=None, start_stage=None, plan=True, notify=True, temperature=None,
              fallout_reason=None, external_id=None, sync=True, imported=False, likelihood=None,
-             person=None, note=None, refuse_dnc=False, consent_from=None, offers_consent=False):
+             person=None, note=None, refuse_dnc=False, consent_from=None, offers_consent=False, assign=None):
     """Record an enquiry as a lead. Returns the lead, or None when there is nobody to reach.
 
     The same person asking again within the source's window, about anything that goes to the same
@@ -472,15 +476,19 @@ def _capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, pr
     `refuse_dnc`: an importer (raises DoNotContact for an erased person); otherwise a match is an enquiry
     they made themselves and clears the entry. `consent_from`: the form, for the note when `consent` is new.
     `offers_consent`: the form's own "OK to send offers" tick (never the WhatsApp tick, `consent`).
+    `assign`: who a NEW lead goes to, instead of the source's way (crm_assign.MODES): 'none', 'fewest' or
+    'round_robin'. By default a source gives it to nobody: it waits to be taken.
     """
     ensure_defaults()
+    from app.services import crm_sources
+    e164 = normalise_phone(phone, phone_cc)
     key = (source_key or '').strip().lower()
     if not SOURCE_KEY_RE.match(key):
         key = 'unknown'
+    key = crm_sources.canonical(key, e164 or (person.phone if person is not None else None))   # an old key: its item
     src = source(key)
     new_source = src is None
     code = crm_products.by_code(product)
-    e164 = normalise_phone(phone, phone_cc)
     email = (email or '').strip().lower() or None
     if email and ('@' not in email or email.startswith('no-email@')):
         email = None
@@ -532,7 +540,7 @@ def _capture(source_key, *, name=None, phone=None, phone_cc=None, email=None, pr
     if created:
         stage = start_stage or (pipe.first_stage if pipe else None)
         from app.services import crm_assign
-        owner, owner_note = crm_assign.choose(src)
+        owner, owner_note = crm_assign.choose(src, mode=assign)
         lead = CrmLead(person=person, product=product, source=src, pipeline=pipe, stage=stage,
                        status=stage.kind if stage else 'open',
                        owner=owner, details=details, utm=utm or None,
@@ -614,9 +622,10 @@ def _lead_link(lead):
 
 
 def _tell_owner(lead, new_source=False):
-    """A bell notification for whoever got the lead -- and for the admins, the first time a page
-    nobody has set up sends one. Best effort: a notification never undoes a lead."""
-    from app.services import notify
+    """A bell notification for whoever got the lead; a lead given to nobody (the default) rings everybody who
+    could take it -- the source's people, nobody away -- and the admins. And for the admins, the first time a
+    page nobody has set up sends one. Best effort: a notification never undoes a lead."""
+    from app.services import crm_assign, notify
     try:
         what = '%s · %s' % (crm_products.labels().get(lead.product, lead.product),
                             lead.source.name if lead.source else 'unknown source')
@@ -624,8 +633,12 @@ def _tell_owner(lead, new_source=False):
             notify.push(lead.owner_id, 'crm_lead', title='New lead: %s' % lead.person.display_name,
                         body=what, link=_lead_link(lead))
         else:
-            for u in User.query.filter(User.is_admin.is_(True), User.is_active.is_(True)).all():
-                notify.push(u.id, 'crm_lead', title=UNOWNED_BELL, body=what, link=_lead_link(lead))
+            people = _owner_candidates(lead.source)
+            away = crm_assign.away_ids([u.id for u in people])
+            ids = {u.id for u in people if u.id not in away}
+            ids |= {u.id for u in User.query.filter(User.is_admin.is_(True), User.is_active.is_(True)).all()}
+            for uid in sorted(ids):
+                notify.push(uid, 'crm_lead', title=UNOWNED_BELL, body=what, link=_lead_link(lead))
         if new_source:
             from app.services import cs_access
             for u in User.query.filter(User.is_admin.is_(True), User.is_active.is_(True)).all():
@@ -4205,10 +4218,10 @@ def stuck_text(hours):
 # ------------------------------------------------------------------------------ Leads: board and list
 
 def lead_load():
-    """The loader options for a list of leads: person (with identities), owner and stage in the same
-    trip, so a card or row never asks for them one lead at a time."""
+    """The loader options for a list of leads: person (with identities), owner, stage, and where it came from
+    and who added it, in the same trip, so a card or row never asks for them one lead at a time."""
     return (joinedload(CrmLead.person).selectinload(CrmPerson.identities), joinedload(CrmLead.owner),
-            joinedload(CrmLead.stage))
+            joinedload(CrmLead.stage), joinedload(CrmLead.source), joinedload(CrmLead.created_by))
 
 
 # Leads' filter panel: which date to filter on, its ready-made ranges (India days: looking back for
@@ -4261,7 +4274,8 @@ def lead_more_words(a, now=None):
     """Leads' panel words beyond the first few, checked, for the board, the list and Download this list:
     ({word: value or None}, the lead_filter() arguments they make). dt: which date (LEAD_DATES; 'created' is
     left out); dr: a range of that date's set, or 'custom' with d1 / d2 (YYYY-MM-DD, either may be blank);
-    src: a lead source id or 'none'; lk: how likely (CRM_LIKELIHOOD)."""
+    src: a lead source id, 'g:<group>' (a group of the lead sources' list) or 'none'; lk: how likely
+    (CRM_LIKELIHOOD); how: how it came (crm_sources.ORIGINS: organic, manual, imported)."""
     from app.models import CRM_LIKELIHOOD
     now = now or datetime.utcnow()
     dt = a.get('dt') if a.get('dt') in dict(LEAD_DATES) else 'created'
@@ -4277,14 +4291,17 @@ def lead_more_words(a, now=None):
     if dr != 'custom':
         d1 = d2 = None
     start, until = date_span(dr, (now + IST).date(), d1, d2) if dr else (None, None)
+    from app.services import crm_sources
     src = a.get('src') or ''
-    src = src if src == 'none' or (src.isdigit() and len(src) < 10) else ''
+    src = src if src == 'none' or (src.isdigit() and len(src) < 10) or src[2:] in crm_sources.GROUP_NAMES else ''
     lk = a.get('lk') if a.get('lk') in CRM_LIKELIHOOD else ''
+    how = a.get('how') if a.get('how') in crm_sources.ORIGIN else ''
     words = {'dt': dt if dt != 'created' else None, 'dr': dr or None,
              'd1': d1.isoformat() if d1 else None, 'd2': d2.isoformat() if d2 else None,
-             'src': src or None, 'lk': lk or None}
+             'src': src or None, 'lk': lk or None, 'how': how or None}
     args = {'date_on': dt if dr else None, 'date_from': start, 'date_until': until,
-            'source': ('none' if src == 'none' else int(src)) if src else None, 'likelihood': lk or None}
+            'source': (int(src) if src.isdigit() else src) if src else None, 'likelihood': lk or None,
+            'how': how or None}
     return words, args
 
 
@@ -4306,14 +4323,15 @@ def date_words_text(words):
 def lead_filter(pipeline=None, owner_id=None, q=None, chat=None, stage_id=None, closed_days=30,
                 follow=None, now=None, closes=None, forecast=None, no_value=False, no_close=False,
                 status=None, ids=None, quoted=None, date_on=None, date_from=None, date_until=None,
-                source=None, likelihood=None):
+                source=None, likelihood=None, how=None):
     """The leads Leads shows, as a query (none runs here): one pipeline (None: every pipeline -- the
     list only); whose (a user id, 'none' for Not given to anyone, None for anyone); a search; the chat
     filter ('waiting' | 'open' | 'nochat'); one stage; finished leads only from the last
     `closed_days` days (None: all); follow='late': an open follow-up past due, 'today': one due today (India time),
     'none': still open with no follow-up planned; quoted='week': a quote was sent in the last 7 days (the
     "Quote sent" line or a quote marked as sent); date_on (LEAD_DATES) between India days date_from and
-    date_until (the day after the last; either may be None); source: a lead source id or 'none'; likelihood."""
+    date_until (the day after the last; either may be None); source: a lead source id, 'g:<group>' or 'none';
+    likelihood; how: organic, manual or imported (services/crm_sources.origin)."""
     from app.services import crm_metrics
     now = now or datetime.utcnow()
     query = CrmLead.query.join(CrmPerson, CrmPerson.id == CrmLead.person_id)
@@ -4360,8 +4378,23 @@ def lead_filter(pipeline=None, owner_id=None, q=None, chat=None, stage_id=None, 
             query = query.filter(col < edge(date_until))
     if source == 'none':
         query = query.filter(CrmLead.source_id.is_(None))
+    elif isinstance(source, str) and source.startswith('g:'):
+        from app.services import crm_sources
+        ids = [s.id for s in CrmSource.query.all() if crm_sources.group_of(s) == source[2:]]
+        query = query.filter(CrmLead.source_id.in_(ids or [0]))
     elif source:
         query = query.filter(CrmLead.source_id == source)
+    if how == 'imported':
+        query = query.filter(CrmLead.imported.is_(True))
+    elif how in ('manual', 'organic'):
+        # added by somebody of ours, or not (a form, a message, a customer's own post)
+        from app.services import crm_sources
+        makers = [r[0] for r in db.session.query(CrmLead.created_by_id).filter(CrmLead.created_by_id.isnot(None))
+                  .distinct().all()]
+        staff = crm_sources.staff_ids(makers)
+        made_by_staff = CrmLead.created_by_id.in_(staff or [0])
+        query = query.filter(CrmLead.imported.is_(False), made_by_staff if how == 'manual'
+                             else or_(CrmLead.created_by_id.is_(None), ~made_by_staff))
     if likelihood:
         query = query.filter(CrmLead.likelihood == likelihood)
     if quoted == 'week':
@@ -4787,8 +4820,8 @@ def lead_from_record(kind, record_id, user=None):
     elif kind == 'contact_message':
         text = r.message or ''
         key = ('sh-apply' if text.startswith('Sahayak application') else
-               'ti-support' if text.startswith('Support request from the /travel-insurance') else
-               'ti-expert' if text.startswith('Travel insurance enquiry from the /travel-insurance') else
+               'ti-expert' if text.startswith(('Support request from the /travel-insurance',
+                                               'Travel insurance enquiry from the /travel-insurance')) else
                'contact-%s' % (r.topic or 'general'))
         lead = capture(key, name=r.name, phone=r.phone, email=r.email, message=text, user_id=r.user_id,
                        product={'companion': 'TC', 'insurance': 'TI', 'sahayak': 'SH'}.get(r.topic, 'GEN'),
@@ -4801,7 +4834,7 @@ def lead_from_record(kind, record_id, user=None):
     elif kind == 'trip':
         lead = capture_trip(r, 'tc-trip-post' if r.user_id else 'tc-cs-post', **common)
     else:  # a site account
-        lead = capture('site-account', name=r.full_name, phone=r.phone, email=r.email, user_id=r.id,
+        lead = capture('web-other', name=r.full_name, phone=r.phone, email=r.email, user_id=r.id,
                        ref=('users', r.id), **common)
     if lead is None:
         return None, False

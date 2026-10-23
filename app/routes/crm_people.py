@@ -311,7 +311,7 @@ def _csv_path(token):
 def _csv_defaults(form):
     owner = form.get('default_owner', type=int)
     return {'product': (form.get('default_product') or '').strip().upper() or None,
-            'source': (form.get('default_source') or 'csv-import').strip(),
+            'source': (form.get('default_source') or 'import-other').strip(),
             'owner': owner if owner in {u.id for u in _staff()} else None,
             'phone_cc': (form.get('phone_cc') or 'IN').strip().upper()[:2]}
 
@@ -361,7 +361,7 @@ def import_csv():
         flash(str(exc), 'danger')
         return redirect(crm_url('data'))
     mapping = _csv_mapping(request.form, len(headers)) if reuse else crm_people.guess_map(headers)
-    defaults = _csv_defaults(request.form) if reuse else {'product': None, 'source': 'csv-import', 'owner': None,
+    defaults = _csv_defaults(request.form) if reuse else {'product': None, 'source': 'import-other', 'owner': None,
                                                           'phone_cc': 'IN'}
     plan = crm_people.plan_csv(path, mapping, defaults, _staff())
     csv_ctx = {'token': token, 'filename': filename, 'headers': headers, 'mapping': mapping, 'defaults': defaults,
@@ -458,6 +458,21 @@ def save_inboxes():
     ActivityEvent.log('crm_inboxes_saved', actor=current_user, rows=len(rows))
     db.session.commit()
     flash('Saved.', 'success')
+    return redirect(crm_url('sources', tab='inboxes'))
+
+
+@crm_bp.route('/sources/inboxes/standard', methods=['POST'])
+@cs_required
+@admin_only
+def standard_inboxes():
+    """Inboxes to check: the lead sources' calls & chats and social media, a row each (services/crm_sources)."""
+    from flask import current_app
+    from app.services import crm_sources
+    rows = crm_sources.standard_inboxes(current_app.config.get('WACRM_SOURCE_KEY', 'wa-india'))
+    crm.save_settings(current_user, check_channels=rows)
+    ActivityEvent.log('crm_inboxes_saved', actor=current_user, rows=len(rows), standard=True)
+    db.session.commit()
+    flash('The half-hourly check now has the %d calls and chats on the lead sources.' % len(rows), 'success')
     return redirect(crm_url('sources', tab='inboxes'))
 
 

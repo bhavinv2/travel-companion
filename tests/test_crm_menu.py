@@ -17,7 +17,7 @@ from app import db as _db
 from app.models import Workspace, WorkspaceMember, WorkspaceRole
 from app.services import access
 
-SECTION_ORDER = ['overview', 'sales', 'companion', 'insurance', 'sahayak', 'team', 'site']
+SECTION_ORDER = ['overview', 'reports', 'sales', 'companion', 'insurance', 'sahayak', 'help', 'team', 'site']
 SALES_SUBS = ['daily', 'setup']
 
 
@@ -44,17 +44,20 @@ def test_every_page_is_in_exactly_one_section_in_the_agreed_order():
             assert s['pages'] == tuple(k for sub in s['subs'] for k in sub['pages'])
 
 
-def test_every_dashboard_and_report_is_in_overview():
-    for key in ('dashboard', 'crm_insights', 'crm_tracker', 'metrics'):
-        assert access.PAGES[key]['section'] == 'overview', key
+def test_every_report_is_in_reports_and_every_screen_that_explains_is_in_help():
+    assert access.PAGES['health']['section'] == 'overview'
+    for key in ('dashboard', 'crm_insights', 'crm_forecast', 'crm_tracker', 'crm_team', 'crm_report_builder'):
+        assert access.PAGES[key]['section'] == 'reports', key
+    for key in ('guide', 'crm_process', 'metrics', 'help', 'help_insurance', 'help_sahayak'):
+        assert access.PAGES[key]['section'] == 'help', key
     assert access.PAGES['wa_flows']['sub'] == 'setup'
 
 
-def test_there_is_no_help_section_and_the_screens_that_explained_the_work_are_tabs_or_switches():
-    assert 'help' not in [s['key'] for s in access.SECTIONS]
-    for key in ('crm_flow', 'crm_process', 'crm_checks', 'wa_templates', 'wa_broadcasts', 'wa_tags', 'wa_automations',
-                'wa_flows', 'wa_ai', 'wa_settings'):
+def test_the_screens_that_belong_to_another_are_tabs_or_switches():
+    for key in ('crm_flow', 'crm_checks', 'crm_forecast', 'crm_team', 'wa_templates', 'wa_broadcasts', 'wa_tags',
+                'wa_automations', 'wa_flows', 'wa_ai', 'wa_settings'):
         assert access.PAGES[key]['nav'] is False, key
+    assert access.SWITCHES == {'crm_insights', 'crm_tracker'}
 
 
 def test_the_old_page_keys_are_gone_and_the_new_ones_exist():
@@ -83,7 +86,7 @@ def test_the_area_labels_and_the_wording_of_the_main_lines():
             'messages': 'Trip post texts & e-mails', 'crm_add': 'Add a lead'}
     for key, label in want.items():
         assert access.PAGES[key]['label'] == label, key
-    assert access.PAGES['metrics']['module'] == 'companion' and access.PAGES['metrics']['section'] == 'overview'
+    assert access.PAGES['metrics']['module'] == 'companion' and access.PAGES['metrics']['section'] == 'help'
     assert access.PAGES['wa_tags']['module'] == 'whatsapp'
 
 
@@ -124,8 +127,9 @@ def test_an_agent_sees_the_days_work_and_nothing_to_manage(app, cs_user):
     for line in ('My day', 'Leads'):
         assert line in flat, line
     for line in ('Team today', 'Sales results', 'Lead sources', 'Pipelines & products', 'WhatsApp', 'Roles',
-                 'Team members', 'Tags', 'Broadcasts', 'Half-hourly check', 'How we sell', 'Visual flow'):
+                 'Team members', 'Tags', 'Broadcasts', 'Half-hourly check', 'Visual flow', 'Health'):
         assert line not in flat, line
+    assert labels(_nav_for(app, cs_user))['Help'] == ['Screen guide', 'How we sell', 'Match quality']
 
 
 def test_an_agent_sees_daily_work_as_plain_lines(app, cs_user):
@@ -133,7 +137,6 @@ def test_an_agent_sees_daily_work_as_plain_lines(app, cs_user):
     sales = next(g for g in _nav_for(app, cs_user) if g['key'] == 'sales')
     assert sales['subs'] == []
     assert 'My day' in [i['label'] for i in sales['items']]
-    assert 'help' not in [g['key'] for g in _nav_for(app, cs_user)]
 
 
 def _nav_for(app, user):
@@ -152,16 +155,16 @@ def test_the_administrator_sees_every_section_in_order(app, admin_user):
     sales = next(g for g in groups if g['key'] == 'sales')
     assert [s['key'] for s in sales['subs']] == ['sales.' + k for k in SALES_SUBS]
     assert [i['label'] for i in sales['subs'][0]['items']][:2] == ['My day', 'WhatsApp chats']
-    assert 'help' not in keys
     assert [i['label'] for i in sales['subs'][1]['items']] == [
         'Pipelines & products', 'Automation', 'Messages', 'Lead sources', 'Targets', 'WhatsApp', 'Import & export']
-    # every report is one line, All reports, first in Overview: the reports are its tabs, not lines of their own
+    # Health first in Overview; the reports a menu of their own (tests/test_health.py has the rest)
     overview = [i['label'] for i in next(g for g in groups if g['key'] == 'overview')['items']]
-    assert overview[0] == 'All reports'
+    assert overview[0] == 'Health'
     flat = [l for ls in labels(groups).values() for l in ls]
     for line in ('Dashboard', 'Queues', 'Promotion'):
         assert line not in flat
-    for line in ('All reports', 'My day', 'Leads', 'Messages', 'Automation',
+    for line in ('Health', 'Sales results', 'Team today', 'Report builder', 'Site dashboard', 'Screen guide',
+                 'How we sell', 'Match quality', 'My day', 'Leads', 'Messages', 'Automation',
                  'Pipelines & products', 'Lead sources', 'WhatsApp', 'Import & export',
                  'Team members', 'Teams', 'Roles', 'Workspace'):
         assert line in flat, line
@@ -169,8 +172,8 @@ def test_the_administrator_sees_every_section_in_order(app, admin_user):
     # Contacts is on the menu from U7 (the portal's own page)
     assert 'Contacts' in flat
     for hidden in ('Add a lead', 'Download lists of leads and contacts', 'Auto', 'All workspaces', 'Tags', 'Chatbot',
-                   'Reply rules', 'AI replies', 'WhatsApp number', 'Visual flow', 'How we sell', 'Half-hourly check',
-                   'Site dashboard', 'Sales results', 'Forecast', 'Report builder', 'Team today', 'Match quality'):
+                   'Reply rules', 'AI replies', 'WhatsApp number', 'Visual flow', 'Half-hourly check', 'Forecast',
+                   'Team analysis', 'All reports'):
         assert hidden not in flat, hidden
 
 
@@ -186,13 +189,13 @@ def test_switching_an_area_off_removes_its_lines(app, admin_user):
 def test_where_each_person_lands(app, client, cs_user, admin_user):
     with app.test_request_context('/'):
         assert access.home_url(cs_user).endswith('/crm/today')            # staff who work leads: My day
-        assert access.home_url(admin_user).endswith('/admin/crm/insights')  # the site owner: Results
+        assert access.home_url(admin_user).endswith('/admin/health')        # the site owner: Health
     ws = access.ensure_defaults()
     ws.modules = ['console']
     _db.session.commit()
     access._cache().clear()
     with app.test_request_context('/'):
-        assert access.home_url(admin_user) == '/admin/'          # Sales is off: the site dashboard
+        assert access.home_url(admin_user) == '/admin/health'    # Sales off: still Health (its other parts)
 
 
 def test_the_promotion_link_is_not_in_the_site_owners_menu(app, client, admin_user):

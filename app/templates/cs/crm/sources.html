@@ -3,11 +3,11 @@
 {% block crm_title %}Lead sources{% endblock %}
 {% block crm %}
 {{ page_head('Lead sources', 'fa-solid fa-door-open',
-             'Each form, page or channel that brings leads, which pipeline and people they go to, and the inboxes the team checks.',
-             help=['A new form or page sends its leads here by itself and shows as needing set-up until you choose its pipeline.',
-                   "Paused keeps a source's leads but sends nothing.",
+             'The only ways a lead reaches us, in their groups: where the leads of each go, who gets them, and how many came lately.',
+             help=['Every lead is filed under one of these: the website forms and WhatsApp by themselves, the team when they add one, the imports when a list comes in.',
+                   'Each lead shows where it came from, and whether it came in by itself (organic), was added by staff (manual) or was imported.',
+                   "Paused keeps a source's leads but sends nothing. A page nobody has set up waits under Not in the list.",
                    'Inboxes to check is the list on the Half-hourly check.'],
-             primary=({'label': '+ New source', 'href': crm_url('sources', edit='new')} if tab == 'sources' else None),
              full_screen=True) }}
 <nav class="subtabs" aria-label="Lead sources">
   <a href="{{ crm_url('sources') }}" class="{{ 'on' if tab == 'sources' }}">Sources</a>

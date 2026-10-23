@@ -107,7 +107,7 @@ def test_month_view_shows_tasks_calls_meetings_with_their_times_and_links(client
     task(me, lead, kind='call', title='Ring about renewal', due=when(d, 9, 5))
     task(me, lead, kind='todo', title='Send forms', due=when(d, 11, 0))
     html = page(client)
-    assert 'Office visit' in html and '15:30-16:15' in html and '09:05' in html and 'Send forms' in html
+    assert 'Office visit' in html and '15:30–16:15' in html and '09:05' in html and 'Send forms' in html
     assert 'href="/cs/crm/lead/%d"' % lead.id in html
     # in time order inside the day
     assert html.index('Ring about renewal') < html.index('Send forms') < html.index('Office visit')
@@ -135,7 +135,7 @@ def test_travel_and_cover_end_dates_of_open_leads_are_all_day_items(client, me):
     lead = new_lead(me, departure_date=d + timedelta(days=1), ends_on=d + timedelta(days=2))
     closed = new_lead(me, departure_date=d + timedelta(days=1), status='lost')
     html = page(client)
-    assert html.count('k-departure') == 2 and html.count('k-cover_end') == 2        # the grid and the phone list, the open lead only
+    assert html.count('cal-card k-departure') == 2 and html.count('cal-card k-cover_end') == 2   # the grid and the phone list, the open lead only
     assert 'Travels' in html and 'Cover ends' in html
     assert lead.person.display_name in html
     assert closed.status == 'lost'
@@ -148,7 +148,7 @@ def test_done_items_are_struck_through_and_other_months_are_not_mixed_in(client,
     _db.session.commit()
     far = task(me, title='Next year thing', due=when(d + timedelta(days=400)))
     html = page(client)
-    assert 'cal-it k-todo done' in html and 'Next year thing' not in html
+    assert 'cal-card k-todo done' in html and 'Next year thing' not in html
 
 
 # ====================================================================================== navigation and views
@@ -188,7 +188,7 @@ def test_a_phone_gets_a_day_list_instead_of_the_grid(client, me):
     css = open('app/static/css/crm.css', encoding='utf-8').read()
     mark = '@media (max-width: 760px) {' + chr(10) + '  .cal-grid'
     phone = css[css.index(mark):]
-    assert '.cal-grid { display: none; }' in phone and '.cal-daylist { display: block; }' in phone
+    assert '.cal-grid, .cal-wk, .cal-lanes-wrap { display: none; }' in phone and '.cal-daylist { display: block; }' in phone
     assert '.cal-daylist { display: none; }' in css.split(mark)[0]
 
 

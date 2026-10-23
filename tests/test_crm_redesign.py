@@ -4,6 +4,8 @@ Customer service sees the day's work only; the admin gets the daily tracker, das
 My day walks through the day step by step. Anything the site already has becomes a lead in one
 click, a wrong move or a lead added by mistake can be undone, and the pipeline symbol shows on
 every screen that shows a person."""
+
+import pytest
 from datetime import date, datetime, timedelta
 
 from conftest import login, make_user
@@ -36,7 +38,7 @@ def test_customer_service_sees_only_the_days_work(app, client, cs_user):
 def test_the_admin_sees_the_management_screens(app, client, admin_user):
     login(client, admin_user.email)
     page = client.get('/admin/crm/today').get_data(as_text=True)
-    assert 'All reports' in page and 'Set-up' in page          # Team today and Site dashboard are its tabs
+    assert 'Health' in page and 'Reports' in page and 'Set-up' in page
     # an admin who opens a management screen in the CS console lands in the admin portal
     r = client.get('/cs/crm/setup?tab=answers')
     assert r.status_code == 307 and r.headers['Location'].endswith('/admin/crm/setup?tab=answers')
@@ -254,3 +256,10 @@ def test_the_stage_pill_colours(app):
     roles = {s.key: crm.stage_role(s) for s in CrmPipeline.query.filter_by(key='ti-standard').one().stages}
     assert roles == {'cold': 'cold', 'prospect': 'prospect', 'quoted': 'pipeline', 'pipeline': 'pipeline',
                      'customer': 'customer', 'prospect_fallout': 'lost', 'pipeline_fallout': 'lost'}
+
+@pytest.fixture(autouse=True)
+def _leads_shared_out(monkeypatch):
+    """These tests were written when a source gave a new lead to whoever had the fewest open leads unless told
+    otherwise. Since 2026-10-23 nothing set means nobody (crm_assign.DEFAULT; tests/test_crm2_assign.py)."""
+    from app.services import crm_assign
+    monkeypatch.setattr(crm_assign, 'DEFAULT', 'fewest')

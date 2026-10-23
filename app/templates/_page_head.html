@@ -2,9 +2,10 @@
    "(?) How this works" (3-5 lines), at most one filled button, other actions under "⋯ More".
    icon: the full class, e.g. 'fa-solid fa-sun' or 'fa-brands fa-whatsapp'. help: a list of lines
    (or one string). primary: {'label', 'href', 'icon'?}. more: a list of {'label', 'href', 'icon'?,
-   'danger'?}. full_screen: the quiet button that hides the menus (crm.js, data-focus). #}
-{% macro page_head(title, icon, helper, help=None, primary=None, more=None, full_screen=False) -%}
-<header class="ui-head">
+   'danger'?}. full_screen: the quiet button that hides the menus (crm.js, data-focus). switch: two screens of one
+   menu line, swapped at the top right (TABS_FOR of an access.SWITCHES line: [{'label', 'url', 'active'}]). #}
+{% macro page_head(title, icon, helper, help=None, primary=None, more=None, full_screen=False, switch=None) -%}
+<header class="ui-head{{ ' has-switch' if switch }}">
   <div class="ui-head-text">
     <h1 class="ui-title"><i class="{{ icon }}" aria-hidden="true"></i> {{ title }}</h1>
     {%- if helper %}<p class="ui-helper">{{ helper }}</p>{% endif %}
@@ -16,6 +17,9 @@
     {%- endif %}
   </div>
   <div class="ui-head-actions">
+    {%- if switch %}
+    <nav class="seg ui-switch" aria-label="Switch screen">{% for t in switch %}<a href="{{ t.url }}" class="{{ 'on' if t.active }}"{% if t.active %} aria-current="page"{% endif %}>{{ t.label }}</a>{% endfor %}</nav>
+    {%- endif %}
     {%- if full_screen %}
     <button type="button" class="cb quiet icon" data-focus title="Full screen (Esc to come back)" aria-label="Full screen (Esc to come back)"><i class="fa-solid fa-expand"></i></button>
     {%- endif %}

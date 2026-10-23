@@ -1,12 +1,10 @@
 {% extends 'base.html' %}
 {% block title %}Match quality – CS Console{% endblock %}
-{% from 'cs/crm/_tabs.html' import tab_strip with context %}
 {% macro pct(v) -%}{%- if v is none -%}—{%- else -%}{{ (v * 100)|round(0)|int }}%{%- endif -%}{%- endmacro %}
 {% block content %}
 <div class="admin-page">
   {% with active='metrics' %}{% include 'cs/_sidebar.html' %}{% endwith %}
   <main class="admin-main">
-    {{ tab_strip('metrics') }}
     <div class="card-head">
       <h1>Match quality</h1>
       <form method="GET" class="inline-form">

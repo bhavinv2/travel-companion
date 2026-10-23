@@ -285,40 +285,10 @@ def seed_auto(kind):
     return kind, None
 
 # ---------------------------------------------------------------------------------------- sources
-# (key, name, kind, product, pipeline key, pages, status)
-# ti-support, contact-companion and contact-sahayak name the pipeline the catch-all rule already passed
-# their leads on to (U5)
-SOURCES = [
-    ('tc-trip-post', 'TC: trip posted on the site', 'form', 'TC', 'tc-companion', ['/'], 'live'),
-    ('tc-cs-post', 'TC: post added by CS (Facebook groups, WhatsApp)', 'manual', 'TC', 'tc-companion',
-     ['/cs/posts/new'], 'live'),
-    ('tc-import', 'TC: Excel import and scraper', 'import', 'TC', 'tc-companion', ['/cs/import'], 'live'),
-    ('ti-quote', 'TI: quote request', 'form', 'TI', 'ti-standard', ['/travel-insurance'], 'live'),
-    ('ti-expert', 'TI: expert form and consultation pop-up', 'popup', 'TI', 'ti-standard',
-     ['/travel-insurance'], 'live'),
-    ('ti-support', 'TI: support form', 'form', 'TI', 'ti-standard', ['/travel-insurance'], 'live'),
-    ('sh-booking', 'Sahayak: visit booking', 'form', 'SH', 'sahayak-visit', ['/sahayak'], 'live'),
-    ('sh-apply', 'Sahayak: nurse application', 'form', 'SH', 'nurse-recruitment', ['/sahayak'], 'live'),
-    ('contact-companion', 'Contact us: travel companion', 'form', 'TC', 'tc-companion', ['/contact-us'], 'live'),
-    ('contact-insurance', 'Contact us: insurance', 'form', 'TI', 'ti-standard', ['/contact-us'], 'live'),
-    ('contact-sahayak', 'Contact us: Sahayak', 'form', 'SH', 'sahayak-visit', ['/contact-us'], 'live'),
-    ('contact-general', 'Contact us: general', 'form', 'GEN', 'general', ['/contact-us'], 'live'),
-    ('newsletter', 'Newsletter sign-up', 'form', 'GEN', 'general', ['/'], 'paused'),
-    ('wa-india', 'WhatsApp: India number', 'chat', 'GEN', 'general', [], 'live'),
-    ('wa-usa', 'WhatsApp: USA number', 'chat', 'GEN', 'general', [], 'live'),
-    ('instagram', 'Instagram DMs and comments', 'chat', 'GEN', 'general', [], 'live'),
-    ('facebook', 'Facebook messages and comments', 'chat', 'GEN', 'general', [], 'live'),
-    ('tawk', 'Tawk chat', 'chat', 'GEN', 'general', [], 'live'),
-    ('call', 'Phone call (India or USA)', 'manual', 'GEN', 'general', [], 'live'),
-    ('event', 'Event or association', 'manual', 'GEN', 'general', [], 'live'),
-    ('reference', 'Reference / friends and family', 'manual', 'GEN', 'general', [], 'live'),
-    ('telegram', 'Telegram', 'chat', 'GEN', 'general', [], 'live'),
-    ('google-ads', 'Google Ads', 'ads', 'TI', 'ti-standard', [], 'live'),
-    ('direct-sale', 'Direct sale', 'manual', 'TI', 'ti-standard', [], 'live'),
-    ('sales-sheet', 'Sales sheet (Excel import)', 'import', 'GEN', 'general', [], 'live'),
-    ('site-account', 'Site account (added from existing data)', 'manual', 'GEN', 'general', [], 'live'),
-    ('csv-import', 'Imported list (CSV)', 'import', 'GEN', 'general', [], 'live'),
-]
+# (key, name, kind, product, pipeline key, pages, status): the one list, kept in services/crm_sources (the
+# screens, the forms and the reports read it there)
+from app.services.crm_sources import seed_rows as _source_rows  # noqa: E402
+SOURCES = _source_rows()
 
 # ---------------------------------------------------------------------------------------- answers
 # (product, question, keywords, answer)

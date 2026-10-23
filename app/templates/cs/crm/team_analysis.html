@@ -1,7 +1,6 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from 'cs/crm/_bits.html' import initials with context %}
 {% from '_page_head.html' import page_head %}
-{% from 'cs/crm/_tabs.html' import tab_strip with context %}
 {% block crm_title %}Team analysis{% endblock %}
 {% macro mins(m) -%}
 {%- if m is none -%}—{%- elif m < 60 -%}{{ m|round|int }} min{%- else -%}{{ (m // 60)|int }} h {{ (m % 60)|round|int }} min{%- endif -%}
@@ -20,13 +19,12 @@
 {% set people = result.people %}
 {% set keep = {'period': per.key, 'start': per.first.isoformat(), 'end': per.last.isoformat()} %}
 {% block crm %}
-{{ tab_strip('crm_team') }}
 {{ page_head('Team analysis', 'fa-solid fa-people-arrows', 'Tick people on the left, pick a period, and compare them side by side.',
              help=['Scorecard: every measure, one column per person; the best in a row is green, the weakest red. Together adds up the people ticked.',
                    'Inbox checks: who ticked the half-hourly check on each day, and the half hours of the day that get missed. One day shows each half hour.',
                    'Day by day: one measure at a time, one row per person, one column per day.',
                    'Work and results are counted the same way as Sales results; the checks the way the Half-hourly check counts them (India time).'],
-             full_screen=True) }}
+             full_screen=True, switch=TABS_FOR('crm_team')) }}
 
 <form class="ta-period" method="GET" id="taPeriod">
   <input type="hidden" name="p" value=""/>

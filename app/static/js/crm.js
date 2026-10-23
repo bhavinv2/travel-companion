@@ -1308,8 +1308,46 @@
   /* -------------------------------------------------------------- add a lead: the chosen product's details */
   var addForm = document.querySelector('[data-add-lead]');
   if (addForm) {
+    // the card on the right says how the lead will show: where it came from, what they want, who has it
+    var said = function (name, box) {
+      var on = addForm.querySelector('input[name=' + name + ']:checked');
+      var dd = addForm.querySelector(box);
+      if (!dd) return;
+      dd.textContent = on ? on.dataset.label || '' : (name === 'source' ? 'Choose where they came from' : '—');
+      dd.classList.toggle('muted', !on);
+    };
+    var productPicked = false;          // somebody chose the product themselves: a source no longer changes it
+    var productAuto = false;            // the product shown was filled in by the source
     addForm.addEventListener('change', function (e) {
+      if (e.target.name === 'source') {
+        said('source', '[data-al-src]');
+        if (productPicked) return;
+        var code = e.target.dataset.product;
+        var tile = code && addForm.querySelector('input[name=product][value="' + code + '"]');
+        if (tile) {
+          if (!tile.checked) {
+            tile.checked = true;
+            tile.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          productAuto = true;
+        } else if (productAuto) {          // a source that says no product: take back the one an earlier source chose
+          addForm.querySelectorAll('input[name=product]').forEach(function (r) { r.checked = false; });
+          addForm.querySelectorAll('[data-add-fields]').forEach(function (g) { g.hidden = true; });
+          said('product', '[data-al-product]');
+          productAuto = false;
+        }
+        return;
+      }
+      if (e.target.name === 'owner' || e.target.name === 'owner_id') {
+        var pick = addForm.querySelector('[data-owner-pick]');
+        var dd = addForm.querySelector('[data-al-owner]');
+        var who = addForm.querySelector('input[name=owner]:checked');
+        if (dd && who) dd.textContent = who.value === 'pick' && pick && pick.value ? pick.options[pick.selectedIndex].text : who.dataset.label;
+        return;
+      }
       if (e.target.name !== 'product') return;
+      if (e.isTrusted) productPicked = true;
+      said('product', '[data-al-product]');
       addForm.querySelectorAll('[data-add-fields]').forEach(function (g) { g.hidden = g.dataset.addFields !== e.target.value; });
       // the product's usual price, unless somebody typed an amount themselves
       var amt = addForm.querySelector('[data-add-amount]'), cur = addForm.querySelector('[data-add-currency]');
@@ -1320,6 +1358,11 @@
     });
     var typed = addForm.querySelector('[data-add-amount]');
     if (typed) typed.addEventListener('input', function () { typed.dataset.typed = '1'; });
+    // shown again after an error, or opened with a source or product: the card says so from the start
+    said('source', '[data-al-src]');
+    said('product', '[data-al-product]');
+    var ownerNow = addForm.querySelector('input[name=owner]:checked');
+    if (ownerNow) ownerNow.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
   /* -------------------------------------------------------------- set-up: {name} buttons */

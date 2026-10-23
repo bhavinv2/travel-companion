@@ -79,7 +79,10 @@ def test_unknown_source_is_kept_unrouted_until_an_admin_routes_it(app, client, a
 
 
 def test_paused_source_keeps_leads_but_plans_nothing(app):
-    lead = crm.capture('newsletter', email='reader@example.com', utm={})
+    crm.ensure_defaults()
+    CrmSource.query.filter_by(key='web-other').one().status = 'paused'
+    _db.session.commit()
+    lead = crm.capture('web-other', email='reader@example.com', utm={})
     assert lead is not None and lead.open_task is None
 
 
@@ -516,4 +519,9 @@ def test_a_crm_fault_never_fails_the_form(app, client, monkeypatch):
                                           'phone': '+91 98480 00002', 'message': 'Need cover for my parents'})
     assert r.status_code == 200 and r.get_json()['success']
 
-
+@pytest.fixture(autouse=True)
+def _leads_shared_out(monkeypatch):
+    """These tests were written when a source gave a new lead to whoever had the fewest open leads unless told
+    otherwise. Since 2026-10-23 nothing set means nobody (crm_assign.DEFAULT; tests/test_crm2_assign.py)."""
+    from app.services import crm_assign
+    monkeypatch.setattr(crm_assign, 'DEFAULT', 'fewest')

@@ -1,6 +1,5 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
-{% from 'cs/crm/_tabs.html' import tab_strip with context %}
 {% from 'cs/crm/_report_result.html' import report_result with context %}
 {% block crm_title %}Results{% endblock %}
 
@@ -35,7 +34,6 @@
 {%- endmacro %}
 
 {% block crm %}
-{{ tab_strip('crm_insights') }}
 {{ page_head(person.full_name ~ "'s results" if person else 'Results', 'fa-solid fa-chart-line',
              'How sales are going: new leads, replies and customers won, by product, source and person.',
              help=['Counted from the Sales CRM as the team works: nothing to fill in.',
@@ -45,7 +43,7 @@
                    'Campaigns shows each paid campaign from Lead sources › Marketing activities over its own dates: leads, customers, won value, cost and return.'],
              primary=({'label': 'Download for Excel', 'href': crm_url('insights_csv', days=days, who=person.id if person else None, pipeline=pipe.id if pipe else None), 'icon': 'fa-solid fa-file-csv'} if CAN('crm_export') else None),
              more=([{'label': 'Download per person', 'href': crm_url('insights_people_csv', days=days), 'icon': 'fa-solid fa-file-csv'}] if CAN('crm_export') else None),
-             full_screen=True) }}
+             full_screen=True, switch=TABS_FOR('crm_insights')) }}
 {% if current_user.is_admin %}
 <details class="fam-remove res-recalc" style="margin:0 0 10px">
   <summary class="cb sm quiet" title="Forget the numbers saved for the last 90 days and save them again."><i class="fa-solid fa-rotate"></i> Recalculate the last 90 days</summary>

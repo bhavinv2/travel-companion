@@ -332,11 +332,12 @@ def test_the_blog_shows_the_featured_post_sections_and_tags(client, admin_user):
     make('Scheduled unseen', when=datetime.utcnow() + timedelta(days=1))
     _db.session.commit()
     html = client.get('/blog').data.decode()
-    assert 'blog-hero' in html and 'The big one' in html and 'Visa basics' in html
+    assert 'bp--hero' in html and 'The big one' in html and 'Visa basics' in html
+    assert html.index('The big one') < html.index('Visa basics')          # the featured one is the big one, first
     assert 'Draft unseen' not in html and 'Scheduled unseen' not in html
-    assert 'href="/blog/category/visas"' in html and '2</small>' in html
+    assert 'href="/blog/category/visas" class="bj-story' in html               # the category, as a round picture
     page = client.get('/blog/category/visas').data.decode()
-    assert 'Visas for parents.' in page and 'Visa basics' in page and 'blog-hero' not in page
+    assert 'Visas for parents.' in page and 'Visa basics' in page and 'bp--hero' not in page
     assert 'Visa basics' in client.get('/blog/tag/oci').data.decode()
     assert 'The big one' not in client.get('/blog/tag/oci').data.decode()
     assert client.get('/blog/category/nothing').status_code == 404
@@ -345,6 +346,62 @@ def test_the_blog_shows_the_featured_post_sections_and_tags(client, admin_user):
     assert '<title>Big one for Google – NRI Parent Service</title>' in client.get('/blog/%s' % hero.slug).data.decode()
     assert 'Visa basics' in client.get('/blog?q=basics').data.decode()
     assert '/blog/category/visas' in client.get('/sitemap.xml').data.decode()
+
+
+def test_the_blog_list_goes_on_saves_and_swipes(client, admin_user, monkeypatch):
+    from app.routes import blog as blog_routes
+    monkeypatch.setattr(blog_routes, 'PER_PAGE', 2)
+    old = make('Oldest post')
+    old.published_at = datetime.utcnow() - timedelta(days=40)
+    mid = make('Middle post')
+    mid.published_at = datetime.utcnow() - timedelta(days=3)
+    new = make('Newest post')
+    new.published_at = datetime.utcnow() - timedelta(minutes=5)
+    new.cover_image_url = '/static/uploads/blog/cover.jpg'
+    new.content = '<p>Words.</p><figure class="blog-img"><img src="/static/uploads/blog/a.jpg" alt="A queue"></figure>' \
+                  '<figure class="blog-img"><img src="/static/uploads/blog/cover.jpg" alt="the cover again"></figure>'
+    _db.session.commit()
+    # nothing featured: the newest is the big one; the page says how long ago
+    html = client.get('/blog').data.decode()
+    assert 'bp--hero' in html and html.index('Newest post') < html.index('Middle post')
+    assert '5 minutes ago' in html and '3 days ago' in html
+    assert 'id="bjMore"' in html                                       # 3 posts, 2 a page: there is more
+    # the next page alone, for the list that goes on as it is scrolled
+    more = client.get('/blog?page=2&chunk=1')
+    body = more.data.decode()
+    assert 'Oldest post' in body and '<html' not in body and more.headers['X-Next'] == ''
+    assert client.get('/blog?chunk=1').headers['X-Next'].endswith('page=2')
+    # the pictures a card swipes: the cover, then the post's own, each once
+    assert new.pictures() == [('/static/uploads/blog/cover.jpg', ''), ('/static/uploads/blog/a.jpg', 'A queue')]
+    assert 'bp-media is-multi' in html and '1/2' in html
+    # saved on this device: only those, and the page says what it is
+    saved = client.get('/blog?saved=%s,%s,not-a-post' % (old.slug, mid.slug)).data.decode()
+    assert 'Saved posts' in saved and 'Oldest post' in saved and 'Middle post' in saved and 'Newest post' not in saved
+    assert 'Nothing saved yet' in client.get('/blog?saved=').data.decode()
+    # a post: share, WhatsApp and save buttons, the reading bar
+    post = client.get('/blog/%s' % new.slug).data.decode()
+    assert 'data-act="wa"' in post and 'data-act="save"' in post and 'bjProgress' in post
+    # a featured post is the big one on page 1 and out of every later page: none starts a post early
+    mid.is_featured = True
+    _db.session.commit()
+    monkeypatch.setattr(blog_routes, 'PER_PAGE', 1)
+    first = client.get('/blog').data.decode()
+    assert 'bp--hero' in first and 'Middle post' in first and 'Newest post' in first and 'Oldest post' not in first
+    second = client.get('/blog?page=2&chunk=1').data.decode()
+    assert 'Oldest post' in second and 'Newest post' not in second and 'Middle post' not in second
+
+
+def test_ago_says_how_long_ago():
+    from app.routes.blog import ago
+    now = datetime(2026, 10, 23, 12, 0)
+    assert ago(now - timedelta(seconds=20), now) == 'just now'
+    assert ago(now - timedelta(minutes=1), now) == '1 minute ago'
+    assert ago(now - timedelta(hours=5), now) == '5 hours ago'
+    assert ago(now - timedelta(days=1, hours=2), now) == 'yesterday'
+    assert ago(now - timedelta(days=4), now) == '4 days ago'
+    assert ago(datetime(2026, 9, 1, 20, 0), now) == '2 Sep'                  # India time: past 18:30 UTC is the next day
+    assert ago(datetime(2025, 3, 5, 6, 0), now) == '5 Mar 2025'
+    assert ago(None) == ''
 
 
 def test_a_writer_without_the_lists_writes_but_does_not_manage(client, app, cs_user):

@@ -1,10 +1,12 @@
 """Who a new lead goes to (Sales CRM 2.0, run 3b).
 
-A source shares its new leads one of two ways (CrmSource.assign_mode):
-  'fewest'        whoever holds the fewest open leads (the rule that was always used; NULL means this)
+A source shares its new leads one of three ways (CrmSource.assign_mode):
+  NULL            nobody: the lead waits, not given to anyone, until somebody takes it or is given it. The
+                  default since 2026-10-23 (it used to mean 'fewest')
+  'fewest'        whoever holds the fewest open leads
   'round_robin'   in turn: the next person after the one who got the last lead (CrmSource.rr_last_user_id)
-People can be away (WorkspaceMember.away_until): they get no new leads in either mode. When everybody who
-could take it is away, the normal rule runs over all of them and the lead says so.
+People can be away (WorkspaceMember.away_until): they get no new leads in either sharing mode. When everybody
+who could take it is away, the normal rule runs over all of them and the lead says so.
 """
 from datetime import datetime, timedelta
 
@@ -13,13 +15,18 @@ from sqlalchemy import func
 from app import db
 from app.models import CrmLead, WorkspaceMember
 
-MODES = (('fewest', 'Whoever has the fewest open leads'), ('round_robin', 'In turn (round robin)'))
+MODES = (('none', 'Nobody: it waits, not given to anyone, until someone takes it'),
+         ('fewest', 'Whoever has the fewest open leads'), ('round_robin', 'In turn (round robin)'))
 ALL_AWAY = 'Everyone who could take this lead was away, so it went to %s as usual.'
 IST = timedelta(hours=5, minutes=30)
 
 
+DEFAULT = 'none'           # a source with nothing set gives its new leads to nobody
+
+
 def mode_of(src):
-    return src.assign_mode if src is not None and src.assign_mode == 'round_robin' else 'fewest'
+    mode = src.assign_mode if src is not None else None
+    return mode if mode in ('fewest', 'round_robin') else DEFAULT
 
 
 def away_ids(user_ids, now=None):
@@ -64,9 +71,13 @@ def set_away(user, until=None):
     return len(rows)
 
 
-def choose(src, now=None):
+def choose(src, now=None, mode=None):
     """(user or None, note or None): the owner for a new lead from `src`, and what to say on the lead when
-    the usual rule could not be followed. Remembers the round-robin turn (no commit)."""
+    the usual rule could not be followed. Remembers the round-robin turn (no commit). `mode` says it outright
+    instead of the source (the Add lead form's "Whoever is least busy" is 'fewest' whatever the source does)."""
+    mode = mode or mode_of(src)
+    if mode == 'none':
+        return None, None
     from app.services import crm
     users = crm._owner_candidates(src)
     if not users:
@@ -78,7 +89,7 @@ def choose(src, now=None):
     if not here:
         here = users
         note = 'all_away'
-    owner = _round_robin(src, here) if mode_of(src) == 'round_robin' else _fewest(here)
+    owner = _round_robin(src, here) if mode == 'round_robin' else _fewest(here)
     if note:
         note = ALL_AWAY % (owner.full_name if owner is not None else 'nobody')
     return owner, note

@@ -157,7 +157,7 @@
           <li><a href="{{ url_for('cs.home') }}"><i class="fa-solid fa-headset"></i> CS Console</a></li>
         {% endif %}
         {% if current_user.is_admin %}
-          <li><a href="{{ url_for('admin.dashboard') }}"><i class="fa-solid fa-user-shield"></i> Admin</a></li>
+          <li><a href="{{ url_for('admin.health') }}"><i class="fa-solid fa-user-shield"></i> Admin</a></li>
         {% endif %}
       {% else %}
         {# Both of these live in the menu on phones, where the navbar has no room for them --

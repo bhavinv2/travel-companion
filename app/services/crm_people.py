@@ -889,7 +889,7 @@ def plan_csv(path, mapping, defaults, staff=()):
     crm.ensure_defaults()
     sources = {s.key.lower(): s for s in CrmSource.query.all()}
     by_name = {s.name.lower(): s for s in sources.values()}
-    default_src = sources.get((defaults.get('source') or 'csv-import').lower()) or sources.get('csv-import')
+    default_src = sources.get((defaults.get('source') or 'import-other').lower()) or sources.get('import-other')
     default_product = crm_products.by_code(defaults.get('product'))
     products = {p.name.lower(): p for p in crm_products.all()}
     owners = {}

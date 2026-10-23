@@ -5,7 +5,7 @@
 {% block crm %}
 {{ page_head('Calendar', 'fa-solid fa-calendar-days', 'Tasks, calls, meetings and follow-ups by day, and the dates people travel and their cover ends.',
              help=['Month or week: every task, call and meeting with its time, the follow-ups that are due, and — all day — when a customer travels or their cover ends.',
-                   'Choose Mine, My team or Everyone. Click an item to open the lead or the contact.',
+                   'Choose Mine, My team or Everyone. My team and Everyone say whose each item is; their week is a row per person. Click an item to open the lead or the contact.',
                    'The List tab shows everything still open, as Late, Today, This week and Later. Press Done to tick one off.',
                    'Add a task from a lead page or a contact page with “Task”.'],
              full_screen=True) }}
@@ -23,12 +23,15 @@
 </div>
 
 {% if tab == 'calendar' %}
+{# The calendar. Every item says its time, what it is, the customer and -- for My team and Everyone -- whose it is,
+   on the item itself. Mine's week: a column a day, items as cards. A team's or everyone's week: a row per person,
+   their name down the side (crm_tasks.lanes). Month: a cell a day, MONTH_CAP items and "+ N more". #}
 <section class="card cal">
   <div class="cal-bar">
-    <div class="row">
-      <a class="cb sm" href="{{ crm_url('calendar', view=view, on=prev.isoformat(), who=who) }}" aria-label="Earlier">‹</a>
+    <div class="cal-nav">
+      <a class="cb sm" href="{{ crm_url('calendar', view=view, on=prev.isoformat(), who=who) }}" aria-label="Earlier"><i class="fa-solid fa-chevron-left"></i></a>
       <a class="cb sm" href="{{ crm_url('calendar', view=view, who=who) }}">Today</a>
-      <a class="cb sm" href="{{ crm_url('calendar', view=view, on=next.isoformat(), who=who) }}" aria-label="Later">›</a>
+      <a class="cb sm" href="{{ crm_url('calendar', view=view, on=next.isoformat(), who=who) }}" aria-label="Later"><i class="fa-solid fa-chevron-right"></i></a>
     </div>
     <h2>{{ cal_title }}</h2>
     <div class="seg">
@@ -36,41 +39,93 @@
       <a href="{{ crm_url('calendar', view='week', on=day.isoformat(), who=who) }}" class="{{ 'on' if view == 'week' }}">Week</a>
     </div>
   </div>
+  <p class="cal-key">
+    <span class="ck k-meeting"><i class="fa-solid fa-handshake"></i> Meeting</span>
+    <span class="ck k-call"><i class="fa-solid fa-phone"></i> Call</span>
+    <span class="ck k-todo"><i class="fa-solid fa-list-check"></i> To-do</span>
+    <span class="ck k-step"><i class="fa-solid fa-bolt"></i> Follow-up step</span>
+    <span class="ck k-departure"><i class="fa-solid fa-plane-departure"></i> Travels</span>
+    <span class="ck k-cover_end"><i class="fa-solid fa-shield-halved"></i> Cover ends</span>
+  </p>
 
-  {% macro cal_item(it) -%}
-  {%- set tag = 'a' if it.href else 'span' -%}
-  <{{ tag }} class="cal-it k-{{ it.kind }}{{ ' done' if it.done }}"{% if it.href %} href="{{ it.href }}"{% endif %} title="{{ it.title }}{% if it.who %} - {{ it.who }}{% endif %}{% if it.place %} - {{ it.place }}{% endif %}">
-    <i class="fa-solid {{ icons.get(it.kind, 'fa-circle') }}" aria-hidden="true"></i>
-    {% if it.time %}<b>{{ it.time }}{% if it.end %}-{{ it.end }}{% endif %}</b> {% endif %}{{ it.title }}{% if it.who %} <span class="muted">· {{ it.who }}</span>{% endif %}
+  {# one item. compact: no owner (it sits in its owner's row). #}
+  {% macro card(it, owner=true, compact=false) -%}
+  {%- set tag = 'a' if it.href else 'div' -%}
+  <{{ tag }} class="cal-card k-{{ it.kind }}{{ ' done' if it.done }}{{ ' all-day' if it.all_day }}{{ ' compact' if compact }}"{% if it.href %} href="{{ it.href }}"{% endif %}
+     title="{{ it.title }}{% if it.who %} · {{ it.who }}{% endif %}{% if it.owner %} · {{ it.owner }}{% endif %}{% if it.place %} · {{ it.place }}{% endif %}">
+    <span class="cc-top">
+      <i class="fa-solid {{ icons.get(it.kind, 'fa-circle') }}" aria-hidden="true"></i>
+      {% if it.time %}<b class="cc-time">{{ it.time }}{% if it.end %}–{{ it.end }}{% endif %}</b>{% else %}<b class="cc-time">All day</b>{% endif %}
+      {% if owner and who != 'mine' %}<span class="cc-owner" title="{{ it.owner or 'Not given to anyone' }}"><span class="cc-av">{{ it.owner_initials }}</span>{{ it.owner_first or 'Nobody' }}</span>{% endif %}
+    </span>
+    <span class="cc-title">{{ it.title }}</span>
+    {% if it.who %}<span class="cc-who"><i class="fa-regular fa-user" aria-hidden="true"></i> {{ it.who }}</span>{% endif %}
+    {% if it.place and not compact %}<span class="cc-place"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> {{ it.place }}</span>{% endif %}
   </{{ tag }}>
   {%- endmacro %}
 
-  <div class="cal-grid cal-{{ view }}" role="grid">
+  {% if view == 'week' and lanes is not none %}
+  {# ---------------------------------------------------------------- a team's week: a row per person #}
+  <div class="cal-lanes-wrap">
+  <div class="cal-lanes" role="grid">
+    <div class="cl-corner" role="columnheader">Person</div>
+    {% for d in days %}<div class="cl-dayh{{ ' today' if d == today }}{{ ' we' if d.weekday() >= 5 }}" role="columnheader">{{ d.strftime('%a') }}<b>{{ d.day }}</b></div>{% endfor %}
+    {% for lane in lanes %}
+    <div class="cl-who" role="rowheader"><span class="cl-av{{ ' none' if lane.id is none }}">{{ lane.initials }}</span>
+      <span><b>{{ lane.name }}</b><small>{{ lane.count }} item{{ '' if lane.count == 1 else 's' }}</small></span></div>
+    {% for d in days %}
+    <div class="cl-cell{{ ' today' if d == today }}{{ ' we' if d.weekday() >= 5 }}" role="gridcell">
+      {% for it in lane.days.get(d, []) %}{{ card(it, owner=false, compact=true) }}{% endfor %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="cl-empty muted">Nothing on anybody's calendar this week.</p>
+    {% endfor %}
+  </div>
+  </div>
+
+  {% elif view == 'week' %}
+  {# ---------------------------------------------------------------- my week: a column a day #}
+  <div class="cal-wk" role="grid">
+    {% for d in days %}
+    <div class="cw-col{{ ' today' if d == today }}{{ ' we' if d.weekday() >= 5 }}" role="gridcell">
+      <div class="cw-head"><span>{{ d.strftime('%a') }}</span><b>{{ d.day }}</b>{% if d == today %}<em>Today</em>{% endif %}</div>
+      {% for it in items.get(d, []) %}{{ card(it) }}{% else %}<p class="cw-none">—</p>{% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  {# ---------------------------------------------------------------- the month #}
+  <div class="cal-grid cal-month" role="grid">
     <div class="cal-head" role="row">{% for n in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}<span role="columnheader">{{ n }}</span>{% endfor %}</div>
     {% for week in weeks %}
     <div class="cal-week" role="row">
       {% for d in week %}
-      <div class="cal-day{{ ' today' if d == today }}{{ ' other' if view == 'month' and d.month != day.month }}" role="gridcell">
-        <div class="cal-num">{{ d.day }}{% if d.day == 1 or loop.first and view == 'week' %} <small>{{ d.strftime('%b') }}</small>{% endif %}</div>
-        {% for it in items.get(d, []) %}{{ cal_item(it) }}{% endfor %}
+      {% set its = items.get(d, []) %}
+      <div class="cal-day{{ ' today' if d == today }}{{ ' other' if d.month != day.month }}" role="gridcell">
+        <div class="cal-num"><a href="{{ crm_url('calendar', view='week', on=d.isoformat(), who=who) }}" title="This week">{{ d.day }}{% if d.day == 1 %} <small>{{ d.strftime('%b') }}</small>{% endif %}</a></div>
+        {% for it in its[:month_cap] %}{{ card(it, compact=true) }}{% endfor %}
+        {% if its|length > month_cap %}<a class="cal-more" href="{{ crm_url('calendar', view='week', on=d.isoformat(), who=who) }}">+ {{ its|length - month_cap }} more</a>{% endif %}
       </div>
       {% endfor %}
     </div>
     {% endfor %}
   </div>
+  {% endif %}
 
+  {# a phone: the days as a list, each item whole #}
   <div class="cal-daylist">
     {% for d in days %}
     {% if items.get(d) or d == today %}
     {% if view == 'week' or d.month == day.month %}
     <div class="cal-dl{{ ' today' if d == today }}"><h3>{{ d.strftime('%A') }} {{ d.day }} {{ d.strftime('%B') }}{% if d == today %} · today{% endif %}</h3>
-      {% for it in items.get(d, []) %}{{ cal_item(it) }}{% else %}<p class="muted small">Nothing planned.</p>{% endfor %}
+      {% for it in items.get(d, []) %}{{ card(it) }}{% else %}<p class="muted small">Nothing planned.</p>{% endfor %}
     </div>
     {% endif %}
     {% endif %}
     {% endfor %}
   </div>
-  <p class="muted small cal-key"><i class="fa-solid fa-plane-departure"></i> travels · <i class="fa-solid fa-shield-halved"></i> cover ends · <i class="fa-solid fa-bolt"></i> follow-up step · <i class="fa-solid fa-handshake"></i> meeting · <i class="fa-solid fa-phone"></i> call · <i class="fa-solid fa-list-check"></i> to-do</p>
 </section>
 
 {% else %}

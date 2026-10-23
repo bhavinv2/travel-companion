@@ -40,17 +40,17 @@ def nav_labels(app, user):
 
 # ================================================================================================ the menu
 
-def test_the_sales_menu_has_daily_work_and_set_up_only_and_no_help_section(app, admin_user):
+def test_the_sales_menu_has_daily_work_and_set_up_only(app, admin_user):
     groups = {g['key']: g for g in _groups(app, admin_user)}
-    assert 'help' not in groups
     sales = groups['sales']
     assert [s['label'] for s in sales['subs']] == ['Daily work', 'Set-up']
     assert [i['label'] for i in sales['subs'][0]['items']] == ['My day', 'WhatsApp chats', 'Leads', 'Calendar', 'Contacts']
     assert [i['label'] for i in sales['subs'][1]['items']] == [
         'Pipelines & products', 'Automation', 'Messages', 'Lead sources', 'Targets', 'WhatsApp', 'Import & export']
     overview = [i['label'] for i in groups['overview']['items']]
-    # the reports are one line; Sales results, Team today and the others are its tabs
-    assert overview[0] == 'All reports' and 'Sales results' not in overview and 'Team today' not in overview
+    # Health opens the menu; the reports are a menu of their own (tests/test_health.py)
+    assert overview[0] == 'Health' and 'Sales results' not in overview and 'Team today' not in overview
+    assert [i['label'] for i in groups['reports']['items']][:3] == ['Sales results', 'Team today', 'Report builder']
 
 
 def _groups(app, user):
@@ -61,7 +61,7 @@ def _groups(app, user):
 
 
 def test_pages_that_lost_their_line_are_not_menu_lines_but_are_still_pages():
-    for key in ('crm_flow', 'crm_process', 'crm_checks', 'wa_templates', 'wa_broadcasts', 'wa_tags',
+    for key in ('crm_flow', 'crm_checks', 'crm_forecast', 'crm_team', 'wa_templates', 'wa_broadcasts', 'wa_tags',
                 'wa_automations', 'wa_flows', 'wa_ai', 'wa_settings'):
         assert access.PAGES[key]['nav'] is False and key in access.MENU_ORDER, key
     assert access.PAGES['crm_quick']['label'] == 'Messages'
@@ -93,8 +93,9 @@ def test_the_roles_screen_offers_the_hosts_and_the_tabs_but_not_the_flow(client,
     assert 'value="crm_flow"' not in page
 
 
-def test_a_saved_menu_that_still_names_the_help_section_and_removed_lines_keeps_working():
+def test_a_saved_menu_with_the_old_help_section_and_removed_lines_keeps_working():
     layout = access.default_layout()
+    layout['sections'] = [s for s in layout['sections'] if s['key'] != 'help']      # saved with the first Help
     layout['sections'].append({'key': 'help', 'label': 'Help', 'icon': 'fa-circle-question',
                                'pages': ['crm_flow', 'crm_process', 'crm_auto']})
     for s in layout['sections']:
@@ -104,11 +105,22 @@ def test_a_saved_menu_that_still_names_the_help_section_and_removed_lines_keeps_
             if sub['key'] == 'setup':
                 sub['pages'] += ['wa_tags']
     out = access.clean_layout(json.loads(json.dumps(layout)))
-    assert 'help' not in [s['key'] for s in out['sections']]
     placed = [k for s in out['sections'] for h in (s.get('subs') or [s]) for k in h['pages']]
     assert sorted(placed) == sorted(access.MENU_PAGES) and len(placed) == len(set(placed))
     assert 'crm_flow' not in placed and 'crm_checks' not in placed and 'wa_tags' not in placed
     assert 'crm_auto' in placed                       # a line that still exists is placed once, wherever it was
+    # How we sell is a line again and stays where it was saved; the Help screens the old menu did not place join
+    # it, in the order the menu in code has them
+    help_ = next(s for s in out['sections'] if s['key'] == 'help')
+    assert help_['pages'] == ['guide', 'crm_process', 'metrics', 'help', 'help_insurance', 'help_sahayak']
+
+
+def test_a_line_new_since_a_menu_was_saved_goes_back_where_the_code_has_it():
+    layout = access.default_layout()
+    overview = next(s for s in layout['sections'] if s['key'] == 'overview')
+    overview['pages'] = [k for k in overview['pages'] if k != 'health']
+    out = access.clean_layout(json.loads(json.dumps(layout)))
+    assert next(s for s in out['sections'] if s['key'] == 'overview')['pages'][0] == 'health'
 
 
 def test_an_old_saved_layout_with_the_old_sub_menus_still_draws(app, client, admin_user):
@@ -246,7 +258,7 @@ def test_the_lead_page_team_today_and_results_show_words_not_codes(client, app, 
         text = words(html)
         assert not re.search(r'\bPLS\b|\bTI #|\bQ\b', text), (name, re.findall(r'.{20}(?:PLS|TI #|\bQ\b).{20}', text))
     assert 'Quote sent' in words(pages['results']) and 'Payment link sent' in words(pages['results'])
-    assert 'Travel Insurance — quote request' in words(pages['lead'])
+    assert 'Travel insurance site · Search quote' in words(pages['lead'])   # renamed by crm_sources.tidy
     tracker = words(pages['tracker'])
     assert 'Send the quote' in tracker and 'Did: Send the quote' in tracker
     sent = ('Sent ' + crm_words.step_titles()['TI #3'].lower() + ' on WhatsApp')      # the step's own title, not its code
@@ -354,7 +366,7 @@ def test_the_excel_download_is_what_the_screen_shows(client, app, admin_user, cs
     body = r.get_data(as_text=True)
     for want in ('Sales results', 'Won in these days', 'New leads', 'Replied', 'Quoted', 'First contact time',
                  'Customers waiting now', 'Change %', 'Leads that came in these days, and how far each one got',
-                 'Won so far', 'Where customers come from', 'Travel Insurance — quote request',
+                 'Won so far', 'Where customers come from', 'Travel insurance site · Search quote',
                  'Messages, by who sent them', 'Quotes and payment links', 'Quote sent', 'Payment link sent',
                  'Why we lost leads', 'Day by day'):
         assert want in body, want

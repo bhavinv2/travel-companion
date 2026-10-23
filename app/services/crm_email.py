@@ -215,7 +215,7 @@ def receive(form):
     person = _find_person(address)
     if person is None:
         try:
-            lead = crm.capture('email', name=(name or '').strip() or None, email=address, message=body[:4000],
+            lead = crm.capture('other', name=(name or '').strip() or None, email=address, message=body[:4000],
                                channel='email', external_id=mid, refuse_dnc=True, sync=False)
         except crm.DoNotContact:
             return {'result': 'ignored'}

@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% from '_page_head.html' import page_head %}
+{% block title %}Screen guide – Admin{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/crm.css') }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/health.css') }}"/>{% endblock %}
+
+{# Help › Screen guide (access.screen_guide): every screen, by product, with what it is for and where it sits in
+   the menu -- read from the menu's own definitions, so it is never out of date. "Open" only on the screens this
+   person may open. #}
+{% block content %}
+<div class="admin-page">
+  {% include 'admin/_sidebar.html' %}
+  <main class="admin-main crm hl">
+    {{ page_head('Screen guide', 'fa-solid fa-book-open', 'Every screen in the portal, by product: what it is for and where to find it in the menu.',
+                 help=['Each card says what the screen is for and where it sits in the menu (› means "inside").',
+                       'Open goes straight there. A screen without it is one your role does not include, or an area this workspace has switched off.',
+                       'Type in the box to find a screen by its name or by what it does.']) }}
+
+    <div class="sg-find">
+      <input type="search" id="sgFind" placeholder="Find a screen: leads, quote, booking, blog…" aria-label="Find a screen" autocomplete="off"/>
+      <nav class="hl-jump" aria-label="Products">
+        {% for a in areas %}<a href="#sg-{{ a.key }}"><i class="{{ 'fa-solid ' if not a.icon.startswith('fa-brands') }}{{ a.icon }}" aria-hidden="true"></i> {{ a.label }}</a>{% endfor %}
+      </nav>
+    </div>
+    <p class="muted" id="sgNone" hidden>No screen matches those words.</p>
+
+    {% for a in areas %}
+    <section class="card sg-area" id="sg-{{ a.key }}" aria-labelledby="sg-{{ a.key }}-h">
+      <div class="card-head">
+        <div class="t"><span class="ico"><i class="{{ 'fa-solid ' if not a.icon.startswith('fa-brands') }}{{ a.icon }}" aria-hidden="true"></i></span>
+          <div><h2 id="sg-{{ a.key }}-h">{{ a.label }}</h2><p class="muted small">{{ a.desc }}{% if not a.on %} Switched off in this workspace.{% endif %}</p></div></div>
+      </div>
+      <ul class="sg-list">
+        {% for p in a.pages %}
+        <li class="sg-item{{ ' off' if not p.url }}">
+          <span class="sg-ico" aria-hidden="true"><i class="{{ 'fa-solid ' if not p.icon.startswith('fa-brands') }}{{ p.icon }}"></i></span>
+          <h3>{{ p.label }}{% if p.url %}<a href="{{ p.url }}">Open <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>{% endif %}</h3>
+          <p class="sg-says">{{ p.says }}</p>
+          <p class="sg-where"><i class="fa-solid fa-bars" aria-hidden="true"></i>{{ p.where }}</p>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endfor %}
+  </main>
+</div>
+{% endblock %}
+{% block extra_js %}<script src="{{ url_for('static', filename='js/health.js') }}" defer></script>{% endblock %}

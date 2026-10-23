@@ -1,0 +1,45 @@
+{# One post on the blog's list. The same parts make a magazine card on a wide screen and an Instagram-like post on a
+   phone (who wrote it, the pictures to swipe, share / WhatsApp / save, then the words): blog-public.css places them.
+   The pictures are the cover and the post's own (Blog.pictures); blog-public.js swipes them and does the buttons.
+   Import it `with context`: app_url is the app's. #}
+{% macro card(post, hero=False) %}
+{%- set url = url_for('blog.blog_post', slug=post.slug) -%}
+{%- set pics = post.pictures(5) -%}
+{%- set cat = post.categories[0] if post.categories else none -%}
+{%- set who = post.author.full_name if post.author else 'NRI Parent Service' -%}
+{%- set covers = ['l4.jpg', 'l5.jpg', 'l6.jpg', 'l7.jpg', 'l8.jpg', 'l9.jpg'] -%}
+<article class="bp{{ ' bp--hero' if hero }}" data-slug="{{ post.slug }}" data-url="{{ url }}" data-title="{{ post.title }}">
+  <header class="bp-head">
+    <span class="bp-av" aria-hidden="true">{{ (who.split()|map('first')|join)[:2]|upper }}</span>
+    <span class="bp-who"><b>{{ who }}</b>
+      <small>{% if cat %}<a href="{{ url_for('blog.blog_term', kind='category', slug=cat.slug) }}">{{ cat.name }}</a> · {% endif %}<time datetime="{{ post.published_at.isoformat() if post.published_at else '' }}">{{ post.published_at|ago }}</time> · {{ post.reading_minutes() }} min read</small></span>
+  </header>
+  <div class="bp-media{{ ' is-multi' if pics|length > 1 }}">
+    <div class="bp-slides">
+      {%- for src, alt in pics %}
+      <a class="bp-slide" href="{{ url }}"{% if not loop.first %} tabindex="-1" aria-hidden="true"{% endif %}><img src="{{ app_url(src) }}" alt="{{ (alt or post.title) if loop.first else alt }}" loading="{{ 'eager' if hero and loop.first else 'lazy' }}" decoding="async"/></a>
+      {%- else %}
+      <a class="bp-slide" href="{{ url }}"><img src="{{ url_for('static', filename='img/landing/' ~ covers[post.id % 6]) }}" alt="{{ post.title }}" loading="lazy" decoding="async"/></a>
+      {%- endfor %}
+    </div>
+    {% if hero %}<span class="bp-flag"><i class="fa-solid fa-star"></i> {{ 'Featured' if post.is_featured else 'Latest' }}</span>{% endif %}
+    {% if cat %}<span class="bp-chip">{{ cat.name }}</span>{% endif %}
+    {% if pics|length > 1 %}
+    <span class="bp-count" aria-hidden="true">1/{{ pics|length }}</span>
+    <span class="bp-dots" aria-hidden="true">{% for p in pics %}<i{% if loop.first %} class="on"{% endif %}></i>{% endfor %}</span>
+    <button type="button" class="bp-arr bp-prev" aria-label="Previous picture" hidden><i class="fa-solid fa-chevron-left"></i></button>
+    <button type="button" class="bp-arr bp-next" aria-label="Next picture"><i class="fa-solid fa-chevron-right"></i></button>
+    {% endif %}
+  </div>
+  <div class="bp-acts">
+    <button type="button" data-act="share" aria-label="Share" title="Share"><i class="fa-regular fa-paper-plane"></i></button>
+    <button type="button" data-act="wa" aria-label="Send on WhatsApp" title="Send on WhatsApp"><i class="fa-brands fa-whatsapp"></i></button>
+    <button type="button" data-act="save" class="bp-save" aria-label="Save for later" title="Save for later" aria-pressed="false"><i class="fa-regular fa-bookmark"></i></button>
+  </div>
+  <div class="bp-body">
+    <h2 class="bp-title"><a href="{{ url }}">{{ post.title }}</a></h2>
+    <p class="bp-sum">{{ post.summary or post.excerpt(170) }}</p>
+    <a class="bp-go" href="{{ url }}">Read the story <i class="fa-solid fa-arrow-right"></i></a>
+  </div>
+</article>
+{%- endmacro %}

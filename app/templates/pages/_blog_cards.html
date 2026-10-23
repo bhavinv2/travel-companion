@@ -1,0 +1,4 @@
+{# A page of the blog's cards: the list itself, and each further page the list fetches as it is scrolled. #}
+{% from 'pages/_blog_card.html' import card with context %}
+{% for post in posts %}{{ card(post) }}
+{% endfor %}

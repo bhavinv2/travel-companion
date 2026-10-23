@@ -32,8 +32,8 @@ def ti_lead(phone='+919876543210', **kw):
 def test_the_crm_lives_in_the_admin_portal_too(app, client, admin_user):
     login(client, admin_user.email)
     page = client.get('/admin/crm/').get_data(as_text=True)
-    # U2 menu names; the reports are one line, All reports (Site dashboard, Team today and the rest are its tabs)
-    assert 'Admin Panel' in page and 'All reports' in page and 'How we sell' in page
+    # U2 menu names; the reports are a menu of their own, How we sell is in Help
+    assert 'Admin Panel' in page and 'Sales results' in page and 'How we sell' in page
     assert 'href="/admin/crm/today"' in page            # links stay in the admin portal
     assert client.get('/admin/crm/insights').status_code == 200
     assert client.get('/admin/crm/process').status_code == 200

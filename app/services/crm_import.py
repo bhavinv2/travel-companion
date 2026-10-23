@@ -187,10 +187,11 @@ DEFAULT_PRODUCT = {'Cold Leads': 'TC', 'Prospects': 'TC'}           # the others
 ENQ_PRODUCT = {'TC': 'TC', 'TI': 'TI', 'TC+TI': 'TI', 'TC+TI+VC': 'TI', 'VC': 'VC', 'GH': 'GH',
                'S': 'SH', 'H+': 'GEN', 'ENQ.': 'GEN'}
 # the sheet's "S" column (List tab): where the lead came from
-SOURCE_CODES = {'I': 'instagram', 'FB': 'facebook', 'F B': 'facebook', 'IW': 'wa-india', 'W': 'wa-india',
-                'UW': 'wa-usa', 'U W': 'wa-usa', 'T': 'tawk', 'IC': 'call', 'UC': 'call', 'R': 'reference',
-                'REF': 'reference', 'F&F': 'reference', 'TM': 'event', 'EM': 'event', 'A': 'google-ads',
-                'D': 'direct-sale', 'S': 'sales-sheet'}
+# (the lead sources' list: services/crm_sources; "reference" is split by the person's number when it is filed)
+SOURCE_CODES = {'I': 'meta', 'FB': 'meta', 'F B': 'meta', 'IW': 'wa-india', 'W': 'wa-india',
+                'UW': 'wa-usa', 'U W': 'wa-usa', 'T': 'tawk', 'IC': 'company-call', 'UC': 'usa-call', 'R': 'reference',
+                'REF': 'reference', 'F&F': 'reference', 'TM': 'other', 'EM': 'other', 'A': 'web-other',
+                'D': 'other', 'S': 'import-other'}
 RELATION = {'M': 'Mother', 'F': 'Father', 'S': 'Sister', 'B': 'Brother', 'SL': 'Sister-in-law',
             'BL': 'Brother-in-law', 'N': 'Niece / nephew', 'MS': 'Themselves', 'K': 'Kids'}
 TEMPS = {'L', 'R', 'U', 'Z', 'DL', 'EL'}
@@ -477,7 +478,7 @@ def _sheet_row(sheet, sheet_idx, n, cells, header):
         return None
     enq = (get('enq.') or '').upper().replace(' ', '')
     product = ENQ_PRODUCT.get(enq) or DEFAULT_PRODUCT.get(sheet, 'TI')
-    src = SOURCE_CODES.get((get('s') or '').upper().strip(), 'sales-sheet')
+    src = SOURCE_CODES.get((get('s') or '').upper().strip(), 'import-other')
     day = excel_date(get('date'))
     messages = []
     for head, c in header.items():

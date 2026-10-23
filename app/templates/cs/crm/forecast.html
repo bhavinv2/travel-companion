@@ -1,6 +1,5 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
-{% from 'cs/crm/_tabs.html' import tab_strip with context %}
 {% block crm_title %}Forecast{% endblock %}
 
 {% macro m(v) -%}{{ MONEY(v, report_currency) }}{%- endmacro %}
@@ -15,7 +14,6 @@
 {%- endmacro %}
 
 {% block crm %}
-{{ tab_strip('crm_forecast') }}
 {{ page_head('Forecast', 'fa-solid fa-bullseye',
              'Money won against the target for the ' ~ ('quarter' if quarter else 'month') ~ ', and what is likely to come.',
              help=['Closed won is money already paid: leads won in these days. The rest counts open leads whose close date falls in these days.',
@@ -24,7 +22,7 @@
                    'Targets are set under Targets in Set-up. Money is added up in ' ~ report_currency ~ ' using the exchange rates in Pipelines & products.',
                    ('You see your own numbers.' if not sees_all and not teams else 'You see the people and teams your role includes.')],
              primary=({'label': 'Download for Excel', 'href': crm_url('forecast_csv', month=period, span='quarter' if quarter else None, pipeline=pipe.id if pipe else None, team=team.id if team else None, who=person.id if person else None), 'icon': 'fa-solid fa-file-csv'} if can_export else None),
-             full_screen=True) }}
+             full_screen=True, switch=TABS_FOR('crm_forecast')) }}
 
 <div class="ui-filters fc-controls">
   <div class="fc-months">

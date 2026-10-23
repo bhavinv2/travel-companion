@@ -1,4 +1,4 @@
-"""Team analysis (Overview › All reports): the sales people side by side over a period -- services/crm_team.py,
+"""Team analysis (Reports › Team today, behind the switch at the top right): the sales people side by side over a period -- services/crm_team.py,
 routes/crm.py team_analysis.
 
     period     today, yesterday, the last 7 or 30 days, this month, or custom dates (never past today, at most

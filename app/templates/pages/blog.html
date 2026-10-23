@@ -1,75 +1,70 @@
 {% extends 'base.html' %}
-{% block title %}{% if term %}{{ term.name }} – {% endif %}Desi Travellers Blog – NRI Parent Service{% endblock %}
+{% from 'pages/_blog_card.html' import card with context %}
+{% block title %}{% if term %}{{ term.name }} – {% elif saved is not none %}Saved posts – {% endif %}Desi Travellers Blog – NRI Parent Service{% endblock %}
 {% block meta_description %}{% if term and term.description %}{{ term.description }}{% else %}{{ super() }}{% endif %}{% endblock %}
+{% block extra_css %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/blog-public.css') }}"/>{% endblock %}
 {% block content %}
-<div class="static-page">
-  <div class="static-hero coral">
-    {% if term %}
-      <p class="blog-kicker">{{ 'Category' if term.kind == 'category' else 'Tag' }}</p>
-      <h1>{{ term.name }}</h1>
-      <p>{{ term.description or 'Stories, tips & inspiration for the global Desi community' }}</p>
-    {% else %}
-      <h1>Desi Travellers Blog</h1><p>Stories, tips &amp; inspiration for the global Desi community</p>
-    {% endif %}
-  </div>
-  {# Our own destination photos fill in for posts with no cover image, cycling through the
-     same set used on the landing page's "Traveller blogs" section. #}
-  {% set fallback_covers = ['l4.jpg','l5.jpg','l6.jpg','l7.jpg','l8.jpg','l9.jpg'] %}
-  <div class="blog-bar">
-    <nav class="blog-sections" aria-label="Blog sections">
-      <a href="{{ url_for('blog.blog_list') }}" class="{{ 'on' if not term and not q }}">All posts</a>
-      {% for t, n in sections %}
-      <a href="{{ url_for('blog.blog_term', kind='category', slug=t.slug) }}" class="{{ 'on' if term and term.id == t.id }}">{{ t.name }} <small>{{ n }}</small></a>
+{# The blog: a dark masthead with the search; the categories as round pictures (stories, on a phone); the posts --
+   on a wide screen a magazine with the big story first, on a phone a feed to scroll like Instagram, more posts
+   arriving at the bottom (blog-public.js). #}
+<div class="bj">
+  <header class="bj-mast">
+    <div class="bj-mast-in">
+      <div class="bj-mast-words">
+        {% if term %}
+          <p class="bj-kick">{{ 'Category' if term.kind == 'category' else 'Tag' }}</p>
+          <h1>{{ term.name if term.kind == 'category' else '#' ~ term.name }}</h1>
+          <p class="bj-sub">{{ term.description or 'Stories, tips and travel know-how for NRI families and their parents.' }}</p>
+        {% elif saved is not none %}
+          <p class="bj-kick">On this device</p>
+          <h1>Saved posts</h1>
+          <p class="bj-sub">The stories you bookmarked to read again. Tap <i class="fa-solid fa-bookmark"></i> on any post to add it.</p>
+        {% else %}
+          <p class="bj-kick">The NRI Parent Service journal</p>
+          <h1>Desi Travellers Blog</h1>
+          <p class="bj-sub">Stories, tips and travel know-how for NRI families and the parents who fly to see them.</p>
+        {% endif %}
+        <p class="bj-stat">{{ total }} {{ 'story' if total == 1 else 'stories' }}{% if q %} matching “{{ q }}”{% endif %}</p>
+      </div>
+      <form class="bj-search" method="GET" action="{{ request.script_root }}{{ request.path }}" role="search">
+        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+        <input type="search" name="q" value="{{ q }}" placeholder="Search stories" aria-label="Search the blog"/>
+        {% if q %}<a href="{{ request.script_root }}{{ request.path }}" class="bj-clear" aria-label="Clear the search"><i class="fa-solid fa-xmark"></i></a>{% endif %}
+      </form>
+    </div>
+  </header>
+
+  <div class="bj-sheet">
+    <nav class="bj-stories" aria-label="Blog sections" id="bjStories" data-saved-url="{{ url_for('blog.blog_list') }}">
+      <a href="{{ url_for('blog.blog_list') }}" class="bj-story{{ ' on' if not term and saved is none and not q }}">
+        <span class="bj-ring"><span class="bj-all"><i class="fa-solid fa-compass"></i></span></span><b>All stories</b></a>
+      <a href="{{ url_for('blog.blog_list', saved='') }}" class="bj-story bj-saved{{ ' on' if saved is not none }}" id="bjSaved" hidden>
+        <span class="bj-ring"><span class="bj-all"><i class="fa-solid fa-bookmark"></i></span></span><b>Saved <span data-saved-n></span></b></a>
+      {% for s in stories %}
+      <a href="{{ url_for('blog.blog_term', kind='category', slug=s.term.slug) }}" class="bj-story{{ ' on' if term and term.id == s.term.id }}">
+        <span class="bj-ring"><img src="{{ app_url(s.cover) if s.cover else url_for('static', filename='img/landing/' ~ ['l4.jpg','l5.jpg','l6.jpg','l7.jpg','l8.jpg','l9.jpg'][s.term.id % 6]) }}" alt="" loading="lazy"/></span>
+        <b>{{ s.term.name }}</b></a>
       {% endfor %}
     </nav>
-    <form class="blog-search" method="GET" action="{{ request.path }}" role="search">
-      <i class="fa-solid fa-magnifying-glass"></i>
-      <input type="search" name="q" value="{{ q }}" placeholder="Search the blog" aria-label="Search the blog"/>
-    </form>
-  </div>
-  {% if q %}<p class="blog-found">{{ 'Posts' if posts else 'No post' }} matching “{{ q }}”{% if term %} in {{ term.name }}{% endif %} · <a href="{{ request.path }}">clear</a></p>{% endif %}
 
-  {% if hero %}
-  <a href="{{ url_for('blog.blog_post', slug=hero.slug) }}" class="blog-hero">
-    <img src="{{ app_url(hero.cover_image_url) if hero.cover_image_url else url_for('static', filename='img/landing/' ~ fallback_covers[hero.id % 6]) }}" alt="{{ hero.cover_alt or hero.title }}"/>
-    <div class="blog-hero-body">
-      <span class="blog-flag"><i class="fa-solid fa-star"></i> Featured</span>
-      {% if hero.categories %}<span class="blog-cat">{{ hero.categories[0].name }}</span>{% endif %}
-      <h2>{{ hero.title }}</h2>
-      <p>{{ hero.summary or hero.excerpt(220) }}</p>
-      <div class="blog-meta">
-        <span><i class="fa-solid fa-user"></i> {{ hero.author.username if hero.author else 'NRI Parent Service' }}</span>
-        <span><i class="fa-solid fa-calendar"></i> {{ hero.published_at|istd('%b %d, %Y') if hero.published_at else '' }}</span>
-        <span><i class="fa-regular fa-clock"></i> {{ hero.reading_minutes() }} min read</span>
-      </div>
-    </div>
-  </a>
-  {% endif %}
+    <section class="bj-feed{{ ' has-hero' if hero }}" id="bjFeed" aria-label="Posts">
+      {% if hero %}{{ card(hero, hero=True) }}{% endif %}
+      {% include 'pages/_blog_cards.html' %}
+    </section>
 
-  <div class="blog-grid">
-    {% for post in posts %}
-    <a href="{{ url_for('blog.blog_post', slug=post.slug) }}" class="blog-card">
-      <img src="{{ app_url(post.cover_image_url) if post.cover_image_url else url_for('static', filename='img/landing/' ~ fallback_covers[loop.index0 % 6]) }}" alt="{{ post.cover_alt or post.title }}"/>
-      <div class="blog-card-body">
-        {% if post.categories %}<span class="blog-cat">{{ post.categories[0].name }}</span>{% endif %}
-        <h3>{{ post.title }}</h3>
-        <p>{{ post.summary or post.excerpt() }}</p>
-        <div class="blog-meta">
-          <span><i class="fa-solid fa-user"></i> {{ post.author.username if post.author else 'NRI Parent Service' }}</span>
-          <span><i class="fa-solid fa-calendar"></i> {{ post.published_at|istd('%b %d, %Y') if post.published_at else '' }}</span>
-          <span><i class="fa-regular fa-clock"></i> {{ post.reading_minutes() }} min</span>
-        </div>
-      </div>
-    </a>
-    {% else %}
-    {% if not hero %}
-    <div class="blog-empty">
-      <i class="fa-solid fa-pen-to-square"></i>
-      <p>{{ 'Nothing matches that search.' if q else 'No blog posts here yet. Check back soon!' }}</p>
+    {% if not posts and not hero %}
+    <div class="bj-empty">
+      <span><i class="fa-solid {{ 'fa-bookmark' if saved is not none else 'fa-feather-pointed' }}"></i></span>
+      <h2>{% if q %}Nothing matches “{{ q }}”{% elif saved is not none %}Nothing saved yet{% else %}No stories here yet{% endif %}</h2>
+      <p>{% if q %}Try fewer words, or <a href="{{ url_for('blog.blog_list') }}">browse every story</a>.{% elif saved is not none %}Tap <i class="fa-regular fa-bookmark"></i> on a post to keep it here.{% else %}New posts appear here the moment they are published.{% endif %}</p>
     </div>
     {% endif %}
-    {% endfor %}
+
+    <div class="bj-end" id="bjEnd">
+      {% if next_url %}<a class="bj-more" id="bjMore" href="{{ next_url }}">Load more stories</a>
+      {% elif posts or hero %}<p class="bj-done"><i class="fa-regular fa-circle-check"></i> You’re all caught up</p>{% endif %}
+    </div>
   </div>
-  {% include 'admin/_pager.html' %}
 </div>
 {% endblock %}
+{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/blog-public.js') }}" defer></script>{% endblock %}

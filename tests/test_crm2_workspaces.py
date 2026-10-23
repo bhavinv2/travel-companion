@@ -655,3 +655,10 @@ def test_migration_u7crm023_goes_up_down_up_on_sqlite_with_rows(tmp_path):
         with Operations.context(ctx):
             mig.upgrade()
         assert [u['name'] for u in sa.inspect(conn).get_unique_constraints('crm_people')] == ['uq_crm_people_ws_phone']
+
+@pytest.fixture(autouse=True)
+def _leads_shared_out(monkeypatch):
+    """These tests were written when a source gave a new lead to whoever had the fewest open leads unless told
+    otherwise. Since 2026-10-23 nothing set means nobody (crm_assign.DEFAULT; tests/test_crm2_assign.py)."""
+    from app.services import crm_assign
+    monkeypatch.setattr(crm_assign, 'DEFAULT', 'fewest')

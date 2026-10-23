@@ -117,6 +117,9 @@ def task_delete(task_id):
 
 # ============================================================================================ the Calendar
 
+MONTH_CAP = 4             # items a month's day shows before "+ N more" (the week has them all)
+
+
 @crm_bp.route('/calendar')
 @cs_required
 def calendar():
@@ -146,8 +149,10 @@ def calendar():
             title = '%d %s - %d %s %d' % (first.day, first.strftime('%b'), last.day, last.strftime('%b'), last.year)
         used, _ = crm_tasks.owner_scope(current_user, who)
         items = crm_tasks.calendar_items(current_user, first, last, who)
+        # a team's or everyone's week: a row per person, their name down the side
+        lanes = crm_tasks.lanes(items, current_user) if view == 'week' and used != 'mine' else None
         ctx.update(view=view, day=day, weeks=weeks, items=items, prev=prev, next=nxt, cal_title=title,
-                   who=used, days=[d for w in weeks for d in w])
+                   who=used, days=[d for w in weeks for d in w], lanes=lanes, month_cap=MONTH_CAP)
     if tab == 'list':
         ctx.setdefault('who', who)
     return render_template('cs/crm/calendar.html', **ctx, **_common())

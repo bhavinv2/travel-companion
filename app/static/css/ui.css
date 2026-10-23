@@ -76,6 +76,11 @@
 .ui-head h1.ui-title i { color: var(--ui-primary); font-size: .85em; }
 .ui-helper { margin: 6px 0 0; color: var(--ui-muted); font-size: 15px; max-width: 70ch; }
 .ui-head-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+/* a line's two screens swap at the top right (page_head's switch): the actions stay beside the title */
+.ui-head.has-switch { flex-wrap: nowrap; }
+.ui-head.has-switch .ui-head-text { flex: 1 1 auto; min-width: 0; }
+.ui-head.has-switch .ui-head-actions { flex: none; justify-content: flex-end; }
+@media (max-width: 760px) { .ui-head.has-switch { flex-wrap: wrap; } }
 .help-fold { margin-top: 8px; font-size: 14px; color: var(--ui-muted); max-width: 70ch; }
 .help-fold > summary { cursor: pointer; font-weight: 600; color: var(--ui-primary-hover); list-style: none; display: inline-flex; gap: 6px; }
 .help-fold > summary::-webkit-details-marker { display: none; }

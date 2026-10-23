@@ -1,7 +1,6 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from 'cs/crm/_bits.html' import stage_pill, initials with context %}
 {% from '_page_head.html' import page_head %}
-{% from 'cs/crm/_tabs.html' import tab_strip with context %}
 {% block crm_title %}Team today{% endblock %}
 {% macro score(c) -%}
 {%- if c.score is none -%}<span class="muted small">nothing was due</span>
@@ -18,11 +17,10 @@
 <th>{{ label }} <span class="tt-i" tabindex="0" title="{{ tip }}" aria-label="{{ tip }}">ⓘ</span></th>
 {%- endmacro %}
 {% block crm %}
-{{ tab_strip('crm_tracker') }}
 {{ page_head('Team today', 'fa-solid fa-people-line', "How each person's day is going. Click a name for their customer-by-customer list.",
              help=['One row per person: what was due, what they did, who is waiting on them, and how fast they answered.',
                    'Every number opens Leads, filtered to those people. Pick another day with the arrows or the date.'],
-             full_screen=True) }}
+             full_screen=True, switch=TABS_FOR('crm_tracker')) }}
 <div class="ui-filters">
   <form class="daynav" method="GET">
     {% if person %}<input type="hidden" name="who" value="{{ person.user.id }}"/>{% endif %}

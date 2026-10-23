@@ -1,32 +1,54 @@
-{# Where leads come from -> Sources: the editor for one source (?edit=) and the table (E20). #}
-{% from 'cs/crm/_bits.html' import product_chip with context %}
+{# Lead sources -> Sources. The list (services/crm_sources) in its groups -- each source with where its leads go, who
+   gets them, how many came in the last 30 days and how (by themselves, added by staff, imported), and its last
+   lead in India time; the sources not on the list with a button that moves their leads onto it; the editor for one
+   source (?edit=). #}
 {% from 'cs/crm/setup/_macros.html' import csrf, product_select with context %}
+{% set SHARE = {'fewest': 'Fewest open leads first', 'round_robin': 'In turn'} %}
 {% if edit is not none %}
 {% set team = edit.team %}
 {% set who = form.get('who') or ('team' if team is mapping else 'people' if team else 'anyone') %}
 {% set chosen_team = (form.get('team_id') or (team.get('team_id') if team is mapping else '') or '')|string %}
 {% set tag_value = form.get('crm_tags') if form else (edit.crm_tags or [])|join(', ') %}
-<section class="card focus">
-  <h2>{{ 'New lead source' if is_new else 'Edit "' ~ edit.name ~ '"' }}</h2>
-  <form method="POST" action="{{ crm_url('save_source') }}" class="crm-form" data-source-form>
+{% set fixed = edit.key and ON_LIST.get(edit.key) %}
+<section class="card focus src-edit">
+  <header class="src-eh">
+    {% if fixed %}
+    {% set gname = SOURCE_GROUPS([edit])[0][1] %}
+    <p class="muted">{{ gname }}</p>
+    <h2>{{ SOURCE_SHORT(edit) }}</h2>
+    {% else %}
+    <h2>{{ 'New lead source' if is_new else 'Edit "' ~ edit.name ~ '"' }}</h2>
+    {% endif %}
+  </header>
+  <form method="POST" action="{{ crm_url('save_source') }}" class="src-form" data-source-form>
     {{ csrf() }}
     {% if not is_new %}<input type="hidden" name="id" value="{{ edit.id }}"/>{% endif %}
-    <div><label class="lb">Name people will recognise</label><input type="text" name="name" value="{{ form.get('name') or edit.name or '' }}" maxlength="100" required placeholder="e.g. Diwali insurance page"/></div>
-    <div><label class="lb">Type</label>
-      <select name="kind">{% for k, label in KINDS.items() %}<option value="{{ k }}"{{ ' selected' if (form.get('kind') or edit.kind) == k }}>{{ label }}</option>{% endfor %}</select></div>
-    <div><label class="lb">What they ask about</label>{{ product_select('product', form.get('product') or edit.product or 'TI') }}</div>
-    <div><label class="lb">Pipeline</label>
-      <select name="pipeline">
-        <option value="">— Not decided yet: keep its leads waiting —</option>
-        {% for p in pipelines %}<option value="{{ p.key }}"{{ ' selected' if (form.get('pipeline') == p.key) or (not form and edit.pipeline_id == p.id) }}>{{ p.name }}</option>{% endfor %}
-      </select>
-      {% if not is_new and really.get(edit.id) and really[edit.id][1] %}<p class="hint">{{ really[edit.id][1] }}</p>{% endif %}</div>
-    <div><span class="lb">Status</span>
-      <label class="check"><input type="radio" name="status" value="live"{{ ' checked' if edit.status != 'paused' }}/> On (plan follow-ups)</label>
-      <label class="check"><input type="radio" name="status" value="paused"{{ ' checked' if edit.status == 'paused' }}/> Paused (keep leads, send nothing)</label></div>
-    <fieldset class="full pe-fs">
+    {% if fixed %}
+    <input type="hidden" name="name" value="{{ edit.name }}"/><input type="hidden" name="kind" value="{{ edit.kind }}"/>
+    {% endif %}
+    <fieldset class="src-fs">
+      <legend>Where its leads go</legend>
+      <div class="crm-form">
+        {% if not fixed %}
+        <div><label class="lb">Name people will recognise</label><input type="text" name="name" value="{{ form.get('name') or edit.name or '' }}" maxlength="100" required placeholder="e.g. Diwali insurance page"/></div>
+        <div><label class="lb">Type</label>
+          <select name="kind">{% for k, label in KINDS.items() %}<option value="{{ k }}"{{ ' selected' if (form.get('kind') or edit.kind) == k }}>{{ label }}</option>{% endfor %}</select></div>
+        {% endif %}
+        <div><label class="lb">What they ask about</label>{{ product_select('product', form.get('product') or edit.product or 'TI') }}</div>
+        <div><label class="lb">Pipeline</label>
+          <select name="pipeline">
+            <option value="">— Not decided yet: keep its leads waiting —</option>
+            {% for p in pipelines %}<option value="{{ p.key }}"{{ ' selected' if (form.get('pipeline') == p.key) or (not form and edit.pipeline_id == p.id) }}>{{ p.name }}</option>{% endfor %}
+          </select>
+          {% if not is_new and really.get(edit.id) and really[edit.id][1] %}<p class="hint">{{ really[edit.id][1] }}</p>{% endif %}</div>
+        <div class="full"><span class="lb">Status</span>
+          <label class="check"><input type="radio" name="status" value="live"{{ ' checked' if edit.status != 'paused' }}/> On: plan its follow-ups</label>
+          <label class="check"><input type="radio" name="status" value="paused"{{ ' checked' if edit.status == 'paused' }}/> Paused: keep its leads, send nothing</label></div>
+      </div>
+    </fieldset>
+    <fieldset class="src-fs">
       <legend>Who gets its leads</legend>
-      <label class="check"><input type="radio" name="who" value="anyone"{{ ' checked' if who == 'anyone' }}/> Anyone in sales (least busy first)</label>
+      <label class="check"><input type="radio" name="who" value="anyone"{{ ' checked' if who == 'anyone' }}/> Anyone in sales</label>
       <label class="check"><input type="radio" name="who" value="team"{{ ' checked' if who == 'team' }}/> Team
         <select name="team_id" aria-label="Team">
           {% for t in teams %}<option value="{{ t.id }}"{{ ' selected' if chosen_team == t.id|string }}>{{ t.name }}</option>
@@ -35,30 +57,32 @@
       <label class="check"><input type="radio" name="who" value="people"{{ ' checked' if who == 'people' }}/> These people</label>
       <div class="team">{% for u in staff %}<label class="check"><input type="checkbox" name="team" value="{{ u.id }}"{{ ' checked' if team and team is not mapping and u.id in team }}/> {{ u.full_name }}</label>{% endfor %}</div>
       {% if errors.team %}<p class="err">{{ errors.team }}</p>{% endif %}
-    </fieldset>
-    <fieldset class="full pe-fs">
-      <legend>How to share new leads</legend>
-      {% set share = form.get('assign_mode') or edit.assign_mode or 'fewest' %}
-      <label class="check"><input type="radio" name="assign_mode" value="fewest"{{ ' checked' if share != 'round_robin' }}/> Whoever has the fewest open leads</label>
+      <p class="lb" style="margin-top:12px">How a new lead is given out</p>
+      {% set share = form.get('assign_mode') or edit.assign_mode or 'none' %}
+      <label class="check"><input type="radio" name="assign_mode" value="none"{{ ' checked' if share not in ('fewest', 'round_robin') }}/> Nobody: a new lead waits, not given to anyone, until someone takes it</label>
+      <label class="check"><input type="radio" name="assign_mode" value="fewest"{{ ' checked' if share == 'fewest' }}/> Whoever has the fewest open leads</label>
       <label class="check"><input type="radio" name="assign_mode" value="round_robin"{{ ' checked' if share == 'round_robin' }}/> In turn (round robin)</label>
-      <p class="hint">Nobody who is away gets a new lead. People mark themselves away from their account menu.</p>
+      <p class="hint">A lead given to nobody rings everybody who could take it. Nobody who is away gets a new lead or the ring; people mark themselves away from their account menu.</p>
     </fieldset>
-    <div class="full">If they ask again within <input type="number" name="dedupe_days" min="0" max="365" style="width:80px;display:inline-block" value="{{ form.get('dedupe_days') or (edit.dedupe_days if edit.dedupe_days is not none else 30) }}"/> days about this pipeline, add it to the same lead</div>
-    <div class="full tag-picker" data-tag-picker data-check="{{ crm_url('source_tag_check') }}">
-      <span class="lb">Tags to add</span>
-      <input type="hidden" name="crm_tags" value="{{ tag_value or '' }}" data-tags-value/>
-      <div class="chips" data-tag-chips></div>
-      <input type="text" list="src-tags" data-tag-new placeholder="A Sales tag, or a new name" maxlength="30" style="max-width:280px;display:inline-block"/>
-      <datalist id="src-tags">{% for t in tag_names %}<option value="{{ t }}"></option>{% endfor %}</datalist>
-      <button type="button" class="cb sm" data-tag-add>Add</button>
-      <p class="err" data-tag-error>{{ errors.tags or '' }}</p>
-      <div data-tag-takeover{{ '' if clash else ' hidden' }}>
-        {% if clash %}<label class="check"><input type="checkbox" name="take_over" value="{{ clash.name|lower }}"{{ ' checked' if clash.name|lower in take_over }}/> {{ 'Take over this tag (it will be taken off contacts that don\'t qualify)' }}</label>{% endif %}
+    <fieldset class="src-fs">
+      <legend>The same person again, and WhatsApp tags</legend>
+      <div>If they ask again within <input type="number" name="dedupe_days" min="0" max="365" style="width:80px;display:inline-block" value="{{ form.get('dedupe_days') or (edit.dedupe_days if edit.dedupe_days is not none else 30) }}"/> days about this pipeline, add it to the same lead</div>
+      <div class="tag-picker" data-tag-picker data-check="{{ crm_url('source_tag_check') }}" style="margin-top:12px">
+        <span class="lb">Tags to add</span>
+        <input type="hidden" name="crm_tags" value="{{ tag_value or '' }}" data-tags-value/>
+        <div class="chips" data-tag-chips></div>
+        <input type="text" list="src-tags" data-tag-new placeholder="A Sales tag, or a new name" maxlength="30" style="max-width:280px;display:inline-block"/>
+        <datalist id="src-tags">{% for t in tag_names %}<option value="{{ t }}"></option>{% endfor %}</datalist>
+        <button type="button" class="cb sm" data-tag-add>Add</button>
+        <p class="err" data-tag-error>{{ errors.tags or '' }}</p>
+        <div data-tag-takeover{{ '' if clash else ' hidden' }}>
+          {% if clash %}<label class="check"><input type="checkbox" name="take_over" value="{{ clash.name|lower }}"{{ ' checked' if clash.name|lower in take_over }}/> {{ 'Take over this tag (it will be taken off contacts that don\'t qualify)' }}</label>{% endif %}
+        </div>
+        <p class="hint">Tags go on their WhatsApp contact. A name already used by hand in WhatsApp needs the take-over tick.</p>
       </div>
-      <p class="hint">Tags go on their WhatsApp contact. A name already used by hand in WhatsApp needs the take-over tick.</p>
-    </div>
+    </fieldset>
     {% if not is_new or edit.key %}
-    <details class="dev full">
+    <details class="dev">
       <summary>For the developer</summary>
       <p class="hint">Form ID: <code>{{ edit.key }}</code></p>
       <div><label class="lb">Page addresses <small class="muted">(for your notes)</small></label><input type="text" name="pages" value="{{ form.get('pages') or (edit.pages or [])|join(', ') }}" placeholder="/insurance, /diwali"/></div>
@@ -66,37 +90,68 @@
       <p class="hint">Intake address: <code>{{ intake_url }}</code></p>
     </details>
     {% else %}
-    <div class="full"><label class="lb">Page addresses <small class="muted">(for your notes)</small></label><input type="text" name="pages" value="{{ form.get('pages') or '' }}" placeholder="/insurance, /diwali"/></div>
+    <div><label class="lb">Page addresses <small class="muted">(for your notes)</small></label><input type="text" name="pages" value="{{ form.get('pages') or '' }}" placeholder="/insurance, /diwali"/></div>
     {% endif %}
-    <div class="full row between">
+    <div class="row between" style="margin-top:14px">
       <button class="cb primary">Save</button>
       <a class="cb ghost" href="{{ crm_url('sources') }}">Cancel</a>
     </div>
   </form>
 </section>
 {% endif %}
-<section class="card">
-  <div class="row between" style="margin-bottom:10px">
-    <div><h2 style="margin:0">Sources</h2>
-      <p class="muted" style="margin:4px 0 0">Every form, pop-up and chat. A new page sends its leads here by itself; it shows up at the top as <b>needs set-up</b> until you choose its pipeline once.</p></div>
-  </div>
-  <div style="overflow-x:auto">
-  <table class="crm-table">
-    <thead><tr><th>Source</th><th>Type</th><th>Pipeline</th><th>Goes to</th><th>Status</th><th>Leads (30 days)</th><th></th></tr></thead>
+
+{# ---------------------------------------------------------------- the groups at a glance #}
+<p class="muted src-sum-note">Leads in the last 30 days, by group{% if source_groups and source_groups[-1][0] == 'unsorted' %} · <a href="#grp-unsorted">{{ source_groups[-1][3]|length }} source(s) to sort</a>{% endif %}</p>
+<nav class="src-sum" aria-label="Lead source groups">
+  {% for g, gname, icon, rows_ in source_groups %}
+  <a class="src-sum-card{{ ' src-sum-warn' if g == 'unsorted' }}" href="#grp-{{ g }}" title="{{ GROUP_SAYS.get(g, '') }}">
+    <i class="fa-solid {{ icon }}" aria-hidden="true"></i>
+    <b>{{ group30.get(g, 0) }}</b><span>{{ gname }}</span></a>
+  {% endfor %}
+</nav>
+
+{% for g, gname, icon, rows_ in source_groups %}
+<section class="card src-group{{ ' src-unsorted' if g == 'unsorted' }}" id="grp-{{ g }}">
+  <header class="src-gh">
+    <span class="src-gi"><i class="fa-solid {{ icon }}" aria-hidden="true"></i></span>
+    <div><h2>{{ gname }}</h2><p class="muted">{{ GROUP_SAYS.get(g, '') }}</p></div>
+    <span class="src-gn">{{ group30.get(g, 0) }} <small>leads · 30 days</small></span>
+  </header>
+  <div class="table-wrap">
+  <table class="crm-table src-table">
+    <thead><tr><th>Source</th><th>Pipeline</th><th>Who gets its leads</th><th>Status</th><th class="num">Leads · 30 days</th><th>Last lead (IST)</th><th></th></tr></thead>
     <tbody>
-    {% for s in sources %}
-    {% set rp = really.get(s.id) %}
-    <tr class="{{ 'unrouted' if s.status == 'unrouted' }}">
-      <td><span class="nm">{{ SOURCE_NAME(s.name) }}</span><br/><small class="muted">{{ s.key }}</small></td>
-      <td>{{ KINDS.get(s.kind, s.kind) }}</td>
-      <td>{{ rp[0].name if rp and rp[0] else (s.pipeline.name if s.pipeline else '—') }}{% if rp and rp[1] %}<br/><small class="muted">{{ rp[1] }}</small>{% endif %}</td>
-      <td>{{ goes.get(s.id) }}</td>
-      <td>{% if s.status == 'live' %}<span class="chip ok">On</span>{% elif s.status == 'paused' %}<span class="chip">Paused</span>{% else %}<span class="chip due">Needs set-up</span>{% endif %}</td>
-      <td>{{ counts30.get(s.id, 0) }}{% if s.last_lead_at %}<br/><small class="muted">last {{ s.last_lead_at.strftime('%d %b') }}</small>{% endif %}</td>
-      <td><a class="cb sm{{ ' primary' if s.status == 'unrouted' }}" href="{{ crm_url('sources', edit=s.id) }}">{{ 'Set up' if s.status == 'unrouted' else 'Edit' }}</a></td>
-    </tr>
+    {% for part, part_rows in SOURCE_SECTIONS(rows_) %}
+      {% if part %}<tr class="src-part"><th colspan="7">{{ part }}</th></tr>{% endif %}
+      {% for s in part_rows %}
+      {% set rp = really.get(s.id) %}{% set c = by30.get(s.id, {}) %}
+      <tr class="{{ 'unrouted' if s.status == 'unrouted' }}">
+        <td><b class="nm">{{ SOURCE_SHORT(s) if g != 'unsorted' else SOURCE_NAME(s.name) }}</b><br/><small class="muted">{{ KINDS.get(s.kind, s.kind) }}{% if g == 'unsorted' %} · {{ s.key }}{% endif %}</small></td>
+        <td>{{ rp[0].name if rp and rp[0] else (s.pipeline.name if s.pipeline else '—') }}{% if rp and rp[1] %} <span class="tt-i" tabindex="0" title="{{ rp[1] }}" aria-label="{{ rp[1] }}">ⓘ</span>{% endif %}</td>
+        <td>{{ goes.get(s.id) }}<br/><small class="muted">{{ SHARE.get(s.assign_mode, 'Waits to be taken') }}</small></td>
+        <td>{% if s.status == 'live' %}<span class="chip ok">On</span>{% elif s.status == 'paused' %}<span class="chip">Paused</span>{% else %}<span class="chip due">Needs set-up</span>{% endif %}</td>
+        <td class="num"><b>{{ c.all or 0 }}</b>
+          {% if c.all %}<div class="src-mix">{% for k, word, says, icon_ in ORIGINS() if c[k] %}<span class="cf-how cf-{{ k }}" title="{{ says }}">{{ c[k] }} {{ word|lower }}</span>{% endfor %}</div>{% endif %}</td>
+        <td>{{ s.last_lead_at|ist('%d %b %Y, %H:%M') if s.last_lead_at else '—' }}</td>
+        <td class="src-act">
+          {% if g == 'unsorted' %}
+          <form method="POST" action="{{ crm_url('move_source', sid=s.id) }}" class="src-move" data-confirm="Move every lead of “{{ s.name }}” onto the list and take it off?">{{ csrf() }}
+            <select name="to" required aria-label="Move the leads of {{ s.name }} to">
+              <option value="">Its leads belong to…</option>
+              {% for g2, gname2, icon2, rows2 in SOURCE_GROUPS(on_list) %}<optgroup label="{{ gname2 }}">
+                {% for t in rows2 %}<option value="{{ t.key }}">{{ SOURCE_SHORT(t) }}</option>{% endfor %}</optgroup>{% endfor %}
+            </select>
+            <button class="cb sm primary">Move</button>
+          </form>
+          {% else %}
+          <a class="cb sm{{ ' primary' if s.status == 'unrouted' }}" href="{{ crm_url('sources', edit=s.id) }}">{{ 'Set up' if s.status == 'unrouted' else 'Edit' }}</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
     {% endfor %}
     </tbody>
   </table>
   </div>
 </section>
+{% endfor %}

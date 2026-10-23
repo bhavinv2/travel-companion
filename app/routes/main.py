@@ -537,6 +537,9 @@ def _save_contact(form, topic=None, lead_source=None, crm_lead=True):
 
 # which Sales CRM product an enquiry under each contact topic is about
 CONTACT_TOPIC_PRODUCT = {'companion': 'TC', 'insurance': 'TI', 'sahayak': 'SH', 'general': 'GEN'}
+# a landing page's call-back request, by its topic: the site's "Request (WhatsApp / call)" (services/crm_sources);
+# the main page's own falls to the contact source for its topic
+LANDING_REQUEST_SOURCE = {'companion': 'tc-request', 'insurance': 'ti-expert', 'sahayak': 'sh-request'}
 
 
 def _contact_fields(src):
@@ -670,7 +673,8 @@ def api_landing_contact():
     errors = _validate_contact(form, need_phone=True)
     if errors:
         return jsonify({'success': False, 'error': ' '.join(errors)}), 400
-    msg = _save_contact(form)
+    # each site's "Request a call back" is its own lead source ("Request (WhatsApp / call)")
+    msg = _save_contact(form, lead_source=LANDING_REQUEST_SOURCE.get(form.get('topic')))
     from app.services import settings as _settings, mailer, phone as phone_svc
     ls = _settings.landing_settings()
     if ls['contact_email_enabled'] and ls['contact_email']:

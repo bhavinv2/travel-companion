@@ -121,20 +121,8 @@ def home():
                       .order_by(CompanionRequest.created_at.asc()).all())
 
     # Needs action: claim link sent > 3 days ago with no response; departing ≤ 3 days with nothing consented.
-    needs_action = []
-    for t in awaiting_claim:
-        tok = t.claim_tokens.order_by(ClaimToken.created_at.desc()).first()
-        # created_at has a Python-side default, not a DB-enforced one, so a row written outside
-        # the normal ORM path (a data fix, a bulk import) can legitimately have it as NULL —
-        # guard the comparison rather than letting one such row 500 the whole CS home page.
-        if tok and tok.used_at is None and tok.created_at and tok.created_at < now - timedelta(days=3):
-            needs_action.append(('No response to claim link for %d days' % (now - tok.created_at).days, t))
-        elif tok is None and t.created_at and t.created_at < now - timedelta(days=2):
-            needs_action.append(('No claim link sent yet', t))
-    for t in public.filter(CompanionRequest.from_date >= today,
-                           CompanionRequest.from_date <= today + timedelta(days=3)).all():
-        if not t.consented_contact_types:
-            needs_action.append(('Departing soon with no consented contact', t))
+    from app.services import service_todo
+    needs_action = service_todo.needs_action(today, now)
 
     # Repeats: same contact value on several posts; same route + date on several posts.
     dup_contacts = (db.session.query(ContactPoint.value, ContactPoint.type,
@@ -581,9 +569,9 @@ def contact_status(mid):
 @login_required
 @cs_required
 def reports():
-    """Overview's Reports line: the first report this person may open; the others are its tabs."""
+    """An old "All reports" link: the first report this person may open (the reports have their own menu now)."""
     from app.services import access
-    return redirect(access.first_tab_url('reports') or access.home_url(current_user))
+    return redirect(access.first_page_url(access.REPORT_PAGES) or access.home_url(current_user))
 
 
 @cs_bp.route('/metrics')

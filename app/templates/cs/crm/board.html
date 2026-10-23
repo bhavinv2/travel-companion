@@ -114,6 +114,9 @@
         <div class="top">{{ temp_dot(l.temperature) }}<span class="nm">{{ l.person.display_name }}</span>
           {% if l.owner %}<span class="av" title="{{ l.owner.full_name }}">{{ initials(l.owner.full_name) }}</span>{% endif %}
           <button type="button" class="card-more" data-act="move-to" title="Move to…" aria-label="Move {{ l.person.display_name }} to another stage">⋯</button></div>
+        {% set cf = CAME_FROM(l) %}
+        <div class="cf-line" title="{{ cf.group_name }} › {{ cf.name }} · {{ cf.origin_label }}{{ ' by ' ~ cf.by if cf.by }} · {{ cf.at }} IST">
+          <i class="fa-solid {{ cf.icon }}"></i> <span>{{ cf.name }}</span> <span class="cf-how cf-{{ cf.origin }}">{{ cf.origin_word }}</span></div>
         <div class="meta">
           {{ product_chip(l.product) }}
           {% if l.score is not none and SCORING_ON() %}<span class="sc-chip" title="Lead score">{{ l.score }}</span>{% endif %}
@@ -147,7 +150,7 @@
   <table class="crm-table">
     <thead><tr>
       {% if can_bulk %}<th class="chk"><input type="checkbox" data-bulk-all aria-label="Choose every lead on this page"/></th>{% endif %}
-      <th>Name</th><th>Product</th><th>Stage</th><th class="num">Value</th><th>Closes</th><th>Looked after by</th><th>Next step</th><th>Chat</th><th>Travels on</th><th>Last contact</th>
+      <th>Name</th><th>Came from</th><th>Added (IST)</th><th>Product</th><th>Stage</th><th class="num">Value</th><th>Closes</th><th>Looked after by</th><th>Next step</th><th>Chat</th><th>Travels on</th><th>Last contact</th>
     </tr></thead>
     <tbody>
     {% for l in rows %}
@@ -156,6 +159,10 @@
     <tr>
       {% if can_bulk %}<td class="chk"><input type="checkbox" name="lead" value="{{ l.id }}" data-bulk-one aria-label="Choose {{ l.person.display_name }}"/></td>{% endif %}
       <td><a class="nm" href="{{ crm_url('lead', lead_id=l.id) }}">{{ l.person.display_name }}</a></td>
+      {% set cf = CAME_FROM(l) %}
+      <td class="cf-cell"><span class="cf-src" title="{{ cf.group_name }} › {{ cf.name }}"><i class="fa-solid {{ cf.icon }}"></i> {{ cf.name }}</span>
+        <span class="cf-how cf-{{ cf.origin }}" title="{{ cf.origin_label }}">{{ cf.origin_word }}</span></td>
+      <td class="cf-added">{{ cf.at }}<small>{{ 'by ' ~ cf.by if cf.by else cf.origin_label }}</small></td>
       <td>{{ product_chip(l.product) }}</td>
       <td>{{ stage_pill(l) }}</td>
       <td class="num">{% if l.amount is not none %}<span title="{{ MONEY(l.amount, l.currency) }}">{{ MONEY_C(l.amount, l.currency) }}</span>{% else %}—{% endif %}</td>
@@ -304,10 +311,25 @@
       <label class="lf-h" for="lf-src">Came from</label>
       <select id="lf-src" name="src">
         <option value="">Any source</option>
+        {% for g, gname, icon, rows_ in SOURCE_GROUPS(sources) %}
+        <optgroup label="{{ gname }}">
+          <option value="g:{{ g }}"{{ ' selected' if more.src == 'g:' ~ g }}>All {{ gname|lower }}</option>
+          {% for s in rows_ %}<option value="{{ s.id }}"{{ ' selected' if more.src == s.id|string }}>{{ SOURCE_NAME(s.name) }}</option>{% endfor %}
+        </optgroup>
+        {% endfor %}
         <option value="none"{{ ' selected' if more.src == 'none' }}>Not known</option>
-        {% for s in sources %}<option value="{{ s.id }}"{{ ' selected' if more.src == s.id|string }}>{{ SOURCE_NAME(s.name) }}</option>{% endfor %}
       </select>
     </div>
+
+    <fieldset class="lf-g">
+      <legend class="lf-h">How it came</legend>
+      <div class="lf-opts">
+        <label class="lf-o"><input type="radio" name="how" value=""{{ ' checked' if not more.how }}/><span>Any</span></label>
+        {% for k, word, says, icon in ORIGINS() %}
+        <label class="lf-o" title="{{ says }}"><input type="radio" name="how" value="{{ k }}"{{ ' checked' if more.how == k }}/><span><i class="fa-solid {{ icon }}" aria-hidden="true"></i> {{ word }}</span></label>
+        {% endfor %}
+      </div>
+    </fieldset>
 
     <fieldset class="lf-g">
       <legend class="lf-h">Money</legend>

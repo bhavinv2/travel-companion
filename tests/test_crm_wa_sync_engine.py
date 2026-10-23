@@ -1406,3 +1406,10 @@ def test_a_refusal_parks_until_the_next_mark_but_a_500_keeps_its_backoff(app, wa
     assert p.wa_sync_error == 'Boom' and p.wacrm_sync_due_at > datetime.utcnow() + timedelta(minutes=50)
     wa.fail_for.clear()
     assert crm.run_wa_sync(now=datetime.utcnow() + timedelta(hours=2))['crm_wa_synced'] == 1
+
+@pytest.fixture(autouse=True)
+def _leads_shared_out(monkeypatch):
+    """These tests were written when a source gave a new lead to whoever had the fewest open leads unless told
+    otherwise. Since 2026-10-23 nothing set means nobody (crm_assign.DEFAULT; tests/test_crm2_assign.py)."""
+    from app.services import crm_assign
+    monkeypatch.setattr(crm_assign, 'DEFAULT', 'fewest')

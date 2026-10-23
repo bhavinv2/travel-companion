@@ -350,14 +350,16 @@ def week_days(day):
 
 def calendar_items(user, first, last, who='mine'):
     """Everything on the calendar between the India dates `first` and `last` (both included):
-    {date: [item]}, items in time order, all-day items first. An item: {kind, title, who, time, end, href,
-    task_id, done, priority, can_done, all_day}."""
+    {date: [item]}, items in time order, all-day items first. An item: {kind, title, who (the customer), time, end,
+    href, task_id, done, priority, can_done, all_day, place, owner_id, owner (the staff member's name), owner_first,
+    owner_initials} -- the owner is said on the item, so My team and Everyone show whose it is."""
     who, owners = owner_scope(user, who)
     lo = to_utc(datetime.combine(first, time.min))
     hi = to_utc(datetime.combine(last + timedelta(days=1), time.min))
     out = defaultdict(list)
 
-    q = (CrmTask.query.options(joinedload(CrmTask.lead).joinedload(CrmLead.person), joinedload(CrmTask.person))
+    q = (CrmTask.query.options(joinedload(CrmTask.lead).joinedload(CrmLead.person), joinedload(CrmTask.person),
+                               joinedload(CrmTask.owner))
          .filter(CrmTask.due_at >= lo, CrmTask.due_at < hi, CrmTask.status.in_(('open', 'done'))))
     if owners is not None:
         q = q.filter(CrmTask.owner_id.in_(owners))
@@ -371,9 +373,9 @@ def calendar_items(user, first, last, who='mine'):
             'href': href_of(t) if (t.lead_id or t.person_id) else None, 'task_id': t.id,
             'done': t.status == 'done', 'priority': t.priority, 'sort': (1, d.strftime('%H:%M')),
             'can_done': (not step and t.status == 'open' and can_change(user, t)),
-            'place': t.location})
+            'place': t.location, **_owner(t.owner)})
 
-    lq = (CrmLead.query.options(joinedload(CrmLead.person))
+    lq = (CrmLead.query.options(joinedload(CrmLead.person), joinedload(CrmLead.owner))
           .filter(CrmLead.status == 'open',
                   or_(CrmLead.departure_date.between(first, last), CrmLead.ends_on.between(first, last))))
     if owners is not None:
@@ -390,10 +392,38 @@ def calendar_items(user, first, last, who='mine'):
             if v is not None and first <= v <= last:
                 out[v].append({'kind': kind, 'title': text, 'who': l.person.display_name, 'all_day': True,
                                'time': None, 'end': None, 'href': href, 'task_id': None, 'done': False,
-                               'priority': None, 'sort': (0, ''), 'can_done': False, 'place': None})
+                               'priority': None, 'sort': (0, ''), 'can_done': False, 'place': None,
+                               **_owner(l.owner)})
     for d in out:
         out[d].sort(key=lambda i: i['sort'])
     return out
+
+
+def _owner(user):
+    """Whose an item is, as the calendar writes it: the full name, the first name, the initials."""
+    if user is None:
+        return {'owner_id': None, 'owner': None, 'owner_first': None, 'owner_initials': '?'}
+    name = user.full_name or ''
+    parts = name.split()
+    return {'owner_id': user.id, 'owner': name, 'owner_first': parts[0] if parts else name,
+            'owner_initials': ''.join(w[0] for w in parts[:2]).upper() or '?'}
+
+
+NOBODY = 'Not given to anyone'
+
+
+def lanes(items, user):
+    """The week as a row per person, for My team and Everyone: [{'id', 'name', 'initials', 'days': {date: [item]},
+    'count'}] -- the viewer first, then by name, "Not given to anyone" last."""
+    rows = {}
+    for d, its in items.items():
+        for it in its:
+            key = it['owner_id']
+            row = rows.setdefault(key, {'id': key, 'name': it['owner'] or NOBODY, 'initials': it['owner_initials'],
+                                        'days': defaultdict(list), 'count': 0})
+            row['days'][d].append(it)
+            row['count'] += 1
+    return sorted(rows.values(), key=lambda r: (r['id'] is None, r['id'] != user.id, r['name'].lower()))
 
 
 def clamp_day(text, today):
