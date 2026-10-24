@@ -989,7 +989,8 @@ _KEEP = {
     'img': ('src', 'alt', 'data-file', 'width', 'height', 'loading'), 'figcaption': (),
     'table': ('class',), 'thead': (), 'tbody': (), 'tr': (), 'th': ('colspan', 'rowspan'), 'td': ('colspan', 'rowspan'),
     # the blocks beyond text (2026-10-24): each a <div> or <figure> whose class says what it is
-    'div': ('class', 'data-cols', 'data-pos', 'data-ratio', 'data-h', 'data-interval', 'data-show', 'data-title'),
+    'div': ('class', 'data-cols', 'data-pos', 'data-ratio', 'data-h', 'data-interval', 'data-show', 'data-title',
+            'data-ref'),
     'video': ('src', 'poster'), 'pre': (),
 }
 _RENAME = {'b': 'strong', 'i': 'em', 'h1': 'h2', 'h4': 'h3', 'h5': 'h3', 'h6': 'h3',
@@ -1002,14 +1003,18 @@ _VOID = {'br', 'hr', 'img'}
 #   blog-carousel / blog-slide    pictures (figure.blog-slide) or content (div.blog-slide) one after another
 #   blog-code                     the post's own HTML, CSS and JS, run in a sandboxed frame on the public page
 #   blog-spacer                   empty space of a chosen height
-_DIVS = {'blog-cols', 'blog-col', 'blog-mt', 'blog-mt-body', 'blog-carousel', 'blog-slide', 'blog-code', 'blog-spacer'}
+#   blog-ref                      a synced reusable block (models.BlogPattern, data-ref = its id): a copy of its
+#                                 blocks inside, kept the same in every post (blog_posts.fresh_refs)
+_DIVS = {'blog-cols', 'blog-col', 'blog-mt', 'blog-mt-body', 'blog-carousel', 'blog-slide', 'blog-code', 'blog-spacer',
+         'blog-ref'}
 _CLASSES = {'p': {'blog-cta-wrap'}, 'a': {'blog-cta', 'cta-outline', 'cta-big', 'lk-btn', 'lk-outline', 'lk-arrow'},
             'aside': {'blog-note'}, 'div': _DIVS,
             'figure': {'blog-img', 'blog-img-missing', 'blog-embed', 'blog-video', 'blog-mt-media', 'blog-slide'}}
 _STYLED = {'p', 'h2', 'h3', 'ul', 'ol', 'blockquote', 'aside', 'figure', 'table', 'hr', 'div'}
 _DATA = {'data-cols': r'[23]', 'data-pos': r'left|right', 'data-ratio': r'33|40|50|60|67', 'data-h': r'auto|\d{2,4}',
          'data-interval': r'0|[2-9]|1[0-5]', 'data-show': r'[1-3]', 'data-provider': r'youtube|vimeo',
-         'data-vid': r'[A-Za-z0-9_-]{6,20}', 'data-start': r'\d{1,5}', 'data-title': r'[^<>]{1,120}'}
+         'data-vid': r'[A-Za-z0-9_-]{6,20}', 'data-start': r'\d{1,5}', 'data-title': r'[^<>]{1,120}',
+         'data-ref': r'[1-9]\d{0,8}'}
 _BLOCKS = {'p', 'h2', 'h3', 'ul', 'ol', 'blockquote', 'aside', 'figure', 'table', 'hr', 'div', 'pre'}
 _TEXT_BLOCKS = ('p', 'h2', 'h3')
 _INLINE = {'strong', 'em', 'u', 'a', 'br', 'img'}
@@ -1232,6 +1237,81 @@ class _Clean(HTMLParser):
             self.out.append('</%s>' % self.stack.pop())
         html = ''.join(self.out)
         return re.sub(r'<p>(\s|<br/>)*</p>', '', html)      # empty paragraphs the editor leaves behind
+
+
+class _Refs(HTMLParser):
+    """Walks a post's clean HTML (what sanitize gives) for its reusable blocks, <div class="blog-ref" data-ref="7">:
+    what each one holds, and the post with each one's inside replaced (contents[id] = HTML) or unwrapped (None)."""
+
+    def __init__(self, contents=None):
+        super().__init__(convert_charrefs=False)
+        self.contents = contents or {}
+        self.out, self.found = [], {}
+        self.ref = None                        # [id, open <div>s, where its opening tag is in out, what is inside]
+
+    def _put(self, s):
+        (self.ref[3] if self.ref else self.out).append(s)
+
+    def handle_starttag(self, tag, attrs):
+        raw = self.get_starttag_text()
+        if self.ref:
+            self.ref[1] += tag == 'div'
+            self.ref[3].append(raw)
+            return
+        a = dict(attrs)
+        ref = a.get('data-ref') or ''
+        if tag == 'div' and ref.isdigit() and 'blog-ref' in (a.get('class') or '').split():
+            self.ref = [int(ref), 1, len(self.out), []]
+        self.out.append(raw)
+
+    def handle_startendtag(self, tag, attrs):
+        self._put(self.get_starttag_text())
+
+    def handle_endtag(self, tag):
+        if self.ref and tag == 'div':
+            self.ref[1] -= 1
+            if not self.ref[1]:
+                rid, _n, at, inner = self.ref
+                self.ref, inner = None, ''.join(inner)
+                self.found.setdefault(rid, inner)
+                if rid in self.contents and self.contents[rid] is None:
+                    del self.out[at]               # unwrapped: the blocks stay, as the post's own
+                    self.out.append(inner)
+                else:
+                    self.out += [self.contents.get(rid, inner), '</div>']
+                return
+        self._put('</%s>' % tag)
+
+    def handle_data(self, data):
+        self._put(data)
+
+    def handle_entityref(self, name):
+        self._put('&%s;' % name)
+
+    def handle_charref(self, name):
+        self._put('&#%s;' % name)
+
+
+def refs_in(html):
+    """The reusable blocks a post holds: {id: what the post has inside it} (the first of each)."""
+    if 'blog-ref' not in (html or ''):
+        return {}
+    p = _Refs()
+    p.feed(html)
+    p.close()
+    return p.found
+
+
+def with_refs(html, contents):
+    """The post with its reusable blocks' insides replaced: contents = {id: HTML, or None to unwrap it}."""
+    if 'blog-ref' not in (html or ''):
+        return html or ''
+    p = _Refs(contents)
+    p.feed(html)
+    p.close()
+    if p.ref:                                  # never closed: kept as it was
+        p.out.append(''.join(p.ref[3]))
+    return ''.join(p.out)
 
 
 def sanitize(html, fix_url=None, public=False):

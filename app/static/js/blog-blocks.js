@@ -2,7 +2,9 @@
    picture beside text, a picture carousel and a content slider, a video, YouTube and Vimeo, the post's own
    HTML / CSS / JS, and space -- and, for every block, its settings in the Block tab: space above and below, padding,
    background, width and text alignment, and what each kind has of its own. The post's layout (Post › Layout) is
-   shown on the editor as it is chosen.
+   shown on the editor as it is chosen. And the reusable blocks (models.BlogPattern): made from blocks of the post,
+   added from Add a block › Reusable; a synced one is <div class="blog-ref" data-ref="<id>"> around its blocks, locked
+   until Edit (its Block tab), and saving the post saves it everywhere (blog_posts.fresh_refs).
 
    What a block is lives in its class (blog_engine keeps exactly these: _DIVS, _CLASSES, _STYLE_RE). The public
    page draws the players, the sandboxed code and the carousels; here a block shows a preview, in a <bs-live>
@@ -14,25 +16,26 @@ window.BlogBlocks = (function () {
   const icon = i => (i.startsWith('fa-brands') ? i : 'fa-solid ' + i);
 
   const items = [
-    { key: 'cols2', label: 'Two columns', icon: 'fa-table-columns', hint: 'Side by side: text, pictures, lists', words: 'columns layout grid side by side' },
-    { key: 'cols3', label: 'Three columns', icon: 'fa-table-cells-large', hint: 'Three side by side', words: 'columns layout grid' },
-    { key: 'mt', label: 'Picture and text', icon: 'fa-object-group', hint: 'A picture on the left or right, text beside it', words: 'media text image split side left right' },
-    { key: 'carousel', label: 'Picture carousel', icon: 'fa-images', hint: 'Pictures one after another, with arrows', words: 'gallery slider slideshow images carousel' },
-    { key: 'slider', label: 'Content slider', icon: 'fa-layer-group', hint: 'Cards of text that slide', words: 'carousel slides cards testimonials quotes' },
-    { key: 'video', label: 'Video', icon: 'fa-video', hint: 'Upload an MP4, or link one', words: 'movie clip mp4 upload film' },
-    { key: 'youtube', label: 'YouTube or Vimeo', icon: 'fa-brands fa-youtube', hint: 'Paste its link: it plays in the post', words: 'embed video youtube vimeo' },
-    { key: 'code', label: 'Custom HTML / CSS / JS', icon: 'fa-code', hint: 'Your own code, run apart from the site', words: 'html css javascript embed widget script code iframe' },
-    { key: 'spacer', label: 'Space', icon: 'fa-arrows-up-down', hint: 'Empty space between blocks', words: 'spacer gap margin blank' },
+    { key: 'cols2', label: 'Two columns', icon: 'fa-table-columns', hint: 'Side by side: text, pictures, lists', words: 'columns layout grid side by side', group: 'layout' },
+    { key: 'cols3', label: 'Three columns', icon: 'fa-table-cells-large', hint: 'Three side by side', words: 'columns layout grid', group: 'layout' },
+    { key: 'mt', label: 'Picture and text', icon: 'fa-object-group', hint: 'A picture on the left or right, text beside it', words: 'media text image split side left right', group: 'layout' },
+    { key: 'slider', label: 'Content slider', icon: 'fa-layer-group', hint: 'Cards of text that slide', words: 'carousel slides cards testimonials quotes', group: 'layout' },
+    { key: 'spacer', label: 'Space', icon: 'fa-arrows-up-down', hint: 'Empty space between blocks', words: 'spacer gap margin blank', group: 'layout' },
+    { key: 'carousel', label: 'Picture carousel', icon: 'fa-images', hint: 'Pictures one after another, with arrows', words: 'gallery slider slideshow images carousel', group: 'media' },
+    { key: 'video', label: 'Video', icon: 'fa-video', hint: 'Upload an MP4, or link one', words: 'movie clip mp4 upload film', group: 'media' },
+    { key: 'youtube', label: 'YouTube or Vimeo', icon: 'fa-brands fa-youtube', hint: 'Paste its link: it plays in the post', words: 'embed video youtube vimeo', group: 'media' },
+    { key: 'code', label: 'Custom HTML / CSS / JS', icon: 'fa-code', hint: 'Your own code, run apart from the site', words: 'html css javascript embed widget script code iframe', group: 'design' },
   ];
   const NAMES = { cols: 'Columns', mt: 'Picture and text', carousel: 'Picture carousel', slider: 'Content slider',
-                  video: 'Video', embed: 'YouTube or Vimeo', code: 'Custom code', spacer: 'Space' };
+                  video: 'Video', embed: 'YouTube or Vimeo', code: 'Custom code', spacer: 'Space', ref: 'Reusable block' };
   const ICONS = { cols: 'fa-table-columns', mt: 'fa-object-group', carousel: 'fa-images', slider: 'fa-layer-group',
-                  video: 'fa-video', embed: 'fa-brands fa-youtube', code: 'fa-code', spacer: 'fa-arrows-up-down' };
+                  video: 'fa-video', embed: 'fa-brands fa-youtube', code: 'fa-code', spacer: 'fa-arrows-up-down', ref: 'fa-recycle' };
 
   function kindOf(b) {
     if (!b || b.nodeType !== 1) return null;
     const c = b.classList;
     if (b.tagName === 'DIV') {
+      if (c.contains('blog-ref')) return 'ref';
       if (c.contains('blog-cols')) return 'cols';
       if (c.contains('blog-mt')) return 'mt';
       if (c.contains('blog-carousel')) return b.querySelector(':scope > div.blog-slide') ? 'slider' : 'carousel';
@@ -61,7 +64,7 @@ window.BlogBlocks = (function () {
 
   // ---------------------------------------------------------------- adding
   const CODE_START = '<div class="hello">Hello from the post</div>\n<style>\n  .hello { padding: 24px; border-radius: 12px; background: #eaf3fe; font: 600 18px system-ui; }\n</style>\n<script>\n  document.querySelector(\'.hello\').addEventListener(\'click\', e => e.target.textContent = \'Clicked!\');\n</script>';
-  function insert(key, target) {
+  function insert(key, target, before) {
     let node = null, focus = null, settings = false;
     if (key === 'cols2' || key === 'cols3') {
       const n = key === 'cols2' ? 2 : 3;
@@ -85,7 +88,7 @@ window.BlogBlocks = (function () {
     else if (key === 'spacer') { node = make('<div class="blog-spacer" data-h="48"></div>'); settings = true; }
     else return false;
     let line = null;
-    S.structural(() => { S.place(node, target); line = S.after(node); });
+    S.structural(() => { S.place(node, target, before); line = before ? null : S.after(node); });   // dropped above a block: no new line
     if (focus) S.caretIn(focus, true); else if (!settings && line) S.caretIn(line);
     S.setActive(node);
     if (settings) S.blockSettings(node);
@@ -121,6 +124,12 @@ window.BlogBlocks = (function () {
   const hash = s => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return String(h); };
   const HEIGHT_JS = '<script>(function(){function h(){parent.postMessage({blogFrame:"edit",height:Math.ceil(document.documentElement.getBoundingClientRect().height)},"*")}addEventListener("load",h);if(window.ResizeObserver)new ResizeObserver(h).observe(document.documentElement);setTimeout(h,400)})()<\/script>';
   function decorate(root) {
+    root.querySelectorAll('.blog-ref').forEach(r => {
+      const p = patOf(r.dataset.ref), editing = r.classList.contains('is-editing');
+      live(r, 'ref' + r.dataset.ref + (p ? p.name + p.uses : '') + (editing ? 'e' : ''), '<i class="fa-solid fa-recycle"></i> ' +
+        esc(p ? p.name : 'Reusable block') + '<small>' + (editing ? 'Changing it: every post that uses it changes when you save'
+          : p && p.uses > 1 ? 'The same in ' + p.uses + ' posts · Edit it from its Block tab' : 'Reusable · Edit it from its Block tab') + '</small>', 'bs-ref-tag');
+    });
     root.querySelectorAll('figure.blog-embed').forEach(f => {
       const id = f.dataset.vid, kind = f.dataset.provider;
       if (id && kind === 'youtube') live(f, 'yt' + id, '<img src="https://img.youtube.com/vi/' + esc(id) + '/hqdefault.jpg" alt=""><span class="bs-play"><i class="fa-brands fa-youtube"></i></span><small>YouTube · plays in the post, fullscreen too</small>', 'bs-embed-prev');
@@ -169,7 +178,11 @@ window.BlogBlocks = (function () {
   });
 
   // ---------------------------------------------------------------- names, for the bar and the list view
-  function name(b) { const k = kindOf(b); return NAMES[k] || null; }
+  function name(b) {
+    const k = kindOf(b);
+    if (k === 'ref') { const p = patOf(b.dataset.ref); return p ? 'Reusable: ' + p.name : NAMES.ref; }
+    return NAMES[k] || null;
+  }
   function iconFor(b) { const k = kindOf(b); return ICONS[k] || null; }
   function text(b) {
     const k = kindOf(b);
@@ -180,6 +193,7 @@ window.BlogBlocks = (function () {
     if (k === 'slider') return S.plural(b.querySelectorAll(':scope > div.blog-slide').length, 'card');
     if (k === 'spacer') return (b.dataset.h || 48) + ' px';
     if (k === 'cols' || k === 'mt') return b.innerText.replace(/\s+/g, ' ').trim().slice(0, 60) || 'empty';
+    if (k === 'ref') return Array.from(b.children).filter(c => c.tagName !== 'BS-LIVE').map(c => c.textContent).join(' ').replace(/\s+/g, ' ').trim().slice(0, 60) || 'empty';
     return null;
   }
 
@@ -202,6 +216,17 @@ window.BlogBlocks = (function () {
   const btn = (act, label, ic, cls) => '<button type="button" class="ge-btn' + (cls ? ' ' + cls : '') + '" data-bk="' + act + '"><i class="' + icon(ic) + '"></i> ' + esc(label) + '</button>';
 
   function own(k, b) {
+    if (k === 'ref') {
+      const p = patOf(b.dataset.ref), editing = b.classList.contains('is-editing');
+      return '<h4 class="ge-h">Reusable block</h4>' +
+        '<p class="ge-bk-ref"><i class="fa-solid fa-recycle"></i><span><b>' + esc(p ? p.name : 'Reusable block ' + b.dataset.ref) + '</b>' +
+        (p ? 'Synced · in ' + S.plural(p.uses, 'post') : 'Not found: it may have been deleted. Saving keeps these blocks as the post’s own.') + '</span></p>' +
+        (editing ? '<p class="ge-dim">You are changing it, here in the post. When you save, every post that uses it changes too.</p>' +
+          '<div class="ge-bk-btns">' + btn('ref-done', 'Done', 'fa-check', 'ge-btn-primary') + '</div>'
+          : '<p class="ge-dim">It is the same in every post that uses it. <b>Edit</b> changes it everywhere (when you save); <b>Detach</b> makes these blocks this post’s own.</p>' +
+          '<div class="ge-bk-btns">' + btn('ref-edit', 'Edit', 'fa-pen', 'ge-btn-primary') + btn('ref-detach', 'Detach', 'fa-link-slash') + '</div>') +
+        '<p class="ge-dim"><a href="' + esc(S.form.dataset.patternsPage) + '" target="_blank" rel="noopener">Manage reusable blocks</a></p>';
+    }
     if (k === 'cols') return '<h4 class="ge-h">Columns</h4>' + seg('data-bk-set', 'cols', 'How many', [['2', 'Two'], ['3', 'Three']], b.dataset.cols || '2') +
       '<p class="ge-dim">Click in a column to write. Each column takes any blocks: headings, lists, pictures, buttons. On a phone they stack.</p>';
     if (k === 'mt') {
@@ -277,7 +302,7 @@ window.BlogBlocks = (function () {
     box._block = b;
     const title = name(b) || ({ P: 'Paragraph', H2: 'Heading', H3: 'Sub-heading', UL: 'List', OL: 'Numbered list', BLOCKQUOTE: 'Quote', ASIDE: 'Tip box', TABLE: 'Table', HR: 'Line across', FIGURE: 'Picture' })[b.tagName] || 'Block';
     box.innerHTML = '<div class="ge-bk-head"><i class="' + icon(iconFor(b) || 'fa-square') + '"></i><b>' + esc(title) + '</b></div>' + own(k, b) +
-      '<h4 class="ge-h">Look</h4>' + STYLE.filter(([pre]) => !(pre === 'ta-' && /^(code|spacer|embed|video|carousel)$/.test(k)) && !(pre === 'pd-' && k === 'spacer') && !(pre === 'bg-' && k === 'spacer'))
+      (k === 'ref' ? '' : '<h4 class="ge-h">Look</h4>') + STYLE.filter(([pre]) => k !== 'ref').filter(([pre]) => !(pre === 'ta-' && /^(code|spacer|embed|video|carousel)$/.test(k)) && !(pre === 'pd-' && k === 'spacer') && !(pre === 'bg-' && k === 'spacer'))
         .map(([pre, label, opts]) => seg('data-bk-style', pre, label, opts, valueOf(b, pre))).join('');
   }
   const block = () => { const box = document.getElementById('geBlockPane'); const b = box && box._block; return b && S.editor.contains(b) ? b : null; };
@@ -396,6 +421,21 @@ window.BlogBlocks = (function () {
       else if (act === 'vid-poster') S.openLib({ purpose: 'body', onPick: m => change(x => { const v = x.querySelector('video'); if (v) v.setAttribute('poster', m.src); else S.toast('Add the video first.', 'warning'); }) });
       else if (act === 'vid-noposter') change(x => { const v = x.querySelector('video'); if (v) v.removeAttribute('poster'); });
       else if (act === 'code-run') runCode();
+      else if (act === 'ref-edit') {
+        b.classList.add('is-editing', 'is-changed');          // saved with the post (pattern_edits), copied everywhere
+        S.lockBlocks();
+        again();
+        S.caretIn(Array.from(b.querySelectorAll('p, h2, h3, li')).find(x => !x.closest('[contenteditable=false]')) || b, true);
+        S.toast('Change it here. When you save the post, every post that uses it changes too.', 'info');
+      } else if (act === 'ref-done') {
+        b.classList.remove('is-editing');
+        S.lockBlocks();
+        again();
+      } else if (act === 'ref-detach') {
+        S.structural(() => b.replaceWith(...Array.from(b.childNodes).filter(n => n.nodeName !== 'BS-LIVE')));
+        pane(null);
+        S.toast('Detached: these blocks are this post’s own now.', 'success');
+      }
     });
     // typed fields: applied as they are typed (a step of undo after a pause), the tab not redrawn under the caret
     let typeT = null;
@@ -445,10 +485,85 @@ window.BlogBlocks = (function () {
     });
   }
 
+  // ---------------------------------------------------------------- reusable blocks
+  let pats = null, loading = null, making = null;
+  const patOf = id => (pats || []).find(p => p.id === +id) || null;
+  const patternList = () => pats;
+  function patterns(fresh) {
+    if (loading && !fresh) return loading;
+    loading = fetch(S.form.dataset.patternsUrl, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(r => (r.ok ? r.json() : { items: [] }))
+      .then(d => { pats = d.items || []; decorate(S.editor); S.blockList(); return pats; })
+      .catch(() => { pats = pats || []; return pats; });
+    return loading;
+  }
+  function insertPattern(id, target, before) {
+    const p = patOf(id);
+    if (!p) return;
+    const got = S.insertBlocks(p.synced ? '<div class="blog-ref" data-ref="' + p.id + '">' + p.content + '</div>' : p.content, target, before);
+    if (!got.length) return;
+    S.setActive(got[0]);
+    S.toast(p.synced ? '“' + p.name + '” is in the post. It stays the same everywhere: change it from its Block tab.'
+      : '“' + p.name + '” is in the post: a copy, yours to change.', 'success');
+  }
+  // Create reusable block: from the block's bar, or ⋮ in Structure (one block or the picked ones)
+  function createFrom(bs) {
+    bs = S.inOrder(bs).filter(b => !S.isEmpty(b));
+    if (!bs.length) { S.toast('Pick a block with something in it first.', 'warning'); return; }
+    if (bs.length === 1 && kindOf(bs[0]) === 'ref') { S.toast('It is a reusable block already. Detach it first to make a new one from it.', 'info'); return; }
+    making = bs;
+    const dlg = document.getElementById('geReuse'), first = text(bs[0]) || bs[0].textContent;
+    document.getElementById('geReuseWhat').textContent = 'From ' + S.plural(bs.length, 'block') + ': “' + (first || '').replace(/\s+/g, ' ').trim().slice(0, 70) + '”';
+    const nm = document.getElementById('geReuseName');
+    nm.value = (first || '').replace(/\s+/g, ' ').trim().slice(0, 50);
+    document.getElementById('geReuseSync').checked = true;
+    document.getElementById('geReuseErr').hidden = true;
+    dlg.showModal();
+    nm.select();
+  }
+  async function saveNew() {
+    const dlg = document.getElementById('geReuse'), err = document.getElementById('geReuseErr');
+    const name = document.getElementById('geReuseName').value.trim(), synced = document.getElementById('geReuseSync').checked;
+    const bs = (making || []).filter(b => S.editor.contains(b));
+    const say = m => { err.textContent = m; err.hidden = false; };
+    if (!name) { say('Give it a name.'); return; }
+    if (!bs.length) { dlg.close(); return; }
+    if (synced && bs.some((b, i) => i && bs[i - 1].nextElementSibling !== b)) { say('A synced block is made of blocks next to each other: pick those, or untick Synced.'); return; }
+    const fd = new FormData();
+    fd.append('name', name);
+    fd.append('synced', synced ? '1' : '0');
+    fd.append('content', bs.map(b => S.clean(b).outerHTML).join(''));
+    const go = dlg.querySelector('[data-ge=reuse-save]');
+    go.disabled = true;
+    let d = {};
+    try {
+      const r = await fetch(S.form.dataset.patternSaveUrl, { method: 'POST', headers: { 'X-CSRFToken': S.CSRF, Accept: 'application/json' }, body: fd, credentials: 'same-origin' });
+      d = await r.json().catch(() => ({}));
+      if (!r.ok || d.error) { say(d.error || 'It was not saved: try again.'); return; }
+    } catch (e) { say('It was not saved: check the connection and try again.'); return; } finally { go.disabled = false; }
+    pats = (pats || []).filter(p => p.id !== d.id).concat([d]).sort((a, b) => a.name.localeCompare(b.name));
+    dlg.close();
+    if (d.synced) {
+      S.structural(() => {
+        const w = document.createElement('div');
+        w.className = 'blog-ref';
+        w.dataset.ref = d.id;
+        bs[0].before(w);
+        bs.forEach(b => w.appendChild(b));
+        w.querySelectorAll('.blog-ref').forEach(r => r.replaceWith(...Array.from(r.childNodes).filter(n => n.nodeName !== 'BS-LIVE')));
+      });
+    }
+    S.insDraw();
+    S.toast('Saved as a reusable block: “' + d.name + '”. Add it to any post from Add a block › Reusable.', 'success');
+  }
   function init(studio) {
     S = studio;
     wire();
+    const nm = document.getElementById('geReuseName');
+    if (nm) nm.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveNew(); } });
+    patterns();
   }
 
-  return { items, insert, pasteUrl, decorate, name, icon: iconFor, text, pane, init, embedOf, kindOf };
+  return { items, insert, pasteUrl, decorate, name, icon: iconFor, text, pane, init, embedOf, kindOf,
+           patterns, patternList, insertPattern, createFrom, saveNew };
 })();

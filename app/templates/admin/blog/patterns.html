@@ -1,0 +1,49 @@
+{% extends 'admin/blog/_layout.html' %}
+{% block title %}Reusable blocks – Blog{% endblock %}
+{% block wpb_active %}patterns{% endblock %}
+{% block extra_css %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/blog-blocks.css') }}"/>{% endblock %}
+{# Reusable blocks (admin_blog.blog_patterns, models.BlogPattern): made in the editor (pick blocks, then
+   "Create reusable block"), added from its sidebar (Add a block › Reusable). Here: a new name, or delete -- the
+   posts that hold a synced one keep its blocks as their own (blog_posts.drop_pattern). #}
+{% block wpb_main %}
+<div class="wpb-head"><h1>Reusable blocks</h1></div>
+<p class="wpb-intro">Blocks you save once and add to any post. <b>Synced</b>: change it in one post, and every post that uses it changes when you save.
+  <b>Not synced</b>: a starting point, copied into each post and changed there. To make one, pick blocks in the editor, then
+  <i class="fa-solid fa-ellipsis-vertical"></i> › <b>Create reusable block</b>.</p>
+{% if rows %}
+<div class="wpb-tablewrap">
+<table class="wpb-table wpb-patterns">
+  <thead><tr><th>Name</th><th>Kind</th><th>Used in</th><th>Changed</th><th></th></tr></thead>
+  <tbody>
+  {% for p in rows %}
+    <tr data-pattern="{{ p.id }}">
+      <td>
+        <form method="POST" action="{{ url_for('admin.blog_pattern_save') }}" class="wpb-pat-name">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <input type="hidden" name="id" value="{{ p.id }}"/>
+          <input type="text" name="name" value="{{ p.name }}" maxlength="120" aria-label="Name of the reusable block"/>
+          <button type="submit" class="wpb-btn">Rename</button>
+        </form>
+        <details class="wpb-pat-peek"><summary>Look inside</summary><div class="wpb-pat-body blog-post-content">{{ p.content|safe }}</div></details>
+      </td>
+      <td>{% if p.synced %}<span class="wpb-pill is-synced"><i class="fa-solid fa-recycle"></i> Synced</span>{% else %}<span class="wpb-pill">Not synced</span>{% endif %}</td>
+      <td>{% if p.synced %}{{ uses.get(p.id, 0) }} post{{ '' if uses.get(p.id, 0) == 1 else 's' }}{% else %}<span class="wpb-dim">each post has its own copy</span>{% endif %}</td>
+      <td>{{ (p.updated_at or p.created_at)|istd('%d %b %Y') }}</td>
+      <td>
+        <form method="POST" action="{{ url_for('admin.blog_pattern_delete', pattern_id=p.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <button type="submit" class="wpb-btn is-bad" data-confirm="Delete “{{ p.name }}”?{{ ' The posts that use it keep its blocks as their own.' if p.synced else '' }}"><i class="fa-solid fa-trash"></i> Delete</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="wpb-box wpb-empty">
+  <p><b>No reusable blocks yet.</b></p>
+  <p>Open a post, pick one or more blocks (in Structure, or the block’s bar), then choose <b>Create reusable block</b>.</p>
+</div>
+{% endif %}
+{% endblock %}

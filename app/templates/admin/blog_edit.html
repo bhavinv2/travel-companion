@@ -1,7 +1,8 @@
 {% extends 'base.html' %}
-{# The editor, full screen the way WordPress's is: a bar across the top (back to the posts, the blocks and
-   formatting, list view; Save draft, Preview, Publish), the post in the middle as it will look, its settings
-   on the right in three tabs (Post, SEO, Checks). Publish opens a last look first ("Ready to publish?").
+{# The editor, full screen the way WordPress's is: a bar across the top (back to the posts, Add a block,
+   formatting, Structure; Save draft, Preview, Publish), on the left the blocks to add (Add a block: every block,
+   and the reusable ones -- click, or drag into the post) or the post's structure, the post in the middle as it
+   will look, its settings on the right in four tabs (Post, SEO, Block, Checks). Publish opens a last look first ("Ready to publish?").
    The site's header and footer are not shown (blog-admin.css). static/js/blog-studio.js drives it. #}
 {% set st = post.status if post else 'new' %}
 {% set live = st == 'published' %}
@@ -19,6 +20,9 @@
       data-term-url="{{ url_for('admin.blog_term_add') }}"
       data-media-url="{{ url_for('admin.blog_media', format='json') }}"
       data-video-url="{{ url_for('admin.blog_video') }}"
+      data-patterns-url="{{ url_for('admin.blog_patterns', format='json') }}"
+      data-pattern-save-url="{{ url_for('admin.blog_pattern_save') }}"
+      data-patterns-page="{{ url_for('admin.blog_patterns') }}"
       data-site="{{ SITE_URL }}"
       data-key="{{ 'cd.blog.' ~ (post.id if post else 'new') }}"
       data-saved="{{ post.updated_at.isoformat() if post and post.updated_at else '' }}"
@@ -27,6 +31,7 @@
   <input type="hidden" name="settings_shown" value="1"/>
   {% if revision %}<input type="hidden" name="revision" value="{{ revision.id }}"/>{% endif %}
   <textarea name="content" hidden>{{ d.content }}</textarea>
+  <input type="hidden" name="pattern_edits" id="gePatternEdits" value=""/>
   {% if not post %}<input type="hidden" name="slug_auto" value="{{ '0' if d.slug and request.form.get('slug_auto') == '0' else '1' }}"/>{% endif %}
 
   <header class="ge-top">
@@ -34,7 +39,7 @@
       <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt=""/><i class="fa-solid fa-chevron-left"></i>
     </a>
     <div class="bf-toolbar bs-toolbar ge-tools" id="bsToolbar" role="toolbar" aria-label="Blocks and formatting">
-      <button type="button" class="bs-add" data-do="menu" title="Add a block (or type / on an empty line)"><i class="fa-solid fa-plus"></i><span class="ge-hide-sm"> Add block</span></button>
+      <button type="button" class="bs-add" id="geInsBtn" data-ge="inserter" aria-pressed="false" title="Add a block: every block, and your reusable ones (or type / on an empty line)"><i class="fa-solid fa-plus"></i><span class="ge-hide-sm"> Add block</span></button>
       <span class="bf-sep"></span>
       <button type="button" data-do="undo" title="Undo (Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
       <button type="button" data-do="redo" title="Redo (Ctrl+Y)"><i class="fa-solid fa-rotate-right"></i></button>
@@ -52,12 +57,6 @@
       <button type="button" data-do="cmd" data-cmd="insertOrderedList" title="Numbered list"><i class="fa-solid fa-list-ol"></i></button>
       <button type="button" data-do="block" data-tag="blockquote" title="Pull quote"><i class="fa-solid fa-quote-left"></i></button>
       <button type="button" data-do="note" title="Tip box"><i class="fa-solid fa-lightbulb"></i></button>
-      <span class="bf-sep"></span>
-      <button type="button" data-do="insert" data-block="image" title="Picture: upload one, or drag it in, or paste it"><i class="fa-solid fa-image"></i></button>
-      <button type="button" data-do="library" title="Picture from the media library"><i class="fa-solid fa-photo-film"></i></button>
-      <button type="button" data-do="insert" data-block="button" title="Button"><i class="fa-solid fa-hand-pointer"></i></button>
-      <button type="button" data-do="insert" data-block="table" title="Table"><i class="fa-solid fa-table"></i></button>
-      <button type="button" data-do="insert" data-block="divider" title="Line across"><i class="fa-solid fa-minus"></i></button>
       <span class="bf-sep"></span>
       <button type="button" data-do="clear" title="Clear formatting"><i class="fa-solid fa-eraser"></i></button>
       <button type="button" class="ge-ib" id="geListBtn" data-ge="list" title="Structure: every block under its heading, to find, fold, copy, move, duplicate or delete" aria-pressed="false"><i class="fa-solid fa-sitemap"></i></button>
@@ -89,6 +88,27 @@
   </header>
 
   <div class="ge-body-wrap" id="geWrap">
+    {# Add a block (blog-studio.js inserter): every block, by group, and the reusable ones. A click adds it after the
+       block the caret is in; dragged into the post, it goes where the blue line shows. #}
+    <aside class="ge-drawer ge-ins" id="geIns" hidden aria-label="Add a block">
+      <div class="ge-st-head">
+        <div class="ge-st-title"><i class="fa-solid fa-plus" aria-hidden="true"></i><b>Add a block</b>
+          <button type="button" class="ge-x" data-ge="inserter" aria-label="Close Add a block"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="ge-st-tools">
+          <label class="ge-st-find"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            <input type="search" id="geInsFind" data-nodirty placeholder="Search blocks" aria-label="Search blocks"/></label>
+          <div class="ge-st-mode" role="group" aria-label="Show">
+            <button type="button" data-ins-tab="blocks" aria-pressed="true">Blocks</button>
+            <button type="button" data-ins-tab="reuse" aria-pressed="false"><i class="fa-solid fa-recycle" aria-hidden="true"></i> Reusable</button>
+          </div>
+        </div>
+      </div>
+      <div class="ge-ins-pane" id="geInsBlocks"></div>
+      <div class="ge-ins-pane" id="geInsReuse" hidden></div>
+      <p class="ge-st-none" id="geInsNone" hidden>No block by that name.</p>
+      <p class="ge-lv-help"><b>Click</b> a block to add it after the one you are in · <b>drag</b> it into the post to put it exactly where the blue line shows.</p>
+    </aside>
+
     {# the post's structure (blog-studio.js blockList): every block in order, under its heading -- a section folds;
        find a block by its words; "Headings" is the outline. Click goes to a block; ticks, Ctrl/Shift+click pick
        several; drag moves; ⋮ or a right-click does the rest. #}
@@ -163,6 +183,7 @@
           </div>
 
           <div class="bs-blockbar" id="bsBlockBar" hidden>
+            <span class="bs-bb-grip" draggable="true" title="Drag to move this block"><i class="fa-solid fa-grip-vertical" aria-hidden="true"></i><span class="ge-sr">Drag to move</span></span>
             <span class="bs-bb-name"></span>
             <span class="bs-bb-table">
               <button type="button" data-bb="row" title="Add a row"><i class="fa-solid fa-plus"></i> Row</button>
@@ -170,6 +191,7 @@
               <button type="button" data-bb="delrow" title="Remove this row"><i class="fa-solid fa-minus"></i> Row</button>
               <button type="button" data-bb="delcol" title="Remove this column"><i class="fa-solid fa-minus"></i> Column</button>
             </span>
+            <button type="button" data-bb="reuse" title="Create reusable block"><i class="fa-solid fa-recycle"></i></button>
             <button type="button" data-bb="settings" title="Block settings: space, padding, background, width …"><i class="fa-solid fa-sliders"></i></button>
             <button type="button" data-bb="up" title="Move up"><i class="fa-solid fa-arrow-up"></i></button>
             <button type="button" data-bb="down" title="Move down"><i class="fa-solid fa-arrow-down"></i></button>
@@ -411,6 +433,19 @@
     <div class="ge-lib-foot">
       <span class="ge-dim" id="geLibPicked">Pick a picture.</span>
       <button type="button" class="ge-btn ge-btn-primary" data-ge="lib-use" disabled>Use this picture</button>
+    </div>
+  </dialog>
+
+  <dialog class="ge-dialog ge-reuse" id="geReuse" aria-labelledby="geReuseH">
+    <div class="ge-lib-head"><h3 id="geReuseH">Create reusable block</h3><button type="button" class="ge-x" data-ge="reuse-cancel" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="ge-reuse-body">
+      <p class="ge-dim" id="geReuseWhat"></p>
+      <label class="ge-bk-field"><span>Name</span><input type="text" id="geReuseName" data-nodirty maxlength="120" placeholder="e.g. Talk to us about cover"/></label>
+      <label class="ge-reuse-sync"><input type="checkbox" id="geReuseSync" data-nodirty checked/>
+        <span><b>Synced</b>: change it in one post, and every post that uses it changes. Untick for a starting point each post changes on its own.</span></label>
+      <p class="bs-pop-err" id="geReuseErr" hidden></p>
+      <div class="ge-reuse-acts"><button type="button" class="ge-btn" data-ge="reuse-cancel">Cancel</button>
+        <button type="button" class="ge-btn ge-btn-primary" data-ge="reuse-save">Create</button></div>
     </div>
   </dialog>
 

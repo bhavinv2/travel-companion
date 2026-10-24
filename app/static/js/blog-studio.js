@@ -71,6 +71,11 @@
     editor.querySelectorAll('figure, p.blog-cta-wrap, .blog-code, .blog-spacer, .blog-carousel')
       .forEach(f => f.setAttribute('contenteditable', 'false'));
     editor.querySelectorAll('.blog-carousel > div.blog-slide').forEach(f => f.setAttribute('contenteditable', 'true'));
+    editor.querySelectorAll('.blog-ref').forEach(r => {        // a reusable block: changed only after Edit (its Block tab)
+      if (r.classList.contains('is-editing')) { r.removeAttribute('contenteditable'); return; }
+      r.setAttribute('contenteditable', 'false');
+      r.querySelectorAll('[contenteditable=true]').forEach(x => x.setAttribute('contenteditable', 'false'));
+    });
     if (BB()) BB().decorate(editor);                  // the previews (a video's picture, the code running): never saved
   }
   // there is always a line to type on: at the start of an empty post, and after a picture, a table ...
@@ -89,14 +94,14 @@
     node.after(p);
     return p;
   }
-  function place(node, target) {
+  function place(node, target, before) {
     if (target && editor.contains(target) && isEmpty(target)) target.replaceWith(node);   // the empty line becomes it
-    else if (target && editor.contains(target)) target.after(node);
+    else if (target && editor.contains(target)) target[before ? 'before' : 'after'](node);
     else editor.appendChild(node);
   }
   // the editor's own marks (the hint on an empty line, the picked picture, a block flashed from the list view):
   // never part of the post, nor of its undo history, nor of copied blocks
-  const MARKS = ['is-picked', 'bs-ph', 'ge-flash'];
+  const MARKS = ['is-picked', 'bs-ph', 'ge-flash', 'is-dragging'];
   function unmark(root) {
     root.querySelectorAll('bs-live').forEach(e => e.remove());       // previews (blog-blocks.js): never saved
     root.querySelectorAll('[contenteditable]').forEach(e => e.removeAttribute('contenteditable'));
@@ -227,17 +232,18 @@
 
   // ---------------------------------------------------------------- adding blocks
   const BLOCKS = [
-    { key: 'p', label: 'Paragraph', icon: 'fa-paragraph', hint: 'Plain text', words: 'text normal' },
-    { key: 'h2', label: 'Heading', icon: 'fa-heading', hint: 'A section heading (H2)', words: 'h2 title section' },
-    { key: 'h3', label: 'Sub-heading', icon: 'fa-heading', hint: 'A smaller heading inside a section (H3)', words: 'h3 subheading small' },
-    { key: 'ul', label: 'Bulleted list', icon: 'fa-list-ul', hint: 'A list with dots', words: 'list bullets points ul' },
-    { key: 'ol', label: 'Numbered list', icon: 'fa-list-ol', hint: 'Steps: 1, 2, 3 …', words: 'list numbers steps ol' },
-    { key: 'quote', label: 'Quote', icon: 'fa-quote-left', hint: 'A large pull quote', words: 'blockquote pull' },
-    { key: 'tip', label: 'Tip box', icon: 'fa-lightbulb', hint: 'A highlighted tip', words: 'note callout important' },
-    { key: 'image', label: 'Picture', icon: 'fa-image', hint: 'Upload one (or drag it in, or paste it)', words: 'image photo upload' },
-    { key: 'button', label: 'Button', icon: 'fa-hand-pointer', hint: 'A button to a page', words: 'cta link call to action' },
-    { key: 'table', label: 'Table', icon: 'fa-table', hint: 'Rows and columns: add more from its bar', words: 'grid columns rows compare' },
-    { key: 'divider', label: 'Line across', icon: 'fa-minus', hint: 'Separates two parts', words: 'divider separator hr' },
+    { key: 'p', label: 'Paragraph', icon: 'fa-paragraph', hint: 'Plain text', words: 'text normal', group: 'text' },
+    { key: 'h2', label: 'Heading', icon: 'fa-heading', hint: 'A section heading (H2)', words: 'h2 title section', group: 'text' },
+    { key: 'h3', label: 'Sub-heading', icon: 'fa-heading', hint: 'A smaller heading inside a section (H3)', words: 'h3 subheading small', group: 'text' },
+    { key: 'ul', label: 'Bulleted list', icon: 'fa-list-ul', hint: 'A list with dots', words: 'list bullets points ul', group: 'text' },
+    { key: 'ol', label: 'Numbered list', icon: 'fa-list-ol', hint: 'Steps: 1, 2, 3 …', words: 'list numbers steps ol', group: 'text' },
+    { key: 'quote', label: 'Quote', icon: 'fa-quote-left', hint: 'A large pull quote', words: 'blockquote pull', group: 'text' },
+    { key: 'tip', label: 'Tip box', icon: 'fa-lightbulb', hint: 'A highlighted tip', words: 'note callout important', group: 'text' },
+    { key: 'table', label: 'Table', icon: 'fa-table', hint: 'Rows and columns: add more from its bar', words: 'grid columns rows compare', group: 'text' },
+    { key: 'image', label: 'Picture', icon: 'fa-image', hint: 'Upload one (or drag it in, or paste it)', words: 'image photo upload', group: 'media' },
+    { key: 'library', label: 'From the library', icon: 'fa-photo-film', hint: 'A picture already uploaded', words: 'media library picture image photo', group: 'media' },
+    { key: 'button', label: 'Button', icon: 'fa-hand-pointer', hint: 'A button to a page', words: 'cta link call to action', group: 'design' },
+    { key: 'divider', label: 'Line across', icon: 'fa-minus', hint: 'Separates two parts', words: 'divider separator hr', group: 'layout' },
   ];
   const NAMES = { P: 'Paragraph', H2: 'Heading', H3: 'Sub-heading', UL: 'Bulleted list', OL: 'Numbered list',
                   BLOCKQUOTE: 'Quote', ASIDE: 'Tip box', FIGURE: 'Picture', TABLE: 'Table', HR: 'Line across' };
@@ -245,9 +251,10 @@
   // what a block is called (the bar over it, the list view): the blocks of blog-blocks.js name themselves
   function nameOf(b) { return (BB() && BB().name(b)) || (isCta(b) ? 'Button' : (NAMES[b.tagName] || 'Block')); }
 
-  function insertBlock(key, target) {
+  function insertBlock(key, target, before) {
     target = target && editor.contains(target) ? target : (savedBlock() || editor.lastElementChild);
-    if (BB() && BB().insert(key, target)) return;
+    if (BB() && BB().insert(key, target, before)) return;
+    if (key === 'library') { openLib({ purpose: 'body', target }); return; }
     if (key === 'image') { pick('body', null, target); return; }
     if (key === 'button') { openButton(null, target); return; }
     let node, focus;
@@ -263,8 +270,8 @@
     } else if (key === 'divider') node = document.createElement('hr');
     else return;
     structural(() => {
-      place(node, target);
-      if (!isText(node)) { const line = after(node); focus = focus || line; }   // somewhere to go on writing
+      place(node, target, before);
+      if (!isText(node) && !before) { const line = after(node); focus = focus || line; }   // somewhere to go on writing
     });
     caretIn(focus);
     floating();
@@ -315,7 +322,7 @@
     else if (e.key === 'Escape') { e.preventDefault(); closeMenu(); restore(); }
   });
   plus.addEventListener('mousedown', e => e.preventDefault());
-  plus.addEventListener('click', () => { const b = caretBlock() || savedBlock(); openMenu('insert', b, b); });
+  plus.addEventListener('click', () => { inserter(true, caretBlock() || savedBlock()); document.getElementById('geInsFind').focus(); });
 
   // ---------------------------------------------------------------- the bar over a block
   let typing = false;
@@ -347,12 +354,13 @@
     const r = rectIn(active);
     show(bbar, Math.max(r.top - bbar.offsetHeight - 6, -bbar.offsetHeight - 2), r.right - bbar.offsetWidth);
   }
-  bbar.addEventListener('mousedown', e => e.preventDefault());
+  bbar.addEventListener('mousedown', e => { if (!e.target.closest('.bs-bb-grip')) e.preventDefault(); });   // the caret stays (the grip drags)
   bbar.addEventListener('click', e => {
     const b = e.target.closest('[data-bb]');
     if (!b || !active || !editor.contains(active)) return;
     const what = b.dataset.bb, blk = active;
     if (what === 'settings') { blockSettings(blk); return; }
+    if (what === 'reuse') { if (BB()) BB().createFrom([blk]); return; }
     if (/^(row|col|delrow|delcol)$/.test(what)) return tableOp(what, blk);
     if (what === 'remove') { caretIn(removeBlocks([blk])); return; }
     if (!/^(up|down|copy)$/.test(what)) return;
@@ -500,7 +508,7 @@
     .map(p => '<p>' + esc(p).replace(/\n/g, '<br>') + '</p>').join('');
   const blocky = html => /^\s*<(p|h2|h3|ul|ol|blockquote|aside|table|hr|figure)[\s>]/i.test(html) ? html : '<p>' + html + '</p>';
   // blocks (as html) into the post after `ref` -- an empty line there is filled -- or at the end
-  function insertBlocks(html, ref) {
+  function insertBlocks(html, ref, before) {
     const box = document.createElement('div');
     box.innerHTML = html;
     box.querySelectorAll('script, style, iframe, object, embed').forEach(n => n.remove());
@@ -510,6 +518,7 @@
     ref = ref && editor.contains(ref) ? ref : (trailing(editor.lastElementChild) ? editor.lastElementChild : null);
     structural(() => nodes.forEach((n, i) => {
       if (i === 0 && ref && isEmpty(ref)) ref.replaceWith(n);
+      else if (i === 0 && ref && before) ref.before(n);
       else if (ref) ref.after(n);
       else editor.appendChild(n);
       ref = n;
@@ -529,10 +538,7 @@
     const b = e.target.closest('button');
     if (!b || !b.dataset.do) return;
     const what = b.dataset.do;
-    if (what === 'library') { openLib({ purpose: 'body', target: savedBlock() }); return; }
-    if (what === 'menu') { const t = savedBlock() || editor.lastElementChild; openMenu('insert', t, b); return; }
     if (what === 'undo' || what === 'redo') { travel(what === 'undo' ? -1 : 1); return; }
-    if (what === 'insert') { insertBlock(b.dataset.block, savedBlock()); return; }
     if (what === 'link') { restore(); openLink(); return; }
     restore();
     snap();
@@ -823,7 +829,7 @@
   editor.addEventListener('click', e => {
     const fig = e.target.closest('figure');
     const cta = e.target.closest('p.blog-cta-wrap');
-    const obj = e.target.closest('.blog-code, .blog-spacer, .blog-carousel, figure.blog-embed, figure.blog-video');
+    const obj = e.target.closest('.blog-ref:not(.is-editing), .blog-code, .blog-spacer, .blog-carousel, figure.blog-embed, figure.blog-video');
     if (obj && editor.contains(obj) && !e.target.closest('.blog-carousel > div.blog-slide')) {
       e.preventDefault(); closePop(); if (!panel.hidden) closePanel();
       const top = topBlock(obj); picked = top; setActive(top); blockSettings(top); return;
@@ -1122,6 +1128,7 @@
   form.addEventListener('submit', e => {
     const b = e.submitter;
     if (b && b.dataset.confirm && !confirm(b.dataset.confirm)) { e.preventDefault(); return; }
+    document.getElementById('gePatternEdits').value = Array.from(editor.querySelectorAll('.blog-ref.is-changed')).map(r => r.dataset.ref).join(',');
     serialise();
     if (b && b.getAttribute('formtarget') === '_blank') return;      // a preview: still unsaved here
     if (!title.value.trim()) { e.preventDefault(); toast('Add a title first.', 'danger'); title.focus(); return; }
@@ -1132,7 +1139,7 @@
   window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
   window.addEventListener('pagehide', () => { if (dirty) { clearTimeout(keepT); backup(); } });   // closed or reloaded before the timer
   // Enter in a one-line field is not "submit": the first button in the form is Preview
-  form.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input[type=text]')) e.preventDefault(); });
+  form.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input[type=text], input[type=search]')) e.preventDefault(); });
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
       e.preventDefault();
@@ -1166,6 +1173,7 @@
   }
   function listView(on) {
     if (on == null) on = drawer.hidden;
+    if (on && ins && !ins.hidden) inserter(false);            // one panel on the left at a time
     drawer.hidden = !on;
     document.getElementById('geListBtn').setAttribute('aria-pressed', on ? 'true' : 'false');
     if (window.innerWidth > 900) store('ge.list', on ? '1' : '0');
@@ -1209,6 +1217,7 @@
     if (/^H[23]$/.test(b.tagName)) return 'head';
     if (k === 'embed' || k === 'video') return 'video';
     if (k === 'code') return 'code';
+    if (k === 'ref') return 'reuse';
     if (k === 'cols' || k === 'mt' || k === 'carousel' || k === 'slider' || k === 'spacer') return 'layout';
     if (b.tagName === 'FIGURE') return 'media';
     if (isCta(b)) return 'button';
@@ -1388,6 +1397,9 @@
     } else if (what === 'edit') {
       goTo(bs[0], true);
       return;
+    } else if (what === 'reuse') {
+      if (BB()) BB().createFrom(bs);
+      return;
     } else if (what === 'copy' || what === 'cut') {
       const n = copyBlocks(bs, e);
       if (!n) { toast('Empty lines are not copied.', 'warning'); return; }
@@ -1429,6 +1441,7 @@
       '<hr>' + item('copy', 'fa-copy', 'Copy', 'Ctrl+C') + item('cut', 'fa-scissors', 'Cut', 'Ctrl+X') +
       item('paste', 'fa-paste', c ? 'Paste ' + plural(c.blocks.length, 'block') + ' after' : 'Paste after (nothing copied)', 'Ctrl+V', !c) +
       item('duplicate', 'fa-clone', 'Duplicate', 'Ctrl+Shift+D') +
+      item('reuse', 'fa-recycle', 'Create reusable block') +
       '<hr>' + item('before', 'fa-arrow-turn-up', 'Add a block before', 'Ctrl+Alt+T') + item('after', 'fa-arrow-turn-down', 'Add a block after', 'Ctrl+Alt+Y') +
       item('up', 'fa-arrow-up', 'Move up', 'Alt+Shift+↑', !first.previousElementSibling) +
       item('down', 'fa-arrow-down', 'Move down', 'Alt+Shift+↓', !next || trailing(next)) +
@@ -1497,6 +1510,8 @@
       if (!li) return;
       const b = lvRows[+li.dataset.i];
       lvDrag = lvSel.has(b) ? lvPicked() : [b];
+      dnd = { kind: 'move', blocks: lvDrag.slice() };          // the post takes them too (drag and drop, below)
+      body.classList.add('ge-dragging');
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('application/x-blog-blocks', String(lvDrag.length));   // not text: the post itself takes none of it
       lvDrag.forEach(x => { const r = lvList.children[lvRows.indexOf(x)]; if (r) r.classList.add('is-dragging'); });
@@ -1525,7 +1540,7 @@
       }
       blockList();
     });
-    lvList.addEventListener('dragend', () => { lvDrag = null; dropMarks(); blockList(); });
+    lvList.addEventListener('dragend', () => { lvDrag = null; dropMarks(); dragDone(); blockList(); });
     document.getElementById('geLvAll').addEventListener('change', e => { lvSel = e.target.checked ? new Set(lvRows) : new Set(); lvPaint(); });
     // the structure's own tools: find, everything or headings, fold every section
     const stFind = document.getElementById('geStFind');
@@ -1869,6 +1884,151 @@
   }
   if (wordFile) wordFile.addEventListener('change', () => { const f = wordFile.files[0]; wordFile.value = ''; if (f) bringWord(f); });
 
+  // ---------------------------------------------------------------- Add a block: the blocks, on the left
+  // Every block by group, and the reusable ones (blog-blocks.js keeps their list). A click adds one after the
+  // block the caret is in (or the empty line whose + was pressed); dragged into the post, it goes where the blue
+  // line shows. One panel on the left at a time: this or Structure.
+  const ins = document.getElementById('geIns');
+  const insFind = document.getElementById('geInsFind');
+  const GROUPS = [['text', 'Text'], ['media', 'Pictures and video'], ['layout', 'Layout'], ['design', 'Buttons and code']];
+  let insTab = 'blocks', insTarget = null;
+  function inserter(on, target) {
+    if (!ins) return;
+    if (on == null) on = ins.hidden;
+    if (on && !drawer.hidden) { drawer.hidden = true; document.getElementById('geListBtn').setAttribute('aria-pressed', 'false'); lvMenuClose(); }
+    ins.hidden = !on;
+    document.getElementById('geInsBtn').setAttribute('aria-pressed', on ? 'true' : 'false');
+    insTarget = on ? (target || null) : null;
+    if (on) insDraw();
+  }
+  function insDraw() {
+    const q = (insFind.value || '').trim().toLowerCase();
+    const boxB = document.getElementById('geInsBlocks'), boxR = document.getElementById('geInsReuse');
+    boxB.hidden = insTab !== 'blocks';
+    boxR.hidden = insTab !== 'reuse';
+    let shown = 0;
+    if (insTab === 'blocks') {
+      boxB.innerHTML = GROUPS.map(([g, label]) => {
+        const got = BLOCKS.filter(b => (b.group || 'text') === g && (!q || (b.label + ' ' + b.words + ' ' + b.hint).toLowerCase().includes(q)));
+        shown += got.length;
+        return got.length ? '<h4 class="ge-ins-h">' + esc(label) + '</h4><div class="ge-ins-grid">' + got.map(b =>
+          '<button type="button" class="ge-ins-tile" draggable="true" data-ins-key="' + b.key + '" title="' + esc(b.hint) + '">' +
+          '<i class="' + (b.icon.startsWith('fa-brands') ? b.icon : 'fa-solid ' + b.icon) + (b.key === 'h3' ? ' is-small' : '') + '" aria-hidden="true"></i>' +
+          '<span>' + esc(b.label) + '</span></button>').join('') + '</div>' : '';
+      }).join('');
+    } else {
+      const list = BB() ? BB().patternList() : [];
+      const got = (list || []).filter(p => !q || p.name.toLowerCase().includes(q));
+      shown = got.length || (q ? 0 : 1);
+      boxR.innerHTML = (list == null ? '<p class="ge-ins-msg">Loading…</p>' : got.length ? '<div class="ge-ins-pats">' + got.map(p =>
+        '<button type="button" class="ge-ins-pat" draggable="true" data-ins-pat="' + p.id + '">' +
+        '<i class="fa-solid ' + (p.synced ? 'fa-recycle' : 'fa-shapes') + '" aria-hidden="true"></i>' +
+        '<span><b>' + esc(p.name) + '</b><small>' + (p.synced ? 'Synced · in ' + plural(p.uses, 'post') : 'Not synced: a copy to change') + '</small></span></button>').join('') + '</div>'
+        : q ? '' : '<p class="ge-ins-msg">No reusable blocks yet. Pick blocks in the post, then <b>Create reusable block</b>: on the block’s bar, or ⋮ in Structure.</p>') +
+        '<p class="ge-ins-msg"><a href="' + esc(form.dataset.patternsPage) + '" target="_blank" rel="noopener">Manage reusable blocks <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a></p>';
+    }
+    document.getElementById('geInsNone').hidden = shown > 0;
+  }
+  if (ins) {
+    insFind.addEventListener('input', insDraw);
+    insFind.addEventListener('keydown', e => {                // Enter: the first block found; Escape: back to the post
+      if (e.key === 'Enter') { const first = ins.querySelector('.ge-ins-pane:not([hidden]) [data-ins-key], .ge-ins-pane:not([hidden]) [data-ins-pat]'); if (first) first.click(); }
+      else if (e.key === 'Escape') { e.stopPropagation(); inserter(false); restore(); }
+    });
+    ins.addEventListener('click', e => {
+      const t = e.target.closest('[data-ins-tab]');
+      if (t) {
+        insTab = t.dataset.insTab;
+        ins.querySelectorAll('[data-ins-tab]').forEach(x => x.setAttribute('aria-pressed', x === t ? 'true' : 'false'));
+        insDraw();
+        if (insTab === 'reuse' && BB()) BB().patterns(true).then(insDraw);
+        return;
+      }
+      const k = e.target.closest('[data-ins-key]'), p = e.target.closest('[data-ins-pat]');
+      if (!k && !p) return;
+      const target = insTarget && editor.contains(insTarget) ? insTarget : (savedBlock() || active || editor.lastElementChild);
+      insTarget = null;
+      if (k) insertBlock(k.dataset.insKey, target);
+      else if (BB()) BB().insertPattern(+p.dataset.insPat, target);
+      if (insFind.value) { insFind.value = ''; insDraw(); }    // found and added: every block again
+      if (window.innerWidth <= 900) inserter(false);
+    });
+    ins.addEventListener('dragstart', e => {
+      const k = e.target.closest('[data-ins-key]'), p = e.target.closest('[data-ins-pat]');
+      if (k) dragging({ kind: 'new', key: k.dataset.insKey }, e, 'copy');
+      else if (p) dragging({ kind: 'pattern', id: +p.dataset.insPat }, e, 'copy');
+    });
+    ins.addEventListener('dragend', dragDone);
+  }
+
+  // ---------------------------------------------------------------- drag and drop into the post
+  // A block from Add a block, a reusable block, a block by the grip on its bar, rows of Structure: each drops
+  // between two blocks of the post, at the blue line, as one step of undo. (Pictures from the computer: above.)
+  let dnd = null;
+  const dropLine = document.createElement('div');
+  dropLine.className = 'ge-dropline';
+  dropLine.hidden = true;
+  wrap.appendChild(dropLine);
+  function dragging(what, e, effect) {
+    dnd = what;
+    e.dataTransfer.effectAllowed = effect;
+    e.dataTransfer.setData('application/x-blog-' + what.kind, '1');      // not text: the post itself takes none of it
+    body.classList.add('ge-dragging');
+  }
+  function dragDone() {
+    dnd = null;
+    dropLine.hidden = true;
+    body.classList.remove('ge-dragging');
+    editor.querySelectorAll('.is-dragging').forEach(x => x.classList.remove('is-dragging'));
+  }
+  function dropSpot(y) {                           // the block the line goes above (or below the last)
+    const kids = Array.from(editor.children);
+    const b = kids.find(x => y < x.getBoundingClientRect().top + x.offsetHeight / 2);
+    if (b) return { b, before: true };
+    const last = kids[kids.length - 1];
+    return last ? (trailing(last) ? { b: last, before: true } : { b: last, before: false }) : null;
+  }
+  wrap.addEventListener('dragover', e => {
+    if (!dnd) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = dnd.kind === 'move' ? 'move' : 'copy';
+    const s = dropSpot(e.clientY);
+    if (!s || (dnd.kind === 'move' && dnd.blocks.includes(s.b))) { dropLine.hidden = true; return; }
+    const r = rectIn(s.b), ed = rectIn(editor);
+    dropLine.hidden = false;
+    dropLine.style.top = Math.round(s.before ? r.top - 6 : r.bottom + 4) + 'px';
+    dropLine.style.left = Math.round(ed.left) + 'px';
+    dropLine.style.width = Math.round(ed.right - ed.left) + 'px';
+  });
+  wrap.addEventListener('dragleave', e => { if (dnd && !wrap.contains(e.relatedTarget)) dropLine.hidden = true; });
+  wrap.addEventListener('drop', e => {
+    if (!dnd) return;
+    e.preventDefault();
+    const what = dnd, s = dropSpot(e.clientY);
+    dragDone();
+    if (!s) return;
+    if (what.kind === 'new') insertBlock(what.key, s.b, s.before);
+    else if (what.kind === 'pattern') { if (BB()) BB().insertPattern(what.id, s.b, s.before); }
+    else {
+      const moving = inOrder(what.blocks);
+      if (!moving.length || moving.includes(s.b)) return;
+      structural(() => {
+        if (s.before) moving.forEach(x => s.b.before(x));
+        else { let ref = s.b; moving.forEach(x => { ref.after(x); ref = x; }); }
+      });
+      setActive(moving[0]);
+      moving.forEach(x => { x.classList.add('ge-flash'); setTimeout(() => x.classList.remove('ge-flash'), 900); });
+    }
+  });
+  const grip = bbar.querySelector('.bs-bb-grip');
+  grip.addEventListener('dragstart', e => {
+    if (!active || !editor.contains(active)) { e.preventDefault(); return; }
+    dragging({ kind: 'move', blocks: [active] }, e, 'move');
+    try { e.dataTransfer.setDragImage(active, 24, 16); } catch (err) { /* the grip's own picture, then */ }
+    active.classList.add('is-dragging');
+  });
+  grip.addEventListener('dragend', dragDone);
+
   // every button of the page around the post
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-ge]');
@@ -1878,6 +2038,9 @@
     const what = b.dataset.ge;
     if (what === 'side') side();
     else if (what === 'list') listView();
+    else if (what === 'inserter') inserter();
+    else if (what === 'reuse-save') { if (BB()) BB().saveNew(); }
+    else if (what === 'reuse-cancel') document.getElementById('geReuse').close();
     else if (what === 'more') more();
     else if (what === 'zen') { more(false); zen(); }
     else if (what === 'keys') { more(false); document.getElementById('geKeys').showModal(); }
@@ -1900,8 +2063,8 @@
   // ---------------------------------------------------------------- what blog-blocks.js works with
   window.BlogStudio = {
     editor, wrap, form, esc, toast, CSRF, upload, openLib, structural, changed, snap, place, after, caretIn, lines,
-    lockBlocks, floating, blockList, topBlock, savedBlock, isEmpty, plural,
-    setActive: b => setActive(b), active: () => active, tab, blockSettings
+    lockBlocks, floating, blockList, topBlock, savedBlock, isEmpty, plural, insertBlocks, clean, inOrder,
+    setActive: b => setActive(b), active: () => active, tab, blockSettings, insDraw: () => { if (ins && !ins.hidden) insDraw(); }
   };
 
   // ---------------------------------------------------------------- start

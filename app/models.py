@@ -841,6 +841,24 @@ class BlogMedia(db.Model):
     uploaded_by = db.relationship('User')
 
 
+class BlogPattern(db.Model):
+    """A reusable block: blocks saved once, by name, to add to any post (the editor's Add a block › Reusable).
+    Synced: each post that uses it holds a copy inside <div class="blog-ref" data-ref="<id>">, and an edit made
+    in any of them is copied to all (blog_posts.fresh_refs). Not synced: a starting point, copied into a post
+    and changed there."""
+    __tablename__ = 'blog_patterns'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    content = db.Column(db.Text, nullable=False, default='')
+    synced = db.Column(db.Boolean, nullable=False, default=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    created_by = db.relationship('User')
+
+
 # Which product a review is about. The same three the help centre and the admin panel use, and
 # the same idea as ContactMessage.topic -- one queue, one column saying what it is about.
 REVIEW_SITES = ('companion', 'insurance', 'sahayak')

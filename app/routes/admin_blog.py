@@ -22,7 +22,7 @@ from flask_login import current_user, login_required
 from slugify import slugify
 
 from app import db
-from app.models import Blog, BlogMedia, BlogRevision, BlogTerm, User
+from app.models import Blog, BlogMedia, BlogPattern, BlogRevision, BlogTerm, User
 from app.routes.admin import _page_args, admin_bp, admin_required
 from app.services import blog_engine as be
 from app.services import blog_posts as bp
@@ -455,7 +455,7 @@ def _editor(post, d=None, found=None, status=200, revision=None):
         d['tags'] = kept['tags'] if d.get('tags') is None else d['tags']
     blank = post is None and not d['title'] and not d['content']
     found = [] if blank and found is None else found if found is not None else _found(d, post)
-    return render_template('admin/blog_edit.html', post=post, d=d, body=be.for_editor(d['content']), checks=found,
+    return render_template('admin/blog_edit.html', post=post, d=d, body=be.for_editor(bp.fresh_refs(d['content'])), checks=found,
                            rules=be.FORMAT_RULES, categories=bp.terms('category'), all_tags=bp.terms('tag'),
                            authors=bp.authors(), publish_at=bp.ist_input(d['publish_at']), revision=revision,
                            versions=post.revisions.count() if post else 0), status
@@ -492,6 +492,9 @@ def _save(post):
     left -- a draft still keeps the changes, a live post does not change at all. Publish with a time
     still to come schedules the post: it is on the site, and everybody is told, from then."""
     d = _fields(post)
+    # the reusable blocks as they are now; those changed here are saved, and copied into every post that holds them
+    edits = [i for i in (_int(x) for x in (request.form.get('pattern_edits') or '').split(',')) if i]
+    d['content'] = bp.fresh_refs(d['content'], edits, post.id if post else None)
     action = request.form.get('action') or 'save'
     found = _found(d, post)
     if not d['title'] or not d['slug'] or any('Another post' in c['text'] for c in found):
@@ -640,6 +643,66 @@ def blog_video():
     if not url:
         return jsonify({'error': 'That file is not a video this site can play: use an MP4 or WebM.'}), 400
     return jsonify({'url': url, 'src': be.site_url(url), 'name': f.filename})
+
+
+# ============================================================================== reusable blocks
+
+def _pattern_json(p, uses):
+    return {'id': p.id, 'name': p.name, 'synced': bool(p.synced), 'content': be.for_editor(p.content),
+            'uses': uses.get(p.id, 0) if p.synced else 0}
+
+
+@admin_bp.route('/blog/patterns')
+@login_required
+@admin_required
+def blog_patterns():
+    """Reusable blocks: blocks saved once to add to any post (the editor's Add a block › Reusable). Here they are
+    renamed or deleted; ?format=json is the editor's list."""
+    rows, uses = bp.patterns(), bp.pattern_uses()
+    if request.args.get('format') == 'json':
+        return jsonify({'items': [_pattern_json(p, uses) for p in rows]})
+    return render_template('admin/blog/patterns.html', rows=rows, uses=uses)
+
+
+@admin_bp.route('/blog/patterns/save', methods=['POST'])
+@login_required
+@admin_required
+def blog_pattern_save():
+    """A new reusable block from the editor (a name, the blocks, synced or not), or a new name (id) from the list."""
+    f = request.form
+    wants_json = 'application/json' in (request.headers.get('Accept') or '')
+    pattern = None
+    if f.get('id'):
+        pattern = db.session.get(BlogPattern, _int(f.get('id')) or 0)
+        if pattern is None:
+            abort(404)
+    saved, err = bp.save_pattern(f.get('name'), f.get('content'), f.get('synced') != '0', current_user, pattern)
+    if err:
+        if wants_json:
+            return jsonify({'error': err}), 400
+        flash(err, 'danger')
+        return redirect(url_for('admin.blog_patterns'))
+    db.session.commit()
+    if wants_json:
+        return jsonify(_pattern_json(saved, bp.pattern_uses()))
+    flash('Renamed: “%s”.' % saved.name, 'success')
+    return redirect(url_for('admin.blog_patterns'))
+
+
+@admin_bp.route('/blog/patterns/<int:pattern_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def blog_pattern_delete(pattern_id):
+    """Delete a reusable block. The posts that hold it keep its blocks, as their own."""
+    pattern = db.session.get(BlogPattern, pattern_id)
+    if pattern is None:
+        abort(404)
+    name = pattern.name
+    n = bp.drop_pattern(pattern)
+    db.session.commit()
+    flash('Deleted “%s”.%s' % (name, ' The %s that used it keep its blocks as their own.' % (
+        'post' if n == 1 else '%d posts' % n) if n else ''), 'success')
+    return redirect(url_for('admin.blog_patterns'))
 
 
 # ============================================================================== revisions

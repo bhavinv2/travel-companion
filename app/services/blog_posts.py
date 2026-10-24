@@ -18,7 +18,7 @@ from html import escape, unescape
 from slugify import slugify
 
 from app import db
-from app.models import Blog, BlogMedia, BlogRevision, BlogTerm, User
+from app.models import Blog, BlogMedia, BlogPattern, BlogRevision, BlogTerm, User
 
 STATUSES = (('all', 'All'), ('published', 'Published'), ('scheduled', 'Scheduled'), ('draft', 'Drafts'),
             ('word', 'From Word'), ('trash', 'Trash'))
@@ -245,6 +245,86 @@ def set_order(ids):
     for n, i in enumerate(placed, 1):
         live[i].sort_order = n
     return len(placed)
+
+
+# ============================================================================== reusable blocks
+# Blocks saved once, by name, to add to any post (models.BlogPattern). A synced one is held in each post as
+# <div class="blog-ref" data-ref="<id>"> with a copy of its blocks inside, so the public page, the checks, the
+# words and the picture library read the post as it is; the copies are kept the same here.
+
+def patterns():
+    return BlogPattern.query.order_by(db.func.lower(BlogPattern.name), BlogPattern.id).all()
+
+
+def pattern_uses():
+    """{pattern id: how many posts hold it} (the synced ones: a copy of the others is the post's own)."""
+    from app.services import blog_engine as be
+    uses = {}
+    for content, in db.session.query(Blog.content).filter(Blog.content.like('%blog-ref%')):
+        for i in be.refs_in(content):
+            uses[i] = uses.get(i, 0) + 1
+    return uses
+
+
+def unwrap_refs(html):
+    """The post with every reusable block made its own blocks (a reusable block never holds another)."""
+    from app.services import blog_engine as be
+    found = be.refs_in(html)
+    return be.with_refs(html, dict.fromkeys(found)) if found else html
+
+
+def save_pattern(name, content, synced=True, user=None, pattern=None):
+    """(pattern, None) or (None, why not): a new reusable block, or `pattern` renamed. No commit."""
+    from app.services import blog_engine as be
+    name = re.sub(r'\s+', ' ', name or '').strip()[:120]
+    if not name:
+        return None, 'Give the reusable block a name.'
+    if pattern is not None:
+        pattern.name = name
+        return pattern, None
+    html = unwrap_refs(be.sanitize(content or ''))
+    if not html.strip():
+        return None, 'Nothing to save: pick one or more blocks first.'
+    pattern = BlogPattern(name=name, content=html, synced=bool(synced), created_by_id=user.id if user else None)
+    db.session.add(pattern)
+    return pattern, None
+
+
+def fresh_refs(html, edits=(), post_id=None):
+    """The post with its reusable blocks as they are now (one deleted, or not synced, is unwrapped). `edits`: the
+    synced ones changed in this post -- their new blocks are saved and copied into every other post that holds
+    them. No commit."""
+    from app.services import blog_engine as be
+    found = be.refs_in(html)
+    if not found:
+        return html
+    pats = {p.id: p for p in BlogPattern.query.filter(BlogPattern.id.in_(list(found)))}
+    changed = {}
+    for i in set(edits or ()):
+        p = pats.get(i)
+        if p is not None and p.synced and i in found:
+            new = unwrap_refs(be.sanitize(found[i]))
+            if new.strip() and new != p.content:
+                p.content = changed[i] = new
+    html = be.with_refs(html, {i: pats[i].content if i in pats and pats[i].synced else None for i in found})
+    if changed:
+        for other in Blog.query.filter(Blog.id != (post_id or 0), Blog.content.like('%blog-ref%')):
+            held = set(be.refs_in(other.content)) & set(changed)
+            if held:
+                other.content = be.with_refs(other.content, {i: changed[i] for i in held})
+    return html
+
+
+def drop_pattern(pattern):
+    """Delete a reusable block: the posts that hold it keep its blocks, as their own. No commit. How many posts."""
+    from app.services import blog_engine as be
+    n = 0
+    for post in Blog.query.filter(Blog.content.like('%%data-ref="%d"%%' % pattern.id)):
+        if pattern.id in be.refs_in(post.content):
+            post.content = be.with_refs(post.content, {pattern.id: None})
+            n += 1
+    db.session.delete(pattern)
+    return n
 
 
 def live_terms(kind):

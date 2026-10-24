@@ -250,9 +250,10 @@ MODULES = [
                                                   'admin.blog_term_add', 'admin.blog_quick_draft',
                                                   'admin.blog_media', 'admin.blog_media_upload',
                                                   'admin.blog_media_save', 'admin.blog_media_delete',
-                                                  'admin.blog_video'],
+                                                  'admin.blog_video', 'admin.blog_patterns',
+                                                  'admin.blog_pattern_save', 'admin.blog_pattern_delete'],
                admin='admin.new_blog', desc='Write and edit posts (Word-imported ones too), the picture '
-                                            'library, saved versions.'),
+                                            'library, reusable blocks, saved versions.'),
          # Word documents in, draft posts out (services/blog_engine.py): whoever may write a post may
          # import one, so it comes with "New blog post" rather than being granted on its own
          _page('blog_import', 'Import blog posts', 'fa-file-import', ['admin.blog_import', 'admin.blog_template'],

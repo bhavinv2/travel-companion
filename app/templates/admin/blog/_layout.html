@@ -41,6 +41,7 @@
     </div>
     {% if CAN('blog') %}
     <a href="{{ url_for('admin.blog_media') }}" class="wpb-mi {{ 'on' if active == 'media' }}"><i class="fa-solid fa-photo-film"></i><span>Media</span></a>
+    <a href="{{ url_for('admin.blog_patterns') }}" class="wpb-mi {{ 'on' if active == 'patterns' }}"><i class="fa-solid fa-recycle"></i><span>Reusable blocks</span></a>
     {% endif %}
     {% if CAN('blog_import') %}
     <a href="{{ url_for('admin.blog_import') }}" class="wpb-mi {{ 'on' if active == 'import' }}"><i class="fa-solid fa-file-word"></i><span>Import from Word</span></a>
