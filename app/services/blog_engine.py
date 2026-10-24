@@ -978,23 +978,51 @@ def attach_images(html, find):
 
 # ============================================================================== clean HTML
 
+# what a block may carry, beyond its text: how it looks (the block's settings -- space above and below, padding,
+# background, width, text alignment), on any block
+_STYLE_RE = re.compile(r'^(sp-[tb][0-5]|pd-[0-3]|bg-(soft|blue|warm|dark)|wd-(wide|full)|ta-(left|center|right))$')
 _KEEP = {
-    'p': ('class',), 'h2': (), 'h3': (), 'strong': (), 'em': (), 'u': (), 'br': (), 'hr': (),
-    'a': ('href', 'title', 'target', 'class'), 'ul': (), 'ol': (), 'li': (),
-    'blockquote': (), 'aside': ('class',), 'figure': ('class', 'data-file', 'data-alt'),
+    'p': ('class',), 'h2': ('class',), 'h3': ('class',), 'strong': (), 'em': (), 'u': (), 'br': (), 'hr': ('class',),
+    'a': ('href', 'title', 'target', 'class'), 'ul': ('class',), 'ol': ('class',), 'li': (),
+    'blockquote': ('class',), 'aside': ('class',),
+    'figure': ('class', 'data-file', 'data-alt', 'data-provider', 'data-vid', 'data-start'),
     'img': ('src', 'alt', 'data-file', 'width', 'height', 'loading'), 'figcaption': (),
-    'table': (), 'thead': (), 'tbody': (), 'tr': (), 'th': ('colspan', 'rowspan'), 'td': ('colspan', 'rowspan'),
+    'table': ('class',), 'thead': (), 'tbody': (), 'tr': (), 'th': ('colspan', 'rowspan'), 'td': ('colspan', 'rowspan'),
+    # the blocks beyond text (2026-10-24): each a <div> or <figure> whose class says what it is
+    'div': ('class', 'data-cols', 'data-pos', 'data-ratio', 'data-h', 'data-interval', 'data-show', 'data-title'),
+    'video': ('src', 'poster'), 'pre': (),
 }
 _RENAME = {'b': 'strong', 'i': 'em', 'h1': 'h2', 'h4': 'h3', 'h5': 'h3', 'h6': 'h3',
            'div': 'p', 'section': 'p', 'article': 'p', 'header': 'p', 'footer': 'p'}
-_DROP = {'script', 'style', 'iframe', 'object', 'embed', 'noscript', 'template', 'svg', 'math', 'head',
-         'title', 'form', 'button', 'select', 'textarea', 'video', 'audio', 'canvas'}
+_DROP = {'script', 'style', 'iframe', 'object', 'embed', 'noscript', 'template', 'svg', 'math', 'head', 'bs-live',
+         'title', 'form', 'button', 'select', 'textarea', 'audio', 'canvas'}
 _VOID = {'br', 'hr', 'img'}
-_CLASSES = {'p': {'blog-cta-wrap'}, 'a': {'blog-cta'}, 'aside': {'blog-note'},
-            'figure': {'blog-img', 'blog-img-missing'}}
-_BLOCKS = {'p', 'h2', 'h3', 'ul', 'ol', 'blockquote', 'aside', 'figure', 'table', 'hr'}
+#   blog-cols / blog-col          two or three columns of blocks
+#   blog-mt / blog-mt-body        a picture (or video) beside text: figure.blog-mt-media, then the text
+#   blog-carousel / blog-slide    pictures (figure.blog-slide) or content (div.blog-slide) one after another
+#   blog-code                     the post's own HTML, CSS and JS, run in a sandboxed frame on the public page
+#   blog-spacer                   empty space of a chosen height
+_DIVS = {'blog-cols', 'blog-col', 'blog-mt', 'blog-mt-body', 'blog-carousel', 'blog-slide', 'blog-code', 'blog-spacer'}
+_CLASSES = {'p': {'blog-cta-wrap'}, 'a': {'blog-cta', 'cta-outline', 'cta-big', 'lk-btn', 'lk-outline', 'lk-arrow'},
+            'aside': {'blog-note'}, 'div': _DIVS,
+            'figure': {'blog-img', 'blog-img-missing', 'blog-embed', 'blog-video', 'blog-mt-media', 'blog-slide'}}
+_STYLED = {'p', 'h2', 'h3', 'ul', 'ol', 'blockquote', 'aside', 'figure', 'table', 'hr', 'div'}
+_DATA = {'data-cols': r'[23]', 'data-pos': r'left|right', 'data-ratio': r'33|40|50|60|67', 'data-h': r'auto|\d{2,4}',
+         'data-interval': r'0|[2-9]|1[0-5]', 'data-show': r'[1-3]', 'data-provider': r'youtube|vimeo',
+         'data-vid': r'[A-Za-z0-9_-]{6,20}', 'data-start': r'\d{1,5}', 'data-title': r'[^<>]{1,120}'}
+_BLOCKS = {'p', 'h2', 'h3', 'ul', 'ol', 'blockquote', 'aside', 'figure', 'table', 'hr', 'div', 'pre'}
 _TEXT_BLOCKS = ('p', 'h2', 'h3')
 _INLINE = {'strong', 'em', 'u', 'a', 'br', 'img'}
+# a YouTube or Vimeo video as the public page plays it, and where it opens on its own site
+EMBED = {'youtube': ('https://www.youtube-nocookie.com/embed/%s?rel=0%s', 'https://www.youtube.com/watch?v=%s%s',
+                     'Watch on YouTube'),
+         'vimeo': ('https://player.vimeo.com/video/%s%s', 'https://vimeo.com/%s%s', 'Watch on Vimeo')}
+# the post's own code runs here: a frame of its own, apart from the site (no cookies, no reach into the page)
+CODE_SANDBOX = 'allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-modals'
+_CODE_HEIGHT = ('<script>(function(){var f=%d;function h(){parent.postMessage({blogFrame:f,height:'
+                'Math.ceil(document.documentElement.getBoundingClientRect().height)},"*")}addEventListener("load",h);'
+                'if(window.ResizeObserver)new ResizeObserver(h).observe(document.documentElement);setTimeout(h,400)})()'
+                '</script>')
 
 
 def _safe_url(v, image=False):
@@ -1007,37 +1035,103 @@ def _safe_url(v, image=False):
     return None
 
 
+def embed_of(url):
+    """('youtube' | 'vimeo', id, start seconds) for a video's address, else None: youtu.be/ID, youtube.com/watch?v=ID,
+    /shorts/ID, /embed/ID, vimeo.com/123456; ?t=90 or ?t=1m30s or &start=90 is where it starts."""
+    url = (url or '').strip()
+    m = re.match(r'^(?:https?://)?(?:www\.|m\.)?(?:youtube\.com/(?:watch\?(?:.*&)?v=|shorts/|embed/|live/)|youtu\.be/)'
+                 r'([A-Za-z0-9_-]{6,20})', url)
+    provider = 'youtube'
+    if not m:
+        m = re.match(r'^(?:https?://)?(?:www\.|player\.)?vimeo\.com/(?:video/)?(\d{5,12})', url)
+        provider = 'vimeo'
+    if not m:
+        return None
+    t = re.search(r'[?&#](?:t|start)=(?:(\d+)h)?(?:(\d+)m)?(\d+)?s?', url)
+    start = 0
+    if t and any(t.groups()):
+        start = int(t.group(1) or 0) * 3600 + int(t.group(2) or 0) * 60 + int(t.group(3) or 0)
+    return provider, m.group(1), start
+
+
 class _Clean(HTMLParser):
     def __init__(self, fix_url=None, public=False):
         super().__init__(convert_charrefs=True)
         self.out, self.stack, self.fix, self.public = [], [], fix_url, public
         self.skip, self.skip_depth = None, 0
+        self.code, self.frames = None, 0                 # the post's own code being read (public page), frames so far
+        self.divs = []                                    # each open <div>: 'block' (one of the post's) or 'plain' (a <p>)
 
     def handle_starttag(self, tag, attrs):
         if self.skip:
             if tag == self.skip:
                 self.skip_depth += 1
             return
+        if self.code is not None:                         # inside the post's own code: only its text counts
+            return
         if tag in _DROP:
             self.skip, self.skip_depth = tag, 1
             return
-        tag = _RENAME.get(tag, tag)
+        attrs = dict(attrs)
+        was_div = tag == 'div'
+        block_div = was_div and bool(set((attrs.get('class') or '').split()) & _DIVS)
+        if not block_div:
+            tag = _RENAME.get(tag, tag)                   # a <div> that is one of the post's blocks stays a <div>
         if tag not in _KEEP:
             return
-        attrs = dict(attrs)
         if tag == 'figure' and self.public and 'blog-img-missing' in (attrs.get('class') or ''):
             self.skip, self.skip_depth = 'figure', 1         # a picture nobody uploaded is not shown
             return
         if tag == 'li' and not any(t in ('ul', 'ol') for t in self.stack):
             tag = 'p'
-        a = self._attrs(tag, attrs)
-        if a is None:
+        pairs = self._pairs(tag, attrs)
+        if pairs is None:
             return
+        if was_div:
+            self.divs.append('block' if tag == 'div' else 'plain')
         if tag in _BLOCKS:
             self._close_text_block()
         elif tag in _INLINE and not self.stack:
             self._open('p', '')                               # loose text in the body goes in a paragraph
-        self._open(tag, a)
+        got = dict(pairs)
+        if tag == 'video':
+            pairs.append(('controls', 'controls'))
+            pairs += [('playsinline', 'playsinline'), ('preload', 'metadata')]
+        self._open(tag, ''.join(' %s="%s"' % (n, escape(v, quote=True)) for n, v in pairs))
+        classes = got.get('class', '').split()
+        if self.public and tag == 'figure' and 'blog-embed' in classes:
+            self.out.append(self._embed(got))
+        elif self.public and tag == 'div' and 'blog-code' in classes:
+            self.code = {'depth': len(self.stack), 'buf': [], 'h': got.get('data-h', 'auto'),
+                         'title': got.get('data-title') or 'Embedded content'}
+
+    def _embed(self, got):
+        """A YouTube or Vimeo video, played in the post, with fullscreen; and a link to watch it on its own site."""
+        kind, vid, start = got.get('data-provider'), got.get('data-vid'), int(got.get('data-start') or 0)
+        if kind not in EMBED or not vid:
+            return ''
+        play, page, words = EMBED[kind]
+        at = ('&start=%d' % start if kind == 'youtube' else '#t=%ds' % start) if start else ''
+        on = ('&t=%ds' % start if kind == 'youtube' else '#t=%ds' % start) if start else ''
+        return ('<div class="blog-embed-frame"><iframe src="%s" title="%s" loading="lazy" '
+                'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" '
+                'allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>'
+                '<p class="blog-embed-open"><a href="%s" target="_blank" rel="noopener noreferrer">%s '
+                '<span aria-hidden="true">&#8599;</span></a></p>') % (
+            escape(play % (vid, at)), escape(words), escape(page % (vid, on)), escape(words))
+
+    def _code_frame(self):
+        """The post's own code, as a sandboxed frame: it runs, but apart from the site (srcdoc, no same origin)."""
+        code, self.code = self.code, None
+        self.frames += 1
+        doc = ('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,'
+               'initial-scale=1"><base target="_blank"><style>html,body{margin:0}</style></head><body>%s%s</body></html>'
+               % (''.join(code['buf']), _CODE_HEIGHT % self.frames))
+        height = code['h'] if code['h'] != 'auto' else '320'
+        self.out.append('<iframe class="blog-code-frame" sandbox="%s" srcdoc="%s" title="%s" loading="lazy" '
+                        'data-frame="%d" data-auto="%s" style="height:%spx"></iframe>' % (
+                            CODE_SANDBOX, escape(doc, quote=True), escape(code['title']), self.frames,
+                            1 if code['h'] == 'auto' else 0, height))
 
     def _open(self, tag, a):
         self.out.append('<%s%s%s>' % (tag, a, '/' if tag in _VOID else ''))
@@ -1064,6 +1158,20 @@ class _Clean(HTMLParser):
                 if not self.skip_depth:
                     self.skip = None
             return
+        if self.code is not None:
+            if tag == 'div' and len(self.stack) == self.code['depth']:
+                self._code_frame()
+                self._close('div')
+                if self.divs:
+                    self.divs.pop()
+            return
+        if tag == 'div':                                  # the post's own block, or a <div> that became a <p>
+            kind = self.divs.pop() if self.divs else 'plain'
+            if kind == 'block' and 'div' in self.stack:
+                self._close('div')
+            elif kind == 'plain' and self.stack and self.stack[-1] == 'p':
+                self._close('p')
+            return
         tag = _RENAME.get(tag, tag)
         if tag in self.stack:
             self._close(tag)
@@ -1071,33 +1179,38 @@ class _Clean(HTMLParser):
     def handle_data(self, data):
         if self.skip or not data:
             return
+        if self.code is not None:
+            self.code['buf'].append(data)
+            return
         if not self.stack:
             if not data.strip():
                 return
             self._open('p', '')
         self.out.append(escape(data, quote=False))
 
-    def _attrs(self, tag, attrs):
+    def _pairs(self, tag, attrs):
         keep = []
         for name in _KEEP[tag]:
             v = attrs.get(name)
             if v is None:
                 continue
             v = v.strip()
-            if name in ('href', 'src'):
-                v = _safe_url(v, image=name == 'src')
+            if name in ('href', 'src', 'poster'):
+                v = _safe_url(v, image=name != 'href')
                 if v is None:
                     continue
                 if self.fix:
                     v = self.fix(v)
             elif name == 'class':
-                v = ' '.join(c for c in v.split() if c in _CLASSES.get(tag, ()))
+                v = ' '.join(c for c in v.split() if c in _CLASSES.get(tag, ()) or (tag in _STYLED and _STYLE_RE.match(c)))
             elif name == 'target':
                 v = v if v == '_blank' else ''
             elif name == 'loading':
                 v = v if v == 'lazy' else ''
             elif name in ('width', 'height', 'colspan', 'rowspan'):
                 v = v if v.isdigit() and len(v) <= 4 else ''
+            elif name in _DATA:
+                v = v if re.fullmatch(_DATA[name], v) else ''
             else:
                 v = v[:300]
             if v:
@@ -1105,12 +1218,16 @@ class _Clean(HTMLParser):
         names = {n for n, _ in keep}
         if (tag == 'img' and 'src' not in names) or (tag == 'a' and 'href' not in names):
             return None
+        if tag == 'div' and not (set(dict(keep).get('class', '').split()) & _DIVS):
+            return None
         if 'target' in names:
             keep.append(('rel', 'noopener noreferrer'))
-        return ''.join(' %s="%s"' % (n, escape(v, quote=True)) for n, v in keep)
+        return keep
 
     def result(self):
         self.close()
+        if self.code is not None:
+            self._code_frame()
         while self.stack:
             self.out.append('</%s>' % self.stack.pop())
         html = ''.join(self.out)
@@ -1150,7 +1267,9 @@ def for_editor(html):
 # ============================================================================== the rules
 
 def plain_text(html):
-    return re.sub(r'\s+', ' ', unescape(re.sub(r'<[^>]+>', ' ', html or ''))).strip()
+    """The post's words: its own code (a blog-code block's <pre>) is not words."""
+    html = re.sub(r'<pre>.*?</pre>', ' ', html or '', flags=re.S)
+    return re.sub(r'\s+', ' ', unescape(re.sub(r'<[^>]+>', ' ', html))).strip()
 
 
 def word_count(html):

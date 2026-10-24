@@ -162,4 +162,79 @@
       }, 600);
     });
   }
+
+  // ---------------------------------------------------------------- Order on the blog
+  // Pin moves a post to the end of the pinned ones; Unpin sends it back among the rest by its date; the arrows and a
+  // drag move a pinned one. The hidden field carries the pinned ids in order to the server on Save.
+  const ord = document.querySelector('[data-order]');
+  if (ord) {
+    const placed = ord.querySelector('[data-order-placed]'), rest = ord.querySelector('[data-order-rest]');
+    const ids = ord.querySelector('[data-order-ids]'), said = ord.querySelector('[data-order-said]');
+    const empty = ord.querySelector('[data-order-empty]'), count = ord.querySelector('[data-order-count]');
+    const rows = list => Array.from(list.querySelectorAll('.wpb-ord'));
+    let dragging = null;
+    const paint = changed => {
+      rows(placed).forEach((li, i) => {
+        li.classList.add('is-placed');
+        li.draggable = true;
+        li.querySelector('.wpb-ord-n').textContent = i + 1;
+        const grip = li.querySelector('.wpb-ord-grip');
+        grip.classList.remove('off');
+        grip.innerHTML = '<i class="fa-solid fa-grip-vertical"></i>';
+      });
+      rows(rest).forEach(li => {
+        li.classList.remove('is-placed');
+        li.draggable = false;
+        li.querySelector('.wpb-ord-n').textContent = '';
+        const grip = li.querySelector('.wpb-ord-grip');
+        grip.classList.add('off');
+        grip.innerHTML = '<i class="fa-regular fa-clock"></i>';
+      });
+      ids.value = rows(placed).map(li => li.dataset.id).join(',');
+      empty.hidden = rows(placed).length > 0;
+      count.textContent = rows(placed).length;
+      if (changed) { said.textContent = 'Not saved yet: press Save the order.'; ord.classList.add('is-dirty'); }
+    };
+    ord.addEventListener('click', e => {
+      const b = e.target.closest('[data-ord]');
+      if (!b) return;
+      const li = b.closest('.wpb-ord'), what = b.dataset.ord;
+      if (what === 'pin') placed.insertBefore(li, empty);
+      else if (what === 'unpin') {
+        const later = rows(rest).find(x => (x.dataset.date || '') < (li.dataset.date || ''));
+        rest.insertBefore(li, later || null);
+      } else if (what === 'up') {
+        const prev = li.previousElementSibling;
+        if (prev && prev.classList.contains('wpb-ord')) prev.before(li); else return;
+      } else if (what === 'down') {
+        const next = li.nextElementSibling;
+        if (next && next.classList.contains('wpb-ord')) next.after(li); else return;
+      }
+      paint(true);
+      const again = li.querySelector('[data-ord="' + what + '"]');
+      if (again && what !== 'pin' && what !== 'unpin') again.focus();
+    });
+    placed.addEventListener('dragstart', e => {
+      dragging = e.target.closest('.wpb-ord');
+      if (!dragging) return;
+      dragging.classList.add('is-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', dragging.dataset.id); } catch (err) { /* old browsers */ }
+    });
+    placed.addEventListener('dragover', e => {
+      if (!dragging) return;
+      e.preventDefault();
+      const over = e.target.closest('.wpb-ord');
+      if (!over || over === dragging) return;
+      const r = over.getBoundingClientRect();
+      if (e.clientY < r.top + r.height / 2) over.before(dragging); else over.after(dragging);
+    });
+    placed.addEventListener('dragend', () => {
+      if (!dragging) return;
+      dragging.classList.remove('is-dragging');
+      dragging = null;
+      paint(true);
+    });
+    paint(false);
+  }
 })();

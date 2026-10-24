@@ -27,14 +27,15 @@
     {% if CAN('blog_list') %}
     <a href="{{ url_for('admin.blog_dashboard') }}" class="wpb-mi {{ 'on' if active == 'dashboard' }}"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span></a>
     {% endif %}
-    <div class="wpb-mgroup {{ 'open' if active in ('posts', 'new', 'categories', 'tags') }}">
-      <a href="{{ url_for('admin.blog_list') if CAN('blog_list') else url_for('admin.new_blog') }}" class="wpb-mi {{ 'on' if active in ('posts', 'new', 'categories', 'tags') }}"><i class="fa-solid fa-thumbtack"></i><span>Posts</span></a>
+    <div class="wpb-mgroup {{ 'open' if active in ('posts', 'new', 'categories', 'tags', 'order') }}">
+      <a href="{{ url_for('admin.blog_list') if CAN('blog_list') else url_for('admin.new_blog') }}" class="wpb-mi {{ 'on' if active in ('posts', 'new', 'categories', 'tags', 'order') }}"><i class="fa-solid fa-thumbtack"></i><span>Posts</span></a>
       <div class="wpb-sub">
         {% if CAN('blog_list') %}<a href="{{ url_for('admin.blog_list') }}" class="{{ 'on' if active == 'posts' }}">All posts</a>{% endif %}
         {% if CAN('blog') %}<a href="{{ url_for('admin.new_blog') }}" class="{{ 'on' if active == 'new' }}">Add new post</a>{% endif %}
         {% if CAN('blog_list') %}
         <a href="{{ url_for('admin.blog_terms', kind='category') }}" class="{{ 'on' if active == 'categories' }}">Categories</a>
         <a href="{{ url_for('admin.blog_terms', kind='tag') }}" class="{{ 'on' if active == 'tags' }}">Tags</a>
+        <a href="{{ url_for('admin.blog_order') }}" class="{{ 'on' if active == 'order' }}">Order on the blog</a>
         {% endif %}
       </div>
     </div>

@@ -16,6 +16,7 @@ from werkzeug.utils import secure_filename
 PUBLIC_IMAGE_EXT = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
 PRIVATE_DOC_EXT = {'pdf', 'jpg', 'jpeg', 'png', 'webp'}
 CHAT_FILE_EXT = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf', 'mp4', 'mov'}
+PUBLIC_VIDEO_EXT = {'mp4', 'webm'}          # what every browser plays (a blog post's video)
 PRESIGN_SECONDS = 15 * 60
 
 
@@ -71,7 +72,19 @@ def _s3_put(key, fileobj, content_type=None):
 
 def _content_type(ext):
     return {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif',
-            'webp': 'image/webp', 'pdf': 'application/pdf', 'mp4': 'video/mp4', 'mov': 'video/quicktime'}.get(ext)
+            'webp': 'image/webp', 'pdf': 'application/pdf', 'mp4': 'video/mp4', 'mov': 'video/quicktime',
+            'webm': 'video/webm'}.get(ext)
+
+
+def _is_real_video(stream, ext):
+    """An MP4 says "ftyp" at byte 4; a WebM starts with the EBML mark."""
+    try:
+        pos = stream.tell()
+        head = stream.read(12)
+        stream.seek(pos)
+    except Exception:
+        return False
+    return head[4:8] == b'ftyp' if ext == 'mp4' else head[:4] == b'\x1a\x45\xdf\xa3'
 
 
 def _public_url(name):
@@ -99,6 +112,16 @@ def save_public_image(fileobj, prefix='img'):
         return None
     ext = _ext(fileobj.filename)
     if ext not in PUBLIC_IMAGE_EXT or not _is_real_image(fileobj.stream):
+        return None
+    return _store_public(fileobj, _new_name(prefix, ext), ext)
+
+
+def save_public_video(fileobj, prefix='video'):
+    """A video for the blog (MP4 or WebM, checked by its first bytes), stored publicly. Returns URL or None."""
+    if not fileobj or not fileobj.filename:
+        return None
+    ext = _ext(fileobj.filename)
+    if ext not in PUBLIC_VIDEO_EXT or not _is_real_video(fileobj.stream, ext):
         return None
     return _store_public(fileobj, _new_name(prefix, ext), ext)
 

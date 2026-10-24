@@ -43,6 +43,7 @@
   document.execCommand('defaultParagraphSeparator', false, 'p');
 
   // ---------------------------------------------------------------- the blocks
+  const BB = () => window.BlogBlocks || null;       // the blocks beyond text (blog-blocks.js), when it is on the page
   const isCta = n => n && n.tagName === 'P' && n.classList.contains('blog-cta-wrap');
   const isText = n => n && /^(P|H2|H3)$/.test(n.tagName) && !isCta(n);
   const isEmpty = n => isText(n) && n.tagName === 'P' && !n.textContent.trim() && !n.querySelector('img');
@@ -67,14 +68,17 @@
     keep();
   }
   function lockBlocks() {
-    editor.querySelectorAll('figure, p.blog-cta-wrap').forEach(f => f.setAttribute('contenteditable', 'false'));
+    editor.querySelectorAll('figure, p.blog-cta-wrap, .blog-code, .blog-spacer, .blog-carousel')
+      .forEach(f => f.setAttribute('contenteditable', 'false'));
+    editor.querySelectorAll('.blog-carousel > div.blog-slide').forEach(f => f.setAttribute('contenteditable', 'true'));
+    if (BB()) BB().decorate(editor);                  // the previews (a video's picture, the code running): never saved
   }
   // there is always a line to type on: at the start of an empty post, and after a picture, a table ...
   function lines() {
     if (!editor.firstElementChild) editor.appendChild(para());
     Array.from(editor.childNodes).forEach(n => {           // loose text the browser left at the top
       if (n.nodeType === 3 && n.textContent.trim()) { const p = document.createElement('p'); n.replaceWith(p); p.appendChild(n); }
-      else if (n.nodeType === 1 && n.tagName === 'DIV') { const p = document.createElement('p'); while (n.firstChild) p.appendChild(n.firstChild); n.replaceWith(p); }
+      else if (n.nodeType === 1 && n.tagName === 'DIV' && !/(^|\s)blog-/.test(n.className)) { const p = document.createElement('p'); while (n.firstChild) p.appendChild(n.firstChild); n.replaceWith(p); }
     });
     if (!isText(editor.lastElementChild)) editor.appendChild(para());
   }
@@ -94,6 +98,7 @@
   // never part of the post, nor of its undo history, nor of copied blocks
   const MARKS = ['is-picked', 'bs-ph', 'ge-flash'];
   function unmark(root) {
+    root.querySelectorAll('bs-live').forEach(e => e.remove());       // previews (blog-blocks.js): never saved
     root.querySelectorAll('[contenteditable]').forEach(e => e.removeAttribute('contenteditable'));
     root.querySelectorAll('.' + MARKS.join(', .')).forEach(e => e.classList.remove(...MARKS));
     root.querySelectorAll('[class=""]').forEach(e => e.removeAttribute('class'));
@@ -236,9 +241,13 @@
   ];
   const NAMES = { P: 'Paragraph', H2: 'Heading', H3: 'Sub-heading', UL: 'Bulleted list', OL: 'Numbered list',
                   BLOCKQUOTE: 'Quote', ASIDE: 'Tip box', FIGURE: 'Picture', TABLE: 'Table', HR: 'Line across' };
+  if (BB()) BLOCKS.push(...BB().items);
+  // what a block is called (the bar over it, the list view): the blocks of blog-blocks.js name themselves
+  function nameOf(b) { return (BB() && BB().name(b)) || (isCta(b) ? 'Button' : (NAMES[b.tagName] || 'Block')); }
 
   function insertBlock(key, target) {
     target = target && editor.contains(target) ? target : (savedBlock() || editor.lastElementChild);
+    if (BB() && BB().insert(key, target)) return;
     if (key === 'image') { pick('body', null, target); return; }
     if (key === 'button') { openButton(null, target); return; }
     let node, focus;
@@ -280,7 +289,7 @@
     menuItems = BLOCKS.filter(b => !q || (b.label + ' ' + b.words).toLowerCase().includes(q));
     menuSel = 0;
     list.innerHTML = menuItems.map((b, i) => '<button type="button" class="bs-mi' + (i ? '' : ' is-on') + '" data-key="' + b.key +
-      '" role="option"><i class="fa-solid ' + b.icon + (b.key === 'h3' ? ' is-small' : '') + '"></i><span><b>' + esc(b.label) +
+      '" role="option"><i class="' + (b.icon.startsWith('fa-brands') ? b.icon : 'fa-solid ' + b.icon) + (b.key === 'h3' ? ' is-small' : '') + '"></i><span><b>' + esc(b.label) +
       '</b><small>' + esc(b.hint) + '</small></span></button>').join('');
     menu.querySelector('.bs-menu-none').hidden = menuItems.length > 0;
   }
@@ -311,9 +320,13 @@
   // ---------------------------------------------------------------- the bar over a block
   let typing = false;
   function setActive(b) {
+    const was = active;
     active = b && b.parentNode === editor ? b : null;
     floating();
     lvHere();
+    // the Block tab follows the block being worked on
+    const pane = document.querySelector('#geSide [data-spane=block]');
+    if (BB() && pane && active && active !== was && !pane.hidden) { picked = active; BB().pane(active); }
   }
   function floating() {
     // the + on an empty line, the "Type / ..." hint, and the bar over the block the caret is in
@@ -328,7 +341,7 @@
       show(plus, r.top + (active.offsetHeight - 30) / 2, r.right - 34);
     } else plus.hidden = true;
     if (!active || empty || typing || !editor.contains(active)) { bbar.hidden = true; return; }
-    bbar.querySelector('.bs-bb-name').textContent = isCta(active) ? 'Button' : (NAMES[active.tagName] || 'Block');
+    bbar.querySelector('.bs-bb-name').textContent = nameOf(active);
     bbar.querySelector('.bs-bb-table').hidden = active.tagName !== 'TABLE';
     bbar.hidden = false;
     const r = rectIn(active);
@@ -339,6 +352,7 @@
     const b = e.target.closest('[data-bb]');
     if (!b || !active || !editor.contains(active)) return;
     const what = b.dataset.bb, blk = active;
+    if (what === 'settings') { blockSettings(blk); return; }
     if (/^(row|col|delrow|delcol)$/.test(what)) return tableOp(what, blk);
     if (what === 'remove') { caretIn(removeBlocks([blk])); return; }
     if (!/^(up|down|copy)$/.test(what)) return;
@@ -555,6 +569,8 @@
 
   // ---------------------------------------------------------------- links and buttons
   const popText = pop.querySelector('[data-k=text]'), popUrl = pop.querySelector('[data-k=url]');
+  const popLook = pop.querySelector('[data-k=look]'), popTab = pop.querySelector('[data-k=tab]');
+  const LOOKS = ['lk-btn', 'lk-outline', 'lk-arrow'];
   const popErr = pop.querySelector('.bs-pop-err');
   let popDo = null;
   function address(v, button) {
@@ -569,6 +585,10 @@
     pop.querySelector('[data-for=text]').firstChild.textContent = opts.button ? 'Button text' : 'Text to show';
     pop.querySelector('[data-for=url] span').textContent = opts.button ? 'Goes to' : 'Link to';
     pop.querySelector('[data-pop=remove]').hidden = !opts.remove;
+    // a link in the text can look like a button or an arrow link; links and buttons can open in a new tab
+    pop.querySelector('[data-for=look]').hidden = !!opts.button;
+    popLook.value = opts.look || '';
+    popTab.checked = !!opts.newTab;
     popText.value = opts.textValue || '';
     popUrl.value = opts.url || '';
     popErr.hidden = true;
@@ -587,9 +607,17 @@
       popErr.hidden = false;
       return;
     }
-    const fn = popDo.apply;
+    const fn = popDo.apply, look = popLook.value, newTab = popTab.checked;
     closePop();
-    fn(url, popText.value.trim());
+    fn(url, popText.value.trim(), look, newTab);
+  }
+  // how a link looks and where it opens: the classes and target blog_engine keeps
+  function dressLink(a, look, newTab) {
+    LOOKS.forEach(c => a.classList.remove(c));
+    if (look) a.classList.add(look);
+    if (!a.className) a.removeAttribute('class');
+    if (newTab) { a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener noreferrer'); }
+    else { a.removeAttribute('target'); a.removeAttribute('rel'); }
   }
   pop.addEventListener('click', e => {
     const b = e.target.closest('[data-pop]');
@@ -612,28 +640,43 @@
     if (a === editor) a = null;
     const anchorEl = a || (range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentNode);
     if (a) {
-      openPop({ url: a.getAttribute('href'), remove: true, anchor: a,
-        apply: url => structural(() => a.setAttribute('href', url)),
+      openPop({ url: a.getAttribute('href'), remove: true, anchor: a, look: LOOKS.find(c => a.classList.contains(c)) || '',
+        newTab: a.getAttribute('target') === '_blank',
+        apply: (url, _t, look, newTab) => structural(() => { a.setAttribute('href', url); dressLink(a, look, newTab); }),
         remove: () => structural(() => { a.replaceWith(...a.childNodes); }) });
     } else if (range.collapsed) {
-      openPop({ text: true, anchor: anchorEl, apply: (url, text) => {
+      openPop({ text: true, anchor: anchorEl, apply: (url, text, look, newTab) => {
         restore();
-        document.execCommand('insertHTML', false, '<a href="' + esc(url) + '">' + esc(text) + '</a>&nbsp;');
+        document.execCommand('insertHTML', false, '<a href="' + esc(url) + '"' + (look ? ' class="' + look + '"' : '') +
+          (newTab ? ' target="_blank" rel="noopener noreferrer"' : '') + '>' + esc(text) + '</a>&nbsp;');
         changed();
       } });
     } else {
-      openPop({ anchor: anchorEl, apply: url => { restore(); document.execCommand('createLink', false, url); changed(); } });
+      openPop({ anchor: anchorEl, apply: (url, _t, look, newTab) => {
+        restore();
+        document.execCommand('createLink', false, url);
+        const s = window.getSelection();
+        let n = s.rangeCount ? s.getRangeAt(0).commonAncestorContainer : null;
+        while (n && n !== editor && !(n.nodeType === 1 && n.tagName === 'A')) n = n.parentNode;
+        if (n && n !== editor) dressLink(n, look, newTab);
+        else editor.querySelectorAll('a[href="' + CSS.escape(url) + '"]').forEach(x => dressLink(x, look, newTab));
+        changed();
+      } });
     }
   }
   function openButton(cta, target) {
     const a = cta && cta.querySelector('a');
     openPop({ button: true, text: true, textValue: a ? a.textContent : '', url: a ? a.getAttribute('href') : '',
-      remove: !!cta, anchor: cta || target || editor.lastElementChild,
-      apply: (url, text) => structural(() => {
-        if (a) { a.setAttribute('href', url); a.textContent = text; return; }
+      remove: !!cta, anchor: cta || target || editor.lastElementChild, newTab: a && a.getAttribute('target') === '_blank',
+      apply: (url, text, _look, newTab) => structural(() => {
+        if (a) {
+          a.setAttribute('href', url); a.textContent = text;
+          if (newTab) { a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener noreferrer'); } else { a.removeAttribute('target'); a.removeAttribute('rel'); }
+          return;
+        }
         const p = document.createElement('p');
         p.className = 'blog-cta-wrap';
-        p.innerHTML = '<a class="blog-cta" href="' + esc(url) + '">' + esc(text) + '</a>';
+        p.innerHTML = '<a class="blog-cta" href="' + esc(url) + '"' + (newTab ? ' target="_blank" rel="noopener noreferrer"' : '') + '>' + esc(text) + '</a>';
         place(p, target);
         caretIn(after(p));
       }),
@@ -685,6 +728,8 @@
   editor.addEventListener('paste', e => {
     const cd = e.clipboardData || window.clipboardData;
     if (!cd) return;
+    const url = (cd.getData('text/plain') || '').trim();
+    if (BB() && /^https?:\/\/\S+$/.test(url) && BB().pasteUrl(url, caretBlock())) { e.preventDefault(); return; }
     const files = Array.from(cd.files || []).filter(f => /^image\/(jpeg|png|webp)$/.test(f.type));
     if (files.length) { e.preventDefault(); insertPictures(files, caretBlock()); return; }
     e.preventDefault();
@@ -778,7 +823,12 @@
   editor.addEventListener('click', e => {
     const fig = e.target.closest('figure');
     const cta = e.target.closest('p.blog-cta-wrap');
-    if (fig && editor.contains(fig)) { e.preventDefault(); closePop(); picked = fig; openPanel(fig); setActive(fig); return; }
+    const obj = e.target.closest('.blog-code, .blog-spacer, .blog-carousel, figure.blog-embed, figure.blog-video');
+    if (obj && editor.contains(obj) && !e.target.closest('.blog-carousel > div.blog-slide')) {
+      e.preventDefault(); closePop(); if (!panel.hidden) closePanel();
+      const top = topBlock(obj); picked = top; setActive(top); blockSettings(top); return;
+    }
+    if (fig && editor.contains(fig)) { e.preventDefault(); closePop(); picked = fig; openPanel(fig); setActive(topBlock(fig)); return; }
     if (!panel.hidden) closePanel();
     if (cta && editor.contains(cta)) { e.preventDefault(); picked = cta; setActive(cta); openButton(cta, cta); return; }
     if (e.target.tagName === 'HR') { picked = e.target; setActive(e.target); return; }
@@ -818,7 +868,7 @@
     const alt = figure.querySelector('img')?.alt || figure.dataset.alt || '';
     const cap = figure.querySelector('figcaption');
     structural(() => {
-      figure.className = 'blog-img';
+      keepKind(figure);
       figure.removeAttribute('data-file');
       figure.removeAttribute('data-alt');
       figure.innerHTML = '<img src="' + esc(d.src) + '" alt="' + esc(alt) + '" data-file="' + esc(d.name) + '" loading="lazy">' + (cap ? cap.outerHTML : '');
@@ -873,6 +923,11 @@
     insertPictures(files, node && editor.contains(node) ? topBlock(node) : null);
   });
 
+  // a picture that is replaced stays the kind it was: a picture of its own, a slide, the picture beside text
+  function keepKind(fig) {
+    fig.classList.remove('blog-img-missing');
+    if (!fig.classList.contains('blog-slide') && !fig.classList.contains('blog-mt-media')) fig.classList.add('blog-img');
+  }
   function openPanel(fig) {
     if (current) current.classList.remove('is-picked');
     current = fig;
@@ -1015,6 +1070,7 @@
   }
   function outline() {
     const box = document.getElementById('bsOutline');
+    if (!box) { blockList(); return; }          // the structure on the left is the outline now ("Headings")
     const heads = Array.from(editor.querySelectorAll('h2, h3')).filter(h => h.textContent.trim());
     box.innerHTML = '';
     heads.forEach(h => {
@@ -1121,19 +1177,21 @@
     m.hidden = !on;
     document.querySelector('[data-ge=more]').setAttribute('aria-expanded', on ? 'true' : 'false');
   }
+  // the Block tab: the settings of the block picked (blog-blocks.js draws them) -- space, padding, background,
+  // width, alignment, and what each kind of block has of its own
+  function blockSettings(b) {
+    if (!b || !editor.contains(b)) return;
+    picked = b;
+    tab('block');
+  }
   function tab(which) {
     side(true);
     sideEl.querySelectorAll('[data-stab]').forEach(b => b.setAttribute('aria-selected', b.dataset.stab === which ? 'true' : 'false'));
     sideEl.querySelectorAll('[data-spane]').forEach(p => { p.hidden = p.dataset.spane !== which; });
     if (which === 'seo') seo();
+    if (which === 'block' && BB()) BB().pane(picked && editor.contains(picked) ? picked : active);
   }
   sideEl.addEventListener('click', e => { const b = e.target.closest('[data-stab]'); if (b) tab(b.dataset.stab); });
-  drawer.addEventListener('click', e => {
-    const b = e.target.closest('[data-dtab]');
-    if (!b) return;
-    drawer.querySelectorAll('[data-dtab]').forEach(x => x.setAttribute('aria-selected', x === b ? 'true' : 'false'));
-    drawer.querySelectorAll('[data-dpane]').forEach(p => { p.hidden = p.dataset.dpane !== b.dataset.dtab; });
-  });
 
   // the list view, on the left: every block of the post in order, the one the caret is in marked. A click goes
   // to a block; the boxes, Ctrl+click and Shift+click pick several; ⋮ or a right-click opens what can be done
@@ -1144,34 +1202,103 @@
   const lvMenu = document.getElementById('geLvMenu');
   let lvRows = [], lvSel = new Set(), lvAnchor = null, lvFocus = 0, lvDrag = null, lvMenuFor = null;
   const lvPicked = () => inOrder(Array.from(lvSel));
-  const nameOf = b => isCta(b) ? 'Button' : (NAMES[b.tagName] || 'Block');
+  const iconOf = b => (BB() && BB().icon(b)) || (isCta(b) ? 'fa-hand-pointer' : (ICONS[b.tagName] || 'fa-square'));
+  // the colour family of a block in the structure: words, headings, pictures, video, layout, code, buttons
+  function familyOf(b) {
+    const k = BB() ? BB().kindOf(b) : null;
+    if (/^H[23]$/.test(b.tagName)) return 'head';
+    if (k === 'embed' || k === 'video') return 'video';
+    if (k === 'code') return 'code';
+    if (k === 'cols' || k === 'mt' || k === 'carousel' || k === 'slider' || k === 'spacer') return 'layout';
+    if (b.tagName === 'FIGURE') return 'media';
+    if (isCta(b)) return 'button';
+    return 'text';
+  }
+  let stMode = 'all';
+  const stFolded = new Set();                      // the headings (H2) whose sections are folded
   function blockList() {
     if (!lvList || drawer.hidden || lvDrag) return;
     const had = lvList.contains(document.activeElement) && document.activeElement !== lvList ? lvFocus : null;
     lvRows = Array.from(editor.children).filter(b => !trailing(b));
     lvSel = new Set(Array.from(lvSel).filter(b => lvRows.includes(b)));
+    Array.from(stFolded).forEach(h => { if (!lvRows.includes(h)) stFolded.delete(h); });
     lvList.innerHTML = '';
+    let h2 = null, h3 = null, n2 = 0, n3 = 0;
+    const words = t => (t.match(/\S+/g) || []).length;
+    const count = { blocks: lvRows.length, heads: 0, media: 0 };
     lvRows.forEach((b, i) => {
-      const text = b.tagName === 'FIGURE' ? (b.querySelector('img') ? b.querySelector('img').alt || 'no description' : 'missing: ' + (b.dataset.file || ''))
-        : b.tagName === 'HR' ? '' : isEmpty(b) ? 'empty line' : b.textContent.trim();
+      const own = BB() ? BB().text(b) : null;
+      const text = own != null ? own : b.tagName === 'FIGURE' ? (b.querySelector('img') ? b.querySelector('img').alt || 'no description' : 'missing: ' + (b.dataset.file || ''))
+        : b.tagName === 'HR' ? '— a line across —' : isEmpty(b) ? 'empty line' : b.textContent.trim();
+      let depth = 0, number = '';
+      if (b.tagName === 'H2') { h2 = b; h3 = null; n2 += 1; n3 = 0; number = String(n2); count.heads += 1; }
+      else if (b.tagName === 'H3') { h3 = b; depth = h2 ? 1 : 0; n3 += 1; number = h2 ? n2 + '.' + n3 : String(n3); count.heads += 1; }
+      else depth = (h2 ? 1 : 0) + (h3 ? 1 : 0);
+      const fam = familyOf(b);
+      if (fam === 'media' || fam === 'video') count.media += 1;
       const on = lvSel.has(b);
       const li = document.createElement('li');
-      li.className = 'ge-lv is-' + b.tagName.toLowerCase() + (on ? ' is-sel' : '') + (b === active ? ' is-here' : '') + (isEmpty(b) ? ' is-empty' : '');
+      li.className = 'ge-lv is-' + b.tagName.toLowerCase() + ' f-' + fam + ' d' + depth + (on ? ' is-sel' : '') + (b === active ? ' is-here' : '') + (isEmpty(b) ? ' is-empty' : '');
       li.dataset.i = i;
+      if (b.tagName !== 'H2' && h2) li.dataset.sec = lvRows.indexOf(h2);
       li.tabIndex = -1;
       li.draggable = true;
       li.setAttribute('role', 'option');
       li.setAttribute('aria-selected', on ? 'true' : 'false');
+      const ic = iconOf(b);
       li.innerHTML = '<input type="checkbox" data-nodirty tabindex="-1" aria-label="Pick this block"' + (on ? ' checked' : '') + '>' +
-        '<i class="fa-solid ' + (isCta(b) ? 'fa-hand-pointer' : (ICONS[b.tagName] || 'fa-square')) + '"></i><b></b><span></span>' +
+        (b.tagName === 'H2' ? '<button type="button" class="ge-lv-fold" data-lv="fold" tabindex="-1" aria-label="Fold this section"><i class="fa-solid fa-chevron-down"></i></button>' : '<span class="ge-lv-fold-sp"></span>') +
+        '<i class="ge-lv-ic ' + (ic.startsWith('fa-brands') ? ic : 'fa-solid ' + ic) + '" aria-hidden="true"></i>' +
+        '<span class="ge-lv-txt"><span class="ge-lv-main"></span><small></small></span>' +
         '<button type="button" class="ge-lv-opt" data-lv="menu" tabindex="-1" aria-label="What to do with this block"><i class="fa-solid fa-ellipsis-vertical"></i></button>';
-      li.querySelector('b').textContent = nameOf(b);
-      li.querySelector('span').textContent = text.length > 60 ? text.slice(0, 60) + '…' : text;
+      const main = li.querySelector('.ge-lv-main');
+      if (number) { const no = document.createElement('em'); no.className = 'ge-lv-no'; no.textContent = number; main.append(no, ' '); }
+      main.append(text.length > 70 ? text.slice(0, 70) + '…' : text || nameOf(b));
+      li.querySelector('small').textContent = nameOf(b) + (/^(P|BLOCKQUOTE|ASIDE|UL|OL)$/.test(b.tagName) ? ' · ' + plural(words(b.textContent), 'word') : '');
       lvList.appendChild(li);
     });
-    if (!lvRows.length) lvList.innerHTML = '<li class="ge-dim ge-lv-none">The post is empty.</li>';
+    // a heading says how many blocks its section has
+    Array.from(lvList.children).forEach(li => {
+      if (!li.classList.contains('is-h2')) return;
+      const n = lvList.querySelectorAll('[data-sec="' + li.dataset.i + '"]').length;
+      li.querySelector('small').textContent = 'Heading · ' + plural(n, 'block');
+      li.classList.toggle('is-folded', stFolded.has(lvRows[+li.dataset.i]));
+    });
+    if (!lvRows.length) lvList.innerHTML = '<li class="ge-dim ge-lv-none">The post is empty: start writing on the right.</li>';
+    const total = (editor.innerText.trim().match(/\S+/g) || []).length;
+    const stats = document.getElementById('geStStats');
+    if (stats) stats.innerHTML = '<span><b>' + total + '</b> words</span><span><b>' + Math.max(1, Math.round(total / 200)) + '</b> min read</span>' +
+      '<span><b>' + count.blocks + '</b> blocks</span><span><b>' + count.heads + '</b> headings</span><span><b>' + count.media + '</b> media</span>';
+    stFilter();
     lvBar();
     if (had != null) lvFocusRow(had);
+  }
+  // what the structure shows: everything or the headings only, folded sections shut, and only the blocks that have
+  // the words looked for (their headings stay, to say where they are)
+  function stFilter() {
+    const q = (document.getElementById('geStFind')?.value || '').trim().toLowerCase();
+    let shown = 0;
+    Array.from(lvList.children).forEach(li => {
+      if (li.dataset.i == null) return;
+      const b = lvRows[+li.dataset.i];
+      const head = li.classList.contains('is-h2') || li.classList.contains('is-h3');
+      const sec = li.dataset.sec != null ? lvRows[+li.dataset.sec] : null;
+      let show = stMode === 'all' || head;
+      if (show && !head && sec && stFolded.has(sec) && !q) show = false;
+      if (show && li.classList.contains('is-h3') && sec && stFolded.has(sec) && !q) show = false;
+      if (show && q) show = b.textContent.toLowerCase().includes(q) || nameOf(b).toLowerCase().includes(q);
+      li.hidden = !show;
+      li.classList.remove('is-ctx');
+      if (show) shown += 1;
+    });
+    if (q) Array.from(lvList.children).forEach(li => {
+      if (li.hidden || li.dataset.sec == null) return;
+      const h = lvList.children[+li.dataset.sec];
+      if (h && h.hidden) { h.hidden = false; h.classList.add('is-ctx'); }
+    });
+    const none = document.getElementById('geStNone');
+    if (none) none.hidden = !(q && !shown);
+    drawer.classList.toggle('is-heads', stMode === 'heads');
   }
   function lvBar() {
     const n = lvSel.size, all = document.getElementById('geLvAll');
@@ -1179,6 +1306,7 @@
     all.checked = n > 0 && n === lvRows.length;
     all.indeterminate = n > 0 && n < lvRows.length;
     document.getElementById('geLvActs').hidden = !n;
+    lvList.classList.toggle('is-picking', n > 0);
     const paste = document.getElementById('geLvPaste'), c = clip();
     paste.hidden = !c;
     if (c) paste.querySelector('span').textContent = 'Paste ' + plural(c.blocks.length, 'copied block') + (n ? ' after the picked ones' : ' at the end');
@@ -1195,10 +1323,11 @@
   }
   function lvHere() {                              // the row of the block the caret is in
     if (!lvList || drawer.hidden) return;
-    lvList.querySelectorAll('.is-here').forEach(li => li.classList.remove('is-here'));
-    const li = lvList.children[lvRows.indexOf(active)];
+    lvList.querySelectorAll('.is-here, .is-here-in').forEach(li => li.classList.remove('is-here', 'is-here-in'));
+    let li = lvList.children[lvRows.indexOf(active)];
     if (li && active) {
       li.classList.add('is-here');
+      if (li.hidden && li.dataset.sec != null) { li = lvList.children[+li.dataset.sec]; li.classList.add('is-here-in'); }
       if (!lvList.contains(document.activeElement)) li.scrollIntoView({ block: 'nearest' });
     }
   }
@@ -1211,6 +1340,14 @@
     lvFocus = i;
     lvPaint();
   }
+  function lvStep(i, by) {                         // the next row that shows (a folded section or a find hides some)
+    const seen = Array.from(lvList.children).filter(li => li.dataset.i != null && !li.hidden).map(li => +li.dataset.i);
+    if (!seen.length) return i;
+    if (by === 'first') return seen[0];
+    if (by === 'last') return seen[seen.length - 1];
+    const next = by > 0 ? seen.find(x => x > i) : seen.slice().reverse().find(x => x < i);
+    return next == null ? i : next;
+  }
   function lvFocusRow(x) {                         // a row, by its number or its block
     const i = typeof x === 'number' ? x : lvRows.indexOf(x);
     const li = lvList.children[Math.max(0, Math.min(i, lvRows.length - 1))];
@@ -1218,11 +1355,14 @@
   }
   function goTo(b, edit) {
     b.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const kind = BB() ? BB().kindOf(b) : null;
     if (isText(b) || /^(UL|OL|BLOCKQUOTE|ASIDE|TABLE)$/.test(b.tagName)) caretIn(b.querySelector('li, th, td') || b, true);
+    else if (kind === 'cols' || kind === 'mt') { caretIn(b.querySelector('.blog-col p, .blog-col h3, .blog-mt-body p, .blog-mt-body h3') || b, true); if (edit) blockSettings(b); }
     else {
       picked = b;
       setActive(b);
-      if (edit && b.tagName === 'FIGURE') openPanel(b);
+      if (edit && kind && !/^(picture|text|button)$/.test(kind)) blockSettings(b);
+      else if (edit && b.tagName === 'FIGURE') openPanel(b);
       else if (edit && isCta(b)) openButton(b, b);
     }
     b.classList.add('ge-flash');
@@ -1306,6 +1446,7 @@
       const li = e.target.closest('li[data-i]');
       if (!li) return;
       const i = +li.dataset.i, b = lvRows[i];
+      if (e.target.closest('[data-lv=fold]')) { if (stFolded.has(b)) stFolded.delete(b); else stFolded.add(b); li.classList.toggle('is-folded', stFolded.has(b)); stFilter(); return; }
       if (e.target.closest('[data-lv=menu]')) { const r = e.target.closest('button').getBoundingClientRect(); lvMenuOpen(b, r.left, r.bottom + 4); return; }
       if (e.target.matches('input[type=checkbox]') || e.ctrlKey || e.metaKey) { lvPick(i, 'toggle'); return; }
       if (e.shiftKey) { lvPick(i, 'range'); return; }
@@ -1328,10 +1469,10 @@
       if (k === 'ArrowDown' || k === 'ArrowUp') {
         e.preventDefault();
         if (e.altKey && e.shiftKey) { lvDo(k === 'ArrowUp' ? 'up' : 'down', tgt); return; }
-        const to = Math.max(0, Math.min(lvRows.length - 1, i + (k === 'ArrowDown' ? 1 : -1)));
+        const to = lvStep(i, k === 'ArrowDown' ? 1 : -1);
         if (e.shiftKey) { if (lvAnchor == null) lvAnchor = i; lvPick(to, 'range'); }
         lvFocusRow(to);
-      } else if (k === 'Home' || k === 'End') { e.preventDefault(); lvFocusRow(k === 'Home' ? 0 : lvRows.length - 1); }
+      } else if (k === 'Home' || k === 'End') { e.preventDefault(); lvFocusRow(lvStep(i, k === 'Home' ? 'first' : 'last')); }
       else if (k === ' ' && b) { e.preventDefault(); lvPick(i, 'toggle'); }
       else if (k === 'Enter' && b) { e.preventDefault(); lvPick(i, 'only'); goTo(b); }
       else if ((k === 'Delete' || k === 'Backspace') && b) { e.preventDefault(); lvDo('delete', tgt); }
@@ -1386,6 +1527,25 @@
     });
     lvList.addEventListener('dragend', () => { lvDrag = null; dropMarks(); blockList(); });
     document.getElementById('geLvAll').addEventListener('change', e => { lvSel = e.target.checked ? new Set(lvRows) : new Set(); lvPaint(); });
+    // the structure's own tools: find, everything or headings, fold every section
+    const stFind = document.getElementById('geStFind');
+    if (stFind) stFind.addEventListener('input', stFilter);
+    drawer.addEventListener('click', e => {
+      const m = e.target.closest('[data-st-mode]');
+      if (m) {
+        stMode = m.dataset.stMode;
+        drawer.querySelectorAll('[data-st-mode]').forEach(x => x.setAttribute('aria-pressed', x === m ? 'true' : 'false'));
+        stFilter();
+        return;
+      }
+      if (e.target.closest('[data-st-fold]')) {
+        const heads = lvRows.filter(x => x.tagName === 'H2');
+        const fold = heads.some(h => !stFolded.has(h));
+        heads.forEach(h => (fold ? stFolded.add(h) : stFolded.delete(h)));
+        drawer.querySelector('[data-st-fold] i').className = 'fa-solid ' + (fold ? 'fa-angles-down' : 'fa-angles-up');
+        blockList();
+      }
+    });
     drawer.addEventListener('click', e => { const b = e.target.closest('.ge-lv-bar [data-lv], #geLvPaste'); if (b) lvDo(b.dataset.lv, null); });
     lvMenu.addEventListener('mousedown', e => e.preventDefault());       // the post keeps its caret
     lvMenu.addEventListener('click', e => { const b = e.target.closest('[data-lv]'); if (b && !b.disabled) lvDo(b.dataset.lv, lvMenuFor); });
@@ -1622,6 +1782,7 @@
     const m = libPick, f = libFor;
     if (!m || !f) return;
     closeLib();
+    if (f.onPick) { f.onPick(m); return; }            // a carousel, the picture beside text (blog-blocks.js)
     if (f.purpose === 'cover') {
       setCover(m.url, m.src);
       const alt = form.querySelector('[name=cover_alt]');
@@ -1633,7 +1794,7 @@
       const fig = f.figure, cap = fig.querySelector('figcaption');
       const alt = (fig.querySelector('img') && fig.querySelector('img').alt) || fig.dataset.alt || m.alt || '';
       structural(() => {
-        fig.className = 'blog-img';
+        keepKind(fig);
         fig.removeAttribute('data-file');
         fig.removeAttribute('data-alt');
         fig.innerHTML = '<img src="' + esc(m.src) + '" alt="' + esc(alt) + '" data-file="' + esc(m.name) + '" loading="lazy">' + (cap ? cap.outerHTML : '');
@@ -1736,7 +1897,15 @@
     else if (what === 'lib-use') useLib();
   });
 
+  // ---------------------------------------------------------------- what blog-blocks.js works with
+  window.BlogStudio = {
+    editor, wrap, form, esc, toast, CSRF, upload, openLib, structural, changed, snap, place, after, caretIn, lines,
+    lockBlocks, floating, blockList, topBlock, savedBlock, isEmpty, plural,
+    setActive: b => setActive(b), active: () => active, tab, blockSettings
+  };
+
   // ---------------------------------------------------------------- start
+  if (BB()) BB().init(window.BlogStudio);
   lines();
   lockBlocks();
   snap();

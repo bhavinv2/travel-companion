@@ -116,7 +116,9 @@ from flask import Request as _FlaskRequest  # noqa: E402
 # public form accept that much too.
 BIG_UPLOADS = {'crm.import_sheet': 64 * 1024 * 1024, 'admin_crm.import_sheet': 64 * 1024 * 1024,
                # Word documents with a zip of their pictures (blog_engine caps each picture and the zip)
-               'admin.blog_import': 96 * 1024 * 1024}
+               'admin.blog_import': 96 * 1024 * 1024,
+               # a video in a blog post (MP4 or WebM)
+               'admin.blog_video': 150 * 1024 * 1024}
 
 
 class AppRequest(_FlaskRequest):

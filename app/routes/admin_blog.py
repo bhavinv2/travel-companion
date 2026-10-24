@@ -194,6 +194,23 @@ def blog_duplicate(post_id):
 
 # ============================================================================== categories and tags
 
+@admin_bp.route('/blog/order', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def blog_order():
+    """Order on the blog: the posts readers see first, in the order picked; the rest follow, newest first."""
+    if request.method == 'POST':
+        n = bp.set_order((request.form.get('ids') or '').split(','))
+        db.session.commit()
+        flash('Saved: %s first, in that order; the rest newest first.' % ('%d posts' % n if n != 1 else '1 post')
+              if n else 'Saved: every post by date, newest first.', 'success')
+        return redirect(url_for('admin.blog_order'))
+    posts = bp.in_blog_order(Blog.live()).all()
+    return render_template('admin/blog/order.html', placed=[p for p in posts if p.sort_order is not None],
+                           rest=[p for p in posts if p.sort_order is None],
+                           featured=next((p for p in posts if p.is_featured), None))
+
+
 @admin_bp.route('/blog/categories', defaults={'kind': 'category'}, methods=['GET', 'POST'])
 @admin_bp.route('/blog/tags', defaults={'kind': 'tag'}, methods=['GET', 'POST'])
 @login_required
@@ -400,6 +417,7 @@ def _fields(post):
             'seo_title': (f.get('seo_title') or '').strip()[:300],
             'focus_keyword': (f.get('focus_keyword') or '').strip()[:100],
             'is_featured': f.get('is_featured') == 'on' if shown else bool(post and post.is_featured),
+            'layout': bp.clean_layout(f) if shown else (post.layout if post else None),
             'author_id': author.id if author else (post.author_id if post else current_user.id),
             'publish_at': bp.parse_ist(f.get('publish_at')) if shown else (post.published_at if post else None),
             'categories': [i for i in (_int(x) for x in f.getlist('categories')) if i] if shown else None,
@@ -417,12 +435,13 @@ def _saved(post):
     """The editor's fields as the post has them."""
     if post is None:
         return {'title': '', 'slug': '', 'summary': '', 'content': '', 'cover_image_url': None, 'cover_alt': '',
-                'seo_title': '', 'focus_keyword': '', 'is_featured': False, 'author_id': current_user.id,
+                'seo_title': '', 'focus_keyword': '', 'is_featured': False, 'layout': None, 'author_id': current_user.id,
                 'publish_at': None, 'categories': [], 'tags': '', 'send_notification': True}
     return {'title': post.title, 'slug': post.slug, 'summary': post.summary or '', 'content': post.content or '',
             'cover_image_url': post.cover_image_url, 'cover_alt': post.cover_alt or '',
             'seo_title': post.seo_title or '', 'focus_keyword': post.focus_keyword or '',
-            'is_featured': bool(post.is_featured), 'author_id': post.author_id, 'publish_at': post.published_at,
+            'is_featured': bool(post.is_featured), 'layout': post.layout, 'author_id': post.author_id,
+            'publish_at': post.published_at,
             'categories': [t.id for t in post.categories], 'tags': ', '.join(t.name for t in post.tags),
             'send_notification': bool(post.send_notification)}
 
@@ -537,6 +556,7 @@ def _apply(post, d):
     post.cover_alt = d['cover_alt'] or None
     post.seo_title = d['seo_title'] or None
     post.focus_keyword = d['focus_keyword'] or None
+    post.layout = d.get('layout') or None
     if d['categories'] is not None:
         bp.set_terms(post, d['categories'], d['tags'] or '')
 
@@ -565,6 +585,7 @@ def blog_preview(post_id):
             if d['categories'] is not None else (post.categories if post else [])
         shown = SimpleNamespace(id=post.id if post else 0, title=d['title'] or (post.title if post else 'Untitled'),
                                 slug=d['slug'], content=d['content'], summary=d['summary'], seo_title=d['seo_title'],
+                                layout=d.get('layout'),
                                 cover_image_url=d['cover_image_url'], cover_alt=d['cover_alt'],
                                 author=db.session.get(User, d['author_id']) or current_user,
                                 published_at=d['publish_at'] or (post.published_at if post else None) or datetime.utcnow(),
@@ -599,6 +620,25 @@ def blog_image(post_id):
     except be.ImageError as e:
         return jsonify({'error': str(e)}), 400
     db.session.commit()                    # in the picture library too
+    return jsonify({'url': url, 'src': be.site_url(url), 'name': f.filename})
+
+
+@admin_bp.route('/blog/video', methods=['POST'])
+@login_required
+@admin_required
+def blog_video():
+    """A video for a post (an MP4 or WebM, up to MAX_VIDEO_MB): stored as it is, played with the browser's own
+    controls (fullscreen too)."""
+    from app.services import storage
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'error': 'Choose a video.'}), 400
+    if f.filename.rsplit('.', 1)[-1].lower() not in storage.PUBLIC_VIDEO_EXT:
+        return jsonify({'error': 'Use an MP4 or WebM video (most phones and cameras save MP4).'}), 400
+    stem = slugify(f.filename.rsplit('.', 1)[0], max_length=30) or 'video'
+    url = storage.save_public_video(f, prefix=('blog-%s' % stem)[:40])
+    if not url:
+        return jsonify({'error': 'That file is not a video this site can play: use an MP4 or WebM.'}), 400
     return jsonify({'url': url, 'src': be.site_url(url), 'name': f.filename})
 
 

@@ -197,6 +197,56 @@ def term_counts(kind):
     return dict(rows)
 
 
+# ============================================================================== a post's layout
+
+# how a post is laid out (Post › Layout in the editor): (key, label, [(value, word)]); the first value is the standard
+LAYOUT = (('width', 'Width', (('normal', 'Standard'), ('narrow', 'Narrow'), ('wide', 'Wide'))),
+          ('size', 'Text size', (('m', 'Standard'), ('s', 'Smaller'), ('l', 'Larger'))),
+          ('spacing', 'Spacing', (('normal', 'Standard'), ('compact', 'Compact'), ('airy', 'Airy'))))
+LAYOUT_DEFAULT = {k: opts[0][0] for k, _l, opts in LAYOUT}
+_LAYOUT_CLASS = {'width': 'lay-w-', 'size': 'lay-s-', 'spacing': 'lay-sp-'}
+
+
+def clean_layout(form):
+    """The editor's layout choices, only those that are not the standard; None when all are."""
+    out = {}
+    for key, _label, opts in LAYOUT:
+        v = form.get('layout_' + key)
+        if v in dict(opts) and v != LAYOUT_DEFAULT[key]:
+            out[key] = v
+    return out or None
+
+
+def layout_classes(layout):
+    """The classes the post's content wears for its layout ('lay-w-wide lay-s-l'), '' for the standard."""
+    if not isinstance(layout, dict):
+        return ''
+    return ' '.join(_LAYOUT_CLASS[k] + layout[k] for k, _l, opts in LAYOUT
+                    if layout.get(k) in dict(opts) and layout[k] != LAYOUT_DEFAULT[k])
+
+
+# ============================================================================== the order on the public blog
+
+def in_blog_order(query):
+    """Posts in the order the public blog shows them: those given a place first (1, 2 ...), then the rest newest
+    first; the same order every time, so a page fetched as the list scrolls carries on where the last stopped."""
+    return query.order_by(Blog.sort_order.is_(None), Blog.sort_order,
+                          db.func.coalesce(Blog.published_at, Blog.created_at).desc(), Blog.id.desc())
+
+
+def set_order(ids):
+    """Give these posts the places 1, 2 ... in this order; every other post goes back to newest first. Only posts
+    on the site are placed (one deleted or taken off since the screen was opened is skipped). No commit."""
+    ids = list(dict.fromkeys(int(i) for i in ids if str(i).isdigit()))[:200]
+    live = {p.id: p for p in Blog.live().filter(Blog.id.in_(ids or [0]))}
+    placed = [i for i in ids if i in live]
+    (Blog.query.filter(Blog.sort_order.isnot(None), ~Blog.id.in_(placed or [0]))
+     .update({'sort_order': None}, synchronize_session=False))
+    for n, i in enumerate(placed, 1):
+        live[i].sort_order = n
+    return len(placed)
+
+
 def live_terms(kind):
     """The categories (or tags) that have a post on the site, with how many: the blog's own menu."""
     from app.models import blog_post_terms as pt

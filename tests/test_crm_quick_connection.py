@@ -218,8 +218,8 @@ def test_there_is_still_one_alembic_head_after_release_two():
     cfg = Config()
     cfg.set_main_option('script_location', mig)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ['v1blog025']              # the blog workspace on top of Sales CRM 2.0 (u1..u8, over t5bl016)
-    for rev, down in (('v1blog025', 'u8crm024'), ('u8crm024', 'u7crm023'), ('u7crm023', 'u6crm022'), ('u6crm022', 'u5crm021'), ('u5crm021', 'u4crm020'), ('u4crm020', 'u3crm019'), ('u3crm019', 'u2crm018'), ('u2crm018', 'u1crm017'), ('u1crm017', 't5bl016'), ('t5bl016', 't4su015'), ('t4su015', 't3ws014'), ('t3ws014', 't2su013'), ('t2su013', 't1ws012'), ('t1ws012', 's7crm011'), ('s7crm011', 's6crm010'),
+    assert script.get_heads() == ['v2blog026']              # blog order + layout, over the blog workspace (v1), over Sales CRM 2.0
+    for rev, down in (('v2blog026', 'v1blog025'), ('v1blog025', 'u8crm024'), ('u8crm024', 'u7crm023'), ('u7crm023', 'u6crm022'), ('u6crm022', 'u5crm021'), ('u5crm021', 'u4crm020'), ('u4crm020', 'u3crm019'), ('u3crm019', 'u2crm018'), ('u2crm018', 'u1crm017'), ('u1crm017', 't5bl016'), ('t5bl016', 't4su015'), ('t4su015', 't3ws014'), ('t3ws014', 't2su013'), ('t2su013', 't1ws012'), ('t1ws012', 's7crm011'), ('s7crm011', 's6crm010'),
                       ('s6crm010', 's5crm009'), ('s5crm009', 's4crm008')):
         assert script.get_revision(rev).down_revision == down
 

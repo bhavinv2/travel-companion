@@ -1,7 +1,8 @@
 {% extends 'base.html' %}
 {% block title %}{{ post.seo_title or post.title }} – NRI Parent Service{% endblock %}
 {% block meta_description %}{{ post.summary or post.excerpt(160) }}{% endblock %}
-{% block extra_css %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/blog-public.css') }}"/>{% endblock %}
+{% block extra_css %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/blog-public.css') }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/blog-blocks.css') }}"/>{% endblock %}
 {% block content %}
 {# One post: the reading bar across the top, the title and who wrote it with share / WhatsApp / save, the cover,
    the words, then "send it to family" and what to read next (a row to swipe on a phone). The admin's Preview shows
@@ -34,7 +35,7 @@
   <figure class="bj-cover">
     <img src="{{ app_url(post.cover_image_url) if post.cover_image_url else url_for('static', filename='img/landing/' ~ covers[post.id % 6]) }}" alt="{{ post.cover_alt or post.title }}"/>
   </figure>
-  <div class="static-content blog-post-content bj-content">
+  <div class="static-content blog-post-content bj-content {{ post.layout|blog_layout }}">
     {{ post.content|blog_html }}
   </div>
   {% if post.tags %}

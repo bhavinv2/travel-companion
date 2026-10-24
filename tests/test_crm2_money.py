@@ -347,7 +347,7 @@ def test_the_list_filters_by_close_month_forecast_and_missing_values(app, client
     html = client.get('/admin/crm/?p=all&view=list&owner=all&closes=2031-11&forecast=commit').get_data(as_text=True)
     t = words(html)
     assert 'Closes in November 2031' in t and 'Counts as: Committed' in t        # removable chips
-    assert 'Clear filters' in t
+    assert 'Clear all' in t                                                     # the filter bar
 
 
 def test_a_won_filter_counts_the_month_it_was_won(app, client, admin_user):

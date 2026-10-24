@@ -163,4 +163,75 @@
 
   document.querySelectorAll('.bp-media.is-multi').forEach(slides);
   paintSaved();
+
+  /* ---------------------------------------------------------------- the blocks inside a post (blog-blocks.css) */
+  // a carousel or slider: arrows, dots, and moving by itself every N seconds (data-interval) -- not while it is
+  // pointed at, touched or focused, and never when the reader asked for less motion
+  const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.querySelectorAll('.bj-content .blog-carousel').forEach(track => {
+    const slidesOf = () => Array.from(track.querySelectorAll(':scope > .blog-slide'));
+    if (slidesOf().length < 2) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'bc-wrap';
+    track.before(wrap);
+    wrap.appendChild(track);
+    const btn = (cls, label, icon) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'bc-btn ' + cls;
+      b.setAttribute('aria-label', label);
+      b.innerHTML = '<i class="fa-solid ' + icon + '" aria-hidden="true"></i>';
+      wrap.appendChild(b);
+      return b;
+    };
+    const prev = btn('bc-prev', 'Earlier', 'fa-chevron-left'), next = btn('bc-next', 'Later', 'fa-chevron-right');
+    const dots = document.createElement('div');
+    dots.className = 'bc-dots';
+    wrap.appendChild(dots);
+    const step = () => (slidesOf()[0] ? slidesOf()[0].getBoundingClientRect().width + 16 : track.clientWidth);
+    const at = () => Math.round(track.scrollLeft / step());
+    const pages = () => Math.max(1, slidesOf().length - Math.round(track.clientWidth / step()) + 1);
+    const go = i => track.scrollTo({ left: Math.max(0, Math.min(i, pages() - 1)) * step(), behavior: 'smooth' });
+    function paintDots() {
+      const n = pages(), i = Math.min(at(), n - 1);
+      if (dots.children.length !== n) {
+        dots.innerHTML = '';
+        for (let k = 0; k < n; k++) {
+          const d = document.createElement('button');
+          d.type = 'button';
+          d.setAttribute('aria-label', 'Go to ' + (k + 1) + ' of ' + n);
+          d.addEventListener('click', () => go(k));
+          dots.appendChild(d);
+        }
+      }
+      Array.from(dots.children).forEach((d, k) => d.setAttribute('aria-current', k === i ? 'true' : 'false'));
+      prev.disabled = i <= 0;
+      next.disabled = i >= n - 1;
+    }
+    prev.addEventListener('click', () => go(at() - 1));
+    next.addEventListener('click', () => go(at() + 1));
+    let t = null;
+    track.addEventListener('scroll', () => { clearTimeout(t); t = setTimeout(paintDots, 80); }, { passive: true });
+    window.addEventListener('resize', paintDots);
+    paintDots();
+    const every = +(track.dataset.interval || 0);
+    if (every > 0 && !still) {
+      let held = false;
+      ['mouseenter', 'focusin', 'touchstart'].forEach(ev => wrap.addEventListener(ev, () => { held = true; }, { passive: true }));
+      ['mouseleave', 'focusout'].forEach(ev => wrap.addEventListener(ev, () => { held = false; }));
+      setInterval(() => { if (!held && !document.hidden) go(at() >= pages() - 1 ? 0 : at() + 1); }, every * 1000);
+    }
+  });
+  // space of the height chosen in the editor
+  document.querySelectorAll('.bj-content .blog-spacer').forEach(d => {
+    const h = Math.min(+(d.dataset.h || 48) || 48, 400);
+    d.style.height = h + 'px';
+  });
+  // the post's own code, in its sandboxed frame, says how tall it is (only a frame of this page is believed)
+  window.addEventListener('message', e => {
+    if (!e.data || typeof e.data.blogFrame !== 'number') return;
+    document.querySelectorAll('.bj-content iframe.blog-code-frame[data-auto="1"]').forEach(f => {
+      if (f.contentWindow === e.source) f.style.height = Math.min(Math.max(+e.data.height || 0, 40), 4000) + 'px';
+    });
+  });
 })();

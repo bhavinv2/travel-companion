@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% from 'pages/_blog_card.html' import card with context %}
-{% block title %}{% if term %}{{ term.name }} – {% elif saved is not none %}Saved posts – {% endif %}Desi Travellers Blog – NRI Parent Service{% endblock %}
+{% block title %}{% if term %}{{ term.name }} – {% elif saved is not none %}Saved posts – {% endif %}Travellers Blog – NRI Parent Service{% endblock %}
 {% block meta_description %}{% if term and term.description %}{{ term.description }}{% else %}{{ super() }}{% endif %}{% endblock %}
 {% block extra_css %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/blog-public.css') }}"/>{% endblock %}
 {% block content %}
@@ -21,7 +21,7 @@
           <p class="bj-sub">The stories you bookmarked to read again. Tap <i class="fa-solid fa-bookmark"></i> on any post to add it.</p>
         {% else %}
           <p class="bj-kick">The NRI Parent Service journal</p>
-          <h1>Desi Travellers Blog</h1>
+          <h1>Travellers Blog</h1>
           <p class="bj-sub">Stories, tips and travel know-how for NRI families and the parents who fly to see them.</p>
         {% endif %}
         <p class="bj-stat">{{ total }} {{ 'story' if total == 1 else 'stories' }}{% if q %} matching “{{ q }}”{% endif %}</p>

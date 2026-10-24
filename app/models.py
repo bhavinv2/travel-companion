@@ -705,6 +705,10 @@ class Blog(db.Model):
     seo_title = db.Column(db.String(300))          # the title Google shows; empty: the title
     focus_keyword = db.Column(db.String(100))      # the words it should be found by (the checks look for them)
     is_featured = db.Column(db.Boolean, default=False, nullable=False, server_default=db.false())
+    # where it stands on the public blog: 1 first, 2 next ...; NULL: after those, newest first (Order on the blog)
+    sort_order = db.Column(db.Integer, nullable=True, index=True)
+    # how the post is laid out: {'width': narrow|normal|wide, 'size': s|m|l, 'spacing': compact|normal|airy}
+    layout = db.Column(db.JSON, nullable=True)
     # Published with a published_at still to come: scheduled -- on the site from then (live()).
     is_published = db.Column(db.Boolean, default=False)
     published_at = db.Column(db.DateTime)

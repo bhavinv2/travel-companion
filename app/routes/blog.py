@@ -39,16 +39,16 @@ def _listing(query, term=None, saved=None):
         query = query.filter(db.or_(Blog.title.ilike(pat), Blog.summary.ilike(pat)))
     if saved is not None:
         query = query.filter(Blog.slug.in_(saved or ['']))
+    from app.services.blog_posts import in_blog_order
     whole = term is None and saved is None and not q
-    # newest first, and the same order every time: a page fetched later must carry on exactly where the last
-    # stopped (a post with no date reads as its creation; two at the same moment, the later one first)
-    newest = (db.func.coalesce(Blog.published_at, Blog.created_at).desc(), Blog.id.desc())
+    # the posts given a place (Order on the blog) first, then newest first -- the same order every time, so a page
+    # fetched later carries on exactly where the last stopped
     # the featured post is the big one on top of the first page, so it is out of every page's list -- the pages
     # fetched as the list is scrolled too, or each would start one post early
-    hero = query.filter(Blog.is_featured.is_(True)).order_by(*newest).first() if whole else None
+    hero = in_blog_order(query.filter(Blog.is_featured.is_(True))).first() if whole else None
     if hero is not None:
         query = query.filter(Blog.id != hero.id)
-    query = query.order_by(*newest)
+    query = in_blog_order(query)
     total = query.count()
     pages = max((total + PER_PAGE - 1) // PER_PAGE, 1)
     page = min(page, pages)
@@ -135,6 +135,25 @@ def ago(when, now=None):
         day, today = when + timedelta(hours=5, minutes=30), now + timedelta(hours=5, minutes=30)
         return '%d %s' % (day.day, day.strftime('%b' if day.year == today.year else '%b %Y'))
     return '%d %s%s ago' % (n, word, '' if n == 1 else 's')
+
+
+@blog_bp.app_template_filter('blog_layout')
+def blog_layout(layout):
+    """A post's layout as the classes its content wears (blog_posts.layout_classes)."""
+    from app.services.blog_posts import layout_classes
+    return layout_classes(layout)
+
+
+@blog_bp.app_template_global('LAYOUT_CHOICES')
+def layout_choices():
+    from app.services.blog_posts import LAYOUT
+    return LAYOUT
+
+
+@blog_bp.app_template_global('LAYOUT_DEFAULT')
+def layout_default():
+    from app.services.blog_posts import LAYOUT_DEFAULT
+    return LAYOUT_DEFAULT
 
 
 @blog_bp.app_template_filter('blog_html')

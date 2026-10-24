@@ -8,7 +8,8 @@
 {% set scheduled = st == 'scheduled' %}
 {% block title %}{{ d.title or ('New blog post' if not post else 'Blog post') }} – {{ 'Edit' if post else 'Write' }} – Blog{% endblock %}
 {% block body_attrs %} class="wpb-body ge-body"{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/blog-admin.css') }}"/>{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/blog-admin.css') }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/blog-blocks.css') }}"/>{% endblock %}
 {% block content %}
 {% set errs = checks|selectattr('level', 'equalto', 'error')|list %}
 <form method="POST" id="bsForm" class="ge bs-studio" action="{{ url_for('admin.blog_edit', post_id=post.id) if post else url_for('admin.new_blog') }}"
@@ -17,6 +18,7 @@
       data-word-url="{{ url_for('admin.blog_word', post_id=post.id) if post else url_for('admin.blog_word') }}"
       data-term-url="{{ url_for('admin.blog_term_add') }}"
       data-media-url="{{ url_for('admin.blog_media', format='json') }}"
+      data-video-url="{{ url_for('admin.blog_video') }}"
       data-site="{{ SITE_URL }}"
       data-key="{{ 'cd.blog.' ~ (post.id if post else 'new') }}"
       data-saved="{{ post.updated_at.isoformat() if post and post.updated_at else '' }}"
@@ -58,7 +60,7 @@
       <button type="button" data-do="insert" data-block="divider" title="Line across"><i class="fa-solid fa-minus"></i></button>
       <span class="bf-sep"></span>
       <button type="button" data-do="clear" title="Clear formatting"><i class="fa-solid fa-eraser"></i></button>
-      <button type="button" class="ge-ib" id="geListBtn" data-ge="list" title="List view: every block, to copy, move, duplicate or delete; and the outline" aria-pressed="false"><i class="fa-solid fa-list"></i></button>
+      <button type="button" class="ge-ib" id="geListBtn" data-ge="list" title="Structure: every block under its heading, to find, fold, copy, move, duplicate or delete" aria-pressed="false"><i class="fa-solid fa-sitemap"></i></button>
     </div>
     <div class="ge-actions">
       <span class="bs-dirty" id="bsDirty"></span>
@@ -87,13 +89,23 @@
   </header>
 
   <div class="ge-body-wrap" id="geWrap">
-    <aside class="ge-drawer" id="geDrawer" hidden aria-label="List view">
-      <div class="ge-drawer-tabs" role="tablist">
-        <button type="button" data-dtab="list" aria-selected="true">List view</button>
-        <button type="button" data-dtab="outline" aria-selected="false">Outline</button>
-        <button type="button" class="ge-x" data-ge="list" aria-label="Close list view"><i class="fa-solid fa-xmark"></i></button>
-      </div>
-      <div data-dpane="list">
+    {# the post's structure (blog-studio.js blockList): every block in order, under its heading -- a section folds;
+       find a block by its words; "Headings" is the outline. Click goes to a block; ticks, Ctrl/Shift+click pick
+       several; drag moves; ⋮ or a right-click does the rest. #}
+    <aside class="ge-drawer" id="geDrawer" hidden aria-label="Structure of the post">
+      <div class="ge-st-head">
+        <div class="ge-st-title"><i class="fa-solid fa-sitemap" aria-hidden="true"></i><b>Structure</b>
+          <button type="button" class="ge-x" data-ge="list" aria-label="Close the structure"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="ge-st-stats" id="geStStats"></div>
+        <div class="ge-st-tools">
+          <label class="ge-st-find"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            <input type="search" id="geStFind" data-nodirty placeholder="Find a block by its words" aria-label="Find a block"/></label>
+          <div class="ge-st-mode" role="group" aria-label="Show">
+            <button type="button" data-st-mode="all" aria-pressed="true">All blocks</button>
+            <button type="button" data-st-mode="heads" aria-pressed="false">Headings</button>
+            <button type="button" class="ge-st-fold" data-st-fold title="Fold or open every section" aria-label="Fold or open every section"><i class="fa-solid fa-angles-up"></i></button>
+          </div>
+        </div>
         <div class="ge-lv-bar">
           <label class="ge-lv-all"><input type="checkbox" id="geLvAll" data-nodirty aria-label="Pick every block"/> <span id="geLvCount"></span></label>
           <span class="ge-lv-acts" id="geLvActs" hidden>
@@ -105,14 +117,11 @@
             <button type="button" data-lv="delete" class="is-bad" title="Delete (Delete)" aria-label="Delete"><i class="fa-solid fa-trash"></i></button>
           </span>
         </div>
-        <button type="button" class="ge-lv-paste" id="geLvPaste" data-lv="paste" hidden><i class="fa-solid fa-paste"></i> <span></span></button>
-        <ol class="ge-blocks" id="geBlocks" role="listbox" aria-multiselectable="true" aria-label="Blocks of the post" tabindex="0"></ol>
-        <p class="ge-lv-help">Click a block to go to it. Tick boxes, Ctrl+click or Shift+click pick several. Drag a block to move it; <b>⋮</b> or a right-click for everything else.</p>
       </div>
-      <div data-dpane="outline" hidden>
-        <ol class="bs-outline" id="bsOutline"></ol>
-        <p class="muted bs-outline-none" id="bsOutlineNone">Headings appear here: add one with <b>H2</b>.</p>
-      </div>
+      <button type="button" class="ge-lv-paste" id="geLvPaste" data-lv="paste" hidden><i class="fa-solid fa-paste"></i> <span></span></button>
+      <ol class="ge-blocks" id="geBlocks" role="listbox" aria-multiselectable="true" aria-label="Blocks of the post" tabindex="0"></ol>
+      <p class="ge-st-none" id="geStNone" hidden>No block has those words.</p>
+      <p class="ge-lv-help"><b>Click</b> a block to go to it · <b>drag</b> to move · tick or <b>Ctrl/Shift+click</b> to pick several · <b>⋮</b> or right-click for copy, duplicate, turn into, delete.</p>
     </aside>
 
     <div class="ge-canvas" id="geCanvas">
@@ -142,7 +151,7 @@
         <label class="bs-slug muted"><i class="fa-solid fa-link"></i> {{ SITE_URL }}/blog/<input type="text" name="slug" value="{{ d.slug }}" maxlength="80" spellcheck="false" aria-label="Address" placeholder="made-from-the-title"/></label>
 
         <div class="bs-editor-wrap" id="bsWrap">
-          <div class="bf-editor bs-editor blog-post-content" id="bsEditor" contenteditable="true"
+          <div class="bf-editor bs-editor blog-post-content {{ d.layout|blog_layout }}" id="bsEditor" contenteditable="true"
                aria-label="Post" data-ph="Type / to choose a block, or just start writing">{{ body|safe }}</div>
 
           <button type="button" class="bs-plus" id="bsPlus" title="Add a block" hidden><i class="fa-solid fa-plus"></i></button>
@@ -161,6 +170,7 @@
               <button type="button" data-bb="delrow" title="Remove this row"><i class="fa-solid fa-minus"></i> Row</button>
               <button type="button" data-bb="delcol" title="Remove this column"><i class="fa-solid fa-minus"></i> Column</button>
             </span>
+            <button type="button" data-bb="settings" title="Block settings: space, padding, background, width …"><i class="fa-solid fa-sliders"></i></button>
             <button type="button" data-bb="up" title="Move up"><i class="fa-solid fa-arrow-up"></i></button>
             <button type="button" data-bb="down" title="Move down"><i class="fa-solid fa-arrow-down"></i></button>
             <button type="button" data-bb="copy" title="Duplicate"><i class="fa-regular fa-copy"></i></button>
@@ -170,6 +180,10 @@
           <div class="bs-pop" id="bsPop" hidden>
             <label data-for="text">Button text<input type="text" data-k="text" maxlength="80" placeholder="e.g. Get a free quote"/></label>
             <label data-for="url"><span>Link to</span><input type="text" data-k="url" maxlength="500" placeholder="/travel-insurance or https://…"/></label>
+            <label data-for="look"><span>Looks like</span><select data-k="look">
+              <option value="">A link in the text</option><option value="lk-btn">A button</option>
+              <option value="lk-outline">An outlined button</option><option value="lk-arrow">A link with an arrow →</option></select></label>
+            <label class="bs-pop-check" data-for="tab"><input type="checkbox" data-k="tab"/> Open in a new tab</label>
             <p class="bs-pop-err" hidden></p>
             <div class="bs-pop-actions">
               <button type="button" class="btn btn-primary btn-sm" data-pop="apply">Apply</button>
@@ -198,6 +212,7 @@
       <div class="ge-side-tabs" role="tablist">
         <button type="button" data-stab="post" aria-selected="true">Post</button>
         <button type="button" data-stab="seo" aria-selected="false">SEO</button>
+        <button type="button" data-stab="block" aria-selected="false" title="The settings of the block you are in">Block</button>
         <button type="button" data-stab="checks" aria-selected="false">Checks <span class="ge-badge" id="geRed" {{ '' if errs else 'hidden' }}>{{ errs|length }}</span></button>
         <button type="button" class="ge-x" data-ge="side" aria-label="Close settings"><i class="fa-solid fa-xmark"></i></button>
       </div>
@@ -288,6 +303,20 @@
           <label class="bs-field">Description (alt text)<input type="text" name="cover_alt" maxlength="300" value="{{ d.cover_alt }}" placeholder="What the picture shows"/></label>
         </details>
 
+        {# the post's layout (blog_posts.LAYOUT): how wide, how big the text, how much air between the lines #}
+        {% set lay = d.layout or {} %}
+        <details class="ge-sec" open id="geLayoutSec">
+          <summary>Layout</summary>
+          {% set lay_default = LAYOUT_DEFAULT() %}
+          {% for key, label, opts in LAYOUT_CHOICES() %}
+          <div class="ge-lay"><span>{{ label }}</span>
+            <div class="ge-seg" role="radiogroup" aria-label="{{ label }}">
+              {% for v, word in opts %}<label><input type="radio" name="layout_{{ key }}" value="{{ v }}" data-lay="{{ key }}"{{ ' checked' if (lay.get(key) or lay_default[key]) == v }}/><span>{{ word }}</span></label>{% endfor %}
+            </div></div>
+          {% endfor %}
+          <small class="ge-dim">For one block alone: click it, then <b>Block</b> (or <i class="fa-solid fa-sliders"></i> on its bar) for its space, padding, background and width.</small>
+        </details>
+
         <details class="ge-sec" open id="geSumSec">
           <summary>Summary</summary>
           <textarea name="summary" rows="4" maxlength="300" class="bs-summary" placeholder="One or two sentences for Google, shares and the blog list.">{{ d.summary }}</textarea>
@@ -303,6 +332,10 @@
           <small class="ge-dim">Nothing is saved until you save; Undo brings back what was here. The address and the publish settings stay.
             {% if CAN('blog_import') %}<a href="{{ url_for('admin.blog_template') }}">Download the template</a>.{% endif %}</small>
         </details>
+      </div>
+
+      <div class="ge-pane" data-spane="block" hidden>
+        <div class="ge-block-pane" id="geBlockPane"><p class="ge-dim">Click a block in the post to see its settings.</p></div>
       </div>
 
       <div class="ge-pane" data-spane="seo" hidden>
@@ -390,11 +423,11 @@
       <dt><kbd>Ctrl</kbd>+<kbd>B</kbd> <kbd>I</kbd> <kbd>U</kbd></dt><dd>Bold, italic, underline</dd>
       <dt><kbd>Ctrl</kbd>+<kbd>K</kbd></dt><dd>Link</dd>
       <dt><kbd>Tab</kbd></dt><dd>In a table: the next cell (a new row from the last)</dd>
-      <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd></dt><dd>Duplicate the block (or the blocks picked in the list view)</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd></dt><dd>Duplicate the block (or the blocks picked in the structure)</dd>
       <dt><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd> / <kbd>Y</kbd></dt><dd>Add a block before / after</dd>
       <dt><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>↑</kbd> / <kbd>↓</kbd></dt><dd>Move the block up / down</dd>
       <dt><kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>Z</kbd></dt><dd>Delete the block</dd>
-      <dt>In the list view</dt><dd><kbd>↑</kbd> <kbd>↓</kbd> go through the blocks, <kbd>Space</kbd> picks one, <kbd>Enter</kbd> goes to it, <kbd>Ctrl</kbd>+<kbd>A</kbd> picks all; <kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd> copy, cut and paste blocks (into another post too), <kbd>Delete</kbd> deletes them</dd>
+      <dt>In the structure</dt><dd><kbd>↑</kbd> <kbd>↓</kbd> go through the blocks, <kbd>Space</kbd> picks one, <kbd>Enter</kbd> goes to it, <kbd>Ctrl</kbd>+<kbd>A</kbd> picks all; <kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd> copy, cut and paste blocks (into another post too), <kbd>Delete</kbd> deletes them</dd>
       <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>\</kbd></dt><dd>Distraction free on and off</dd>
       <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>,</kbd></dt><dd>Settings on and off</dd>
       <dt><kbd>Esc</kbd></dt><dd>Close a menu or panel</dd>
@@ -406,5 +439,6 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/blog-blocks.js') }}"></script>
 <script src="{{ url_for('static', filename='js/blog-studio.js') }}"></script>
 {% endblock %}

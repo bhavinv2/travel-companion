@@ -1,0 +1,46 @@
+{% extends 'admin/blog/_layout.html' %}
+{% block title %}Order on the blog – Blog{% endblock %}
+{% block wpb_active %}order{% endblock %}
+{# Order on the blog (admin_blog.blog_order, blog_posts.in_blog_order): the posts readers see first, in the order picked
+   here -- drag them, or use the arrows -- and below the line the rest, newest first. Pin puts a post at the end of the
+   picked ones; Unpin sends it back to its date. Save writes the order (blog_posts.set_order). #}
+{% macro row(p, placed) -%}
+<li class="wpb-ord{{ ' is-placed' if placed }}" data-id="{{ p.id }}" data-date="{{ (p.published_at or p.created_at).isoformat() if (p.published_at or p.created_at) else '' }}"{% if placed %} draggable="true"{% endif %}>
+  {% if placed %}<span class="wpb-ord-grip" title="Drag to move" aria-hidden="true"><i class="fa-solid fa-grip-vertical"></i></span>
+  <b class="wpb-ord-n"></b>{% else %}<span class="wpb-ord-grip off" aria-hidden="true"><i class="fa-regular fa-clock"></i></span><b class="wpb-ord-n"></b>{% endif %}
+  <span class="wpb-ord-pic">{% if p.cover_image_url %}<img src="{{ p.cover_image_url }}" alt="" loading="lazy"/>{% else %}<i class="fa-regular fa-image"></i>{% endif %}</span>
+  <span class="wpb-ord-t"><a href="{{ url_for('admin.blog_edit', post_id=p.id) }}">{{ p.title }}</a>
+    <small>{{ (p.published_at or p.created_at)|istd('%d %b %Y') }}{% if p.is_featured %} · <em class="wpb-ord-feat"><i class="fa-solid fa-star"></i> Featured: shown big at the top</em>{% endif %}</small></span>
+  <span class="wpb-ord-acts">
+    <button type="button" class="wpb-ib" data-ord="up" title="Move up" aria-label="Move up"><i class="fa-solid fa-arrow-up"></i></button>
+    <button type="button" class="wpb-ib" data-ord="down" title="Move down" aria-label="Move down"><i class="fa-solid fa-arrow-down"></i></button>
+    <button type="button" class="wpb-btn wpb-ord-pin" data-ord="pin"><i class="fa-solid fa-thumbtack"></i> <span>Pin</span></button>
+    <button type="button" class="wpb-btn wpb-ord-unpin" data-ord="unpin">Unpin</button>
+  </span>
+</li>
+{%- endmacro %}
+
+{% block wpb_main %}
+<div class="wpb-head"><h1>Order on the blog</h1></div>
+<p class="wpb-intro">Choose which posts readers see first. Pin a post to give it a place; drag the pinned ones (or use the arrows) into the order you want.
+  The first one is the big story at the top of the blog{% if featured %} after the featured post (<b>{{ featured.title }}</b>){% endif %}. Every post that is not pinned follows, newest first.</p>
+
+<form method="POST" class="wpb-box wpb-order" data-order>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  <input type="hidden" name="ids" value="{{ placed|map(attribute='id')|join(',') }}" data-order-ids/>
+  <h2 class="wpb-ord-h"><i class="fa-solid fa-thumbtack"></i> Pinned, in this order <span class="wpb-ord-c" data-order-count>{{ placed|length }}</span></h2>
+  <ol class="wpb-ord-list placed" data-order-placed>
+    {% for p in placed %}{{ row(p, true) }}{% endfor %}
+    <li class="wpb-ord-empty" data-order-empty{{ ' hidden' if placed }}>Nothing pinned: every post shows newest first. Press <b>Pin</b> on a post below.</li>
+  </ol>
+  <h2 class="wpb-ord-h"><i class="fa-regular fa-clock"></i> Then, newest first</h2>
+  <ol class="wpb-ord-list rest" data-order-rest>
+    {% for p in rest %}{{ row(p, false) }}{% endfor %}
+  </ol>
+  {% if not placed and not rest %}<p class="wpb-intro">No published posts yet.</p>{% endif %}
+  <div class="wpb-ord-save">
+    <span class="wpb-ord-said" data-order-said>The order readers see now.</span>
+    <button type="submit" class="wpb-btn wpb-btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save the order</button>
+  </div>
+</form>
+{% endblock %}
