@@ -1091,6 +1091,9 @@
       card.dataset.value = after;
       bump(fromStage, -1, -before);
       bump(toStage, 1, after);
+      // and it takes its new stage's colour: the column's r-* (what the stage means)
+      var col = card.closest('.crm-col'), role = col && (col.className.match(/\br-[a-z]+/) || [])[0];
+      if (role) card.className = card.className.replace(/\br-[a-z]+/g, '').replace(/\s+/g, ' ').trim() + ' ' + role;
     };
     board.addEventListener('dragstart', function (e) {
       var c = e.target.closest('.crm-card');

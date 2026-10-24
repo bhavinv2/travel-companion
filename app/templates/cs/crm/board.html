@@ -46,6 +46,7 @@
 </div>
 {% include 'cs/crm/_lead_filters.html' %}
 
+{# each lead -- a card, a row -- is in its stage's colour: what the stage means (crm.stage_role) #}
 <p class="crm-legend" aria-label="What the colours mean">
   {% for role, name in ROLE_STEPS %}<span class="r-{{ role }}">● {{ name }}</span>{% endfor %}
 </p>
@@ -100,7 +101,7 @@
       {% set cd = cards.get(l.id) %}
       {% set t = cd.task if cd else none %}
       {# a compact card: who, product, the next step, how long in this stage, who looks after it. Late and Stuck are one small badge each. #}
-      <a class="crm-card{{ ' lk-' ~ l.likelihood if l.likelihood }}" href="{{ crm_url('lead', lead_id=l.id) }}" draggable="true" data-lead="{{ l.id }}" data-amount="{{ PLAIN_AMOUNT(l.amount) }}" data-value="{{ BASE_AMOUNT(l.amount, l.currency) }}"
+      <a class="crm-card r-{{ CRM_ROLE_OF(st) }}{{ ' lk-' ~ l.likelihood if l.likelihood }}" href="{{ crm_url('lead', lead_id=l.id) }}" draggable="true" data-lead="{{ l.id }}" data-amount="{{ PLAIN_AMOUNT(l.amount) }}" data-value="{{ BASE_AMOUNT(l.amount, l.currency) }}"
          title="{{ LIKELIHOOD.get(l.likelihood, '') }}"{{ ' hidden data-extra' if loop.index > 20 }}>
         <div class="top">{{ temp_dot(l.temperature) }}<span class="nm">{{ l.person.display_name }}</span>
           {% if l.owner %}<span class="av" title="{{ l.owner.full_name }}">{{ initials(l.owner.full_name) }}</span>{% endif %}
@@ -147,7 +148,7 @@
     {% for l in rows %}
     {% set cd = cards.get(l.id) %}
     {% set t = cd.task if cd else none %}
-    <tr>
+    <tr class="r-{{ CRM_ROLE(l) or 'new' }}">
       {% if can_bulk %}<td class="chk"><input type="checkbox" name="lead" value="{{ l.id }}" data-bulk-one aria-label="Choose {{ l.person.display_name }}"/></td>{% endif %}
       <td><a class="nm" href="{{ crm_url('lead', lead_id=l.id) }}">{{ l.person.display_name }}</a></td>
       {% set cf = CAME_FROM(l) %}

@@ -24,6 +24,13 @@
   /* the kinds of stage (ui.css --r-*): cold lead = new, prospect = talking, pipeline = quoted, customer = won */
   --r-cold: var(--r-new, #64748b); --r-prospect: var(--r-talking, #1f6fd6); --r-pipeline: var(--r-quoted, #d97706);
   --r-customer: var(--r-won, #16a34a);
+  /* a lead's background is its stage's kind, in these soft tints (the strip, the board's cards, the list's rows, the
+     legend), with a line and an ink of the same hue */
+  --r-cold-soft: #eef2f6;     --r-cold-line: #d3dbe6;     --r-cold-ink: #334155;
+  --r-prospect-soft: #e7f0fd; --r-prospect-line: #c2d7f6; --r-prospect-ink: #1d4ed8;
+  --r-pipeline-soft: #fff1db; --r-pipeline-line: #f1d19f; --r-pipeline-ink: #9a5300;
+  --r-customer-soft: #e3f6ea; --r-customer-line: #b7e1c4; --r-customer-ink: #15803d;
+  --r-lost-soft: #fde8e8;     --r-lost-line: #f3c4c4;     --r-lost-ink: #b91c1c;
   /* the names some templates use (the set-up pages, insights.html, checks.html, the lead page) */
   --crm-blue: var(--c-blue); --crm-ok: var(--c-ok); --crm-bad: var(--c-bad); --crm-wa: var(--c-wa); --crm-line: var(--c-line);
   --radius-lg: 16px; --radius: 12px; --radius-sm: 8px;
@@ -217,11 +224,11 @@ details.step > summary::-webkit-details-marker { display: none; }
 .stage-strip .ss b { font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .stage-strip .ss span { font-size: 12.5px; font-weight: 700; }
 .stage-strip .ss i { position: absolute; top: 8px; right: 24px; font-size: 11px; opacity: .65; }
-.ss.r-cold { background: #eef2f6; color: #334155; }
-.ss.r-prospect { background: #e7f0fd; color: #1d4ed8; }
-.ss.r-pipeline { background: #fff1db; color: #9a5300; }
-.ss.r-customer { background: #e3f6ea; color: #15803d; }
-.ss.r-lost { background: #fde8e8; color: #b91c1c; }
+.ss.r-cold { background: var(--r-cold-soft); color: var(--r-cold-ink); }
+.ss.r-prospect { background: var(--r-prospect-soft); color: var(--r-prospect-ink); }
+.ss.r-pipeline { background: var(--r-pipeline-soft); color: var(--r-pipeline-ink); }
+.ss.r-customer { background: var(--r-customer-soft); color: var(--r-customer-ink); }
+.ss.r-lost { background: var(--r-lost-soft); color: var(--r-lost-ink); }
 .crm-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(262px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 12px; align-items: start; }
 .crm-col { background: var(--c-soft); border: 1px solid var(--c-line); border-top: 4px solid var(--r-cold); border-radius: 14px; display: flex;
   flex-direction: column; min-height: 180px; }
@@ -237,6 +244,12 @@ details.step > summary::-webkit-details-marker { display: none; }
 .crm-col .more { font-size: 12.5px; color: var(--c-muted); text-align: center; padding: 4px; }
 .crm-card { display: block; background: #fff; border: 1px solid var(--c-line); border-radius: 12px; padding: 11px 12px; cursor: grab;
   text-decoration: none; color: var(--c-ink); box-shadow: 0 1px 2px rgba(15, 35, 64, .05); }
+/* the card's colour is its stage's kind (before :hover and the likelihood edge, which still show over it) */
+.crm-card.r-cold, .crm-card.r-new { background: var(--r-cold-soft); border-color: var(--r-cold-line); }
+.crm-card.r-prospect { background: var(--r-prospect-soft); border-color: var(--r-prospect-line); }
+.crm-card.r-pipeline { background: var(--r-pipeline-soft); border-color: var(--r-pipeline-line); }
+.crm-card.r-customer { background: var(--r-customer-soft); border-color: var(--r-customer-line); }
+.crm-card.r-lost { background: var(--r-lost-soft); border-color: var(--r-lost-line); }
 .crm-card:hover { border-color: var(--c-blue); box-shadow: 0 4px 12px rgba(15, 35, 64, .08); }
 .crm-card.dragging { opacity: .5; }
 .crm-card.lk-hot { border-left: 5px solid var(--c-ok); }
@@ -848,12 +861,13 @@ body.crm-drawer-open { overflow: hidden; }
   .fp-pop { position: fixed; left: 12px; right: 12px; top: auto; bottom: 12px; width: auto; max-width: none; max-height: 70vh; overflow-y: auto; }
   .fp.wide .fp-pop { width: auto; }
 }
-.crm-legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 0 0 12px; font-size: 12.5px; font-weight: 600; }
-.crm-legend .r-cold { color: var(--r-cold); }
-.crm-legend .r-prospect { color: var(--r-prospect); }
-.crm-legend .r-pipeline { color: var(--r-pipeline); }
-.crm-legend .r-customer { color: var(--r-customer); }
-.crm-legend .r-lost { color: var(--r-lost, #dc2626); }
+.crm-legend { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 12px; font-size: 12.5px; font-weight: 600; }
+.crm-legend span { padding: 3px 11px; border: 1px solid transparent; border-radius: 999px; }
+.crm-legend .r-cold { background: var(--r-cold-soft); border-color: var(--r-cold-line); color: var(--r-cold-ink); }
+.crm-legend .r-prospect { background: var(--r-prospect-soft); border-color: var(--r-prospect-line); color: var(--r-prospect-ink); }
+.crm-legend .r-pipeline { background: var(--r-pipeline-soft); border-color: var(--r-pipeline-line); color: var(--r-pipeline-ink); }
+.crm-legend .r-customer { background: var(--r-customer-soft); border-color: var(--r-customer-line); color: var(--r-customer-ink); }
+.crm-legend .r-lost { background: var(--r-lost-soft); border-color: var(--r-lost-line); color: var(--r-lost-ink); }
 .crm-card .card-more { margin-left: auto; border: 0; background: transparent; color: var(--c-muted); font-size: 17px; line-height: 1;
   padding: 2px 6px; border-radius: 6px; cursor: pointer; }
 .crm-card .card-more:hover { background: var(--c-soft); color: var(--c-ink); }
@@ -883,6 +897,18 @@ body.crm-drawer-open { overflow: hidden; }
 .crm-list .chat-waiting { color: var(--c-bad-ink); font-weight: 600; }
 .crm-list .chat-open { color: var(--c-ok-ink); }
 .crm-list .chat-optout { color: var(--c-bad); }
+/* the list: each row in its stage's colour, an edge of the stronger hue on the first cell; a hover darkens it a little */
+.crm-list tr.r-cold td, .crm-list tr.r-new td { background: var(--r-cold-soft); }
+.crm-list tr.r-prospect td { background: var(--r-prospect-soft); }
+.crm-list tr.r-pipeline td { background: var(--r-pipeline-soft); }
+.crm-list tr.r-customer td { background: var(--r-customer-soft); }
+.crm-list tr.r-lost td { background: var(--r-lost-soft); }
+.crm-list tr.r-cold td:first-child, .crm-list tr.r-new td:first-child { box-shadow: inset 4px 0 0 var(--r-cold); }
+.crm-list tr.r-prospect td:first-child { box-shadow: inset 4px 0 0 var(--r-prospect); }
+.crm-list tr.r-pipeline td:first-child { box-shadow: inset 4px 0 0 var(--r-pipeline); }
+.crm-list tr.r-customer td:first-child { box-shadow: inset 4px 0 0 var(--r-customer); }
+.crm-list tr.r-lost td:first-child { box-shadow: inset 4px 0 0 var(--r-lost, #dc2626); }
+.crm-list tbody tr:hover td { filter: brightness(.97); }
 .bulk-bar { position: sticky; bottom: 8px; display: flex; gap: 10px; align-items: center; margin-top: 10px; padding: 10px 14px;
   background: var(--c-card); border: 1px solid var(--c-blue); border-radius: 12px; box-shadow: 0 6px 20px rgba(15, 35, 64, .14); }
 .bulk-bar[hidden] { display: none; }
