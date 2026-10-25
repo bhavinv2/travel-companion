@@ -36,6 +36,24 @@
     if (open) { open.open = false; open.querySelector('summary').focus(); }
   });
 
+  /* ------------------------------------------------------------------ More filters: the second row */
+  // open while one of its filters is on (the server says so); otherwise as this person last left it
+  var moreBtn = form.querySelector('[data-lf-more]'), moreRow = form.querySelector('[data-lf-more-row]');
+  function showMore(on) {
+    moreRow.hidden = !on;
+    moreBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+  }
+  if (moreBtn && moreRow) {
+    if (!moreBtn.classList.contains('on')) {
+      try { showMore(localStorage.getItem('crm-lf-more') === '1'); } catch (e) { /* private window: closed */ }
+    }
+    moreBtn.addEventListener('click', function () {
+      closeAll(null);
+      showMore(moreRow.hidden);
+      try { localStorage.setItem('crm-lf-more', moreRow.hidden ? '' : '1'); } catch (e) { /* not remembered */ }
+    });
+  }
+
   /* ------------------------------------------------------------------ sending */
   function send() {
     // empty words stay out of the address; chat's "Any" goes (an empty chat beats the remembered one)

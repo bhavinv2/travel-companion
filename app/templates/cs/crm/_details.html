@@ -16,5 +16,5 @@
 
 {% macro detail_view(label, text, editor, hint='') -%}
 <dt>{{ label }}</dt>
-<dd class="dv-row"><span data-dv>{{ text }}</span> <button type="button" class="cb quiet sm" data-act="edit-detail" aria-label="Change {{ label }}" title="Change">✎</button>{% if hint %}<span class="hint">{{ hint }}</span>{% endif %}<span data-detail-edit hidden>{{ editor|safe }}</span></dd>
+<dd class="dv-row"><span data-dv>{{ text }}</span> <button type="button" class="cb quiet sm" data-act="edit-detail" aria-label="Change {{ label }}" title="Change"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>{% if hint %}<span class="hint">{{ hint }}</span>{% endif %}<span data-detail-edit hidden>{{ editor|safe }}</span></dd>
 {%- endmacro %}

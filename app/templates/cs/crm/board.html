@@ -34,17 +34,20 @@
   {% endfor %}
 </nav>
 
-{# the view switch and the saved views, then the filter bar (_lead_filters.html, crm-filters.js), then the leads #}
+{# one toolbar card: how to look at the leads (the view switch) with the saved views and the bin, then the search
+   and the filters (_lead_filters.html, crm-filters.js); the leads under it #}
 <div class="leads-wrap">
 <div class="leads-main">
-<div class="leads-bar">
-  {{ leads_switch(view, board_href=(link(view='board', page=None) if p_key != 'all' else none), list_href=link(view='list', page=None)) }}
-  <div class="leads-bar-r">
-    {{ views_menu('crm_leads', view_params) }}
-    {% if CAN('crm_bin') %}<a class="cb quiet sm" href="{{ crm_url('bin') }}" title="Leads removed in the last 30 days"><i class="fa-solid fa-trash-can-arrow-up"></i> Recycle bin</a>{% endif %}
+<section class="lt-bar" aria-label="Views and filters">
+  <div class="leads-bar">
+    {{ leads_switch(view, board_href=(link(view='board', page=None) if p_key != 'all' else none), list_href=link(view='list', page=None)) }}
+    <div class="leads-bar-r">
+      {{ views_menu('crm_leads', view_params) }}
+      {% if CAN('crm_bin') %}<a class="cb quiet sm" href="{{ crm_url('bin') }}" title="Leads removed in the last 30 days"><i class="fa-solid fa-trash-can-arrow-up"></i> Recycle bin</a>{% endif %}
+    </div>
   </div>
-</div>
-{% include 'cs/crm/_lead_filters.html' %}
+  {% include 'cs/crm/_lead_filters.html' %}
+</section>
 
 {# each lead -- a card, a row -- is in its stage's colour: what the stage means (crm.stage_role) #}
 <p class="crm-legend" aria-label="What the colours mean">

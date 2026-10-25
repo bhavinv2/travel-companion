@@ -50,7 +50,7 @@
     <div style="margin-top:6px">{{ crm_pill('trip', 'companion_requests', trip.id) }}</div>
   </td>
   <td data-label="Route">{{ trip.route_display }}{% if trip.airline %}<br/><small class="muted">{{ trip.airline }} {{ trip.flight_number or '' }}</small>{% endif %}</td>
-  <td data-label="Departs">
+  <td data-label="Departs" class="dep-cell">
     {{ trip.from_date or '—' }}
     {% if trip.days_to_departure is not none %}
       <small class="{{ 'urgent' if trip.days_to_departure <= 3 else 'muted' }}">({{ trip.days_to_departure }}d)</small>
@@ -59,16 +59,17 @@
   <td data-label="Role">{{ role_chip(trip) }}</td>
   <td data-label="Source">{{ source_chip(trip) }}</td>
   <td class="ci-cell" data-label="Contact">{{ contact_icons(trip) }}</td>
-  <td class="nowrap" data-label="Matches">
+  <td class="nowrap m-cell" data-label="Matches">
     {% if mi %}
       <span class="m-count {{ 'hi' if mi.best >= 70 else 'mid' if mi.best >= 40 else 'lo' }}">{{ mi.n }}</span>
       <small class="muted">best {{ mi.best }}%</small>
     {% else %}<span class="muted">—</span>{% endif %}
   </td>
   {% if show_status %}<td data-label="Status">{{ status_chip(trip) }}</td>{% endif %}
-  <td class="row-actions {{ 'hd-wrap' if can_delete else 'nowrap' }}">
-    <a class="btn-sm" href="{{ url_for('cs.post_detail', trip_id=trip.id) }}">Open</a>
-    <a class="btn-sm" href="{{ url_for('cs.edit_post', trip_id=trip.id) }}">Edit</a>
+  {# the row's actions as symbols -- open, edit, delete -- each named in its tooltip and for a screen reader #}
+  <td class="row-actions ra-icons nowrap">
+    <a class="btn-sm ra-open" href="{{ url_for('cs.post_detail', trip_id=trip.id) }}" title="Open" aria-label="Open post #{{ trip.id }}"><i class="fa-solid fa-eye" aria-hidden="true"></i></a>
+    <a class="btn-sm ra-edit" href="{{ url_for('cs.edit_post', trip_id=trip.id) }}" title="Edit" aria-label="Edit post #{{ trip.id }}"><i class="fa-solid fa-pen" aria-hidden="true"></i></a>
     {% if can_delete %}{{ del_btn('post', trip.id, 'post #' ~ trip.id ~ ', ' ~ trip.route_display, tier='type',
         detail='Its matches, contact details, claim links and activity go with it. Chats between the people are kept.') }}{% endif %}
   </td>

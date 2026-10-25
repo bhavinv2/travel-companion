@@ -4230,7 +4230,7 @@ def lead_load():
 # Leads' filter panel: which date to filter on, its ready-made ranges (India days: looking back for
 # when they came in or were last active, looking ahead for when they close or travel), follow-ups
 LEAD_DATES = (('created', 'Came in'), ('activity', 'Last activity'), ('close', 'Expected to close'),
-              ('travel', 'Travels on'))
+              ('travel', 'Travels on'), ('closed', 'Won or lost'))
 PAST_RANGES = (('today', 'Today'), ('yesterday', 'Yesterday'), ('7d', 'Last 7 days'), ('30d', 'Last 30 days'),
                ('month', 'This month'), ('lastmonth', 'Last month'))
 AHEAD_RANGES = (('passed', 'Already passed'), ('today', 'Today'), ('next7', 'Next 7 days'),
@@ -4371,7 +4371,7 @@ def lead_filter(pipeline=None, owner_id=None, q=None, chat=None, stage_id=None, 
             CrmTask.status == 'open', CrmTask.lead_id.isnot(None))))
     if date_on and (date_from or date_until):
         col = {'created': CrmLead.created_at, 'activity': CrmLead.last_activity_at,
-               'close': CrmLead.close_date, 'travel': CrmLead.departure_date}[date_on]
+               'close': CrmLead.close_date, 'travel': CrmLead.departure_date, 'closed': CrmLead.closed_at}[date_on]
 
         def edge(d):              # a date column takes the India day; a UTC time column, the moment it starts
             return d if date_on in ('close', 'travel') else datetime.combine(d, time.min) - IST

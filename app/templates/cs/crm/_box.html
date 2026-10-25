@@ -1,7 +1,7 @@
 {# The message box under the timeline. Not a live region: a half-typed message is never touched.
    crm.js (syncBox) shows the free text, the template picker or only a note, from the timeline's
    data-wa-state, and from the channel chosen in "Send on". #}
-<section class="card lead-box" id="box" data-boxdata-via="{{ via0 or ('whatsapp' if person.phone else (social[0] if social else '')) }}">
+<section class="card lead-box" id="box" data-box data-via="{{ via0 or ('whatsapp' if person.phone else (social[0] if social else '')) }}">
   {% if person.phone or social %}
   <div class="box-on" role="group" aria-label="Send on"><span class="lbl">Send on:</span>
     {% if person.phone %}<button type="button" class="chip" data-box-via data-via="whatsapp"><i class="fa-brands fa-whatsapp"></i> WhatsApp</button>{% endif %}

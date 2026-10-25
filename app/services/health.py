@@ -129,7 +129,9 @@ def _sales(r):
     from app.models import CrmLead, CrmSource, CrmStage, CrmTask, CrmTouchpoint, User
     from app.services import crm, crm_metrics, crm_products, crm_sources
     L = CrmLead
-    board = dict(view='list', p='all', owner='all')
+    # Leads remembers each person's last product, view, owner and chat filter: a link from here names every one of
+    # them (chat='' is "any"), so the list shows what the tile counts, not that plus a filter left on from before
+    board = dict(view='list', p='all', owner='all', chat='')
     came = r.came_in()
     open_q = L.query.filter(L.status == 'open')
     n_open = open_q.count()
@@ -137,12 +139,14 @@ def _sales(r):
     oldest = db.session.query(func.min(L.created_at)).filter(L.status == 'open', L.owner_id.is_(None)).scalar()
     new_n = L.query.filter(L.created_at >= r.since).count()
     new_before = L.query.filter(L.created_at >= r.before, L.created_at < r.since).count()
-    won = L.query.filter(L.status == 'won', L.closed_at >= r.since).count()
-    lost = L.query.filter(L.status == 'lost', L.closed_at >= r.since).count()
-    late = CrmTask.query.filter(CrmTask.status == 'open', CrmTask.due_at <= r.now).count()
-    end_today = datetime.combine(r.today + timedelta(days=1), datetime.min.time()) - IST
-    due_today = CrmTask.query.filter(CrmTask.status == 'open', CrmTask.due_at > r.now,
-                                     CrmTask.due_at < end_today).count()
+    # follow-ups and the won / lost leads are counted with the very query the list they open uses (crm.lead_filter):
+    # open leads with a follow-up past due / due today; leads won / lost in the period ("Won or lost" on Leads)
+    late = crm.lead_filter(follow='late', status='open', closed_days=None, now=r.now).count()
+    due_today = crm.lead_filter(follow='today', status='open', closed_days=None, now=r.now).count()
+    closed = dict(dt='closed', **r.came_in())
+    _w, closed_args = crm.lead_more_words(closed, now=r.now)
+    won = crm.lead_filter(status='won', closed_days=None, now=r.now, **closed_args).count()
+    lost = crm.lead_filter(status='lost', closed_days=None, now=r.now, **closed_args).count()
     owned = select(L.person_id).where(L.status == 'open')
     w = crm_metrics.waiting_rows(CrmTouchpoint.person_id.in_(owned)).subquery()
     waiting = db.session.execute(select(func.count()).select_from(w)).scalar() or 0
@@ -160,13 +164,13 @@ def _sales(r):
                note=_delta(new_n, new_before) and '%s on the %d days before' % (_delta(new_n, new_before), r.days),
                icon='fa-inbox'),
         r.tile(area, 'Customers waiting for a reply', waiting,
-               r.url('crm_board', chat='waiting', **board), state='bad' if waiting else 'ok',
+               r.url('crm_board', **dict(board, chat='waiting')), state='bad' if waiting else 'ok',
                note='they wrote last' if waiting else 'nobody waiting',
                alert='%s waiting for a reply' % _plural(waiting, 'customer'), icon='fa-comment-dots'),
-        r.tile(area, 'Follow-ups late', late, r.url('crm_board', follow='late', **board),
-               state='warn' if late else 'ok', note='%d more due today' % due_today,
-               alert='%s late' % _plural(late, 'follow-up'), icon='fa-clock'),
-        r.tile(area, 'Won in %d days' % r.days, won, r.url('crm_insights', days=r.days),
+        r.tile(area, 'Follow-ups late', late, r.url('crm_board', follow='late', status='open', **board),
+               state='warn' if late else 'ok', note='%d due today' % due_today,
+               alert='%s with a follow-up late' % _plural(late, 'lead'), icon='fa-clock'),
+        r.tile(area, 'Won in %d days' % r.days, won, r.url('crm_board', status='won', **dict(board, **closed)),
                note='%d lost' % lost, icon='fa-trophy'),
     ]
 

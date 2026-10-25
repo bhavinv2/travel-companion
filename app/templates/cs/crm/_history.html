@@ -1,6 +1,7 @@
-{# History of every change (Sales CRM 2.0). `history`: [{who, what, at}] newest first. #}
+{# History of every change (Sales CRM 2.0). `history`: [{who, what, at}] newest first; in_tab (the lead page's tab
+   names the card, so no title). #}
 <section class="card crmh" id="history">
-  <h2>History <small class="muted">({{ history|length }})</small></h2>
+  {% if not in_tab %}<h2>History <small class="muted">({{ history|length }})</small></h2>{% endif %}
   {% if history %}
   <ul class="crmh-list">
     {% for h in history %}

@@ -2,10 +2,15 @@
 {% from 'cs/crm/_bits.html' import stage_pill, when with context %}
 {% block crm_title %}{{ person.display_name }}{% endblock %}
 {% block crm %}
-{# One lead as one screen: the header, the journey (with the WhatsApp line), then the conversation
-   -- every message and event in one timeline, with the message box under it -- beside the lead
-   card. The regions marked data-lead-live are swapped by crm.js every few seconds (_lead_live.html),
-   so nobody reloads. Photos, documents and voice notes: "Open full chat" (a drawer). #}
+{# One lead as one screen: the header (who they are and the key facts), the journey, then two columns -- on the
+   left the work, in tabs (the conversation with the message box under it, tasks, quotes & payments, files,
+   history), on the right what to do next and the lead card. The regions marked data-lead-live are swapped by
+   crm.js every few seconds (_lead_live.html), so nobody reloads. A tab opens from the address (#tasks, #quotes,
+   #files, #history, or anything inside one, like #quote-3): the quote and file forms come back to theirs.
+   Photos, documents and voice notes: "Open full chat" (a drawer). #}
+{% set in_tab = true %}
+{% set open_tasks = TASKS_FOR(lead=lead, person=person) %}
+{% set late_tasks = open_tasks|selectattr('due_at', 'lt', utcnow)|list|length %}
 <div data-lead-page data-lead="{{ lead.id }}" data-product="{{ lead.product }}" data-amount="{{ PLAIN_AMOUNT(lead.amount) }}" data-currency="{{ lead.currency or '' }}" data-phone="{{ person.phone or '' }}"
      data-live="{{ crm_url('live', lead_id=lead.id) }}" data-chat-src="{{ chat_url or '' }}"
      data-reasons='{{ ((lead.pipeline.fallout_reasons if lead.pipeline else []) or [])|tojson|forceescape }}'>
@@ -30,25 +35,46 @@
 
 {% include 'cs/crm/_journey.html' %}
 
-{% include 'cs/crm/_tasks.html' %}
-
-{% include 'cs/crm/_quotes.html' %}
-
-{% include 'cs/crm/_files.html' %}
-
-{% if ai_on %}{% include 'cs/crm/_ai.html' %}{% endif %}
-
 <div class="lead-ws">
   <div class="lead-main">
-    {% include 'cs/crm/_timeline.html' %}
-    {% include 'cs/crm/_box.html' %}
+    <div class="lead-tabs" role="tablist" aria-label="Work on this lead" data-lead-tabs>
+      <button type="button" role="tab" id="lt-conversation" aria-controls="lp-conversation" aria-selected="true" data-lead-tab="conversation">
+        <i class="fa-regular fa-comments" aria-hidden="true"></i> Conversation</button>
+      <button type="button" role="tab" id="lt-tasks" aria-controls="lp-tasks" aria-selected="false" tabindex="-1" data-lead-tab="tasks">
+        <i class="fa-solid fa-list-check" aria-hidden="true"></i> Tasks
+        <span class="n{{ ' late' if late_tasks }}"{% if late_tasks %} title="{{ late_tasks }} late"{% endif %}>{{ open_tasks|length }}</span></button>
+      <button type="button" role="tab" id="lt-quotes" aria-controls="lp-quotes" aria-selected="false" tabindex="-1" data-lead-tab="quotes">
+        <i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i> Quotes &amp; payments
+        <span class="n">{{ qp.quotes|length + qp.payments|length }}</span></button>
+      <button type="button" role="tab" id="lt-files" aria-controls="lp-files" aria-selected="false" tabindex="-1" data-lead-tab="files">
+        <i class="fa-solid fa-paperclip" aria-hidden="true"></i> Files <span class="n">{{ files|length }}</span></button>
+      <button type="button" role="tab" id="lt-history" aria-controls="lp-history" aria-selected="false" tabindex="-1" data-lead-tab="history">
+        <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> History <span class="n">{{ history|length }}</span></button>
+    </div>
+    <div class="lead-pane" id="lp-conversation" role="tabpanel" aria-labelledby="lt-conversation" data-lead-pane="conversation">
+      {% if ai_on %}{% include 'cs/crm/_ai.html' %}{% endif %}
+      {% include 'cs/crm/_timeline.html' %}
+      {% include 'cs/crm/_box.html' %}
+    </div>
+    <div class="lead-pane" id="lp-tasks" role="tabpanel" aria-labelledby="lt-tasks" data-lead-pane="tasks" hidden>
+      {% include 'cs/crm/_tasks.html' %}
+    </div>
+    <div class="lead-pane" id="lp-quotes" role="tabpanel" aria-labelledby="lt-quotes" data-lead-pane="quotes" hidden>
+      {% include 'cs/crm/_quotes.html' %}
+    </div>
+    <div class="lead-pane" id="lp-files" role="tabpanel" aria-labelledby="lt-files" data-lead-pane="files" hidden>
+      {% include 'cs/crm/_files.html' %}
+    </div>
+    <div class="lead-pane" id="lp-history" role="tabpanel" aria-labelledby="lt-history" data-lead-pane="history" hidden>
+      {% include 'cs/crm/_history.html' %}
+    </div>
   </div>
   <aside class="lead-side" data-lead-live="aside">
     {% include 'cs/crm/_lead_card.html' %}
   </aside>
 </div>
 
-{% include 'cs/crm/_history.html' %}
+{% include 'cs/crm/_task_dialogs.html' %}
 
 <div class="lead-drawer" data-chat-drawer hidden role="dialog" aria-label="Full chat">
   <div class="lead-drawer-head"><b>Full chat</b><button type="button" class="cb sm quiet" data-act="close-chat">Close</button></div>

@@ -13,6 +13,20 @@
 .hl-jump a i { color: var(--c-muted); font-size: 12px; }
 .hl-at { margin-left: auto; }
 .hl-part { scroll-margin-top: 80px; }
+/* a part folds (an accordion, health.js): the head is one button -- its name, how many need somebody, a caret */
+.hl-all { margin-left: 4px; }
+.hl-part-head { margin-bottom: 14px; }
+.hl-part.is-closed { padding-top: 14px; padding-bottom: 14px; }
+.hl-part.is-closed .hl-part-head { margin-bottom: 0; }
+.hl-h { flex: 1 1 auto; min-width: 0; margin: 0; }
+.hl-fold { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit;
+  text-align: left; cursor: pointer; flex-wrap: wrap; }
+.hl-fold:hover .hl-name { color: var(--c-blue-dark); }
+.hl-fold:focus-visible { outline: 3px solid rgba(31, 111, 214, .35); outline-offset: 4px; border-radius: 10px; }
+.hl-caret { margin-left: auto; color: var(--c-muted); font-size: 13px; transition: transform .15s; }
+.hl-fold[aria-expanded=false] .hl-caret { transform: rotate(-90deg); }
+.hl-body[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .hl-caret { transition: none; } }
 
 /* a state: the word and its icon */
 .hl-st { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }

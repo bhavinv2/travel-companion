@@ -82,6 +82,7 @@
         {% for p in h.parts %}<a href="#hl-{{ p.key }}"><i class="fa-solid {{ p.icon }}" aria-hidden="true"></i> {{ p.label }}</a>{% endfor %}
       </nav>
       <span class="muted small hl-at">As of {{ h.at }} · <a href="{{ url_for('admin.health', days=h.days) }}">Refresh</a></span>
+      <button type="button" class="cb sm quiet hl-all" data-hl-all><i class="fa-solid fa-angles-up" aria-hidden="true"></i> <span>Close all</span></button>
     </div>
 
     {# ============================================================ what needs somebody now #}
@@ -107,12 +108,21 @@
       {% endif %}
     </section>
 
+    {# each part folds (an accordion, health.js): its head opens and closes it, and says -- open or closed -- how many
+       of its numbers need somebody. The closed ones are remembered on this browser. #}
     {% for p in h.parts %}
-    <section class="card hl-part" id="hl-{{ p.key }}" aria-labelledby="hl-{{ p.key }}-h">
-      <div class="card-head">
-        <div class="t"><span class="ico"><i class="fa-solid {{ p.icon }}" aria-hidden="true"></i></span><h2 id="hl-{{ p.key }}-h">{{ p.label }}</h2></div>
+    {% set n_bad = p.tiles|selectattr('state', 'equalto', 'bad')|list|length %}
+    {% set n_need = n_bad + p.tiles|selectattr('state', 'equalto', 'warn')|list|length %}
+    <section class="card hl-part" id="hl-{{ p.key }}" aria-labelledby="hl-{{ p.key }}-h" data-hl-part="{{ p.key }}">
+      <div class="card-head hl-part-head">
+        <h2 class="hl-h" id="hl-{{ p.key }}-h"><button type="button" class="hl-fold" aria-expanded="true" aria-controls="hl-{{ p.key }}-body" data-hl-fold>
+          <span class="ico"><i class="fa-solid {{ p.icon }}" aria-hidden="true"></i></span><span class="hl-name">{{ p.label }}</span>
+          {% if n_need %}<span class="hl-st {{ 'bad' if n_bad else 'warn' }}">{{ n_need }} need{{ 's' if n_need == 1 }} somebody</span>
+          {% else %}<span class="hl-st ok">All good</span>{% endif %}
+          <i class="fa-solid fa-chevron-down hl-caret" aria-hidden="true"></i></button></h2>
         {% if p.href %}<a class="cb sm quiet" href="{{ p.href }}">Open Leads <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>{% endif %}
       </div>
+      <div class="hl-body" id="hl-{{ p.key }}-body">
       <div class="hl-tiles">{% for t in p.tiles %}{{ tile(t) }}{% endfor %}</div>
 
       {% if p.key == 'sales' %}
@@ -137,6 +147,7 @@
       {% elif p.key == 'sahayak' %}
       <div class="hl-row">{{ bars('Bookings by state', p.states, empty='No bookings yet.', hint='Every Sahayak booking now.', kind='bookings') }}</div>
       {% endif %}
+      </div>
     </section>
     {% endfor %}
   </main>

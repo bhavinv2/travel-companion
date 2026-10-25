@@ -3580,6 +3580,20 @@ table.admin-table th.hd-pick, table.admin-table td.hd-pick { width: 18px; paddin
 /* an actions cell that gained a trash wraps it under the other buttons rather than pushing the
    table wider than the screen, where it would be cut off */
 td.row-actions.hd-wrap { white-space: normal; }
+/* a row's actions as symbols (the CS posts tables): a square each -- open, edit, delete -- named in its tooltip */
+.ra-icons { text-align: right; }
+.ra-icons .btn-sm, .tree-row .btn-sm.ra-open { display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0;
+  border-radius: 8px; font-size: 12.5px; vertical-align: middle; }
+.ra-icons .btn-sm + .btn-sm { margin-left: 3px; }
+/* the days to departure under the date, so the column stays narrow */
+.dep-cell { white-space: nowrap; }
+.dep-cell small, .m-cell small { display: block; }
+.ra-icons .ra-open, .tree-row .ra-open { color: var(--coral); }
+.ra-icons .ra-edit { color: var(--muted); }
+.ra-icons .ra-edit:hover { color: var(--text); border-color: var(--text); }
+.ra-icons .hd-del { background: #fff; }
+.ra-icons .hd-del:hover { background: #dc2626; color: #fff; }
+@media (max-width: 760px) { .admin-table.stack-mobile td.ra-icons { justify-content: flex-start; } }
 td.row-actions.hd-wrap > * { margin-bottom: 4px; }
 
 /* Faint "safer journeys together" illustration behind the signed-in post form (bottom-right,

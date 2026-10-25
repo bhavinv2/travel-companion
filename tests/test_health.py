@@ -38,6 +38,38 @@ def switch_of(html):
 
 # ================================================================================================ Health
 
+def _tile(html, label):
+    """A Health tile's (number, address): the <a class="hl-tile"> whose label starts with `label`."""
+    for m in re.finditer(r'<a class="hl-tile[^"]*" href="([^"]+)">(.*?)</a>', html, re.S):
+        if words(m.group(2)).strip().startswith(label):
+            return int(re.search(r'class="hl-n">([\d,]+)<', m.group(2)).group(1).replace(',', '')), m.group(1).replace('&amp;', '&')
+    raise AssertionError('no tile %s' % label)
+
+
+def test_the_late_and_won_tiles_open_lists_of_exactly_the_leads_they_count(app, client, admin_user):
+    access.ensure_defaults()
+    late_a = ti_lead()                                    # each lead's first step is due now: late in a moment
+    late_b = ti_lead(phone='+919876500002', name='Sita Rao')
+    _db.session.add(CrmTask(lead_id=late_b.id, title='Call back', kind='call', status='open',
+                            due_at=datetime.utcnow() - timedelta(hours=3)))      # two late ones on one lead
+    won = ti_lead(phone='+919876500003', name='Wanda Won')
+    won.status, won.closed_at = 'won', datetime.utcnow() - timedelta(days=3)
+    old = ti_lead(phone='+919876500004', name='Olga Old')
+    old.status, old.closed_at = 'won', datetime.utcnow() - timedelta(days=60)   # won before the period
+    _db.session.commit()
+    login(client, admin_user.email)
+    client.get('/admin/crm/?p=ti-standard&view=board&chat=waiting')    # a chat filter left on from before
+    html = client.get('/admin/health?days=30').get_data(as_text=True)
+    n_late, late_href = _tile(html, 'Follow-ups late')
+    n_won, won_href = _tile(html, 'Won in 30 days')
+    assert (n_late, n_won) == (2, 1)                      # leads, not tasks; won in the period only
+    assert 'chat=&' in late_href + '&' and 'status=won' in won_href and 'dt=closed' in won_href
+    late_list = words(client.get(late_href).get_data(as_text=True))
+    assert 'Sita Rao' in late_list and late_a.person.display_name in late_list and 'No leads match' not in late_list
+    won_list = words(client.get(won_href).get_data(as_text=True))
+    assert 'Wanda Won' in won_list and 'Olga Old' not in won_list and 'Won or lost: Last 30 days' in won_list
+
+
 def test_a_site_owner_lands_on_health_and_it_says_what_needs_somebody(app, client, admin_user, cs_user):
     access.ensure_defaults()
     a = ti_lead()                                         # nothing set on the source: nobody has it
@@ -60,12 +92,13 @@ def test_a_site_owner_lands_on_health_and_it_says_what_needs_somebody(app, clien
     assert 'Health' in text and 'things need somebody' in text
     late = CrmTask.query.filter(CrmTask.status == 'open', CrmTask.due_at <= datetime.utcnow()).count()
     assert late == 3                                     # each lead's first step, due now, and the call back
-    for want in ('1 open lead not given to anyone', '1 customer waiting for a reply', '3 follow-ups late',
+    # ...on 2 leads: the tile counts leads, like the list it opens (Leads, follow-up: late)
+    for want in ('1 open lead not given to anyone', '1 customer waiting for a reply', '2 leads with a follow-up late',
                  '1 Sahayak request waiting for somebody (the oldest 2 days)'):
         assert want in text, (want, re.findall(r'hl-what">([^<]*)', html))
     # the urgent ones first: a customer waiting and a request a day old are red, before the amber
     first = html.index('hl-list')
-    assert html.index('customer waiting', first) < html.index('follow-ups late', first)
+    assert html.index('customer waiting', first) < html.index('with a follow-up late', first)
     # every part, and the leads' spread
     for part in ('Sales CRM', 'Users &amp; team', 'Travel Companion', 'Travel Insurance', 'Sahayak', 'Service to-do', 'System'):
         assert 'hl-' in html and part in html, part

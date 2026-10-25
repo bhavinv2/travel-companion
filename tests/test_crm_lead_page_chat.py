@@ -69,6 +69,21 @@ def test_the_page_has_one_journey_one_timeline_one_box_and_no_chat_frame(app, cl
     assert r.status_code in (200, 302, 403)
 
 
+def test_the_box_is_found_and_the_work_sits_in_tabs(app, client, admin_user):
+    lead = ti_lead()
+    login(client, admin_user.email)
+    html = page(client, lead)
+    # crm.js finds the message box by data-box: a lost space once made it "data-boxdata-via" and the box showed nothing
+    assert re.search(r'<section class="card lead-box" id="box" data-box data-via="', html)
+    for tab in ('conversation', 'tasks', 'quotes', 'files', 'history'):
+        assert 'data-lead-tab="%s"' % tab in html and 'data-lead-pane="%s"' % tab in html, tab
+    # one "Looked after by" (the header's key facts), and the task and e-mail dialogs outside every tab: a dialog in a
+    # hidden tab never shows, and the header's E-mail opens one from any tab
+    assert html.count('data-update="owner_id"') == 1
+    assert html.count('id="task-dialog"') == 1 and html.count('id="email-dialog"') == 1
+    assert html.index('id="task-dialog"') > html.index('class="lead-side"')
+
+
 def test_the_journey_shows_the_stuck_chip_and_the_stage(app, client, admin_user):
     lead = ti_lead()
     lead.entered_stage_at = datetime.utcnow() - timedelta(hours=100)

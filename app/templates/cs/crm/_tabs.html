@@ -9,18 +9,22 @@
 {%- endif %}
 {%- endmacro %}
 
-{# The Leads view switch: Board / List in words (the board page itself, with its own addresses: the page keeps its
-   filters), then Flow, How we sell and the Calendar as icons -- each its own page, named in its tooltip. #}
+{# The Leads view switch: one row of named views -- Board and List (the board page itself, with its own addresses:
+   the page keeps its filters), then Flow, How we sell and the Calendar (each its own page). The open one is white
+   and says so (aria-current). On a phone the row scrolls sideways. #}
 {% macro leads_switch(active, board_href=none, list_href=none) -%}
+{%- set ways = [] -%}
+{%- if board_href and CAN('crm_board') %}{% set _ = ways.append(('board', board_href, 'fa-table-columns', 'Board', 'The leads as cards, a column per stage')) %}{% endif -%}
+{%- if list_href and CAN('crm_board') %}{% set _ = ways.append(('list', list_href, 'fa-list', 'List', 'Every lead in a table, 50 to a page')) %}{% endif -%}
+{%- if CAN('crm_flow') %}{% set _ = ways.append(('flow', crm_url('flow'), 'fa-diagram-project', 'Flow', 'Every step from first message to won or lost')) %}{% endif -%}
+{%- if CAN('crm_process') %}{% set _ = ways.append(('process', crm_url('process'), 'fa-route', 'How we sell', 'Our sales path per product')) %}{% endif -%}
+{%- if CAN('crm_calendar') %}{% set _ = ways.append(('calendar', crm_url('calendar', view='week'), 'fa-calendar-days', 'Calendar', "The leads' tasks, calls, meetings and follow-ups by day")) %}{% endif -%}
 <div class="leads-views">
-<div class="seg" role="group" aria-label="How to look at the leads">
-  {%- if board_href and CAN('crm_board') %}<a class="{{ 'on' if active == 'board' }}" href="{{ board_href }}">Board</a>{% endif %}
-  {%- if list_href and CAN('crm_board') %}<a class="{{ 'on' if active == 'list' }}" href="{{ list_href }}">List</a>{% endif %}
-</div>
-<nav class="ic-views" aria-label="More ways to look at the leads">
-  {%- if CAN('crm_flow') %}<a class="ic-btn{{ ' on' if active == 'flow' }}" href="{{ crm_url('flow') }}" title="Flow: every step from first message to won or lost" aria-label="Flow"{% if active == 'flow' %} aria-current="page"{% endif %}><i class="fa-solid fa-diagram-project" aria-hidden="true"></i></a>{% endif %}
-  {%- if CAN('crm_process') %}<a class="ic-btn{{ ' on' if active == 'process' }}" href="{{ crm_url('process') }}" title="How we sell: our sales path per product" aria-label="How we sell"{% if active == 'process' %} aria-current="page"{% endif %}><i class="fa-solid fa-route" aria-hidden="true"></i></a>{% endif %}
-  {%- if CAN('crm_calendar') %}<a class="ic-btn" href="{{ crm_url('calendar', view='week') }}" title="Calendar: the leads' tasks, calls, meetings and follow-ups by day" aria-label="Calendar"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i></a>{% endif %}
+<nav class="lsw" aria-label="How to look at the leads">
+  {%- for key, href, icon, label, tip in ways %}
+  {%- if key not in ('board', 'list') and loop.previtem and loop.previtem[0] in ('board', 'list') %}<span class="lsw-sep" aria-hidden="true"></span>{% endif %}
+  <a class="{{ 'on' if active == key }}" href="{{ href }}" title="{{ tip }}"{% if active == key %} aria-current="page"{% endif %}><i class="fa-solid {{ icon }}" aria-hidden="true"></i><span>{{ label }}</span></a>
+  {%- endfor %}
 </nav>
 </div>
 {%- endmacro %}

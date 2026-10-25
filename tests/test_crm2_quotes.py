@@ -131,7 +131,7 @@ def test_a_quote_starts_from_the_leads_value_and_the_products_price(app, client,
     assert crm_quotes.defaults(lead)['amount'] == '21000'
     as_user(client, agent)
     page = client.get('/cs/crm/lead/%d' % lead.id).get_data(as_text=True)
-    assert 'Quotes &amp; payments' in page and '+ Quote' in words(page) or 'Quote</summary>' in page
+    assert 'Quotes &amp; payments' in page and 'data-dlg-open="qp-new-quote"' in page        # opens the quote's dialog
 
 
 def test_saving_a_quote_sends_nothing_and_logs_nothing_to_the_customer(app, client, agent, lead):

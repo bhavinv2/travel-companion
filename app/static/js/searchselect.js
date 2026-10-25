@@ -158,7 +158,10 @@
       closeAll();
       // Out of the card and onto <body>: nothing that scrolls or hides its overflow can clip it
       // there, which is the whole reason the list used to appear cut off inside the panel.
-      document.body.appendChild(pop);
+      // Inside an open <dialog> it goes into the dialog instead: a modal dialog sits above everything
+      // on <body> and makes the rest of the page inert, so a list hung on <body> opened behind the
+      // dialog and could not be clicked (the Task popup's Type and For). Still fixed, so still unclipped.
+      (wrap.closest('dialog[open]') || document.body).appendChild(pop);
       pop.hidden = false;
       wrap.classList.add('is-open');
       btn.setAttribute('aria-expanded', 'true');

@@ -132,11 +132,14 @@
 {# ---------------------------------------------------------------- who they are #}
 <section class="card">
   <div class="facts">
+    {# the lead page has "Looked after by" in the header's key facts; the inbox panel has no header #}
+    {% if compact %}
     <div><label class="lbl" for="crm-owner-{{ lead.id }}">Looked after by</label>
       <select id="crm-owner-{{ lead.id }}" data-update="owner_id">
         <option value="">Not given to anyone</option>
         {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if lead.owner_id == u.id }}>{{ u.full_name }}{{ ' (you)' if u.id == current_user.id }}</option>{% endfor %}
       </select></div>
+    {% endif %}
     <div><span class="lbl">Ready to buy?</span>
       <div class="chips" data-likelihood>
         {% for k, label in LIKELIHOOD.items() %}<button type="button" class="chip lk-{{ k }}{{ ' on' if lead.likelihood == k }}" data-lk="{{ k }}">{{ label }}</button>{% endfor %}

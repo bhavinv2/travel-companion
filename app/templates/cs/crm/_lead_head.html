@@ -1,23 +1,12 @@
-{# The top of the lead page: who they are, how they came in, who looks after them. A live region. #}
+{# The top of the lead page: who they are and how to reach them, then the key facts in one row -- what it is worth,
+   who looks after them, where they came from, when. A live region. #}
 {% from 'cs/crm/_bits.html' import stage_pill, when with context %}
 <div class="lead-hero" data-lead-live="head">
-  <div class="av">{{ (person.name or person.phone or '?')[:1]|upper }}</div>
+  <div class="av r-{{ CRM_ROLE(lead) or 'new' }}">{{ (person.name or person.phone or '?')[:1]|upper }}</div>
   <div class="id">
     <h1>{{ person.display_name }} {{ stage_pill(lead, link=false) }}</h1>
-    <p class="sub">Asked about {{ PRODUCTS.get(lead.product, lead.product) }} · Looked after by
-      <select class="lead-owner" data-update="owner_id" aria-label="Looked after by">
-        <option value="">Not given to anyone</option>
-        {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if lead.owner_id == u.id }}>{{ u.full_name }}{{ ' (you)' if u.id == current_user.id }}</option>{% endfor %}
-      </select></p>
-    {# where they came from, how, when (the header's clock) and by whom: services/crm_sources.came_from #}
-    {% set cf = CAME_FROM(lead) %}
-    <p class="came-from" data-origin="{{ cf.origin }}">
-      <span class="cf-src" title="{{ cf.group_name }}"><i class="fa-solid {{ cf.icon }}"></i> {{ cf.group_name }} › <b>{{ cf.name }}</b></span>
-      <span class="cf-how cf-{{ cf.origin }}" title="{{ cf.origin_label }}"><i class="fa-solid {{ cf.origin_icon }}"></i> {{ cf.origin_word }}{% if cf.by %} · added by {{ cf.by }}{% elif cf.origin == 'organic' %} · came in by itself{% endif %}</span>
-      <span class="cf-at"><i class="fa-regular fa-clock"></i> {{ cf.at }} {{ TZ(lead.created_at) }} <small>({{ when(lead.created_at, utcnow) }})</small></span>
-    </p>
-    {% if family %}<p class="sub lead-family">Family: {% for m in family %}<a href="{{ crm_url('contact', person_id=m.person.id) }}">{{ m.text }}</a>{{ ' · ' if not loop.last }}{% endfor %}</p>{% endif %}
-    {% include 'cs/crm/_lead_value.html' %}
+    <p class="sub"><i class="fa-solid fa-tag" aria-hidden="true"></i> Asked about <b>{{ PRODUCTS.get(lead.product, lead.product) }}</b>
+      {% if family %}<span class="lead-family"> · Family: {% for m in family %}<a href="{{ crm_url('contact', person_id=m.person.id) }}">{{ m.text }}</a>{{ ', ' if not loop.last }}{% endfor %}</span>{% endif %}</p>
   </div>
   <div class="acts">
     {% if person.phone %}<a class="cb" href="tel:{{ person.phone }}"><i class="fa-solid fa-phone"></i> {{ PHONE.pretty(person.phone) }}</a>{% endif %}
@@ -37,5 +26,20 @@
         {% if CAN('delete_records') %}<a class="danger" href="{{ crm_url('contact', person_id=person.id, erase=1) }}"><i class="fa-solid fa-user-slash"></i><span>Erase this person<small>everything we hold about them, at their request</small></span></a>{% endif %}
       </div>
     </details>
+  </div>
+  {# the key facts. Where they came from, how, when (the header's clock) and by whom: services/crm_sources.came_from #}
+  {% set cf = CAME_FROM(lead) %}
+  <div class="lead-facts">
+    <div class="lf lf-value"><span class="lf-l">Value</span>{% include 'cs/crm/_lead_value.html' %}</div>
+    <div class="lf lf-owner"><label class="lf-l" for="lead-owner-{{ lead.id }}">Looked after by</label>
+      <select class="lead-owner" id="lead-owner-{{ lead.id }}" data-update="owner_id">
+        <option value="">Not given to anyone</option>
+        {% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if lead.owner_id == u.id }}>{{ u.full_name }}{{ ' (you)' if u.id == current_user.id }}</option>{% endfor %}
+      </select></div>
+    <div class="lf came-from" data-origin="{{ cf.origin }}"><span class="lf-l">Came from</span>
+      <span class="lf-v"><span class="cf-src" title="{{ cf.group_name }} › {{ cf.name }}"><i class="fa-solid {{ cf.icon }}"></i> {{ cf.group_name }} › <b>{{ cf.name }}</b></span>
+        <span class="cf-how cf-{{ cf.origin }}" title="{{ cf.origin_label }}"><i class="fa-solid {{ cf.origin_icon }}"></i> {{ cf.origin_word }}{% if cf.by %} · added by {{ cf.by }}{% elif cf.origin == 'organic' %} · came in by itself{% endif %}</span></span></div>
+    <div class="lf"><span class="lf-l">Added</span>
+      <span class="lf-v cf-at" title="{{ cf.at }} {{ TZ(lead.created_at) }}"><i class="fa-regular fa-clock"></i> {{ cf.at }} {{ TZ(lead.created_at) }} <small>{{ when(lead.created_at, utcnow) }}</small></span></div>
   </div>
 </div>

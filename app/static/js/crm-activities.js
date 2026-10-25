@@ -21,6 +21,8 @@
     window.alert(msg);
   }
   function show(el, text) { if (!el) return; el.textContent = text || ''; el.hidden = !text; }
+  // a <select> shown as a searchable list (searchselect.js) repaints its label after a script changes it
+  function synced(sel) { if (sel && window.syncSearchSelect) window.syncSearchSelect(sel); }
   function fromPath(base, id) { return base.replace(/\/0\//, '/' + id + '/'); }
 
   /* ------------------------------------------------------------ the task form */
@@ -30,7 +32,7 @@
 
   function syncKind() {
     if (!form) return;
-    var meeting = form.elements.kind.value === 'meeting';
+    var meeting = form.elements.kind.value === 'meeting';            // Type and Priority are radio groups
     form.querySelectorAll('[data-tk-meeting]').forEach(function (el) { el.hidden = !meeting; });
   }
 
@@ -48,6 +50,7 @@
     } else {
       form.elements.due.value = defaultDue;
     }
+    synced(form.elements.owner_id);
     show(form.querySelector('[data-tk-err]'), '');
     syncKind();
     dlg.showModal();
@@ -55,12 +58,14 @@
   }
 
   if (form) {
-    form.elements.kind.addEventListener('change', syncKind);
-    dlg.querySelector('[data-tk-cancel]').addEventListener('click', function () { dlg.close(); });
+    form.addEventListener('change', function (e) { if (e.target.name === 'kind') syncKind(); });
+    dlg.querySelectorAll('[data-tk-cancel]').forEach(function (b) { b.addEventListener('click', function () { dlg.close(); }); });
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var body = {};
-      Array.prototype.forEach.call(form.elements, function (el) { if (el.name) body[el.name] = el.value; });
+      Array.prototype.forEach.call(form.elements, function (el) {
+        if (el.name && !((el.type === 'radio' || el.type === 'checkbox') && !el.checked)) body[el.name] = el.value;
+      });
       var url;
       if (editing) {
         url = fromPath(box.dataset.editBase, editing.id);
@@ -103,6 +108,7 @@
           var o = document.createElement('option');
           o.value = String(i); o.textContent = a.title; sel.appendChild(o);
         });
+        synced(sel);
         eform.querySelector('#em-to').value = d.to || '';
         show(eform.querySelector('[data-em-err]'), '');
         var note = eform.querySelector('[data-em-note]');
@@ -127,7 +133,7 @@
       var chosen = e.target.options[e.target.selectedIndex];
       eform.dataset.answer = chosen ? String(a.id) : '';
     });
-    edlg.querySelector('[data-em-cancel]').addEventListener('click', function () { edlg.close(); });
+    edlg.querySelectorAll('[data-em-cancel]').forEach(function (b) { b.addEventListener('click', function () { edlg.close(); }); });
     var link = eform.querySelector('[data-em-mailto]');
     link.addEventListener('click', function () {
       link.href = mailtoHref();

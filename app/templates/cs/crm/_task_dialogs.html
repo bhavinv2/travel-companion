@@ -1,0 +1,50 @@
+{# The "+ Task" form and the e-mail composer (crm-activities.js), for _tasks.html. Needs: person. Outside the live
+   regions that refresh themselves, and outside any tab. #}
+{% set kinds = {'todo': ('To-do', 'fa-list-check'), 'call': ('Call', 'fa-phone'), 'meeting': ('Meeting', 'fa-handshake')} %}
+<dialog class="crm-dialog wide" id="task-dialog" aria-labelledby="tk-dlg-title"><form class="in stack" data-tk-form>
+  <div class="dlg-head"><span class="ico"><i class="fa-solid fa-list-check"></i></span>
+    <h3 id="tk-dlg-title" data-tk-title>New task</h3>
+    <button type="button" class="dlg-x" data-tk-cancel aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div>
+  <div><label class="lb" for="tk-title">Title</label><input type="text" id="tk-title" name="title" maxlength="160" required placeholder="e.g. Call to explain the cover"/></div>
+  <div><span class="lb" id="tk-kind-l">Type</span>
+    <div class="tk-seg" role="radiogroup" aria-labelledby="tk-kind-l">
+      {% for v, kk in kinds.items() %}<label><input type="radio" name="kind" value="{{ v }}"{{ ' checked' if v == 'todo' }}/><span><i class="fa-solid {{ kk[1] }}" aria-hidden="true"></i> {{ kk[0] }}</span></label>{% endfor %}
+    </div></div>
+  <div class="tk-two">
+    <div><label class="lb" for="tk-due">Date and time</label><input type="datetime-local" id="tk-due" name="due" value="{{ TASK_DEFAULT_DUE() }}" required/></div>
+    <div data-tk-meeting hidden><label class="lb" for="tk-ends">Ends</label><input type="datetime-local" id="tk-ends" name="ends"/></div>
+  </div>
+  <div data-tk-meeting hidden><label class="lb" for="tk-loc">Place or video link</label><input type="text" id="tk-loc" name="location" maxlength="200" placeholder="An address, or a Meet / Zoom link"/></div>
+  <div class="tk-two">
+    <div><label class="lb" for="tk-owner">For</label>
+      <select id="tk-owner" name="owner_id">
+        {% for u in TASK_STAFF() %}<option value="{{ u.id }}"{{ ' selected' if u.id == current_user.id }}>{{ u.full_name }}{{ ' (me)' if u.id == current_user.id }}</option>{% endfor %}
+      </select></div>
+    <div><span class="lb" id="tk-prio-l">Priority</span>
+      <div class="tk-seg" role="radiogroup" aria-labelledby="tk-prio-l">
+        {% for v, label in (('low', 'Low'), ('normal', 'Normal'), ('high', 'High')) %}<label class="p-{{ v }}"><input type="radio" name="priority" value="{{ v }}"{{ ' checked' if v == 'normal' }}/><span>{{ label }}</span></label>{% endfor %}
+      </div></div>
+  </div>
+  <div><label class="lb" for="tk-notes">Notes</label><textarea id="tk-notes" name="notes" rows="3" maxlength="4000" placeholder="Anything to remember for it"></textarea></div>
+  <p class="tk-err" data-tk-err hidden></p>
+  <div class="row end dlg-foot"><button type="button" class="cb ghost sm" data-tk-cancel>Cancel</button><button type="submit" class="cb primary">Save</button></div>
+</form></dialog>
+
+<dialog class="crm-dialog wide" id="email-dialog" aria-labelledby="em-dlg-title"><form class="in stack" data-em-form>
+  <div class="dlg-head"><span class="ico"><i class="fa-solid fa-envelope"></i></span>
+    <h3 id="em-dlg-title">E-mail {{ person.display_name }}</h3>
+    <button type="button" class="dlg-x" data-em-cancel aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div>
+  <div><label class="lb" for="em-to">To</label><input type="email" id="em-to" value="{{ person.email or '' }}" readonly/></div>
+  <p class="tk-err" data-em-note hidden></p>
+  <div><label class="lb" for="em-subject">Subject</label><input type="text" id="em-subject" name="subject" maxlength="200"/></div>
+  <div><label class="lb" for="em-ans">Insert a ready answer</label>
+    <select id="em-ans" data-em-answers><option value="">Choose…</option></select></div>
+  <div><label class="lb" for="em-body">Message</label><textarea id="em-body" name="body" rows="8" maxlength="20000"></textarea></div>
+  <label class="small" data-em-logrow hidden><input type="checkbox" data-em-log checked/> Log it on the timeline</label>
+  <p class="tk-err" data-em-err hidden></p>
+  <div class="row end dlg-foot">
+    <button type="button" class="cb ghost sm" data-em-cancel>Cancel</button>
+    <a class="cb sm" data-em-mailto hidden href="#"><i class="fa-solid fa-envelope-open-text"></i> Open in my mail app</a>
+    <button type="submit" class="cb primary" data-em-send><i class="fa-solid fa-paper-plane"></i> Send</button>
+  </div>
+</form></dialog>

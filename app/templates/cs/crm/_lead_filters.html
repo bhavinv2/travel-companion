@@ -1,8 +1,11 @@
-{# Leads' filter bar (board.html, crm-filters.js): the search, then a pill per filter. A pill opens a short menu; a
-   choice shows the leads at once, typed things (the search, picked dates) on Enter or Apply. A pill that is on is
-   blue, says what it holds, and has its own × (routes/crm.board's `pills`). The server checks every word again. #}
+{# Leads' filter bar (board.html, crm-filters.js): the search and the four filters used most (who, stage, date,
+   status), then "More filters" -- a second row with the rest. A pill opens a short menu; a choice shows the leads at
+   once, typed things (the search, picked dates) on Enter or Apply. A pill that is on is blue, says what it holds, and
+   has its own × (routes/crm.board's `pills`); the second row stays open while one of its filters is on, and the
+   "More filters" button counts them. The server checks every word again. #}
 {% set date_on = more.dt or 'created' %}
 {% set date_set = 'ahead' if date_on in ('close', 'travel') else 'past' %}
+{% set more_on = pills.keys()|select('in', ('follow', 'chat', 'lk', 'src', 'how', 'money'))|list|length %}
 
 {% macro pill(key, label, icon, wide=false) -%}
 {%- set on = pills.get(key) -%}
@@ -27,6 +30,7 @@
   {% if fc %}<input type="hidden" name="forecast" value="{{ fc }}"/>{% endif %}
   {% if only_ids %}<input type="hidden" name="ids" value="{{ only_ids|join(',') }}"/>{% endif %}
 
+  <div class="fb-row">
   <label class="fb-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
     <input type="search" name="q" value="{{ q }}" placeholder="Find a name, phone or e-mail" aria-label="Find in these leads" data-lf-typed/></label>
 
@@ -78,6 +82,17 @@
       {% if win_lifted %}<p class="fp-note">All of them show while a date or money filter is on.</p>{% endif %}
     {% endcall %}
 
+    <button type="button" class="fb-more-btn{{ ' on' if more_on }}" data-lf-more aria-controls="lf-more" aria-expanded="{{ 'true' if more_on else 'false' }}">
+      <i class="fa-solid fa-sliders" aria-hidden="true"></i> More filters{% if more_on %} <b class="fb-n">{{ more_on }}</b>{% endif %}
+      <i class="fa-solid fa-chevron-down fp-caret" aria-hidden="true"></i></button>
+    {% for key, text, href in filter_chips if key in ('closes', 'forecast', 'ids') %}
+    <a class="chip on rm fb-chip" href="{{ href }}" title="Remove this filter">{{ text }} <i class="fa-solid fa-xmark"></i></a>
+    {% endfor %}
+    {% if filters_on %}<a class="fb-clear" href="{{ crm_url('board', reset=1) }}"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Clear all</a>{% endif %}
+  </div>
+  </div>
+
+  <div class="fb-more" id="lf-more" data-lf-more-row{{ ' hidden' if not more_on }}>
     {% call pill('follow', 'Follow-up', 'fa-clock') %}
       {{ opt('follow', '', 'Any', not follow) }}
       {% for k, label in FOLLOW_FILTERS %}{{ opt('follow', k, label, follow == k) }}{% endfor %}
@@ -119,10 +134,5 @@
       <label class="fp-check"><input type="checkbox" name="no_value" value="1"{{ ' checked' if no_value }}/> No value yet</label>
       <label class="fp-check"><input type="checkbox" name="no_close" value="1"{{ ' checked' if no_close }}/> No close date</label>
     {% endcall %}
-
-    {% for key, text, href in filter_chips if key in ('closes', 'forecast', 'ids') %}
-    <a class="chip on rm fb-chip" href="{{ href }}" title="Remove this filter">{{ text }} <i class="fa-solid fa-xmark"></i></a>
-    {% endfor %}
-    {% if filters_on %}<a class="fb-clear" href="{{ crm_url('board', reset=1) }}"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Clear all</a>{% endif %}
   </div>
 </form>

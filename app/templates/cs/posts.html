@@ -98,7 +98,7 @@ function buildTree(d) {
         ${x.other.multi && x.other.leg_label ? `<span class="leg-chip leg-chip-them">their ${esc(x.other.leg_label)}</span>` : ''}
         <div class="pt-crit">${x.criteria.map(c => `<span class="${c.ok ? 'ok' : 'no'}">${c.ok ? '&#10003;' : '&#10007;'} ${esc(c.label)}</span>`).join('')}</div>
       </div>
-      <a class="btn-sm" href="${x.other.link}">Open</a>
+      <a class="btn-sm ra-open" href="${x.other.link}" title="Open" aria-label="Open"><i class="fa-solid fa-eye" aria-hidden="true"></i></a>
     </div>`).join('') || '<p class="muted">No live matches yet.</p>';
   const dups = d.duplicates.map(x => `
     <div class="pt-item" data-hd-row="post-${x.id}">
@@ -107,7 +107,7 @@ function buildTree(d) {
         <a href="${x.link}"><strong>#${x.id}</strong> ${esc(x.person)}</a> &middot; ${esc(x.route)} &middot; departs ${esc(x.departs)}
         <div class="pt-crit">${x.reasons.map(r => `<span class="why">${esc(r)}</span>`).join('')} <span class="st">${esc(x.status)}</span></div>
       </div>
-      <a class="btn-sm" href="${x.link}">Open</a>
+      <a class="btn-sm ra-open" href="${x.link}" title="Open" aria-label="Open"><i class="fa-solid fa-eye" aria-hidden="true"></i></a>
       ${dupDelete(x)}
     </div>`).join('') || '<p class="muted">No possible duplicates found.</p>';
   return `<div class="pt-grid">

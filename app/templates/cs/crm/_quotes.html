@@ -1,123 +1,171 @@
-{# Quotes & payments on a lead (Sales CRM 2.0, run 4b). Needs: lead, qp (services/crm_quotes.card).
-   Plain forms: nothing is sent to the customer from here. "Put in the message box" fills the box below; the
-   agent still presses Send (crm-quotes.js). #}
+{# Quotes & payments on a lead (Sales CRM 2.0, run 4b). Needs: lead, qp (services/crm_quotes.card); in_tab (the lead
+   page's tab names the card, so no title). Plain forms: nothing is sent to the customer from here. "+ Quote",
+   "+ Payment link" and Edit open their form in a dialog ([data-dlg-open], crm.js); a step that cannot be undone asks
+   first (form[data-ask], crm.js). "Put in the message box" fills the box in the Conversation tab; the agent still
+   presses Send (crm-quotes.js). #}
 {% macro csrf() -%}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>{%- endmacro %}
 {% macro cur_select(name, current) -%}
-<select name="{{ name }}" aria-label="Currency" style="width:auto">
+<select name="{{ name }}" aria-label="Currency">
   {% for c in qp.currencies %}<option value="{{ c }}"{{ ' selected' if c == current }}>{{ c }}</option>{% endfor %}
 </select>
 {%- endmacro %}
+{% macro dlg_head(icon, title, id) -%}
+<div class="dlg-head"><span class="ico"><i class="fa-solid {{ icon }}"></i></span><h3 id="{{ id }}">{{ title }}</h3>
+  <button type="button" class="dlg-x" data-dlg-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div>
+{%- endmacro %}
 {% macro quote_fields(d, idp) -%}
 <div class="qp-grid">
-  <div><label class="lb" for="{{ idp }}-title">Name of the quote</label><input id="{{ idp }}-title" type="text" name="title" maxlength="160" required value="{{ d.title }}"/></div>
+  <div class="span2"><label class="lb" for="{{ idp }}-title">Name of the quote</label><input id="{{ idp }}-title" type="text" name="title" maxlength="160" required value="{{ d.title }}"/></div>
   <div><label class="lb" for="{{ idp }}-amount">Amount</label>
-    <span class="row" style="gap:6px"><input id="{{ idp }}-amount" type="text" inputmode="decimal" name="amount" value="{{ d.amount }}" placeholder="18500" style="max-width:140px"/>{{ cur_select('currency', d.currency) }}</span></div>
+    <div class="qp-amt"><input id="{{ idp }}-amount" type="text" inputmode="decimal" name="amount" value="{{ d.amount }}" placeholder="18500"/>{{ cur_select('currency', d.currency) }}</div></div>
   <div><label class="lb" for="{{ idp }}-valid">Valid until</label><input id="{{ idp }}-valid" type="date" name="valid_until" value="{{ d.valid_until }}"/></div>
+  <div class="span2"><label class="lb" for="{{ idp }}-details">What it covers and the terms</label>
+    <textarea id="{{ idp }}-details" name="details" rows="4" maxlength="4000" placeholder="The plan, what it covers, how long, anything they should know">{{ d.details if d.details is defined else '' }}</textarea></div>
 </div>
-<label class="lb" for="{{ idp }}-details">What it covers and the terms</label>
-<textarea id="{{ idp }}-details" name="details" rows="3" maxlength="4000">{{ d.details if d.details is defined else '' }}</textarea>
 {%- endmacro %}
 <section class="card qp-box" id="quotes">
   <div class="card-head">
-    <h2>Quotes &amp; payments</h2>
+    <div>
+      {% if not in_tab %}<h2>Quotes &amp; payments</h2>{% endif %}
+      <p class="muted small"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Nothing here goes to the customer by itself: copy the words, or put them in the message box and press Send there.</p>
+    </div>
     <div class="row">
-      <details class="qp-add"><summary class="cb sm"><i class="fa-solid fa-plus"></i> Quote</summary>
-        <form method="POST" action="{{ crm_url('quote_add', lead_id=lead.id) }}" class="qp-form">
-          {{ csrf() }}
-          {{ quote_fields(qp.defaults, 'qn') }}
-          <p class="muted small">Nothing is sent to the customer. Save it, then copy the words or put them in the message box below.</p>
-          <div class="row end"><button class="cb primary sm">Save the quote</button></div>
-        </form></details>
-      <details class="qp-add"><summary class="cb sm"><i class="fa-solid fa-plus"></i> Payment link</summary>
-        <form method="POST" action="{{ crm_url('payment_add', lead_id=lead.id) }}" class="qp-form">
-          {{ csrf() }}
-          <div class="qp-grid">
-            <div><label class="lb" for="pn-url">Payment link</label><input id="pn-url" type="url" name="link_url" maxlength="500" placeholder="https://"/></div>
-            <div><label class="lb" for="pn-amount">Amount</label>
-              <span class="row" style="gap:6px"><input id="pn-amount" type="text" inputmode="decimal" name="amount" value="{{ qp.pay_defaults.amount }}" style="max-width:140px"/>{{ cur_select('currency', qp.pay_defaults.currency) }}</span></div>
-            <div><label class="lb" for="pn-provider">Paid through</label>
-              <input id="pn-provider" type="text" name="provider" maxlength="30" list="pn-providers" placeholder="Razorpay, bank transfer…"/>
-              <datalist id="pn-providers">{% for p in qp.providers %}<option value="{{ p }}"></option>{% endfor %}</datalist></div>
-            <div><label class="lb" for="pn-ref">Their reference</label><input id="pn-ref" type="text" name="reference" maxlength="80" placeholder="Order or payment number"/></div>
-            {% if qp.quotes %}<div><label class="lb" for="pn-quote">For the quote</label>
-              <select id="pn-quote" name="quote_id"><option value="">None</option>{% for q in qp.quotes %}<option value="{{ q.id }}"{{ ' selected' if qp.pay_defaults.quote_id == q.id }}>{{ q.title }}</option>{% endfor %}</select></div>{% endif %}
-          </div>
-          <p class="muted small">{% if qp.has_q %}Saving this also notes “I sent the payment link” and moves the lead forward, like the button. {% endif %}Nothing is sent to the customer.</p>
-          <div class="row end"><button class="cb primary sm">Save the payment link</button></div>
-        </form></details>
+      <button type="button" class="cb sm primary" data-dlg-open="qp-new-quote"><i class="fa-solid fa-plus"></i> Quote</button>
+      <button type="button" class="cb sm" data-dlg-open="qp-new-pay"><i class="fa-solid fa-plus"></i> Payment link</button>
     </div>
   </div>
 
   {% for q in qp.quotes %}
   {% set blocked = QUOTE_BLOCKED(q) %}
-  <article class="qp-row" id="quote-{{ q.id }}">
-    <div class="qp-main">
-      <b>{{ q.title }}</b>
-      <span class="chip qp-{{ q.status }}">{{ QUOTE_WORDS()[q.status] }}</span>
-      {% if blocked %}<span class="chip bad" title="The price is lower than this product allows without an approval">Needs approval</span>
-      {% elif q.needs_approval %}<span class="chip" title="Approved {{ q.approved_at.strftime('%d %b') if q.approved_at }}">Approved{% if q.approved_by %} by {{ q.approved_by.first_name or q.approved_by.username }}{% endif %}</span>{% endif %}
-      <div class="muted small">{{ MONEY(q.amount, q.currency) if q.amount is not none else 'No amount' }}
-        {% if q.valid_until %} &middot; valid until {{ q.valid_until.strftime('%d %b %Y') }}{% endif %}
-        {% if q.sent_at %} &middot; sent {{ LOCAL(q.sent_at).strftime('%d %b') }}{% endif %}
-        &middot; <span title="Search for this number in Find a person">Q-{{ q.id }}</span></div>
-      {% if q.details %}<div class="qp-details small">{{ q.details }}</div>{% endif %}
+  <article class="qp-item st-{{ q.status }}" id="quote-{{ q.id }}">
+    <div class="qp-top">
+      <span class="qp-ic"><i class="fa-solid fa-file-invoice" aria-hidden="true"></i></span>
+      <div class="qp-main">
+        <div class="qp-title"><b>{{ q.title }}</b>
+          <span class="chip qp-{{ q.status }}">{{ QUOTE_WORDS()[q.status] }}</span>
+          {% if blocked %}<span class="chip bad" title="The price is lower than this product allows without an approval">Needs approval</span>
+          {% elif q.needs_approval %}<span class="chip" title="Approved {{ q.approved_at.strftime('%d %b') if q.approved_at }}">Approved{% if q.approved_by %} by {{ q.approved_by.first_name or q.approved_by.username }}{% endif %}</span>{% endif %}</div>
+        <div class="qp-meta">
+          <span title="Search for this number in Find a person">Q-{{ q.id }}</span>
+          {% if q.valid_until %}<span><i class="fa-regular fa-calendar" aria-hidden="true"></i> valid until {{ q.valid_until.strftime('%d %b %Y') }}</span>{% endif %}
+          {% if q.sent_at %}<span><i class="fa-regular fa-paper-plane" aria-hidden="true"></i> sent {{ LOCAL(q.sent_at).strftime('%d %b') }}</span>{% endif %}
+        </div>
+      </div>
+      <div class="qp-amount">{{ MONEY(q.amount, q.currency) if q.amount is not none else 'No amount' }}</div>
     </div>
-    <div class="qp-acts">
-      <button type="button" class="cb sm quiet" data-qp-copy data-text="{{ qp.texts[q.id] }}"><i class="fa-regular fa-copy"></i> Copy text</button>
-      <button type="button" class="cb sm quiet" data-qp-box data-text="{{ qp.texts[q.id] }}"><i class="fa-regular fa-comment-dots"></i> Put in the message box</button>
-      {% if q.status == 'draft' %}
-        {% if blocked %}
-          {% if qp.can_approve %}
-          <form method="POST" action="{{ crm_url('quote_approve', quote_id=q.id) }}" class="inl">{{ csrf() }}<button class="cb sm primary">Approve</button></form>
-          {% else %}<span class="muted small">Waiting for an admin or team lead to approve it.</span>{% endif %}
-        {% else %}
-        <form method="POST" action="{{ crm_url('quote_status', quote_id=q.id) }}" class="inl">{{ csrf() }}<input type="hidden" name="action" value="sent"/>
-          <button class="cb sm primary" title="Writes it down{% if qp.has_q %} and moves the lead forward{% endif %}. Nothing is sent to the customer.">Mark as sent</button></form>
+    {% if q.details %}<div class="qp-details">{{ q.details }}</div>{% endif %}
+    <div class="qp-bar">
+      <div class="qp-do">
+        {% if q.status == 'draft' %}
+          {% if blocked %}
+            {% if qp.can_approve %}
+            <form method="POST" action="{{ crm_url('quote_approve', quote_id=q.id) }}" class="inl">{{ csrf() }}<button class="cb sm primary">Approve</button></form>
+            {% else %}<span class="qp-wait"><i class="fa-regular fa-hourglass-half" aria-hidden="true"></i> Waiting for an admin or team lead to approve it.</span>{% endif %}
+          {% else %}
+          <form method="POST" action="{{ crm_url('quote_status', quote_id=q.id) }}" class="inl">{{ csrf() }}<input type="hidden" name="action" value="sent"/>
+            <button class="cb sm primary" title="Writes it down{% if qp.has_q %} and moves the lead forward{% endif %}. Nothing is sent to the customer."><i class="fa-solid fa-check"></i> Mark as sent</button></form>
+          {% endif %}
+        {% elif q.status == 'sent' %}
+          {% for act, label, cls in (('accepted', 'They accepted', 'ok'), ('declined', 'They declined', ''), ('expired', 'It ran out', '')) %}
+          <form method="POST" action="{{ crm_url('quote_status', quote_id=q.id) }}" class="inl">{{ csrf() }}<input type="hidden" name="action" value="{{ act }}"/><button class="cb sm {{ cls }}">{{ label }}</button></form>
+          {% endfor %}
         {% endif %}
-        <details class="qp-edit"><summary class="cb sm quiet">Edit</summary>
-          <form method="POST" action="{{ crm_url('quote_edit', quote_id=q.id) }}" class="qp-form">{{ csrf() }}
-            {{ quote_fields({'title': q.title, 'amount': PLAIN_AMOUNT(q.amount), 'currency': q.currency or qp.defaults.currency, 'valid_until': q.valid_until.isoformat() if q.valid_until else '', 'details': q.details or ''}, 'qe' ~ q.id) }}
-            <div class="row end"><button class="cb primary sm">Save</button></div></form></details>
-        <details class="fam-remove"><summary class="cb sm quiet">Delete</summary>
-          <form method="POST" action="{{ crm_url('quote_delete', quote_id=q.id) }}" class="fam-confirm">{{ csrf() }}
-            <span>Delete this quote for good?</span><button class="cb sm danger">Yes, delete</button></form></details>
-      {% elif q.status == 'sent' %}
-        {% for act, label in (('accepted', 'They accepted'), ('declined', 'They declined'), ('expired', 'It ran out')) %}
-        <form method="POST" action="{{ crm_url('quote_status', quote_id=q.id) }}" class="inl">{{ csrf() }}<input type="hidden" name="action" value="{{ act }}"/><button class="cb sm quiet">{{ label }}</button></form>
-        {% endfor %}
-      {% endif %}
+      </div>
+      <div class="qp-tools">
+        <button type="button" class="cb sm quiet" data-qp-copy data-text="{{ qp.texts[q.id] }}" title="Copy the quote's words"><i class="fa-regular fa-copy"></i> Copy text</button>
+        <button type="button" class="cb sm quiet" data-qp-box data-text="{{ qp.texts[q.id] }}" title="Put in the message box"><i class="fa-regular fa-comment-dots"></i> Message box</button>
+        {% if q.status == 'draft' %}
+        <button type="button" class="cb sm quiet" data-dlg-open="qp-edit-{{ q.id }}"><i class="fa-solid fa-pen"></i> Edit</button>
+        <form method="POST" action="{{ crm_url('quote_delete', quote_id=q.id) }}" class="inl" data-ask="Delete this quote for good?" data-ask-line="“{{ q.title }}” goes. Nothing is sent to the customer." data-yes="Yes, delete">{{ csrf() }}
+          <button class="cb sm quiet qp-del"><i class="fa-regular fa-trash-can"></i> Delete</button></form>
+        {% endif %}
+      </div>
     </div>
+    {% if q.status == 'draft' %}
+    <dialog class="crm-dialog wide qp-dialog" id="qp-edit-{{ q.id }}" aria-labelledby="qp-edit-{{ q.id }}-h">
+      <form method="POST" action="{{ crm_url('quote_edit', quote_id=q.id) }}" class="in stack">{{ csrf() }}
+        {{ dlg_head('fa-pen', 'Change the quote', 'qp-edit-' ~ q.id ~ '-h') }}
+        {{ quote_fields({'title': q.title, 'amount': PLAIN_AMOUNT(q.amount), 'currency': q.currency or qp.defaults.currency, 'valid_until': q.valid_until.isoformat() if q.valid_until else '', 'details': q.details or ''}, 'qe' ~ q.id) }}
+        <div class="row end dlg-foot"><button type="button" class="cb ghost sm" data-dlg-close>Cancel</button><button class="cb primary">Save</button></div>
+      </form></dialog>
+    {% endif %}
   </article>
   {% endfor %}
 
   {% for p in qp.payments %}
-  <article class="qp-row" id="payment-{{ p.id }}">
-    <div class="qp-main">
-      <b>Payment {{ MONEY(p.amount, p.currency) if p.amount is not none else '(no amount)' }}</b>
-      <span class="chip qp-{{ p.status }}">{{ PAYMENT_WORDS()[p.status] }}</span>
-      <div class="muted small">{% if p.provider %}{{ p.provider }}{% endif %}{% if p.reference %} &middot; reference {{ p.reference }}{% endif %}
-        {% if p.quote %} &middot; for “{{ p.quote.title }}”{% endif %}
-        {% if p.paid_at %} &middot; paid {{ LOCAL(p.paid_at).strftime('%d %b') }}{% endif %}</div>
-      {% if p.link_url %}<div class="small"><a href="{{ p.link_url }}" target="_blank" rel="noopener noreferrer">Open the payment link</a>
-        &middot; <button type="button" class="cb sm quiet" data-qp-copy data-text="{{ p.link_url }}"><i class="fa-regular fa-copy"></i> Copy link</button>
-        <button type="button" class="cb sm quiet" data-qp-box data-text="Here is the link to pay: {{ p.link_url }}"><i class="fa-regular fa-comment-dots"></i> Put in the message box</button></div>{% endif %}
+  <article class="qp-item qp-pay st-{{ p.status }}" id="payment-{{ p.id }}">
+    <div class="qp-top">
+      <span class="qp-ic"><i class="fa-solid fa-credit-card" aria-hidden="true"></i></span>
+      <div class="qp-main">
+        <div class="qp-title"><b>Payment link</b> <span class="chip qp-{{ p.status }}">{{ PAYMENT_WORDS()[p.status] }}</span></div>
+        <div class="qp-meta">
+          {% if p.provider %}<span><i class="fa-solid fa-building-columns" aria-hidden="true"></i> {{ p.provider }}</span>{% endif %}
+          {% if p.reference %}<span>reference {{ p.reference }}</span>{% endif %}
+          {% if p.quote %}<span><i class="fa-solid fa-file-invoice" aria-hidden="true"></i> for “{{ p.quote.title }}”</span>{% endif %}
+          {% if p.paid_at %}<span><i class="fa-solid fa-circle-check" aria-hidden="true"></i> paid {{ LOCAL(p.paid_at).strftime('%d %b') }}</span>{% endif %}
+        </div>
+      </div>
+      <div class="qp-amount">{{ MONEY(p.amount, p.currency) if p.amount is not none else 'No amount' }}</div>
     </div>
-    <div class="qp-acts">
-      {% if p.status == 'pending' %}
-      <details class="fam-remove"><summary class="cb sm primary">Mark as paid</summary>
-        <form method="POST" action="{{ crm_url('payment_status', payment_id=p.id) }}" class="fam-confirm">{{ csrf() }}<input type="hidden" name="action" value="paid"/>
-          <span>They paid. This {% if lead.amount is none %}sets the lead's value, {% endif %}moves the lead to Won.</span><button class="cb sm primary">Yes, they paid</button></form></details>
-      <form method="POST" action="{{ crm_url('payment_status', payment_id=p.id) }}" class="inl">{{ csrf() }}<input type="hidden" name="action" value="failed"/><button class="cb sm quiet">It failed</button></form>
-      {% endif %}
-      {% if p.status == 'paid' %}
-      <form method="POST" action="{{ crm_url('payment_status', payment_id=p.id) }}" class="inl">{{ csrf() }}<input type="hidden" name="action" value="refunded"/><button class="cb sm quiet">Money went back</button></form>
-      {% else %}
-      <details class="fam-remove"><summary class="cb sm quiet">Delete</summary>
-        <form method="POST" action="{{ crm_url('payment_delete', payment_id=p.id) }}" class="fam-confirm">{{ csrf() }}
-          <span>Delete this payment line?</span><button class="cb sm danger">Yes, delete</button></form></details>
-      {% endif %}
+    {% if p.link_url %}
+    <div class="qp-link">
+      <i class="fa-solid fa-link" aria-hidden="true"></i>
+      <a href="{{ p.link_url }}" target="_blank" rel="noopener noreferrer" title="Open the payment link">{{ p.link_url }}</a>
+    </div>{% endif %}
+    <div class="qp-bar">
+      <div class="qp-do">
+        {% if p.status == 'pending' %}
+        <form method="POST" action="{{ crm_url('payment_status', payment_id=p.id) }}" class="inl" data-ask="Did they pay?"
+              data-ask-line="This {% if lead.amount is none %}sets the lead's value and {% endif %}moves the lead to Won." data-yes="Yes, they paid">{{ csrf() }}<input type="hidden" name="action" value="paid"/>
+          <button class="cb sm primary"><i class="fa-solid fa-check"></i> Mark as paid</button></form>
+        <form method="POST" action="{{ crm_url('payment_status', payment_id=p.id) }}" class="inl">{{ csrf() }}<input type="hidden" name="action" value="failed"/><button class="cb sm">It failed</button></form>
+        {% elif p.status == 'paid' %}
+        <form method="POST" action="{{ crm_url('payment_status', payment_id=p.id) }}" class="inl">{{ csrf() }}<input type="hidden" name="action" value="refunded"/><button class="cb sm">Money went back</button></form>
+        {% endif %}
+      </div>
+      <div class="qp-tools">
+        {% if p.link_url %}
+        <button type="button" class="cb sm quiet" data-qp-copy data-text="{{ p.link_url }}" title="Copy the link"><i class="fa-regular fa-copy"></i> Copy link</button>
+        <button type="button" class="cb sm quiet" data-qp-box data-text="Here is the link to pay: {{ p.link_url }}" title="Put in the message box"><i class="fa-regular fa-comment-dots"></i> Message box</button>
+        {% endif %}
+        {% if p.status != 'paid' %}
+        <form method="POST" action="{{ crm_url('payment_delete', payment_id=p.id) }}" class="inl" data-ask="Delete this payment line?" data-yes="Yes, delete">{{ csrf() }}
+          <button class="cb sm quiet qp-del"><i class="fa-regular fa-trash-can"></i> Delete</button></form>
+        {% endif %}
+      </div>
     </div>
   </article>
   {% endfor %}
-  {% if not qp.quotes and not qp.payments %}<p class="muted small">No quote yet. “+ Quote” writes one; “+ Payment link” keeps the link you send and tells you when it is paid.</p>{% endif %}
+  {% if not qp.quotes and not qp.payments %}
+  <div class="crm-blank"><i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i>
+    <p><b>No quote yet.</b> “+ Quote” writes one; “+ Payment link” keeps the link you send and tells you when it is paid.</p></div>
+  {% endif %}
+
+  <dialog class="crm-dialog wide qp-dialog" id="qp-new-quote" aria-labelledby="qp-new-quote-h">
+    <form method="POST" action="{{ crm_url('quote_add', lead_id=lead.id) }}" class="in stack">
+      {{ csrf() }}
+      {{ dlg_head('fa-file-invoice', 'New quote', 'qp-new-quote-h') }}
+      {{ quote_fields(qp.defaults, 'qn') }}
+      <p class="dlg-note"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Nothing is sent to the customer. Save it, then copy the words or put them in the message box.</p>
+      <div class="row end dlg-foot"><button type="button" class="cb ghost sm" data-dlg-close>Cancel</button><button class="cb primary">Save the quote</button></div>
+    </form></dialog>
+
+  <dialog class="crm-dialog wide qp-dialog" id="qp-new-pay" aria-labelledby="qp-new-pay-h">
+    <form method="POST" action="{{ crm_url('payment_add', lead_id=lead.id) }}" class="in stack">
+      {{ csrf() }}
+      {{ dlg_head('fa-credit-card', 'New payment link', 'qp-new-pay-h') }}
+      <div class="qp-grid">
+        <div class="span2"><label class="lb" for="pn-url">Payment link</label><input id="pn-url" type="url" name="link_url" maxlength="500" placeholder="https://rzp.io/l/…"/></div>
+        <div><label class="lb" for="pn-amount">Amount</label>
+          <div class="qp-amt"><input id="pn-amount" type="text" inputmode="decimal" name="amount" value="{{ qp.pay_defaults.amount }}"/>{{ cur_select('currency', qp.pay_defaults.currency) }}</div></div>
+        <div><label class="lb" for="pn-provider">Paid through</label>
+          <input id="pn-provider" type="text" name="provider" maxlength="30" list="pn-providers" placeholder="Razorpay, bank transfer…"/>
+          <datalist id="pn-providers">{% for p in qp.providers %}<option value="{{ p }}"></option>{% endfor %}</datalist></div>
+        <div><label class="lb" for="pn-ref">Their reference</label><input id="pn-ref" type="text" name="reference" maxlength="80" placeholder="Order or payment number"/></div>
+        {% if qp.quotes %}<div><label class="lb" for="pn-quote">For the quote</label>
+          <select id="pn-quote" name="quote_id"><option value="">None</option>{% for q in qp.quotes %}<option value="{{ q.id }}"{{ ' selected' if qp.pay_defaults.quote_id == q.id }}>{{ q.title }}</option>{% endfor %}</select></div>{% endif %}
+      </div>
+      <p class="dlg-note"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> {% if qp.has_q %}Saving this also notes “I sent the payment link” and moves the lead forward, like the button. {% endif %}Nothing is sent to the customer.</p>
+      <div class="row end dlg-foot"><button type="button" class="cb ghost sm" data-dlg-close>Cancel</button><button class="cb primary">Save the payment link</button></div>
+    </form></dialog>
 </section>

@@ -1,5 +1,6 @@
 {# What the lead is worth, when it should close, and how sure it is: "₹18,500 · closes 12 Nov · Committed".
-   Click it to change them. Needs: lead, money_currencies. Part of the live head region. #}
+   Click it to change them: the form opens as a small panel under it (closes on a click outside or Esc, crm.js).
+   Needs: lead, money_currencies. Part of the live head region (the header's key facts). #}
 {% set cat = lead.forecast_category %}
 {% set auto_cat = FORECAST_AUTO(lead) %}
 <details class="lv" data-money data-lead="{{ lead.id }}">
@@ -11,6 +12,7 @@
     <i class="fa-solid fa-pen lv-edit-hint" aria-hidden="true"></i>
   </summary>
   <form data-money-form method="post" action="{{ crm_url('lead_money', lead_id=lead.id) }}">
+    <p class="lv-title">What this lead is worth</p>
     <div><label for="lv-amount-{{ lead.id }}">Amount</label>
       <div class="lv-amt">
         <input type="text" inputmode="decimal" id="lv-amount-{{ lead.id }}" name="amount" value="{{ PLAIN_AMOUNT(lead.amount) }}" placeholder="e.g. 18500" autocomplete="off"/>
@@ -26,6 +28,6 @@
       </select></div>
     <p class="lv-note">Only changes the numbers on Forecast and Results. Nothing is sent to {{ lead.person.display_name }}.
       {% if lead.revenue is not none and lead.revenue != lead.amount %}We earn {{ MONEY(lead.revenue, lead.currency) }} on it.{% endif %}</p>
-    <div class="row"><button type="submit" class="cb primary sm">Save</button></div>
+    <div class="row end lv-foot"><button type="button" class="cb sm quiet" data-lv-close>Cancel</button><button type="submit" class="cb primary sm">Save</button></div>
   </form>
 </details>

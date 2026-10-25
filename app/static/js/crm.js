@@ -101,6 +101,95 @@
   // the set-up screens (crm-setup.js) use the same helpers
   window.CRM = { post: post, toast: toast, choose: choose, esc: esc, base: BASE };
 
+  /* -------------------------------------------------------------- dialogs, asking first, menus */
+  // [data-dlg-open="<a dialog's id>"] opens that dialog; [data-dlg-close] closes the one it sits in.
+  // A click outside an open More menu or the value panel (_lead_value.html) closes it; so does Esc.
+  document.addEventListener('click', function (e) {
+    var o = e.target.closest('[data-dlg-open]');
+    if (o) {
+      var d = document.getElementById(o.dataset.dlgOpen);
+      if (d && d.showModal && !d.open) {
+        d.showModal();
+        var first = d.querySelector('input:not([type=hidden]), textarea');
+        if (first) first.focus();
+      }
+      return;
+    }
+    var c = e.target.closest('[data-dlg-close]');
+    if (c && c.closest('dialog')) { c.closest('dialog').close(); return; }
+    var lc = e.target.closest('[data-lv-close]');
+    if (lc && lc.closest('details')) { lc.closest('details').open = false; return; }
+    document.querySelectorAll('details.more-menu[open], details.lv[open]').forEach(function (m) {
+      if (!m.contains(e.target)) m.open = false;
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' || document.querySelector('dialog[open]')) return;
+    document.querySelectorAll('details.more-menu[open], details.lv[open]').forEach(function (m) { m.open = false; });
+  });
+  // A form with data-ask asks first, in the page's own chooser (never the browser's confirm box): data-ask is
+  // the question, data-ask-line a line under it, data-yes the button that goes ahead.
+  document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (!f.matches || !f.matches('form[data-ask]') || !dialog) return;
+    e.preventDefault();
+    choose(f.dataset.ask, f.dataset.askLine || '', [{ label: f.dataset.yes || 'Yes', value: 'yes' }]).then(function (v) {
+      if (v === 'yes') HTMLFormElement.prototype.submit.call(f);
+    });
+  });
+
+  /* -------------------------------------------------------------- the lead page's tabs */
+  // Conversation, Tasks, Quotes & payments, Files, History. The address keeps the open one (#tasks, #quotes...),
+  // so a reload -- or a quote or file form coming back to #quotes, #files -- opens it again; an address naming
+  // something inside a tab (#quote-3) opens that tab. Whatever fills the message box opens Conversation first.
+  var tabBar = document.querySelector('[data-lead-tabs]');
+  function showPane(name) {
+    var pane = tabBar && document.querySelector('[data-lead-pane="' + name + '"]');
+    if (!pane) return;
+    document.querySelectorAll('[data-lead-pane]').forEach(function (p) { p.hidden = p !== pane; });
+    tabBar.querySelectorAll('[data-lead-tab]').forEach(function (t) {
+      var on = t.dataset.leadTab === name;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+    });
+    // the timeline opens at its newest line the first time it shows
+    var sc = pane.querySelector('[data-tl-scroll]');
+    if (sc && !sc.dataset.seen) { sc.dataset.seen = '1'; sc.scrollTop = sc.scrollHeight; }
+    if (window.history && history.replaceState) {
+      history.replaceState(history.state, '', name === 'conversation' ? location.pathname + location.search : '#' + name);
+    }
+  }
+  window.CRM.showPane = showPane;
+  if (tabBar) {
+    var fromHash = function () {
+      var id = '';
+      try { id = decodeURIComponent(location.hash.slice(1)); } catch (err) { /* a broken address opens Conversation */ }
+      var el = id && document.getElementById(id);
+      var pane = el && el.closest('[data-lead-pane]');
+      showPane(pane ? pane.dataset.leadPane : 'conversation');
+      if (pane && el !== pane.firstElementChild) el.scrollIntoView({ block: 'center' });
+    };
+    tabBar.addEventListener('click', function (e) {
+      var t = e.target.closest('[data-lead-tab]');
+      if (t) showPane(t.dataset.leadTab);
+    });
+    tabBar.addEventListener('keydown', function (e) {
+      var tabs = Array.prototype.slice.call(tabBar.querySelectorAll('[data-lead-tab]'));
+      var i = tabs.indexOf(document.activeElement), n = -1;
+      if (i < 0) return;
+      if (e.key === 'ArrowRight') n = (i + 1) % tabs.length;
+      else if (e.key === 'ArrowLeft') n = (i - 1 + tabs.length) % tabs.length;
+      else if (e.key === 'Home') n = 0;
+      else if (e.key === 'End') n = tabs.length - 1;
+      if (n < 0) return;
+      e.preventDefault();
+      showPane(tabs[n].dataset.leadTab);
+      tabs[n].focus();
+    });
+    fromHash();
+    window.addEventListener('hashchange', fromHash);
+  }
+
   function reasonsFrom(el) {
     try { return JSON.parse(el.dataset.reasons || '[]'); } catch (e) { return []; }
   }
@@ -607,6 +696,7 @@
   function fillBox(b, leadPage) {
     var box = leadPage.querySelector('[data-box]');
     if (!box) return;
+    showPane('conversation');
     var via = b.dataset.via || 'whatsapp';
     box.dataset.via = via;
     if (b.dataset.task) box.dataset.task = b.dataset.task; else delete box.dataset.task;
