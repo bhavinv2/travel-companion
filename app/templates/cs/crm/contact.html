@@ -44,8 +44,18 @@
 <div class="ct-grid">
   <section class="card">
     <h2>How to reach them</h2>
-    <div class="ct-line"><i class="fa-solid fa-phone" aria-hidden="true"></i> {% if person.phone %}<a href="tel:{{ person.phone }}">{{ PHONE.pretty(person.phone) }}</a>{% else %}<span class="muted">—</span>{% endif %}</div>
-    <div class="ct-line"><i class="fa-solid fa-envelope" aria-hidden="true"></i> {% if person.email %}<a href="mailto:{{ person.email }}">{{ person.email }}</a>{% else %}<span class="muted">—</span>{% endif %}</div>
+    {% set hide = MASKED(person) %}
+    <div class="ct-line"><i class="fa-solid fa-phone" aria-hidden="true"></i> {% if person.phone and hide %}<span class="mk">{{ MASK_PHONE(person.phone) }}</span> {% with mp=person %}{% include 'cs/crm/_show.html' %}{% endwith %}{% elif person.phone %}<a href="tel:{{ person.phone }}">{{ PHONE.pretty(person.phone) }}</a>{% else %}<span class="muted">—</span>{% endif %}</div>
+    {% if can_chat %}
+    <div class="ct-line"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
+      {% if person.phone or person.wacrm_conversation_id %}
+      <form method="POST" action="{{ url_for('messaging.contact_chat', person_id=person.id) }}" class="ct-chat">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ crm_url('contact', person_id=person.id) }}"/>
+        <button class="cb sm" title="Opens in WhatsApp chats, with their lead beside it. Nothing is sent.">{{ 'Open WhatsApp chat' if person.wacrm_conversation_id else 'Start WhatsApp chat' }}</button></form>
+      {% else %}<span class="muted">No phone number to chat on</span>{% endif %}
+    </div>
+    {% endif %}
+    <div class="ct-line"><i class="fa-solid fa-envelope" aria-hidden="true"></i> {% if person.email and hide %}<span class="mk">{{ MASK_EMAIL(person.email) }}</span>{% elif person.email %}<a href="mailto:{{ person.email }}">{{ person.email }}</a>{% else %}<span class="muted">—</span>{% endif %}</div>
     {% set ig = person.identity('instagram') %}{% set fb = person.identity('facebook') %}
     <div class="ct-line"><i class="fa-brands fa-instagram" aria-hidden="true"></i> {% if ig %}<a href="https://www.instagram.com/{{ ig }}" target="_blank" rel="noopener">{{ ig }}</a>{% else %}<span class="muted">—</span>{% endif %}</div>
     <div class="ct-line"><i class="fa-brands fa-facebook" aria-hidden="true"></i> {% if fb %}<a href="https://www.facebook.com/{{ fb }}" target="_blank" rel="noopener">{{ fb }}</a>{% else %}<span class="muted">—</span>{% endif %}</div>

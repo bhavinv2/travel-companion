@@ -300,14 +300,18 @@ def _lead_conversation(lead):
     while the portal may write there, and then given to the lead's owner if nobody has it; with writes off only
     looked up. A WhatsApp user without a number has the chat we hold. The conversation id or None; raises
     crm.WaChatRefused (rolled back). Commits."""
+    return _person_conversation(lead.person, lead.owner)
+
+
+def _person_conversation(person, owner=None):
+    """_lead_conversation for a person: a chat made here is given to `owner` if nobody has it."""
     from app.services import crm
-    person = lead.person
     if not person.phone:
         return person.wacrm_conversation_id
     writes = crm.wa_writes_on()
     try:
         r = crm.wa_ensure_chat(person, create=writes,
-                               assign_email=(lead.owner.email if writes and lead.owner else None))
+                               assign_email=(owner.email if writes and owner else None))
     except crm.WaChatRefused:
         db.session.rollback()
         raise
@@ -412,6 +416,49 @@ def start_chat():
 
 START_OFF = ("They have no WhatsApp chat yet, and WhatsApp is on “Not yet” in Set-up → WhatsApp, so a new chat "
              "can't be started from here.")
+
+
+# ------------------------------------------------- starting a chat from a contact
+
+def can_start_chats(user):
+    """Whether contacts offer this person "WhatsApp chat": WhatsApp is connected for the CRM being worked on, their
+    role includes it, and WhatsApp chats is one of their pages (the chat opens there)."""
+    from app.services import crm
+    return bool(crm.wa_team_on() and crm_role(user) and access.can(user, 'wa_inbox'))
+
+
+@messaging_bp.route('/contact/<int:person_id>/chat', methods=['POST'])
+@login_required
+def contact_chat(person_id):
+    """"Start WhatsApp chat" on a contact page and in Contacts: their chat, made in the WhatsApp CRM when they have
+    none (never sends anything) and given to the owner of their open lead if nobody has it, opened in WhatsApp chats
+    with their lead beside it. What stops it is said on the page it came from (`next`)."""
+    from app.models import CrmPerson
+    from app.services import crm, crm_access, crm_scope
+    if not access.allowed(current_user, request.endpoint):
+        abort(403)
+    person = db.session.get(CrmPerson, person_id)
+    if person is None or not crm_access.can_see_person(current_user, person) or not crm_scope.visible(person):
+        abort(404)
+    back = request.form.get('next') or ''
+    if not back.startswith('/') or back.startswith('//') or '\\' in back:
+        back = access.page_url(access.PAGES['crm_people']) or access.home_url(current_user)
+    if not can_start_chats(current_user):
+        flash('WhatsApp is not connected for you here.', 'warning')
+        return redirect(back)
+    if not person.phone and not person.wacrm_conversation_id:
+        flash('%s has no phone number. Add one with Edit details first.' % person.display_name, 'warning')
+        return redirect(back)
+    lead = crm.wa_lead_for(person)
+    try:
+        conv = _person_conversation(person, lead.owner if lead is not None else None)
+    except crm.WaChatRefused as exc:
+        flash(str(exc), 'warning')
+        return redirect(back)
+    if not conv:
+        flash(START_OFF, 'warning')
+        return redirect(back)
+    return redirect(url_for('messaging.inbox', p='/inbox?mine=1&c=%s' % conv))
 
 
 # ------------------------------------------------- the sales lead beside the WhatsApp inbox

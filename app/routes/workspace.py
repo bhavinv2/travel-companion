@@ -414,7 +414,7 @@ def menu():
     """Menu builder: this workspace's staff menu -- sections, sub-menus, the order of lines, their names, lines
     left off. Who sees a line is still their roles; the preview shows each role's menu as it would be."""
     ws = _ws()
-    lines = [{'key': k, 'label': access.PAGES[k]['label'], 'icon': access.PAGES[k]['icon'],
+    lines = [{'key': k, 'label': access.PAGES[k]['line'], 'icon': access.PAGES[k]['icon'],
               'area': access.MODULE_BY_KEY[access.PAGES[k]['module']]['label'],
               'tip': access.PAGES[k]['tip'] or access.PAGES[k]['desc']} for k in access.MENU_PAGES]
     roles = sorted(ws.roles, key=lambda r: (r.system_key != 'admin', r.system_key != 'cs', r.name.lower()))
@@ -465,8 +465,14 @@ def reset_menu():
 @staff_page
 def roles():
     ws = _ws()
+    from app.services import role_rights
+    names = {r.name.lower() for r in ws.roles}
+    missing = [p for p in role_rights.PROFILES if p.get('fills', True) and p['key'] != 'admin'
+               and p['label'].lower() not in names]
     return render_template('workspace/roles.html', ws=ws, used=access.who_has(ws),
-                           pages_of={r.id: access.role_pages(r) for r in ws.roles})
+                           pages_of={r.id: access.role_pages(r) for r in ws.roles},
+                           rights_of={r.id: role_rights.form_values(r) for r in ws.roles},
+                           PROFILE_BY_KEY=role_rights.PROFILE_BY_KEY, missing=missing)
 
 
 @workspace_bp.route('/roles/<int:role_id>')
@@ -482,9 +488,11 @@ def role(role_id):
     modules = [{'key': m['key'], 'label': m['label'], 'icon': m['icon'], 'desc': m.get('desc', ''), 'on': m['key'] in on,
                 'pages': [p for p in m['pages'] if (not p['with'] or p['grant']) and p['key'] not in access.SUPER_ONLY]}
                for m in access.MODULES]
-    from app.services import crm_access
+    from app.services import crm_access, role_rights
+    rights = role_rights.form_values(r if r else copy_of)
     return render_template('workspace/role.html', ws=ws, r=r, modules=modules, chosen=chosen,
-                           CRM_SCOPES=crm_access.SCOPE_LABELS, copy_of=copy_of, locked=bool(r and r.system_key == 'admin'))
+                           CRM_SCOPES=crm_access.SCOPE_LABELS, copy_of=copy_of, locked=bool(r and r.system_key == 'admin'),
+                           rights=rights, presets=role_rights.presets() if not (r and r.system_key == 'admin') else [])
 
 
 @workspace_bp.route('/roles/save', methods=['POST'])
@@ -509,16 +517,49 @@ def save_role():
     r.name = name
     r.description = (request.form.get('description') or '').strip()[:255] or None
     if r.system_key != 'admin':
+        from app.services import role_rights
         r.pages = access.clean_pages(request.form.getlist('pages'), keep=r.pages or [])
         scope = request.form.get('crm_scope')
         r.crm_scope = scope if scope in ('team', 'own') else None          # NULL: everyone's leads, as always
+        r.rights = role_rights.from_form(request.form, r.pages)
     db.session.flush()
-    _log('workspace_role_saved', workspace=ws.id, role=r.name, pages=len(access.role_pages(r)))
+    _log('workspace_role_saved', workspace=ws.id, role=r.name, pages=len(access.role_pages(r)),
+         look_only=len((r.rights or {}).get('view') or ()), remove=(r.rights or {}).get('remove', True),
+         mask=(r.rights or {}).get('mask', False))
     db.session.commit()
     from app.services import wacrm_team
     for m in ws.members:
         wacrm_team.member_changed(m)
     flash('Role %s saved.' % r.name, 'success')
+    return redirect(url_for('workspace.roles'))
+
+
+@workspace_bp.route('/roles/profiles', methods=['POST'])
+@staff_page
+def add_profile_roles():
+    """Roles: "Add the ready-made roles" -- a role for each profile the workspace has no role of that name for
+    (Sales agent, Service agent, Content editor...), with its pages, lead scope and rights. Nobody is given them."""
+    ws = _ws()
+    from app.services import role_rights
+    names = {r.name.lower() for r in ws.roles}
+    made = []
+    for p in role_rights.PROFILES:
+        if not p.get('fills', True) or p['key'] == 'admin' or p['label'].lower() in names:
+            continue
+        pages = role_rights.profile_pages(p)
+        r = WorkspaceRole(workspace_id=ws.id, name=p['label'], description=p['says'][:255], pages=pages,
+                          crm_scope=p['scope'] if p['scope'] in ('team', 'own') else None,
+                          rights={'profile': p['key'], 'view': [k for k in p['view'] if k in pages],
+                                  'remove': p['remove'], 'mask': p['mask']})
+        db.session.add(r)
+        ws.roles.append(r)
+        made.append(p['label'])
+    if made:
+        _log('workspace_profiles_added', workspace=ws.id, roles=', '.join(made))
+        db.session.commit()
+        flash('Added %s. Give them to people on Team members.' % ', '.join(made), 'success')
+    else:
+        flash('Every ready-made role is here already.', 'info')
     return redirect(url_for('workspace.roles'))
 
 

@@ -31,7 +31,7 @@ from app import db
 # ------------------------------------------------------------------------------- the pages
 
 def _page(key, label, icon, endpoints=(), admin=None, cs=None, args=None, nav=True, desc='', lit=(), deny=None,
-          tip='', with_=(), grant=False):
+          tip='', with_=(), grant=False, line=''):
     """`admin` / `cs`: the endpoint the menu opens in that console (None: not in that console).
     `args`: the query string both links carry -- several menu lines are one screen filtered.
     `lit`: endpoints other pages share that should light THIS line (the lead page is "Leads",
@@ -39,10 +39,12 @@ def _page(key, label, icon, endpoints=(), admin=None, cs=None, args=None, nav=Tr
     says about the page. `with_`: a page nobody grants on its own -- whoever may open any of these
     may open it too (_implied), so it is not on the Roles screen and no stored role needs it --
     unless `grant`: then it comes with them AND can still be given on its own (a menu line that
-    gathers tabs: whoever has any tab has the line, and the line was grantable before)."""
+    gathers tabs: whoever has any tab has the line, and the line was grantable before). `line`: the menu line's
+    name when the area it sits in does not say which product it is about (the Inbox's website forms)."""
     return {'key': key, 'label': label, 'icon': icon, 'endpoints': tuple(endpoints),
             'links': {'admin': admin, 'cs': cs}, 'args': dict(args or {}), 'nav': nav, 'desc': desc,
-            'lit': frozenset(lit), 'deny': deny, 'tip': tip, 'with': frozenset(with_), 'grant': bool(grant)}
+            'lit': frozenset(lit), 'deny': deny, 'tip': tip, 'with': frozenset(with_), 'grant': bool(grant),
+            'line': line or label}
 
 
 def _both(*names):
@@ -62,7 +64,8 @@ CRM_DAILY = _both('lead', 'move', 'route_lead', 'task_action', 'send', 'call', '
                   'file_upload', 'file_download', 'file_delete', 'contact_family_add', 'contact_family_role',
                   'contact_family_remove', 'contact_family_rename', 'contact_merge', 'contact_merge_do',
                   'quote_add', 'quote_edit', 'quote_status', 'quote_approve', 'quote_delete', 'payment_add',
-                  'payment_status', 'payment_delete', 'view_save', 'view_rename', 'view_delete', 'ai_summary')
+                  'payment_status', 'payment_delete', 'view_save', 'view_rename', 'view_delete', 'ai_summary',
+                  'contact_show')
 
 MATCHES = ('matches.cs_match_queue', 'matches.cs_matches', 'matches.cs_notify', 'matches.cs_dismiss',
            'matches.cs_connected', 'matches.cs_mark_sent', 'matches.cs_intro_text', 'matches.trip_matches',
@@ -82,7 +85,7 @@ MODULES = [
      'desc': 'Health, Service to-do, notifications and the site dashboard.',
      'pages': [
          # the master screen: how every part of the portal is doing, and what needs somebody now (services/health.py)
-         _page('health', 'Health', 'fa-heart-pulse', ['admin.health'], admin='admin.health',
+         _page('health', 'Health', 'fa-heart-pulse', ['admin.health', 'admin.checklist_hide'], admin='admin.health',
                desc='Everything at a glance: leads and who has them, follow-ups, enquiries, bookings, posts, '
                     'users, WhatsApp and the blog -- and what needs somebody now.',
                tip='Everything at a glance, and what needs somebody now.'),
@@ -114,11 +117,17 @@ MODULES = [
                admin='admin_crm.calendar', cs='crm.calendar', with_=('crm_today',),
                desc='Tasks, calls, meetings and follow-ups by day, and a list of what is open.',
                tip='Tasks, calls, meetings, follow-ups and trips, by month or week.'),
+         # Staff Console 2.0's one Inbox (2026-10-26): whoever works leads has it; it can also be given on its own
+         _page('crm_inbox', 'All conversations', 'fa-inbox', _both('inbox'), admin='admin_crm.inbox', cs='crm.inbox',
+               with_=('crm_today', 'crm_board'), grant=True,
+               desc='Everybody who wrote to us -- WhatsApp, e-mail, Instagram, Facebook, the website forms and its '
+                    'chat -- one row each, newest first, and who is waiting on us.',
+               tip='Every conversation on every channel, newest first.'),
          _page('crm_people', 'Contacts', 'fa-address-book',
                _both('contacts', 'contact', 'contact_edit', 'contact_tags', 'find', 'contact_family_add',
                      'contact_family_role', 'contact_family_remove', 'contact_family_rename', 'contact_merge',
                      'contact_merge_do', 'file_upload', 'file_download', 'file_delete', 'view_save', 'view_rename',
-                     'view_delete', 'contact_offers') + ('messaging.contacts',),
+                     'view_delete', 'contact_offers', 'contact_show') + ('messaging.contacts',),
                admin='admin_crm.contacts', cs='crm.contacts', lit=_both('contact', 'contact_edit'),
                desc='Everyone we can reach, one row per person, and each contact page.',
                tip='Everyone we can reach, one row per person.'),
@@ -137,7 +146,7 @@ MODULES = [
          _page('crm_quick', 'Messages', 'fa-bolt',
                _both('quick_replies', 'save_answer', 'setup') + ('messaging.quick_replies',),
                admin='admin_crm.quick_replies', cs='crm.quick_replies',
-               with_=('wa_templates', 'wa_broadcasts', 'wa_tags'), grant=True,
+               with_=('wa_templates', 'wa_broadcasts', 'wa_tags'), grant=True, line='Quick replies & templates',
                tip='Quick replies, WhatsApp templates, broadcasts and tags.'),
          _page('crm_tracker', 'Team today', 'fa-people-line', _both('tracker'), admin='admin_crm.tracker',
                desc="Each person's checklist and timeline, day by day.",
@@ -235,15 +244,15 @@ MODULES = [
                admin='admin.listings',
                desc='Every listing on the companion site; switch one off.'),
          _page('voices_contact', 'Contact us', 'fa-envelope', VOICES, admin='admin.voices', cs='cs.voices',
-               args={'tab': 'contact', 'topic': 'companion'},
+               args={'tab': 'contact', 'topic': 'companion'}, line='Companion: contact us',
                desc='Contact us messages about Travel Companion.'),
          _page('voices_feedback', 'Feedback', 'fa-star',
                VOICES + ('cs.feedback_action', 'admin.feedback', 'admin.approve_feedback',
                          'admin.feature_feedback', 'admin.reject_feedback'),
-               admin='admin.voices', cs='cs.voices', args={'tab': 'feedback'},
+               admin='admin.voices', cs='cs.voices', args={'tab': 'feedback'}, line='Companion: feedback',
                desc='Reviews travellers left: approve, feature or turn them down.'),
          _page('voices_report', 'Reports', 'fa-flag-checkered', VOICES + ('cs.report_action',),
-               admin='admin.voices', cs='cs.voices', args={'tab': 'report'},
+               admin='admin.voices', cs='cs.voices', args={'tab': 'report'}, line='Companion: reported matches',
                desc='Matches a traveller reported as a problem.'),
          _page('landing', 'Landing page', 'fa-flag', ['admin.landing_page'], admin='admin.landing_page',
                desc='Contact numbers, support addresses and colours.'),
@@ -251,8 +260,13 @@ MODULES = [
          # line, writing on the other
          _page('blog_list', 'Blog posts', 'fa-newspaper',
                ['admin.blog_list', 'admin.blog_dashboard', 'admin.blog_bulk', 'admin.blog_trash',
-                'admin.blog_restore', 'admin.blog_terms', 'admin.blog_term_delete', 'admin.blog_order'],
-               admin='admin.blog_list', desc='All posts, the blog dashboard, categories and tags, the order on the blog, the Trash.'),
+                'admin.blog_restore', 'admin.blog_terms', 'admin.blog_term_delete', 'admin.blog_order',
+                # the sidebars beside a post (flyers, ads, links): their pictures come up and out of the library
+                'admin.blog_sidebars', 'admin.blog_sidebar_edit', 'admin.blog_sidebar_preview',
+                'admin.blog_sidebar_quick', 'admin.blog_sidebar_order', 'admin.blog_sidebar_rail',
+                'admin.blog_sidebar_copy', 'admin.blog_sidebar_delete', 'admin.blog_image', 'admin.blog_media'],
+               admin='admin.blog_list', desc='All posts, the blog dashboard, categories and tags, the order on the blog, '
+                                             'the sidebars beside a post, the Trash.'),
          _page('blog', 'New blog post', 'fa-pen', ['admin.new_blog', 'admin.blog_edit', 'admin.blog_check',
                                                   'admin.blog_preview', 'admin.blog_image', 'admin.blog_word',
                                                   'admin.blog_duplicate', 'admin.blog_revisions',
@@ -279,10 +293,10 @@ MODULES = [
                admin='admin.insurance_quotes', cs='cs.insurance_quotes',
                desc='Every travel insurance quote request, and whether the quote went out.'),
          _page('voices_insurance', 'Enquiries', 'fa-envelope', VOICES, admin='admin.voices', cs='cs.voices',
-               args={'tab': 'contact', 'topic': 'insurance'},
+               args={'tab': 'contact', 'topic': 'insurance'}, line='Insurance enquiries',
                desc='Contact us messages about travel insurance.'),
          _page('insurance_page', 'Page content', 'fa-quote-left', ['admin.insurance_page_content'],
-               admin='admin.insurance_page_content',
+               admin='admin.insurance_page_content', line='Insurance page',
                desc='The words on the travel insurance page.'),
          _page('help_insurance', 'Help & FAQ', 'fa-circle-question', ['admin.help_center_page'],
                admin='admin.help_center_page', args={'site': 'insurance'}, nav=False,
@@ -296,10 +310,10 @@ MODULES = [
                admin='admin.sahayak_bookings', cs='cs.sahayak_bookings',
                desc='Home-care requests: call, give one to somebody by name, mark it done.'),
          _page('voices_sahayak', 'Applications & enquiries', 'fa-user-plus', VOICES, admin='admin.voices',
-               cs='cs.voices', args={'tab': 'contact', 'topic': 'sahayak'},
+               cs='cs.voices', args={'tab': 'contact', 'topic': 'sahayak'}, line='Sahayak applications',
                desc='Nurse and carer applications, and Sahayak enquiries.'),
          _page('sahayak_services', 'Services & prices', 'fa-list-check', ['admin.sahayak_services'],
-               admin='admin.sahayak_services',
+               admin='admin.sahayak_services', line='Sahayak services & prices',
                desc='The home-care services we offer, and their prices.'),
          _page('help_sahayak', 'Help & FAQ', 'fa-circle-question', ['admin.help_center_page'],
                admin='admin.help_center_page', args={'site': 'sahayak'}, nav=False,
@@ -311,7 +325,7 @@ MODULES = [
      'pages': [
          _page('wa_inbox', 'WhatsApp chats', 'fa-brands fa-whatsapp',
                ['messaging.inbox', 'messaging.lead_panel', 'messaging.lead_panel_make', 'messaging.start_chat_panel',
-                'messaging.start_chat'], admin='messaging.inbox',
+                'messaging.start_chat', 'messaging.contact_chat'], admin='messaging.inbox',
                cs='messaging.inbox', desc='Every WhatsApp conversation.',
                tip='Every WhatsApp conversation; the lead shows beside the open chat.'),
          _page('wa_templates', 'WhatsApp templates', 'fa-file-lines', ['messaging.templates'],
@@ -340,7 +354,7 @@ MODULES = [
      'desc': 'Accounts, wording, dropdowns, notifications and colours for the whole site.',
      'pages': [
          _page('voices_general', 'Contact us (all services)', 'fa-inbox', VOICES, admin='admin.voices',
-               cs='cs.voices', args={'tab': 'contact', 'topic': 'general'},
+               cs='cs.voices', args={'tab': 'contact', 'topic': 'general'}, line='General enquiries',
                desc='Contact us messages about anything, from every site.'),
          _page('users', 'Users', 'fa-users',
                ['admin.users', 'admin.toggle_user', 'admin.set_user_role', 'admin.set_user_roles', 'admin.new_user',
@@ -391,8 +405,9 @@ MODULES = [
                ['workspace.teams', 'workspace.team', 'workspace.save_team', 'workspace.delete_team'],
                admin='workspace.teams', tip='Groups of people who share a role.'),
          _page('ws_roles', 'Roles', 'fa-user-lock',
-               ['workspace.roles', 'workspace.role', 'workspace.save_role', 'workspace.delete_role'],
-               admin='workspace.roles', tip='What each kind of job can open.'),
+               ['workspace.roles', 'workspace.role', 'workspace.save_role', 'workspace.delete_role',
+                'workspace.add_profile_roles'],
+               admin='workspace.roles', tip='What each kind of job can open, and what it may do there.'),
          _page('ws_menu', 'Menu builder', 'fa-bars-staggered',
                ['workspace.menu', 'workspace.save_menu', 'workspace.reset_menu', 'workspace.menu_preview'],
                admin='workspace.menu', desc='Arrange the staff menu: sections, sub-menus, order and names.',
@@ -411,50 +426,61 @@ MODULES = [
      ]},
 ]
 
-# The menu, in order: one heading per area, each with its pages in this order -- or, for a big area,
-# `subs`: sub-menus that fold again, each with its pages. Health opens the menu; every report sits in
-# Reports and every screen that explains rather than does sits in Help, each by the product it is about.
-# A page's area (its module above) still decides whether the workspace has it switched on; the section
-# only decides where its line sits. The one place the menu's order lives.
+# The menu, in order (2026-10-26, Staff Console 2.0 -- the tawk.to way): the work areas first, as a rail of icons --
+# Home, Inbox, Leads, Contacts, Tasks, Services, Reports, Content, Automate -- then Help, and Set-up last (the
+# gear): everything that configures rather than works, in eight groups. Each area holds its pages in this order,
+# or, for a big one, `subs`: sub-menus that fold, each with its pages. A page's module above still decides whether
+# the workspace has it switched on and who may be given it; the area only decides where its line sits. The one
+# place the menu's order lives.
 SECTIONS = [
-    {'key': 'overview', 'label': 'Overview', 'icon': 'fa-gauge',
-     'pages': ('health', 'home', 'notifications', 'voices_general')},
-    {'key': 'reports', 'label': 'Reports', 'icon': 'fa-chart-line', 'subs': (
-        # Sales results / Forecast and Team today / Team analysis are one line each, with a switch (TAB_GROUPS)
-        {'key': 'sales', 'label': 'Sales CRM', 'icon': 'fa-filter-circle-dollar',
-         'pages': ('reports', 'crm_insights', 'crm_forecast', 'crm_tracker', 'crm_team', 'crm_report_builder',
-                   'crm_export')},
-        {'key': 'site', 'label': 'Whole site', 'icon': 'fa-globe', 'pages': ('dashboard',)},
+    {'key': 'home', 'label': 'Home', 'icon': 'fa-house',
+     'pages': ('health', 'crm_today', 'home', 'notifications')},
+    {'key': 'inbox', 'label': 'Inbox', 'icon': 'fa-inbox', 'subs': (
+        {'key': 'chats', 'label': 'Conversations', 'icon': 'fa-comments',
+         'pages': ('crm_inbox', 'wa_inbox', 'crm_checks')},
+        {'key': 'forms', 'label': 'Website forms', 'icon': 'fa-envelope-open-text',
+         'pages': ('voices_general', 'voices_contact', 'voices_feedback', 'voices_report', 'voices_insurance',
+                   'voices_sahayak')},
     )},
-    {'key': 'sales', 'label': 'Sales CRM', 'icon': 'fa-filter-circle-dollar', 'subs': (
-        # pages with no line of their own (nav=False) are tabs of a line next to them: TAB_GROUPS
-        {'key': 'daily', 'label': 'Daily work', 'icon': 'fa-sun',
-         'pages': ('crm_today', 'crm_checks', 'wa_inbox', 'crm_board', 'crm_calendar', 'crm_people', 'crm_add', 'crm_flow')},
-        {'key': 'setup', 'label': 'Set-up', 'icon': 'fa-sliders',
-         'pages': ('crm_pipelines', 'crm_auto', 'crm_rules', 'crm_quick', 'crm_sources', 'crm_targets', 'crm_integrations',
-                   'crm_connection', 'crm_data',
-                   'crm_bin', 'wa_templates', 'wa_broadcasts', 'wa_tags', 'wa_automations', 'wa_flows',
-                   'wa_ai', 'wa_settings')},
-    )},
-    {'key': 'companion', 'label': 'Travel Companion', 'icon': 'fa-plane-departure', 'subs': (
-        {'key': 'posts', 'label': 'Posts & matches', 'icon': 'fa-list',
+    # Board, List, Flow and How we sell are a view switch on Leads (TAB_HOST)
+    {'key': 'leads', 'label': 'Leads', 'icon': 'fa-filter-circle-dollar', 'pages': ('crm_board', 'crm_add', 'crm_flow')},
+    {'key': 'contacts', 'label': 'Contacts', 'icon': 'fa-address-book', 'pages': ('crm_people',)},
+    {'key': 'tasks', 'label': 'Tasks', 'icon': 'fa-calendar-check', 'pages': ('crm_calendar',)},
+    {'key': 'services', 'label': 'Services', 'icon': 'fa-briefcase', 'subs': (
+        {'key': 'companion', 'label': 'Travel Companion', 'icon': 'fa-plane-departure',
          'pages': ('posts', 'matches', 'new', 'import', 'scraper', 'listings')},
-        {'key': 'voices', 'label': 'Inbox', 'icon': 'fa-envelope',
-         'pages': ('voices_contact', 'voices_feedback', 'voices_report')},
-        {'key': 'website', 'label': 'Website', 'icon': 'fa-globe', 'pages': ('landing', 'blog_list', 'blog', 'blog_import')},
+        {'key': 'insurance', 'label': 'Travel Insurance', 'icon': 'fa-shield-heart', 'pages': ('insurance',)},
+        {'key': 'sahayak', 'label': 'Sahayak', 'icon': 'fa-house-medical', 'pages': ('sahayak',)},
     )},
-    {'key': 'insurance', 'label': 'Travel Insurance', 'icon': 'fa-shield-heart',
-     'pages': ('insurance', 'voices_insurance', 'insurance_page')},
-    {'key': 'sahayak', 'label': 'Sahayak', 'icon': 'fa-house-medical',
-     'pages': ('sahayak', 'voices_sahayak', 'sahayak_services')},
+    # Sales results / Forecast and Team today / Team analysis are one line each, with a switch (TAB_GROUPS)
+    {'key': 'reports', 'label': 'Reports', 'icon': 'fa-chart-line',
+     'pages': ('reports', 'crm_insights', 'crm_forecast', 'crm_tracker', 'crm_team', 'crm_report_builder',
+               'dashboard')},
+    {'key': 'content', 'label': 'Content', 'icon': 'fa-pen-nib',
+     'pages': ('blog_list', 'blog', 'blog_import', 'landing', 'insurance_page')},
+    # the rules, WhatsApp's reply rules, the chatbot and AI replies are tabs of Automation (TAB_GROUPS)
+    {'key': 'automate', 'label': 'Automate', 'icon': 'fa-bolt',
+     'pages': ('crm_auto', 'crm_rules', 'wa_automations', 'wa_flows', 'wa_ai')},
     # one line, the Help centre: the help of each product (HELP_BY_PRODUCT) and every screen, on one page -- what a
     # person's role includes decides what on it opens, not which menu lines they get
     {'key': 'help', 'label': 'Help', 'icon': 'fa-circle-question',
      'pages': ('guide', 'crm_process', 'metrics', 'help', 'help_insurance', 'help_sahayak')},
-    {'key': 'team', 'label': 'Team', 'icon': 'fa-users',
-     'pages': ('ws_members', 'ws_teams', 'ws_roles', 'ws_security', 'ws_menu', 'ws_settings', 'ws_all')},
-    {'key': 'site', 'label': 'Site settings', 'icon': 'fa-gear',
-     'pages': ('users', 'options', 'messages', 'notiflog', 'notify_switches', 'themes', 'delete_records')},
+    # the gear: only somebody given a set-up page sees it, one group open at a time
+    {'key': 'setup', 'label': 'Set-up', 'icon': 'fa-gear', 'subs': (
+        {'key': 'company', 'label': 'Company', 'icon': 'fa-building', 'pages': ('ws_settings', 'ws_menu', 'ws_all')},
+        {'key': 'people', 'label': 'People', 'icon': 'fa-users', 'pages': ('ws_members', 'ws_teams', 'ws_roles')},
+        {'key': 'channels', 'label': 'Channels', 'icon': 'fa-plug',
+         'pages': ('crm_integrations', 'crm_connection', 'wa_settings', 'crm_sources')},
+        {'key': 'sales', 'label': 'Sales', 'icon': 'fa-sliders',
+         'pages': ('crm_pipelines', 'crm_targets', 'sahayak_services')},
+        {'key': 'messages', 'label': 'Messages', 'icon': 'fa-comment-dots',
+         'pages': ('crm_quick', 'wa_templates', 'wa_broadcasts', 'wa_tags', 'messages')},
+        {'key': 'data', 'label': 'Data', 'icon': 'fa-database',
+         'pages': ('crm_data', 'crm_bin', 'crm_export', 'delete_records')},
+        {'key': 'site', 'label': 'Site', 'icon': 'fa-globe',
+         'pages': ('users', 'options', 'notify_switches', 'notiflog', 'themes')},
+        {'key': 'security', 'label': 'Security', 'icon': 'fa-shield-halved', 'pages': ('ws_security',)},
+    )},
 ]
 for _s in SECTIONS:
     if 'subs' in _s:
@@ -563,15 +589,15 @@ def first_page_url(keys, user=None):
 
 
 def _menu_place(key):
-    """Where a page sits in the menu in code, in words: "Reports › Sales CRM", or for a page with no line of its
-    own the line it is a tab of: "Reports › Sales CRM › Sales results (switch at the top right)"."""
+    """Where a page sits in the menu in code, in words: "Set-up › Channels", or for a page with no line of its
+    own the line it is a tab of: "Reports › Sales results (switch at the top right)"."""
     host = TAB_HOST.get(key)
     p = PAGES[host or key]
     sec = SECTION_BY_KEY[p['section']]
     sub = next((b for b in sec.get('subs', ()) if b['key'] == p.get('sub')), None)
     words = [sec['label']] + ([sub['label']] if sub else [])
     line = LINE_OF.get(host or key)
-    if line:          # a card under another line's page: "Sales CRM › Set-up › Integrations › WhatsApp (a card)"
+    if line:          # a card under another line's page: "Set-up › Channels › Integrations › WhatsApp (a card)"
         words.append('%s › %s (a card)' % (PAGES[line]['label'], p['label']))
         if host:
             words.append('%s (a tab)' % PAGES[key]['label'])
@@ -1166,7 +1192,7 @@ def _menu(layout, allowed_pages, on, here, console):
             url = page_url(PAGES[via], console)
         if not url:
             return None
-        return {'key': key, 'label': names.get(key, p['label']), 'icon': p['icon'], 'tip': p['tip'] or p['label'],
+        return {'key': key, 'label': names.get(key, p['line']), 'icon': p['icon'], 'tip': p['tip'] or p['label'],
                 'url': url, 'active': key == here, 'badge': key, 'mark': key in MARKS, 'sum': key not in MARKS}
 
     groups = []
@@ -1181,8 +1207,9 @@ def _menu(layout, allowed_pages, on, here, console):
             [i for i in map(line, sec['pages']) if i]
         if not items:
             continue
-        # the customers waiting are in My day's number too: the section's total counts them once
-        if any(i['key'] == 'crm_today' for i in items):
+        # the customers waiting are in My day's and All conversations' numbers too: the section's total counts them
+        # once
+        if any(i['key'] in ('crm_today', 'crm_inbox') for i in items):
             for i in items:
                 if i['key'] == 'wa_inbox':
                     i['sum'] = False
@@ -1280,11 +1307,23 @@ def guard():
     endpoint = request.endpoint
     if not claims(endpoint) or not is_staff(current_user):
         return None
+    wants_json = (request.is_json or request.accept_mimetypes.best == 'application/json'
+                  or request.headers.get('X-Requested-With') == 'XMLHttpRequest')
     if allowed(current_user, endpoint):
-        return None
+        # a page their role opens only to look (services/role_rights): anything that changes something is refused
+        from app.services import role_rights
+        if request.method in ('GET', 'HEAD', 'OPTIONS') or role_rights.may_change(current_user, endpoint):
+            return None
+        if wants_json:
+            return jsonify({'ok': False, 'error': role_rights.LOOK_ONLY}), 403
+        flash(role_rights.LOOK_ONLY, 'warning')
+        from urllib.parse import urlparse
+        from app.services import urls
+        ref = urlparse(request.referrer or '')           # back to the page they were on, when it is ours
+        back = urls.safe_next(ref.path + ('?' + ref.query if ref.query else '')) if ref.netloc == request.host else None
+        return redirect(back or denied_url(current_user, endpoint))
     # a page's own fetch() calls get an answer they can show; a form or a link gets the menu back
-    if (request.is_json or request.accept_mimetypes.best == 'application/json'
-            or request.headers.get('X-Requested-With') == 'XMLHttpRequest'):
+    if wants_json:
         said = [PAGES[k]['deny'] for k in sorted(ENDPOINT_PAGES.get(endpoint, ())) if PAGES[k]['deny']]
         return jsonify({'error': said[0] if said else 'Your role does not include this page.'}), 403
     flash('That part of the console has not been enabled for your account.', 'warning')
@@ -1502,8 +1541,8 @@ def who_has(ws):
     return counts
 
 
-# the order "Can open" names pages in: the menu's, with the day's work first and Overview last
-_SUMMARY_ORDER = tuple(k for s in SECTIONS if s['key'] != 'overview' for k in s['pages']) + SECTIONS[0]['pages']
+# the order "Can open" names pages in: the menu's, with the day's work first and Home last
+_SUMMARY_ORDER = tuple(k for s in SECTIONS if s['key'] != 'home' for k in s['pages']) + SECTIONS[0]['pages']
 
 
 def can_open_summary(member, limit=3):

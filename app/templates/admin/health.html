@@ -4,7 +4,7 @@
 {% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/crm.css') }}"/>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/health.css') }}"/>{% endblock %}
 
-{# Overview › Health (services/health.py): the master screen. What needs somebody now at the top, worst first;
+{# Home › Health (services/health.py): the master screen. What needs somebody now at the top, worst first;
    then one part per product, each a row of numbers (a coloured edge and a word say its state) and its charts.
    Every number opens the screen behind it, for whoever may open that screen. #}
 
@@ -73,6 +73,30 @@
                        'Every number opens the screen behind it. A red edge means act now, amber means waiting, green means nothing is waiting.',
                        '"In 7 / 30 / 90 days" numbers and the charts use the period you pick; the rest is how things stand right now.',
                        'Days are counted in India time; times show in the zone picked at the top. Counted fresh each time the page opens.']) }}
+
+    {% if steps %}
+    {# the first-week checklist (services/checklist.py): each line ticks itself once it is done #}
+    {% set left = steps|rejectattr('done')|list %}
+    <section class="card ck" aria-labelledby="ck-h">
+      <div class="ck-head">
+        <div><h2 id="ck-h"><i class="fa-solid fa-list-check" aria-hidden="true"></i> Getting started</h2>
+          <p class="muted small">{{ steps|length - left|length }} of {{ steps|length }} done. Each line ticks itself once it is done.</p></div>
+        <form method="POST" action="{{ url_for('admin.checklist_hide') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <button class="cb sm quiet">Hide this list</button></form>
+      </div>
+      <div class="ck-bar" role="progressbar" aria-valuemin="0" aria-valuemax="{{ steps|length }}" aria-valuenow="{{ steps|length - left|length }}">
+        <span style="width: {{ ((steps|length - left|length) * 100 / steps|length)|round|int }}%"></span></div>
+      <ol class="ck-list">
+        {% for s in steps %}
+        <li class="{{ 'done' if s.done }}">
+          <i class="fa-solid {{ 'fa-circle-check' if s.done else 'fa-circle' }}" aria-hidden="true"></i>
+          <div><a href="{{ s.url }}">{{ s.text }}</a>{% if s.done %} <span class="sr-only">(done)</span>{% endif %}<small>{{ s.why }}</small></div>
+        </li>
+        {% endfor %}
+      </ol>
+    </section>
+    {% endif %}
 
     <div class="hl-bar">
       <div class="seg" role="group" aria-label="Period">

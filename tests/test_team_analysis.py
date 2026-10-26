@@ -150,7 +150,7 @@ def test_the_page_compares_who_is_ticked(app, client, admin_user):
     assert '<b>North</b>' in html and '<b>South</b>' in html
     assert 'value="%d" data-in="1" checked' % a.id in html and 'value="%d" data-in="1" checked' % b.id not in html
     assert 'value="%d" data-in="2" checked' % c.id in html
-    r = client.get('/admin/crm/analysis?period=custom&start=%s&end=%s&format=csv&p=%d' % (PAST, PAST, a.id))
+    r = client.get('/admin/crm/analysis?period=custom&start=%s&end=%s&format=csv&p=%d&reason=backup' % (PAST, PAST, a.id))
     assert r.status_code == 200 and r.mimetype == 'text/csv'
     rows = list(csv.reader(io.StringIO(r.get_data(as_text=True).lstrip(chr(0xfeff)))))
     assert rows[0][0] == 'Person' and [x[0] for x in rows[1:]] == [a.full_name]

@@ -1,0 +1,39 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{# Before every sales download (services/download_reason.py): why. The answer is in the audit log with the download. #}
+{% block crm_title %}Why are you downloading this?{% endblock %}
+{% block crm %}
+{{ page_head('Why are you downloading this?', 'fa-solid fa-file-arrow-down',
+             'A list with people on it leaves the portal. Say why: it goes into the audit log with who and when.') }}
+<form class="card why-dl" method="GET" action="{{ action }}" data-why-download data-back="{{ back }}">
+  {% for k, v in keep %}<input type="hidden" name="{{ k }}" value="{{ v }}"/>{% endfor %}
+  <fieldset>
+    <legend class="sr-only">Why</legend>
+    {% for key, words in REASONS %}
+    <label class="why-dl-choice"><input type="radio" name="reason" value="{{ key }}" required{{ ' checked' if missing and key == 'other' }}/> {{ words }}</label>
+    {% endfor %}
+  </fieldset>
+  <label class="why-dl-note" for="why-note">If something else, what for?
+    <input id="why-note" name="why" maxlength="{{ NOTE_MAX }}" autocomplete="off"{{ ' autofocus' if missing }}/></label>
+  {% if missing %}<p class="form-error">Say what it is for, in a few words.</p>{% endif %}
+  <div class="row">
+    <button class="cb primary"><i class="fa-solid fa-download" aria-hidden="true"></i> Download</button>
+    <a class="cb ghost" href="{{ back }}">Cancel</a>
+  </div>
+  <p class="hint" data-why-done hidden>Your download has started. <a href="{{ back }}">Back to where you were</a></p>
+</form>
+<script>
+(function () {
+  var form = document.querySelector('[data-why-download]');
+  if (!form) return;
+  var note = form.querySelector('#why-note');
+  form.addEventListener('submit', function (e) {
+    var other = form.querySelector('input[name="reason"][value="other"]');
+    if (other && other.checked && !note.value.trim()) { e.preventDefault(); note.focus(); return; }
+    // the file downloads and this page stays: say so, then go back to where they were
+    form.querySelector('[data-why-done]').hidden = false;
+    setTimeout(function () { window.location.href = form.getAttribute('data-back'); }, 2500);
+  });
+})();
+</script>
+{% endblock %}

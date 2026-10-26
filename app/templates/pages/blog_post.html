@@ -1,63 +1,91 @@
 {% extends 'base.html' %}
+{% from 'pages/_blog_side.html' import side_card with context %}
 {% block title %}{{ post.seo_title or post.title }} – NRI Parent Service{% endblock %}
 {% block meta_description %}{{ post.summary or post.excerpt(160) }}{% endblock %}
 {% block extra_css %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/blog-public.css') }}"/>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/blog-blocks.css') }}"/>{% endblock %}
 {% block content %}
-{# One post: the reading bar across the top, the title and who wrote it with share / WhatsApp / save, the cover,
-   the words, then "send it to family" and what to read next (a row to swipe on a phone). The admin's Preview shows
-   this page for a post not saved yet -- no address, maybe no author -- so nothing here may need them. #}
+{# One post: the reading bar across the top; the title, who wrote it, share / WhatsApp / save; the cover (all of it,
+   whatever its shape); the words; "send it to family"; then what to read next (a row to swipe on a phone).
+   Beside it, on a wide screen, the sidebars (Blog › Sidebars, services/blog_sidebars.py): flyers, ads, links, the
+   post's headings -- the cards meant for this post. A phone has no room beside it: those cards come under the post
+   instead (the ones set to show on phones). The admin's Preview shows this page for a post not saved yet -- no
+   address, maybe no author -- so nothing here may need them. #}
 {% if preview %}<div class="blog-preview-bar"><i class="fa-solid fa-eye"></i> Preview — this is how the post will look. {{ 'It is live.' if post.is_published else 'It is not published.' }}</div>{% endif %}
 {% set covers = ['l4.jpg','l5.jpg','l6.jpg','l7.jpg','l8.jpg','l9.jpg'] %}
 {% set who = post.author.full_name if post.author else 'NRI Parent Service' %}
 {% set cat = post.categories[0] if post.categories else none %}
+{% set S = side or {} %}
+{% set lay = post.layout|blog_layout %}
+{% set cover = app_url(post.cover_image_url) if post.cover_image_url else url_for('static', filename='img/landing/' ~ covers[post.id % 6]) %}
 <div class="bj-progress" aria-hidden="true"><i id="bjProgress"></i></div>
-<article class="bj-post" data-slug="{{ post.slug or '' }}" data-url="{{ url_for('blog.blog_post', slug=post.slug) if post.slug else '' }}" data-title="{{ post.title }}">
-  <header class="bj-post-head">
-    <nav class="bj-crumbs" aria-label="Where you are"><a href="{{ url_for('blog.blog_list') }}"><i class="fa-solid fa-arrow-left"></i> All stories</a>
-      {% if cat and cat.slug %}<span>/</span><a href="{{ url_for('blog.blog_term', kind='category', slug=cat.slug) }}">{{ cat.name }}</a>{% endif %}</nav>
-    {% if post.categories|length > 1 %}
-    <p class="bj-cats">{% for c in post.categories %}<a href="{{ url_for('blog.blog_term', kind='category', slug=c.slug) if c.slug else '#' }}">{{ c.name }}</a>{% endfor %}</p>
+<div class="bj-shell{{ ' has-left' if S.left }}{{ ' has-right' if S.right }}{{ ' is-wide' if 'lay-w-wide' in lay }}{{ ' is-narrow' if 'lay-w-narrow' in lay }}"
+     {% if S.rails %}style="--rl: {{ S.rails.left.width }}px; --rr: {{ S.rails.right.width }}px"{% endif %}>
+  {% if S.left %}
+  <aside class="bj-rail is-left{{ ' is-sticky' if S.rails.left.sticky }}" aria-label="Beside the post">
+    {% for c in S.left %}{{ side_card(c, S.more) }}{% endfor %}
+  </aside>
+  {% endif %}
+  <article class="bj-post" data-slug="{{ post.slug or '' }}" data-url="{{ url_for('blog.blog_post', slug=post.slug) if post.slug else '' }}" data-title="{{ post.title }}">
+    <header class="bj-post-head">
+      <nav class="bj-crumbs" aria-label="Where you are"><a href="{{ url_for('blog.blog_list') }}"><i class="fa-solid fa-arrow-left"></i> All stories</a>
+        {% if cat and cat.slug %}<span>/</span><a href="{{ url_for('blog.blog_term', kind='category', slug=cat.slug) }}">{{ cat.name }}</a>{% endif %}</nav>
+      {% if post.categories|length > 1 %}
+      <p class="bj-cats">{% for c in post.categories %}<a href="{{ url_for('blog.blog_term', kind='category', slug=c.slug) if c.slug else '#' }}">{{ c.name }}</a>{% endfor %}</p>
+      {% endif %}
+      <h1>{{ post.title }}</h1>
+      {% if post.summary %}<p class="bj-dek">{{ post.summary }}</p>{% endif %}
+      <div class="bj-byline">
+        <span class="bp-av" aria-hidden="true">{{ (who.split()|map('first')|join)[:2]|upper }}</span>
+        <span class="bj-by"><b>{{ who }}</b>
+          <small>{{ post.published_at|istd('%d %B %Y') if post.published_at else '' }} · {{ post.reading_minutes() }} min read</small></span>
+        <span class="bj-acts">
+          <button type="button" data-act="wa" aria-label="Send on WhatsApp" title="Send on WhatsApp"><i class="fa-brands fa-whatsapp"></i></button>
+          <button type="button" data-act="share" aria-label="Share" title="Share"><i class="fa-regular fa-paper-plane"></i></button>
+          <button type="button" data-act="save" class="bp-save" aria-label="Save for later" title="Save for later" aria-pressed="false"><i class="fa-regular fa-bookmark"></i></button>
+        </span>
+      </div>
+    </header>
+    {# the cover whole, whatever its shape: a picture of another shape sits on a blurred copy of itself #}
+    <figure class="bj-cover" data-fit>
+      <img class="bj-cover-bg" src="{{ cover }}" alt="" aria-hidden="true"/>
+      <img class="bj-cover-img" src="{{ cover }}" alt="{{ post.cover_alt or post.title }}" fetchpriority="high"/>
+    </figure>
+    <div class="static-content blog-post-content bj-content {{ lay }}">
+      {{ post.content|blog_html }}
+    </div>
+    {% if post.tags %}
+    <p class="bj-tags">{% for t in post.tags %}<a href="{{ url_for('blog.blog_term', kind='tag', slug=t.slug) if t.id else '#' }}">#{{ t.name }}</a>{% endfor %}</p>
     {% endif %}
-    <h1>{{ post.title }}</h1>
-    {% if post.summary %}<p class="bj-dek">{{ post.summary }}</p>{% endif %}
-    <div class="bj-byline">
-      <span class="bp-av" aria-hidden="true">{{ (who.split()|map('first')|join)[:2]|upper }}</span>
-      <span class="bj-by"><b>{{ who }}</b>
-        <small>{{ post.published_at|istd('%d %B %Y') if post.published_at else '' }} · {{ post.reading_minutes() }} min read</small></span>
-      <span class="bj-acts">
-        <button type="button" data-act="wa" aria-label="Send on WhatsApp" title="Send on WhatsApp"><i class="fa-brands fa-whatsapp"></i></button>
+    {% if S.below %}
+    <div class="bj-below" aria-label="More from us">
+      {% for c in S.below %}<div class="bj-below-i is-{{ c.side }}">{{ side_card(c, S.more) }}</div>{% endfor %}
+    </div>
+    {% endif %}
+    <aside class="bj-sharebox">
+      <span class="bj-sharebox-ic" aria-hidden="true"><i class="fa-solid fa-people-roof"></i></span>
+      <div class="bj-sharebox-words"><b>Found this useful?</b><span>Send it to the family group: it may save someone a long day at the airport.</span></div>
+      <span class="bj-sharebox-acts">
+        <button type="button" data-act="wa" class="bj-wa"><i class="fa-brands fa-whatsapp"></i> Send on WhatsApp</button>
         <button type="button" data-act="share" aria-label="Share" title="Share"><i class="fa-regular fa-paper-plane"></i></button>
         <button type="button" data-act="save" class="bp-save" aria-label="Save for later" title="Save for later" aria-pressed="false"><i class="fa-regular fa-bookmark"></i></button>
       </span>
-    </div>
-  </header>
-  <figure class="bj-cover">
-    <img src="{{ app_url(post.cover_image_url) if post.cover_image_url else url_for('static', filename='img/landing/' ~ covers[post.id % 6]) }}" alt="{{ post.cover_alt or post.title }}"/>
-  </figure>
-  <div class="static-content blog-post-content bj-content {{ post.layout|blog_layout }}">
-    {{ post.content|blog_html }}
-  </div>
-  {% if post.tags %}
-  <p class="bj-tags">{% for t in post.tags %}<a href="{{ url_for('blog.blog_term', kind='tag', slug=t.slug) if t.id else '#' }}">#{{ t.name }}</a>{% endfor %}</p>
-  {% endif %}
-  <aside class="bj-sharebox">
-    <div><b>Found this useful?</b><span>Send it to the family group: it may save someone a long day at the airport.</span></div>
-    <span class="bj-sharebox-acts">
-      <button type="button" data-act="wa" class="bj-wa"><i class="fa-brands fa-whatsapp"></i> Send on WhatsApp</button>
-      <button type="button" data-act="share" aria-label="Share" title="Share"><i class="fa-regular fa-paper-plane"></i></button>
-      <button type="button" data-act="save" class="bp-save" aria-label="Save for later" title="Save for later" aria-pressed="false"><i class="fa-regular fa-bookmark"></i></button>
-    </span>
+    </aside>
+  </article>
+  {% if S.right %}
+  <aside class="bj-rail is-right{{ ' is-sticky' if S.rails.right.sticky }}" aria-label="Beside the post">
+    {% for c in S.right %}{{ side_card(c, S.more) }}{% endfor %}
   </aside>
-</article>
+  {% endif %}
+</div>
 {% if related %}
 <section class="bj-next" aria-label="Read next">
   <h2>Read next</h2>
   <div class="bj-next-row">
     {% for r in related %}
     <a href="{{ url_for('blog.blog_post', slug=r.slug) }}" class="bj-mini">
-      <img src="{{ app_url(r.cover_image_url) if r.cover_image_url else url_for('static', filename='img/landing/' ~ covers[r.id % 6]) }}" alt="" loading="lazy"/>
-      <span>{% if r.categories %}<small>{{ r.categories[0].name }}</small>{% endif %}<b>{{ r.title }}</b><em>{{ r.reading_minutes() }} min read · {{ r.published_at|ago }}</em></span>
+      <span class="bj-mini-pic" data-fit><img src="{{ app_url(r.card_picture) if r.card_picture else url_for('static', filename='img/landing/' ~ covers[r.id % 6]) }}" alt="" loading="lazy"/></span>
+      <span class="bj-mini-words">{% if r.categories %}<small>{{ r.categories[0].name }}</small>{% endif %}<b>{{ r.title }}</b><em>{{ r.reading_minutes() }} min read · {{ r.published_at|ago }}</em></span>
     </a>
     {% endfor %}
   </div>

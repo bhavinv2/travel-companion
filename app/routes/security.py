@@ -1,4 +1,4 @@
-"""Team › Security (2026-10-26): the sign-in rules, the staff and their two-step sign-in, every open session, and the
+"""Set-up › Security (2026-10-26): the sign-in rules, the staff and their two-step sign-in, every open session, and the
 audit log -- who signed in, downloaded, deleted or changed the set-up, and when. The rules themselves are applied by
 services/signin.py on every request."""
 from datetime import datetime, timedelta
@@ -26,7 +26,8 @@ ACCESS = ('user_roles_changed', 'user_created_by_admin', 'security_rules', 'work
           'workspace_team_saved', 'workspace_team_deleted', 'workspace_saved', 'workspace_menu_saved',
           'workspace_menu_reset')
 DATA = ('crm_export', 'scrape_exported', 'crm_lead_removed', 'crm_lead_purged', 'crm_lead_restored', 'crm_person_erased',
-        'crm_people_merged', 'crm_csv_import', 'contact_viewed', 'contact_values_viewed', 'attachment_deleted',
+        'crm_people_merged', 'crm_csv_import', 'contact_viewed', 'contact_values_viewed', 'contact_shown',
+        'attachment_deleted',
         'notifications_bulk_deleted')
 SETUP = ('integration_saved', 'crm_whatsapp_mode', 'crm_pipeline_created', 'crm_pipeline_saved', 'crm_pipeline_active',
          'crm_pipeline_tag_changed', 'crm_source_saved', 'crm_source_moved', 'crm_rule_saved', 'crm_rule_deleted',
@@ -51,6 +52,7 @@ WORDS = {
     'crm_lead_removed': 'Removed a lead', 'crm_lead_purged': 'Deleted leads for good', 'crm_lead_restored': 'Put a lead back',
     'crm_person_erased': 'Erased a person', 'crm_people_merged': 'Merged two people', 'crm_csv_import': 'Imported a list',
     'contact_viewed': 'Opened contact details', 'contact_values_viewed': 'Opened contact details',
+    'contact_shown': 'Showed a hidden phone number',
     'integration_saved': 'Changed an integration', 'crm_whatsapp_mode': 'Changed what the CRM does with WhatsApp',
 }
 SKIP_META = {'ip', 'device'}

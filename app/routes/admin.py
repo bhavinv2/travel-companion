@@ -79,9 +79,20 @@ def reports():
 @login_required
 @admin_required
 def health():
-    """Overview › Health: how every part of the portal is doing, and what needs somebody now (services/health.py)."""
-    from app.services import health as health_svc
-    return render_template('admin/health.html', h=health_svc.build(current_user, request.args.get('days', type=int) or 30))
+    """Home › Health: how every part of the portal is doing, and what needs somebody now (services/health.py)."""
+    from app.services import checklist, health as health_svc
+    return render_template('admin/health.html', h=health_svc.build(current_user, request.args.get('days', type=int) or 30),
+                           steps=checklist.steps(current_user))
+
+
+@admin_bp.route('/health/checklist/hide', methods=['POST'])
+@login_required
+def checklist_hide():
+    """Health's first-week checklist: "Hide this list", for this person."""
+    from app.services import checklist
+    checklist.hide(current_user)
+    flash('The checklist is hidden. Everything on it is still under Set-up.', 'info')
+    return redirect(url_for('admin.health'))
 
 
 @admin_bp.route('/help/screens')

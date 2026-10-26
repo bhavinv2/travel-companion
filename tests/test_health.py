@@ -1,4 +1,4 @@
-"""Overview › Health, and the menu around it (2026-10-24).
+"""Home › Health, and the menu around it (2026-10-24; the work areas 2026-10-26).
 
     Health        the master screen (services/health.py): what needs somebody now, worst first; one part per
                   product -- open leads, not given to anyone, customers waiting, late follow-ups, leads a day,
@@ -156,15 +156,16 @@ def test_reports_and_help_are_menus_of_their_own(app, client, admin_user):
     access.ensure_defaults()
     login(client, admin_user.email)
     groups = {g['key']: g for g in access.nav(admin_user)}
-    assert list(groups)[:2] == ['overview', 'reports'] and list(groups)[-3:] == ['help', 'team', 'site']
-    assert [i['label'] for i in groups['overview']['items']][0] == 'Health'
-    assert [s['label'] for s in groups['reports']['subs']] == ['Sales CRM', 'Whole site']
+    assert list(groups)[:2] == ['home', 'inbox'] and list(groups)[-2:] == ['help', 'setup']
+    assert [i['label'] for i in groups['home']['items']][0] == 'Health'
+    assert groups['reports']['subs'] == []
     assert [i['label'] for i in groups['reports']['items']] == ['Sales results', 'Team today', 'Report builder',
-                                                                'Downloads', 'Site dashboard']
+                                                                'Site dashboard']
     assert groups['help']['subs'] == [] and [i['label'] for i in groups['help']['items']] == ['Help centre']
-    # nothing informative is left in the products' own menus
-    for key in ('companion', 'insurance', 'sahayak'):
+    # nothing informative is left in the work areas; Downloads is set-up (Set-up › Data)
+    for key in ('services', 'content', 'inbox'):
         assert 'Help & FAQ' not in [i['label'] for i in groups[key]['items']], key
+    assert 'Downloads' in [i['label'] for i in groups['setup']['items']]
     r = client.get('/admin/reports')                    # an old "All reports" link: the first report
     assert r.status_code == 302 and r.headers['Location'].endswith('/admin/crm/insights')
 
@@ -209,9 +210,10 @@ def test_the_screen_guide_lists_every_screen_by_product(app, client, admin_user)
     text = words(html)
     for area in ('Sales', 'Travel Companion', 'Travel Insurance', 'Sahayak', 'WhatsApp messaging', 'Site settings'):
         assert 'id="sg-' in html and area in text, area
-    for screen, where in (('Forecast', 'Reports › Sales CRM › Sales results (switch at the top right)'),
-                          ('Match quality', 'Help › Help centre'), ('Bookings', 'Sahayak'),
-                          ('Quote leads', 'Travel Insurance'), ('Health', 'Overview')):
+    for screen, where in (('Forecast', 'Reports › Sales results (switch at the top right)'),
+                          ('Match quality', 'Help › Help centre'), ('Bookings', 'Services › Sahayak'),
+                          ('Quote leads', 'Services › Travel Insurance'), ('Health', 'Home'),
+                          ('Pipelines', 'Set-up › Sales'), ('Security', 'Set-up › Security')):
         assert screen in text and where in text, screen
     assert 'Help centre' not in re.findall(r'<h3>([^<]+)', html)             # it does not list itself
     # each product's help on top: How we sell, Match quality, the three Help & FAQ pages
@@ -248,7 +250,7 @@ def test_downloads_gathers_every_sales_download(app, client, admin_user):
                  'forecast.csv', 'forecast.csv?span=quarter', 'format=csv', 'owner=none', 'export/contacts',
                  'Leads by source', '/reports/build.csv?'):
         assert want in html, want
-    r = client.get('/admin/crm/insights.csv?days=7')
+    r = client.get('/admin/crm/insights.csv?days=7&reason=backup')
     assert r.status_code == 200 and r.headers['Content-Type'].startswith('text/csv')
     assert 'Downloads' in nav_of(client.get('/admin/crm/insights').get_data(as_text=True))
 

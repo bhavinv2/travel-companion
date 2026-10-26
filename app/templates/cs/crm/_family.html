@@ -20,7 +20,7 @@
     <div class="fam-who">
       {% if m.me %}<b>{{ m.person.display_name }}</b> <small class="muted">(this contact)</small>
       {% else %}<a href="{{ crm_url('contact', person_id=m.person.id) }}"><b>{{ m.person.display_name }}</b></a>{% endif %}
-      {% if m.person.phone %}<small class="muted"> &middot; {{ PHONE.pretty(m.person.phone) }}</small>{% endif %}
+      {% if m.person.phone %}<small class="muted"> &middot; {{ MASK_PHONE(m.person.phone) if MASKED(m.person) else PHONE.pretty(m.person.phone) }}</small>{% endif %}
       <div class="fam-leads">
         {% for l in m.leads %}<a class="pill" href="{{ crm_url('lead', lead_id=l.id) }}">{{ PRODUCTS.get(l.product, l.product) }}{% if l.stage %} &middot; {{ l.stage.name }}{% endif %}</a>{% else %}<span class="muted small">No open enquiry</span>{% endfor %}
       </div>

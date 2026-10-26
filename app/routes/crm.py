@@ -29,7 +29,7 @@ from app.models import (ActivityEvent, CrmAnswer, CrmIdentity, CrmLead, CrmPerso
                         CRM_STAGE_MEANS, CRM_STEP_CHANNELS, CRM_STEP_KINDS, ROLE_MEANS, CrmField, CRM_FORECASTS)
 from app.routes.cs import cs_required
 from app.services import (crm, crm_access, crm_answers, crm_audit, crm_files, crm_household, crm_stage_rules, crm_defaults, crm_kpi, crm_money, crm_people, crm_products, crm_quotes, crm_reports, crm_scope, crm_tasks, crm_timeline, meta, urls,
-                          wa_templates, wacrm)
+                          download_reason, wa_templates, wacrm)
 from app.services.ratelimit import rate_limit
 
 crm_bp = Blueprint('crm', __name__)
@@ -875,12 +875,15 @@ def team_analysis():
     picked = [int(x) for x in (request.args.get('p') or '').split(',') if x.isdigit() and int(x) in seen]
     result = crm_team.analysis(per, staff, crm.crm_settings()['check_channels'])
     if request.args.get('format') == 'csv':
+        if download_reason.given() is None:              # every download asks why first
+            return download_reason.ask()
         keep = set(picked or seen)
         buf = io.StringIO()
         w = csv.writer(buf)
         for row in crm_team.csv_rows({'people': [x for x in result['people'] if x['user'].id in keep]}):
             w.writerow(row)
-        ActivityEvent.log('crm_export', actor=current_user, kind='team_analysis', days=len(per['days']))
+        ActivityEvent.log('crm_export', actor=current_user, kind='team_analysis', days=len(per['days']),
+                          reason=download_reason.given())
         db.session.commit()
         resp = make_response('\ufeff' + buf.getvalue())
         resp.headers['Content-Type'] = 'text/csv; charset=utf-8'
@@ -1669,7 +1672,10 @@ def reopen(lead_id):
 def remove(lead_id):
     lead = _lead_or_404(lead_id)
     if not crm.can_remove(lead, current_user):
-        return jsonify({'error': 'Only the person who added or looks after this lead, or an admin, can remove it.'}), 403
+        from app.services import role_rights
+        said = ('Your role does not remove leads. Ask an admin.' if not role_rights.may_remove(current_user)
+                else 'Only the person who added or looks after this lead, or an admin, can remove it.')
+        return jsonify({'error': said}), 403
     name = crm.remove_lead(lead, user=current_user)
     flash('Removed this lead. %s stays in Contacts.' % name, 'success')
     return jsonify({'success': True, 'next': crm_url('board', owner='all')})
@@ -1859,6 +1865,7 @@ def lead_money(lead_id):
 @crm_bp.route('/insights.csv')
 @cs_required
 @admin_only
+@download_reason.asked
 def insights_csv():
     """Download for Excel on Results: what the screen shows for the chosen days, pipeline and person -- the
     cards with the days before, the funnel, sources, messages, quotes, lost reasons and the day-by-day grid."""
@@ -1871,7 +1878,7 @@ def insights_csv():
         d['days'], d['first'], d['today'], d['pipe'], d['person'], d['cards'], d['before'], d['funnel'],
         d['sources'], d['senders'], d['milestones'], d['reasons'], d['day_list'], d['groups'],
         money=d['money'], money_before=d['money_before'], top=d['top']))
-    ActivityEvent.log('crm_export', actor=current_user, kind='results', days=d['days'])
+    ActivityEvent.log('crm_export', actor=current_user, kind='results', days=d['days'], reason=download_reason.given())
     db.session.commit()
     resp = make_response('\ufeff' + buf.getvalue())
     resp.headers['Content-Type'] = 'text/csv; charset=utf-8'
@@ -1882,6 +1889,7 @@ def insights_csv():
 @crm_bp.route('/insights-people.csv')
 @cs_required
 @admin_only
+@download_reason.asked
 def insights_people_csv():
     """The per-person numbers, day by day, for a spreadsheet -- the old KPI tabs ("Download per person")."""
     import csv
@@ -1896,7 +1904,7 @@ def insights_people_csv():
     for uid, by_day in daily.items():
         for day in sorted(by_day):
             w.writerow([day.isoformat(), names.get(uid, uid)] + [by_day[day].get(k, 0) for k, _ in crm_reports.METRICS])
-    ActivityEvent.log('crm_export', actor=current_user, kind='numbers', days=days)
+    ActivityEvent.log('crm_export', actor=current_user, kind='numbers', days=days, reason=download_reason.given())
     db.session.commit()
     resp = make_response('\ufeff' + buf.getvalue())
     resp.headers['Content-Type'] = 'text/csv; charset=utf-8'

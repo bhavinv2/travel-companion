@@ -131,7 +131,7 @@ def duplicate(post, user):
     title = ('Copy of %s' % post.title)[:300]
     copy = Blog(author_id=user.id, title=title, slug=_free_slug(slugify(title, max_length=80, word_boundary=True)),
                 content=post.content, summary=post.summary, cover_image_url=post.cover_image_url,
-                cover_alt=post.cover_alt, seo_title=post.seo_title, focus_keyword=post.focus_keyword,
+                cover_alt=post.cover_alt, thumb_url=post.thumb_url, seo_title=post.seo_title, focus_keyword=post.focus_keyword,
                 is_published=False, send_notification=post.send_notification)
     copy.terms = list(post.terms)
     db.session.add(copy)
@@ -511,14 +511,23 @@ def record_media(url, name, data, user=None):
 
 
 def usage():
-    """{file name: [posts that show it]} -- in their text or as their cover."""
+    """{file name: [posts (and sidebar cards) that show it]} -- in their text, as their cover or thumbnail, or a
+    sidebar card's picture (Blog › Sidebars: it carries the address of its own screen, edit_url)."""
+    from types import SimpleNamespace
+    from flask import url_for
+    from app.models import BlogSideCard
     used = {}
     for post in Blog.query.order_by(Blog.updated_at.desc()):
         found = {_key(u) for u in re.findall(r'<img\b[^>]*?\bsrc="([^"]+)"', post.content or '')}
-        if post.cover_image_url:
-            found.add(_key(post.cover_image_url))
+        for u in (post.cover_image_url, post.thumb_url):
+            if u:
+                found.add(_key(u))
         for k in found:
             used.setdefault(k, []).append(post)
+    for card in BlogSideCard.query.filter(BlogSideCard.image_url.isnot(None)):
+        used.setdefault(_key(card.image_url), []).append(SimpleNamespace(
+            id=None, title='Sidebar card: %s' % card.name, trashed_at=None, is_published=True,
+            edit_url=url_for('admin.blog_sidebar_edit', card_id=card.id)))
     return used
 
 
@@ -536,8 +545,7 @@ def library(q='', show='all'):
                       'posts': used.get(_key(m.url), [])})
     for post in Blog.query.order_by(Blog.updated_at.desc()):          # pictures from before the library
         urls = re.findall(r'<img\b[^>]*?\bsrc="([^"]+)"', post.content or '')
-        if post.cover_image_url:
-            urls.insert(0, post.cover_image_url)
+        urls[:0] = [u for u in (post.cover_image_url, post.thumb_url) if u]
         for u in urls:
             if _key(u) in seen or not u.startswith(('/', 'http')):
                 continue

@@ -198,7 +198,7 @@ def test_sweep_an_own_agent_meets_no_other_agents_lead_anywhere(app, client, wor
     t = page('/cs/crm/flow?person_id=%d&person_id=%d' % (other.person_id, mine.person_id))
     assert hid not in t
     # exports live in the admin console; even so the same query a scoped person would run is limited
-    for url in ('/admin/crm/export/leads?p=all&owner=all&win=all', '/admin/crm/export/contacts'):
+    for url in ('/admin/crm/export/leads?p=all&owner=all&win=all&reason=backup', '/admin/crm/export/contacts?reason=backup'):
         r = client.get(url)
         assert hid not in r.get_data(as_text=True)
     from app.services import crm_people

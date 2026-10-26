@@ -15,8 +15,9 @@ from app.models import ActivityEvent, CrmLead, CrmPerson, CrmSource, CRM_FORECAS
 from app.routes.crm import IMPORT_DIR, CHAT_FILTERS, _common, _json, _staff, admin_only, crm_bp, crm_url
 from app.routes.cs import cs_required
 from app.services import (access, crm, crm_access, crm_audit, crm_files, crm_household, crm_merge, crm_money, crm_people,
-                          crm_products, crm_records, crm_scope, wacrm, wacrm_team)
+                          crm_products, crm_records, crm_scope, download_reason, wacrm, wacrm_team)
 from app.services import phone as phone_svc
+from app.services.ratelimit import rate_limit
 
 PER_PAGE = 50
 
@@ -62,6 +63,7 @@ def contacts():
     page = max(1, min(request.args.get('page', type=int) or 1, pages))
     people = query.options(selectinload(CrmPerson.identities)).offset((page - 1) * PER_PAGE).limit(PER_PAGE).all()
     filters_on = any(f.values())
+    from app.routes.messaging import can_start_chats
     return render_template('cs/crm/contacts.html', people=people, rows=crm_people.contact_rows(people), f=f,
                            total=total, page=page, pages=pages, per_page=PER_PAGE, filters_on=filters_on,
                            has_any=db.session.query(CrmPerson.id).first() is not None,
@@ -70,7 +72,7 @@ def contacts():
                            can_export=access.can(current_user, 'crm_export'),
                            can_import=access.can(current_user, 'crm_data'), crm_people=crm_people,
                            can_merge=can_merge(current_user), view_params={k: v for k, v in f.items() if v},
-                           **_common())
+                           can_chat=can_start_chats(current_user), **_common())
 
 
 # ============================================================================================ the contact page
@@ -89,6 +91,7 @@ def contact(person_id):
     if current_user.is_admin or any(l.owner_id == current_user.id for l in leads):
         sync = crm.wa_sync_state(person)
     from app.routes.crm_family import can_merge
+    from app.routes.messaging import can_start_chats
     fq = ' '.join((request.args.get('fq') or '').split())[:80]
     return render_template('cs/crm/contact.html', person=person, leads=leads,
                            family=crm_household.card(person, current_user), fq=fq,
@@ -99,9 +102,27 @@ def contact(person_id):
                            recent=crm_people.recent(person), sync=sync, writes=crm.wa_writes_on(),
                            linked=bool(person.wacrm_contact_id or person.wacrm_conversation_id),
                            can_erase=can_erase, can_add=access.can(current_user, 'crm_add'),
+                           can_chat=can_start_chats(current_user),
                            erase=crm_people.erase_plan(person) if (request.args.get('erase') and can_erase) else None,
                            history=crm_audit.history_for('person', person.id),
                            crm_people=crm_people, **_common())
+
+
+@crm_bp.route('/contact/<int:person_id>/show', methods=['POST'])
+@cs_required
+@rate_limit(60, 3600)
+def contact_show(person_id):
+    """Show: a hidden phone number and e-mail (services/crm_mask), logged, for the rest of this sign-in. Back to
+    the page it was pressed on."""
+    from urllib.parse import urlparse
+    from app.services import crm_mask, urls
+    person = _person_or_404(person_id)
+    ref = urlparse(request.referrer or '')
+    back = urls.safe_next(ref.path + ('?' + ref.query if ref.query else '')) if ref.netloc == request.host else None
+    crm_mask.show(person, where=back)
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+        return jsonify({'ok': True})
+    return redirect(back or crm_url('contact', person_id=person.id))
 
 
 @crm_bp.route('/contact/<int:person_id>/edit', methods=['GET', 'POST'])
@@ -259,6 +280,7 @@ def flow_find():
 @crm_bp.route('/export/leads')
 @cs_required
 @admin_only
+@download_reason.asked
 def export_leads():
     """Leads' "Download this list": the same filters as the list on screen."""
     from app.services import access as _access
@@ -294,6 +316,7 @@ def export_leads():
 @crm_bp.route('/export/contacts')
 @cs_required
 @admin_only
+@download_reason.asked
 def export_contacts():
     f = _contact_filters()
     return crm_people.export(crm_people.contacts_filter(f, current_user), 'contacts', current_user,

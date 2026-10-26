@@ -171,3 +171,19 @@ a.hl-tile:hover { box-shadow: 0 4px 14px rgba(15, 35, 64, .1); border-color: var
 .sg-product li a:hover b { text-decoration: underline; }
 .sg-product li.off b { color: var(--c-muted); }
 .sg-product .muted { font-size: 12.5px; }
+
+/* the first-week checklist (services/checklist.py): each line ticks itself once it is done */
+.ck { margin: 0 0 16px; }
+.ck-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.ck-head h2 { margin: 0; font-size: 17px; display: flex; align-items: center; gap: 8px; }
+.ck-head h2 i { color: #2f80ed; }
+.ck-head p { margin: 2px 0 0; }
+.ck-bar { height: 6px; border-radius: 3px; background: #e9eef5; margin: 10px 0 6px; overflow: hidden; }
+.ck-bar span { display: block; height: 100%; background: #16a34a; border-radius: 3px; }
+.ck-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 18px; }
+.ck-list li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; }
+.ck-list li > i { margin-top: 3px; color: #cbd5e1; }
+.ck-list li.done > i { color: #16a34a; }
+.ck-list li.done a { color: var(--c-muted, #64748b); text-decoration: line-through; }
+.ck-list a { font-weight: 600; }
+.ck-list small { display: block; color: var(--c-muted, #64748b); font-size: 12.5px; line-height: 1.4; }

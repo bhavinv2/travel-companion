@@ -1,0 +1,60 @@
+{# One card of a sidebar beside a post (services/blog_sidebars.py; admin Blog › Sidebars): a flyer, an ad, links, the
+   post's headings ("On this page", filled by blog-public.js), more stories, or a reusable block. The same markup is
+   the public page's, the Sidebars screen's and the card editor's preview. Its look: th-<theme>, a height of its own
+   (--h) and how a picture fits it (fit-whole / fit-fill). Links go through /blog/go/<id>, which counts the tap.
+   `more`: {card id: [posts]}; `sample`: headings to show where there is no post (the staff screens).
+   Import it `with context`: app_url and url_for are the app's. #}
+{% macro side_card(c, more, sample=False) %}
+{%- set lk = SIDE_LOOK(c) -%}
+{%- set go = url_for('blog.side_go', card_id=c.id) if c.id else '#' -%}
+{%- set rel = 'nofollow noopener' if c.new_tab else 'nofollow' -%}
+<section class="bsd bsd--{{ c.kind }} th-{{ lk.theme }} fit-{{ lk.fit }}{{ ' has-h' if lk.height }}" data-card="{{ c.id or '' }}"
+         {% if lk.height %}style="--h: {{ lk.height }}px"{% endif %} aria-label="{{ c.title or c.name or 'Beside the post' }}">
+  {%- if c.kind == 'flyer' and c.image_url %}
+    {% if c.link_url %}<a class="bsd-pic" href="{{ go }}" rel="{{ rel }}"{% if c.new_tab %} target="_blank"{% endif %}>{% else %}<div class="bsd-pic">{% endif %}
+      <img src="{{ app_url(c.image_url) }}" alt="{{ c.image_alt or c.title or '' }}" loading="lazy" decoding="async"/>
+    {% if c.link_url %}</a>{% else %}</div>{% endif %}
+    {% if c.title %}<p class="bsd-cap">{{ c.title }}</p>{% endif %}
+  {%- elif c.kind == 'ad' %}
+    {% if c.image_url %}
+      {% if c.link_url %}<a class="bsd-pic" href="{{ go }}" rel="{{ rel }}" tabindex="-1" aria-hidden="true"{% if c.new_tab %} target="_blank"{% endif %}>{% else %}<div class="bsd-pic">{% endif %}
+        <img src="{{ app_url(c.image_url) }}" alt="{{ c.image_alt or '' }}" loading="lazy" decoding="async"/>
+      {% if c.link_url %}</a>{% else %}</div>{% endif %}
+    {% endif %}
+    <div class="bsd-in">
+      {% if c.title %}<h3 class="bsd-h">{{ c.title }}</h3>{% endif %}
+      {% if c.body %}<p class="bsd-p">{{ c.body }}</p>{% endif %}
+      {% if c.link_url %}<a class="bsd-btn" href="{{ go }}" rel="{{ rel }}"{% if c.new_tab %} target="_blank"{% endif %}>{{ c.link_label or 'Find out more' }} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>{% endif %}
+    </div>
+  {%- elif c.kind == 'links' %}
+    <div class="bsd-in">
+      {% if c.title %}<h3 class="bsd-h">{{ c.title }}</h3>{% endif %}
+      <ul class="bsd-links">
+        {% for l in c.links or [] %}<li><a href="{{ url_for('blog.side_go', card_id=c.id, i=loop.index0) if c.id else '#' }}" rel="{{ rel }}"{% if c.new_tab %} target="_blank"{% endif %}>{{ l.label }} <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></a></li>{% endfor %}
+      </ul>
+    </div>
+  {%- elif c.kind == 'contents' %}
+    <nav class="bsd-in" aria-label="{{ c.title or 'On this page' }}">
+      <h3 class="bsd-h">{{ c.title or 'On this page' }}</h3>
+      <ol class="bsd-toc" data-toc>
+        {% if sample %}<li><a href="#">The post’s first heading</a></li><li class="is-sub"><a href="#">A smaller heading under it</a></li><li><a href="#">The next heading</a></li><li><a href="#">And so on, as the post has them</a></li>{% endif %}
+      </ol>
+    </nav>
+  {%- elif c.kind == 'more' %}
+    <div class="bsd-in">
+      <h3 class="bsd-h">{{ c.title or 'More stories' }}</h3>
+      <ul class="bsd-more">
+        {% for p in more.get(c.id, []) %}
+        <li><a href="{{ url_for('blog.blog_post', slug=p.slug) }}">
+          <img src="{{ app_url(p.card_picture) if p.card_picture else url_for('static', filename='img/landing/' ~ ['l4.jpg','l5.jpg','l6.jpg','l7.jpg','l8.jpg','l9.jpg'][p.id % 6]) }}" alt="" loading="lazy" decoding="async"/>
+          <span><b>{{ p.title }}</b><em>{{ p.reading_minutes() }} min read</em></span></a></li>
+        {% else %}
+        <li class="bsd-dim">The newest posts of the post’s category show here.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {%- elif c.kind == 'block' and c.pattern %}
+    <div class="bsd-in bsd-block blog-post-content">{{ c.pattern.content|blog_html }}</div>
+  {%- endif %}
+</section>
+{% endmacro %}

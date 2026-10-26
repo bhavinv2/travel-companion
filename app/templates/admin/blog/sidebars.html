@@ -1,0 +1,104 @@
+{% extends 'admin/blog/_layout.html' %}
+{% from 'pages/_blog_side.html' import side_card with context %}
+{% block title %}Sidebars – Blog{% endblock %}
+{% block wpb_active %}sidebars{% endblock %}
+{% block extra_css %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/blog-public.css') }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/blog-blocks.css') }}"/>{% endblock %}
+{# Blog › Sidebars (admin_blog.blog_sidebars, services/blog_sidebars.py): the cards beside a post, drawn the way a post
+   shows them, either side of a stand-in post. Drag a card by its grip to move it (to the other side too), its bottom
+   edge to make it taller or shorter; drag a sidebar's inner edge to make it wider. Each change is saved as it is made
+   (blog-sidebars.js). "Show the cards for" lights the cards a category's posts or one post would show. #}
+{% macro item(c) %}
+{%- set lk = bs.look(c) -%}
+{%- set st = status[c.id] -%}
+<div class="sbm-card st-{{ st }}{{ ' is-dim' if not shown[c.id] }}" data-id="{{ c.id }}" data-quick="{{ url_for('admin.blog_sidebar_quick', card_id=c.id) }}">
+  <div class="sbm-card-bar">
+    <span class="sbm-drag" title="Drag to move it" aria-hidden="true"><i class="fa-solid fa-grip-vertical"></i></span>
+    <span class="sbm-kind" title="{{ bs.KIND_BY_KEY[c.kind].name }}"><i class="fa-solid {{ bs.KIND_BY_KEY[c.kind].icon }}"></i></span>
+    <span class="sbm-name"><b>{{ c.name }}</b>
+      <small>{{ where[c.id] }} · {{ c.clicks }} tap{{ '' if c.clicks == 1 else 's' }}{% if st == 'later' %} · starts {{ c.starts_at|istd('%d %b %Y') }}{% elif st == 'ended' %} · ended {{ c.ends_at|istd('%d %b %Y') }}{% endif %}{% if lk.phone == 'hide' %} · not on phones{% endif %}</small></span>
+    <span class="sbm-moves">
+      <button type="button" data-move="up" aria-label="Move up" title="Move up"><i class="fa-solid fa-arrow-up"></i></button>
+      <button type="button" data-move="down" aria-label="Move down" title="Move down"><i class="fa-solid fa-arrow-down"></i></button>
+      <button type="button" data-move="swap" aria-label="Move to the other sidebar" title="Move to the other sidebar"><i class="fa-solid fa-right-left"></i></button>
+    </span>
+    <label class="sbm-switch" title="On: readers see it. Off: nobody does."><input type="checkbox" data-on {{ 'checked' if c.is_on }} aria-label="Show “{{ c.name }}” to readers"/><span></span></label>
+    <a class="sbm-edit" href="{{ url_for('admin.blog_sidebar_edit', card_id=c.id, **({'for': target} if target != 'all' else {})) }}" title="Change it"><i class="fa-solid fa-pen"></i><span> Edit</span></a>
+  </div>
+  {% if not shown[c.id] %}<p class="sbm-not">Not on {{ label }}</p>{% endif %}
+  <div class="sbm-body">{{ side_card(c, more, sample=True) }}</div>
+  <div class="sbm-hgrip" data-hgrip role="separator" aria-orientation="horizontal" tabindex="0"
+       aria-label="Height of “{{ c.name }}”: drag, or use the up and down arrow keys" title="Drag to make it taller or shorter">
+    <span data-h>{{ '%d px tall' % lk.height if lk.height else 'As tall as it needs' }}</span>
+    <button type="button" data-auto {{ '' if lk.height else 'hidden' }}>Back to as tall as it needs</button>
+  </div>
+</div>
+{% endmacro %}
+{% block wpb_main %}
+<div class="wpb-head"><h1>Sidebars</h1>
+  <a class="wpb-btn" href="{{ url_for('admin.blog_sidebar_edit', side='left') }}"><i class="fa-solid fa-plus"></i> Add a card</a>
+</div>
+<p class="wpb-intro">Flyers, ads and links beside your posts. On a wide screen they sit left and right of the post; on a phone,
+  under it (or not at all). <b>Drag</b> a card’s <i class="fa-solid fa-grip-vertical"></i> to move it, its <b>bottom edge</b> to make it taller
+  or shorter, and the <b>inner edge</b> of a sidebar to make it wider. Each change is saved at once.</p>
+
+<form class="sbm-bar wpb-box" method="GET" action="{{ url_for('admin.blog_sidebars') }}">
+  <label for="sbmFor">Show the cards for</label>
+  <select name="for" id="sbmFor" data-autosubmit>
+    <option value="all" {{ 'selected' if target == 'all' }}>Every card</option>
+    {% if categories %}<optgroup label="The posts of a category">
+      {% for t in categories %}<option value="cat:{{ t.id }}" {{ 'selected' if target == 'cat:%d' % t.id }}>{{ t.name }}</option>{% endfor %}
+    </optgroup>{% endif %}
+    {% if posts %}<optgroup label="One post">
+      {% for p in posts %}<option value="post:{{ p.id }}" {{ 'selected' if target == 'post:%d' % p.id }}>{{ p.title[:70] }}</option>{% endfor %}
+    </optgroup>{% endif %}
+  </select>
+  <noscript><button type="submit" class="wpb-btn">Show</button></noscript>
+  <span class="sbm-key"><i class="sbm-dot st-on"></i> readers see it <i class="sbm-dot st-later"></i> starts later <i class="sbm-dot st-off"></i> switched off or ended</span>
+  <span class="sbm-saved" id="sbmSaved" role="status" aria-live="polite"></span>
+</form>
+
+<div class="sbm-scroll">
+<div class="sbm-page" id="sbmPage" style="--wl: {{ rails.left.width }}px; --wr: {{ rails.right.width }}px"
+     data-order-url="{{ url_for('admin.blog_sidebar_order') }}" data-rail-url="{{ url_for('admin.blog_sidebar_rail') }}">
+  {% for side in bs.SIDES %}
+  {% if side == 'right' %}
+  <div class="sbm-post" aria-hidden="true">
+    <span class="sbm-post-tag">The post</span>
+    <i class="sbm-l is-crumb"></i><i class="sbm-l is-h1"></i><i class="sbm-l is-h1 is-short"></i>
+    <i class="sbm-l is-by"></i>
+    <i class="sbm-cover"></i>
+    {% for n in range(3) %}<i class="sbm-l"></i><i class="sbm-l"></i><i class="sbm-l is-short"></i><i class="sbm-l is-h2"></i>{% endfor %}
+    <i class="sbm-l"></i><i class="sbm-l is-short"></i>
+  </div>
+  {% endif %}
+  <section class="sbm-rail is-{{ side }}" data-side="{{ side }}" aria-label="{{ side|capitalize }} sidebar">
+    <header class="sbm-rail-head">
+      <b>{{ 'Left' if side == 'left' else 'Right' }} sidebar</b>
+      <span class="sbm-w"><span data-w>{{ rails[side].width }}</span> px wide</span>
+      <label class="sbm-stick" title="While the post is read, its last card stays on the screen"><input type="checkbox" data-sticky {{ 'checked' if rails[side].sticky }}/> Last card stays in view</label>
+      <small class="sbm-when">{{ 'Screens 1280 px and wider' if side == 'left' else 'Screens 1024 px and wider' }}</small>
+    </header>
+    <div class="sbm-list" data-list="{{ side }}">
+      {% for c in by_side[side] %}{{ item(c) }}{% endfor %}
+    </div>
+    <p class="sbm-empty"{% if by_side[side] %} hidden{% endif %}>Nothing here yet. Add a card, or drag one across.</p>
+    <a class="sbm-add" href="{{ url_for('admin.blog_sidebar_edit', side=side) }}"><i class="fa-solid fa-plus"></i> Add a card to the {{ side }}</a>
+    <span class="sbm-wgrip" data-wgrip role="separator" aria-orientation="vertical" tabindex="0"
+          aria-label="Width of the {{ side }} sidebar: drag, or use the left and right arrow keys" title="Drag to make the sidebar wider or narrower"></span>
+  </section>
+  {% endfor %}
+</div>
+</div>
+
+<div class="wpb-box sbm-help">
+  <h2>What can go in a sidebar</h2>
+  <ul class="sbm-kinds">
+    {% for k, n, i, h in bs.KINDS %}<li><i class="fa-solid {{ i }}"></i><b>{{ n }}</b><span>{{ h }}</span>
+      <a href="{{ url_for('admin.blog_sidebar_edit', kind=k) }}">Add one</a></li>{% endfor %}
+  </ul>
+  <p class="wpb-dim">Picture sizes: a flyer <b>600 × 750 px</b> (portrait 4:5) or <b>600 × 600 px</b> (square); a tall one up to
+    <b>600 × 1200 px</b>. Pictures are kept 800 px wide at most: sharp on any screen, light to load.</p>
+</div>
+{% endblock %}
+{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/blog-sidebars.js') }}" defer></script>{% endblock %}

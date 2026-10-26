@@ -52,7 +52,7 @@
       <label class="check"><input type="radio" name="who" value="team"{{ ' checked' if who == 'team' }}/> Team
         <select name="team_id" aria-label="Team">
           {% for t in teams %}<option value="{{ t.id }}"{{ ' selected' if chosen_team == t.id|string }}>{{ t.name }}</option>
-          {% else %}<option value="" disabled selected>No teams yet: make one in Team → Teams</option>{% endfor %}
+          {% else %}<option value="" disabled selected>No teams yet: make one in Set-up → People → Teams</option>{% endfor %}
         </select></label>
       <label class="check"><input type="radio" name="who" value="people"{{ ' checked' if who == 'people' }}/> These people</label>
       <div class="team">{% for u in staff %}<label class="check"><input type="checkbox" name="team" value="{{ u.id }}"{{ ' checked' if team and team is not mapping and u.id in team }}/> {{ u.full_name }}</label>{% endfor %}</div>

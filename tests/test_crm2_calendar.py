@@ -71,10 +71,10 @@ def page(client, qs=''):
 
 # ====================================================================================== the page and the menu
 
-def test_the_calendar_is_in_daily_work_right_after_leads():
-    sub = next(s for sec in access.SECTIONS for s in sec.get('subs', ()) if s['key'] == 'daily')
-    pages = list(sub['pages'])
-    assert pages.index('crm_calendar') == pages.index('crm_board') + 1
+def test_the_calendar_is_the_tasks_area_right_after_leads_and_contacts():
+    keys = [s['key'] for s in access.SECTIONS]
+    assert keys.index('tasks') == keys.index('contacts') + 1 == keys.index('leads') + 2
+    assert {s['key']: s for s in access.SECTIONS}['tasks']['pages'] == ('crm_calendar',)
     p = access.PAGES['crm_calendar']
     assert p['label'] == 'Calendar' and p['with'] == frozenset({'crm_today'}) and p['nav']
     assert p['links'] == {'admin': 'admin_crm.calendar', 'cs': 'crm.calendar'}

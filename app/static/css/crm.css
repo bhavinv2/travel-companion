@@ -1184,6 +1184,50 @@ button.pe-chip:hover { border-color: var(--c-blue); }
 .ct-grid h2 { margin-bottom: 8px; }
 .ct-grid .wide { grid-column: 1 / -1; }
 .ct-line { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
+.ct-chat { display: inline; margin: 0; }
+.ct-table .ct-chat .cb { margin-left: 6px; }
+
+/* hidden contact details (services/crm_mask): the masked words and "Show" beside them */
+.mk { color: var(--c-muted); letter-spacing: .02em; }
+span.cb.mk { cursor: default; }
+.mk-show { display: inline; margin: 0; }
+.mk-show .cb { vertical-align: middle; }
+
+/* Inbox › All conversations (inbox.html): whose tabs, channel chips, one row per person */
+.ib-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 4px 0 10px; }
+.ib-bar .search { flex: 1 1 240px; max-width: 380px; position: relative; }
+.ib-bar .search i { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--c-muted); }
+.ib-bar .search input { padding-left: 38px; width: 100%; }
+.ib-who { flex-wrap: wrap; }
+.ib-who .ib-n { margin-left: 4px; font-size: 12px; color: var(--c-muted); }
+.ib-who a.wait .ib-n { color: var(--c-bad-ink); }
+.ib-chs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.ib-ch-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--c-line);
+  background: #fff; color: var(--c-muted); font-size: 13px; font-weight: 600; text-decoration: none; }
+.ib-ch-chip:hover { color: var(--c-ink); }
+.ib-ch-chip.on { background: var(--c-ink); border-color: var(--c-ink); color: #fff; }
+.ib-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--c-line); border-radius: 14px; background: #fff; overflow: hidden; }
+.ib-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px;
+  border-top: 1px solid var(--c-line); }
+.ib-row:first-child { border-top: 0; }
+.ib-row.waiting { background: #fffaf0; box-shadow: inset 3px 0 0 #f59e0b; }
+.ib-av { width: 40px; height: 40px; border-radius: 50%; background: #e7f0fd; color: #1d4ed8; font-weight: 700; font-size: 14px;
+  display: inline-flex; align-items: center; justify-content: center; }
+.ib-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.ib-name { font-weight: 700; color: var(--c-ink); text-decoration: none; }
+.ib-name:hover { text-decoration: underline; }
+.ib-ch, .ib-when { font-size: 12.5px; color: var(--c-muted); }
+.ib-when { margin-left: auto; }
+.ib-said { margin: 3px 0 5px; font-size: 14px; color: #334155; overflow-wrap: anywhere; }
+.ib-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.ib-wait { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; background: #fff1db;
+  color: #9a5300; font-size: 12.5px; font-weight: 700; }
+@media (max-width: 640px) {
+  .ib-row { grid-template-columns: 34px minmax(0, 1fr); }
+  .ib-av { width: 34px; height: 34px; font-size: 12.5px; }
+  .ib-open { grid-column: 2; justify-self: start; }
+  .ib-when { margin-left: 0; }
+}
 .ct-enq { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--c-line); }
 .ct-enq:first-of-type { border-top: 0; }
 .ct-msg { display: flex; gap: 10px; padding: 6px 0; border-top: 1px solid var(--c-line); font-size: 14px; }

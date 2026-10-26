@@ -173,7 +173,7 @@ def test_a_results_card_the_download_and_team_today_say_the_same(app, client, ad
     assert team[one.id]['waiting'] == card['waiting_now']
     # the download
     login(client, admin_user.email)
-    rows = list(csv.reader(io.StringIO(client.get('/admin/crm/insights.csv?days=30&who=%d' % one.id)
+    rows = list(csv.reader(io.StringIO(client.get('/admin/crm/insights.csv?days=30&who=%d&reason=backup' % one.id)
                                        .get_data(as_text=True).lstrip('﻿'))))
     by_label = {}
     for r in rows:

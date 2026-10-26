@@ -228,7 +228,7 @@ def test_the_download_follows_the_views_filters(app, client, admin_user, agent):
     html = client.get('/admin/crm/?p=all&view=list&owner=all&no_value=1').get_data(as_text=True)
     href = re.search(r'href="([^"]*export/leads[^"]*)"', html).group(1).replace('&amp;', '&')
     assert 'no_value=1' in href
-    rows = list(csv.reader(io.StringIO(client.get(href).get_data(as_text=True).lstrip('﻿'))))
+    rows = list(csv.reader(io.StringIO(client.get(href + '&reason=backup').get_data(as_text=True).lstrip('﻿'))))
     flat = ' '.join(' '.join(r) for r in rows)
     assert 'Export Eva' in flat and 'Export Esha' not in flat
     # the contacts download carries the contact filters

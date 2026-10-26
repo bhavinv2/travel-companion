@@ -21,6 +21,7 @@ new to you.
     crm_today           this person's follow-ups due now + the customers waiting on their leads
                                              (crm_metrics.waiting_count)
     wa_inbox            the customers waiting on their leads (the same people as above)
+    crm_inbox           the same, on Inbox › All conversations (the Inbox's total counts them once)
     crm_checks          1 while this half hour's inboxes are not all ticked -- shown as "!"
                                              (MARKS), never added into a total
     crm_sources         lead sources nobody has set up yet
@@ -100,7 +101,7 @@ def _compute(user):
         from app.services import access
         pages = access.pages_for(user)
         tips = {}
-        if pages & {'crm_today', 'wa_inbox'}:
+        if pages & {'crm_today', 'wa_inbox', 'crm_inbox'}:
             from datetime import datetime
             from app.models import CrmTask
             from app.services import crm_metrics
@@ -111,8 +112,9 @@ def _compute(user):
             tips['crm_today'] = ' + '.join(x for x in (
                 '%d follow-up%s due' % (due, '' if due == 1 else 's') if due else '',
                 '%d customer%s waiting on your leads' % (waiting, '' if waiting == 1 else 's') if waiting else '') if x)
-            out['wa_inbox'] = waiting
+            out['wa_inbox'] = out['crm_inbox'] = waiting
             tips['wa_inbox'] = '%d chat%s waiting on your leads' % (waiting, '' if waiting == 1 else 's')
+            tips['crm_inbox'] = '%d customer%s waiting on your leads' % (waiting, '' if waiting == 1 else 's')
         if 'crm_checks' in pages:
             from app.services import crm, crm_reports
             out['crm_checks'] = 0 if crm_reports.current_slot_done(crm.crm_settings()['check_channels']) else 1

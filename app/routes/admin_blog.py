@@ -22,7 +22,7 @@ from flask_login import current_user, login_required
 from slugify import slugify
 
 from app import db
-from app.models import Blog, BlogMedia, BlogPattern, BlogRevision, BlogTerm, User
+from app.models import Blog, BlogMedia, BlogPattern, BlogRevision, BlogSideCard, BlogTerm, User
 from app.routes.admin import _page_args, admin_bp, admin_required
 from app.services import blog_engine as be
 from app.services import blog_posts as bp
@@ -326,7 +326,7 @@ def blog_media_delete(media_id):
     """Only a picture no post shows: deleting one in use would leave a hole in a post."""
     m = db.session.get(BlogMedia, media_id) or abort(404)
     if bp.usage().get(bp._key(m.url)):
-        flash('That picture is in a post: take it out of the post first.', 'danger')
+        flash('That picture is in a post or a sidebar card: take it out of there first.', 'danger')
         return redirect(url_for('admin.blog_media'))
     url, name = m.url, m.name
     db.session.delete(m)
@@ -403,6 +403,7 @@ def _fields(post):
     f = request.form
     title = (f.get('title') or '').strip()[:300]
     cover = be._safe_url((f.get('cover_image_url') or '').strip(), image=True)
+    thumb = be._safe_url((f.get('thumb_url') or '').strip(), image=True)
     slug = slugify((f.get('slug') or '').strip() or title, max_length=80, word_boundary=True)
     if post is None and f.get('slug_auto') == '1' and slug:
         slug = be.unique_slug(slug)          # made from the title, not typed: "-2" rather than a red check
@@ -414,6 +415,7 @@ def _fields(post):
             'content': be.sanitize(f.get('content') or ''),
             'cover_image_url': (cover or '')[:500] or None,
             'cover_alt': (f.get('cover_alt') or '').strip()[:300],
+            'thumb_url': (thumb or '')[:500] or None,
             'seo_title': (f.get('seo_title') or '').strip()[:300],
             'focus_keyword': (f.get('focus_keyword') or '').strip()[:100],
             'is_featured': f.get('is_featured') == 'on' if shown else bool(post and post.is_featured),
@@ -435,10 +437,12 @@ def _saved(post):
     """The editor's fields as the post has them."""
     if post is None:
         return {'title': '', 'slug': '', 'summary': '', 'content': '', 'cover_image_url': None, 'cover_alt': '',
+                'thumb_url': None,
                 'seo_title': '', 'focus_keyword': '', 'is_featured': False, 'layout': None, 'author_id': current_user.id,
                 'publish_at': None, 'categories': [], 'tags': '', 'send_notification': True}
     return {'title': post.title, 'slug': post.slug, 'summary': post.summary or '', 'content': post.content or '',
             'cover_image_url': post.cover_image_url, 'cover_alt': post.cover_alt or '',
+            'thumb_url': post.thumb_url,
             'seo_title': post.seo_title or '', 'focus_keyword': post.focus_keyword or '',
             'is_featured': bool(post.is_featured), 'layout': post.layout, 'author_id': post.author_id,
             'publish_at': post.published_at,
@@ -557,6 +561,7 @@ def _apply(post, d):
         setattr(post, k, d[k])
     post.summary = d['summary'] or None
     post.cover_alt = d['cover_alt'] or None
+    post.thumb_url = d.get('thumb_url') or None
     post.seo_title = d['seo_title'] or None
     post.focus_keyword = d['focus_keyword'] or None
     post.layout = d.get('layout') or None
@@ -590,6 +595,7 @@ def blog_preview(post_id):
                                 slug=d['slug'], content=d['content'], summary=d['summary'], seo_title=d['seo_title'],
                                 layout=d.get('layout'),
                                 cover_image_url=d['cover_image_url'], cover_alt=d['cover_alt'],
+                                thumb_url=d.get('thumb_url'),
                                 author=db.session.get(User, d['author_id']) or current_user,
                                 published_at=d['publish_at'] or (post.published_at if post else None) or datetime.utcnow(),
                                 is_published=bool(post and post.is_published), categories=terms,
@@ -598,7 +604,9 @@ def blog_preview(post_id):
         shown.excerpt = lambda length=200: Blog.excerpt(shown, length)
         shown.reading_minutes = lambda: Blog.reading_minutes(shown)
     from app.routes.blog import share_card
-    resp = render_template('pages/blog_post.html', post=shown, preview=True, related=[], **share_card(shown))
+    from app.services import blog_sidebars
+    resp = render_template('pages/blog_post.html', post=shown, preview=True, related=[],
+                           side=blog_sidebars.for_post(shown), **share_card(shown))
     return resp, 200, {'X-Robots-Tag': 'noindex'}
 
 
@@ -607,7 +615,8 @@ def blog_preview(post_id):
 @login_required
 @admin_required
 def blog_image(post_id):
-    """One picture from the editor: the cover (1200 wide) or one in the post."""
+    """One picture from the editor: the cover (1200 wide), the thumbnail (800 wide), a sidebar card's (800 wide) or
+    one in the post."""
     _post_or_404(post_id)
     f = request.files.get('file')
     if not f or not f.filename:
@@ -617,7 +626,8 @@ def blog_image(post_id):
     data = f.read()
     if len(data) > be.MAX_IMAGE_BYTES:
         return jsonify({'error': 'That picture is larger than 10 MB.'}), 400
-    width = be.COVER_WIDTH if request.form.get('purpose') == 'cover' else be.BODY_WIDTH
+    width = {'cover': be.COVER_WIDTH, 'thumb': be.THUMB_WIDTH, 'side': be.SIDE_WIDTH}.get(request.form.get('purpose'),
+                                                                                       be.BODY_WIDTH)
     try:
         url = be.store_image(data, f.filename, width)
     except be.ImageError as e:
@@ -703,6 +713,158 @@ def blog_pattern_delete(pattern_id):
     flash('Deleted “%s”.%s' % (name, ' The %s that used it keep its blocks as their own.' % (
         'post' if n == 1 else '%d posts' % n) if n else ''), 'success')
     return redirect(url_for('admin.blog_patterns'))
+
+
+# ============================================================================== sidebars
+
+def _side_names():
+    return {t.id: t.name for t in BlogTerm.query.filter_by(kind='category')}
+
+
+def _side_more(cards, post):
+    """{card id: [posts]} for the "More stories" cards, as `post` would show them (any post: the newest)."""
+    from app.services import blog_sidebars as bs
+    stand_in = post or SimpleNamespace(id=None, categories=[], tags=[], content='')
+    return {c.id: bs.more_posts(c, stand_in) for c in cards if c.kind == 'more'}
+
+
+@admin_bp.route('/blog/sidebars')
+@login_required
+@admin_required
+def blog_sidebars():
+    """Blog › Sidebars: the cards beside a post, left and right, the way a post shows them -- every card, or only
+    those a category's posts or one post show (?for=cat:<id> / post:<id>). A card is dragged to another place or
+    side, its bottom edge makes it taller or shorter, a sidebar's edge makes the sidebar wider."""
+    from app.services import blog_sidebars as bs
+    target = request.args.get('for') or 'all'
+    post, label = bs.preview_post(target)
+    rows = bs.cards()
+    names = _side_names()
+    return render_template('admin/blog/sidebars.html', rows=rows, rails=bs.rails(), target=target, label=label,
+                           by_side={s: [c for c in rows if c.side == s] for s in bs.SIDES},
+                           shown={c.id: post is None or bs.shows_on(c, post) for c in rows},
+                           where={c.id: bs.where_label(c, names) for c in rows},
+                           status={c.id: bs.status(c) for c in rows}, more=_side_more(rows, post), bs=bs,
+                           categories=bp.terms('category'),
+                           posts=Blog.query.filter(Blog.trashed_at.is_(None)).order_by(Blog.title).all())
+
+
+def _side_form(card, status=200, errors=None):
+    from app.services import blog_sidebars as bs
+    return render_template('admin/blog/sidebar_edit.html', card=card, look=bs.look(card), bs=bs, errors=errors or [],
+                           categories=bp.terms('category'), patterns=bp.patterns(),
+                           posts=Blog.query.filter(Blog.trashed_at.is_(None)).order_by(Blog.title).all(),
+                           more=_side_more([card], None), rails=bs.rails(),
+                           starts=bp.ist_input(card.starts_at), ends=bp.ist_input(card.ends_at)), status
+
+
+@admin_bp.route('/blog/sidebars/new', methods=['GET', 'POST'])
+@admin_bp.route('/blog/sidebars/<int:card_id>', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def blog_sidebar_edit(card_id=None):
+    """One sidebar card: what it is, what it says, how it looks, where and when it shows."""
+    from app.services import blog_sidebars as bs
+    if card_id is None:
+        card = bs.new_card(request.values.get('kind'), request.values.get('side'))
+    else:
+        card = db.session.get(BlogSideCard, card_id) or abort(404)
+    if request.method == 'GET':
+        return _side_form(card)
+    errors = bs.from_form(card, request.form)
+    if errors:
+        page = _side_form(card, 400, errors)     # the form again, as typed ...
+        db.session.rollback()                    # ... and nothing of it kept
+        return page
+    if card.id is None:
+        card.created_by_id = current_user.id
+        db.session.add(card)
+    db.session.commit()
+    flash('Saved: “%s”%s.' % (card.name, '' if card.is_on else ' (switched off: readers do not see it yet)'), 'success')
+    return redirect(url_for('admin.blog_sidebars', **({'for': request.form['back_for']}
+                                                      if request.form.get('back_for') else {})))
+
+
+@admin_bp.route('/blog/sidebars/preview', methods=['POST'])
+@login_required
+@admin_required
+def blog_sidebar_preview():
+    """The card as the form has it now, not saved: the editor's live preview."""
+    from app.services import blog_sidebars as bs
+    card = bs.new_card(request.form.get('kind'), request.form.get('side'))
+    card.id = 0
+    errors = bs.from_form(card, request.form)
+    db.session.rollback()                    # nothing of a preview is kept
+    if not bs.ready(card):                   # a flyer before its picture is up: nothing to draw yet
+        return '<p class="sbe-wait wpb-dim">Fill in the card: it shows here as readers will see it.</p>'
+    return render_template('pages/_blog_side_one.html', c=card, more=_side_more([card], None), sample=True,
+                           errors=errors)
+
+
+@admin_bp.route('/blog/sidebars/<int:card_id>/quick', methods=['POST'])
+@login_required
+@admin_required
+def blog_sidebar_quick(card_id):
+    """One change from the Sidebars screen, without its form: its height (dragged), on or off."""
+    from app.services import blog_sidebars as bs
+    card = db.session.get(BlogSideCard, card_id) or abort(404)
+    f = request.form
+    if 'height' in f:
+        bs.set_look(card, height=f.get('height') or None)
+    if 'is_on' in f:
+        card.is_on = f.get('is_on') == '1'
+    db.session.commit()
+    return jsonify({'ok': True, 'height': bs.look(card)['height'], 'is_on': card.is_on, 'status': bs.status(card)})
+
+
+@admin_bp.route('/blog/sidebars/order', methods=['POST'])
+@login_required
+@admin_required
+def blog_sidebar_order():
+    """Both sidebars in the order dragged (left=1,4,2&right=3): a card dragged across changes side."""
+    from app.services import blog_sidebars as bs
+    split = lambda k: [x for x in (request.form.get(k) or '').split(',') if x.strip()]
+    n = bs.set_order(split('left'), split('right'))
+    db.session.commit()
+    return jsonify({'ok': True, 'moved': n})
+
+
+@admin_bp.route('/blog/sidebars/rail', methods=['POST'])
+@login_required
+@admin_required
+def blog_sidebar_rail():
+    """How wide a sidebar is (dragged), and whether its last card stays in view while reading."""
+    from app.services import blog_sidebars as bs
+    f = request.form
+    got = bs.set_rail(f.get('side'), width=f.get('width') or None,
+                      sticky=(f.get('sticky') == '1') if 'sticky' in f else None, actor=current_user)
+    if got is None:
+        return jsonify({'error': 'Left or right?'}), 400
+    return jsonify({'ok': True, **got})
+
+
+@admin_bp.route('/blog/sidebars/<int:card_id>/copy', methods=['POST'])
+@login_required
+@admin_required
+def blog_sidebar_copy(card_id):
+    from app.services import blog_sidebars as bs
+    card = db.session.get(BlogSideCard, card_id) or abort(404)
+    twin = bs.copy(card, current_user)
+    db.session.commit()
+    flash('Copied: “%s”, switched off until you change it.' % twin.name, 'success')
+    return redirect(url_for('admin.blog_sidebar_edit', card_id=twin.id))
+
+
+@admin_bp.route('/blog/sidebars/<int:card_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def blog_sidebar_delete(card_id):
+    card = db.session.get(BlogSideCard, card_id) or abort(404)
+    name = card.name
+    db.session.delete(card)
+    db.session.commit()
+    flash('Deleted “%s”. Its picture stays in Media.' % name, 'success')
+    return redirect(url_for('admin.blog_sidebars'))
 
 
 # ============================================================================== revisions

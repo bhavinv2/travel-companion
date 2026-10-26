@@ -239,7 +239,7 @@ def test_a_second_workspace_and_switching(client, ws, admin_user, cs_user):
     assert 'Sahayak operations' in html                                 # offered in the switcher
     client.get('/admin/workspace/switch/%d' % ops.id)
     nav = client.get('/cs/sahayak').data.decode().split('admin-nav-items', 1)[1].split('</nav>', 1)[0]
-    assert 'data-group="sahayak"' in nav and 'data-group="crm"' not in nav
+    assert 'data-title="Bookings"' in nav and 'data-group="leads"' not in nav      # Sahayak's work, no Sales CRM
     # a link into the other workspace's module switches back to it rather than refusing
     assert client.get('/cs/crm/today').status_code == 200
 

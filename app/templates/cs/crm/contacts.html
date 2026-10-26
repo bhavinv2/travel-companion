@@ -60,10 +60,15 @@
   {% set r = rows[p.id] %}
   <tr>
     <td class="nm" data-label="Name"><a href="{{ crm_url('contact', person_id=p.id) }}">{{ p.display_name }}</a></td>
-    <td data-label="Phone">{% if p.phone %}<a href="tel:{{ p.phone }}">{{ PHONE.pretty(p.phone) }}</a>{% else %}—{% endif %}</td>
+    <td data-label="Phone">{% if p.phone and MASKED(p) %}<span class="mk" title="Hidden: open their contact to Show">{{ MASK_PHONE(p.phone) }}</span>{% elif p.phone %}<a href="tel:{{ p.phone }}">{{ PHONE.pretty(p.phone) }}</a>{% else %}—{% endif %}</td>
     <td data-label="Enquiries">{% for cls, text, url in r.chips %}<a class="pill {{ cls }}" href="{{ url }}">{{ text }}</a>{% else %}<span class="muted">None yet</span>{% endfor %}{% if r.more %} <small class="muted">+{{ r.more }}</small>{% endif %}</td>
     <td data-label="Last contact">{{ when(r.last_contact, utcnow) if r.last_contact else '—' }}</td>
-    <td data-label="WhatsApp"><span class="ct-wa {{ r.wa[0] }}">{{ r.wa[1] }}</span></td>
+    <td data-label="WhatsApp"><span class="ct-wa {{ r.wa[0] }}">{{ r.wa[1] }}</span>
+      {%- if can_chat and (p.phone or p.wacrm_conversation_id) %}
+      <form method="POST" action="{{ url_for('messaging.contact_chat', person_id=p.id) }}" class="ct-chat">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ request.script_root ~ request.full_path.rstrip('?') }}"/>
+        <button class="cb sm quiet" title="{{ 'Open' if p.wacrm_conversation_id else 'Start' }} a WhatsApp chat with {{ p.display_name }}"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Chat</button></form>
+      {%- endif %}</td>
   </tr>
   {% endfor %}
   </tbody>

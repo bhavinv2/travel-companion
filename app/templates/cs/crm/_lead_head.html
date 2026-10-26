@@ -9,8 +9,13 @@
       {% if family %}<span class="lead-family"> · Family: {% for m in family %}<a href="{{ crm_url('contact', person_id=m.person.id) }}">{{ m.text }}</a>{{ ', ' if not loop.last }}{% endfor %}</span>{% endif %}</p>
   </div>
   <div class="acts">
+    {% if MASKED(person) %}
+    {% if person.phone %}<span class="cb mk" title="Hidden: you do not look after their lead"><i class="fa-solid fa-phone"></i> {{ MASK_PHONE(person.phone) }}</span>{% endif %}
+    {% if person.phone or person.email %}{% with mp=person %}{% include 'cs/crm/_show.html' %}{% endwith %}{% endif %}
+    {% else %}
     {% if person.phone %}<a class="cb" href="tel:{{ person.phone }}"><i class="fa-solid fa-phone"></i> {{ PHONE.pretty(person.phone) }}</a>{% endif %}
     {% if person.email %}<a class="cb" href="mailto:{{ person.email }}" title="{{ person.email }}" data-email-open><i class="fa-solid fa-envelope"></i> E-mail</a>{% endif %}
+    {% endif %}
     {% set ig = person.identity('instagram') %}{% set fb = person.identity('facebook') %}
     {% if ig %}<a class="cb" href="https://www.instagram.com/{{ ig }}" target="_blank" rel="noopener"><i class="fa-brands fa-instagram"></i> {{ ig }}</a>{% endif %}
     {% if fb %}<a class="cb" href="https://www.facebook.com/{{ fb }}" target="_blank" rel="noopener"><i class="fa-brands fa-facebook"></i> Facebook</a>{% endif %}

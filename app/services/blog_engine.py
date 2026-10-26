@@ -59,6 +59,8 @@ MAX_IMAGES_TOTAL = 150 * 1024 * 1024
 IMAGE_EXT = ('jpg', 'jpeg', 'png', 'webp')
 COVER_WIDTH = 1200                   # the share card is 1200 x 630
 BODY_WIDTH = 1600                    # wider than the column ever shows
+THUMB_WIDTH = 800                    # the blog's cards, 16:9: twice the widest card on a sharp screen
+SIDE_WIDTH = 800                     # a sidebar card: twice the widest sidebar (blog_sidebars.WIDTH_MAX)
 KEEP_AS_IS = 400 * 1024              # a picture this small and narrow enough is stored untouched
 PNG_TO_JPEG = 500 * 1024             # Word keeps pasted photos as PNG: one this big without see-through parts goes JPG
 

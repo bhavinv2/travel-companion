@@ -38,4 +38,8 @@
     {%- endif %}
   </div>
 </header>
+{%- if LOOK_ONLY_HERE() %}
+<p class="ui-look-only"><i class="fa-solid fa-eye" aria-hidden="true"></i> Only to look: your role can open this page but not
+  change anything on it.</p>
+{%- endif %}
 {%- endmacro %}

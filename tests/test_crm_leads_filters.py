@@ -200,7 +200,7 @@ def test_every_filter_on_is_a_chip_and_goes_with_the_download_and_a_saved_view(a
     assert 'lk=' not in rm and 'dr=7d' in rm and 'follow=none' in rm
     href = re.search(r'href="([^"]*export/leads[^"]*)"', html).group(1).replace('&amp;', '&')
     assert 'dr=7d' in href and 'lk=warm' in href and 'follow=none' in href
-    rows = list(csv.reader(io.StringIO(client.get(href).get_data(as_text=True).lstrip('﻿'))))
+    rows = list(csv.reader(io.StringIO(client.get(href + '&reason=backup').get_data(as_text=True).lstrip('﻿'))))
     flat = ' '.join(' '.join(r) for r in rows)
     assert 'Chip Chandra' in flat and 'Chip Old' not in flat
     # Save this view keeps the panel's words; a ready-made range stays a word, so the view keeps rolling

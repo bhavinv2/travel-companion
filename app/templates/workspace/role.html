@@ -5,13 +5,33 @@
 <div class="ws-head">
   <div><h1>{{ r.name if r else ('Copy of ' ~ copy_of.name if copy_of else 'New role') }}</h1>
     <p>{% if locked %}The Administrator role always has every page, including the ones added later. It cannot be narrowed.
-      {% else %}Tick the pages this role opens. Ticking a module ticks all of its pages.{% endif %}</p></div>
+      {% else %}Tick the pages this role opens, and whether it may change things there or only look. Ticking a module
+      ticks all of its pages.{% endif %}</p></div>
   <a class="cb" href="{{ url_for('workspace.roles') }}"><i class="fa-solid fa-arrow-left"></i> All roles</a>
 </div>
 
 <form method="POST" action="{{ url_for('workspace.save_role') }}" data-role-form>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
   {% if r %}<input type="hidden" name="role_id" value="{{ r.id }}"/>{% endif %}
+  <input type="hidden" name="profile" value="{{ rights.profile or '' }}" data-profile-field/>
+  {% if presets %}
+  <section class="card ws-profiles">
+    <h3 style="margin:0 0 4px">{{ 'Start from a profile' if not r else 'Fill from a profile' }}</h3>
+    <p class="ws-muted" style="margin:0 0 10px">Each profile ticks the pages, the leads they see and what they may do for
+      one kind of job, giving them only what that job needs. Change anything afterwards.</p>
+    <div class="ws-profile-list">
+      {% for p in presets %}
+      <div class="ws-profile{{ ' on' if rights.profile == p.key }}" data-profile-card="{{ p.key }}">
+        <b><i class="fa-solid {{ p.icon }}" aria-hidden="true"></i> {{ p.label }}</b>
+        <small>{{ p.says }}</small>
+        {% if p.fills %}<button type="button" class="cb sm" data-use-profile="{{ p.key }}">Use</button>
+        {% else %}<small class="ws-muted">Not a role: chosen on Team members.</small>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <script type="application/json" id="role-presets">{{ presets|tojson }}</script>
+  </section>
+  {% endif %}
   <section class="card">
     <div class="ws-grid2">
       <div class="ws-field"><label for="rName">Role name</label>
@@ -34,6 +54,20 @@
     {% endfor %}
   </section>
 
+  <section class="card ws-rights">
+    <h3 style="margin:0 0 6px">What may they do?</h3>
+    {% if locked %}<p class="ws-muted" style="margin:0">Everything: change any page, remove leads, see every phone number.</p>
+    {% else %}
+    <label class="ws-right"><input type="checkbox" name="right_remove" data-right="remove" {{ 'checked' if rights.remove }}/>
+      <span><b>Remove leads</b><small>The ones they added or look after. A removed lead waits in the Recycle bin for 30 days.</small></span></label>
+    <label class="ws-right"><input type="checkbox" name="right_mask" data-right="mask" {{ 'checked' if rights.mask }}/>
+      <span><b>Hide other people's phone numbers and e-mails</b><small>On leads they do not look after, numbers and e-mails show
+        as +91 98•••••210 until they press Show. Every Show is in the audit log.</small></span></label>
+    <p class="ws-muted" style="margin:8px 0 0">Downloading lists is a page of its own: Downloads, under Sales. Every download
+      asks why, and is in the audit log. Beside each page below, <b>Only look</b> lets them open it without changing anything.</p>
+    {% endif %}
+  </section>
+
   {% for m in modules %}
   {% set mine = m.pages|selectattr('key', 'in', chosen)|list %}
   <section class="ws-role-mod{{ ' off' if not m.on }}" data-role-module>
@@ -44,9 +78,13 @@
     </header>
     <div class="ws-role-pages">
       {% for p in m.pages %}
-      <label><input type="checkbox" name="pages" value="{{ p.key }}" {{ 'checked' if p.key in chosen }} {{ 'disabled' if locked }}/>
-        <i class="{{ p.icon if ' ' in p.icon else 'fa-solid ' ~ p.icon }}"></i>
-        <span>{{ p.label }}{% if p.desc %}<small>{{ p.desc }}</small>{% endif %}</span></label>
+      <div class="ws-role-page">
+        <label><input type="checkbox" name="pages" value="{{ p.key }}" {{ 'checked' if p.key in chosen }} {{ 'disabled' if locked }}/>
+          <i class="{{ p.icon if ' ' in p.icon else 'fa-solid ' ~ p.icon }}"></i>
+          <span>{{ p.label }}{% if p.desc %}<small>{{ p.desc }}</small>{% endif %}</span></label>
+        {% if not locked %}<label class="ws-look" title="They can open it but not change anything on it">
+          <input type="checkbox" name="view" value="{{ p.key }}" {{ 'checked' if p.key in rights.view }}/> Only look</label>{% endif %}
+      </div>
       {% endfor %}
     </div>
   </section>
@@ -74,6 +112,11 @@
   function count() {
     var n = form.querySelectorAll('input[name="pages"]:checked').length;
     form.querySelectorAll('[data-role-count]').forEach(function (out) { out.textContent = n; });
+    // "Only look" is offered only beside a page the role opens
+    form.querySelectorAll('.ws-role-page').forEach(function (row) {
+      var page = row.querySelector('input[name="pages"]'), look = row.querySelector('.ws-look');
+      if (look) look.hidden = !page.checked;
+    });
   }
   form.querySelectorAll('[data-role-module]').forEach(function (mod) {
     var all = mod.querySelector('[data-module-all]');
@@ -91,6 +134,35 @@
     });
     boxes.forEach(function (b) { b.addEventListener('change', sync); });
     sync();
+  });
+  // "Start from a profile": tick what the profile gives, then change anything
+  var data = document.getElementById('role-presets');
+  var presets = data ? JSON.parse(data.textContent) : [];
+  form.querySelectorAll('[data-use-profile]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var p = presets.filter(function (x) { return x.key === b.getAttribute('data-use-profile'); })[0];
+      if (!p) return;
+      form.querySelectorAll('input[name="pages"]').forEach(function (c) { c.checked = p.pages.indexOf(c.value) >= 0; });
+      form.querySelectorAll('input[name="view"]').forEach(function (c) { c.checked = p.view.indexOf(c.value) >= 0; });
+      form.querySelectorAll('input[name="crm_scope"]').forEach(function (c) { c.checked = c.value === p.scope; });
+      form.querySelector('[data-right="remove"]').checked = !!p.remove;
+      form.querySelector('[data-right="mask"]').checked = !!p.mask;
+      form.querySelector('[data-profile-field]').value = p.key;
+      var name = form.querySelector('#rName'), desc = form.querySelector('#rDesc');
+      if (!name.value.trim()) name.value = p.label;
+      if (!desc.value.trim()) desc.value = p.says.slice(0, 255);
+      form.querySelectorAll('[data-profile-card]').forEach(function (card) {
+        card.classList.toggle('on', card.getAttribute('data-profile-card') === p.key);
+      });
+      form.querySelectorAll('[data-module-all]').forEach(function (all) {
+        var boxes = all.closest('[data-role-module]').querySelectorAll('input[name="pages"]'), on = 0;
+        boxes.forEach(function (x) { if (x.checked) on++; });
+        all.checked = on === boxes.length;
+        all.indeterminate = on > 0 && on < boxes.length;
+      });
+      count();
+      if (window.CRM && window.CRM.toast) window.CRM.toast(p.label + ' filled in. Check it, then Save role.');
+    });
   });
 })();
 </script>

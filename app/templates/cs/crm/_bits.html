@@ -106,13 +106,15 @@
     <a class="cb primary" href="{{ crm_url('lead', lead_id=l.id, via='whatsapp') }}#box">Open and send</a>
     {% elif plan.kind == 'own' %}
     <button type="button" class="cb wa" data-act="wa-own" data-text="{{ text }}"><i class="fa-brands fa-whatsapp"></i> {{ plan.label }}</button>
+    {% elif plan.kind in ('call', 'email') and MASKED(l.person) %}
+    <a class="cb primary" href="{{ crm_url('lead', lead_id=l.id) }}">Open the lead</a>
     {% elif plan.kind == 'call' %}
     <a class="cb primary" href="tel:{{ l.person.phone }}" data-act="dial"><i class="fa-solid fa-phone"></i> {{ plan.label }}</a>
     {% elif plan.kind == 'email' %}
     <a class="cb primary" href="mailto:{{ l.person.email }}" data-act="mail-task" data-text="{{ text }}"><i class="fa-solid fa-envelope"></i> Write e-mail</a>
     {% elif plan.kind == 'blocked' %}
     <p class="blocked">{{ plan.reason }}</p>
-    {% if plan.alt == 'call' and l.person.phone %}<a class="cb" href="tel:{{ l.person.phone }}" data-act="dial">Call instead</a>
+    {% if plan.alt == 'call' and l.person.phone and not MASKED(l.person) %}<a class="cb" href="tel:{{ l.person.phone }}" data-act="dial">Call instead</a>
     {% else %}<a class="cb" href="{{ crm_url('lead', lead_id=l.id) }}">Open</a>{% endif %}
     {% else %}
     <button type="button" class="cb primary" data-act="done">Done</button>

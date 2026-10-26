@@ -318,14 +318,14 @@ def test_a_pinned_report_that_no_longer_runs_does_not_break_sales_results(app, c
 
 def test_download_for_excel_is_the_table_on_the_screen(app, client, world):
     as_user(client, world['admin'])
-    r = client.get('/admin/crm/reports/build.csv?what=leads&measure=value&group=owner')
+    r = client.get('/admin/crm/reports/build.csv?what=leads&measure=value&group=owner&reason=backup')
     assert r.status_code == 200 and 'text/csv' in r.headers['Content-Type']
     rows = list(csv.reader(io.StringIO(r.get_data(as_text=True).lstrip('﻿'))))
     assert rows[0] == ['Total value of leads by who looks after it']
     assert rows[1][0] == 'Who looks after it' and 'INR' in rows[1][1]
     body = {x[0]: x[1] for x in rows[2:]}
     assert body['Asha'] == '3000' and body['Total'] == '4300'
-    bad = client.get('/admin/crm/reports/build.csv?what=nope', follow_redirects=True)
+    bad = client.get('/admin/crm/reports/build.csv?what=nope&reason=backup', follow_redirects=True)
     assert 'Choose what to count' in bad.get_data(as_text=True)
 
 
@@ -334,9 +334,9 @@ def test_download_for_excel_is_the_table_on_the_screen(app, client, world):
 def test_the_page_is_a_line_of_reports_and_comes_with_sales_results(app):
     page = access.PAGES['crm_report_builder']
     assert 'crm_insights' in page['with'] and 'crm.report_builder' in page['endpoints'] and page['nav']
-    reports = {s['key']: s for s in access.SECTIONS}['reports']
-    sales = next(b for b in reports['subs'] if b['key'] == 'sales')['pages']
-    assert sales[-2:] == ('crm_report_builder', 'crm_export')          # then Downloads
+    reports = {s['key']: s for s in access.SECTIONS}['reports']['pages']
+    assert reports[-2:] == ('crm_report_builder', 'dashboard')          # then the site's own dashboard
+    assert access.PAGES['crm_export']['section'] == 'setup'             # Downloads: Set-up › Data
 
 
 def test_the_page_explains_itself_and_draws_the_chart_without_a_library(app, client, world):

@@ -174,14 +174,14 @@ GETS = ('/cs/crm/?p=all&view=list&owner=all', '/cs/crm/?view=board&owner=all', '
         '/cs/crm/contacts', '/cs/crm/contacts?q=%s', '/cs/crm/contacts?dups=1', '/cs/crm/today?who=all',
         '/cs/crm/calendar?who=all', '/cs/crm/calendar?tab=list&who=all', '/cs/crm/tracker', '/cs/crm/insights',
         '/cs/crm/forecast', '/cs/crm/flow', '/cs/crm/reports/build?run=1&what=leads&group=owner',
-        '/admin/crm/export/leads?p=all&owner=all&win=all', '/admin/crm/export/contacts', '/admin/crm/insights.csv',
-        '/admin/crm/insights-people.csv', '/cs/crm/forecast.csv', '/cs/crm/reports/build.csv?what=leads&group=source',
+        '/admin/crm/export/leads?p=all&owner=all&win=all&reason=backup', '/admin/crm/export/contacts?reason=backup', '/admin/crm/insights.csv?reason=backup',
+        '/admin/crm/insights-people.csv?reason=backup', '/cs/crm/forecast.csv?reason=backup', '/cs/crm/reports/build.csv?what=leads&group=source&reason=backup',
         '/admin/crm/bin', '/admin/crm/sources', '/admin/crm/pipelines', '/admin/crm/data', '/cs/crm/quick-replies',
         '/admin/crm/targets')
 
 
 CONTROLS = ('/cs/crm/?p=all&view=list&owner=all', '/cs/crm/?view=board&owner=all', '/cs/crm/contacts',
-            '/admin/crm/export/leads?p=all&owner=all&win=all', '/admin/crm/export/contacts')
+            '/admin/crm/export/leads?p=all&owner=all&win=all&reason=backup', '/admin/crm/export/contacts?reason=backup')
 
 
 def _sweep(client, user, query, hidden, shown, own=None):

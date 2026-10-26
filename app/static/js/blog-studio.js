@@ -867,6 +867,7 @@
     const { purpose, figure, target } = picking;
     picking = null;
     if (purpose === 'cover') return coverUpload(files[0]);
+    if (purpose === 'thumb') return thumbUpload(files[0]);
     if (purpose === 'library') return libUpload(files);
     if (!figure) return insertPictures(files, target);
     let d;
@@ -1012,6 +1013,42 @@
     if (f) coverUpload(f);
   });
 
+  // ---------------------------------------------------------------- thumbnail (the blog's list; empty: the cover)
+  const thumbInput = form.querySelector('input[name=thumb_url]');
+  const thumbBox = document.getElementById('bsThumb');
+  function setThumb(url, src) {
+    if (!thumbBox) return;
+    thumbInput.value = url || '';
+    const img = thumbBox.querySelector('img');
+    img.hidden = !url;
+    if (url) img.src = src || url; else img.removeAttribute('src');
+    thumbBox.querySelector('p').hidden = !!url;
+    form.querySelector('[data-thumb=remove]').hidden = !url;
+    form.querySelector('[data-thumb=upload]').lastChild.textContent = url ? ' Replace' : ' Upload';
+    changed();
+  }
+  async function thumbUpload(file) {
+    thumbBox.classList.add('is-busy');
+    try { const d = await upload(file, 'thumb'); setThumb(d.url, d.src); } catch (err) { toast(err.message, 'danger'); }
+    thumbBox.classList.remove('is-busy');
+  }
+  if (thumbBox) {
+    form.querySelectorAll('[data-thumb]').forEach(b => b.addEventListener('click', () => {
+      if (b.dataset.thumb === 'upload') pick('thumb', null);
+      else if (b.dataset.thumb === 'library') openLib({ purpose: 'thumb' });
+      else setThumb('', '');
+    }));
+    thumbBox.addEventListener('click', () => pick('thumb', null));
+    thumbBox.addEventListener('dragover', e => { e.preventDefault(); thumbBox.classList.add('is-drop'); });
+    thumbBox.addEventListener('dragleave', () => thumbBox.classList.remove('is-drop'));
+    thumbBox.addEventListener('drop', e => {
+      e.preventDefault();
+      thumbBox.classList.remove('is-drop');
+      const f = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) thumbUpload(f);
+    });
+  }
+
   // ---------------------------------------------------------------- the other fields
   // the title is one line of text that wraps: as tall as it needs; Enter goes on to the post
   const fit = () => { title.style.height = 'auto'; title.style.height = title.scrollHeight + 'px'; };
@@ -1100,6 +1137,7 @@
     const val = n => { const i = form.querySelector('[name=' + n + ']'); return i ? i.value : ''; };
     return { title: title.value, slug: slug.value, summary: summary.value, content: hidden.value,
              cover: coverInput.value, coverSrc: coverBox.querySelector('img').getAttribute('src') || '',
+             thumb: thumbInput ? thumbInput.value : '', thumbSrc: thumbBox ? thumbBox.querySelector('img').getAttribute('src') || '' : '',
              coverAlt: form.querySelector('[name=cover_alt]').value,
              seoTitle: val('seo_title'), keyword: val('focus_keyword'), tags: val('tags'), when: val('publish_at'),
              cats: Array.from(form.querySelectorAll('[name=categories]:checked')).map(i => i.value) };
@@ -1117,6 +1155,7 @@
     if (s.cats) form.querySelectorAll('[name=categories]').forEach(i => { i.checked = s.cats.includes(i.value); });
     structural(() => { editor.innerHTML = s.content; });
     setCover(s.cover, s.coverSrc);
+    if (s.thumb !== undefined) setThumb(s.thumb, s.thumbSrc);
     when();
     changed();
   }
@@ -1798,6 +1837,7 @@
     if (!m || !f) return;
     closeLib();
     if (f.onPick) { f.onPick(m); return; }            // a carousel, the picture beside text (blog-blocks.js)
+    if (f.purpose === 'thumb') { setThumb(m.url, m.src); return; }
     if (f.purpose === 'cover') {
       setCover(m.url, m.src);
       const alt = form.querySelector('[name=cover_alt]');

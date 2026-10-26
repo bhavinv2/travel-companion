@@ -121,6 +121,7 @@
         feed.appendChild(c);
         const m = c.querySelector('.bp-media.is-multi');
         if (m) slides(m);
+        fit(c);
       });
       paintSaved(feed);
       const nxt = r.headers.get('X-Next');
@@ -161,7 +162,84 @@
     paint();
   }
 
+  // ---------------------------------------------------------------- a picture of another shape
+  // A card's frame is 16:9: a picture far from that (a portrait poster) shows whole, on a blurred copy of itself,
+  // instead of being cut to its middle. A portrait cover gets a taller frame.
+  function fitOne(box) {
+    const img = box.querySelector('img:not(.bj-cover-bg)');
+    if (!img) return;
+    const go = () => {
+      if (!img.naturalWidth || !img.naturalHeight) return;
+      const r = img.naturalWidth / img.naturalHeight;
+      if (box.classList.contains('bj-cover')) { box.classList.toggle('is-tall', r < 1.25); return; }
+      const frame = box.clientWidth / Math.max(1, box.clientHeight) || 16 / 9;
+      const off = Math.abs(Math.log(r / frame)) > 0.36;      // 4:3 is cut a little; square, portrait or a banner is not
+      box.classList.toggle('is-fit', off);
+      if (off) box.style.setProperty('--pic', 'url("' + (img.currentSrc || img.src).replace(/"/g, '%22') + '")');
+    };
+    if (img.complete) go(); else img.addEventListener('load', go, { once: true });
+  }
+  const fit = root => (root || document).querySelectorAll('[data-fit]').forEach(fitOne);
+
+  // ---------------------------------------------------------------- "On this page" (a sidebar card)
+  // The post's own headings, each with an address to jump to; the one being read is lit. Fewer than two: no card.
+  const tocs = document.querySelectorAll('.bj-rail [data-toc], .bj-below [data-toc]');
+  const heads = Array.from(document.querySelectorAll('.bj-content h2, .bj-content h3')).filter(h => h.textContent.trim());
+  if (tocs.length) {
+    const used = new Set();
+    heads.forEach(h => {
+      if (!h.id) {
+        let base = h.textContent.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'part';
+        let id = base, n = 2;
+        while (used.has(id) || document.getElementById(id)) id = base + '-' + n++;
+        h.id = id;
+      }
+      used.add(h.id);
+    });
+    tocs.forEach(ol => {
+      const card = ol.closest('.bsd');
+      if (heads.length < 2) { card.hidden = true; return; }
+      ol.innerHTML = '';
+      heads.forEach(h => {
+        const li = document.createElement('li');
+        if (h.tagName === 'H3') li.className = 'is-sub';
+        const a = document.createElement('a');
+        a.href = '#' + h.id;
+        a.textContent = h.textContent.trim();
+        li.appendChild(a);
+        ol.appendChild(li);
+      });
+    });
+    if (heads.length >= 2 && 'IntersectionObserver' in window) {
+      let lit = null;
+      const light = id => {
+        if (id === lit) return;
+        lit = id;
+        tocs.forEach(ol => ol.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + id)));
+      };
+      const seen = new Map();
+      const watch = new IntersectionObserver(es => {
+        es.forEach(e => seen.set(e.target.id, e.isIntersecting));
+        const first = heads.find(h => seen.get(h.id));
+        if (first) light(first.id);
+      }, { rootMargin: '-80px 0px -60% 0px' });
+      heads.forEach(h => watch.observe(h));
+    }
+  }
+
+  // a sidebar's last card stays in view while the post is read -- only when all of it fits on the screen
+  const stick = () => document.querySelectorAll('.bj-rail.is-sticky').forEach(r => {
+    const last = r.lastElementChild;
+    r.classList.toggle('no-stick', !!last && last.offsetHeight > window.innerHeight - 110);
+  });
+  if (document.querySelector('.bj-rail.is-sticky')) {
+    window.addEventListener('load', stick);
+    window.addEventListener('resize', stick);
+    stick();
+  }
+
   document.querySelectorAll('.bp-media.is-multi').forEach(slides);
+  fit();
   paintSaved();
 
   /* ---------------------------------------------------------------- the blocks inside a post (blog-blocks.css) */

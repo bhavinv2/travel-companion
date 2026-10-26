@@ -44,6 +44,7 @@
 }
 .blog-post-content .wd-full { width: 100vw; max-width: 100vw; margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); border-radius: 0; }
 .blog-post-content figure.wd-full img, .blog-post-content .wd-full .blog-embed-frame { border-radius: 0; }
+.blog-post-content figure.wd-full img, .blog-post-content figure.wd-wide img { width: 100%; max-height: none; }
 
 /* ---------------------------------------------------------------- links and buttons */
 .blog-post-content a.lk-btn, .blog-post-content a.lk-outline { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;

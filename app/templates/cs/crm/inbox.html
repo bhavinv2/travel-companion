@@ -1,0 +1,70 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% from '_empty.html' import empty with context %}
+{% from 'cs/crm/_bits.html' import product_chip, stage_pill, when, ist, initials with context %}
+{# Inbox › All conversations (services/crm_inbox.py): one row per person who wrote to us, on any channel, newest first.
+   A row opens where it is answered: their WhatsApp chat (with the lead beside it), else the lead page. #}
+{% block crm_title %}All conversations{% endblock %}
+{% block crm %}
+{{ page_head('All conversations', 'fa-solid fa-inbox',
+             'Everybody who wrote to us, on every channel, newest first. Open a row to answer it where it belongs.',
+             help=['WhatsApp, e-mail, Instagram, Facebook, the website forms and the website chat are all here, one row per person.',
+                   '“Waiting on us”: they wrote last and nobody has answered yet. Answer them first.',
+                   'Open chat answers in WhatsApp chats, with their lead beside it; Open lead answers from the lead page.',
+                   'You see the conversations of the leads your role lets you see.'],
+             full_screen=True) }}
+
+{% set any_rows = counts.all > 0 or f.q or f.ch %}
+{% if not any_rows %}
+<div class="card">{{ empty('fa-solid fa-inbox', crm_inbox.EMPTY) }}</div>
+{% else %}
+<form class="ib-bar" method="GET">
+  <nav class="seg ib-who" aria-label="Whose">
+    {% for key, words in crm_inbox.WHO %}
+    <a href="{{ crm_url('inbox', who=key if key != 'all' else None, ch=f.ch or None, q=f.q or None) }}" class="{{ 'on' if f.who == key }}{{ ' wait' if key == 'waiting' and counts.waiting }}"{% if f.who == key %} aria-current="page"{% endif %}>
+      {{ words }} <b class="ib-n">{{ counts[key] }}</b></a>
+    {% endfor %}
+  </nav>
+  <label class="search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+    <input type="search" name="q" value="{{ f.q }}" placeholder="Name, phone, e-mail or handle" aria-label="Search conversations"/></label>
+  {% if f.who != 'all' %}<input type="hidden" name="who" value="{{ f.who }}"/>{% endif %}
+  {% if f.ch %}<input type="hidden" name="ch" value="{{ f.ch }}"/>{% endif %}
+</form>
+<nav class="ib-chs" aria-label="Channel">
+  <a href="{{ crm_url('inbox', who=f.who if f.who != 'all' else None, q=f.q or None) }}" class="ib-ch-chip{{ ' on' if not f.ch }}">Every channel</a>
+  {% for key, words, icon, _chs in crm_inbox.GROUPS %}
+  <a href="{{ crm_url('inbox', who=f.who if f.who != 'all' else None, ch=key, q=f.q or None) }}" class="ib-ch-chip{{ ' on' if f.ch == key }}"{% if f.ch == key %} aria-current="true"{% endif %}><i class="{{ icon }}" aria-hidden="true"></i> {{ words }}</a>
+  {% endfor %}
+</nav>
+
+{% if not rows %}
+<div class="card">{{ empty('fa-solid fa-filter', crm_inbox.NO_MATCH, {'label': 'Show every conversation', 'href': crm_url('inbox')}) }}</div>
+{% else %}
+<ul class="ib-list">
+  {% for r in rows %}{% set p = r.person %}{% set l = r.lead %}
+  <li class="ib-row{{ ' waiting' if r.waiting }}">
+    <span class="ib-av" aria-hidden="true">{{ initials(p.display_name) }}</span>
+    <div class="ib-main">
+      <div class="ib-top">
+        <a class="ib-name" href="{{ crm_url('contact', person_id=p.id) }}">{{ p.display_name }}</a>
+        <span class="ib-ch"><i class="{{ r.group[2] }}" aria-hidden="true"></i> {{ CHANNELS.get(r.channel, r.group[1]) }}</span>
+        <span class="ib-when" title="{{ ist(r.at) }}">{{ when(r.at, utcnow) }}</span>
+      </div>
+      <p class="ib-said">{% if r.direction == 'out' %}<b>{{ r.agent or 'We' }}:</b> {% endif %}{{ r.body or 'No words: a file, a call or a form with only details.' }}</p>
+      <div class="ib-meta">
+        {% if r.waiting %}<span class="ib-wait"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i> Waiting on us{% if r.waiting_since %} · {{ when(r.waiting_since, utcnow) }}{% endif %}</span>{% endif %}
+        {% if l %}{{ product_chip(l.product) }} {{ stage_pill(l) }}
+        <span class="muted small">{{ ('Looked after by ' ~ l.owner.full_name) if l.owner else 'Not given to anyone' }}</span>{% endif %}
+      </div>
+    </div>
+    <a class="cb sm{{ ' primary' if r.waiting }} ib-open" href="{{ r.open }}">{{ r.open_label }}</a>
+  </li>
+  {% endfor %}
+</ul>
+{% set first = (page - 1) * crm_inbox.PER_PAGE + 1 %}
+<p class="pager muted">Showing {{ first }}–{{ first + rows|length - 1 }} of {{ total }}
+  {% if page > 1 %}<a class="cb sm" href="{{ crm_url('inbox', who=f.who if f.who != 'all' else None, ch=f.ch or None, q=f.q or None, page=page - 1) }}">‹ Previous</a>{% endif %}
+  {% if page < pages %}<a class="cb sm" href="{{ crm_url('inbox', who=f.who if f.who != 'all' else None, ch=f.ch or None, q=f.q or None, page=page + 1) }}">Next ›</a>{% endif %}</p>
+{% endif %}
+{% endif %}
+{% endblock %}

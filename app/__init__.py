@@ -541,6 +541,7 @@ def create_app(test_config=None):
     from app.routes import crm_activities  # noqa: F401 -- Tasks, Calendar, e-mail: rules on crm_bp / crm_public_bp, before they are registered
     from app.routes import crm_rules  # noqa: F401 -- Automation rules, scoring, AI on the lead page, offers consent: rules on crm_bp, before it is registered
     from app.routes import crm_integrations  # noqa: F401 -- Set-up > Integrations and tawk.to's webhook: rules on crm_bp / crm_public_bp, before they are registered
+    from app.routes import crm_inbox  # noqa: F401 -- Inbox > All conversations: rules on crm_bp, before it is registered
 
     from app.services import crm_access, crm_audit, crm_bin, crm_scope
     crm_bin.register()          # removed leads are hidden everywhere (the recycle bin)
@@ -588,6 +589,10 @@ def create_app(test_config=None):
         from app.services import access
         return access.can(current_user, 'delete_records')
     app.jinja_env.globals['CAN_DELETE'] = _can_delete
+    from app.services import role_rights
+    app.jinja_env.globals['LOOK_ONLY_HERE'] = role_rights.look_only_here     # the page heading's notice
+    from app.services import crm_mask                                           # hidden contact details
+    app.jinja_env.globals.update(MASKED=crm_mask.hidden, MASK_PHONE=crm_mask.phone, MASK_EMAIL=crm_mask.email)
 
     # ---- i18n: Flask-Babel renders the curated translations server-side; the Google
     # Translate widget stays on as a fallback for strings we have not translated yet.

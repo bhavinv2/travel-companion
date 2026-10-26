@@ -1,6 +1,6 @@
-"""The staff menu as a rail of sections (2026-10-26): every section an icon, only the section being worked in shows
-its lines beside it; the "+" button offers only what the person's role allows. The pages and who sees them are
-unchanged (tests/test_crm_menu.py)."""
+"""The staff menu as a rail of work areas (2026-10-26): every area an icon, only the area being worked in shows its
+lines beside it; an area of one line is a link; Help and the Set-up gear sit apart, and Set-up opens one group at a
+time; the "+" button offers only what the person's role allows. Who sees which page is tests/test_crm_menu.py."""
 import re
 
 from conftest import login, make_user
@@ -9,16 +9,22 @@ from conftest import login, make_user
 def test_the_rail_has_every_section_and_lights_the_one_worked_in(app, client, admin_user):
     login(client, admin_user.email)
     html = client.get('/admin/health').get_data(as_text=True)
-    tabs = re.findall(r'data-area-tab="([a-z_0-9]+)"', html)
+    tabs = re.findall(r'data-area-(?:tab|link)="([a-z_0-9]+)"', html)
     groups = re.findall(r'class="sn-group[^"]*" data-group="([a-z_0-9]+)"', html)
-    assert tabs == groups and 'overview' in tabs and 'sales' in tabs and 'team' in tabs
-    assert re.search(r'class="sn-tab on" data-area-tab="overview"', html)
-    assert re.search(r'class="sn-group[^"]*current[^"]*" data-group="overview"', html)
+    assert tabs == groups == ['home', 'inbox', 'leads', 'contacts', 'tasks', 'services', 'reports', 'content',
+                              'automate', 'help', 'setup']
+    assert re.search(r'class="sn-tab on" data-area-tab="home"', html)
+    assert re.search(r'class="sn-group[^"]*current[^"]*" data-group="home"', html)
     assert len(re.findall(r'class="sn-group[^"]*current', html)) == 1
-    # a Sales CRM page lights Sales CRM, and the long names are short on the rail
+    # one line: a link straight to it; Help and the gear apart at the bottom
+    assert re.search(r'<a class="sn-tab" href="/admin/crm/contacts" data-area-link="contacts"', html)
+    assert re.findall(r'data-area-(?:tab|link)="([a-z]+)"[^>]*data-low', html) == ['help', 'setup']
+    # a set-up page lights the gear, with only its own group open
     html = client.get('/admin/crm/integrations').get_data(as_text=True)
-    assert re.search(r'class="sn-tab on" data-area-tab="sales"', html)
-    assert '<span>Companion</span>' in html and '<span>Travel Companion</span>' in html
+    assert re.search(r'class="sn-tab on" data-area-tab="setup"', html)
+    setup = html.split('data-group="setup"', 1)[1].split('sn-none', 1)[0]
+    assert 'data-one-open' in html.split('data-group="setup"', 1)[1][:40]
+    assert re.findall(r'class="sn-sub open" data-sub="([a-z.]+)"', setup) == ['setup.channels']
 
 
 def test_the_plus_button_offers_what_the_role_allows(app, client, admin_user):

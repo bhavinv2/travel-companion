@@ -40,17 +40,19 @@ def nav_labels(app, user):
 
 # ================================================================================================ the menu
 
-def test_the_sales_menu_has_daily_work_and_set_up_only(app, admin_user):
+def test_the_daily_work_has_areas_of_its_own_and_set_up_sits_behind_the_gear(app, admin_user):
     groups = {g['key']: g for g in _groups(app, admin_user)}
-    sales = groups['sales']
-    assert [s['label'] for s in sales['subs']] == ['Daily work', 'Set-up']
-    assert [i['label'] for i in sales['subs'][0]['items']] == ['My day', 'Half-hourly check', 'WhatsApp chats', 'Leads',
-                                                              'Calendar', 'Contacts']
-    assert [i['label'] for i in sales['subs'][1]['items']] == [
-        'Pipelines & products', 'Automation', 'Messages', 'Lead sources', 'Targets', 'Integrations', 'Import & export']
-    overview = [i['label'] for i in groups['overview']['items']]
+    assert [i['label'] for i in groups['leads']['items']] == ['Leads']
+    assert [i['label'] for i in groups['contacts']['items']] == ['Contacts']
+    assert [i['label'] for i in groups['tasks']['items']] == ['Calendar']
+    assert [i['label'] for i in groups['automate']['items']] == ['Automation']
+    assert [s['label'] for s in groups['setup']['subs']] == ['Company', 'People', 'Channels', 'Sales', 'Messages',
+                                                            'Data', 'Site', 'Security']
+    for line in ('My day', 'WhatsApp chats', 'Leads', 'Calendar', 'Contacts'):     # no work line behind the gear
+        assert line not in [i['label'] for i in groups['setup']['items']], line
+    home = [i['label'] for i in groups['home']['items']]
     # Health opens the menu; the reports are a menu of their own (tests/test_health.py)
-    assert overview[0] == 'Health' and 'Sales results' not in overview and 'Team today' not in overview
+    assert home[0] == 'Health' and 'Sales results' not in home and 'Team today' not in home
     assert [i['label'] for i in groups['reports']['items']][:3] == ['Sales results', 'Team today', 'Report builder']
 
 
@@ -116,23 +118,27 @@ def test_a_saved_menu_with_the_old_help_section_and_removed_lines_keeps_working(
 
 def test_a_line_new_since_a_menu_was_saved_goes_back_where_the_code_has_it():
     layout = access.default_layout()
-    overview = next(s for s in layout['sections'] if s['key'] == 'overview')
-    overview['pages'] = [k for k in overview['pages'] if k != 'health']
+    home = next(s for s in layout['sections'] if s['key'] == 'home')
+    home['pages'] = [k for k in home['pages'] if k != 'health']
     out = access.clean_layout(json.loads(json.dumps(layout)))
-    assert next(s for s in out['sections'] if s['key'] == 'overview')['pages'][0] == 'health'
+    assert next(s for s in out['sections'] if s['key'] == 'home')['pages'][0] == 'health'
 
 
 def test_an_old_saved_layout_with_the_old_sub_menus_still_draws(app, client, admin_user):
     ws = access.ensure_defaults()
-    old = access.default_layout()
-    sales = next(s for s in old['sections'] if s['key'] == 'sales')
-    sales['subs'] = [{'key': 'messaging', 'label': 'Messaging', 'icon': 'fa-comments', 'pages': ['crm_quick']},
-                     {'key': 'setup', 'label': 'Set-up', 'icon': 'fa-sliders', 'pages': ['crm_pipelines']}]
+    # saved before the work areas (2026-10-26): the old Sales CRM section with sub-menus of its own
+    old = {'sections': [
+        {'key': 'overview', 'label': 'Overview', 'icon': 'fa-gauge', 'pages': ['health', 'crm_today']},
+        {'key': 'sales', 'label': 'Sales CRM', 'icon': 'fa-filter-circle-dollar', 'subs': [
+            {'key': 'messaging', 'label': 'Messaging', 'icon': 'fa-comments', 'pages': ['crm_quick']},
+            {'key': 'setup', 'label': 'Set-up', 'icon': 'fa-sliders', 'pages': ['crm_pipelines']}]}],
+        'labels': {}, 'hidden': []}
     ws.menu = old
     _db.session.commit()
     login(client, admin_user.email)
     page = client.get('/admin/crm/today').get_data(as_text=True)
-    assert 'data-title="Messages"' in page and 'data-title="My day"' in page
+    assert 'data-title="Quick replies &amp; templates"' in page and 'data-title="My day"' in page
+    assert 'data-group="sales"' in page and 'data-group="setup"' in page      # theirs, and the rest as in code
 
 
 def test_home_and_the_first_page_for_an_agent_is_still_my_day(app, cs_user):
@@ -149,7 +155,7 @@ def test_a_role_holding_only_broadcasts_sees_messages_and_can_open_broadcasts(cl
     give_role(ws, cs_user, ['wa_broadcasts'])
     login(client, cs_user.email)
     page = client.get('/cs/', follow_redirects=True).get_data(as_text=True)      # their first line is Messages
-    assert 'data-title="Messages"' in page
+    assert 'data-title="Quick replies &amp; templates"' in page
     assert client.get('/admin/messaging/broadcasts').status_code == 200
     framed = client.get('/admin/messaging/broadcasts').get_data(as_text=True)
     assert 'crm-tabstrip' in framed and 'Broadcasts' in framed
@@ -361,7 +367,7 @@ def test_the_excel_download_is_what_the_screen_shows(client, app, admin_user, cs
     crm.log_touch(lead, 'system', 'none', body='I sent the quote', code='Q', user=cs_user)
     _db.session.commit()
     login(client, admin_user.email)
-    r = client.get('/admin/crm/insights.csv?days=7')
+    r = client.get('/admin/crm/insights.csv?days=7&reason=backup')
     assert r.status_code == 200 and r.headers['Content-Type'].startswith('text/csv')
     body = r.get_data(as_text=True)
     for want in ('Sales results', 'Won in these days', 'New leads', 'Replied', 'Quoted', 'First contact time',
@@ -370,9 +376,9 @@ def test_the_excel_download_is_what_the_screen_shows(client, app, admin_user, cs
                  'Messages, by who sent them', 'Quotes and payment links', 'Quote sent', 'Payment link sent',
                  'Why we lost leads', 'Day by day'):
         assert want in body, want
-    narrowed = client.get('/admin/crm/insights.csv?days=30&who=%d' % cs_user.id).get_data(as_text=True)
+    narrowed = client.get('/admin/crm/insights.csv?days=30&who=%d&reason=backup' % cs_user.id).get_data(as_text=True)
     assert 'Whose numbers,' in narrowed and cs_user.full_name in narrowed and 'Days,30' in narrowed
-    people = client.get('/admin/crm/insights-people.csv?days=7')
+    people = client.get('/admin/crm/insights-people.csv?days=7&reason=backup')
     assert people.status_code == 200 and b'Messages sent' in people.data and b'Person' in people.data
 
 

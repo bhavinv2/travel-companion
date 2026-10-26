@@ -10,13 +10,27 @@
   <a class="cb primary" href="{{ url_for('workspace.role', role_id=0) }}"><i class="fa-solid fa-plus"></i> New role</a>
 </div>
 
+{% if missing %}
+<section class="card ws-ready">
+  <div><b>Ready-made roles</b>
+    <p class="ws-muted" style="margin:2px 0 0">{{ missing|map(attribute='label')|join(', ') }}: each gives one kind of job only
+      what it needs (the pages, the leads it sees, what it may do). Nobody gets them until you give them on Team members.</p></div>
+  <form method="POST" action="{{ url_for('workspace.add_profile_roles') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <button class="cb"><i class="fa-solid fa-wand-magic-sparkles"></i> Add {{ 'it' if missing|length == 1 else 'them' }}</button>
+  </form>
+</section>
+{% endif %}
+
 <div class="ws-roles">
   {% for r in ws.roles %}
   {% set pages = pages_of[r.id] %}
   <div class="ws-role">
     <h3>{{ r.name }}{% if r.system_key == 'admin' %} <span class="ws-pill owner" title="Comes with every workspace">Everything</span>{% elif r.system_key %} <span class="ws-pill" title="Comes with every workspace">Built in</span>{% endif %}</h3>
     {% if r.description %}<p>{{ r.description }}</p>{% endif %}
-    <div class="ws-muted" style="font-size:13px"><span class="ws-count">{{ pages|length }}</span> page{{ 's' if pages|length != 1 }}{% if r.crm_scope in ('team', 'own') %} · sees {{ "their team's" if r.crm_scope == 'team' else 'only their own' }} leads{% endif %}</div>
+    {% set rt = rights_of[r.id] %}
+    <div class="ws-muted" style="font-size:13px"><span class="ws-count">{{ pages|length }}</span> page{{ 's' if pages|length != 1 }}{% if r.crm_scope in ('team', 'own') %} · sees {{ "their team's" if r.crm_scope == 'team' else 'only their own' }} leads{% endif %}{% if rt.view %} · {{ rt.view|length }} look-only{% endif %}{% if r.system_key != 'admin' and not rt.remove %} · cannot remove leads{% endif %}{% if rt.mask %} · others' numbers hidden{% endif %}</div>
+    {% if rt.profile %}<div class="ws-muted" style="font-size:12.5px">From the {{ PROFILE_BY_KEY[rt.profile].label }} profile</div>{% endif %}
     <div class="foot">
       <span class="ws-muted" style="font-size:13px">{{ used.get(r.id, 0) }} {{ 'person' if used.get(r.id, 0) == 1 else 'people' }}</span>
       <span style="display:flex;gap:6px">

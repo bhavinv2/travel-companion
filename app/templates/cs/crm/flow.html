@@ -86,7 +86,7 @@
           {%- if e.task.owner %} · for {{ e.task.owner.full_name }}{% endif %}</p>
         <div class="row">
           <a class="cb primary sm" href="{{ crm_url('lead', lead_id=l.id) }}#box">Do it on their lead</a>
-          {% if e.task.channel == 'call' and p.phone %}<a class="cb sm" href="tel:{{ p.phone }}"><i class="fa-solid fa-phone"></i> Call {{ PHONE.pretty(p.phone) }}</a>{% endif %}
+          {% if e.task.channel == 'call' and p.phone and not MASKED(p) %}<a class="cb sm" href="tel:{{ p.phone }}"><i class="fa-solid fa-phone"></i> Call {{ PHONE.pretty(p.phone) }}</a>{% endif %}
         </div>
         {% else %}
         <p class="fn-what">No follow-up is planned.</p>

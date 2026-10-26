@@ -144,3 +144,90 @@ def test_the_inbox_has_a_new_chat_button_beside_the_lead_panel(app, client, admi
     login(client, admin_user.email)
     html = client.get('/admin/messaging/inbox').get_data(as_text=True)
     assert 'data-new-chat' in html and 'New chat' in html and 'data-lead-panel' in html
+
+
+# ------------------------------------------------------------------ from a contact
+
+def _next_of(src):
+    import base64
+    from urllib.parse import unquote
+    body = unquote(src.split('t=', 1)[1]).split('.')[0]
+    return json.loads(base64.urlsafe_b64decode(body + '=' * (-len(body) % 4)))['next']
+
+
+def test_a_contact_starts_their_chat_in_whatsapp_chats_with_the_lead_beside_it(app, client, admin_user, world):
+    from urllib.parse import unquote
+    l = lead('Contact Kavya', '+' + DIGITS, admin_user)
+    login(client, admin_user.email)
+    page = '/cs/crm/contact/%d' % l.person_id
+    chat = '/admin/messaging/contact/%d/chat' % l.person_id
+    html = client.get(page).get_data(as_text=True)
+    assert 'action="%s"' % chat in html and 'Start WhatsApp chat' in words(html)
+    r = client.post(chat, data={'next': page})
+    _db.session.expire_all()
+    conv = _db.session.get(CrmPerson, l.person_id).wacrm_conversation_id
+    assert r.status_code == 302 and conv
+    assert unquote(r.headers['Location']).endswith('/admin/messaging/inbox?p=/inbox?mine=1&c=%s' % conv)
+    calls = world.ensure_calls()
+    assert calls[-1][2]['create'] is True and calls[-1][2]['assign_email'] == admin_user.email   # the lead's owner
+    assert world.messages == []                                                                   # nothing was sent
+    # WhatsApp chats opens on that chat, with the portal's lead panel beside it
+    inbox = client.get(r.headers['Location']).get_data(as_text=True)
+    src = re.search(r'<iframe class="wa-frame" src="([^"]+)"', inbox).group(1).replace('&amp;', '&')
+    assert _next_of(src) == '/inbox?mine=1&c=%s&panel=portal' % conv
+    # and the contact now opens it
+    assert 'Open WhatsApp chat' in words(client.get(page).get_data(as_text=True))
+
+
+def test_contacts_offer_chat_on_every_row_with_a_number(app, client, admin_user, world):
+    has = lead('Rowphone Ravi', '+919811100051', admin_user)
+    none = lead('Rownone Rekha', '+919811100052', admin_user)
+    none.person.phone = None
+    _db.session.commit()
+    login(client, admin_user.email)
+    html = client.get('/cs/crm/contacts').get_data(as_text=True)
+    assert 'action="/admin/messaging/contact/%d/chat"' % has.person_id in html
+    assert 'action="/admin/messaging/contact/%d/chat"' % none.person_id not in html
+    assert 'Start a WhatsApp chat with Rowphone Ravi' in html
+    # a contact without a number says so, and is not started
+    page = '/cs/crm/contact/%d' % none.person_id
+    assert 'No phone number to chat on' in words(client.get(page).get_data(as_text=True))
+    r = client.post('/admin/messaging/contact/%d/chat' % none.person_id, data={'next': page})
+    assert r.status_code == 302 and r.headers['Location'].endswith(page)
+    assert 'has no phone number' in words(client.get(page).get_data(as_text=True))
+    assert not world.ensure_calls()
+
+
+def test_a_contact_chat_on_not_yet_only_opens_one_that_exists(app, client, admin_user, world, monkeypatch):
+    from app.services import wacrm_team
+    crm.save_settings(whatsapp_mode='off')
+    l = lead('Notyet Nalini', '+919811100061', admin_user)
+    real = world.api
+
+    def no_chat(method, path, payload=None, params=None):
+        if path == 'conversation/ensure' and not payload['create']:
+            world.portal.append((method, path, payload))
+            return {}
+        return real(method, path, payload, params)
+    monkeypatch.setattr(wacrm_team, '_api', no_chat)
+    login(client, admin_user.email)
+    page = '/cs/crm/contact/%d' % l.person_id
+    r = client.post('/admin/messaging/contact/%d/chat' % l.person_id, data={'next': page})
+    assert r.status_code == 302 and r.headers['Location'].endswith(page)
+    assert '“Not yet”' in words(client.get(page).get_data(as_text=True))
+    assert world.ensure_calls() and all(c[2]['create'] is False for c in world.ensure_calls())   # only looked up
+    # an unsafe `next` goes to Contacts instead
+    r = client.post('/admin/messaging/contact/%d/chat' % l.person_id, data={'next': '//evil.example/x'})
+    assert 'evil' not in r.headers['Location']
+
+
+def test_no_chat_button_while_whatsapp_is_not_connected(app, client, admin_user):
+    l = ti_lead(phone='+919811100071', name='Offline Omkar')
+    login(client, admin_user.email)
+    page = '/cs/crm/contact/%d' % l.person_id
+    html = client.get(page).get_data(as_text=True)
+    assert '/admin/messaging/contact/' not in html and 'Start WhatsApp chat' not in words(html)
+    assert '/admin/messaging/contact/' not in client.get('/cs/crm/contacts').get_data(as_text=True)
+    r = client.post('/admin/messaging/contact/%d/chat' % l.person_id, data={'next': page})
+    assert r.status_code == 302 and 'not connected for you' in words(client.get(page).get_data(as_text=True))
+    assert client.post('/admin/messaging/contact/999999/chat').status_code == 404

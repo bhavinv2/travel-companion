@@ -4936,7 +4936,13 @@ def reopen(lead, user=None):
 
 
 def can_remove(lead, user):
-    return bool(user and (user.is_admin or lead.created_by_id == user.id or lead.owner_id == user.id))
+    """An admin, or whoever created or looks after the lead -- when their role lets them remove (role_rights)."""
+    if not user:
+        return False
+    if user.is_admin:
+        return True
+    from app.services import role_rights
+    return bool((lead.created_by_id == user.id or lead.owner_id == user.id) and role_rights.may_remove(user))
 
 
 def remove_lead(lead, user=None):

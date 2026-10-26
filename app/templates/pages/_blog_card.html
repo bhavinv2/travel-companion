@@ -1,6 +1,7 @@
 {# One post on the blog's list. The same parts make a magazine card on a wide screen and an Instagram-like post on a
    phone (who wrote it, the pictures to swipe, share / WhatsApp / save, then the words): blog-public.css places them.
-   The pictures are the cover and the post's own (Blog.pictures); blog-public.js swipes them and does the buttons.
+   The pictures are the thumbnail (else the cover) and the post's own (Blog.pictures); blog-public.js swipes them,
+   sits a picture of another shape on a blurred copy of itself ([data-fit]) and does the buttons.
    Import it `with context`: app_url is the app's. #}
 {% macro card(post, hero=False) %}
 {%- set url = url_for('blog.blog_post', slug=post.slug) -%}
@@ -17,9 +18,9 @@
   <div class="bp-media{{ ' is-multi' if pics|length > 1 }}">
     <div class="bp-slides">
       {%- for src, alt in pics %}
-      <a class="bp-slide" href="{{ url }}"{% if not loop.first %} tabindex="-1" aria-hidden="true"{% endif %}><img src="{{ app_url(src) }}" alt="{{ (alt or post.title) if loop.first else alt }}" loading="{{ 'eager' if hero and loop.first else 'lazy' }}" decoding="async"/></a>
+      <a class="bp-slide" data-fit href="{{ url }}"{% if not loop.first %} tabindex="-1" aria-hidden="true"{% endif %}><img src="{{ app_url(src) }}" alt="{{ (alt or post.title) if loop.first else alt }}" loading="{{ 'eager' if hero and loop.first else 'lazy' }}" decoding="async"/></a>
       {%- else %}
-      <a class="bp-slide" href="{{ url }}"><img src="{{ url_for('static', filename='img/landing/' ~ covers[post.id % 6]) }}" alt="{{ post.title }}" loading="lazy" decoding="async"/></a>
+      <a class="bp-slide" data-fit href="{{ url }}"><img src="{{ url_for('static', filename='img/landing/' ~ covers[post.id % 6]) }}" alt="{{ post.title }}" loading="lazy" decoding="async"/></a>
       {%- endfor %}
     </div>
     {% if hero %}<span class="bp-flag"><i class="fa-solid fa-star"></i> {{ 'Featured' if post.is_featured else 'Latest' }}</span>{% endif %}

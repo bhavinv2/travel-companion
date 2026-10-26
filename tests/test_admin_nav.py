@@ -110,5 +110,5 @@ def test_a_workspace_without_a_module_has_no_menu_for_it(client, db, admin_user)
     from app import db as _db
     _db.session.commit()
     nav = client.get('/admin/insurance-quotes').data.decode().split('admin-nav-items', 1)[1].split('</nav>', 1)[0]
-    assert 'Travel Insurance' in nav and 'Sales' in nav and 'Team' in nav
-    assert 'data-group="sahayak"' not in nav and 'data-group="companion"' not in nav
+    assert 'Quote leads' in nav and 'Leads' in nav and 'Set-up' in nav and 'Team members' in nav
+    assert 'Bookings' not in nav and 'All posts' not in nav and 'Sahayak' not in nav

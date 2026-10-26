@@ -1,0 +1,4 @@
+{# One sidebar card alone: the card editor's live preview (admin_blog.blog_sidebar_preview). #}
+{% from 'pages/_blog_side.html' import side_card with context %}
+{% if errors %}<ul class="sbe-errs">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+{{ side_card(c, more, sample=sample) }}

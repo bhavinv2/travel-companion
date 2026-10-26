@@ -17,7 +17,7 @@
       <label class="sec-check"><input type="checkbox" name="trust"/> Trust this browser for 30 days</label>
       <button type="submit" class="btn btn-primary w-full mt-2"><i class="fa-solid fa-right-to-bracket"></i> Continue</button>
       <p class="muted sec-small">Lost your phone? Type one of your backup codes (like <code>ab3d-9xk2</code>) instead.
-        No backup codes? An administrator can turn two-step sign-in off for you under Team › Security.</p>
+        No backup codes? An administrator can turn two-step sign-in off for you under Set-up › Security.</p>
     </form>
     <form method="post" action="{{ url_for('auth.logout') }}" class="sec-other">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>

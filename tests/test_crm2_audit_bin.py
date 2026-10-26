@@ -280,7 +280,7 @@ def test_sweep_a_removed_lead_disappears_from_every_screen(app, client, lead, ag
     lead = _db.session.get(CrmLead, lid)
     crm_before = {k: crm_numbers.compute(k, datetime.utcnow() - timedelta(days=2), datetime.utcnow() + timedelta(days=1))
                   for k in ('new_leads',)}
-    exp_before = c.get('/admin/crm/export/leads?p=all&owner=all&win=all').get_data(as_text=True)
+    exp_before = c.get('/admin/crm/export/leads?p=all&owner=all&win=all&reason=backup').get_data(as_text=True)
     assert 'Removable Rani' in exp_before
     find_before = c.get('/cs/crm/find?q=Removable').get_json()
     assert find_before['items'][0]['chips']
@@ -296,7 +296,7 @@ def test_sweep_a_removed_lead_disappears_from_every_screen(app, client, lead, ag
     # the contact page still opens (the person stays), without the enquiry
     assert 'Removable Rani' in words(after['/cs/crm/contact/%d' % pid])
     # exports, Find a person and the lead itself
-    assert 'Removable Rani' not in c.get('/admin/crm/export/leads?p=all&owner=all&win=all').get_data(as_text=True)
+    assert 'Removable Rani' not in c.get('/admin/crm/export/leads?p=all&owner=all&win=all&reason=backup').get_data(as_text=True)
     assert c.get('/cs/crm/find?q=Removable').get_json()['items'][0]['chips'] == []
     assert c.get('/cs/crm/lead/%d' % lid).status_code == 404
     # numbers: Results / Team today / KPI grid read the same filtered rows

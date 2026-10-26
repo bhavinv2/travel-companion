@@ -20,7 +20,8 @@
 
   {% if task.channel == 'call' %}
     {% if person.phone %}
-    <div class="row" style="margin-bottom:10px"><a class="cb primary" href="tel:{{ person.phone }}"><i class="fa-solid fa-phone"></i> Call {{ PHONE.pretty(person.phone) }}</a></div>
+    <div class="row" style="margin-bottom:10px">{% if MASKED(person) %}<span class="cb mk"><i class="fa-solid fa-phone"></i> {{ MASK_PHONE(person.phone) }}</span>{% with mp=person %}{% include 'cs/crm/_show.html' %}{% endwith %}
+      {% else %}<a class="cb primary" href="tel:{{ person.phone }}"><i class="fa-solid fa-phone"></i> Call {{ PHONE.pretty(person.phone) }}</a>{% endif %}</div>
     <span class="lb">How did the call go?</span>
     <div class="chips" data-call-outcomes data-task="{{ task.id }}">
       {% for k, label in OUTCOMES.items() %}<button type="button" class="chip" data-outcome="{{ k }}">{{ 'Call back' if k == 'call_back' else label }}</button>{% endfor %}
@@ -31,7 +32,8 @@
 
   {% elif task.channel == 'email' %}
     <div class="msg-preview">{{ next_text }}</div>
-    {% if person.email %}<a class="cb primary" data-act="mail" data-text="{{ next_text }}" data-task="{{ task.id }}" href="mailto:{{ person.email }}"><i class="fa-solid fa-envelope"></i> Write e-mail</a>{% endif %}
+    {% if person.email and MASKED(person) %}<span class="cb mk"><i class="fa-solid fa-envelope"></i> {{ MASK_EMAIL(person.email) }}</span>{% with mp=person %}{% include 'cs/crm/_show.html' %}{% endwith %}
+    {% elif person.email %}<a class="cb primary" data-act="mail" data-text="{{ next_text }}" data-task="{{ task.id }}" href="mailto:{{ person.email }}"><i class="fa-solid fa-envelope"></i> Write e-mail</a>{% endif %}
 
   {% elif task.channel == 'todo' %}
     {% if next_text and next_text != task.title %}<div class="msg-preview">{{ next_text }}</div>{% endif %}
@@ -174,7 +176,8 @@
     <summary style="cursor:pointer;list-style:none"><div class="t" style="display:flex;gap:10px;align-items:center"><span class="ico"><i class="fa-solid fa-phone"></i></span><h2 style="font-size:16px">Log a call</h2></div></summary>
     <div style="margin-top:10px">
       {% if person.phone %}
-      <a class="cb" href="tel:{{ person.phone }}" style="margin-bottom:10px"><i class="fa-solid fa-phone"></i> Call {{ PHONE.pretty(person.phone) }}</a>
+      {% if MASKED(person) %}<div class="row" style="margin-bottom:10px"><span class="cb mk"><i class="fa-solid fa-phone"></i> {{ MASK_PHONE(person.phone) }}</span>{% with mp=person %}{% include 'cs/crm/_show.html' %}{% endwith %}</div>
+      {% else %}<a class="cb" href="tel:{{ person.phone }}" style="margin-bottom:10px"><i class="fa-solid fa-phone"></i> Call {{ PHONE.pretty(person.phone) }}</a>{% endif %}
       <span class="lb">How did it go?</span>
       <div class="chips" data-call-outcomes data-task="{{ task.id if task and task.channel == 'call' else '' }}">
         {% for k, label in OUTCOMES.items() %}<button type="button" class="chip" data-outcome="{{ k }}">{{ 'Call back' if k == 'call_back' else label }}</button>{% endfor %}

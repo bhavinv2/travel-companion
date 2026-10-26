@@ -1,0 +1,193 @@
+{% extends 'admin/blog/_layout.html' %}
+{% from 'pages/_blog_side.html' import side_card with context %}
+{% block title %}{{ 'Edit “%s”' % card.name if card.id else 'New sidebar card' }} – Blog{% endblock %}
+{% block wpb_active %}sidebars{% endblock %}
+{% block extra_css %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/blog-public.css') }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/blog-blocks.css') }}"/>{% endblock %}
+{# One sidebar card (admin_blog.blog_sidebar_edit, services/blog_sidebars.from_form): what it is, its words and
+   pictures, how it looks, where and when. The preview on the right is the card as the form has it now, at the
+   sidebar's width, redrawn as the form changes (blog-sidebars.js → admin_blog.blog_sidebar_preview). Fields only one
+   kind uses carry data-for="<kinds>": the others hide them. No type=url / type=number fields: they would stop Save
+   without a word; the server says what is wrong instead. #}
+{% set kind = card.kind %}
+{% block wpb_main %}
+<div class="wpb-head">
+  <h1>{{ 'Edit sidebar card' if card.id else 'New sidebar card' }}</h1>
+  <a class="wpb-btn" href="{{ url_for('admin.blog_sidebars', **({'for': request.args['for']} if request.args.get('for') else {})) }}"><i class="fa-solid fa-arrow-left"></i> All sidebar cards</a>
+</div>
+{% if errors %}<div class="sbe-errbox" role="alert"><b>Not saved yet:</b><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+
+<form method="POST" class="sbe" id="sbeForm" action="{{ url_for('admin.blog_sidebar_edit', card_id=card.id) if card.id else url_for('admin.blog_sidebar_edit') }}"
+      data-preview-url="{{ url_for('admin.blog_sidebar_preview') }}" data-image-url="{{ url_for('admin.blog_image') }}"
+      data-media-url="{{ url_for('admin.blog_media', format='json') }}" data-widths='{{ {"left": rails.left.width, "right": rails.right.width}|tojson }}'>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  <input type="hidden" name="back_for" value="{{ request.args.get('for', '') }}"/>
+  <div class="sbe-main">
+    <section class="wpb-box">
+      <h2>What is it?</h2>
+      <div class="sbe-kinds" role="radiogroup" aria-label="What the card is">
+        {% for k, n, i, h in bs.KINDS %}
+        <label class="sbe-kind"><input type="radio" name="kind" value="{{ k }}" {{ 'checked' if k == kind }}/>
+          <span><i class="fa-solid {{ i }}"></i><b>{{ n }}</b><small>{{ h }}</small></span></label>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="wpb-box">
+      <h2>What it shows</h2>
+      <div class="sbe-f" data-for="flyer ad links contents more">
+        <label for="sbeTitle" data-label-for="flyer">Words under the picture <small>(if you like)</small></label>
+        <label for="sbeTitle" data-label-for="ad links">Heading</label>
+        <label for="sbeTitle" data-label-for="contents more">Heading <small>(empty: “{{ 'On this page' }}” / “More stories”)</small></label>
+        <input type="text" id="sbeTitle" name="title" maxlength="120" value="{{ card.title or '' }}"/>
+      </div>
+      <div class="sbe-f" data-for="ad">
+        <label for="sbeBody">A few words</label>
+        <textarea id="sbeBody" name="body" rows="3" maxlength="600">{{ card.body or '' }}</textarea>
+      </div>
+      <div class="sbe-f" data-for="flyer ad">
+        <span class="sbe-lab">Picture</span>
+        <input type="hidden" name="image_url" value="{{ card.image_url or '' }}"/>
+        <div class="sbe-pic" id="sbePic">
+          <img alt="" {% if card.image_url %}src="{{ app_url(card.image_url) }}"{% else %}hidden{% endif %}/>
+          <p {{ 'hidden' if card.image_url }}><i class="fa-solid fa-cloud-arrow-up"></i> Click or drop a picture here.<br/>
+            <small>Flyer: 600 × 750 px (4:5) or 600 × 600 px. Ad: 800 × 450 px (16:9). JPG, PNG or WebP.</small></p>
+        </div>
+        <div class="sbe-pic-acts">
+          <button type="button" class="wpb-btn" data-pic="upload"><i class="fa-solid fa-upload"></i> Upload</button>
+          <button type="button" class="wpb-btn" data-pic="library"><i class="fa-solid fa-photo-film"></i> From Media</button>
+          <button type="button" class="wpb-btn is-bad" data-pic="remove" {{ '' if card.image_url else 'hidden' }}>Remove</button>
+          <input type="file" id="sbeFile" accept="image/jpeg,image/png,image/webp" hidden/>
+        </div>
+        <label for="sbeAlt" class="sbe-sub">What the picture shows <small>(for screen readers and Google)</small></label>
+        <input type="text" id="sbeAlt" name="image_alt" maxlength="300" value="{{ card.image_alt or '' }}"/>
+      </div>
+      <div class="sbe-f" data-for="flyer ad">
+        <label for="sbeLink">Where a tap goes <small>(empty: nowhere)</small></label>
+        <input type="text" id="sbeLink" name="link_url" maxlength="500" value="{{ card.link_url or '' }}" placeholder="https://… or /travel-insurance" autocomplete="off"/>
+      </div>
+      <div class="sbe-f" data-for="ad">
+        <label for="sbeBtn">Button words</label>
+        <input type="text" id="sbeBtn" name="link_label" maxlength="60" value="{{ card.link_label or '' }}" placeholder="Find out more"/>
+      </div>
+      <div class="sbe-f" data-for="links">
+        <span class="sbe-lab">The links <small>(up to {{ bs.MAX_LINKS }})</small></span>
+        <div class="sbe-links" id="sbeLinks">
+          {% for l in (card.links or []) + [{'label': '', 'url': ''}] %}
+          <div class="sbe-link">
+            <input type="text" name="link_label_n" value="{{ l.label }}" maxlength="80" placeholder="What it says" aria-label="What the link says"/>
+            <input type="text" name="link_url_n" value="{{ l.url }}" maxlength="500" placeholder="https://… or /page" aria-label="Where it goes" autocomplete="off"/>
+            <button type="button" class="wpb-btn is-bad" data-link-x aria-label="Take this link out"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          {% endfor %}
+        </div>
+        <button type="button" class="wpb-btn" id="sbeLinkAdd"><i class="fa-solid fa-plus"></i> Add a link</button>
+      </div>
+      <div class="sbe-f" data-for="flyer ad links">
+        <label class="sbe-check"><input type="checkbox" name="new_tab" {{ 'checked' if card.new_tab }}/> Open links in a new tab <small>(for other websites)</small></label>
+      </div>
+      <div class="sbe-f" data-for="block">
+        <label for="sbePattern">Which reusable block</label>
+        <select id="sbePattern" name="pattern_id">
+          <option value="">Pick one…</option>
+          {% for p in patterns %}<option value="{{ p.id }}" {{ 'selected' if card.pattern_id == p.id }}>{{ p.name }}</option>{% endfor %}
+        </select>
+        {% if not patterns %}<small class="wpb-dim">You have none yet: in the post editor pick blocks, then ⋮ › Create reusable block.</small>{% endif %}
+      </div>
+      <div class="sbe-f" data-for="more">
+        <label for="sbeCount">How many stories</label>
+        <select id="sbeCount" name="count">{% for n in range(bs.COUNT_MIN, bs.COUNT_MAX + 1) %}<option value="{{ n }}" {{ 'selected' if look.count == n }}>{{ n }}</option>{% endfor %}</select>
+      </div>
+      <p class="sbe-auto wpb-dim" data-for="contents"><i class="fa-solid fa-wand-magic-sparkles"></i> It makes itself from the post’s headings (H2 and H3), and lights the one being read. A post with fewer than two headings does not show it.</p>
+    </section>
+
+    <section class="wpb-box">
+      <h2>How it looks</h2>
+      <div class="sbe-f">
+        <span class="sbe-lab">Colours</span>
+        <div class="sbe-themes" role="radiogroup" aria-label="Colours">
+          {% for k, n in bs.THEMES %}<label class="sbe-theme"><input type="radio" name="theme" value="{{ k }}" {{ 'checked' if look.theme == k }}/><span class="sw sw-{{ k }}"></span><b>{{ n }}</b></label>{% endfor %}
+        </div>
+      </div>
+      <div class="sbe-f">
+        <span class="sbe-lab">Height</span>
+        <label class="sbe-check"><input type="radio" name="height_mode" value="auto" {{ 'checked' if not look.height }}/> As tall as it needs</label>
+        <label class="sbe-check"><input type="radio" name="height_mode" value="fixed" {{ 'checked' if look.height }}/> This tall:</label>
+        <span class="sbe-h"><input type="range" id="sbeHRange" min="{{ bs.HEIGHT_MIN }}" max="{{ bs.HEIGHT_MAX }}" step="10" value="{{ look.height or 320 }}" aria-label="Height in pixels"/>
+          <input type="text" name="height" id="sbeH" value="{{ look.height or 320 }}" inputmode="numeric" maxlength="4" aria-label="Height in pixels"/> px</span>
+        <small class="wpb-dim">Or drag its bottom edge on the Sidebars screen.</small>
+      </div>
+      <div class="sbe-f" data-for="flyer ad">
+        <span class="sbe-lab">The picture in a fixed height</span>
+        {% for k, n in bs.FITS %}<label class="sbe-check"><input type="radio" name="fit" value="{{ k }}" {{ 'checked' if look.fit == k }}/> {{ n }}</label>{% endfor %}
+      </div>
+    </section>
+
+    <section class="wpb-box">
+      <h2>Where and when</h2>
+      <div class="sbe-f">
+        <span class="sbe-lab">Sidebar</span>
+        <label class="sbe-check"><input type="radio" name="side" value="left" {{ 'checked' if card.side == 'left' }}/> Left <small>(screens 1280 px and wider)</small></label>
+        <label class="sbe-check"><input type="radio" name="side" value="right" {{ 'checked' if card.side != 'left' }}/> Right <small>(1024 px and wider)</small></label>
+      </div>
+      <div class="sbe-f">
+        <span class="sbe-lab">On a phone</span>
+        {% for k, n in bs.PHONES %}<label class="sbe-check"><input type="radio" name="on_phone" value="{{ k }}" {{ 'checked' if look.phone == k }}/> {{ n }}</label>{% endfor %}
+      </div>
+      <div class="sbe-f">
+        <span class="sbe-lab">On which posts</span>
+        {% for k, n in bs.SHOW_ON %}<label class="sbe-check"><input type="radio" name="show_on" value="{{ k }}" {{ 'checked' if card.show_on == k }}/> {{ n }}</label>{% endfor %}
+        <div class="sbe-pick" data-show-on="cats">
+          {% for t in categories %}<label class="sbe-check"><input type="checkbox" name="terms" value="{{ t.id }}" {{ 'checked' if t.id in (card.term_ids or []) }}/> {{ t.name }}</label>
+          {% else %}<p class="wpb-dim">No categories yet: add them under Posts › Categories.</p>{% endfor %}
+        </div>
+        <div class="sbe-pick" data-show-on="posts">
+          <input type="search" class="sbe-find" placeholder="Find a post" aria-label="Find a post"/>
+          <div class="sbe-pick-list">
+            {% for p in posts %}<label class="sbe-check" data-t="{{ p.title|lower }}"><input type="checkbox" name="posts" value="{{ p.id }}" {{ 'checked' if p.id in (card.post_ids or []) }}/> {{ p.title }}{% if not p.is_published %} <small>(draft)</small>{% endif %}</label>{% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="sbe-f sbe-when">
+        <label>Starts <small>(empty: now)</small><input type="datetime-local" name="starts_at" value="{{ starts }}"/></label>
+        <label>Ends <small>(empty: never)</small><input type="datetime-local" name="ends_at" value="{{ ends }}"/></label>
+      </div>
+      <div class="sbe-f">
+        <label class="sbe-check sbe-on"><input type="checkbox" name="is_on" {{ 'checked' if card.is_on }}/> <b>On</b>: readers see it (when it is meant for the post and between its dates)</label>
+      </div>
+      <div class="sbe-f">
+        <label for="sbeName">Name <small>(only staff see it: for this list)</small></label>
+        <input type="text" id="sbeName" name="name" maxlength="120" value="{{ card.name or '' }}" placeholder="e.g. Diwali insurance offer"/>
+      </div>
+    </section>
+
+    <div class="sbe-actions">
+      <button type="submit" class="wpb-btn wpb-btn-primary">{{ 'Save changes' if card.id else 'Save the card' }}</button>
+      <a class="wpb-btn" href="{{ url_for('admin.blog_sidebars') }}">Cancel</a>
+      {% if card.id %}
+      <span class="sbe-gap"></span>
+      <button type="submit" class="wpb-btn" formaction="{{ url_for('admin.blog_sidebar_copy', card_id=card.id) }}" formnovalidate><i class="fa-regular fa-copy"></i> Make a copy</button>
+      <button type="submit" class="wpb-btn is-bad" formaction="{{ url_for('admin.blog_sidebar_delete', card_id=card.id) }}" formnovalidate
+              data-confirm="Delete “{{ card.name }}”? It goes from every post at once."><i class="fa-solid fa-trash"></i> Delete</button>
+      {% endif %}
+    </div>
+  </div>
+
+  <aside class="sbe-side">
+    <div class="sbe-side-in">
+      <h2>Preview <small class="wpb-dim" id="sbeW">{{ rails[card.side or 'right'].width }} px wide, as the {{ card.side or 'right' }} sidebar</small></h2>
+      <div class="sbe-preview" id="sbePreview" style="width: {{ rails[card.side or 'right'].width }}px">
+        {% set c = card %}{% if bs.ready(card) %}{{ side_card(card, more, sample=True) }}{% else %}<p class="sbe-wait wpb-dim">Fill in the card: it shows here as readers will see it.</p>{% endif %}
+      </div>
+      {% if card.id %}<p class="wpb-dim sbe-stats"><i class="fa-solid fa-hand-pointer"></i> {{ card.clicks }} tap{{ '' if card.clicks == 1 else 's' }} on its links so far.</p>{% endif %}
+    </div>
+  </aside>
+</form>
+
+<dialog class="wpb-dialog sbe-lib" id="sbeLib" aria-label="Pick a picture from Media">
+  <div class="sbe-lib-head"><b>Media</b><input type="search" id="sbeLibQ" placeholder="Find a picture" aria-label="Find a picture"/>
+    <button type="button" class="wpb-btn" data-lib-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div>
+  <div class="sbe-lib-grid" id="sbeLibGrid"></div>
+</dialog>
+{% endblock %}
+{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/blog-sidebars.js') }}" defer></script>{% endblock %}

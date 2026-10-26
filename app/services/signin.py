@@ -1,4 +1,4 @@
-"""Signed-in sessions, two-step sign-in and the sign-in rules (Team › Security), 2026-10-26.
+"""Signed-in sessions, two-step sign-in and the sign-in rules (Set-up › Security), 2026-10-26.
 
 Every signed-in browser has a row in user_sessions: the cookie session holds a random token (session['sid']) and the
 row its hash. guard() runs before each request (app/__init__.py):

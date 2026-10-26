@@ -15,7 +15,7 @@ from app import db
 from app.models import ActivityEvent, CrmPipeline, CrmSource
 from app.routes.crm import _common, _staff, crm_bp, crm_url
 from app.routes.cs import cs_required
-from app.services import crm_access, crm_report_builder as rb
+from app.services import crm_access, download_reason, crm_report_builder as rb
 
 CONFIG_KEYS = tuple(rb.DEFAULT)
 
@@ -62,6 +62,7 @@ def downloads():
 
 @crm_bp.route('/reports/build.csv')
 @cs_required
+@download_reason.asked
 def report_builder_csv():
     """Download for Excel: the table on the screen."""
     try:
@@ -72,7 +73,7 @@ def report_builder_csv():
     res = rb.run(cfg, current_user)
     buf = io.StringIO()
     csv.writer(buf).writerows(rb.csv_rows(res))
-    ActivityEvent.log('crm_export', actor=current_user, kind='report', what=cfg['what'])
+    ActivityEvent.log('crm_export', actor=current_user, kind='report', what=cfg['what'], reason=download_reason.given())
     db.session.commit()
     resp = make_response('﻿' + buf.getvalue())
     resp.headers['Content-Type'] = 'text/csv; charset=utf-8'

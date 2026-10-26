@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta
 
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, make_response
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, make_response, abort
 from flask_login import login_required, current_user
 from app import db
-from app.models import Blog, BlogTerm, Feedback, REVIEW_SITES
+from app.models import Blog, BlogSideCard, BlogTerm, Feedback, REVIEW_SITES
 
 blog_bp = Blueprint('blog', __name__)
 
@@ -13,14 +13,15 @@ SAVED_MAX = 60             # slugs a reader's "Saved" list can ask for at once
 
 def _stories():
     """The categories as the round pictures across the top of the blog (the way a phone app shows stories):
-    each with the cover of its newest post that has one."""
+    each with the thumbnail (else the cover) of its newest post that has one."""
     from app.services.blog_posts import live_terms
+    has_pic = db.or_(db.and_(Blog.thumb_url.isnot(None), Blog.thumb_url != ''),
+                     db.and_(Blog.cover_image_url.isnot(None), Blog.cover_image_url != ''))
     out = []
     for t, n in live_terms('category'):
-        newest = (Blog.live().filter(Blog.terms.any(BlogTerm.id == t.id), Blog.cover_image_url.isnot(None),
-                                     Blog.cover_image_url != '')
+        newest = (Blog.live().filter(Blog.terms.any(BlogTerm.id == t.id), has_pic)
                   .order_by(Blog.published_at.desc()).first())
-        out.append({'term': t, 'count': n, 'cover': newest.cover_image_url if newest else None})
+        out.append({'term': t, 'count': n, 'cover': newest.card_picture if newest else None})
     return out
 
 
@@ -88,7 +89,30 @@ def blog_term(slug, kind):
 @blog_bp.route('/blog/<slug>')
 def blog_post(slug):
     post = Blog.live().filter(Blog.slug == slug).first_or_404()
-    return render_template('pages/blog_post.html', post=post, related=related(post), **share_card(post))
+    from app.services import blog_sidebars
+    return render_template('pages/blog_post.html', post=post, related=related(post), side=blog_sidebars.for_post(post),
+                           **share_card(post))
+
+
+@blog_bp.route('/blog/go/<int:card_id>')
+def side_go(card_id):
+    """A tap on a sidebar card's link (Blog › Sidebars): counted, then on to the address staff gave the card --
+    ?i= picks one of a list of links. Never an address from the request: nothing here can be pointed elsewhere."""
+    from app.services import blog_sidebars
+    card = db.session.get(BlogSideCard, card_id)
+    if card is None:
+        abort(404)
+    try:
+        i = int(request.args['i']) if 'i' in request.args else None
+    except ValueError:
+        i = None
+    url = blog_sidebars.click(card, i)
+    if not url:
+        return redirect(url_for('blog.blog_list'))
+    from app.services.blog_engine import site_url
+    resp = redirect(site_url(url))                    # a page of this site: inside the app's prefix
+    resp.headers['X-Robots-Tag'] = 'noindex'
+    return resp
 
 
 def related(post, n=3):
@@ -148,6 +172,13 @@ def blog_layout(layout):
 def layout_choices():
     from app.services.blog_posts import LAYOUT
     return LAYOUT
+
+
+@blog_bp.app_template_global('SIDE_LOOK')
+def side_look(card):
+    """A sidebar card's look, every key filled in (blog_sidebars.look)."""
+    from app.services.blog_sidebars import look
+    return look(card)
 
 
 @blog_bp.app_template_global('LAYOUT_DEFAULT')

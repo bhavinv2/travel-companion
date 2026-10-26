@@ -320,7 +320,7 @@ def test_export_has_a_bom_never_runs_a_formula_and_is_logged(app, client, admin_
     lead(name='=HYPERLINK("http://evil","x")')
     lead('+919811111111', name='Normal Person')
     login(client, admin_user.email)
-    for url in ('/admin/crm/export/leads', '/admin/crm/export/contacts'):
+    for url in ('/admin/crm/export/leads?reason=backup', '/admin/crm/export/contacts?reason=backup'):
         r = client.get(url)
         body = r.get_data()
         assert r.status_code == 200 and body.startswith('﻿'.encode('utf-8')), url

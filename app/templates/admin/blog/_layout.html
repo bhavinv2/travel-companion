@@ -3,7 +3,7 @@
    right. The site's own header and footer are not shown here (blog-admin.css).
 
    A screen extends this and fills: title, wpb_active (dashboard / posts / new / categories / tags / media /
-   import), wpb_main. Menu lines show only what the person's role opens (CAN). The editor does not use this
+   patterns / sidebars / import), wpb_main. Menu lines show only what the person's role opens (CAN). The editor does not use this
    layout: it is full screen on its own (blog_edit.html), the way WordPress's is. #}
 {% extends 'base.html' %}
 {% block body_attrs %} class="wpb-body"{% endblock %}
@@ -42,6 +42,9 @@
     {% if CAN('blog') %}
     <a href="{{ url_for('admin.blog_media') }}" class="wpb-mi {{ 'on' if active == 'media' }}"><i class="fa-solid fa-photo-film"></i><span>Media</span></a>
     <a href="{{ url_for('admin.blog_patterns') }}" class="wpb-mi {{ 'on' if active == 'patterns' }}"><i class="fa-solid fa-recycle"></i><span>Reusable blocks</span></a>
+    {% endif %}
+    {% if CAN('blog_list') %}
+    <a href="{{ url_for('admin.blog_sidebars') }}" class="wpb-mi {{ 'on' if active == 'sidebars' }}"><i class="fa-solid fa-table-columns"></i><span>Sidebars</span></a>
     {% endif %}
     {% if CAN('blog_import') %}
     <a href="{{ url_for('admin.blog_import') }}" class="wpb-mi {{ 'on' if active == 'import' }}"><i class="fa-solid fa-file-word"></i><span>Import from Word</span></a>

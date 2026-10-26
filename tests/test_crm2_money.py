@@ -367,7 +367,7 @@ def test_the_leads_download_has_the_money_columns(app, client, admin_user):
     crm_money.recalc_revenue(lead)
     _db.session.commit()
     login(client, admin_user.email)
-    r = client.get('/admin/crm/export/leads?p=ti-standard&owner=all&win=all&forecast=commit')
+    r = client.get('/admin/crm/export/leads?p=ti-standard&owner=all&win=all&forecast=commit&reason=backup')
     rows = list(csv.reader(io.StringIO(r.get_data(as_text=True).lstrip('﻿'))))
     head = rows[0]
     for col in ('Amount', 'Currency', 'What we earn', 'Closes on', 'Counts in the forecast as'):
@@ -710,7 +710,7 @@ def test_the_forecast_warns_about_a_currency_with_no_rate(app, client, admin_use
 def test_the_forecast_download_is_what_the_screen_says(app, client, admin_user):
     lead, a, b, c, north, leads, period = _forecast_world(admin_user)
     login(client, admin_user.email)
-    r = client.get('/admin/crm/forecast.csv')
+    r = client.get('/admin/crm/forecast.csv?reason=backup')
     assert r.status_code == 200 and 'text/csv' in r.headers['Content-Type']
     rows = list(csv.reader(io.StringIO(r.get_data(as_text=True).lstrip('﻿'))))
     head = rows[1]
@@ -731,8 +731,8 @@ def test_forecast_is_in_the_menu_after_sales_results_and_comes_with_it(app, admi
     reports = sections['reports']['pages']
     assert reports.index('crm_forecast') == reports.index('crm_insights') + 1
     assert tuple(k for k, _ in acc.TAB_GROUPS['crm_insights']) == ('crm_insights', 'crm_forecast')
-    setup = next(s for s in sections['sales']['subs'] if s['key'] == 'setup')['pages']
-    assert setup.index('crm_targets') == setup.index('crm_sources') + 1
+    setup = next(s for s in sections['setup']['subs'] if s['key'] == 'sales')['pages']      # Set-up › Sales
+    assert setup.index('crm_targets') == setup.index('crm_pipelines') + 1
 
 
 # ================================================================================================ My day and Results
@@ -783,7 +783,7 @@ def test_sales_results_has_won_value_our_revenue_and_top_sellers(app, client, ad
     out = crm_money.top_sellers(datetime.utcnow() - timedelta(days=30), datetime.utcnow() + timedelta(days=1), [a, b, c])
     assert [r['user'].id for r in out][:1] == [a.id] and out[0]['amount'] == D('10000.00')
     assert out[0]['pct'] is not None
-    csv_rows = list(csv.reader(io.StringIO(client.get('/admin/crm/insights.csv?days=30').get_data(as_text=True).lstrip('﻿'))))
+    csv_rows = list(csv.reader(io.StringIO(client.get('/admin/crm/insights.csv?days=30&reason=backup').get_data(as_text=True).lstrip('﻿'))))
     flat = [r for r in csv_rows if r]
     assert any(r[0].startswith('Won value') for r in flat) and any(r[0].startswith('Our revenue') for r in flat)
     assert any(r[0] == 'Top sellers' for r in flat) and any(r[0] == 'Anita' for r in flat)

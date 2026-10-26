@@ -101,7 +101,7 @@ def test_the_downloads_carry_it(app, client, admin_user):
     crm_consent.set_offers(yes.person, True, crm_consent.HOW_PAGE, by=admin_user)
     _db.session.commit()
     login(client, admin_user.email)
-    for url in ('/admin/crm/export/leads', '/admin/crm/export/contacts'):
+    for url in ('/admin/crm/export/leads?reason=backup', '/admin/crm/export/contacts?reason=backup'):
         body = client.get(url).get_data(as_text=True).lstrip('﻿')
         rows = list(csv.reader(io.StringIO(body)))
         head = rows[0]

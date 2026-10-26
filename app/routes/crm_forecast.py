@@ -15,7 +15,7 @@ from app import db
 from app.models import ActivityEvent, CrmPipeline
 from app.routes.crm import _common, _my_teams, _staff, admin_only, crm_bp, crm_url
 from app.routes.cs import cs_required
-from app.services import access, crm, crm_money, crm_reports
+from app.services import access, crm, crm_money, crm_reports, download_reason
 
 TOKEN_FORMAT = '%04d-Q%d'
 
@@ -164,6 +164,7 @@ def forecast():
 
 @crm_bp.route('/forecast.csv')
 @cs_required
+@download_reason.asked
 def forecast_csv():
     """Download for Excel: the table on the Forecast page, a row per person and per team."""
     d = _forecast_data()
@@ -184,7 +185,8 @@ def forecast_csv():
     for t in d['team_rows']:
         w.writerow(line('Team: ' + t['team'].name, t['row']))
     w.writerow(line('Total', d['total']))
-    ActivityEvent.log('crm_export', actor=current_user, kind='forecast', month=d['period'])
+    ActivityEvent.log('crm_export', actor=current_user, kind='forecast', month=d['period'],
+                      reason=download_reason.given())
     db.session.commit()
     resp = make_response('﻿' + buf.getvalue())
     resp.headers['Content-Type'] = 'text/csv; charset=utf-8'

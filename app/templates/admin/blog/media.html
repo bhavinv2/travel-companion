@@ -49,7 +49,7 @@
        data-at="{{ m.at|istd('%d %b %Y, %H:%M') if m.at }}" data-by="{{ m.by }}"
        data-save="{{ url_for('admin.blog_media_save', media_id=m.id) if m.id }}"
        data-delete="{{ url_for('admin.blog_media_delete', media_id=m.id) if m.id and not m.posts }}">
-    {% for p in m.posts %}<a href="{{ url_for('admin.blog_edit', post_id=p.id) }}">{{ p.title }}{% if p.trashed_at %} (in the Trash){% elif not p.is_published %} (draft){% endif %}</a>{% endfor %}
+    {% for p in m.posts %}<a href="{{ p.edit_url or url_for('admin.blog_edit', post_id=p.id) }}">{{ p.title }}{% if p.trashed_at %} (in the Trash){% elif not p.is_published %} (draft){% endif %}</a>{% endfor %}
   </div>
   {% endfor %}
 </template>

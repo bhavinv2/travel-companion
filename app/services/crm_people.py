@@ -211,11 +211,14 @@ def find(q, user, limit=8):
                   .filter(CrmLead.person_id.in_([p.id for p in people]))):
             leads.setdefault(l.person_id, []).append(l)
     names = crm_products.labels() if people else {}
+    from app.services import crm_mask
     for p in people:
         ls = _by_importance(leads.get(p.id, []))
+        hide = crm_mask.hidden(p)                    # a role that hides other people's numbers (role_rights)
         out['items'].append({
-            'kind': 'person', 'name': p.display_name, 'phone': phone_svc.pretty(p.phone) if p.phone else '',
-            'email': p.email or '', 'url': _crm_url('contact', person_id=p.id),
+            'kind': 'person', 'name': p.display_name,
+            'phone': (crm_mask.phone(p.phone) if hide else phone_svc.pretty(p.phone)) if p.phone else '',
+            'email': (crm_mask.email(p.email) if hide else p.email) or '', 'url': _crm_url('contact', person_id=p.id),
             # the product's name, never its code (run 5b)
             'chips': [{'text': '%s · %s' % (names.get(l.product, l.product), l.stage.name if l.stage else 'Not routed'),
                        'state': l.status, 'url': _crm_url('lead', lead_id=l.id)} for l in ls]})
@@ -769,7 +772,9 @@ def export(query, kind='leads', actor=None, filters=None):
     kind = 'contacts' if kind == 'contacts' else 'leads'
     model = CrmPerson if kind == 'contacts' else CrmLead
     ids = [i for (i,) in query.with_entities(model.id).all()]
-    ActivityEvent.log('crm_export', actor=actor, kind=kind, rows=len(ids), filters=filters or {})
+    from app.services import download_reason
+    ActivityEvent.log('crm_export', actor=actor, kind=kind, rows=len(ids), filters=filters or {},
+                      reason=download_reason.given())
     db.session.commit()
     today = (datetime.utcnow() + crm.IST).strftime('%Y-%m-%d')
 

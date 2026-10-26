@@ -16,18 +16,18 @@ BUILDER = '/admin/workspace/menu'
 
 
 def custom():
-    """The standard menu with: a Favourites section first holding Contacts, Leads moved into Overview,
-    My day renamed Today, Match quality left off and the Sales section renamed Sales."""
+    """The standard menu with: a Favourites section first holding Contacts, Leads moved into Home,
+    My day renamed Today, Match quality left off and the Tasks area renamed To-do."""
     lay = access.default_layout()
     for s in lay['sections']:
         for holder in s.get('subs') or [s]:
             for k in ('crm_people', 'crm_board'):
                 if k in holder['pages']:
                     holder['pages'].remove(k)
-        if s['key'] == 'overview':
+        if s['key'] == 'home':
             s['pages'].append('crm_board')
-        if s['key'] == 'sales':
-            s['label'] = 'Sales'
+        if s['key'] == 'tasks':
+            s['label'] = 'To-do'
     lay['sections'].insert(0, {'key': 'favourites', 'label': 'Favourites', 'icon': 'fa-star', 'pages': ['crm_people']})
     lay['labels'] = {'crm_today': 'Today'}
     lay['hidden'] = ['metrics']
@@ -66,8 +66,8 @@ def test_a_saved_layout_is_cleaned_and_never_loses_a_line():
     assert out['hidden'] == ['wa_inbox']
     placed = [k for s in out['sections'] for h in (s.get('subs') or [s]) for k in h['pages']]
     assert sorted(placed) == sorted(access.MENU_PAGES)                           # everything else came back
-    sales = next(s for s in out['sections'] if s['key'] == 'sales')
-    assert 'crm_board' in next(b for b in sales['subs'] if b['key'] == 'daily')['pages']
+    leads = next(s for s in out['sections'] if s['key'] == 'leads')                 # back as it is in code
+    assert leads['pages'] == ['crm_board'] and leads['label'] == 'Leads'
     assert access.clean_layout('nonsense') is None and access.clean_layout({'sections': 'x'}) is None
 
 
@@ -82,10 +82,10 @@ def test_an_admin_arranges_the_menu_and_everybody_sees_it(client, app, admin_use
     assert r.status_code == 302
     assert _db.session.get(Workspace, ws.id).menu is not None
     nav = menu(client, '/admin/crm/today')
-    assert nav.index('data-group="favourites"') < nav.index('data-group="overview"')
-    overview = nav.split('data-group="overview"', 1)[1].split('data-group=', 1)[0]
-    assert 'data-title="Leads"' in overview and 'data-title="Match quality"' not in nav
-    assert 'data-title="Today"' in nav and 'data-title="My day"' not in nav and '<span>Sales</span>' in nav
+    assert nav.index('data-group="favourites"') < nav.index('data-group="home"')
+    home = nav.split('data-group="home"', 1)[1].split('data-group=', 1)[0]
+    assert 'data-title="Leads"' in home and 'data-title="Match quality"' not in nav
+    assert 'data-title="Today"' in nav and 'data-title="My day"' not in nav and '<span>To-do</span>' in nav
     assert client.get('/cs/metrics').status_code == 200                          # left off the menu, still opens
     logout(client)
     login(client, cs_user.email)                                                   # the agent: same layout, their lines

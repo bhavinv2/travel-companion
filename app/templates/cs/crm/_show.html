@@ -1,0 +1,5 @@
+{# "Show" beside a hidden phone number or e-mail (services/crm_mask). Needs `mp`: the person. Back to this page after. #}
+<form method="POST" action="{{ crm_url('contact_show', person_id=mp.id) }}" class="mk-show">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  <button class="cb sm quiet" title="Show their phone number and e-mail. This is written in the audit log."><i class="fa-solid fa-eye" aria-hidden="true"></i> Show</button>
+</form>

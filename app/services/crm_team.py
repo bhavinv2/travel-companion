@@ -1,4 +1,4 @@
-"""Team analysis (Reports › Sales CRM › Team today, the switch at the top right): compare the sales people over any period, side by
+"""Team analysis (Reports › Team today, the switch at the top right): compare the sales people over any period, side by
 side -- their half-hourly inbox checks, the hours they worked, their follow-ups, messages and calls, how fast
 they answer, and what they won.
 

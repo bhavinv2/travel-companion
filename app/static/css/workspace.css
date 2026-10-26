@@ -74,6 +74,23 @@
 .ws-role-pages label:hover { background: #f6f8fb; }
 .ws-role-pages label small { display: block; color: var(--muted); font-size: 12px; line-height: 1.35; }
 .ws-role-pages i { width: 16px; color: #6a7891; margin-top: 3px; }
+/* each page with "Only look" under it (role_rights: the page guard refuses changes there) */
+.ws-role-page { display: flex; flex-direction: column; }
+.ws-role-pages .ws-look { padding: 0 4px 6px 30px; font-size: 12.5px; color: var(--muted); gap: 6px; align-items: center; }
+.ws-role-pages .ws-look[hidden] { display: none; }
+.ws-role-pages .ws-look input { margin: 0; }
+/* "Start from a profile" and "What may they do?" */
+.ws-profile-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.ws-profile { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding: 12px; border: 1px solid #e3e8f0;
+  border-radius: 12px; background: #fff; }
+.ws-profile b { font-size: 14.5px; }
+.ws-profile b i { color: #2f80ed; margin-right: 4px; }
+.ws-profile small { color: var(--muted); font-size: 12.5px; line-height: 1.4; flex: 1; }
+.ws-profile.on { border-color: #2f80ed; box-shadow: 0 0 0 2px rgba(47,128,237,.18); }
+.ws-right { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; cursor: pointer; }
+.ws-right input { margin-top: 4px; }
+.ws-right small { display: block; color: var(--muted); font-size: 12.5px; }
+.ws-ready { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .ws-role-mod input[type=checkbox], .ws-check input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--ui-primary, #1f6fd6); margin-top: 2px; flex: 0 0 auto; }
 .ws-check { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 4px 0; cursor: pointer; }
 .ws-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 12px; }

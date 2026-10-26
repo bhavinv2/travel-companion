@@ -56,9 +56,9 @@ def shows_badge(html):
 
 def sidebar_item(nav, title):
     """One line of the menu, by its exact label (data-title) rather than substring position --
-    "Contact us" and "Contact us (all services)" are two different lines (voices_contact in its
-    product's section, voices_general in Overview), and a plain text search for "Contact us"
-    would find whichever renders first in the <nav>, not necessarily the one being asked about."""
+    the Inbox's website forms are six lines that share words ("Companion: contact us", "General enquiries",
+    "Insurance enquiries"...), and a plain text search would find whichever renders first in the <nav>, not
+    necessarily the one being asked about."""
     return nav.split('data-title="%s"' % title, 1)[1].split('</a>', 1)[0]
 
 
@@ -120,7 +120,7 @@ def test_the_menu_shows_the_number(client, db, admin_user):
     assert shows_badge(nav)
     assert '>2<' in nav
     # on the line it belongs to, and not on its neighbours
-    contact = sidebar_item(nav, 'Contact us')
+    contact = sidebar_item(nav, 'Companion: contact us')
     assert shows_badge(contact)
     listings = nav.split('Listings', 1)[1].split('</a>', 1)[0]
     assert not shows_badge(listings)
@@ -131,8 +131,8 @@ def test_a_product_with_nothing_waiting_shows_nothing(client, db, admin_user):
     enquiry('insurance')
     login(client, 'admin@test.com')
     nav = sidebar(client, '/admin/sahayak')
-    assert not shows_badge(group(nav, 'sahayak'))
-    assert shows_badge(group(nav, 'insurance'))           # where it does belong
+    assert not shows_badge(sidebar_item(nav, 'Sahayak applications'))
+    assert shows_badge(sidebar_item(nav, 'Insurance enquiries'))           # where it does belong
 
 
 def test_the_sahayak_line_counts_its_own(client, db, admin_user):
@@ -189,7 +189,7 @@ def test_the_notifications_line_counts_this_agents_own(client, db, cs_user, app)
     line = nav.split('Notifications', 1)[1].split('</a>', 1)[0]
     assert shows_badge(line) and '>2<' in line
     # the shared queues are untouched by one agent's own unread count
-    assert not shows_badge(sidebar_item(nav, 'Contact us'))
+    assert not shows_badge(sidebar_item(nav, 'Companion: contact us'))
 
 
 def test_one_agents_notifications_are_not_anothers(client, db, cs_user, admin_user, monkeypatch):
@@ -281,7 +281,7 @@ def test_the_tab_badge_agrees_with_the_chip(client, db, admin_user):
     assert _chips(html)['New'] == 1
     # ...and the sidebar line for this product says the same
     nav = sidebar(client, '/admin/voices?tab=contact&topic=companion')
-    assert '>1<' in sidebar_item(nav, 'Contact us')
+    assert '>1<' in sidebar_item(nav, 'Companion: contact us')
 
 
 def test_the_cs_console_counts_the_same_way(client, db, cs_user):
@@ -389,7 +389,7 @@ def test_what_one_agent_read_is_still_unread_for_another(client, db, cs_user):
 
     login(client, 'cs2@test.com')
     nav = sidebar(client, '/cs/voices?tab=contact')
-    assert '>2<' in sidebar_item(nav, 'Contact us'), \
+    assert '>2<' in sidebar_item(nav, 'Companion: contact us'), \
         'the second agent has opened nothing, so both are new to them'
     html = client.get('/cs/voices?tab=contact').data.decode()
     assert html.count('data-read="contact/') == 2
@@ -399,7 +399,7 @@ def test_what_one_agent_read_is_still_unread_for_another(client, db, cs_user):
     # ...and the first agent's count is untouched by the second one reading
     login(client, 'cs@test.com')
     nav = sidebar(client, '/cs/voices?tab=contact')
-    assert '>1<' in sidebar_item(nav, 'Contact us')
+    assert '>1<' in sidebar_item(nav, 'Companion: contact us')
 
 
 def test_a_mark_written_by_a_parallel_request_does_not_fail_this_one(client, db, cs_user, app):
@@ -452,7 +452,8 @@ def test_a_new_agent_is_not_shown_the_closed_history(client, db, user, cs_user, 
     html = client.get('/cs/voices?tab=contact').data.decode()
     nav = sidebar(client, '/cs/voices?tab=contact')
     line = lambda label: nav.split('>' + label + '<', 1)[1].split('</a>', 1)[0]
-    assert '>2<' in line('Contact us') and '>1<' in line('Feedback') and '>1<' in line('Reports'), \
+    assert ('>2<' in line('Companion: contact us') and '>1<' in line('Companion: feedback')
+            and '>1<' in line('Companion: reported matches')), \
         '2 enquiries, 1 review, 1 report'
     cara = ContactMessage.query.filter_by(name='Cara').one()
     assert 'data-read="contact/%d"' % cara.id not in html

@@ -750,6 +750,8 @@ class Blog(db.Model):
     # what Google, shares and the blog list show; empty: the first lines of the post
     summary = db.Column(db.String(300))
     cover_alt = db.Column(db.String(300))          # what the cover shows, for search and screen readers
+    # the picture on the blog's list, Read next and More stories (16:9); empty: the cover
+    thumb_url = db.Column(db.String(500))
     source_file = db.Column(db.String(255))        # the Word document it was imported from (blog_engine)
     seo_title = db.Column(db.String(300))          # the title Google shows; empty: the title
     focus_keyword = db.Column(db.String(100))      # the words it should be found by (the checks look for them)
@@ -800,12 +802,17 @@ class Blog(db.Model):
         words = len(re.sub(r'<[^>]+>', ' ', self.content or '').split())
         return max(1, round(words / 200))
 
+    @property
+    def card_picture(self):
+        """The picture a card about this post shows: its thumbnail, else its cover (None: neither)."""
+        return self.thumb_url or self.cover_image_url or None
+
     def pictures(self, n=5):
-        """[(address, description)]: the cover, then the post's own pictures, each once, at most `n` -- the
+        """[(address, description)]: the thumbnail (else the cover), then the post's own pictures, each once, at most `n` -- the
         pictures a reader swipes through on the blog's list."""
         import re
         from html import unescape
-        found = [(self.cover_image_url, self.cover_alt)]
+        found = [(self.card_picture, self.cover_alt)]
         for tag in re.findall(r'<img\b[^>]*>', self.content or ''):
             src, alt = re.search(r'\bsrc="([^"]+)"', tag), re.search(r'\balt="([^"]*)"', tag)
             if src:
@@ -905,6 +912,45 @@ class BlogPattern(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    created_by = db.relationship('User')
+
+
+class BlogSideCard(db.Model):
+    """One card in a sidebar beside a blog post (admin Blog › Sidebars, services/blog_sidebars.py): a flyer (a
+    picture, maybe a link), an ad (picture, words, a button), a list of links, the post's own headings, more
+    stories from its category, or a reusable block. On every post, the posts of some categories, or some posts;
+    from `starts_at` until `ends_at` when set. Wide screens show it left or right of the post; phones under it
+    (or not at all). `look`: {'theme', 'height' (px; none: as tall as it needs), 'fit' (whole|fill), 'phone'
+    (below|hide), 'count' (more stories)}."""
+    __tablename__ = 'blog_side_cards'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)                 # for the staff list; readers never see it
+    kind = db.Column(db.String(16), nullable=False)                  # blog_sidebars.KINDS
+    side = db.Column(db.String(8), nullable=False, default='right', server_default='right')
+    sort_order = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+    is_on = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
+    title = db.Column(db.String(120))
+    body = db.Column(db.String(600))
+    image_url = db.Column(db.String(500))
+    image_alt = db.Column(db.String(300))
+    link_url = db.Column(db.String(500))
+    link_label = db.Column(db.String(60))
+    new_tab = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    links = db.Column(db.JSON)                                       # [{'label', 'url'}] for a list of links
+    pattern_id = db.Column(db.Integer, db.ForeignKey('blog_patterns.id', ondelete='SET NULL'))
+    look = db.Column(db.JSON)
+    show_on = db.Column(db.String(8), nullable=False, default='all', server_default='all')   # all | cats | posts
+    term_ids = db.Column(db.JSON)                                    # the categories, when show_on == 'cats'
+    post_ids = db.Column(db.JSON)                                    # the posts, when show_on == 'posts'
+    starts_at = db.Column(db.DateTime)
+    ends_at = db.Column(db.DateTime)
+    clicks = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    pattern = db.relationship('BlogPattern')
     created_by = db.relationship('User')
 
 
@@ -2787,6 +2833,9 @@ class WorkspaceRole(db.Model):
     # which leads people with this role see in the Sales CRM: NULL / 'all' = everyone's, 'team' = their
     # team's, 'own' = only their own (services/crm_access)
     crm_scope = db.Column(db.String(8), nullable=True)
+    # what it may DO on those pages (services/role_rights): {'profile', 'view': [look-only page keys], 'remove',
+    # 'mask'}; NULL = as before roles had rights (nothing look-only, removing allowed, nothing hidden)
+    rights = db.Column(db.JSON, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 

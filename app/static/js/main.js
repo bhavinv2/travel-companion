@@ -3405,16 +3405,23 @@ function wireBulkSelect(headId, rowSelector, onChange) {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { saved = {}; }
 
-  // a section, and a sub-menu inside a big section (Sales CRM > Daily work), fold the same way
+  // an area, and a sub-menu inside a big area (Services > Travel Companion), fold the same way. In an area of
+  // many sub-menus (Set-up, data-one-open) one is open at a time, and what was open last time is not brought back.
+  function setOpen(el, open) {
+    el.classList.toggle('open', open);
+    const head = el.querySelector('[data-sub-toggle], [data-group-toggle]');
+    if (head) head.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
   function fold(el, key, head) {
-    if (!el.classList.contains('open') && saved[key]) {
-      el.classList.add('open');
-      head.setAttribute('aria-expanded', 'true');
-    }
+    const one = el.classList.contains('sn-sub') && el.closest('[data-one-open]');
+    if (!one && !el.classList.contains('open') && saved[key]) setOpen(el, true);
     head.addEventListener('click', function () {
       const open = !el.classList.contains('open');
-      el.classList.toggle('open', open);
-      head.setAttribute('aria-expanded', open ? 'true' : 'false');
+      setOpen(el, open);
+      if (one) {
+        if (open) one.querySelectorAll('.sn-sub').forEach(function (s) { if (s !== el) setOpen(s, false); });
+        return;
+      }
       saved[key] = open;
       try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) { /* not remembered */ }
     });
@@ -3430,19 +3437,19 @@ function wireBulkSelect(headId, rowSelector, onChange) {
   nav.querySelectorAll('[data-area-tab]').forEach(function (tab) {
     tab.addEventListener('click', function () {
       const key = tab.dataset.areaTab;
-      nav.querySelectorAll('[data-area-tab]').forEach(function (t) {
+      nav.querySelectorAll('.sn-tab').forEach(function (t) {
         t.classList.toggle('on', t === tab);
-        t.setAttribute('aria-pressed', t === tab ? 'true' : 'false');
+        if (t.hasAttribute('data-area-tab')) t.setAttribute('aria-pressed', t === tab ? 'true' : 'false');
       });
       nav.querySelectorAll('.sn-group').forEach(function (g) {
         const cur = g.dataset.group === key;
         g.classList.toggle('current', cur);
-        // a section's sub-menus all open with it: its lines fit beside the rail
-        if (cur) g.querySelectorAll('.sn-sub').forEach(function (s) {
-          s.classList.add('open');
-          const h = s.querySelector('[data-sub-toggle]');
-          if (h) h.setAttribute('aria-expanded', 'true');
-        });
+        // an area's sub-menus all open with it, its lines fit beside the rail -- but Set-up's eight groups open
+        // one at a time: the first, unless one is open already
+        if (!cur) return;
+        const subs = g.querySelectorAll('.sn-sub');
+        if (!g.hasAttribute('data-one-open')) subs.forEach(function (s) { setOpen(s, true); });
+        else if (subs.length && !g.querySelector('.sn-sub.open')) setOpen(subs[0], true);
       });
       const page = document.querySelector('.admin-page');
       const toggle = document.querySelector('[data-rail-toggle]');

@@ -1,4 +1,4 @@
-/* Overview › Health and Help › Screen guide.
+/* Home › Health and Help › Screen guide.
    - The hover read-out on a chart's columns and bars ([data-tip]): one tooltip that follows the pointer. The same
      numbers are in each chart's table and at each bar's tip, so nothing is only on hover.
    - Health's parts fold, like an accordion (remembered on this browser).

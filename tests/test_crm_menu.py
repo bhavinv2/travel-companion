@@ -17,8 +17,10 @@ from app import db as _db
 from app.models import Workspace, WorkspaceMember, WorkspaceRole
 from app.services import access
 
-SECTION_ORDER = ['overview', 'reports', 'sales', 'companion', 'insurance', 'sahayak', 'help', 'team', 'site']
-SALES_SUBS = ['daily', 'setup']
+# Staff Console 2.0 (2026-10-26): the work areas, then Help, then the Set-up gear in eight groups
+SECTION_ORDER = ['home', 'inbox', 'leads', 'contacts', 'tasks', 'services', 'reports', 'content', 'automate', 'help',
+                 'setup']
+SETUP_SUBS = ['company', 'people', 'channels', 'sales', 'messages', 'data', 'site', 'security']
 
 
 def labels(groups):
@@ -37,20 +39,32 @@ def test_every_page_is_in_exactly_one_section_in_the_agreed_order():
     listed = [k for s in access.SECTIONS for k in s['pages']]
     assert len(listed) == len(set(listed)) and set(listed) == set(access.PAGES)
     assert all(access.PAGES[k]['section'] == s['key'] for s in access.SECTIONS for k in s['pages'])
-    sales = next(s for s in access.SECTIONS if s['key'] == 'sales')
-    assert [sub['key'] for sub in sales['subs']] == SALES_SUBS
+    setup = next(s for s in access.SECTIONS if s['key'] == 'setup')
+    assert [sub['key'] for sub in setup['subs']] == SETUP_SUBS
     for s in access.SECTIONS:
         if 'subs' in s:                    # a sub-menu's pages are its section's pages, in order, once each
             assert s['pages'] == tuple(k for sub in s['subs'] for k in sub['pages'])
 
 
 def test_every_report_is_in_reports_and_every_screen_that_explains_is_in_help():
-    assert access.PAGES['health']['section'] == 'overview'
+    assert access.PAGES['health']['section'] == 'home'
     for key in ('dashboard', 'crm_insights', 'crm_forecast', 'crm_tracker', 'crm_team', 'crm_report_builder'):
         assert access.PAGES[key]['section'] == 'reports', key
     for key in ('guide', 'crm_process', 'metrics', 'help', 'help_insurance', 'help_sahayak'):
         assert access.PAGES[key]['section'] == 'help', key
-    assert access.PAGES['wa_flows']['sub'] == 'setup'
+    assert access.PAGES['wa_flows']['section'] == 'automate'
+
+
+def test_every_screen_that_configures_is_behind_the_gear():
+    for key in ('crm_pipelines', 'crm_sources', 'crm_targets', 'crm_integrations', 'crm_connection', 'crm_quick',
+                'crm_data', 'crm_bin', 'crm_export', 'wa_templates', 'wa_tags', 'wa_settings', 'ws_members', 'ws_teams',
+                'ws_roles', 'ws_security', 'ws_menu', 'ws_settings', 'users', 'options', 'themes', 'messages',
+                'sahayak_services', 'delete_records'):
+        assert access.PAGES[key]['section'] == 'setup', key
+    for key in ('crm_today', 'wa_inbox', 'crm_board', 'crm_people', 'crm_calendar', 'posts', 'insurance', 'sahayak',
+                'voices_contact', 'blog_list', 'crm_auto'):
+        assert access.PAGES[key]['section'] != 'setup', key
+    assert access.PAGES['voices_insurance']['line'] == 'Insurance enquiries'     # the Inbox says which service
 
 
 def test_the_screens_that_belong_to_another_are_tabs_or_switches():
@@ -135,10 +149,12 @@ def test_an_agent_sees_the_days_work_and_nothing_to_manage(app, cs_user):
 
 
 def test_an_agent_sees_daily_work_as_plain_lines(app, cs_user):
-    """An agent's Sales CRM is only Daily work: a heading over all of it would be one click too many."""
-    sales = next(g for g in _nav_for(app, cs_user) if g['key'] == 'sales')
-    assert sales['subs'] == []
-    assert 'My day' in [i['label'] for i in sales['items']]
+    """An agent's areas are plain lines: My day at Home, their chats in the Inbox, Leads, Contacts and Tasks."""
+    groups = {g['key']: g for g in _nav_for(app, cs_user)}
+    assert 'My day' in [i['label'] for i in groups['home']['items']]
+    assert 'Half-hourly check' in [i['label'] for i in groups['inbox']['items']]
+    for key in ('leads', 'tasks'):
+        assert key in groups and groups[key]['subs'] == [], key
 
 
 def _nav_for(app, user):
@@ -152,21 +168,24 @@ def test_the_administrator_sees_every_section_in_order(app, admin_user):
     groups = _nav_for(app, admin_user)
     keys = [g['key'] for g in groups]
     assert keys == [k for k in SECTION_ORDER if k in keys]
-    for k in ('overview', 'sales', 'team'):
-        assert k in keys, k
-    sales = next(g for g in groups if g['key'] == 'sales')
-    assert [s['key'] for s in sales['subs']] == ['sales.' + k for k in SALES_SUBS]
-    assert [i['label'] for i in sales['subs'][0]['items']][:3] == ['My day', 'Half-hourly check', 'WhatsApp chats']
-    assert [i['label'] for i in sales['subs'][1]['items']] == [
-        'Pipelines & products', 'Automation', 'Messages', 'Lead sources', 'Targets', 'Integrations', 'Import & export']
-    # Health first in Overview; the reports a menu of their own (tests/test_health.py has the rest)
-    overview = [i['label'] for i in next(g for g in groups if g['key'] == 'overview')['items']]
-    assert overview[0] == 'Health'
+    assert keys == SECTION_ORDER                                             # an Administrator has every area
+    setup = next(g for g in groups if g['key'] == 'setup')
+    assert [s['key'] for s in setup['subs']] == ['setup.' + k for k in SETUP_SUBS]
+    lines = {s['key'].split('.')[1]: [i['label'] for i in s['items']] for s in setup['subs']}
+    assert lines['channels'] == ['Integrations', 'Lead sources']
+    assert lines['sales'] == ['Pipelines & products', 'Targets', 'Sahayak services & prices']
+    assert lines['messages'] == ['Quick replies & templates', 'Trip post texts & e-mails']
+    assert lines['data'] == ['Import & export', 'Downloads'] and lines['security'] == ['Security']
+    inbox = next(g for g in groups if g['key'] == 'inbox')
+    assert [i['label'] for i in inbox['items']][:3] == ['All conversations', 'WhatsApp chats', 'Half-hourly check']
+    # Health first at Home; the reports a menu of their own (tests/test_health.py has the rest)
+    home = [i['label'] for i in next(g for g in groups if g['key'] == 'home')['items']]
+    assert home[:2] == ['Health', 'My day']
     flat = [l for ls in labels(groups).values() for l in ls]
     for line in ('Dashboard', 'Queues', 'Promotion'):
         assert line not in flat
     for line in ('Health', 'Sales results', 'Team today', 'Report builder', 'Downloads', 'Site dashboard',
-                 'Help centre', 'Half-hourly check', 'My day', 'Leads', 'Messages', 'Automation',
+                 'Help centre', 'Half-hourly check', 'My day', 'Leads', 'Quick replies & templates', 'Automation',
                  'Pipelines & products', 'Lead sources', 'Integrations', 'Import & export',
                  'Team members', 'Teams', 'Roles', 'Workspace'):
         assert line in flat, line

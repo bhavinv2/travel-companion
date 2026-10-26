@@ -1,4 +1,4 @@
-"""Health (Overview › Health): the master screen -- how every part of the portal is doing, and what needs
+"""Health (Home › Health): the master screen -- how every part of the portal is doing, and what needs
 somebody now.
 
     attention   every number below that needs somebody, worst first, each opening the screen that fixes it
