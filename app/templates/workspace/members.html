@@ -60,7 +60,7 @@
   <h2><i class="fa-solid fa-users"></i> {{ rows|length }} member{{ 's' if rows|length != 1 }}</h2>
   <div style="overflow-x:auto">
   <table class="ws-people">
-    <thead><tr><th>Person</th><th>Role</th><th>Teams</th><th>Can open</th><th>WhatsApp</th><th></th></tr></thead>
+    <thead><tr><th>Person</th><th>Role</th><th>Teams</th><th>Can open</th><th>WhatsApp</th><th>Two-step</th><th></th></tr></thead>
     <tbody>
     {% for m in rows %}{% set u = m.user %}
     <tr>
@@ -77,6 +77,7 @@
         {% elif m.wacrm_role %}<i class="fa-brands fa-whatsapp"></i> {{ m.wacrm_role|capitalize }}
         {% else %}<span class="ws-muted">—</span>{% endif %}
       </td>
+      <td>{% if u.two_step_on %}<span class="ws-pill team" title="Two-step sign-in is on"><i class="fa-solid fa-shield-halved"></i> On</span>{% else %}<span class="ws-pill none">Off</span>{% endif %}</td>
       <td style="text-align:right"><a class="cb sm" href="{{ url_for('workspace.member', member_id=m.id) }}"><i class="fa-solid fa-pen"></i> Change</a></td>
     </tr>
     {% endfor %}

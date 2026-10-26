@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block title %}Sign-in & security – NRI Parent Service{% endblock %}
+{% block content %}
+<div class="auth-page sec-page">
+  <div class="auth-card wide">
+    <div class="auth-header">
+      <h1>Sign-in &amp; security</h1>
+      <p>Two-step sign-in, and every browser signed in as you.</p>
+    </div>
+
+    {% if required and not current_user.two_step_on %}
+    <p class="sec-alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+      Two-step sign-in is required for your account ({{ rule|lower }}). Turn it on below to carry on.</p>
+    {% endif %}
+
+    <section class="sec-block" id="two-step">
+      <h2><i class="fa-solid fa-mobile-screen" aria-hidden="true"></i> Two-step sign-in
+        {% if current_user.two_step_on %}<span class="sec-chip on">On</span>{% else %}<span class="sec-chip">Off</span>{% endif %}</h2>
+      <p class="muted">After your password, you type a code from an app on your phone. A stolen password alone is then
+        not enough to get in.</p>
+
+      {% if codes %}
+      <div class="sec-codes">
+        <p><b>Your backup codes.</b> Each works once if you lose your phone. They are shown only now: print them or keep
+          them in a password manager.</p>
+        <ol id="sec-codes-list">{% for c in codes %}<li><code>{{ c }}</code></li>{% endfor %}</ol>
+      </div>
+      {% endif %}
+
+      {% if current_user.two_step_on %}
+      <p>On since {{ current_user.totp_on_at|ist('%d %b %Y') if current_user.totp_on_at }} · {{ codes_left }} backup code{{ 's' if codes_left != 1 }} left.</p>
+      <div class="sec-row">
+        <form method="POST" action="{{ url_for('auth.security_two_step') }}" class="sec-inline" autocomplete="off">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <input type="hidden" name="action" value="codes"/>
+          <input type="text" name="code" required inputmode="numeric" maxlength="12" placeholder="Code from your app" aria-label="Code from your app for new backup codes"/>
+          <button class="btn btn-outline-coral btn-sm">New backup codes</button>
+        </form>
+        {% if not required %}
+        <form method="POST" action="{{ url_for('auth.security_two_step') }}" class="sec-inline" autocomplete="off">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <input type="hidden" name="action" value="off"/>
+          <input type="text" name="code" required inputmode="numeric" maxlength="12" placeholder="Code from your app" aria-label="Code from your app to turn two-step sign-in off"/>
+          <button class="btn btn-outline-coral btn-sm">Turn off</button>
+        </form>
+        {% else %}<p class="muted sec-small">Required for your account, so it cannot be turned off.</p>{% endif %}
+      </div>
+
+      {% elif pending %}
+      <ol class="sec-steps">
+        <li>Install an authenticator app if you have none: Google Authenticator, Microsoft Authenticator or Authy.</li>
+        <li>In the app, add an account and scan this code:
+          <div class="sec-qr">{{ qr|safe }}</div>
+          <span class="muted sec-small">Cannot scan? Type this key instead: <code class="sec-key">{{ pending }}</code></span></li>
+        <li>Type the six digits the app now shows:
+          <form method="POST" action="{{ url_for('auth.security_two_step', setup=setup) }}" class="sec-inline" autocomplete="off">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <input type="hidden" name="action" value="confirm"/>
+            <input type="text" name="code" required inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" aria-label="The six digits" autofocus/>
+            <button class="btn btn-primary btn-sm">Turn on</button>
+          </form></li>
+      </ol>
+      <form method="POST" action="{{ url_for('auth.security_two_step') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="hidden" name="action" value="cancel"/>
+        <button class="link-btn">Cancel</button>
+      </form>
+
+      {% else %}
+      <form method="POST" action="{{ url_for('auth.security_two_step', setup=setup) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="hidden" name="action" value="start"/>
+        <button class="btn btn-primary"><i class="fa-solid fa-qrcode" aria-hidden="true"></i> Turn on two-step sign-in</button>
+      </form>
+      {% endif %}
+    </section>
+
+    <section class="sec-block" id="sessions">
+      <h2><i class="fa-solid fa-laptop" aria-hidden="true"></i> Where you are signed in</h2>
+      <ul class="sec-sessions">
+        {% for s in sessions %}
+        <li>
+          <span class="sec-dev"><b>{{ s.device }}</b>{% if here and s.id == here.id %} <span class="sec-chip on">This browser</span>{% endif %}
+            <small class="muted">{{ s.ip or 'address unknown' }} · signed in {{ s.created_at|ist('%d %b, %H:%M') }} · last active {{ s.last_seen_at|ist('%d %b, %H:%M') }}{% if s.two_step %} · two-step done{% endif %}</small></span>
+          {% if not (here and s.id == here.id) %}
+          <form method="POST" action="{{ url_for('auth.security') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <input type="hidden" name="sid" value="{{ s.id }}"/>
+            <button class="btn btn-outline-coral btn-sm">Sign out</button>
+          </form>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% if sessions|length > 1 %}
+      <form method="POST" action="{{ url_for('auth.security') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="hidden" name="action" value="others"/>
+        <button class="btn btn-outline-coral btn-sm"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Sign out everywhere else</button>
+      </form>
+      {% endif %}
+      <p class="muted sec-small">Changing your password also signs out every other browser. <a href="{{ url_for('auth.change_password') }}">Change password</a></p>
+    </section>
+  </div>
+</div>
+{% endblock %}

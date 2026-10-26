@@ -251,3 +251,13 @@ body:has(.wa-frame-wrap) #whatsNew { display: none; }
   .mnu-wrap { grid-template-columns: 1fr; }
   .mnu-side { position: static; }
 }
+
+/* Team › Security (workspace/security.html) */
+.sec-fs { border: 0; padding: 0; margin: 0 0 18px; display: flex; flex-direction: column; gap: 8px; }
+.sec-fs legend { font-weight: 700; font-size: 14px; color: #24324d; margin-bottom: 6px; }
+.sec-fs select { max-width: 220px; padding: 8px 10px; border: 1.5px solid #dfe5ee; border-radius: 10px; }
+.sec-radio { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.sec-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+.sec-filters select { padding: 8px 10px; border: 1.5px solid #dfe5ee; border-radius: 10px; background: #fff; }
+.sec-pager { display: flex; gap: 12px; align-items: center; justify-content: center; margin-top: 14px; }
+.ws-people tr.sec-bad td { background: #fff7f6; }

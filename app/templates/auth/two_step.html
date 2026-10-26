@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Two-step sign-in – NRI Parent Service{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <h1><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Two-step sign-in</h1>
+      <p>Open your authenticator app and type the six digits it shows for NRI Parent Service.</p>
+    </div>
+    <form method="POST" class="auth-form" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <div class="field-group">
+        <label for="ts-code">Code</label>
+        <input id="ts-code" type="text" name="code" required inputmode="numeric" autocomplete="one-time-code"
+               maxlength="12" placeholder="123456" autofocus class="sec-code-input"/>
+      </div>
+      <label class="sec-check"><input type="checkbox" name="trust"/> Trust this browser for 30 days</label>
+      <button type="submit" class="btn btn-primary w-full mt-2"><i class="fa-solid fa-right-to-bracket"></i> Continue</button>
+      <p class="muted sec-small">Lost your phone? Type one of your backup codes (like <code>ab3d-9xk2</code>) instead.
+        No backup codes? An administrator can turn two-step sign-in off for you under Team › Security.</p>
+    </form>
+    <form method="post" action="{{ url_for('auth.logout') }}" class="sec-other">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <button type="submit" class="link-btn">Sign in as somebody else</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

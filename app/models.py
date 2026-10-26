@@ -108,6 +108,13 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_login = db.Column(db.DateTime)
+    # Sign-in security (services/signin.py). Raising session_version signs every device out at once: it is part of
+    # the id the session and the "remember me" cookie carry (get_id). totp_secret is the authenticator app's key
+    # while two-step sign-in is on; backup_codes the hashes of the one-time codes still unused.
+    session_version = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+    totp_secret = db.Column(db.String(64))
+    totp_on_at = db.Column(db.DateTime)
+    backup_codes = db.Column(db.JSON)
 
     trips = db.relationship('CompanionRequest', backref='author', lazy='dynamic',
                             foreign_keys='CompanionRequest.user_id')
@@ -115,6 +122,16 @@ class User(UserMixin, db.Model):
     feedbacks = db.relationship('Feedback', backref='user', lazy='dynamic')
     contact_points = db.relationship('ContactPoint', backref='owner', lazy='dynamic',
                                      foreign_keys='ContactPoint.user_id')
+
+    def get_id(self):
+        """What the session and the "remember me" cookie carry: the id, and the session version once it was raised,
+        so raising it (services/signin.sign_out_everywhere) makes every older session and cookie stop working."""
+        v = self.session_version or 0
+        return str(self.id) if not v else '%d.%d' % (self.id, v)
+
+    @property
+    def two_step_on(self):
+        return bool(self.totp_secret)
 
     def set_password(self, password):
         self.password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -599,6 +616,38 @@ class ClaimToken(db.Model):
     @property
     def is_valid(self):
         return self.used_at is None and self.expires_at > datetime.utcnow()
+
+
+class UserSession(db.Model):
+    """One signed-in browser (services/signin.py): the cookie session holds a random token, this row its hash. A row
+    with ended_at set signs that browser out on its next request."""
+    __tablename__ = 'user_sessions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    token_hash = db.Column(db.String(64), nullable=False, unique=True, index=True)
+    how = db.Column(db.String(20))               # password / google / facebook / remembered / reset / other
+    ip = db.Column(db.String(64))
+    user_agent = db.Column(db.String(300))
+    two_step = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    last_seen_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    ended_at = db.Column(db.DateTime, index=True)
+    ended_reason = db.Column(db.String(30))      # signed_out / ended / idle / password / everywhere / deactivated
+    ended_by_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'))
+
+    user = db.relationship('User', foreign_keys=[user_id])
+    ended_by = db.relationship('User', foreign_keys=[ended_by_id])
+
+    @property
+    def device(self):
+        """The browser and system in a few words, from the user agent: "Chrome on Windows"."""
+        ua = self.user_agent or ''
+        browser = next((n for k, n in (('Edg/', 'Edge'), ('OPR/', 'Opera'), ('Firefox/', 'Firefox'),
+                                       ('Chrome/', 'Chrome'), ('Safari/', 'Safari')) if k in ua), 'A browser')
+        system = next((n for k, n in (('Android', 'Android'), ('iPhone', 'iPhone'), ('iPad', 'iPad'),
+                                      ('Windows', 'Windows'), ('Mac OS', 'Mac'), ('Linux', 'Linux')) if k in ua), '')
+        return '%s on %s' % (browser, system) if system else browser
 
 
 class ActivityEvent(db.Model):

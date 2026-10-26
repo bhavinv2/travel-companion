@@ -397,6 +397,13 @@ MODULES = [
                ['workspace.menu', 'workspace.save_menu', 'workspace.reset_menu', 'workspace.menu_preview'],
                admin='workspace.menu', desc='Arrange the staff menu: sections, sub-menus, order and names.',
                tip='Arrange the menu: sections, sub-menus, order and names. Roles decide who sees each line.'),
+         _page('ws_security', 'Security', 'fa-shield-halved',
+               ['security.index', 'security.save_rules', 'security.end_session', 'security.sign_out_person',
+                'security.two_step_off'],
+               admin='security.index',
+               desc='The sign-in rules (two-step sign-in, signing out when idle), the staff and their two-step sign-in, '
+                    'every open session, and the audit log of sign-ins, downloads, deletes and set-up changes.',
+               tip='Sign-in rules, open sessions and the audit log.'),
          _page('ws_all', 'All workspaces', 'fa-layer-group',
                ['workspace.all_workspaces', 'workspace.create_workspace', 'workspace.new_workspace'],
                admin='workspace.all_workspaces',
@@ -445,7 +452,7 @@ SECTIONS = [
     {'key': 'help', 'label': 'Help', 'icon': 'fa-circle-question',
      'pages': ('guide', 'crm_process', 'metrics', 'help', 'help_insurance', 'help_sahayak')},
     {'key': 'team', 'label': 'Team', 'icon': 'fa-users',
-     'pages': ('ws_members', 'ws_teams', 'ws_roles', 'ws_menu', 'ws_settings', 'ws_all')},
+     'pages': ('ws_members', 'ws_teams', 'ws_roles', 'ws_security', 'ws_menu', 'ws_settings', 'ws_all')},
     {'key': 'site', 'label': 'Site settings', 'icon': 'fa-gear',
      'pages': ('users', 'options', 'messages', 'notiflog', 'notify_switches', 'themes', 'delete_records')},
 ]

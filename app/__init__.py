@@ -415,6 +415,17 @@ def create_app(test_config=None):
         return response
 
     @app.before_request
+    def _signed_in_guard():
+        """Before the page guard: a browser that was signed out elsewhere or left idle is signed out here, and two-step
+        sign-in is asked for before anything else opens (services/signin.py)."""
+        from flask import g
+        from app.services import signin
+        # the person is read afresh for every request: an app context that outlives one (the tests keep one open)
+        # must not hand the next request the previous one's user
+        g.pop('_login_user', None)
+        return signin.guard()
+
+    @app.before_request
     def _page_guard():
         """Stop a staff member opening a page their roles do not give them.
 
@@ -488,9 +499,15 @@ def create_app(test_config=None):
 
     @login_manager.user_loader
     def load_user(user_id):
-        user = db.session.get(User, int(user_id))
+        # "<id>" or "<id>.<session version>" (User.get_id): a raised version signs every older session out
+        uid, _, version = str(user_id).partition('.')
+        if not uid.isdigit():
+            return None
+        user = db.session.get(User, int(uid))
         # Deactivated accounts lose their session immediately (not only at next login).
-        if user and not user.is_active:
+        if user is None or not user.is_active:
+            return None
+        if (user.session_version or 0) != (int(version) if version.isdigit() else 0):
             return None
         return user
 
@@ -557,6 +574,8 @@ def create_app(test_config=None):
     from app.routes.workspace import workspace_bp
     from app.routes.messaging import messaging_bp
     app.register_blueprint(workspace_bp)
+    from app.routes.security import security_bp
+    app.register_blueprint(security_bp)
     app.register_blueprint(messaging_bp)
 
     from app import cli

@@ -6,9 +6,11 @@
    rather than thirty links with most of them refused. Each line's badge comes from
    services/nav_badges.py, with a tooltip saying what it counts; a "!" is never added to a total.
 
-   Sections fold; a big one (Sales CRM, Travel Companion) folds again into sub-menus. The one being
-   worked in is open, and whatever else was opened stays open (static/js/main.js, "staff menu").
-   "Find a page" narrows the whole menu as you type, AND
+   On a computer (2026-10-26, the tawk.to way): a rail of the sections as icons down the left, and beside it only the
+   lines of the section being worked in -- a big one (Sales CRM, Travel Companion) still folds into its sub-menus.
+   A click on another icon shows that section's lines; collapsing the menu leaves just the rail. On a phone it is one
+   dropdown with the sections folding, as before (static/js/main.js, "staff menu").
+   "Find a page" narrows every section's lines as you type, AND
    (static/js/main.js, same handler) asks the Sales CRM's /find for matching trips, people,
    insurance quotes, contact messages and Sahayak bookings -- the same global record search
    the header's "Find a person" box already uses (_find_person.html), so one box now covers
@@ -35,6 +37,12 @@
   <span class="nav-badge" data-badge="{{ item.badge or '' }}"{{ ' data-mark' if item.mark }}{% if tip %} title="{{ tip }}"{% endif %} aria-label="{{ tip or ('%d not read' % n) }}"{{ ' hidden' if not n }}>{{ '!' if item.mark else (n if n < 100 else '99+') }}</span>
 </a>
 {%- endmacro %}
+{# the section being worked in: the one holding the page open now, else the first #}
+{% set cur = namespace(key=None) %}
+{% for g in groups if cur.key is none and g['items']|selectattr('active')|list %}{% set cur.key = g.key %}{% endfor %}
+{% if cur.key is none and groups %}{% set cur.key = groups[0].key %}{% endif %}
+{# the rail has room for a word or two: the long section names in short there (the menu builder's names otherwise) #}
+{% set RAIL_WORD = {'Travel Companion': 'Companion', 'Travel Insurance': 'Insurance', 'Site settings': 'Settings'} %}
 <aside class="admin-sidebar staff-nav">
   <h3 title="{{ ws.name if ws else '' }}">{{ ws.name if ws else ('Admin Panel' if current_user.is_admin else 'CS Console') }}</h3>
   <button type="button" class="rail-toggle" data-rail-toggle
@@ -44,6 +52,16 @@
 
   <nav class="admin-nav-items" aria-label="Menu">
     {# One <nav>: on a phone the menu is a single dropdown, and two would open on top of each other. #}
+    <div class="sn-rail" role="group" aria-label="Sections">
+      {% for g in groups %}{% set total = waiting_in(g['items'])|int %}
+      <button type="button" class="sn-tab{{ ' on' if g.key == cur.key }}" data-area-tab="{{ g.key }}"
+              aria-pressed="{{ 'true' if g.key == cur.key else 'false' }}" title="{{ g.label }}{{ ' — %d waiting' % total if total }}">
+        <i class="{{ ic(g.icon) }}" aria-hidden="true"></i><span>{{ RAIL_WORD.get(g.label, g.label) }}</span>
+        {% if total %}<b class="sn-dot" aria-label="{{ total }} waiting">{{ total if total < 100 else '99+' }}</b>{% endif %}
+      </button>
+      {% endfor %}
+    </div>
+    <div class="sn-panel">
     {% if current_user.is_influencer and not current_user.is_admin %}
     <div class="admin-nav-top">
       <a href="{{ url_for('main.promo_dashboard') }}" title="Promotion"
@@ -59,7 +77,8 @@
     </label>
     <div class="sn-global-results" data-nav-results role="listbox" hidden></div>
     {% for g in groups %}
-    <div class="sn-group{{ ' open' if g.open }}{{ ' has-subs' if g.subs }}" data-group="{{ g.key }}">
+    <div class="sn-group{{ ' open' if g.open }}{{ ' has-subs' if g.subs }}{{ ' current' if g.key == cur.key }}" data-group="{{ g.key }}">
+      <p class="sn-area">{{ g.label }}</p>
       <button type="button" class="sn-head" data-group-toggle aria-expanded="{{ 'true' if g.open else 'false' }}"
               title="{{ g.label }}">
         <i class="{{ ic(g.icon) }}"></i><span>{{ g.label }}</span>
@@ -68,8 +87,8 @@
       </button>
       <div class="sn-items">
         {% for s in g.subs %}
-        <div class="sn-sub{{ ' open' if s.open }}" data-sub="{{ s.key }}">
-          <button type="button" class="sn-subhead" data-sub-toggle aria-expanded="{{ 'true' if s.open else 'false' }}"
+        <div class="sn-sub{{ ' open' if s.open or g.key == cur.key }}" data-sub="{{ s.key }}">
+          <button type="button" class="sn-subhead" data-sub-toggle aria-expanded="{{ 'true' if s.open or g.key == cur.key else 'false' }}"
                   title="{{ s.label }}">
             <i class="{{ ic(s.icon) }}"></i><span>{{ s.label }}</span>
             {{ sum_chip(waiting_in(s['items'])|int) }}
@@ -84,5 +103,6 @@
     </div>
     {% endfor %}
     <p class="sn-none" data-nav-none hidden>No page by that name.</p>
+    </div>
   </nav>
 </aside>

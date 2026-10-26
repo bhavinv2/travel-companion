@@ -25,3 +25,5 @@ playwright==1.62.0
 # boto3>=1.34
 # Ticket PDF text extraction (auto-fill the post form from an e-ticket)
 pypdf==5.1.0
+# Two-step sign-in: the QR code an authenticator app scans (pure Python, no other packages)
+segno==1.6.1

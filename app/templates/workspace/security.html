@@ -1,0 +1,138 @@
+{% extends 'workspace/_layout.html' %}
+{% set ws_tab = 'ws_security' %}
+{% block ws_title %}Security{% endblock %}
+{% block ws %}
+<div class="ws-head">
+  <div>
+    <h1>Security</h1>
+    <p>How staff sign in, who is signed in now, and a record of sign-ins, downloads, deletes and set-up changes.</p>
+  </div>
+</div>
+
+<nav class="ws-tabs" aria-label="Security">
+  {% for t, label in TABS %}
+  <a href="{{ url_for('security.index', tab=t) }}" class="{{ 'on' if tab == t }}"{% if tab == t %} aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+
+{% if tab == 'rules' %}
+<section class="card">
+  <h2><i class="fa-solid fa-shield-halved"></i> Sign-in rules</h2>
+  <p class="lead">They apply on each person's next click. {{ staff_on }} of {{ staff_total }} staff have two-step sign-in on.</p>
+  <form method="POST" action="{{ url_for('security.save_rules') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <fieldset class="sec-fs">
+      <legend>Two-step sign-in</legend>
+      {% for k, label in TWO_STEP_RULES.items() %}
+      <label class="sec-radio"><input type="radio" name="two_step" value="{{ k }}"{{ ' checked' if rules.two_step == k }}/> {{ label }}</label>
+      {% endfor %}
+      <small class="ws-muted">When it is required, somebody without it is taken to set it up right after their password; it takes a minute with a phone. Nobody can turn it off while it is required.</small>
+    </fieldset>
+    <fieldset class="sec-fs">
+      <legend>Sign staff out after this long without activity</legend>
+      <select name="idle_hours" aria-label="Hours without activity">
+        {% for h in IDLE_CHOICES %}<option value="{{ h }}"{{ ' selected' if rules.idle_hours == h }}>{{ h }} hours</option>{% endfor %}
+      </select>
+      <small class="ws-muted">Customers and travellers are not signed out this way.</small>
+    </fieldset>
+    <button class="cb primary">Save the rules</button>
+  </form>
+</section>
+<p class="ws-note"><i class="fa-solid fa-circle-info"></i> Changing a password, or "Sign out everywhere" on the Staff tab, ends every browser and "remember me" cookie of that person at once.</p>
+
+{% elif tab == 'people' %}
+<section class="card">
+  <h2><i class="fa-solid fa-users"></i> Staff · {{ staff_on }} of {{ staff_total }} with two-step sign-in</h2>
+  <div style="overflow-x:auto">
+  <table class="ws-people">
+    <thead><tr><th>Person</th><th>Two-step sign-in</th><th>Signed in on</th><th>Last active</th><th></th></tr></thead>
+    <tbody>
+    {% for u in staff %}{% set mine = open_by.get(u.id, []) %}
+    <tr>
+      <td><b>{{ u.full_name }}</b><br/><small class="ws-muted">{{ u.email }}{{ ' · inactive' if not u.is_active }}{{ ' · Super admin' if u.is_super }}</small></td>
+      <td>{% if u.two_step_on %}<span class="ws-pill team"><i class="fa-solid fa-check"></i> On</span>
+          {% elif required(u) %}<span class="ws-pill bad">Off · required</span>
+          {% else %}<span class="ws-pill none">Off</span>{% endif %}</td>
+      <td>{{ mine|length }} browser{{ 's' if mine|length != 1 }}</td>
+      <td>{% set last = mine|map(attribute='last_seen_at')|max if mine else None %}{{ last|ist('%d %b, %H:%M') if last else (u.last_login|ist('%d %b %Y') if u.last_login else '—') }}</td>
+      <td style="text-align:right;white-space:nowrap">
+        {% if mine %}
+        <form method="POST" action="{{ url_for('security.sign_out_person', uid=u.id) }}" style="display:inline" data-confirm="Sign {{ u.full_name }} out of every browser now?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><button class="cb sm">Sign out everywhere</button></form>
+        {% endif %}
+        {% if u.two_step_on and u.id != current_user.id %}
+        <form method="POST" action="{{ url_for('security.two_step_off', uid=u.id) }}" style="display:inline" data-confirm="Turn off {{ u.full_name }}'s two-step sign-in? Do this only when they lost their phone and their backup codes. They are signed out and set it up again.">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><button class="cb sm quiet">Turn two-step off</button></form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+{% elif tab == 'sessions' %}
+<section class="card">
+  <h2><i class="fa-solid fa-laptop"></i> {{ sessions|length }} open session{{ 's' if sessions|length != 1 }} of staff</h2>
+  <div style="overflow-x:auto">
+  <table class="ws-people">
+    <thead><tr><th>Person</th><th>Browser</th><th>From</th><th>Signed in</th><th>Last active</th><th></th></tr></thead>
+    <tbody>
+    {% for s in sessions %}
+    <tr>
+      <td><b>{{ s.user.full_name }}</b></td>
+      <td>{{ s.device }}{% if s.two_step %} <span class="ws-pill team">two-step</span>{% endif %}{% if here and s.id == here.id %} <span class="ws-pill role">This browser</span>{% endif %}</td>
+      <td>{{ s.ip or '—' }}</td>
+      <td>{{ s.created_at|ist('%d %b, %H:%M') }} <small class="ws-muted">{{ s.how }}</small></td>
+      <td>{{ s.last_seen_at|ist('%d %b, %H:%M') }}</td>
+      <td style="text-align:right">{% if not (here and s.id == here.id) %}
+        <form method="POST" action="{{ url_for('security.end_session', sid=s.id) }}" data-confirm="End {{ s.user.full_name }}'s session on {{ s.device }}?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><button class="cb sm">End</button></form>{% endif %}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="ws-muted">Nobody on the staff is signed in.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+{% else %}
+<section class="card">
+  <h2><i class="fa-solid fa-list-check"></i> Audit log</h2>
+  <form method="GET" class="sec-filters">
+    <input type="hidden" name="tab" value="log"/>
+    <select name="kind" aria-label="What" onchange="this.form.submit()">{% for k, label, _e in KINDS %}<option value="{{ k }}"{{ ' selected' if kind == k }}>{{ label }}</option>{% endfor %}</select>
+    <select name="who" aria-label="Who" onchange="this.form.submit()"><option value="">Anybody</option>{% for u in staff %}<option value="{{ u.id }}"{{ ' selected' if who == u.id|string }}>{{ u.full_name }}</option>{% endfor %}</select>
+    <select name="days" aria-label="When" onchange="this.form.submit()">{% for d in DAYS %}<option value="{{ d }}"{{ ' selected' if days == d }}>{{ 'Today and yesterday' if d == 1 else 'Last %d days' % d }}</option>{% endfor %}</select>
+    <noscript><button class="cb sm">Show</button></noscript>
+    <span class="ws-muted">{{ total }} event{{ 's' if total != 1 }}</span>
+  </form>
+  <div style="overflow-x:auto">
+  <table class="ws-people">
+    <thead><tr><th>When ({{ TZ() if TZ is defined else 'IST' }})</th><th>Who</th><th>What</th><th>Details</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr class="{{ 'sec-bad' if r.event in ('signin_failed', 'two_step_failed') }}">
+      <td style="white-space:nowrap">{{ r.created_at|ist('%d %b, %H:%M') }}</td>
+      <td>{{ who_name(r) }}</td>
+      <td>{{ WORDS.get(r.event) or r.event.replace('_', ' ')|capitalize }}</td>
+      <td class="ws-muted">{{ detail(r) }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" class="ws-muted">Nothing in this period.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if pages > 1 %}
+  <nav class="sec-pager" aria-label="Pages">
+    {% if page > 1 %}<a class="cb sm" href="{{ url_for('security.index', tab='log', kind=kind, who=who, days=days, page=page - 1) }}">Newer</a>{% endif %}
+    <span class="ws-muted">Page {{ page }} of {{ pages }}</span>
+    {% if page < pages %}<a class="cb sm" href="{{ url_for('security.index', tab='log', kind=kind, who=who, days=days, page=page + 1) }}">Older</a>{% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

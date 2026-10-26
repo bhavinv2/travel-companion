@@ -7,7 +7,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from app import db, wants_json
 from app.models import User, ContactPoint, ActivityEvent
 from app.services.storage import save_public_image
-from app.services import mailer, tokens
+from app.services import mailer, signin, tokens
 from app.services.ratelimit import rate_limit
 from datetime import datetime
 import requests as http_requests
@@ -87,6 +87,7 @@ def verify_email(token):
         db.session.commit()
     flash('Your e-mail address is confirmed. Thank you!', 'success')
     if not current_user.is_authenticated:
+        signin.mark_how('e-mail link')
         login_user(user)
     return redirect(url_for('main.dashboard') if not user.is_cs else staff_home(user))
 
@@ -206,6 +207,7 @@ def google_callback():
         user.set_password(os.urandom(24).hex())
         db.session.add(user)
 
+    signin.mark_how('google')
     if not login_user(user):
         db.session.rollback()
         flash('This account has been deactivated. Contact support if you think this is a mistake.', 'danger')
@@ -265,6 +267,7 @@ def _finish_oauth_login(provider, oauth_id, email, first_name, last_name, photo_
         user.set_password(os.urandom(24).hex())
         db.session.add(user)
 
+    signin.mark_how(provider)
     if not login_user(user):
         db.session.rollback()
         flash('This account has been deactivated. Contact support if you think this is a mistake.', 'danger')
@@ -431,6 +434,7 @@ def register():
             db.session.add(user)
             db.session.commit()
             sent = send_verification_email(user)
+            signin.mark_how('sign-up')
             login_user(user)
             if is_ajax:
                 return jsonify({'success': True, 'verification_sent': sent})
@@ -490,6 +494,7 @@ def login():
             flash(f'Welcome back, {user.first_name or user.username}!', 'success')
             return redirect(target)
         else:
+            signin.failed(email, 'inactive' if user and not user.is_active else 'password')
             if is_ajax:
                 return jsonify({'success': False, 'errors': ['Invalid email or password.']}), 400
             flash('Invalid email or password.', 'danger')
@@ -524,6 +529,7 @@ def logout():
     that is a way to push somebody onto a login form that is not ours. A GET should not change
     state; this one changed the most visible state there is.
     """
+    signin.signed_out(current_user)
     logout_user()
     session.pop('view', None)
     session.pop('act_role', None)
@@ -581,7 +587,10 @@ def change_password():
         current_user.set_password(pw)
         ActivityEvent.log('password_changed', actor=current_user)
         db.session.commit()
-        flash('Your password has been changed.', 'success')
+        # every other browser and "remember me" cookie stops working; this one stays signed in
+        me = current_user._get_current_object()
+        signin.sign_out_everywhere(me, 'password', by=me)
+        flash('Your password has been changed. Any other browser signed in as you was signed out.', 'success')
         return redirect(url_for('auth.change_password'))
     return render_template('auth/change_password.html', has_password=has_password)
 
@@ -607,7 +616,150 @@ def reset_password(token):
             mark_email_verified(user)   # they proved they control the mailbox
         ActivityEvent.log('password_reset', actor=user)
         db.session.commit()
+        signin.sign_out_everywhere(user, 'password', keep_this=False)     # whoever had the old password is out
+        signin.mark_how('reset')
         login_user(user)
         flash('Your password has been changed.', 'success')
         return redirect(url_for('main.dashboard'))
     return render_template('auth/reset.html', token=token)
+
+
+# ---------------------------------------------------------------------------
+# Two-step sign-in and "Sign-in & security" (services/signin.py, services/totp.py)
+# ---------------------------------------------------------------------------
+
+@auth_bp.route('/two-step', methods=['GET', 'POST'])
+@login_required
+@rate_limit(10, 300, counts=_failed_login)
+def two_step():
+    """The second step: the six digits from the authenticator app, or one backup code. Asked once per browser
+    (signin.guard sends people here), or once per 30 days on a browser they trust."""
+    from app.services import totp
+    user = current_user._get_current_object()
+    if not user.two_step_on or session.get('two_step_ok'):
+        return redirect(_safe_next(session.pop('two_step_next', None)) or staff_home(user))
+    if request.method == 'POST':
+        given = request.form.get('code') or ''
+        how = 'code' if totp.verify(user.totp_secret, given) else None
+        if how is None:
+            used, left = totp.use_backup_code(user.backup_codes, given)
+            if used:
+                user.backup_codes, how = left, 'backup code'
+        if how:
+            signin.passed_two_step(user, how=how)
+            resp = redirect(_safe_next(session.pop('two_step_next', None)) or staff_home(user))
+            if request.form.get('trust') == 'on':
+                signin.trust_device(resp, user)
+            if how == 'backup code':
+                flash('Signed in with a backup code: %d left. Make new ones under Sign-in & security if that is few.'
+                      % len(user.backup_codes or []), 'warning')
+            return resp
+        ActivityEvent.log('two_step_failed', actor=user)
+        db.session.commit()
+        flash('That code is not right. Type the newest code your app shows, or one of your backup codes.', 'danger')
+        return render_template('auth/two_step.html'), 400
+    return render_template('auth/two_step.html')
+
+
+def _security_page(**extra):
+    from app.services import totp
+    user = current_user._get_current_object()
+    pending = session.get('totp_pending')
+    ctx = dict(sessions=signin.open_sessions(user), here=signin.current_row(), required=signin.required_for(user),
+               rule=signin.TWO_STEP_RULES[signin.rules()['two_step']], setup=request.args.get('setup'),
+               codes=None, pending=None, qr=None, codes_left=len(user.backup_codes or []))
+    if pending and not user.two_step_on:
+        ctx['pending'] = ' '.join(pending[i:i + 4] for i in range(0, len(pending), 4))
+        ctx['qr'] = totp.qr_svg(totp.uri(pending, user.email))
+    ctx.update(extra)
+    return render_template('auth/security.html', **ctx)
+
+
+@auth_bp.route('/security', methods=['GET', 'POST'])
+@login_required
+def security():
+    """Your own sign-in security: two-step sign-in, and the browsers signed in as you (end one, or all others)."""
+    from app.models import UserSession
+    user = current_user._get_current_object()
+    if request.method == 'POST':
+        here = signin.current_row()
+        if request.form.get('action') == 'others':
+            n = signin.end_others(user, 'ended')
+            ActivityEvent.log('signed_out_elsewhere', actor=user, sessions=n)
+            db.session.commit()
+            flash(('Signed out of %d other browser%s.' % (n, '' if n == 1 else 's')) if n else
+                  'No other browser was signed in as you.', 'success')
+        else:
+            sid = request.form.get('sid') or ''
+            row = (UserSession.query.filter_by(id=int(sid), user_id=user.id, ended_at=None).first()
+                   if sid.isdigit() else None)
+            if row is not None and (here is None or row.id != here.id):
+                signin.end(row, 'ended')
+                ActivityEvent.log('session_ended', actor=user, user_id=user.id, session_id=row.id, reason='ended')
+                db.session.commit()
+                flash('Signed out of %s.' % row.device, 'success')
+        return redirect(url_for('auth.security') + '#sessions')
+    return _security_page()
+
+
+@auth_bp.route('/security/two-step', methods=['POST'])
+@login_required
+@rate_limit(20, 900)
+def security_two_step():
+    """Turn two-step sign-in on (start: a new key and its QR code; confirm: the first code from the app), off, or
+    make new backup codes. Turning off and new codes ask for a code first; the rules may forbid turning it off."""
+    from app.services import totp
+    user = current_user._get_current_object()
+    action = request.form.get('action')
+    code = request.form.get('code') or ''
+    back = url_for('auth.security', setup=request.args.get('setup') or None) + '#two-step'
+
+    def proven():
+        if totp.verify(user.totp_secret, code):
+            return True
+        used, left = totp.use_backup_code(user.backup_codes, code)
+        if used:
+            user.backup_codes = left
+        return used
+
+    if action == 'start' and not user.two_step_on:
+        session['totp_pending'] = totp.new_secret()
+        return redirect(back)
+    if action == 'cancel':
+        session.pop('totp_pending', None)
+        return redirect(back)
+    if action == 'confirm' and not user.two_step_on:
+        pending = session.get('totp_pending')
+        if not pending or not totp.verify(pending, code):
+            flash('That code is not right. Type the six digits your app shows now for NRI Parent Service.', 'danger')
+            return redirect(back)
+        plain, hashed = totp.new_backup_codes()
+        user.totp_secret, user.totp_on_at, user.backup_codes = pending, datetime.utcnow(), hashed
+        session.pop('totp_pending', None)
+        ActivityEvent.log('two_step_on', actor=user)
+        signin.passed_two_step(user, how='set up')
+        flash('Two-step sign-in is on. Keep the backup codes below somewhere safe: each works once if you lose '
+              'your phone.', 'success')
+        return _security_page(codes=plain)
+    if action == 'off' and user.two_step_on:
+        if signin.required_for(user):
+            flash('Two-step sign-in is required for your account (%s), so it cannot be turned off.'
+                  % signin.TWO_STEP_RULES[signin.rules()['two_step']].lower(), 'warning')
+        elif not proven():
+            flash('That code is not right, so two-step sign-in is still on.', 'danger')
+        else:
+            user.totp_secret = user.totp_on_at = user.backup_codes = None
+            ActivityEvent.log('two_step_off', actor=user)
+            db.session.commit()
+            flash('Two-step sign-in is off.', 'success')
+        return redirect(back)
+    if action == 'codes' and user.two_step_on:
+        if not proven():
+            flash('That code is not right, so your backup codes did not change.', 'danger')
+            return redirect(back)
+        plain, user.backup_codes = totp.new_backup_codes()
+        ActivityEvent.log('two_step_codes', actor=user)
+        db.session.commit()
+        flash('New backup codes. The old ones no longer work.', 'success')
+        return _security_page(codes=plain)
+    return redirect(back)

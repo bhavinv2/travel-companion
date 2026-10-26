@@ -41,6 +41,26 @@ def register(app):
         access.sync_account(u)
         click.echo(f"{u.username} is a Super admin now (roles: {', '.join(u.role_keys)})")
 
+    @app.cli.command('two-step-off')
+    @click.argument('email')
+    def two_step_off(email):
+        """Turn off somebody's two-step sign-in and sign them out everywhere -- the way back in for an admin who
+        lost their phone and their backup codes when no other admin can do it under Team > Security."""
+        from app.models import ActivityEvent, User
+        u = User.query.filter_by(email=email.lower()).first()
+        if not u:
+            raise click.ClickException(f'No user with email {email}')
+        u.totp_secret = u.totp_on_at = u.backup_codes = None
+        u.session_version = (u.session_version or 0) + 1
+        from app.models import UserSession
+        from datetime import datetime
+        UserSession.query.filter_by(user_id=u.id, ended_at=None).update(
+            {'ended_at': datetime.utcnow(), 'ended_reason': 'two_step'})
+        ActivityEvent.log('two_step_reset', user_id=u.id, by='command line')
+        db.session.commit()
+        click.echo(f'{u.username}: two-step sign-in is off and every session is signed out. They set it up again '
+                   f'after their password.')
+
     @app.cli.command('make-admin')
     @click.argument('email')
     def make_admin(email):

@@ -41,7 +41,13 @@ def _page_args(default_per=25):
     return page, per_page
 
 
+def _admin_login_failed(response):
+    """A wrong password re-draws the form (200); getting in is a redirect."""
+    return response.status_code not in (301, 302, 303)
+
+
 @admin_bp.route('/login', methods=['GET', 'POST'])
+@rate_limit(10, 300, counts=_admin_login_failed)
 def admin_login():
     if current_user.is_authenticated and current_user.is_admin:
         return redirect(url_for('admin.health'))
@@ -54,6 +60,8 @@ def admin_login():
             user.last_login = datetime.utcnow()
             db.session.commit()
             return redirect(url_for('admin.health'))
+        from app.services import signin
+        signin.failed(email, 'admin page')
         flash('Invalid credentials or not an admin account.', 'danger')
     return render_template('admin/login.html')
 

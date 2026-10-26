@@ -260,6 +260,24 @@
             {% endfor %}
           </div>
         </div>
+        {# "+": make something new from any screen (Ctrl+Shift+K), only what this person's role allows (main.js) #}
+        {% set qc = [] %}
+        {% if CAN('crm_add') %}{% if qc.append((crm_url('add'), 'fa-user-plus', 'Lead')) %}{% endif %}{% endif %}
+        {% if CAN('new') %}{% if qc.append((url_for('cs.new_post'), 'fa-plane-departure', 'Companion post')) %}{% endif %}{% endif %}
+        {% if CAN('blog') %}{% if qc.append((url_for('admin.new_blog'), 'fa-pen', 'Blog post')) %}{% endif %}{% endif %}
+        {% if CAN('crm_data') %}{% if qc.append((crm_url('data'), 'fa-file-import', 'Import a list')) %}{% endif %}{% endif %}
+        {% if qc %}
+        <div class="qc-dd" id="qcDD">
+          <button type="button" class="notif-btn qc-btn" data-qc-toggle aria-haspopup="menu" aria-expanded="false"
+                  title="Make something new (Ctrl+Shift+K)" aria-label="Make something new"><i class="fa-solid fa-plus"></i></button>
+          <div class="qc-menu" role="menu" hidden>
+            <div class="qc-head">Make new <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd></div>
+            {% for href, icon, label in qc %}
+            <a href="{{ href }}" role="menuitem"><i class="fa-solid {{ icon }}"></i> {{ label }}<kbd>{{ loop.index }}</kbd></a>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
         {% if CAN('crm_calendar') %}
         <a href="{{ crm_url('calendar', view='week') }}" class="notif-btn nav-cal{{ ' active' if request.endpoint in ('crm.calendar', 'admin_crm.calendar') }}" title="Calendar: tasks, calls, meetings and follow-ups" aria-label="Calendar"><i class="fa-solid fa-calendar-days"></i></a>
         {% endif %}
@@ -347,6 +365,7 @@
               <a href="{{ url_for('main.promo_dashboard') }}"><i class="fa-solid fa-chart-line"></i> {{ _('Promotion dashboard') }}</a>
             {% endif %}
               <a href="{{ url_for('auth.change_password') }}"><i class="fa-solid fa-key"></i> {{ _('Change password') }}</a>
+              <a href="{{ url_for('auth.security') }}"><i class="fa-solid fa-shield-halved"></i> {{ _('Sign-in & security') }}</a>
               {# a form, not a link: signing somebody out is a state change, and a GET one can
                  be triggered by any page that can make this browser fetch a URL #}
               <form method="post" action="{{ url_for('auth.logout') }}" class="menu-logout">
@@ -461,7 +480,8 @@
 
   <script>
     const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
-    const IS_LOGGED_IN = {{ 'true' if current_user.is_authenticated else 'false' }};
+    {# while two-step sign-in waits for its code nothing else answers, so the page does not poll either #}
+    const IS_LOGGED_IN = {{ 'true' if current_user.is_authenticated and request.endpoint != 'auth.two_step' else 'false' }};
     const CURRENT_USER_ID = {{ current_user.id if current_user.is_authenticated else 'null' }};
     const IS_CS = {{ 'true' if current_user.is_authenticated and current_user.is_cs else 'false' }};
   </script>

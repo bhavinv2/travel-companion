@@ -3426,6 +3426,30 @@ function wireBulkSelect(headId, rowSelector, onChange) {
     fold(s, 'sub:' + s.dataset.sub, s.querySelector('[data-sub-toggle]'));
   });
 
+  // the rail of sections (a computer): one section's lines at a time; a click on the collapsed rail opens the menu
+  nav.querySelectorAll('[data-area-tab]').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      const key = tab.dataset.areaTab;
+      nav.querySelectorAll('[data-area-tab]').forEach(function (t) {
+        t.classList.toggle('on', t === tab);
+        t.setAttribute('aria-pressed', t === tab ? 'true' : 'false');
+      });
+      nav.querySelectorAll('.sn-group').forEach(function (g) {
+        const cur = g.dataset.group === key;
+        g.classList.toggle('current', cur);
+        // a section's sub-menus all open with it: its lines fit beside the rail
+        if (cur) g.querySelectorAll('.sn-sub').forEach(function (s) {
+          s.classList.add('open');
+          const h = s.querySelector('[data-sub-toggle]');
+          if (h) h.setAttribute('aria-expanded', 'true');
+        });
+      });
+      const page = document.querySelector('.admin-page');
+      const toggle = document.querySelector('[data-rail-toggle]');
+      if (page && toggle && page.classList.contains('is-rail')) toggle.click();
+    });
+  });
+
   const find = nav.querySelector('[data-nav-find]');
   const none = nav.querySelector('[data-nav-none]');
   if (!find) return;
@@ -3524,3 +3548,39 @@ document.addEventListener('submit', function (e) {
   const form = e.target.closest('form[data-confirm]');
   if (form && !window.confirm(form.dataset.confirm)) e.preventDefault();
 }, true);
+
+/* ===== "+" in the staff header: make something new (base.html) ==========================
+ * Ctrl+Shift+K opens it from any screen; 1, 2, 3 ... open the lines; Esc or a click elsewhere closes it.
+ */
+(function () {
+  const dd = document.getElementById('qcDD');
+  if (!dd) return;
+  const btn = dd.querySelector('[data-qc-toggle]');
+  const menu = dd.querySelector('.qc-menu');
+  const links = () => Array.prototype.slice.call(menu.querySelectorAll('a'));
+  const isOpen = () => !menu.hidden;
+  function show(open) {
+    menu.hidden = !open;
+    dd.classList.toggle('open', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open && links()[0]) links()[0].focus();
+  }
+  btn.addEventListener('click', function () { show(!isOpen()); });
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'K' || e.key === 'k')) {
+      e.preventDefault();
+      show(!isOpen());
+      return;
+    }
+    if (!isOpen()) return;
+    if (e.key === 'Escape') { show(false); btn.focus(); return; }
+    const n = parseInt(e.key, 10);
+    if (n >= 1 && n <= links().length && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      window.location.href = links()[n - 1].href;
+    }
+  });
+  document.addEventListener('click', function (e) {
+    if (isOpen() && !dd.contains(e.target)) show(false);
+  });
+})();

@@ -78,6 +78,8 @@ def claim_page(token):
             user.set_password(password)
             db.session.add(user)
             db.session.flush()
+            from app.services import signin
+            signin.mark_how('claim')
             login_user(user)
             # no "confirm your e-mail": only accounts made on the sign-up page are asked (User.needs_email_check)
 
