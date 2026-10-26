@@ -1,0 +1,46 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{% block crm_title %}Integrations{% endblock %}
+{% block crm %}
+{% set CHIP = {'on': 'ok', 'warn': 'due', 'off': '', 'info': 'info'} %}
+{{ page_head('Integrations', 'fa-solid fa-puzzle-piece',
+             'Everything the portal is connected to: what each one does, whether it works, and how to connect it.',
+             help=['Each card shows whether that integration is working right now, from what this server knows. Nothing is checked over the internet on this page.',
+                   'Open a card for its Overview, its Installation (the address or snippet to paste in the other system) and its Settings.',
+                   "Keys and passwords are never shown here, only whether the server has them.",
+                   'An integration whose settings already live on another screen (WhatsApp, AI) links there.']) }}
+
+<div class="ig-sum" aria-label="How the integrations are doing">
+  <span class="chip ok"><b>{{ counts.on }}</b>&nbsp;working</span>
+  {% if counts.warn %}<span class="chip due"><b>{{ counts.warn }}</b>&nbsp;need a look</span>{% endif %}
+  <span class="chip"><b>{{ counts.off }}</b>&nbsp;not set up</span>
+</div>
+
+<div class="ig-bar">
+  <label class="ig-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+    <input type="search" placeholder="Search integrations" aria-label="Search integrations" data-ig-search/></label>
+  <nav class="ig-groups" aria-label="Kinds of integration">
+    <a href="{{ crm_url('integrations_page') }}" class="{{ 'on' if not group }}"{% if not group %} aria-current="page"{% endif %}>All</a>
+    {% for g, gname in GROUPS %}
+    <a href="{{ crm_url('integrations_page', group=g) }}" class="{{ 'on' if group == g }}"{% if group == g %} aria-current="page"{% endif %}>{{ gname }}</a>
+    {% endfor %}
+  </nav>
+</div>
+
+<div class="ig-grid" data-ig-grid>
+  {% for c in rows if not group or c.group == group %}
+  <a class="ig-card ig-{{ c.state }}" href="{{ crm_url('integration', key=c.key) }}" data-ig-card data-words="{{ (c.name ~ ' ' ~ c.says)|lower }}">
+    <span class="ig-logo" style="--ig:{{ c.color }}"><i class="{{ c.icon }}" aria-hidden="true"></i></span>
+    <span class="ig-name">{{ c.name }}</span>
+    <span class="ig-kind">{{ dict(GROUPS)[c.group] }}</span>
+    <span class="ig-says">{{ c.says }}</span>
+    <span class="ig-foot">
+      <span class="chip {{ CHIP[c.state] }}">{{ c.chip }}</span>
+      <span class="ig-last">{% if c.last %}Last {{ c.last|ist('%d %b, %H:%M') }}{% endif %}</span>
+    </span>
+  </a>
+  {% endfor %}
+</div>
+<p class="crm-blank" data-ig-none hidden>No integration matches that. Try another word, or <a href="{{ crm_url('integrations_page') }}">show them all</a>.</p>
+{% endblock %}
+{% block extra_js %}{{ super() }}<script src="{{ url_for('static', filename='js/crm-integrations.js') }}" defer></script>{% endblock %}

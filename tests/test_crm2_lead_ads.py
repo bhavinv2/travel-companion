@@ -5,7 +5,8 @@
              idempotent on the leadgen id
     google   POST /api/crm/google-leads: 404 while CRM_GOOGLE_LEADS_KEY is unset, 403 for a wrong key, test leads answered
              and not stored, idempotent on lead_id
-    help     Lead sources explains the Meta permission (leads_retrieval) and the webhook field (leadgen)
+    help     Lead sources links to the Integrations cards, which explain the Meta permission (leads_retrieval) and
+             the webhook field (leadgen)
 """
 import hashlib
 import hmac
@@ -245,12 +246,22 @@ def test_both_doors_are_public_like_the_other_webhooks(app):
 # ====================================================================================== the help box
 
 def test_lead_sources_explains_what_to_set_up(app, client, admin_user, monkeypatch):
+    """Lead sources says what happens to an ad form's leads and links to the two cards under Integrations, which say
+    how to connect them (one home for the how-to)."""
     monkeypatch.delenv('CRM_GOOGLE_LEADS_KEY', raising=False)
     login(client, admin_user.email)
-    page = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', client.get('/admin/crm/sources').get_data(as_text=True)))
-    assert 'Lead ads' in page and 'leads_retrieval' in page and 'leadgen' in page
-    assert '/api/crm/meta-webhook' in page and '/api/crm/google-leads' in page and 'CRM_GOOGLE_LEADS_KEY' in page
-    assert 'Not switched on' in page
+
+    def text(url):
+        return re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', client.get(url).get_data(as_text=True)))
+    page = text('/admin/crm/sources')
+    assert 'Lead ads' in page and 'Not switched on' in page
+    html = client.get('/admin/crm/sources').get_data(as_text=True)
+    assert '/admin/crm/integrations/meta' in html and '/admin/crm/integrations/google' in html
+    meta_card = text('/admin/crm/integrations/meta?tab=install')
+    assert 'leads_retrieval' in meta_card and 'leadgen' in meta_card and '/api/crm/meta-webhook' in meta_card
+    google_card = text('/admin/crm/integrations/google?tab=install')
+    assert '/api/crm/google-leads' in google_card and 'CRM_GOOGLE_LEADS_KEY' in google_card
     monkeypatch.setenv('CRM_GOOGLE_LEADS_KEY', KEY)
-    assert 'Ready' in re.sub(r'<[^>]+>', ' ', client.get('/admin/crm/sources').get_data(as_text=True))
-    assert KEY not in client.get('/admin/crm/sources').get_data(as_text=True)          # the key itself is never shown
+    assert 'Ready' in text('/admin/crm/sources') and 'Ready' in text('/admin/crm/integrations/google')
+    for url in ('/admin/crm/sources', '/admin/crm/integrations/google?tab=install', '/admin/crm/integrations/google?tab=settings'):
+        assert KEY not in client.get(url).get_data(as_text=True)          # the key itself is never shown

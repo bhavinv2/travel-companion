@@ -7,6 +7,7 @@
     window.alert(msg);
   }
   function copy(text) {
+    if (window.CRM && window.CRM.copy) return window.CRM.copy(text);
     if (navigator.clipboard && navigator.clipboard.writeText) {
       return navigator.clipboard.writeText(text);
     }

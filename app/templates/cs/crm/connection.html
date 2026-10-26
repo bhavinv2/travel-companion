@@ -4,6 +4,7 @@
 {% from 'cs/crm/setup/_macros.html' import csrf with context %}
 {% block crm_title %}WhatsApp{% endblock %}
 {% block crm %}
+<a class="ig-back" href="{{ crm_url('integrations_page') }}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Integrations</a>
 {{ tab_strip('crm_connection') }}
 {{ page_head('WhatsApp — connection', 'fa-solid fa-plug',
              'Whether the Sales CRM and WhatsApp are talking to each other, and what to fix if not.',
@@ -135,7 +136,7 @@
   <p class="hint">Reads who the key belongs to. Sends nothing.</p>
   {% if not wa_secret %}<p class="hint bad">⚠ There is no replies secret yet, so replies from WhatsApp are refused. Press Connect replies, or set WACRM_WEBHOOK_SECRET.</p>{% endif %}
   <ul class="conn-env">{% for name, on in env.items() %}<li><code>{{ name }}</code> — {{ 'set' if on else 'not set' }}</li>{% endfor %}</ul>
-  <p class="hint">Forms on other websites send leads to <code>{{ intake_url }}</code> (list those sites in <code>CRM_INTAKE_ORIGINS</code>); the form script is <code>{{ snippet_url }}</code>.</p>
+  <p class="hint">Forms on our websites, and on other websites, are under <a href="{{ crm_url('integration', key='website') }}">Integrations › Website lead forms</a>.</p>
 </details>
 {% endif %}
 {% endblock %}

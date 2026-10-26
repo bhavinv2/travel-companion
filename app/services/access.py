@@ -181,11 +181,20 @@ MODULES = [
                admin='admin_crm.targets', with_=('crm_tracker',), grant=True,
                desc='What each person and team aims for each month. Comes with Team today: a team lead sets the targets of their teams.',
                tip='What each person and team aims for each month.'),
+         # every integration as a card (services/integrations.py); WhatsApp's own page is one of them, with no line
+         _page('crm_integrations', 'Integrations', 'fa-puzzle-piece',
+               _both('integrations_page', 'integration', 'integration_save'),
+               admin='admin_crm.integrations_page', with_=('crm_connection', 'wa_settings'), grant=True,
+               desc='Everything the portal is connected to: WhatsApp, tawk.to chat, Facebook & Instagram, e-mail, '
+                    'website forms, Google lead forms, payment links, AI and more. What each does, whether it works, '
+                    'and how to connect it. Comes with WhatsApp.',
+               tip='Everything the portal is connected to, and whether each one works.'),
          _page('crm_connection', 'WhatsApp', 'fa-plug',
                _both('connection', 'save_whatsapp', 'setup', 'connection_checks', 'connection_team',
                      'connection_retry', 'connection_settle', 'quick_replies_push', 'quick_replies_import',
                      'email_sender_save'),
-               admin='admin_crm.connection', with_=('wa_settings',), grant=True,
+               admin='admin_crm.connection', nav=False, with_=('wa_settings',), grant=True,
+               desc='Is WhatsApp linked, what to fix if not, and the number. Opens from its card under Integrations.',
                tip='Is WhatsApp linked, what to fix if not, and the number.'),
          _page('crm_data', 'Import & export', 'fa-file-arrow-up',
                _both('data', 'backfill', 'import_sheet', 'import_confirm', 'setup', 'import_csv',
@@ -415,7 +424,8 @@ SECTIONS = [
         {'key': 'daily', 'label': 'Daily work', 'icon': 'fa-sun',
          'pages': ('crm_today', 'crm_checks', 'wa_inbox', 'crm_board', 'crm_calendar', 'crm_people', 'crm_add', 'crm_flow')},
         {'key': 'setup', 'label': 'Set-up', 'icon': 'fa-sliders',
-         'pages': ('crm_pipelines', 'crm_auto', 'crm_rules', 'crm_quick', 'crm_sources', 'crm_targets', 'crm_connection', 'crm_data',
+         'pages': ('crm_pipelines', 'crm_auto', 'crm_rules', 'crm_quick', 'crm_sources', 'crm_targets', 'crm_integrations',
+                   'crm_connection', 'crm_data',
                    'crm_bin', 'wa_templates', 'wa_broadcasts', 'wa_tags', 'wa_automations', 'wa_flows',
                    'wa_ai', 'wa_settings')},
     )},
@@ -499,7 +509,10 @@ TAB_HOST.update({'crm_flow': 'crm_board', 'crm_process': 'crm_board', 'crm_bin':
 # line it moved under, opening that page (nothing is taken away from a role that held it).
 LINE_VIA = {'crm_board': ('crm_process',), 'crm_insights': ('crm_forecast',),
             'crm_quick': ('wa_templates', 'wa_broadcasts', 'wa_tags'),
-            'crm_auto': ('wa_automations', 'wa_flows', 'wa_ai'), 'crm_connection': ('wa_settings',)}
+            'crm_auto': ('wa_automations', 'wa_flows', 'wa_ai')}
+# Screens that open from a card on another line's page rather than a tab strip: that line lights up while they are
+# open (WhatsApp, and its Number tab, are a card under Integrations).
+LINE_OF = {'crm_connection': 'crm_integrations'}
 
 
 def tabs_for(page_key, user=None):
@@ -550,6 +563,12 @@ def _menu_place(key):
     sec = SECTION_BY_KEY[p['section']]
     sub = next((b for b in sec.get('subs', ()) if b['key'] == p.get('sub')), None)
     words = [sec['label']] + ([sub['label']] if sub else [])
+    line = LINE_OF.get(host or key)
+    if line:          # a card under another line's page: "Sales CRM › Set-up › Integrations › WhatsApp (a card)"
+        words.append('%s › %s (a card)' % (PAGES[line]['label'], p['label']))
+        if host:
+            words.append('%s (a tab)' % PAGES[key]['label'])
+        return ' › '.join(words)
     if host in SWITCHES:
         words.append('%s (switch at the top right)' % p['label'])
     elif host == 'guide':
@@ -970,6 +989,7 @@ def active_page(fallback=None):
     if not owners:
         return fallback if fallback in PAGES else None
     owners = {TAB_HOST.get(k, k) for k in owners} | owners          # a tab lights its menu line
+    owners |= {LINE_OF[k] for k in owners if k in LINE_OF}          # a card's screen lights the line of the cards
     best, best_score = None, -1
     for key in (k for m in MODULES for k in (p['key'] for p in m['pages']) if k in owners):
         page = PAGES[key]

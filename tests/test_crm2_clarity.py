@@ -47,7 +47,7 @@ def test_the_sales_menu_has_daily_work_and_set_up_only(app, admin_user):
     assert [i['label'] for i in sales['subs'][0]['items']] == ['My day', 'Half-hourly check', 'WhatsApp chats', 'Leads',
                                                               'Calendar', 'Contacts']
     assert [i['label'] for i in sales['subs'][1]['items']] == [
-        'Pipelines & products', 'Automation', 'Messages', 'Lead sources', 'Targets', 'WhatsApp', 'Import & export']
+        'Pipelines & products', 'Automation', 'Messages', 'Lead sources', 'Targets', 'Integrations', 'Import & export']
     overview = [i['label'] for i in groups['overview']['items']]
     # Health opens the menu; the reports are a menu of their own (tests/test_health.py)
     assert overview[0] == 'Health' and 'Sales results' not in overview and 'Team today' not in overview

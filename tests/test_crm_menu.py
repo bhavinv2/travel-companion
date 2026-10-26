@@ -158,7 +158,7 @@ def test_the_administrator_sees_every_section_in_order(app, admin_user):
     assert [s['key'] for s in sales['subs']] == ['sales.' + k for k in SALES_SUBS]
     assert [i['label'] for i in sales['subs'][0]['items']][:3] == ['My day', 'Half-hourly check', 'WhatsApp chats']
     assert [i['label'] for i in sales['subs'][1]['items']] == [
-        'Pipelines & products', 'Automation', 'Messages', 'Lead sources', 'Targets', 'WhatsApp', 'Import & export']
+        'Pipelines & products', 'Automation', 'Messages', 'Lead sources', 'Targets', 'Integrations', 'Import & export']
     # Health first in Overview; the reports a menu of their own (tests/test_health.py has the rest)
     overview = [i['label'] for i in next(g for g in groups if g['key'] == 'overview')['items']]
     assert overview[0] == 'Health'
@@ -167,7 +167,7 @@ def test_the_administrator_sees_every_section_in_order(app, admin_user):
         assert line not in flat
     for line in ('Health', 'Sales results', 'Team today', 'Report builder', 'Downloads', 'Site dashboard',
                  'Help centre', 'Half-hourly check', 'My day', 'Leads', 'Messages', 'Automation',
-                 'Pipelines & products', 'Lead sources', 'WhatsApp', 'Import & export',
+                 'Pipelines & products', 'Lead sources', 'Integrations', 'Import & export',
                  'Team members', 'Teams', 'Roles', 'Workspace'):
         assert line in flat, line
     # lines with no menu entry: reachable from the page that needs them

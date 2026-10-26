@@ -2586,8 +2586,10 @@ INTAKE_FIELDS = 30
 
 
 def _cors(resp):
-    origins = [o.strip().rstrip('/') for o in (current_app.config.get('CRM_INTAKE_ORIGINS') or '').split(',')
-               if o.strip()]
+    """Forms on another website may send leads when that website is listed: on the server (CRM_INTAKE_ORIGINS) or
+    by an admin under Set-up > Integrations > Website lead forms (services/integrations.intake_origins)."""
+    from app.services import integrations
+    origins = integrations.intake_origins()
     origin = (request.headers.get('Origin') or '').rstrip('/')
     if origin and origin in origins:
         resp.headers['Access-Control-Allow-Origin'] = origin

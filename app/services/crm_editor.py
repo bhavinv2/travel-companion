@@ -215,9 +215,10 @@ def first_stage_name(pipe):
 def form_snippet(key, code, url):
     """What a developer pastes on a page to send its form's leads here (shown escaped, so this file holds no
     raw phone input in any template)."""
-    return ('<form data-lead-source="%s" data-product="%s">\n'
+    product = ' data-product="%s"' % code if code else ''          # no product: the source's pipeline decides
+    return ('<form data-lead-source="%s"%s>\n'
             '<input name="name"> <input name="phone"> <input name="email"> <textarea name="message"></textarea>\n'
-            '<button>Send</button>\n</form>\n<script src="%s" defer></script>' % (key, code, url))
+            '<button>Send</button>\n</form>\n<script src="%s" defer></script>' % (key, product, url))
 
 
 def button_code(label, taken):

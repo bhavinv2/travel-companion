@@ -1,0 +1,126 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from 'cs/crm/setup/_macros.html' import csrf with context %}
+{% block crm_title %}{{ c.name }} · Integrations{% endblock %}
+{% block crm %}
+{% set CHIP = {'on': 'ok', 'warn': 'due', 'off': '', 'info': 'info'} %}
+<a class="ig-back" href="{{ crm_url('integrations_page') }}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Integrations</a>
+<header class="ig-head">
+  <span class="ig-logo lg" style="--ig:{{ c.color }}"><i class="{{ c.icon }}" aria-hidden="true"></i></span>
+  <div class="ig-head-text">
+    <h1>{{ c.name }}</h1>
+    <p class="muted">{{ c.says }}</p>
+  </div>
+  <span class="chip {{ CHIP[c.state] }} ig-head-chip">{{ c.chip }}</span>
+</header>
+
+<nav class="subtabs" aria-label="{{ c.name }}">
+  {% for t, label in TABS %}
+  <a href="{{ crm_url('integration', key=c.key, tab=t) }}" class="{{ 'on' if tab == t }}"{% if tab == t %} aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+
+{% if tab == 'overview' %}
+<div class="ig-cols">
+  <section class="card">
+    <h2>What it does</h2>
+    <ul class="ig-list">{% for line in c.overview %}<li>{{ line }}</li>{% endfor %}</ul>
+    {% if c.note %}<p class="ig-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> {{ c.note }}</p>{% endif %}
+  </section>
+  <aside class="card ig-side">
+    <h2>Right now</h2>
+    <ul class="ig-checks">{% for l in c.lines %}<li class="{{ 'ok' if l.ok else ('no' if l.ok is sameas false else 'mid') }}">{{ l.text }}</li>{% endfor %}</ul>
+    <p class="muted small">{% if c.last %}Last came in {{ c.last|ist('%d %b %Y, %H:%M') }} {{ TZ() }}{% elif c.state != 'off' %}Nothing has come in yet.{% endif %}</p>
+    {% if c.where %}<h3 class="small">Where you see it</h3>
+    <p class="ig-links">{% for label, url in c.where %}<a href="{{ url }}">{{ label }}</a>{% endfor %}</p>{% endif %}
+    {% if c.state != 'on' %}<a class="cb primary sm" href="{{ crm_url('integration', key=c.key, tab='install') }}">How to connect it</a>{% endif %}
+  </aside>
+</div>
+
+{% elif tab == 'install' %}
+<section class="card">
+  <h2>How to connect it</h2>
+  <ol class="ig-steps">{% for s in c.steps %}<li>{{ s }}</li>{% endfor %}</ol>
+  {% for f in c.addresses %}
+  <div class="ig-copy">
+    <span class="lb">{{ f.label }}</span>
+    <code id="{{ f.id }}">{{ f.value }}</code>
+    <button type="button" class="cb sm" data-copy-from="{{ f.id }}"><i class="fa-regular fa-copy" aria-hidden="true"></i> Copy</button>
+  </div>
+  {% endfor %}
+</section>
+{% if snippet %}
+<section class="card">
+  <h2>The snippet for a form</h2>
+  <form method="GET" action="{{ crm_url('integration', key=c.key) }}" class="row ig-pick">
+    <input type="hidden" name="tab" value="install"/>
+    <label class="lb" for="ig-form">Which form</label>
+    <select id="ig-form" name="form" onchange="this.form.submit()">
+      {% for k, name in c.sources %}<option value="{{ k }}"{{ ' selected' if k == snippet.key }}>{{ name }} ({{ k }})</option>{% endfor %}
+    </select>
+    <noscript><button class="cb sm">Show</button></noscript>
+  </form>
+  <pre class="ig-code" id="ig-snippet">{{ snippet.code }}</pre>
+  <button type="button" class="cb sm" data-copy-from="ig-snippet"><i class="fa-regular fa-copy" aria-hidden="true"></i> Copy the snippet</button>
+  <p class="hint">Put your own fields inside the form; name, phone, email and message are read by name. Pages on another website work once that website is on the <a href="{{ crm_url('integration', key=c.key, tab='settings') }}">Settings</a> tab.</p>
+</section>
+{% endif %}
+{% if c.env %}
+<details class="card dev ig-dev">
+  <summary>For the developer: server settings</summary>
+  <p class="hint">Names only. Their values are never shown on any screen.</p>
+  <ul class="ig-checks">{% for name, ok in c.env %}<li class="{{ 'ok' if ok else 'no' }}"><code>{{ name }}</code> {{ 'is set' if ok else 'is not set' }}</li>{% endfor %}</ul>
+</details>
+{% endif %}
+
+{% else %}
+<div class="ig-cols">
+  <section class="card">
+    <h2>Settings</h2>
+    <ul class="ig-checks">{% for l in c.lines %}<li class="{{ 'ok' if l.ok else ('no' if l.ok is sameas false else 'mid') }}">{{ l.text }}</li>{% endfor %}</ul>
+
+    {% if c.form == 'tawk' %}
+    <h3 class="small">The webhook's secret key</h3>
+    {% if c.saved.from_env %}
+    <p class="muted">The key is set on the server (<code>TAWK_WEBHOOK_SECRET</code>), so nothing is kept here.</p>
+    {% else %}
+    {% if c.saved.has %}<p class="muted">A key is saved{% if c.saved.at %} since {{ c.saved.at|ist('%d %b %Y') }}{% endif %}{% if c.saved.by %} by {{ c.saved.by }}{% endif %}. It is never shown again: paste a new one to replace it.</p>{% endif %}
+    <form method="POST" action="{{ crm_url('integration_save', key='tawk') }}" class="stack ig-form" autocomplete="off">{{ csrf() }}
+      <label class="lb" for="ig-tawk-secret">Secret Key from tawk.to</label>
+      <input id="ig-tawk-secret" type="password" name="secret" required minlength="16" maxlength="200" autocomplete="off" spellcheck="false" placeholder="Paste the Secret Key tawk shows for the webhook"/>
+      <p class="hint">tawk.to › Administration › Settings › Webhooks › your webhook › Secret Key.</p>
+      <div class="row"><button class="cb primary">{{ 'Replace the key' if c.saved.has else 'Save and connect' }}</button></div>
+    </form>
+    {% if c.saved.has %}
+    <form method="POST" action="{{ crm_url('integration_save', key='tawk') }}" data-ask="Remove the tawk.to key?" data-ask-line="tawk chats stop coming in as leads until a key is saved again." data-yes="Yes, remove it">{{ csrf() }}
+      <input type="hidden" name="action" value="remove"/>
+      <button class="cb quiet sm">Remove the key</button>
+    </form>
+    {% endif %}
+    {% endif %}
+
+    {% elif c.form == 'origins' %}
+    <h3 class="small">Other websites that may send leads</h3>
+    <p class="muted">Pages on this site always may. Add each other website whose forms use the snippet, such as a WordPress site.</p>
+    <form method="POST" action="{{ crm_url('integration_save', key='website') }}" class="stack ig-form">{{ csrf() }}
+      <label class="lb" for="ig-sites">One website per line</label>
+      <textarea id="ig-sites" name="sites" rows="5" placeholder="https://preventia360.com&#10;https://www.example.com">{{ c.sites.saved|join('\n') }}</textarea>
+      <p class="hint">Only https addresses. The page part is dropped: https://example.com/insurance keeps https://example.com.</p>
+      <div class="row"><button class="cb primary">Save</button></div>
+    </form>
+    {% if c.sites.env %}<p class="muted small">Also allowed by the server (<code>CRM_INTAKE_ORIGINS</code>): {{ c.sites.env|join(', ') }}</p>{% endif %}
+    {% endif %}
+  </section>
+  <aside class="card ig-side">
+    {% if c.home %}
+    <h2>Its settings</h2>
+    <p class="muted">{{ c.home.says }}</p>
+    <a class="cb primary" href="{{ c.home.url }}">{{ c.home.label }} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
+    {% else %}
+    <h2>Its settings</h2>
+    <p class="muted">{% if c.form %}Kept on this tab.{% elif c.env %}This one is set on the server: see Installation › For the developer.{% else %}Nothing to set here.{% endif %}</p>
+    {% endif %}
+    <p class="muted small">{% if c.last %}Last came in {{ c.last|ist('%d %b %Y, %H:%M') }} {{ TZ() }}{% endif %}</p>
+  </aside>
+</div>
+{% endif %}
+{% endblock %}

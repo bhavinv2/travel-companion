@@ -98,8 +98,30 @@
     });
   }
 
+  // copy words to the clipboard; an old browser gets a hidden text box and the copy command instead
+  function copy(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { if (document.execCommand('copy')) resolve(); else reject(); } catch (err) { reject(err); }
+      ta.remove();
+    });
+  }
+
   // the set-up screens (crm-setup.js) use the same helpers
-  window.CRM = { post: post, toast: toast, choose: choose, esc: esc, base: BASE };
+  window.CRM = { post: post, toast: toast, choose: choose, esc: esc, base: BASE, copy: copy };
+
+  // [data-copy="<text>"] copies that text; [data-copy-from="<an element's id>"] copies what that element shows
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-copy], [data-copy-from]');
+    if (!b) return;
+    var from = b.dataset.copyFrom && document.getElementById(b.dataset.copyFrom);
+    var text = from ? (from.value || from.textContent || '') : (b.dataset.copy || '');
+    copy(text.trim()).then(function () { toast('Copied'); },
+      function () { toast('Could not copy. Select the text and copy it by hand.', true); });
+  });
 
   /* -------------------------------------------------------------- dialogs, asking first, menus */
   // [data-dlg-open="<a dialog's id>"] opens that dialog; [data-dlg-close] closes the one it sits in.
