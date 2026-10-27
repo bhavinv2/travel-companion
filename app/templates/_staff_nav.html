@@ -50,8 +50,37 @@
 {% set RAIL_WORD = {'Travel Companion': 'Companion', 'Travel Insurance': 'Insurance', 'Site settings': 'Settings'} %}
 {# Help and the gear sit apart from the work areas, at the bottom of the rail #}
 {% set LOW = ('help', 'setup') %}
+{% set ws_name = ws.name if ws else ('Admin Panel' if current_user.is_admin else 'CS Console') %}
+{# Working as (main.work_as): under the workspace's name, the role this person works as; a click lists the roles they
+   can take (services/access.roles_to_act) -- see and work as exactly one of them until they switch back. Only when
+   there is more than one thing to be. #}
+{% set role_choices = ROLE_CHOICES() %}
 <aside class="admin-sidebar staff-nav">
-  <h3 title="{{ ws.name if ws else '' }}">{{ ws.name if ws else ('Admin Panel' if current_user.is_admin else 'CS Console') }}</h3>
+  {% if role_choices %}{% set acting = ACTING() %}
+  {% set everything = 'Super admin' if current_user.is_super else ('Administrator' if current_user.is_admin else 'All my roles') %}
+  <div class="sn-who" data-who data-tour="who">
+    <h3><button type="button" class="sn-who-btn" data-who-btn aria-haspopup="true" aria-expanded="false" aria-controls="snWho"
+                title="{{ ws_name }}: working as {{ acting.name if acting else everything }}. Click to change.">
+      <span class="sn-who-ws">{{ ws_name }}</span>
+      <small class="sn-who-as{{ ' acting' if acting }}"><i class="fa-solid fa-user-tag" aria-hidden="true"></i> Working as <b>{{ acting.name if acting else everything }}</b></small>
+      <i class="fa-solid fa-chevron-down sn-who-caret" aria-hidden="true"></i>
+    </button></h3>
+    <div class="sn-who-menu" id="snWho" hidden>
+      <p class="sn-who-head">Working as</p>
+      <div class="role-switch" role="radiogroup" aria-label="Working as">
+        <a href="{{ url_for('main.work_as', role_id=0) }}" role="radio" aria-checked="{{ 'false' if acting else 'true' }}" class="{{ '' if acting else 'active' }}">
+          <i class="fa-solid fa-layer-group"></i> <span>{{ everything if everything == 'All my roles' else everything ~ ' (everything)' }}</span></a>
+        {% for r in role_choices %}
+        <a href="{{ url_for('main.work_as', role_id=r.id) }}" role="radio" aria-checked="{{ 'true' if acting and acting.id == r.id else 'false' }}" class="{{ 'active' if acting and acting.id == r.id }}">
+          <i class="fa-solid fa-user-tag"></i> <span>{{ r.name }}</span></a>
+        {% endfor %}
+      </div>
+      <p class="sn-who-note">You see that role’s menu and pages only, until you switch back.</p>
+    </div>
+  </div>
+  {% else %}
+  <h3 title="{{ ws_name }}">{{ ws_name }}</h3>
+  {% endif %}
   <button type="button" class="rail-toggle" data-rail-toggle
           aria-label="Collapse the menu" aria-expanded="true" title="Collapse the menu">
     <i class="fa-solid fa-bars"></i>
@@ -82,14 +111,6 @@
       {% endfor %}
     </div>
     <div class="sn-panel" data-tour="panel">
-    {% if current_user.is_influencer and not current_user.is_admin %}
-    <div class="admin-nav-top">
-      <a href="{{ url_for('main.promo_dashboard') }}" title="Promotion"
-         class="{{ 'active' if request.endpoint == 'main.promo_dashboard' }}">
-        <i class="fa-solid fa-bullhorn"></i> <span>Promotion</span>
-      </a>
-    </div>
-    {% endif %}
     <label class="sn-find" data-find="{{ crm_url('find') }}" data-tour="find">
       <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
       <input type="search" placeholder="Find a page, a trip, a person…"

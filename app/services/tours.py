@@ -32,6 +32,7 @@ from app.services import access
 ASK_AFTER_SECONDS = 10
 
 # the parts of every staff screen (base.html, _staff_nav.html, _page_head.html)
+WHO = ('[data-tour="who"]', '.staff-nav h3')
 RAIL = ('[data-tour="rail"]', '.staff-nav')
 FIND = ('[data-tour="find"]',)
 PANEL = ('[data-tour="panel"]', '.staff-nav')
@@ -51,6 +52,9 @@ TOURS = (
     {'key': 'basics', 'for': 'all', 'icon': 'fa-compass', 'title': 'Getting around',
      'says': 'The menu rail, finding anything, making something new, your notifications and your account.',
      'steps': (
+         S(None, WHO + RAIL, 'Your workspace',
+           'The workspace you are in. When you have more than one role, the line under it says which one you are '
+           'working as: click it to work as just one of them, or as all of them again.'),
          S(None, RAIL, 'Your work areas',
            'Down the left: Home, Inbox, Leads, Contacts, Tasks, Services, Reports, Content and Automate, then Help and '
            'the Set-up gear. You only see the areas your role includes.'),
@@ -69,8 +73,7 @@ TOURS = (
          S(None, ('.notif-wrapper',), 'Notifications',
            'What happened while you were away: new leads, replies, things handed to you.'),
          S(None, ('.user-menu-wrapper',), 'Your account',
-           'Notification settings, your password, Sign-in & security (two-step sign-in), and “Working as” when you '
-           'have more than one role.'),
+           'Notification settings, your password, and Sign-in & security (two-step sign-in).'),
          S(None, GUIDE, 'The tour guide',
            'Come back here any time: tours for your role, the common places, and every screen explained.'),
      )},

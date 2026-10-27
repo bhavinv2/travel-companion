@@ -82,7 +82,7 @@ REPORT_PAGES = ('crm_insights', 'crm_forecast', 'crm_report_builder', 'crm_track
 
 MODULES = [
     {'key': 'console', 'label': 'Overview', 'icon': 'fa-gauge',
-     'desc': 'Health, Service to-do, notifications and the site dashboard.',
+     'desc': 'Health, Service to-do, notifications, the site dashboard and the promotion dashboard.',
      'pages': [
          # the master screen: how every part of the portal is doing, and what needs somebody now (services/health.py)
          _page('health', 'Health', 'fa-heart-pulse', ['admin.health', 'admin.checklist_hide'], admin='admin.health',
@@ -94,6 +94,13 @@ MODULES = [
                cs='cs.reports', nav=False, with_=REPORT_PAGES),
          _page('dashboard', 'Site dashboard', 'fa-gauge', ['admin.dashboard'], admin='admin.dashboard',
                desc='Numbers across every product on the site.', tip='Numbers across every product on the site.'),
+         # the promotion team's read-only figures (main.promo_dashboard): given by a role like any page; an account
+         # with the site-wide Influencer role has it too (pages_for), as it always had
+         _page('promo', 'Promotion dashboard', 'fa-bullhorn', ['main.promo_dashboard'], admin='main.promo_dashboard',
+               cs='main.promo_dashboard',
+               desc='Read-only figures for whoever promotes the service: enquiries, trips and published reviews per '
+                    'product, with no names, e-mails or phone numbers.',
+               tip='How things are going, read-only: counts, trends and published reviews.'),
          # every screen, what it is for, by area -- built from this file, so it is never out of date. Whoever
          # has any page has it (its `with` is set below, once every page is known)
          _page('guide', 'Help centre', 'fa-circle-question', ['admin.screen_guide'], admin='admin.screen_guide',
@@ -455,7 +462,7 @@ SECTIONS = [
     # Sales results / Forecast and Team today / Team analysis are one line each, with a switch (TAB_GROUPS)
     {'key': 'reports', 'label': 'Reports', 'icon': 'fa-chart-line',
      'pages': ('reports', 'crm_insights', 'crm_forecast', 'crm_tracker', 'crm_team', 'crm_report_builder',
-               'dashboard')},
+               'dashboard', 'promo')},
     {'key': 'content', 'label': 'Content', 'icon': 'fa-pen-nib',
      'pages': ('blog_list', 'blog', 'blog_import', 'landing', 'insurance_page')},
     # the rules, WhatsApp's reply rules, the chatbot and AI replies are tabs of Automation (TAB_GROUPS)
@@ -693,7 +700,9 @@ TEAM_LEAD_EXTRA = frozenset({'crm_tracker', 'crm_insights', 'crm_forecast', 'crm
 # these pages are taken out of every role -- Administrator too -- and given to Super admins alone.
 SUPER_ROLE = 'superadmin'
 SUPER_ONLY = frozenset({'delete_records'})
-# the role somebody chose to work as (header menu), by id; none = everything they have
+# what the site-wide Influencer account role (Users screen) gives, whatever any workspace role says
+INFLUENCER_PAGES = frozenset({'promo'})
+# the role somebody chose to work as (the menu's workspace name), by id; none = everything they have
 ACT_KEY = 'act_role'
 
 
@@ -845,7 +854,10 @@ def is_super(user):
 
 
 def _super(user, pages):
-    return (pages | SUPER_ONLY) if is_super(user) else (pages - SUPER_ONLY)
+    """`pages` with what the account's site-wide roles add: a Super admin's deleting for good (taken from anybody
+    else), an Influencer's Promotion dashboard."""
+    pages = (pages | SUPER_ONLY) if is_super(user) else (pages - SUPER_ONLY)
+    return pages | INFLUENCER_PAGES if getattr(user, 'is_influencer', False) else pages
 
 
 def _role_only(role):

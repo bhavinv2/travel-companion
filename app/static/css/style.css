@@ -1209,14 +1209,14 @@ tr.row-edited > td:first-child { box-shadow: inset 3px 0 0 var(--coral); }
 .dd-section .portal-switch a { flex: 1; justify-content: center; padding: 8px 6px; font-size: 12.5px; border-radius: 8px; color: var(--muted); font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
 .dd-section .portal-switch a.active { background: #fff; color: var(--coral); box-shadow: 0 1px 4px rgba(0,0,0,0.14); }
 .dd-section .portal-switch a:not(.active):hover { color: var(--text); background: transparent; }
-/* "Working as": one line per role, the one taken lit like the Website / Staff switch */
-.dd-section .role-switch { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--border); background: var(--bg);
+/* "Working as" (top of the staff menu, _staff_nav.html): one line per role, the one taken lit like the Website / Staff switch */
+.role-switch { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--border); background: var(--bg);
   border-radius: 10px; padding: 3px; max-height: 240px; overflow-y: auto; }
-.dd-section .role-switch a { display: flex; align-items: center; gap: 8px; padding: 7px 10px; font-size: 12.5px; font-weight: 600;
-  border-radius: 8px; color: var(--muted); }
-.dd-section .role-switch a i { width: 14px; text-align: center; }
-.dd-section .role-switch a.active { background: #fff; color: var(--coral); box-shadow: 0 1px 4px rgba(0,0,0,0.14); }
-.dd-section .role-switch a:not(.active):hover { color: var(--text); }
+.role-switch a { display: flex; align-items: center; gap: 8px; padding: 7px 10px; font-size: 12.5px; font-weight: 600;
+  border-radius: 8px; color: var(--muted); text-decoration: none; }
+.role-switch a i { width: 14px; text-align: center; }
+.role-switch a.active { background: #fff; color: var(--coral); box-shadow: 0 1px 4px rgba(0,0,0,0.14); }
+.role-switch a:not(.active):hover, .role-switch a:focus-visible { color: var(--text); background: rgba(15,35,64,.05); outline: none; }
 .acting-banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 9px 5%; font-size: 13.5px;
   background: #eef4ff; border-bottom: 1px solid #c7d8fb; color: #1e3a8a; }
 .acting-banner a { margin-left: auto; font-weight: 700; color: #1d4ed8; white-space: nowrap; }
@@ -4786,6 +4786,28 @@ a.crm-pill:hover { filter: brightness(.95); }
    One menu for both consoles, built from the workspace's modules and the person's roles. A
    module heading opens and closes its pages; the open ones are remembered per browser. */
 .staff-nav h3 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: none; letter-spacing: .2px; font-size: 15px; color: #fff; }
+/* the workspace's name with "Working as" under it; a click lists the roles to take (main.js, "Working as") */
+.staff-nav .sn-who { position: relative; min-width: 0; }
+.staff-nav .sn-who-btn { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 8px; width: 100%;
+  margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; }
+.staff-nav .sn-who-ws, .staff-nav .sn-who-as { grid-column: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.staff-nav .sn-who-as { display: block; margin-top: 3px; font-size: 12px; font-weight: 500; letter-spacing: 0; color: rgba(255,255,255,.62); }
+.staff-nav .sn-who-as i { margin-right: 3px; font-size: 10.5px; }
+.staff-nav .sn-who-as b { color: #fff; font-weight: 600; }
+.staff-nav .sn-who-as.acting b { color: #ffd479; }       /* one role only: the same "not everything" the banner says */
+.staff-nav .sn-who-caret { grid-column: 2; grid-row: 1 / span 2; font-size: 11px; color: rgba(255,255,255,.55); transition: transform .15s; }
+.staff-nav .sn-who.open .sn-who-caret { transform: rotate(180deg); }
+.staff-nav .sn-who-btn:hover .sn-who-as, .staff-nav .sn-who-btn:hover .sn-who-caret { color: #fff; }
+.staff-nav .sn-who-btn:focus-visible { outline: 2px solid #2f80ed; outline-offset: 4px; border-radius: 6px; }
+.staff-nav .sn-who-menu { position: absolute; z-index: 30; top: calc(100% - 6px); left: 12px; right: 12px; padding: 10px;
+  border-radius: 12px; background: #fff; color: var(--text); box-shadow: 0 14px 34px rgba(6,17,34,.42); }
+.staff-nav .sn-who-menu[hidden] { display: none; }
+.staff-nav .sn-who-head { margin: 0 2px 8px; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.staff-nav .sn-who-note { margin: 8px 2px 0; font-size: 12px; line-height: 1.4; color: var(--muted); }
+@media (max-width: 900px) {
+  .staff-nav .sn-who { flex: 1 1 auto; }
+  .staff-nav .sn-who h3 { padding-right: 4px; }
+}
 .staff-nav .sn-find { display: flex; align-items: center; gap: 8px; margin: 0 12px 10px; padding: 0 10px; height: 34px;
   border-radius: 9px; background: rgba(255,255,255,.08); color: rgba(255,255,255,.55); }
 .staff-nav .sn-find input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: #fff;
@@ -4942,6 +4964,7 @@ a.crm-pill:hover { filter: brightness(.95); }
   .staff-nav.is-finding .sn-group:not(.has-hit) { display: none; }
   .staff-nav.is-finding .sn-group.has-hit { display: block; }
   /* collapsed: the rail alone */
+  .admin-page.is-rail .staff-nav .sn-who { display: none; }
   .admin-page.is-rail .staff-nav .admin-nav-items { grid-template-columns: 70px; padding-top: 40px; }
   .admin-page.is-rail .staff-nav .sn-panel { display: none; }
 }

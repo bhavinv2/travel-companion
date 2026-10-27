@@ -2901,6 +2901,36 @@ window.addEventListener('scroll', () => { if (TD.card && !tdSheetMode()) tdPlace
 })();
 
 
+/* ===== "Working as", under the workspace's name at the top of the staff menu (_staff_nav.html) =====
+ * A click lists the roles this person can take; picking one is a plain link (main.work_as).
+ * Escape or a click elsewhere closes it. On a phone it closes the menu's dropdown first.
+ */
+(function () {
+  const box = document.querySelector('[data-who]');
+  if (!box) return;
+  const btn = box.querySelector('[data-who-btn]');
+  const menu = box.querySelector('.sn-who-menu');
+  function show(on) {
+    menu.hidden = !on;
+    box.classList.toggle('open', on);
+    btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+  }
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const on = menu.hidden;
+    show(on);
+    if (on) {
+      box.closest('.admin-sidebar')?.classList.remove('nav-open');
+      (menu.querySelector('[aria-checked="true"]') || menu.querySelector('a'))?.focus();
+    }
+  });
+  document.addEventListener('click', (e) => { if (!menu.hidden && !box.contains(e.target)) show(false); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); }
+  });
+})();
+
+
 /* ===== live search for the CS list screens ==================================
  * Results update as you type. The form still works without JavaScript -- it is a plain
  * GET form -- but with JS the page never reloads: we fetch the same URL with partial=1,

@@ -74,8 +74,8 @@ def switch_view(view):
 @main_bp.route('/work-as/<int:role_id>')
 @login_required
 def work_as(role_id):
-    """Account menu, "Working as": see and work exactly as one of your roles (access.roles_to_act) until you
-    switch back; role_id 0 is everything your roles give you again."""
+    """Working as (under the workspace's name at the top of the staff menu): see and work exactly as one of your
+    roles (access.roles_to_act) until you switch back; role_id 0 is everything your roles give you again."""
     from app.services import access
     role = next((r for r in access.roles_to_act(current_user) if r.id == role_id), None) if role_id else None
     if role_id and role is None:
@@ -83,7 +83,7 @@ def work_as(role_id):
     else:
         access.act_as(role)
         session.pop('view', None)              # working as a staff role is the staff view
-        flash('You are working as %s. Switch back from your account menu.' % role.name if role
+        flash('You are working as %s. Switch back under the workspace name at the top of the menu.' % role.name if role
               else 'Back to everything your roles give you.', 'info')
     return redirect(access.home_url(current_user) if access.is_staff(current_user) else url_for('main.index'))
 
@@ -315,15 +315,16 @@ def reviews():
 def promo_dashboard():
     """Read-only activity figures, for whoever is promoting the service.
 
-    Open to the influencer role and to admins. Not to CS: this is not part of their job, and
-    every number on it is already visible to them in the consoles.
+    The page "Promotion dashboard" (access.py): whoever's role is given it on Team › Roles, admins, and the
+    site-wide Influencer role. The staff guard checks a role; this check is for an influencer account
+    outside the consoles.
 
     There is no POST and no action on the page. "Read-only as of now" is enforced by there being
     nothing here that writes, rather than by a flag somebody could flip by accident.
     """
-    from app.services import promo
+    from app.services import access, promo
 
-    if not (current_user.is_admin or current_user.is_influencer):
+    if not access.can(current_user, 'promo'):
         flash('That dashboard is for the promotion team.', 'warning')
         return redirect(url_for('main.index'))
     return render_template('pages/promo_dashboard.html', data=promo.snapshot())

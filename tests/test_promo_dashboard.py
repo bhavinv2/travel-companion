@@ -12,7 +12,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from conftest import login, make_user  # noqa: E402
+from conftest import login, logout, make_user  # noqa: E402
 from app import db as _db  # noqa: E402
 from app.models import ContactMessage, Feedback, User  # noqa: E402
 
@@ -211,14 +211,53 @@ def test_the_links_are_the_public_ones(app, db):
 # And where an admin finds it
 # ---------------------------------------------------------------------------
 
-def test_the_admin_menu_offers_it(client, db, admin_user):
-    """U2: the Promotion line left the site owner's menu on purpose (the figures stay on the
-    dashboard and at /promotion). Pin that, so it is not quietly put back as a second home."""
+def test_the_admin_menu_offers_it_once(client, db, admin_user):
+    """2026-10-27: a page a role can give, so one line under Reports (and no second link in the account menu)."""
     login(client, admin_user.email)
     html = client.get('/admin/', follow_redirects=True).data.decode()
     nav = html.split('admin-nav-items', 1)[1].split('</nav>', 1)[0]
-    assert 'href="/promotion"' not in nav and '>Promotion<' not in nav
-    assert client.get('/promotion').status_code == 200        # still reachable by address
+    assert nav.count('href="/promotion"') == 1
+    assert 'href="/promotion"' not in html.split('id="userDropdown"', 1)[1].split('</form>', 1)[0]
+    assert client.get('/promotion').status_code == 200
+
+
+def test_a_role_can_give_it(client, db, admin_user):
+    """Team › Roles lists it; somebody whose role has it opens it and finds it under Reports; a role without it
+    is turned back."""
+    from app.models import WorkspaceRole
+    from app.services import access
+    ws = access.ensure_defaults()
+    login(client, admin_user.email)
+    form = client.get('/admin/workspace/roles/0').data.decode()
+    assert 'value="promo"' in form and 'Promotion dashboard' in form
+    marketing = WorkspaceRole(workspace_id=ws.id, name='Marketing', pages=['promo', 'notifications'])
+    _db.session.add(marketing)
+    _db.session.commit()
+    pat = make_user('pat@test.com', 'pat', role='cs')
+    access.add_member(ws, pat, role=marketing)
+    sam = make_user('sam@test.com', 'sam', role='cs')
+    access.add_member(ws, sam, role=access.system_role(ws, 'cs'))
+    logout(client)
+    login(client, 'pat@test.com')
+    assert client.get(PAGE).status_code == 200
+    nav = client.get('/cs/notifications').data.decode().split('admin-nav-items', 1)[1].split('</nav>', 1)[0]
+    assert 'href="/promotion"' in nav
+    logout(client)
+    login(client, 'sam@test.com')
+    r = client.get(PAGE)
+    assert r.status_code == 302 and PAGE not in r.headers['Location']
+
+
+def test_the_influencer_role_still_gives_it_to_staff(app, db):
+    """An influencer who is also on the staff keeps it, whatever their workspace role says."""
+    from app.services import access
+    ws = access.ensure_defaults()
+    u = make_user('both@test.com', 'both', role='cs')
+    u.set_roles(['cs', 'influencer'])
+    access.add_member(ws, u, role=access.system_role(ws, 'cs'))
+    _db.session.commit()
+    with app.test_request_context('/'):
+        assert 'promo' in access.pages_for(u)
 
 
 def test_the_admin_dashboard_shows_the_same_figures(client, db, admin_user):

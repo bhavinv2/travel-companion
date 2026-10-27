@@ -1,4 +1,4 @@
-"""Account menu -> "Working as": somebody with more than one role sees and works as exactly one of them until
+"""Working as (under the workspace name at the top of the menu): somebody with more than one role sees and works as exactly one of them until
 they switch back. Admins can take any role of the workspace; others only the roles they really have.
 """
 from html import unescape
@@ -62,3 +62,19 @@ def test_an_agent_switches_only_between_their_own_roles(client, app, admin_user)
     logout(client)
     login(client, agent.email)
     assert client.get('/cs/crm/today').status_code == 200                        # signing out forgets it
+
+
+def test_working_as_sits_under_the_workspace_name(client, app, admin_user):
+    """2026-10-27: under the workspace's name at the top of the menu, not in the account menu at the top right."""
+    ws = access.ensure_defaults()
+    sales = access.system_role(ws, 'cs')
+    login(client, admin_user.email)
+    page = unescape(client.get('/admin/crm/today').data.decode())
+    side = page.split('<aside class="admin-sidebar staff-nav">', 1)[1].split('admin-nav-items', 1)[0]
+    assert 'data-who' in side and ws.name in side and 'Working as <b>Super admin</b>' in side
+    assert 'Super admin (everything)' in side and sales.name in side
+    account = page.split('id="userDropdown"', 1)[1].split('</form>', 1)[0]
+    assert 'Working as' not in account and 'role-switch' not in account
+    client.get('/work-as/%d' % sales.id)
+    side = unescape(client.get('/cs/crm/today').data.decode()).split('admin-nav-items', 1)[0]
+    assert 'sn-who-as acting' in side and 'Working as <b>%s</b>' % sales.name in side

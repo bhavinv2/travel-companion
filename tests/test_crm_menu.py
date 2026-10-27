@@ -220,10 +220,14 @@ def test_where_each_person_lands(app, client, cs_user, admin_user):
         assert access.home_url(admin_user) == '/admin/health'    # Sales off: still Health (its other parts)
 
 
-def test_the_promotion_link_is_not_in_the_site_owners_menu(app, client, admin_user):
+def test_the_promotion_dashboard_is_one_line_in_reports(app, client, admin_user):
+    """2026-10-27: a page a role can give like any other, so it has one line, under Reports -- not the old
+    influencer-only "Promotion" link on top of the menu."""
+    assert access.PAGES['promo']['section'] == 'reports'
     html = the_menu(client, admin_user.email)
-    side = html.split('Admin Panel', 1)[1] if 'Admin Panel' in html else html
-    assert 'Promotion' not in re.sub(r'<[^>]+>', ' ', side.split('<main', 1)[0]).replace('Promotion dashboard', '')
+    nav = html.split('admin-nav-items', 1)[1].split('</nav>', 1)[0]
+    assert nav.count('href="/promotion"') == 1 and 'data-title="Promotion dashboard"' in nav
+    assert 'admin-nav-top' not in nav
 
 
 # ------------------------------------------------------------------ release 1 stands alone

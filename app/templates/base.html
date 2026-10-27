@@ -400,21 +400,7 @@
               </div>
             </div>
             {% endif %}
-            {# Working as: the roles this person can take (services/access.roles_to_act) -- see and work as exactly
-               one of them until they switch back. Only when there is more than one thing to be. #}
-            {% if is_staff %}{% set role_choices = ROLE_CHOICES() %}{% if role_choices %}{% set acting = ACTING() %}
-            <div class="dd-section">
-              <span class="dd-label">Working as</span>
-              <div class="role-switch" role="radiogroup" aria-label="Working as">
-                <a href="{{ url_for('main.work_as', role_id=0) }}" role="radio" aria-checked="{{ 'false' if acting else 'true' }}" class="{{ '' if acting else 'active' }}">
-                  <i class="fa-solid fa-layer-group"></i> <span>{{ 'Super admin (everything)' if current_user.is_super else ('Administrator (everything)' if current_user.is_admin else 'All my roles') }}</span></a>
-                {% for r in role_choices %}
-                <a href="{{ url_for('main.work_as', role_id=r.id) }}" role="radio" aria-checked="{{ 'true' if acting and acting.id == r.id else 'false' }}" class="{{ 'active' if acting and acting.id == r.id }}">
-                  <i class="fa-solid fa-user-tag"></i> <span>{{ r.name }}</span></a>
-                {% endfor %}
-              </div>
-            </div>
-            {% endif %}{% endif %}
+            {# "Working as" lives at the top of the staff menu, under the workspace's name (_staff_nav.html) #}
             <div class="dd-menu">
             {% if is_staff %}
               <a href="{{ url_for('my.favourites') }}"><i class="fa-solid fa-star"></i> Favourites &amp; views</a>
@@ -427,7 +413,8 @@
               <a href="{{ url_for('main.connections_page') }}"><i class="fa-solid fa-handshake"></i> {{ _('My Connections') }}</a>
               <a href="{{ url_for('main.notification_settings') }}"><i class="fa-solid fa-bell"></i> {{ _('Notification settings') }}</a>
             {% endif %}
-            {% if current_user.is_influencer or current_user.is_admin %}
+            {# staff have it on the menu (Reports) when their role gives it; this is for an influencer outside the console #}
+            {% if not is_staff and CAN('promo') %}
               <a href="{{ url_for('main.promo_dashboard') }}"><i class="fa-solid fa-chart-line"></i> {{ _('Promotion dashboard') }}</a>
             {% endif %}
               <a href="{{ url_for('auth.change_password') }}"><i class="fa-solid fa-key"></i> {{ _('Change password') }}</a>
