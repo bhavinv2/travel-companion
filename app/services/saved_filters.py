@@ -14,7 +14,8 @@ immediately saveable with no change here and no migration.
 
 Ownership: a filter belongs to whoever made it. Sharing is opt-in and read-only for everybody
 else -- a colleague can use a shared filter but cannot rename, change or delete it, so nobody's
-morning shortcut vanishes because somebody tidied up.
+morning shortcut vanishes because somebody tidied up. Since 2026-10-27 a filter is shared with ONE
+team, the owner's, and only its people see it (services/team_share.py, the same rule as saved views).
 """
 from datetime import datetime, timedelta
 
@@ -22,7 +23,7 @@ from sqlalchemy import or_
 
 from app import db
 from app.models import SavedFilter
-from app.services import post_filters
+from app.services import post_filters, team_share
 
 NAME_MAX = 60
 # Enough to be useful, few enough that the chip row stays a row. Somebody with forty daily views
@@ -103,11 +104,12 @@ def for_user(user):
     is useful but it is somebody else's idea of the day.
     """
     rows = (SavedFilter.query
-            .filter(or_(SavedFilter.owner_id == user.id, SavedFilter.shared.is_(True)))
+            .filter(or_(SavedFilter.owner_id == user.id,
+                        SavedFilter.team_id.in_(sorted(team_share.team_ids(user)) or [0])))
             .order_by(SavedFilter.position.asc(), SavedFilter.name.asc())
             .all())
     mine = [f for f in rows if f.owner_id == user.id]
-    theirs = [f for f in rows if f.owner_id != user.id]
+    theirs = team_share.shared_with(user, rows)
     return decorate(mine + theirs)
 
 
@@ -117,7 +119,7 @@ def get_for(user, filter_id):
     f = SavedFilter.query.get(filter_id)
     if not f:
         return None
-    return f if (f.owner_id == user.id or f.shared) else None
+    return f if team_share.sees(user, f) else None
 
 
 def owned_by(user, filter_id):
@@ -126,7 +128,15 @@ def owned_by(user, filter_id):
     return f if (f and f.owner_id == user.id) else None
 
 
-def create(user, name, raw_params, sort=None, shared=False):
+def _team(user, team, shared):
+    """The team it is shared with: the one given (one of theirs), else for a plain "share" their first team."""
+    mine = team_share.teams(user)
+    if team is not None:
+        return team if team in mine else None
+    return mine[0] if shared and mine else None
+
+
+def create(user, name, raw_params, sort=None, shared=False, team=None):
     name = (name or '').strip()[:NAME_MAX]
     if not name:
         raise FilterError('Give the filter a name so you can find it again.')
@@ -142,14 +152,15 @@ def create(user, name, raw_params, sort=None, shared=False):
 
     last = (db.session.query(db.func.max(SavedFilter.position))
             .filter_by(owner_id=user.id).scalar()) or 0
+    team = _team(user, team, shared)
     f = SavedFilter(owner_id=user.id, name=name, params=params, sort=(sort or None),
-                    shared=bool(shared), position=last + 1)
+                    shared=team is not None, team_id=team.id if team else None, position=last + 1)
     db.session.add(f)
     db.session.commit()
     return f
 
 
-def update(user, filter_id, name=None, raw_params=None, sort=None, shared=None):
+def update(user, filter_id, name=None, raw_params=None, sort=None, shared=None, team=None):
     f = owned_by(user, filter_id)
     if not f:
         raise FilterError('That filter is not yours to change.')
@@ -172,7 +183,8 @@ def update(user, filter_id, name=None, raw_params=None, sort=None, shared=None):
     if sort is not None:
         f.sort = sort or None
     if shared is not None:
-        f.shared = bool(shared)
+        t = _team(user, team, shared) if shared else None
+        f.shared, f.team_id = t is not None, (t.id if t else None)
 
     db.session.commit()
     return f

@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% from '_page_head.html' import page_head %}
+{% from '_who_sees.html' import who_sees %}
+{% from '_fav_star.html' import view_star %}
+{% block title %}Favourites & views – NRI Parent Service{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/crm.css') }}"/>{% endblock %}
+
+{# Favourites & views (routes/favourites.py): the one place to rename, reorder and remove one's favourites, to change
+   who sees one's saved views, and to find the views one's team shared. Each person's own; nothing here is a page a
+   role grants. #}
+
+{% block content %}
+<div class="admin-page">
+  {% include 'admin/_sidebar.html' %}
+  <main class="admin-main crm mf">
+    {{ page_head('Favourites & views', 'fa-solid fa-star',
+                 'Your starred pages and your saved views. Your favourites are yours alone; a view is seen by you, or by you and your team.',
+                 help=['Star a page with the star at the top of any screen: it is kept with the filters it has at that moment.',
+                       'A saved view is a page’s filters under a name. Share it with your team and only your team sees it; anybody who can open it can star it.',
+                       'Your favourites are at the top of the menu (★). Use the arrows here to put them in your order.',
+                       'A favourite whose screen your role no longer opens, or a view no longer shared with you, is hidden, not deleted.']) }}
+
+    <section class="card mf-sec" aria-labelledby="mfFavs">
+      <div class="mf-sec-head">
+        <h2 id="mfFavs"><i class="fa-solid fa-star" aria-hidden="true"></i> My favourites</h2>
+        <span class="muted small">{{ favs|length }} of {{ max_favs }}</span>
+      </div>
+      {% if favs %}
+      <ol class="mf-list">
+        {% for f in favs %}
+        <li class="mf-item">
+          <form method="POST" action="{{ url_for('my.fav_move', fav_id=f.id) }}" class="mf-move">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ HERE_URL() }}"/>
+            <button name="dir" value="up" class="cb sm quiet icon" title="Move up" aria-label="Move {{ f.label }} up"{{ ' disabled' if loop.first }}><i class="fa-solid fa-chevron-up"></i></button>
+            <button name="dir" value="down" class="cb sm quiet icon" title="Move down" aria-label="Move {{ f.label }} down"{{ ' disabled' if loop.last }}><i class="fa-solid fa-chevron-down"></i></button>
+          </form>
+          <i class="{{ f.icon }} mf-ic" aria-hidden="true"></i>
+          <div class="mf-main">
+            <a href="{{ f.url }}" class="mf-name">{{ f.label }}</a>
+            <span class="mf-meta">{{ f.page }}{% if f.view %} · a saved view{% if f.team %} · {{ f.team }}{% endif %}{% if f.shared_by %} · by {{ f.shared_by }}{% endif %}{% elif f.filters %} · {{ f.filters }} filter{{ 's' if f.filters != 1 }}{% endif %}</span>
+          </div>
+          <div class="mf-acts">
+            <details class="mf-pop"><summary class="cb sm quiet">Rename</summary>
+              <form method="POST" action="{{ url_for('my.fav_rename', fav_id=f.id) }}" class="mf-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ HERE_URL() }}"/>
+                <label class="sr-only" for="mfName{{ f.id }}">Name</label>
+                <input id="mfName{{ f.id }}" name="label" value="{{ f.label }}" maxlength="80"/>
+                <button class="cb sm primary">Save</button>
+              </form>
+            </details>
+            <form method="POST" action="{{ url_for('my.fav_remove', fav_id=f.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ HERE_URL() }}"/>
+              <button class="cb sm quiet" aria-label="Remove {{ f.label }} from your favourites">Remove</button>
+            </form>
+          </div>
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}
+      <p class="mf-empty">Nothing starred yet. Open any screen, click the <i class="fa-regular fa-star" aria-label="star"></i> at the top,
+        and it is kept here and at the top of the menu, with the filters it had.</p>
+      {% endif %}
+    </section>
+
+    <section class="card mf-sec" aria-labelledby="mfViews">
+      <div class="mf-sec-head">
+        <h2 id="mfViews"><i class="fa-solid fa-bookmark" aria-hidden="true"></i> My saved views</h2>
+        <span class="muted small">{{ views.mine|length }} of {{ max_views }}</span>
+      </div>
+      {% if views.mine %}
+      <div class="table-wrap"><table class="crm-table mf-table">
+        <thead><tr><th>View</th><th>Page</th><th>Who sees it</th><th><span class="sr-only">Favourite</span></th><th><span class="sr-only">Delete</span></th></tr></thead>
+        <tbody>
+        {% for v in views.mine %}{% set to = url_of(v) %}
+        <tr>
+          <td>{% if to %}<a href="{{ to }}" class="mf-name">{{ v.name }}</a>{% else %}<span class="mf-name">{{ v.name }}</span>{% endif %}
+            <span class="mf-meta">{{ v.params|length }} filter{{ 's' if v.params|length != 1 }}</span></td>
+          <td>{{ page_label(v) }}</td>
+          <td>
+            <form method="POST" action="{{ url_for('my.view_edit', view_id=v.id) }}" class="mf-share">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ HERE_URL() }}"/>
+              <input type="hidden" name="name" value="{{ v.name }}"/>
+              {{ who_sees(v.team_id, 'mfTeam' ~ v.id) }}
+              {% if SHARE_TEAMS() %}<button class="cb sm">Save</button>{% endif %}
+            </form>
+          </td>
+          <td>{{ view_star(v) }}</td>
+          <td>
+            <details class="mf-pop mf-del"><summary class="cb sm quiet" aria-label="Delete {{ v.name }}"><i class="fa-solid fa-trash-can"></i></summary>
+              <form method="POST" action="{{ url_for('my.view_delete', view_id=v.id) }}" class="mf-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ HERE_URL() }}"/>
+                <span>Delete “{{ v.name }}”{{ ' for your team too' if v.team_id }}?</span>
+                <button class="cb sm danger">Yes, delete</button>
+              </form>
+            </details>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+      {% else %}
+      <p class="mf-empty">No saved views yet. On a list with filters set, open the star at the top and choose “Save these filters
+        as a view” (on Leads and Contacts: their own Views menu).</p>
+      {% endif %}
+    </section>
+
+    <section class="card mf-sec" aria-labelledby="mfShared">
+      <div class="mf-sec-head">
+        <h2 id="mfShared"><i class="fa-solid fa-user-group" aria-hidden="true"></i> Shared with me by my team</h2>
+        <span class="muted small">{{ views.shared|length }}</span>
+      </div>
+      {% if views.shared %}
+      <div class="table-wrap"><table class="crm-table mf-table">
+        <thead><tr><th>View</th><th>Page</th><th>By</th><th>Team</th><th><span class="sr-only">Favourite</span></th></tr></thead>
+        <tbody>
+        {% for v in views.shared %}{% set to = url_of(v) %}
+        <tr>
+          <td>{% if to %}<a href="{{ to }}" class="mf-name">{{ v.name }}</a>{% else %}<span class="mf-name">{{ v.name }}</span>{% endif %}</td>
+          <td>{{ page_label(v) }}</td>
+          <td>{{ v.owner.first_name or v.owner.username if v.owner else '' }}</td>
+          <td>{{ v.team.name if v.team else '' }}</td>
+          <td>{{ view_star(v) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+      {% else %}
+      <p class="mf-empty">{% if SHARE_TEAMS() %}Nobody in your team has shared a view yet.{% else %}You are not in a team yet, so there is nothing shared with you. Teams are set on Set-up › People › Teams.{% endif %}</p>
+      {% endif %}
+    </section>
+
+    {% if CAN('posts') or CAN('listings') %}
+    <p class="muted small mf-foot"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> The trip lists keep their views as
+      <a href="{{ url_for('saved.manage') }}">saved filters</a>, shared the same way: with your team only.</p>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

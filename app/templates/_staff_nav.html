@@ -20,6 +20,8 @@
 {% set groups = STAFF_NAV(active if active is defined else None) %}
 {% set ws = WORKSPACE() %}
 {% set waiting = NAV_BADGES() %}
+{# ★ Favourites (routes/favourites.py): this person's starred pages and views, first on the rail #}
+{% set favs = FAVOURITES() %}
 {% macro ic(icon) %}{{ icon if ' ' in icon else 'fa-solid ' ~ icon }}{% endmacro %}
 {% macro waiting_in(items) -%}
 {%- set ns = namespace(total=0) -%}
@@ -43,6 +45,7 @@
 {% set cur = namespace(key=None) %}
 {% for g in groups if cur.key is none and g['items']|selectattr('active')|list %}{% set cur.key = g.key %}{% endfor %}
 {% if cur.key is none and groups %}{% set cur.key = groups[0].key %}{% endif %}
+{% if request.endpoint == 'my.favourites' %}{% set cur.key = 'fav' %}{% endif %}
 {# the rail has room for a word or two: the long section names in short there (the menu builder's names otherwise) #}
 {% set RAIL_WORD = {'Travel Companion': 'Companion', 'Travel Insurance': 'Insurance', 'Site settings': 'Settings'} %}
 {# Help and the gear sit apart from the work areas, at the bottom of the rail #}
@@ -56,7 +59,11 @@
 
   <nav class="admin-nav-items" aria-label="Menu">
     {# One <nav>: on a phone the menu is a single dropdown, and two would open on top of each other. #}
-    <div class="sn-rail" role="group" aria-label="Sections">
+    <div class="sn-rail" role="group" aria-label="Sections" data-tour="rail">
+      <button type="button" class="sn-tab sn-tab-fav{{ ' on' if cur.key == 'fav' }}" data-area-tab="fav" aria-pressed="{{ 'true' if cur.key == 'fav' else 'false' }}" data-tour="favs-tab"
+              title="Favourites: your starred pages and views">
+        <i class="fa-solid fa-star" aria-hidden="true"></i><span>Favourites</span>
+      </button>
       {% for g in groups %}{% set total = waiting_in(g['items'])|int %}
       {% set one = g['items'][0] if g['items']|length == 1 and not g.subs else None %}
       {% if one %}
@@ -74,7 +81,7 @@
       {% endif %}
       {% endfor %}
     </div>
-    <div class="sn-panel">
+    <div class="sn-panel" data-tour="panel">
     {% if current_user.is_influencer and not current_user.is_admin %}
     <div class="admin-nav-top">
       <a href="{{ url_for('main.promo_dashboard') }}" title="Promotion"
@@ -83,12 +90,32 @@
       </a>
     </div>
     {% endif %}
-    <label class="sn-find" data-find="{{ crm_url('find') }}">
+    <label class="sn-find" data-find="{{ crm_url('find') }}" data-tour="find">
       <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
       <input type="search" placeholder="Find a page, a trip, a person…"
              aria-label="Find a page, a trip, a person" data-nav-find autocomplete="off"/>
     </label>
     <div class="sn-global-results" data-nav-results role="listbox" hidden></div>
+    <div class="sn-group sn-favs{{ ' current open' if cur.key == 'fav' }}" data-group="fav" data-tour="favs">
+      <p class="sn-area">Favourites</p>
+      <button type="button" class="sn-head" data-group-toggle aria-expanded="false" title="Favourites">
+        <i class="fa-solid fa-star"></i><span>Favourites</span>
+        <i class="fa-solid fa-chevron-down sn-caret" aria-hidden="true"></i>
+      </button>
+      <div class="sn-items">
+        {% for f in favs %}
+        <a href="{{ f.url }}" class="sn-fav{{ ' here' if f.here }}" data-title="{{ f.label }}"
+           title="{{ f.page }}{{ ' · a saved view' if f.view }}{{ ' · ' ~ f.team if f.team }}{{ ' · shared by ' ~ f.shared_by if f.shared_by }}">
+          <i class="{{ f.icon }}"></i> <span>{{ f.label }}</span>{% if f.view %}<small class="sn-fav-tag">{{ 'team' if f.team else 'view' }}</small>{% endif %}
+        </a>
+        {% else %}
+        <p class="sn-fav-none">Star <i class="fa-regular fa-star" aria-hidden="true"></i> a page at the top of the screen to keep it here, filters and all.</p>
+        {% endfor %}
+        <a href="{{ url_for('my.favourites') }}" class="sn-fav-manage{{ ' active' if request.endpoint == 'my.favourites' }}" data-title="Favourites &amp; views">
+          <i class="fa-solid fa-sliders"></i> <span>Favourites &amp; views</span>
+        </a>
+      </div>
+    </div>
     {% for g in groups %}
     {# many sub-menus (Set-up): one open at a time -- the one with the page open now, else the first #}
     {% set many = g.subs|length > 3 %}

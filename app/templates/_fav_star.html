@@ -1,0 +1,10 @@
+{# The star beside a saved view (services/favourites.py): on and off, a plain form that comes back to this page. #}
+{% macro view_star(v) -%}
+{%- set f = FAV_OF_VIEW(v.id) -%}
+<form method="POST" action="{{ url_for('my.view_star', view_id=v.id) }}" class="fav-star-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ HERE_URL() }}"/>
+  <button type="submit" class="fav-star{{ ' on' if f }}" aria-pressed="{{ 'true' if f else 'false' }}"
+          title="{{ 'In your favourites: click to remove' if f else 'Add to your favourites' }}"
+          aria-label="{{ ('Remove %s from your favourites' if f else 'Add %s to your favourites') % v.name }}"><i class="fa-{{ 'solid' if f else 'regular' }} fa-star" aria-hidden="true"></i></button>
+</form>
+{%- endmacro %}

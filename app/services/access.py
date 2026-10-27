@@ -491,6 +491,9 @@ for _s in SECTIONS:
 STAFF_ANY = {
     'cs.whats_new_api', 'workspace.switch', 'messaging.sso', 'messaging.lead_chat',
     'saved.manage', 'saved.open_filter', 'saved.save', 'saved.rename', 'saved.share', 'saved.delete', 'saved.move',
+    # one's own favourites and saved views, and the tour guide (routes/favourites.py)
+    'my.favourites', 'my.fav_add', 'my.fav_remove', 'my.fav_rename', 'my.fav_move', 'my.view_star', 'my.view_save',
+    'my.view_edit', 'my.view_delete', 'my.tours', 'my.tour_answer', 'my.tour_done',
 }
 
 PAGES = {}

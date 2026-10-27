@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% from 'admin/_hard_delete.html' import del_btn %}
+{% from '_who_sees.html' import who_sees %}
 {# Housekeeping for saved views. Built to be read, not decoded: every filter states in plain
    English what it will show, and the ones that move with the date say so, because that is the
    single thing about this feature somebody has to understand to trust it. #}
@@ -54,7 +55,7 @@
               {% if f.rolls_forward %}<i class="fa-solid fa-rotate sv-roll" title="Moves with the date"></i>{% endif %}
               {{ f.name }}
               {% if f.is_new %}<span class="sv-new">New</span>{% endif %}
-              {% if f.shared %}<span class="sv-tag"><i class="fa-solid fa-user-group"></i> Shared</span>{% endif %}
+              {% if f.team_id and f.team %}<span class="sv-tag"><i class="fa-solid fa-user-group"></i> {{ f.team.name }}</span>{% endif %}
             </span>
             <span class="sv-item-reads">{{ f.reads_as }}</span>
             <span class="sv-item-meta">
@@ -73,13 +74,12 @@
                     data-sv-rename="{{ url_for('saved.rename', filter_id=f.id) }}"
                     data-sv-name="{{ f.name }}">Rename</button>
 
-            <form method="post" action="{{ url_for('saved.share', filter_id=f.id) }}">
+            {# who sees it: only me, or me and one of my teams (services/team_share.py) #}
+            <form method="post" action="{{ url_for('saved.share', filter_id=f.id) }}" class="sv-share">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
               <input type="hidden" name="from" value="{{ listing }}"/>
-              {% if not f.shared %}<input type="hidden" name="shared" value="on"/>{% endif %}
-              <button class="btn-sm sv-act" type="submit">
-                {{ 'Make private' if f.shared else 'Share' }}
-              </button>
+              {{ who_sees(f.team_id, 'svTeam' ~ f.id) }}
+              {% if SHARE_TEAMS() %}<button class="btn-sm sv-act" type="submit">Save</button>{% endif %}
             </form>
 
             <form method="post" action="{{ url_for('saved.delete', filter_id=f.id) }}"
@@ -115,7 +115,7 @@
 
   {% if shared %}
   <section class="sv-sec">
-    <h2>Shared by the team</h2>
+    <h2>Shared with my team</h2>
     <p class="sv-sub">You can open these. Only the person who made one can change it.{{ ' As an admin you can also delete them.' if current_user.is_admin }}</p>
     <ul class="sv-list">
       {% for f in shared %}

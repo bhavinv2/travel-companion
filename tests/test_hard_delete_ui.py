@@ -8,7 +8,7 @@ agent would find a button that only answers 403.
 import pytest
 from flask import url_for
 
-from conftest import login
+from conftest import login, same_team
 from app import db as _db
 from app.models import (ActivityEvent, Blog, ClaimToken, Feedback, MatchReport, Notification,
                         SavedFilter, User)
@@ -170,7 +170,9 @@ def test_delete_all_matching_honours_one_users_filter(client, people):
 # ---------------------------------------------------------------------------- saved views, blog
 
 def test_shared_saved_views(app, client, people):
-    f = _add(SavedFilter(owner_id=people['cs'].id, name='Team view', shared=True))
+    # shared with one team, the owner's (services/team_share.py): the admin is in it too
+    team = same_team(people['cs'], people['admin'])
+    f = _add(SavedFilter(owner_id=people['cs'].id, name='Team view', shared=True, team_id=team.id))
     html = page(app, client, 'admin@test.com', 'saved.manage')
     admin_sees(html, 'saved_filter', f.id, bulk=False)
 

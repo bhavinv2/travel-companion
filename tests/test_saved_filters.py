@@ -13,7 +13,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from conftest import login  # noqa: E402
+from conftest import login, make_user, same_team  # noqa: E402
 from app import db as _db  # noqa: E402
 from app.models import SavedFilter, User  # noqa: E402
 from app.services import post_filters, saved_filters  # noqa: E402
@@ -123,6 +123,7 @@ def test_a_private_view_is_invisible_to_colleagues(agent, other, db):
 
 
 def test_sharing_grants_use_but_never_edit(agent, other, db):
+    same_team(agent, other)
     f = saved_filters.create(agent, 'Team view', {'dep': 'today'}, shared=True)
     assert saved_filters.get_for(other, f.id) is not None          # they can open it
     assert saved_filters.owned_by(other, f.id) is None             # but not change it
@@ -133,7 +134,28 @@ def test_sharing_grants_use_but_never_edit(agent, other, db):
     assert SavedFilter.query.get(f.id).name == 'Team view'
 
 
+def test_a_shared_filter_is_seen_by_the_owners_team_only(agent, other, db):
+    outsider = make_user('outsider@test.com', 'outsider', role='cs')
+    same_team(agent, other)
+    same_team(outsider, name='Team B')
+    f = saved_filters.create(agent, 'Team view', {'dep': 'today'}, shared=True)
+    assert f.team.name == 'Team A'
+    assert saved_filters.get_for(other, f.id) is not None
+    assert saved_filters.get_for(outsider, f.id) is None
+    assert [x.name for x in saved_filters.for_user(outsider)] == []
+    # in no team: "share" keeps it to yourself
+    loner = make_user('loner@test.com', 'loner', role='cs')
+    lone = saved_filters.create(loner, 'Lone', {'dep': 'today'}, shared=True)
+    assert lone.team_id is None and not lone.shared
+    # the owner moves to another team: their old team stops seeing it
+    from app.models import workspace_team_members
+    _db.session.execute(workspace_team_members.delete().where(workspace_team_members.c.user_id == agent.id))
+    _db.session.commit()
+    assert saved_filters.get_for(other, f.id) is None
+
+
 def test_your_own_views_come_first(agent, other, db):
+    same_team(agent, other)
     saved_filters.create(other, 'Theirs', {'dep': 'today'}, shared=True)
     saved_filters.create(agent, 'Mine', {'dep': 'tomorrow'})
     assert [f.name for f in saved_filters.for_user(agent)] == ['Mine', 'Theirs']

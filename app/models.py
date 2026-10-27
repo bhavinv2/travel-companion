@@ -115,6 +115,9 @@ class User(UserMixin, db.Model):
     totp_secret = db.Column(db.String(64))
     totp_on_at = db.Column(db.DateTime)
     backup_codes = db.Column(db.JSON)
+    # Staff only, the tour guide (services/tours.py): {'ask': 'never' after "Don't ask again", 'asked_at': when the
+    # question was last shown (ISO, UTC), 'done': [tour keys finished]}. NULL: never asked, nothing done.
+    tour_state = db.Column(db.JSON)
 
     trips = db.relationship('CompanionRequest', backref='author', lazy='dynamic',
                             foreign_keys='CompanionRequest.user_id')
@@ -1809,6 +1812,8 @@ class SavedFilter(db.Model):
     sort = db.Column(db.String(20))
 
     shared = db.Column(db.Boolean, nullable=False, default=False)
+    # the one team it is shared with, the owner's (services/team_share.py); shared is true while it is set
+    team_id = db.Column(db.Integer, db.ForeignKey('workspace_teams.id', ondelete='SET NULL'), nullable=True, index=True)
     # what the owner dragged it to; ties broken by name so the order is never arbitrary
     position = db.Column(db.Integer, nullable=False, default=0)
 
@@ -1819,6 +1824,7 @@ class SavedFilter(db.Model):
     use_count = db.Column(db.Integer, nullable=False, default=0)
 
     owner = db.relationship('User', foreign_keys=[owner_id])
+    team = db.relationship('WorkspaceTeam', foreign_keys=[team_id])
 
     __table_args__ = (
         db.UniqueConstraint('owner_id', 'name', name='uq_saved_filter_owner_name'),
@@ -2478,21 +2484,49 @@ class CrmPayment(db.Model):
 
 
 class CrmView(db.Model):
-    """A saved view of Leads or Contacts: the page's filters under a name (Sales CRM 2.0, run 4b). Not
-    SavedFilter: that one is bound to the post listings' filter engine (see services/crm_views.py)."""
+    """A saved view: a staff page's filters under a name. Leads and Contacts since Sales CRM 2.0 (run 4b); every staff
+    page since 2026-10-27 (services/crm_views.py). Not SavedFilter: that one is bound to the post listings' filter
+    engine. Shared with ONE team, the owner's (services/team_share.py)."""
     __tablename__ = 'crm_views'
 
     id = db.Column(db.Integer, primary_key=True)
     # the workspace whose CRM this belongs to (Sales CRM 2.0, run 5a; NULL = the default workspace, services/crm_scope)
     workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True, index=True)
     owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
-    scope = db.Column(db.String(20), nullable=False, default='crm_leads')        # crm_leads / crm_contacts
+    # crm_leads / crm_contacts, else the page key (services/access.PAGES) of the page the view is of
+    scope = db.Column(db.String(20), nullable=False, default='crm_leads')
     name = db.Column(db.String(60), nullable=False)
     params = db.Column(db.JSON, nullable=False, default=dict)
-    shared = db.Column(db.Boolean, nullable=False, default=False)
+    # a view of any other page: its endpoint and the words of its path (NULL for Leads and Contacts)
+    endpoint = db.Column(db.String(80), nullable=True)
+    args = db.Column(db.JSON, nullable=True)
+    shared = db.Column(db.Boolean, nullable=False, default=False)        # true while team_id is set
+    team_id = db.Column(db.Integer, db.ForeignKey('workspace_teams.id', ondelete='SET NULL'), nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     owner = db.relationship('User', foreign_keys=[owner_id])
+    team = db.relationship('WorkspaceTeam', foreign_keys=[team_id])
+
+
+class StaffFavourite(db.Model):
+    """One of a staff member's favourites (services/favourites.py): a page with its filters, or a saved view they can
+    open. Only theirs; the order is theirs."""
+    __tablename__ = 'staff_favourites'
+    __table_args__ = (db.UniqueConstraint('user_id', 'key', name='uq_staff_favourite_key'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    key = db.Column(db.String(40), nullable=False)            # sha1 of the address, so a page is starred once
+    label = db.Column(db.String(80), nullable=True)           # NULL: the view's name, else the page's
+    endpoint = db.Column(db.String(80), nullable=False)
+    args = db.Column(db.JSON, nullable=True)
+    params = db.Column(db.JSON, nullable=True)
+    view_id = db.Column(db.Integer, db.ForeignKey('crm_views.id', ondelete='CASCADE'), nullable=True)
+    position = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    view = db.relationship('CrmView', foreign_keys=[view_id],
+                           backref=db.backref('favourites', cascade='all, delete-orphan'))
 
 
 class CrmSavedReport(db.Model):

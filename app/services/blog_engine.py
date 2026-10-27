@@ -7,23 +7,32 @@ until somebody publishes it.
 
 Writers are not technical, so the format is Word itself -- nothing to learn but three words:
 
-  Post details box (a table at the top)      Title / Summary / Cover picture / Cover description /
-                                             Web address. "Title:" and "Summary:" lines at the top
-                                             work too; without either, the first line is the title.
+  Post details box (a table at the top)      Title / Summary / Web address / Cover picture / Cover
+                                             description / Thumbnail picture / Category / Tags / Focus
+                                             keyword / Google title (DETAIL_RULES). "Title:", "Summary:",
+                                             "Category:" ... lines at the top work too; without a title,
+                                             the first line is the title. Categories and tags are only
+                                             ever matched to the blog's own, never made from a document.
   Word's Heading 2 / Heading 3 styles        section headings (a short all-bold line also is one --
                                              a guess, and the import report says so)
   a picture pasted or inserted               a picture right there: its Word "Alt Text" says what it
                                              shows, an italic line right under it is its caption. A
                                              picture before the post starts is the cover.
-  Tip: ...   Quote: ...   Button: <linked words>   a tip box, a pull quote, a button
+  a table of two cells: a picture | words    the "Picture and text" block, the picture on its side
+  Slideshow: then pictures                   the picture carousel (until the next line of text)
+  Video: <YouTube or Vimeo link>             the video, played in the post (a line of only the link too)
+  --- / Divider, or Word's own line          a line across the page
+  Tip: ...   Quote: ...   Button: <linked words>   a tip box, a pull quote, a button (Big button: and
+                                             Outline button: for its other looks)
   everything else                            as written: bold, italics, underline, links, lists, tables
 
-The template's yellow boxes (the "how to use" box at the top, the writing guide at the end) are for
-the writer and never published: a table whose first words are in GUIDE_MARKS is skipped.
+The template's writer boxes (the band and the "how to use" and "new" boxes at the top, the writing guide at
+the end) are for the writer and never published: a table whose first words are in GUIDE_MARKS is skipped. So
+are its sample pictures and sample video, recognised by their bytes and address.
 
 The older label format still reads, for anyone who keeps pictures as separate files (a zip):
-@title: @slug: @summary: @cover: @cover-alt: @h2 @h3 @image: file | alt | caption, @quote: @note:
-@cta: text | link, @divider, and // writer notes.
+@title: @slug: @summary: @cover: @cover-alt: @thumbnail: @category: @tags: @keyword: @google-title: @h2 @h3
+@image: file | alt | caption, @video: @quote: @note: @cta: text | link, @divider, and // writer notes.
 
 Nothing here trusts HTML it is given. Content is rebuilt through an allowlist (sanitize) on every
 save, and again when the public page shows it (render).
@@ -77,15 +86,33 @@ LABELS = {
     'summary': 'summary', 'description': 'summary', 'excerpt': 'summary', 'meta': 'summary',
     'cover': 'cover', 'cover-image': 'cover', 'cover-picture': 'cover',
     'cover-alt': 'cover-alt', 'coveralt': 'cover-alt', 'cover-description': 'cover-alt',
+    'thumbnail': 'thumb', 'thumb': 'thumb', 'category': 'category', 'categories': 'category',
+    'tags': 'tags', 'tag': 'tags', 'keyword': 'keyword', 'focus-keyword': 'keyword',
+    'google-title': 'seo-title', 'seo-title': 'seo-title',
     'h1': 'h2', 'h2': 'h2', 'heading': 'h2', 'h3': 'h3', 'h4': 'h3', 'subheading': 'h3', 'sub-heading': 'h3',
-    'image': 'image', 'img': 'image', 'picture': 'image', 'photo': 'image',
+    'image': 'image', 'img': 'image', 'picture': 'image', 'photo': 'image', 'video': 'video', 'youtube': 'video',
     'quote': 'quote', 'note': 'note', 'tip': 'note', 'cta': 'cta', 'button': 'cta',
     'divider': 'divider', 'line': 'divider',
 }
-DETAILS = ('title', 'slug', 'summary', 'cover', 'cover-alt')
+DETAILS = ('title', 'slug', 'summary', 'cover', 'cover-alt', 'thumb', 'category', 'tags', 'keyword', 'seo-title')
 
 # What the guide shows -- on the import page and at the end of the Word template, from these same
-# lists, so the two never differ: (what you do in Word, what it becomes)
+# lists, so the two never differ. The Post details box, row by row: (row, what it is for)
+DETAIL_RULES = (
+    ('Title', 'The post’s title, under 65 characters. Or simply make it the first line of the document.'),
+    ('Summary', '1–2 sentences, 70–160 characters: what Google, WhatsApp shares and the blog list show.'),
+    ('Web address', 'Optional: the words after /blog/. Left empty, it is made from the title.'),
+    ('Cover picture', 'Landscape, 1200 × 630 px: the top of the post, and the picture WhatsApp and Facebook show.'),
+    ('Cover description', 'What the cover shows, in a few words, for Google and screen readers.'),
+    ('Thumbnail picture', 'Optional, 16:9, 800 × 450 px: the blog list, Read next and More stories. Left empty, the cover is used.'),
+    ('Category', 'One of the blog’s categories, as it is named on the blog (several: separate them with commas). '
+                 'It also decides which sidebar cards show beside the post.'),
+    ('Tags', 'Small subjects, separated by commas. Only tags the blog already has are used: new ones are added in the editor.'),
+    ('Focus keyword', 'Optional: the words people search for. The editor checks they are in the title, summary, '
+                      'address, opening and a heading.'),
+    ('Google title', 'Optional: the title Google shows instead of the post’s title, under 65 characters.'),
+)
+# (what you do in Word, what it becomes)
 FORMAT_RULES = (
     ('The Title box — or simply the first line', 'The post title.'),
     ('The Summary box', 'What Google, WhatsApp shares and the blog list show. 1–2 sentences, 70–160 characters.'),
@@ -95,9 +122,30 @@ FORMAT_RULES = (
     ('Bold, italics, underline, links (Ctrl+K), bullet points, numbering, tables', 'Kept just as they are.'),
     ('A picture pasted or inserted anywhere (Insert → Pictures)', 'A picture in that place. Right-click it → Edit Alt Text to say what it shows.'),
     ('An italic line right under a picture', 'That picture’s caption.'),
+    ('A table of two cells: a picture in one, your words in the other', 'A picture beside the words, on the same side as in Word.'),
+    ('A line Slideshow: — then pictures one under another, each with an italic caption if you like',
+     'A picture slideshow readers swipe through. It ends at the next line of text; words after Slideshow: are its heading.'),
+    ('A line that starts with Video: and a YouTube or Vimeo link — or a line that is only that link',
+     'The video, playing inside the post.'),
     ('A line that starts with Tip:', 'A highlighted tip box.'),
     ('A line that starts with Quote:', 'A large pull quote.'),
-    ('A line that starts with Button: — with the words linked (Ctrl+K)', 'A button to that page.'),
+    ('A line that starts with Button: — with the words linked (Ctrl+K)',
+     'A button to that page. Start the line with Big button: or Outline button: for the other two looks.'),
+    ('Type --- and press Enter (Word draws a line), or a line that says only Divider', 'A line across the page.'),
+    ('A line that starts with //', 'A note for you. Never published.'),
+)
+# What a Word document does not say: done in the editor once the post is a draft (what, where)
+EDITOR_RULES = (
+    ('Two or three columns, your own HTML / CSS / JS, empty space', 'The editor: Add a block (the + on the left).'),
+    ('A block’s look: space above and below, padding, background, width', 'Click the block → the Block tab.'),
+    ('A slideshow’s speed, sliding cards of text, the picture’s width beside text', 'Click the block → the Block tab.'),
+    ('The post’s width, text size and spacing', 'The Post tab → Layout.'),
+    ('Video files (MP4 or WebM) instead of YouTube or Vimeo', 'Add a block → Video.'),
+    ('The same box in many posts', 'Add a block → Reusable (Blog → Reusable blocks).'),
+    ('Flyers, ads and links beside the post', 'Blog → Sidebars. Cards show by category, so choose the category in the details box.'),
+    ('The post’s place on the blog: first, second …', 'Blog → Posts → Order on the blog.'),
+    ('Publishing on a later date and time', 'The Post tab → Publish on.'),
+    ('New categories and tags', 'Blog → Posts → Categories / Tags, or the editor’s Tags box.'),
 )
 # The older label format: for pictures kept as separate files and sent as a zip
 ADVANCED_RULES = (
@@ -106,10 +154,16 @@ ADVANCED_RULES = (
     ('@summary: One or two sentences, 70–160 characters', 'Shown in Google results, shares and the blog list.'),
     ('@cover: parents-insurance-cover.jpg', 'The cover picture, from the zip.'),
     ('@cover-alt: Indian parents at a US airport', 'What the cover shows, for Google and screen readers.'),
+    ('@thumbnail: parents-insurance-card.jpg', 'The thumbnail for the blog list, from the zip (16:9, 800 × 450).'),
+    ('@category: Travel insurance', 'The category, as it is named on the blog.'),
+    ('@tags: parents, health insurance', 'Tags the blog already has, separated by commas.'),
+    ('@keyword: travel insurance for parents', 'The focus keyword.'),
+    ('@google-title: Travel Insurance for Parents: a 2026 Guide', 'The title Google shows.'),
     ('@h2 Compare the plans', 'A section heading (or Word’s Heading 2 style).'),
     ('@h3 Policy maximum', 'A smaller heading inside a section (or Heading 3).'),
     ('@image: parents-insurance-1.jpg | A doctor with an elderly patient | Optional caption',
      'A picture from the zip: file name | what it shows | caption.'),
+    ('@video: https://youtu.be/…', 'A YouTube or Vimeo video, playing in the post.'),
     ('@quote: The best plan is not the cheapest one.', 'A pull quote.'),
     ('@note: Check whether the policy can be extended.', 'A highlighted tip box.'),
     ('@cta: Get a free quote | /travel-insurance', 'A button: its text | where it goes (a site path or https:// link).'),
@@ -118,8 +172,10 @@ ADVANCED_RULES = (
 )
 IMAGE_RULES = (
     'Paste or insert pictures straight into the document, where they belong. Nothing else to send.',
-    'The cover is landscape, about 1200 × 630 — it is also the picture WhatsApp and Facebook show.',
+    'Cover: landscape, 1200 × 630 px — it is also the picture WhatsApp and Facebook show.',
+    'Thumbnail: 16:9, 800 × 450 px, for the blog list. Leave it empty and the cover is used.',
     'Pictures in the post look best at least 1200 px wide. Big ones are made smaller for you.',
+    'A slideshow looks best with pictures all the same shape, for example all 1200 × 675 px.',
     'Right-click a picture → Edit Alt Text and say in a few words what it shows.',
     'Photos and screenshots (JPG or PNG) work best. Only use pictures you have the right to use.',
     'Do not put text inside a picture: write it in the post, where Google and phones can read it.',
@@ -138,7 +194,11 @@ ADVANCED_IMAGE_RULES = (
 
 
 # The first words of the template's boxes for the writer: a table starting with one is never published
-GUIDE_MARKS = ('how to use this template', 'writing guide')
+GUIDE_MARKS = ('how to use this template', 'writing guide', 'blog template', 'new in this template')
+# The template's sample video: a YouTube address no real video has (their ids are 11 characters), left out like
+# the sample pictures when a writer leaves it in
+SAMPLE_VIDEO = 'https://www.youtube.com/watch?v=YOUR-VIDEO'
+SAMPLE_VIDEO_ID = 'YOUR-VIDEO'
 
 
 class DocxError(ValueError):
@@ -326,16 +386,23 @@ class _Doc:
                 yield from self.blocks(el)
 
     def paragraph(self, p):
-        """{'style', 'num', 'segs': [[text, bold, italic, underline, href]], 'pics': [picture refs]}"""
+        """{'style', 'num', 'segs': [[text, bold, italic, underline, href]], 'pics': [picture refs], 'rule'}.
+        rule: the paragraph draws a line across the page -- Word's border under it (what typing --- and Enter
+        makes) or Insert -> Horizontal line."""
         ppr = p.find(W + 'pPr')
         sid = num = None
+        rule = False
         if ppr is not None:
             st = ppr.find(W + 'pStyle')
             sid = st.get(W + 'val') if st is not None else None
             num = _num_of(ppr.find(W + 'numPr'))
+            bdr = ppr.find(W + 'pBdr')        # a line above or below -- not a box (sides too) around lines
+            sides = {b.tag[len(W):] for b in (bdr if bdr is not None else ())
+                     if (b.get(W + 'val') or 'none') not in ('none', 'nil')}
+            rule = bool(sides & {'top', 'bottom'}) and not sides & {'left', 'right'}
         if num is None and sid:
             num = self.style_num(sid)
-        segs, pics, state = [], [], {'field': None, 'instr': '', 'href': None}
+        segs, pics, state = [], [], {'field': None, 'instr': '', 'href': None, 'rule': rule}
 
         def run(r, href):
             rpr = r.find(W + 'rPr')
@@ -371,6 +438,8 @@ class _Doc:
                     pic = self._picture_ref(ch)       # a photo carries an image reference; a drawn line does not
                     if pic is not None:
                         pics.append(pic)
+                    elif any(x.get(O + 'hr') in ('t', 'true') for x in ch.iter()):
+                        state['rule'] = True          # Insert -> Horizontal line
 
         def walk(node, href):
             for ch in node:
@@ -388,7 +457,7 @@ class _Doc:
                 # w:del (a tracked deletion), bookmarks, proofing marks: not text
 
         walk(p, None)
-        return {'style': sid, 'num': num, 'segs': segs, 'pics': pics}
+        return {'style': sid, 'num': num, 'segs': segs, 'pics': pics, 'rule': state['rule']}
 
 
 def _clean(segs):
@@ -487,10 +556,12 @@ def _key(word):
     return LABELS.get(re.sub(r'[\s_]+', '-', word.strip().lower()))
 
 
-def missing_figure(name, alt='', caption=''):
+def missing_figure(name, alt='', caption='', kind='blog-img'):
+    """The box a picture waits in until it is stored (attach_images): a picture of its own (blog-img), a slide of a
+    slideshow (blog-slide) or the picture beside text (blog-mt-media)."""
     cap = '<figcaption>%s</figcaption>' % escape(caption) if caption else ''
-    return '<figure class="blog-img blog-img-missing" data-file="%s" data-alt="%s">%s</figure>' % (
-        escape(name), escape(alt), cap)
+    return '<figure class="%s blog-img-missing" data-file="%s" data-alt="%s">%s</figure>' % (
+        kind, escape(name), escape(alt), cap)
 
 
 def _clean_alt(alt):
@@ -519,23 +590,50 @@ def _detail_key(label):
         return None
     if words.startswith('cover'):
         return 'cover-alt' if any(w in words for w in ('description', 'alt', 'describe', 'text')) else 'cover'
+    if words.startswith(('thumbnail', 'thumb', 'card picture', 'list picture')):
+        return 'thumb'
+    if words in ('google title', 'seo title', 'title on google', 'search title'):
+        return 'seo-title'
     if words in ('title', 'post title', 'blog title', 'headline'):
         return 'title'
     if words.startswith('summary') or words in ('short summary', 'description', 'excerpt'):
         return 'summary'
     if words in ('web address', 'address', 'slug', 'url', 'link', 'page address'):
         return 'slug'
+    if words in ('category', 'categories', 'section'):
+        return 'category'
+    if words in ('tags', 'tag'):
+        return 'tags'
+    if words in ('focus keyword', 'keyword', 'keywords', 'focus keywords'):
+        return 'keyword'
     return None
 
 
-# Plain words at the start of a line. Title / Summary / Web address / Cover description only count
-# above the post (where a writer puts details); later on they are ordinary sentences.
-_PLAIN = re.compile(r'(tip|note|important|remember|quote|button|caption|post title|title|summary|web address|'
-                    r'cover description)\s*[:：]\s*', re.I)
+# Plain words at the start of a line. Title / Summary / Web address / Cover description / Category / Tags /
+# Focus keyword / Google title only count above the post (where a writer puts details); later on they are
+# ordinary sentences.
+_PLAIN = re.compile(r'(tip|note|important|remember|quote|big button|outline button|button|caption|video|slideshow|'
+                    r'post title|google title|title|summary|web address|cover description|categories|category|tags|'
+                    r'focus keyword)\s*[:：]\s*', re.I)
 _PLAIN_KEYS = {'tip': 'note', 'note': 'note', 'important': 'note', 'remember': 'note', 'quote': 'quote',
-               'button': 'cta', 'caption': 'caption', 'title': 'title', 'post title': 'title',
-               'summary': 'summary', 'web address': 'slug', 'cover description': 'cover-alt'}
-_TOP_ONLY = ('title', 'summary', 'slug', 'cover-alt')
+               'button': 'cta', 'big button': 'cta-big', 'outline button': 'cta-outline', 'caption': 'caption',
+               'video': 'video', 'slideshow': 'slideshow', 'title': 'title', 'post title': 'title',
+               'google title': 'seo-title', 'summary': 'summary', 'web address': 'slug', 'cover description': 'cover-alt',
+               'category': 'category', 'categories': 'category', 'tags': 'tags', 'focus keyword': 'keyword'}
+_TOP_ONLY = ('title', 'summary', 'slug', 'cover-alt', 'category', 'tags', 'keyword', 'seo-title')
+# a line that is only a line: --- (or *** / ___ / ===), dashes Word turned into — , or the word Divider
+_DIVIDER = re.compile(r'(?:[-_*=]{3,}|[-–—]{2,}|divider)', re.I)
+
+
+def names_in(text):
+    """'Visas, parents; OCI' -> ['Visas', 'parents', 'OCI']: each once, as written."""
+    out, seen = [], set()
+    for raw in re.split(r'[,;\n]', text or ''):
+        name = ' '.join(raw.split())[:80]
+        if name and name.lower() not in seen:
+            seen.add(name.lower())
+            out.append(name)
+    return out
 
 
 class _Builder:
@@ -547,6 +645,7 @@ class _Builder:
         self.guessed = 0
         self.title_from_first = self.started = self.after_sample = False
         self.cover_alt_from_picture = ''
+        self.slides = None                              # the slideshow being read ("Slideshow:" ... pictures)
 
     def note(self, text):
         if text not in self.notes:
@@ -583,6 +682,8 @@ class _Builder:
                 self.table(b)
             else:
                 self.paragraph(b, titled)
+        if self.slides is not None:
+            self.end_slideshow()
         self._flush()
         html = '\n'.join(missing_figure(x['name'], x['alt'], x['caption']) if isinstance(x, dict) else x
                          for x in self.out if x)
@@ -597,6 +698,10 @@ class _Builder:
                 'summary': (self.meta.get('summary') or '').strip()[:300],
                 'cover': (self.meta.get('cover') or '').strip(),
                 'cover_alt': (self.meta.get('cover-alt') or self.cover_alt_from_picture or '').strip()[:300],
+                'thumb': (self.meta.get('thumb') or '').strip(),
+                'categories': names_in(self.meta.get('category')), 'tags': names_in(self.meta.get('tags')),
+                'keyword': ' '.join((self.meta.get('keyword') or '').split())[:100],
+                'seo_title': ' '.join((self.meta.get('seo-title') or '').split())[:300],
                 'html': html, 'images': self.images, 'embedded': self.embedded, 'notes': self.notes,
                 'words': word_count(html)}
 
@@ -604,11 +709,19 @@ class _Builder:
     def paragraph(self, para, titled):
         segs = _clean(para['segs'])
         plain = ''.join(s[0] for s in segs)
+        if self.slides is not None:
+            if self._in_slideshow(para, segs, plain):
+                return
+            self.end_slideshow()
         after_sample, self.after_sample = self.after_sample, False
         if plain.startswith('//'):
             return
+        if not plain.strip() and para.get('rule') and not para['pics']:
+            return self.divider()
         if plain.strip() and not (after_sample and self._captionish(para, segs, plain)):
             self.text(para, segs, plain, titled)       # (a sample picture's caption goes with it)
+        if self.slides is not None:                    # "Slideshow:" with its pictures on the same line
+            return self._slides(para['pics'])
         for pic in para['pics']:
             self.picture(pic)
 
@@ -622,6 +735,8 @@ class _Builder:
             if key:
                 return self.labelled(key, plain[used:].strip(), _drop(segs, used))
             self.note('"%s" is not one of the labels, so it was kept as text.' % plain.split()[0][:30])
+        if para['num'] is None and _DIVIDER.fullmatch(plain.strip()):
+            return self.divider()
         m = _PLAIN.match(plain) if para['num'] is None else None
         if m:
             key = _PLAIN_KEYS[' '.join(m.group(1).lower().split())]
@@ -634,10 +749,16 @@ class _Builder:
                 return self.add('<aside class="blog-note">%s</aside>' % _inline(rsegs))
             elif key == 'quote' and rsegs:
                 return self.add('<blockquote>%s</blockquote>' % _inline(rsegs))
-            elif key == 'cta':
-                return self.button(rest, rsegs, segs)
+            elif key in ('cta', 'cta-big', 'cta-outline'):
+                return self.button(rest, rsegs, segs, '' if key == 'cta' else key[4:], m.group(1))
+            elif key == 'video':
+                return self.video(rest, rsegs, segs)
+            elif key == 'slideshow':
+                return self.slideshow(rest)
             elif key == 'caption' and self.caption(rest):
                 return
+        if para['num'] is None and ' ' not in plain.strip() and embed_of(plain.strip()):
+            return self.video(plain.strip(), segs, segs)          # a line that is only a YouTube or Vimeo link
         kind = self.doc.style_kind(para['style'])
         if (kind == 'caption' or (self._last_figure() is not None and self._captionish(para, segs, plain))) \
                 and self.caption(plain):
@@ -666,10 +787,10 @@ class _Builder:
             return self.add('<h2>%s</h2>' % escape(plain))
         self.add('<p>%s</p>' % _inline(segs))
 
-    def button(self, rest, segs, line):
+    def button(self, rest, segs, line, look='', said='Button'):
         """Button: words -- the link is the one on the words (Ctrl+K), or a site page / https:// address
         typed after them ("Button: Get a quote → /travel-insurance", or "text | link"). Without a link
-        the line stays as it was written."""
+        the line stays as it was written. look: 'big' or 'outline' (Big button: / Outline button:)."""
         href = next((s[4] for s in segs if s[4] and link_ok(s[4])), None)
         text = rest
         if '|' in rest:
@@ -682,10 +803,89 @@ class _Builder:
                 text = rest[:m.start()] + rest[m.end():]
         text = text.strip(' \t-–—→>:|')
         if not text or not link_ok(href):
-            self.note('A "Button:" line needs a link: select the button’s words and press Ctrl+K. '
-                      '"%s" was kept as text.' % rest[:60])
+            self.note('A "%s:" line needs a link: select the button’s words and press Ctrl+K. '
+                      '"%s" was kept as text.' % (' '.join(said.split()).capitalize(), rest[:60]))
             return self.add('<p>%s</p>' % _inline(line))
-        self.add('<p class="blog-cta-wrap"><a class="blog-cta" href="%s">%s</a></p>' % (escape(href.strip()), escape(text)))
+        self.add('<p class="blog-cta-wrap"><a class="blog-cta%s" href="%s">%s</a></p>' % (
+            ' cta-' + look if look else '', escape(href.strip()), escape(text)))
+
+    def video(self, rest, segs, line):
+        """Video: a YouTube or Vimeo address (typed, or the link on the words) -- the video, played in the post,
+        the same block the editor makes from a pasted link."""
+        typed = re.search(r'(?:https?://)?(?:www\.|m\.|player\.)?(?:youtube\.com|youtu\.be|vimeo\.com)/\S+', rest)
+        href = next((s[4] for s in segs if s[4] and embed_of(s[4])), None) or (typed.group(0) if typed else '')
+        got = embed_of(href)
+        if got is None:
+            self.note('A "Video:" line needs a YouTube or Vimeo link (youtube.com, youtu.be or vimeo.com): "%s" was '
+                      'kept as text. Video files are added in the editor.' % rest[:60])
+            return self.add('<p>%s</p>' % _inline(line))
+        provider, vid, start = got
+        if vid == SAMPLE_VIDEO_ID:
+            self.note('The template’s sample video is still in the post, so it was left out: put your own YouTube '
+                      'or Vimeo link after Video:.')
+            return
+        self.add('<figure class="blog-embed" data-provider="%s" data-vid="%s"%s></figure>' % (
+            provider, escape(vid), ' data-start="%d"' % start if 0 < start < 100000 else ''))
+
+    def divider(self):
+        if not (self.out and self.out[-1] == '<hr/>' and not self.items):
+            self.add('<hr/>')
+
+    # ---- a slideshow: "Slideshow:" (a heading after it if the writer gives one), then pictures one under
+    # another, each with an italic caption if wanted, until the next line of text
+    def slideshow(self, heading):
+        if self.slides is not None:
+            self.end_slideshow()
+        self._flush()
+        self.slides = {'heading': heading.strip()[:200], 'items': [], 'last': None, 'samples': 0}
+        self.started = True
+
+    def _slides(self, pics):
+        show = self.slides
+        for pic in pics:
+            got = self._take(pic)
+            if got == 'sample':
+                show['samples'] += 1
+                show['last'] = 'sample'
+            elif got:
+                show['items'].append({'name': got[0], 'alt': got[1], 'caption': ''})
+                show['last'] = 'slide'
+
+    def _in_slideshow(self, para, segs, plain):
+        """True when the paragraph still belongs to the slideshow: a picture, its caption, a writer note or an
+        empty line. Anything else -- words, a heading, a divider -- ends it."""
+        show, text = self.slides, plain.strip()
+        if text.startswith('//'):
+            return True
+        if not text:
+            if para.get('rule') and not para['pics']:
+                return False
+            self._slides(para['pics'])
+            return True
+        if not para['pics'] and show['last'] and self._captionish(para, segs, plain):
+            if show['last'] == 'slide':
+                show['items'][-1]['caption'] = re.sub(r'^caption\s*[:：]\s*', '', text, flags=re.I)[:300]
+            show['last'] = None                        # (a sample picture's caption goes with it)
+            return True
+        return False
+
+    def end_slideshow(self):
+        show, self.slides = self.slides, None
+        items = show['items']
+        if not items:
+            if not show['samples']:
+                self.note('A "Slideshow:" line had no pictures under it, so there is no slideshow.')
+            return
+        if show['heading']:
+            self.add('<h3>%s</h3>' % escape(show['heading']))
+        if len(items) == 1:
+            self.note('A slideshow needs two pictures or more, so its one picture is shown on its own.')
+            self._flush()
+            self.out.append(dict(items[0]))
+            self.started = True
+            return
+        self.add('<div class="blog-carousel" data-show="1" data-interval="5">%s</div>' % ''.join(
+            missing_figure(x['name'], x['alt'], x['caption'], 'blog-slide') for x in items))
 
     # ---- pictures
     def _last_figure(self):
@@ -700,32 +900,45 @@ class _Builder:
         fig['caption'] = text.strip()[:300]
         return True
 
-    def picture(self, pic, cover=False):
-        """A picture inside the document: the cover when it comes before the post (or sits in the Cover
-        box), otherwise a picture right where it is."""
+    def _take(self, pic, slot=None):
+        """A picture inside the document as (name, alt) -- or 'sample' for one of the template's, or None when it
+        cannot be had, each with a note saying why. slot: 'cover' / 'thumb' for the details box's pictures."""
         if pic['link'] or not pic['rid']:
             self.note('A picture linked from outside the document was left out: insert the picture itself '
                       '(Insert → Pictures → This Device).')
-            return
+            return None
         got = self.doc.picture_data(pic['rid'])
         if got is None:
             self.note('A picture in the document could not be read, so it was left out.')
-            return
+            return None
         data, ext = got
         digest = hashlib.sha1(data).hexdigest()
         if digest in _sample_digests():
-            if cover:
-                self.note('The cover is still the template’s sample picture, so the post has no cover yet.')
-            else:
-                self.note('A sample picture from the template is still in the post, so it was left out.')
-                self.after_sample = True
-            return
+            self.note({'cover': 'The cover is still the template’s sample picture, so the post has no cover yet.',
+                       'thumb': 'The thumbnail is still the template’s sample picture, so the blog list shows the '
+                                'cover instead.'}.get(slot, 'A sample picture from the template is still in the '
+                                                            'post, so it was left out.'))
+            return 'sample'
         name = self._seen.get(digest)
         if name is None:
             name = self._seen[digest] = 'picture-%d.%s' % (len(self._seen) + 1, ext)
             self.embedded[name] = data
-        alt = _clean_alt(pic['alt'])
-        if cover or (not self.started and 'cover' not in self.meta):
+        return name, _clean_alt(pic['alt'])
+
+    def picture(self, pic, slot=None):
+        """A picture inside the document: the cover when it comes before the post (or sits in the Cover
+        box), the thumbnail from its box, otherwise a picture right where it is."""
+        got = self._take(pic, slot)
+        if got == 'sample':
+            self.after_sample = slot is None
+            return
+        if got is None:
+            return
+        name, alt = got
+        if slot == 'thumb':
+            self.meta['thumb'] = name
+            return
+        if slot == 'cover' or (not self.started and 'cover' not in self.meta):
             self.meta['cover'] = name
             self.cover_alt_from_picture = alt
             return
@@ -756,6 +969,9 @@ class _Builder:
             self._flush()
             self.out.append({'name': name, 'alt': alt, 'caption': caption})
             self.started = True
+        elif key == 'video':
+            if value:
+                self.video(value, segs, segs)
         elif key in ('quote', 'note'):
             if segs:
                 self.add(('<blockquote>%s</blockquote>' if key == 'quote' else
@@ -769,10 +985,12 @@ class _Builder:
                 return
             self.add('<p class="blog-cta-wrap"><a class="blog-cta" href="%s">%s</a></p>' % (escape(link), escape(text)))
         elif key == 'divider':
-            self.add('<hr/>')
+            self.divider()
 
-    # ---- tables: the instructions box, the Post details box, or a table in the post
+    # ---- tables: the writer's boxes, the Post details box, a picture beside words, or a table in the post
     def table(self, rows):
+        if self.slides is not None:
+            self.end_slideshow()
         if not rows or not rows[0]:
             return
         if _cell_text(rows[0][0]).lower().startswith(GUIDE_MARKS):
@@ -781,20 +999,24 @@ class _Builder:
         if len(details) >= 2:
             for key, row in details:
                 cells = [p for cell in row[1:] for p in cell]
-                if key == 'cover':
+                if key in ('cover', 'thumb'):
                     pics = [pic for p in cells for pic in p['pics']]
                     if pics:
-                        self.picture(pics[0], cover=True)
+                        self.picture(pics[0], slot=key)
                 else:
-                    text = ' '.join(t for t in (_para_text(p).strip() for p in cells) if t)
+                    sep = ', ' if key in ('category', 'tags') else ' '
+                    text = sep.join(t for t in (_para_text(p).strip() for p in cells) if t)
                     if text:
                         self.meta[key] = text
+            return
+        if len(rows) == 1 and len(rows[0]) == 2 and self.beside(rows[0]):
             return
         out = []
         for row in rows:
             cells = ['<br/>'.join(_inline(s) for s in (_clean(p['segs']) for p in paras) if s) for paras in row]
             if any(p['pics'] for paras in row for p in paras):
-                self.note('Pictures inside a table were left out: put them on their own line under it.')
+                self.note('Pictures inside a table were left out: put them on their own line under it. (For a picture '
+                          'beside words, use a table of two cells: the picture in one, the words in the other.)')
             if any(cells):
                 out.append(cells)
         if not out:
@@ -807,12 +1029,52 @@ class _Builder:
             '<tr>%s</tr>' % ''.join('<td>%s</td>' % c for c in r) for r in body)
         self.add(html)
 
+    def beside(self, row):
+        """A table of two cells, one picture in one and words in the other: the editor's "Picture and text" block,
+        the picture on the side it has in Word. False when the table is not that."""
+        def pics(cell):
+            return [pic for p in cell for pic in p['pics']]
+
+        def words(cell):
+            return ' '.join(t for t in (_para_text(p).strip() for p in cell) if t and not t.startswith('//'))
+        sides = [i for i in (0, 1) if pics(row[i]) and not words(row[i])]
+        if len(sides) != 1:
+            return False
+        side = sides[0]
+        if len(pics(row[side])) != 1 or pics(row[1 - side]) or not words(row[1 - side]):
+            return False
+        body = self._cell_html(row[1 - side])
+        got = self._take(pics(row[side])[0])
+        if not got or got == 'sample':
+            if body:
+                self.add(body)                         # the words stay; the note says why the picture did not
+            return True
+        self.add('<div class="blog-mt" data-pos="%s" data-ratio="50">%s<div class="blog-mt-body">%s</div></div>' % (
+            'left' if side == 0 else 'right', missing_figure(got[0], got[1], '', 'blog-mt-media'), body))
+        return True
+
+    def _cell_html(self, cell):
+        """A table cell's words as blocks, read like the post itself (Tip:, Button:, lists ...). Its headings are
+        H3s: the cell sits inside a section."""
+        sub = _Builder(self.doc)
+        sub.started, sub.meta = True, {'title': ''}
+        for para in cell:
+            sub.paragraph(para, True)
+        if sub.slides is not None:
+            sub.end_slideshow()
+        sub._flush()
+        for n in sub.notes:
+            self.note(n)
+        self.guessed += sub.guessed
+        return re.sub(r'<(/?)h2>', r'<\1h3>', ''.join(x for x in sub.out if isinstance(x, str)))
+
 
 def parse_docx(data):
-    """A .docx as {'title', 'slug', 'summary', 'cover', 'cover_alt', 'html', 'images', 'embedded', 'notes',
-    'words'}. Pictures are left as missing-picture boxes named after the file they need: one inside
-    the document ('picture-1.png', its bytes in 'embedded') or one from the zip ('images');
-    import_upload stores them and attach_images() puts them in."""
+    """A .docx as {'title', 'slug', 'summary', 'cover', 'cover_alt', 'thumb', 'categories', 'tags', 'keyword',
+    'seo_title', 'html', 'images', 'embedded', 'notes', 'words'} (categories and tags: the names as written).
+    Pictures are left as missing-picture boxes named after the file they need: one inside the document
+    ('picture-1.png', its bytes in 'embedded') or one from the zip ('images'); import_upload stores them and
+    attach_images() puts them in."""
     return _Builder(_Doc(data)).build()
 
 
@@ -953,7 +1215,8 @@ def store_image(data, name, width):
     return url
 
 
-_MISSING_RE = re.compile(r'<figure class="blog-img blog-img-missing" data-file="([^"]*)" data-alt="([^"]*)">(.*?)</figure>', re.S)
+_MISSING_RE = re.compile(r'<figure class="(?:blog-img|blog-slide|blog-mt-media) blog-img-missing" data-file="([^"]*)" '
+                         r'data-alt="([^"]*)">(.*?)</figure>', re.S)
 _IMG_FILE_RE = re.compile(r'<img src="([^"]*)"[^>]*?data-file="([^"]*)"')
 
 
@@ -973,8 +1236,9 @@ def attach_images(html, find):
         if not url:
             missing.append(name)
             return m.group(0)
-        return '<figure class="blog-img"><img src="%s" alt="%s" data-file="%s" loading="lazy"/>%s</figure>' % (
-            escape(url), escape(alt), escape(name), caption)
+        kind = m.group(0)[len('<figure class="'):].split(' ', 1)[0]
+        return '<figure class="%s"><img src="%s" alt="%s" data-file="%s" loading="lazy"/>%s</figure>' % (
+            kind, escape(url), escape(alt), escape(name), caption)
     return _MISSING_RE.sub(fill, html or ''), missing
 
 
@@ -1519,14 +1783,22 @@ def import_upload(doc_files, picture_files, user):
                 res['notes'].append('%s already uses /blog/%s, so this one is a new draft beside it at /blog/%s.' % (
                     'A published post' if existing.is_published else 'Another draft', slug, post.slug))
 
-        html, cover_url = _assemble(parsed, pics, had, res, post.cover_image_url)
+        html, cover_url, thumb_url = _assemble(parsed, pics, had, res, post.cover_image_url, post.thumb_url)
         if cover_url:
             post.cover_image_url = cover_url
-        res['pictures'] = len(re.findall(r'<img\b', html)) + (1 if post.cover_image_url else 0)
+        if thumb_url:
+            post.thumb_url = thumb_url
+        res['pictures'] = (len(re.findall(r'<img\b', html)) + (1 if post.cover_image_url else 0)
+                           + (1 if post.thumb_url else 0))
         post.title = parsed['title']
         post.content = sanitize(html)
         post.summary = parsed['summary'] or post.summary
         post.cover_alt = parsed['cover_alt'] or post.cover_alt
+        post.focus_keyword = parsed['keyword'] or post.focus_keyword
+        post.seo_title = parsed['seo_title'] or post.seo_title
+        cats, tags = _terms(parsed, res['notes'])
+        if cats or tags:
+            post.terms = (cats or post.categories) + (tags or post.tags)
         post.source_file = name[:255]
         db.session.flush()
         res['post'] = post
@@ -1544,10 +1816,34 @@ def import_upload(doc_files, picture_files, user):
     return results, notes
 
 
-def _assemble(parsed, pics, had, res, cover_now=None):
+def _terms(parsed, notes):
+    """The blog's own categories and tags the document names: ([categories], [tags]), each empty when it names none
+    the blog has. A name the blog does not have is never made from a document: a note says so."""
+    from app.services.blog_posts import named_terms
+    out = []
+    for kind, names in (('category', parsed['categories']), ('tag', parsed['tags'])):
+        found, unknown = named_terms(kind, names) if names else ([], [])
+        if unknown:
+            listed = ', '.join('"%s"' % n for n in unknown[:6]) + (' …' if len(unknown) > 6 else '')
+            them = len(unknown) > 1
+            if kind == 'category':
+                notes.append('%s %s %s not on the blog, so %s left out: choose the category in the editor, or add it '
+                             'under Blog → Posts → Categories.' % ('The categories' if them else 'The category', listed,
+                                                                   'are' if them else 'is',
+                                                                   'they were' if them else 'it was'))
+            else:
+                notes.append('%s %s %s not on the blog yet, so %s left out: type %s in the editor’s Tags box to add '
+                             '%s.' % ('The tags' if them else 'The tag', listed, 'are' if them else 'is',
+                                      'they were' if them else 'it was', 'them' if them else 'it',
+                                      'them' if them else 'it'))
+        out.append(found)
+    return out
+
+
+def _assemble(parsed, pics, had, res, cover_now=None, thumb_now=None):
     """One parsed document's pictures stored (each once per size) and put in its HTML: (html, the cover's
-    address or None). A picture comes from inside the document, else from the uploaded ones (`pics`),
-    else stays as the post already had it (`had`); what is found nowhere goes in res['missing']."""
+    address or None, the thumbnail's or None). A picture comes from inside the document, else from the uploaded
+    ones (`pics`), else stays as the post already had it (`had`); what is found nowhere goes in res['missing']."""
     inside, stored = parsed['embedded'], {}
 
     def take(n, width):
@@ -1562,13 +1858,16 @@ def _assemble(parsed, pics, had, res, cover_now=None):
         return stored[(n, width)]
 
     html, res['missing'] = attach_images(parsed['html'], lambda n: take(n, BODY_WIDTH) or had.get(image_key(n)))
-    cover, url = parsed['cover'], None
-    if cover:
-        url = take(cover, COVER_WIDTH)
-        if not url and not cover_now and cover not in inside:
-            res['missing'].append(cover)
-            res['notes'].append('The cover %s was not in the zip.' % cover)
-    return html, url
+    found = []
+    for key, width, now, what in (('cover', COVER_WIDTH, cover_now, 'cover'), ('thumb', THUMB_WIDTH, thumb_now, 'thumbnail')):
+        n, url = parsed.get(key), None
+        if n:
+            url = take(n, width)
+            if not url and not now and n not in inside:
+                res['missing'].append(n)
+                res['notes'].append('The %s %s was not in the zip.' % (what, n))
+        found.append(url)
+    return (html, *found)
 
 
 def read_word(data, post=None):
@@ -1579,45 +1878,63 @@ def read_word(data, post=None):
     if not parsed['title']:
         raise DocxError('No title: fill in the Title box at the top (or start the document with the title).')
     res = {'notes': list(parsed['notes']), 'missing': []}
-    html, cover = _assemble(parsed, Pictures(), known_pictures(post.content) if post else {}, res,
-                            post.cover_image_url if post else None)
+    html, cover, thumb = _assemble(parsed, Pictures(), known_pictures(post.content) if post else {}, res,
+                                   post.cover_image_url if post else None, post.thumb_url if post else None)
+    cats, tags = _terms(parsed, res['notes'])
     return {'title': parsed['title'], 'summary': parsed['summary'] or '', 'cover_alt': parsed['cover_alt'] or '',
             'content': for_editor(sanitize(html)), 'cover': cover, 'cover_src': site_url(cover) if cover else '',
+            'thumb': thumb, 'thumb_src': site_url(thumb) if thumb else '',
+            'categories': [t.id for t in cats], 'tags': ', '.join(t.name for t in tags),
+            'keyword': parsed['keyword'], 'seo_title': parsed['seo_title'],
             'notes': res['notes'], 'missing': res['missing'], 'words': parsed['words']}
 
 
 # ============================================================================== the template
 
+def _sample_png(w, h, top, bottom, line1, line2, scale=1.0):
+    """One sample picture: a gradient with two lines of text, made the same way every time."""
+    from PIL import Image, ImageDraw, ImageFont
+    im = Image.new('RGB', (w, h), top)
+    d = ImageDraw.Draw(im)
+    for y in range(h):
+        t = y / (h - 1)
+        d.line([(0, y), (w, y)], fill=tuple(round(top[i] * (1 - t) + bottom[i] * t) for i in range(3)))
+    try:
+        big, small = ImageFont.load_default(size=round(64 * scale)), ImageFont.load_default(size=round(34 * scale))
+    except (TypeError, OSError):
+        big = small = ImageFont.load_default()
+    d.text((w / 2, h / 2 - 30 * scale), line1, fill=(255, 255, 255), font=big, anchor='mm')
+    d.text((w / 2, h / 2 + 45 * scale), line2, fill=(235, 242, 252), font=small, anchor='mm')
+    buf = io.BytesIO()
+    im.save(buf, 'PNG')
+    return buf.getvalue()
+
+
 @lru_cache(maxsize=1)
 def sample_pictures():
-    """The template's two sample pictures (a cover and one in the post). A writer who leaves one in
-    gets it left out of the post, recognised by its bytes -- so they are made the same way every time."""
-    from PIL import Image, ImageDraw, ImageFont
-
-    def make(w, h, top, bottom, line1, line2):
-        im = Image.new('RGB', (w, h), top)
-        d = ImageDraw.Draw(im)
-        for y in range(h):
-            t = y / (h - 1)
-            d.line([(0, y), (w, y)], fill=tuple(round(top[i] * (1 - t) + bottom[i] * t) for i in range(3)))
-        try:
-            big, small = ImageFont.load_default(size=64), ImageFont.load_default(size=34)
-        except (TypeError, OSError):
-            big = small = ImageFont.load_default()
-        d.text((w / 2, h / 2 - 30), line1, fill=(255, 255, 255), font=big, anchor='mm')
-        d.text((w / 2, h / 2 + 45), line2, fill=(235, 242, 252), font=small, anchor='mm')
-        buf = io.BytesIO()
-        im.save(buf, 'PNG')
-        return buf.getvalue()
-    return {'cover': make(1200, 630, (31, 95, 192), (245, 166, 35), 'Your cover picture',
-                          'Right-click → Change Picture · landscape, 1200 × 630'),
-            'body': make(1200, 675, (22, 70, 110), (90, 180, 190), 'Your picture',
-                         'Right-click → Change Picture, or delete it')}
+    """The template's sample pictures: the cover, the thumbnail, one in the post, the one beside words and the
+    slideshow's three. A writer who leaves one in gets it left out of the post, recognised by its bytes -- so
+    they are made the same way every time. (Plain letters only: the drawing font has no arrows or times signs.)"""
+    change = 'Right-click > Change Picture'
+    return {'cover': _sample_png(1200, 630, (31, 95, 192), (245, 166, 35), 'Your cover picture',
+                                 change + '  ·  landscape, 1200 x 630'),
+            'thumb': _sample_png(800, 450, (16, 92, 96), (122, 196, 160), 'Your thumbnail',
+                                 'Optional  ·  16:9, 800 x 450  ·  the blog list', 0.8),
+            'body': _sample_png(1200, 675, (22, 70, 110), (90, 180, 190), 'Your picture', change + ', or delete it'),
+            'side': _sample_png(900, 675, (88, 52, 140), (236, 112, 99), 'Picture beside text', change, 0.9),
+            'slide1': _sample_png(1200, 675, (20, 60, 120), (60, 140, 220), 'Slide 1', change),
+            'slide2': _sample_png(1200, 675, (120, 50, 20), (240, 150, 60), 'Slide 2', change),
+            'slide3': _sample_png(1200, 675, (20, 100, 70), (90, 200, 140), 'Slide 3', change)}
 
 
 @lru_cache(maxsize=1)
 def _sample_digests():
-    return frozenset(hashlib.sha1(v).hexdigest() for v in sample_pictures().values())
+    """The samples of this template and of the one before (October 2026), which writers may still be using."""
+    before = (_sample_png(1200, 630, (31, 95, 192), (245, 166, 35), 'Your cover picture',
+                          'Right-click → Change Picture · landscape, 1200 × 630'),
+              _sample_png(1200, 675, (22, 70, 110), (90, 180, 190), 'Your picture',
+                          'Right-click → Change Picture, or delete it'))
+    return frozenset(hashlib.sha1(v).hexdigest() for v in (*sample_pictures().values(), *before))
 
 
 def _x(text):
@@ -1640,7 +1957,16 @@ def _runs(runs):
 _PPR = {'note': '<w:pStyle w:val="WriterNote"/>', 'h2': '<w:pStyle w:val="Heading2"/>',
         'h3': '<w:pStyle w:val="Heading3"/>', 'title': '<w:pStyle w:val="Title"/>',
         'bullet': '<w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>',
-        'number': '<w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="2"/></w:numPr>'}
+        'number': '<w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="2"/></w:numPr>',
+        # the template's own boxes: close lines, the band's words in from its edges, a line kept with the next
+        'tight': '<w:spacing w:before="0" w:after="40"/>', 'boxline': '<w:spacing w:before="0" w:after="90"/>',
+        'band': '<w:spacing w:before="0" w:after="60"/><w:ind w:left="200" w:right="200"/>',
+        'keep': '<w:keepNext/>'}
+
+
+def _sized(runs, size):
+    """Runs in a smaller (or larger) size, unless one says its own."""
+    return [(t, dict(f, size=f.get('size', size))) for t, f in ([(runs, {})] if isinstance(runs, str) else runs)]
 
 
 def _p(runs, kind='p'):
@@ -1650,23 +1976,31 @@ def _p(runs, kind='p'):
     return '<w:p>%s%s</w:p>' % ('<w:pPr>%s</w:pPr>' % ppr if ppr else '', _runs(runs))
 
 
-def build_docx(items, links=None):
+def build_docx(items, links=None, header=None, title=None):
     """A small .docx. items:
       (kind, runs)  kind 'p' | 'title' | 'h2' | 'h3' | 'bullet' | 'number' | 'caption' (italic) | 'note' (// line);
                     runs a string or [(text, {'b': True, 'i': True, 'link': rid})]
-      ('picture', {'data': bytes, 'alt': str})
+      ('picture', {'data': bytes, 'alt': str, 'width': inches})
+      ('band', (kicker, heading, line))          a dark full-width band (the template's top)
       ('box', [runs, ...])                       a shaded one-cell table (the instructions)
+      ('news', (title, [(head, text), ...]))     a shaded table of short items, two to a row
       ('guide', (title, intro, head, rows, bullets))  a shaded two-column table of the writing guide:
                                                  head (col 1, col 2) or None, rows [(col 1, col 2)], bullets [text]
       ('pagebreak', None)
-      ('details', [(label, hint, value), ...])   the Post details table; value a string or a picture dict
+      ('rule', None)                             a line across the page (what Word makes of --- and Enter)
+      ('details', [(label, hint, value) or 'GROUP', ...])  the Post details table; value a string or a picture
+                                                 dict; a plain string is a group's heading row
+      ('beside', {'picture': {...}, 'side': 'left' | 'right', 'text': [(kind, runs), ...]})  a two-cell table:
+                                                 a picture in one cell, words in the other
       ('table', [[cell text, ...], ...])
-    `links`: {rid: url}."""
+    `links`: {rid: url}. `header`: words at the top of every page, with the page number at the bottom. `title`:
+    the document's title (File → Info)."""
     links = dict(links or {})
     media = []
 
     def picture(p, width_in=5.6):
         from PIL import Image
+        width_in = p.get('width', width_in)
         data = p['data']
         w, h = Image.open(io.BytesIO(data)).size
         n = len(media) + 1
@@ -1676,7 +2010,8 @@ def build_docx(items, links=None):
         cx = int(width_in * 914400)
         cy = int(cx * h / w)
         alt = escape(p.get('alt') or '')
-        return ('<w:p><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="%d" cy="%d"/>'
+        return ('<w:p><w:pPr><w:keepNext/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">'
+                '<wp:extent cx="%d" cy="%d"/>'
                 '<wp:docPr id="%d" name="Picture %d" descr="%s"/><wp:cNvGraphicFramePr>'
                 '<a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic>'
                 '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic>'
@@ -1686,51 +2021,90 @@ def build_docx(items, links=None):
                 '<a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>'
                 % (cx, cy, n, n, alt, n, n, alt, rid, cx, cy))
 
-    def cell(content, width, fill=None, span=1):
+    def cell(content, width, fill=None, span=1, pad=(110, 150), valign=None):
         tcpr = ('<w:tcW w:w="%d" w:type="dxa"/>' % width + ('<w:gridSpan w:val="%d"/>' % span if span > 1 else '')
                 + ('<w:shd w:val="clear" w:color="auto" w:fill="%s"/>' % fill if fill else '')
-                + '<w:tcMar><w:top w:w="110" w:type="dxa"/><w:left w:w="150" w:type="dxa"/>'
-                  '<w:bottom w:w="110" w:type="dxa"/><w:right w:w="150" w:type="dxa"/></w:tcMar>')
+                + '<w:tcMar><w:top w:w="%d" w:type="dxa"/><w:left w:w="%d" w:type="dxa"/>'
+                  '<w:bottom w:w="%d" w:type="dxa"/><w:right w:w="%d" w:type="dxa"/></w:tcMar>' % (pad + pad)
+                + ('<w:vAlign w:val="%s"/>' % valign if valign else ''))
         return '<w:tc><w:tcPr>%s</w:tcPr>%s</w:tc>' % (tcpr, content or '<w:p/>')
 
-    def table(rows, grid, color='C9D8EA'):
+    def table(rows, grid, color='C9D8EA', keep=False):
+        """keep: no row is split over two pages."""
         borders = ''.join('<w:%s w:val="single" w:sz="6" w:space="0" w:color="%s"/>' % (s, color)
                           for s in ('top', 'left', 'bottom', 'right', 'insideH', 'insideV'))
+        trpr = '<w:trPr><w:cantSplit/></w:trPr>' if keep else ''
         return ('<w:tbl><w:tblPr><w:tblW w:w="%d" w:type="dxa"/><w:tblBorders>%s</w:tblBorders>'
                 '<w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>%s</w:tblGrid>%s</w:tbl><w:p/>'
                 % (sum(grid), borders, ''.join('<w:gridCol w:w="%d"/>' % g for g in grid),
-                   ''.join('<w:tr>%s</w:tr>' % r for r in rows)))
+                   ''.join('<w:tr>%s%s</w:tr>' % (trpr, r) for r in rows)))
 
     body = []
     for item in items:
         kind, value = item
         if kind == 'picture':
             body.append(picture(value))
+        elif kind == 'band':
+            kicker, heading, line = value
+            body.append(table([cell(_p([(kicker, {'b': True, 'color': 'F5B544', 'size': 17})], 'band')
+                                    + _p([(heading, {'b': True, 'color': 'FFFFFF', 'size': 44})], 'band')
+                                    + _p([(line, {'color': 'D6E2F3', 'size': 21})], 'band'), 9500, fill='17375E',
+                                    pad=(260, 150))], [9500], color='17375E'))
         elif kind == 'box':
-            body.append(table([cell(''.join(_p(r) for r in value), 9500, fill='FFF4D6')], [9500], color='F0D58C'))
+            body.append(table([cell(''.join(_p(_sized(r, 20), 'boxline') for r in value), 9500, fill='FFF4D6',
+                                    pad=(160, 150))], [9500], color='F0D58C'))
+        elif kind == 'news':
+            heading, pairs = value
+            rows = [cell(_p([(heading, {'b': True, 'color': '7A5A00'}), ('   — never published', {'i': True, 'color': '7A5A00'})]),
+                         9500, fill='FCE7B2', span=2)]
+            for i in range(0, len(pairs), 2):
+                rows.append(''.join(cell(_p([('✦  ', {'color': 'C98A00', 'size': 19}), (h, {'b': True, 'size': 19})], 'tight')
+                                         + _p([(t, {'size': 18, 'color': '5B4A1E'})], 'tight'), 4750, fill='FFFBEE',
+                                         pad=(80, 150)) for h, t in pairs[i:i + 2]))
+            body.append(table(rows, [4750, 4750], color='F0D58C', keep=True))
+        elif kind == 'rule':
+            body.append('<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="8" w:space="1" w:color="9AA8BA"/></w:pBdr>'
+                        '</w:pPr></w:p>')
+        elif kind == 'beside':
+            pic = cell(picture(value['picture'], width_in=1.9), 3100, valign='center')
+            words = cell(''.join(_p(r, k) for k, r in value['text']), 6400, valign='center')
+            left = value.get('side', 'left') == 'left'
+            body.append(table([pic + words if left else words + pic], [3100, 6400] if left else [6400, 3100],
+                              color='D5DEE9', keep=True))
         elif kind == 'guide':
             title, intro, head, lines, bullets = value
             grid = [3700, 5800]
             rows = [cell(_p([(title, {'b': True, 'color': '7A5A00'}),
-                             ('   — never published', {'i': True, 'color': '7A5A00'})])
-                         + (_p([(intro, {'i': True, 'color': '6B5A2A'})]) if intro else ''), 9500, fill='FCE7B2', span=2)]
+                             ('   — never published', {'i': True, 'color': '7A5A00'})], 'tight')
+                         + (_p([(intro, {'i': True, 'color': '6B5A2A', 'size': 19})], 'tight') if intro else ''),
+                         9500, fill='FCE7B2', span=2)]
             if head:
-                rows.append(''.join(cell(_p([(h, {'b': True})]), w, fill='FFF4D6') for h, w in zip(head, grid)))
+                rows.append(''.join(cell(_p([(h, {'b': True, 'size': 19})], 'tight'), w, fill='FFF4D6', pad=(70, 150))
+                                    for h, w in zip(head, grid)))
             for a, b in lines:
-                rows.append(cell(_p(a if head else [(a, {'b': True})]), grid[0], fill='FFFBEE')
-                            + cell(_p(b), grid[1], fill='FFFBEE'))
+                rows.append(cell(_p(_sized(a if head else [(a, {'b': True})], 19), 'tight'), grid[0], fill='FFFBEE',
+                                 pad=(70, 150))
+                            + cell(_p(_sized(b, 19), 'tight'), grid[1], fill='FFFBEE', pad=(70, 150)))
             if bullets:
-                rows.append(cell(''.join(_p(t, 'bullet') for t in bullets), 9500, fill='FFFBEE', span=2))
-            body.append(table(rows, grid, color='F0D58C'))
+                rows.append(cell(''.join(_p(_sized(t, 19), 'bullet') for t in bullets), 9500, fill='FFFBEE', span=2))
+            body.append(table(rows, grid, color='F0D58C', keep=True))
         elif kind == 'pagebreak':
             body.append('<w:p><w:r><w:br w:type="page"/></w:r></w:p>')
         elif kind == 'details':
-            rows = [cell(_p([('POST DETAILS', {'b': True, 'color': '1F4E8C'})]), 9500, fill='DCE9F7', span=2)]
-            for label, hint, val in value:
-                left = _p([(label, {'b': True})]) + (_p([(hint, {'i': True, 'color': '6B7A90', 'size': 17})]) if hint else '')
-                right = picture(val, width_in=3.6) if isinstance(val, dict) else _p(val)
-                rows.append(cell(left, 2900, fill='EEF4FB') + cell(right, 6600))
-            body.append(table(rows, [2900, 6600]))
+            rows = [cell(_p([('POST DETAILS', {'b': True, 'color': 'FFFFFF'}),
+                             ('   type over the examples · only the title is needed', {'i': True, 'color': 'D6E2F3', 'size': 19})]),
+                         9500, fill='1F4E8C', span=2)]
+            for entry in value:
+                if isinstance(entry, str):
+                    rows.append(cell(_p([(entry, {'b': True, 'color': '1F4E8C', 'size': 17})], 'tight'), 9500,
+                                     fill='DCE9F7', span=2, pad=(50, 150)))
+                    continue
+                label, hint, val = entry
+                left = (_p([(label, {'b': True})], 'tight')
+                        + (_p([(hint, {'i': True, 'color': '6B7A90', 'size': 16})], 'tight') if hint else ''))
+                right = picture(val, width_in=3.0) if isinstance(val, dict) else _p(val, 'tight')
+                rows.append(cell(left, 2900, fill='EEF4FB', pad=(80, 150)) + cell(right, 6600, valign='center', pad=(80, 150)))
+            body.append(table(rows, [2900, 6600], keep=True))
         elif kind == 'table':
             width = 9500 // max(1, len(value[0]))
             body.append(table([''.join(cell(_p(c), width) for c in row) for row in value], [width] * len(value[0])))
@@ -1742,10 +2116,18 @@ def build_docx(items, links=None):
           'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" '
           'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
           'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"')
+    refs = ('<w:headerReference w:type="default" r:id="rIdHeader"/><w:footerReference w:type="default" r:id="rIdFooter"/>'
+            if header else '')
     document = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document %s><w:body>%s'
-                '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1200" w:right="1200" w:bottom="1200" '
-                'w:left="1200" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>'
-                % (ns, ''.join(body)))
+                '<w:sectPr>%s<w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1200" w:right="1200" w:bottom="1200" '
+                'w:left="1200" w:header="560" w:footer="560" w:gutter="0"/></w:sectPr></w:body></w:document>'
+                % (ns, ''.join(body), refs))
+    small = '<w:rPr><w:color w:val="8A97A8"/><w:sz w:val="16"/></w:rPr>'
+    header_xml = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr %s><w:p><w:pPr><w:jc w:val="right"/></w:pPr>'
+                  '<w:r>%s<w:t xml:space="preserve">%s</w:t></w:r></w:p></w:hdr>' % (ns, small, _x(header or '')))
+    footer_xml = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr %s><w:p><w:pPr><w:jc w:val="center"/></w:pPr>'
+                  '<w:r>%s<w:t xml:space="preserve">Page </w:t></w:r><w:fldSimple w:instr=" PAGE "><w:r>%s<w:t>1</w:t></w:r>'
+                  '</w:fldSimple></w:p></w:ftr>' % (ns, small, small))
 
     def style(sid, name, ppr='', rpr=''):
         return ('<w:style w:type="paragraph" w:styleId="%s"><w:name w:val="%s"/><w:basedOn w:val="Normal"/>'
@@ -1762,8 +2144,10 @@ def build_docx(items, links=None):
               + style('Heading3', 'heading 3', '<w:keepNext/><w:spacing w:before="240" w:after="80"/><w:outlineLvl w:val="2"/>',
                       '<w:b/><w:color w:val="1F4E8C"/><w:sz w:val="25"/>')
               + style('ListParagraph', 'List Paragraph', '<w:spacing w:after="60"/><w:ind w:left="720"/>')
-              + style('WriterNote', 'Writer note', '<w:shd w:val="clear" w:color="auto" w:fill="FFF4D6"/>'
-                      '<w:spacing w:after="60"/>', '<w:i/><w:color w:val="7A5A00"/><w:sz w:val="19"/>')
+              + style('WriterNote', 'Writer note', '<w:keepNext/><w:pBdr><w:left w:val="single" w:sz="18" w:space="6" '
+                      'w:color="E0B43C"/></w:pBdr><w:shd w:val="clear" w:color="auto" w:fill="FFF4D6"/>'
+                      '<w:spacing w:before="200" w:after="80"/>',
+                      '<w:i/><w:color w:val="7A5A00"/><w:sz w:val="19"/>')
               + '<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/>'
                 '<w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr></w:style></w:styles>')
 
@@ -1785,6 +2169,8 @@ def build_docx(items, links=None):
                       % (rid, rel, escape(url)) for rid, url in links.items())
             + ''.join('<Relationship Id="%s" Type="%simage" Target="media/%s"/>' % (rid, rel, fname)
                       for rid, fname, _ in media)
+            + ('<Relationship Id="rIdHeader" Type="%sheader" Target="header1.xml"/>'
+               '<Relationship Id="rIdFooter" Type="%sfooter" Target="footer1.xml"/>' % (rel, rel) if header else '')
             + '</Relationships>')
     types = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
              '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
@@ -1795,10 +2181,22 @@ def build_docx(items, links=None):
              '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
              '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
              '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>'
-             '</Types>')
+             + ('<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>'
+                '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>'
+                if header else '')
+             + ('<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>'
+                if title else '')
+             + '</Types>')
     root_rels = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
                  '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-                 '<Relationship Id="rId1" Type="%sofficeDocument" Target="word/document.xml"/></Relationships>' % rel)
+                 '<Relationship Id="rId1" Type="%sofficeDocument" Target="word/document.xml"/>' % rel
+                 + ('<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/'
+                    'core-properties" Target="docProps/core.xml"/>' if title else '')
+                 + '</Relationships>')
+    core = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties '
+            'xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" '
+            'xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>%s</dc:title><dc:creator>NRI Parent Service</dc:creator>'
+            '</cp:coreProperties>' % _x(title or ''))
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
         z.writestr('[Content_Types].xml', types)
@@ -1807,47 +2205,84 @@ def build_docx(items, links=None):
         z.writestr('word/styles.xml', styles)
         z.writestr('word/numbering.xml', numbering)
         z.writestr('word/_rels/document.xml.rels', rels)
+        if header:
+            z.writestr('word/header1.xml', header_xml)
+            z.writestr('word/footer1.xml', footer_xml)
+        if title:
+            z.writestr('docProps/core.xml', core)
         for _, fname, data in media:
             z.writestr('word/media/' + fname, data)
     return buf.getvalue()
 
 
 def template_docx():
-    """The writer's template: a "how to use" box (never published), the Post details box, an example
-    post written the way the writer will write theirs -- ready to be typed over -- and, on its own
-    page at the end, the whole writing guide (never published either): the same lists the import
-    page shows."""
+    """The writer's template, all of it Word the writer already knows:
+      * page 1, for the writer and never published: the band, "How to use this template", "New in this template";
+      * the Post details box, its rows grouped (Basics, Pictures, Where it shows, Google);
+      * an example post written the way the writer will write theirs -- every block the import knows, each with a
+        small // note above it (never published), ready to be typed over. Its sample pictures and sample video are
+        left out of the post if the writer leaves them in;
+      * on its own pages at the end, the whole writing guide (never published either): the same lists the import
+        page shows."""
     pics = sample_pictures()
+    ti, tc = {'link': 'rIdTi'}, {'link': 'rIdTc'}
     items = [
+        ('band', ('BLOG TEMPLATE  ·  NRI PARENT SERVICE', 'Write your blog post in Word',
+                  'Type over the example, upload the file, and it becomes a draft on the blog. '
+                  'Nothing is published until you say so.')),
         ('box', [
-            [('HOW TO USE THIS TEMPLATE', {'b': True}), ('   — this yellow box is never published; leave it or delete it', {'i': True})],
-            '1.  Fill in the Post details below: the title, a one- or two-sentence summary, and your cover picture '
-            '(right-click the sample picture → Change Picture).',
-            '2.  Write your post under the details, like any Word document. For a section title choose Heading 2 '
+            [('HOW TO USE THIS TEMPLATE', {'b': True}),
+             ('   — the yellow boxes and the dark band are never published; leave them or delete them', {'i': True})],
+            '1.  Fill in the Post details box on the next page: the title, a one- or two-sentence summary and the cover '
+            'picture — and, if you like, a thumbnail, the category and tags, and what Google should show.',
+            '2.  Write the post under the details, like any Word document. For a section title choose Heading 2 '
             '(Home → Styles). Bold, italics, bullet points, numbering, links and tables all come through.',
-            '3.  Pictures: put them where they belong (Insert → Pictures, or just paste). Right-click a picture → '
-            'Edit Alt Text and say what it shows. Type the caption in italics on the line right under it.',
-            '4.  Special boxes: start a line with Tip: for a tip box, or Quote: for a big quote. For a button, '
-            'start a line with Button: then select the button’s words and press Ctrl+K to link them.',
-            '5.  Save, then upload the file in the admin portal: Travel Companion → Website → Import blog posts. '
-            'It becomes a draft you can check before anything is published.',
+            '3.  Pictures: put them where they belong (Insert → Pictures, or just paste). To use the sample places, '
+            'right-click a sample picture → Change Picture. Right-click → Edit Alt Text to say what it shows, and '
+            'type the caption in italics on the line right under it.',
+            '4.  Special lines make special blocks: Tip:, Quote:, Button:, Video:, Slideshow: and --- . The example '
+            'post shows every one, with a small yellow // note above it (// lines are never published).',
+            '5.  Save, then upload the file in the admin portal: Blog → Import from Word. It becomes a draft you '
+            'check in the editor before anything is published.',
             [('The full writing guide is at the end of this document: ', {'b': True}),
-             ('what each thing becomes on the website, picture tips, what is checked before publishing, and the '
-              'advanced labels.', {})],
+             ('the Post details box row by row, what each thing becomes, picture sizes, what to do in the editor '
+              'afterwards, what is checked before publishing, and the advanced labels.', {})],
             [('Using Google Docs? ', {'b': True}), ('Write it the same way, then File → Download → Microsoft Word (.docx).', {})],
         ]),
+        ('news', ('NEW IN THIS TEMPLATE  ·  October 2026', [
+            ('Thumbnail picture', 'A 16:9 picture for the blog list, 800 × 450.'),
+            ('Category and tags', 'Where the post shows, and which sidebar cards sit beside it.'),
+            ('Focus keyword and Google title', 'What the post should be found by.'),
+            ('Video:', 'A YouTube or Vimeo link that plays inside the post.'),
+            ('Picture beside text', 'A table of two cells: the picture in one, the words in the other.'),
+            ('Slideshow:', 'Pictures readers swipe through, each with its caption.'),
+            ('Divider', 'Type --- and press Enter for a line across the page.'),
+            ('Big button: · Outline button:', 'Two more looks for a button.'),
+        ])),
+        ('pagebreak', None),
         ('details', [
+            'BASICS',
             ('Title', 'Under 65 characters', 'How to Buy Travel Insurance for Parents Visiting the USA'),
-            ('Summary', '1–2 sentences (70–160 characters). Shown on Google and in WhatsApp shares.',
-             'A step-by-step guide for NRIs choosing travel medical insurance for parents visiting the USA: '
-             'what to compare, pre-existing conditions and deductibles.'),
-            ('Cover picture', 'Landscape, about 1200 × 630', {'data': pics['cover'], 'alt': ''}),
+            ('Summary', '1–2 sentences, 70–160 characters. Shown on Google and in WhatsApp shares.',
+             'A step-by-step guide for NRIs choosing travel insurance for parents visiting the USA: what to compare, '
+             'pre-existing conditions and deductibles.'),
+            ('Web address', 'Optional — left empty, it is made from the title', ''),
+            'PICTURES',
+            ('Cover picture', 'Landscape, 1200 × 630 px. Also the picture WhatsApp and Facebook show.',
+             {'data': pics['cover'], 'alt': '', 'width': 2.6}),
             ('Cover description', 'What the cover picture shows', 'Indian parents with their suitcases at a US airport'),
-            ('Web address', 'Optional — leave it empty and it is made from the title', ''),
+            ('Thumbnail picture', 'Optional · 16:9, 800 × 450 px, for the blog list. Left empty, the cover is used.',
+             {'data': pics['thumb'], 'alt': '', 'width': 1.7}),
+            'WHERE IT SHOWS',
+            ('Category', 'As named on the blog. It also picks the sidebar cards beside the post.', 'Travel insurance'),
+            ('Tags', 'Separated by commas. Only tags the blog already has.', 'parents, health insurance, USA visit'),
+            'GOOGLE',
+            ('Focus keyword', 'Optional: the words people search for', 'travel insurance for parents'),
+            ('Google title', 'Optional: what Google shows instead of the title', 'Travel Insurance for Parents Visiting the USA: 2026 Guide'),
         ]),
         ('p', [('When parents travel from India to the United States, NRIs plan every detail of the journey. '
-                'One item belongs on every checklist: ', {}), ('travel medical insurance', {'b': True}), ('.', {})]),
-        ('h2', '1. Understand why your parents need travel insurance'),
+                'One item belongs on every checklist: ', {}), ('travel insurance for parents', {'b': True}), ('.', {})]),
+        ('h2', '1. Why travel insurance for parents matters'),
         ('p', 'Healthcare in the United States is expensive. An emergency room visit, tests or a short hospital '
               'stay can lead to a large bill, and travel insurance can cover eligible expenses under the policy terms.'),
         ('picture', {'data': pics['body'], 'alt': ''}),
@@ -1861,17 +2296,48 @@ def template_docx():
         ('number', 'Compare the policy maximum and the deductible.'),
         ('number', 'Read how pre-existing conditions are treated.'),
         ('number', 'Check the exclusions.'),
+        ('note', '// PICTURE BESIDE TEXT — a table of two cells: the picture in one, your words in the other. '
+                 'Put the picture in the right-hand cell and it shows on the right.'),
+        ('beside', {'picture': {'data': pics['side'], 'alt': ''}, 'side': 'left', 'text': [
+            ('h3', 'Pre-existing conditions'),
+            ('p', 'Many plans cover a sudden flare-up of an existing condition only up to a limit, and some not at '
+                  'all. Read this part of the policy twice, and ask before you buy.'),
+        ]}),
         ('p', [('Tip: ', {'b': True}), ('Check whether the policy can be extended if your parents decide to stay longer.', {})]),
         ('p', [('Quote: ', {'b': True}), ('The best plan is not necessarily the cheapest one.', {})]),
+        ('note', '// VIDEO — write Video: and paste a YouTube or Vimeo link: it plays inside the post. '
+                 'A line that is only the link works too.'),
+        ('p', [('Video: ', {'b': True}), (SAMPLE_VIDEO, {})]),
+        ('note', '// SLIDESHOW — write Slideshow: (and a heading after it if you like), then the pictures one under '
+                 'another, each with its caption in italics. The slideshow ends at the next line of text.'),
+        ('keep', [('Slideshow: ', {'b': True}), ('A day at the airport', {})]),
+        ('picture', {'data': pics['slide1'], 'alt': '', 'width': 2.6}),
+        ('caption', 'Check-in: keep the passports and the insurance card together.'),
+        ('picture', {'data': pics['slide2'], 'alt': '', 'width': 2.6}),
+        ('caption', 'Security: medicines go in the cabin bag.'),
+        ('picture', {'data': pics['slide3'], 'alt': '', 'width': 2.6}),
+        ('caption', 'Arrival: the insurance card is ready at immigration.'),
+        ('note', '// DIVIDER — type --- and press Enter: Word draws a line across the page. '
+                 'Or write Divider on a line of its own.'),
+        ('rule', None),
         ('h2', 'Final thoughts'),
         ('p', [('Compare plans carefully and read the policy before your parents travel. See our ', {}),
-               ('travel insurance page', {'link': 'rIdTi'}), (' for plans that fit.', {})]),
-        ('p', [('Button: ', {'b': True}), ('Get a free travel insurance quote', {'link': 'rIdTi'})]),
+               ('travel insurance page', ti), (' for plans that fit.', {})]),
+        ('note', '// BUTTONS — Button: then the words, linked with Ctrl+K. Big button: and Outline button: '
+                 'give the other two looks.'),
+        ('p', [('Button: ', {'b': True}), ('Get a free travel insurance quote', ti)]),
+        ('p', [('Outline button: ', {'b': True}), ('Find a travel companion for your parents', tc)]),
         ('pagebreak', None),
+        ('guide', ('WRITING GUIDE · The Post details box',
+                   'Only the title is needed; every other row is optional. This is what each one is for.',
+                   ('Row', 'What it is for'), DETAIL_RULES, ())),
         ('guide', ('WRITING GUIDE · How each thing comes out',
                    'There is nothing special to learn: write in Word the way you always do. This is what each '
                    'part becomes on the website.', ('In Word', 'On the website'), FORMAT_RULES, ())),
         ('guide', ('WRITING GUIDE · Pictures', None, None, (), IMAGE_RULES)),
+        ('guide', ('WRITING GUIDE · Do these in the editor after import',
+                   'A Word document does not say these. Open the draft in the editor (Blog → All posts) and:',
+                   ('What', 'Where'), EDITOR_RULES, ())),
         ('guide', ('WRITING GUIDE · What is checked before publishing',
                    'The editor checks the post when it is imported. Fix the first kind; the second are suggestions.',
                    None, CHECK_RULES, ())),
@@ -1880,4 +2346,6 @@ def template_docx():
                    'the pictures as one .zip next to the document. Both ways can be mixed.',
                    ('Write this in Word', 'It becomes'), ADVANCED_RULES, ADVANCED_IMAGE_RULES)),
     ]
-    return build_docx(items, links={'rIdTi': 'https://nriparentservice.com/travel-insurance'})
+    return build_docx(items, links={'rIdTi': 'https://nriparentservice.com/travel-insurance',
+                                    'rIdTc': 'https://nriparentservice.com/travel-companions'},
+                      header='NRI Parent Service  ·  Blog template', title='NRI Parent Service blog template')

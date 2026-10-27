@@ -129,3 +129,21 @@ TRIP_JSON = {
     'contact_points': [{'type': 'auto', 'value': '+1 214 555 0100', 'label': ''}],
     'contact_consent': True,
 }
+
+
+def same_team(*users, name='Team A'):
+    """Put `users` in one team of the default workspace (a saved view or filter is shared with one team only)."""
+    from app.models import WorkspaceTeam
+    from app.services import access
+    ws = access.ensure_defaults()
+    team = WorkspaceTeam.query.filter_by(workspace_id=ws.id, name=name).first()
+    if team is None:
+        team = WorkspaceTeam(workspace_id=ws.id, name=name)
+        _db.session.add(team)
+        _db.session.flush()
+    for u in users:
+        if u not in team.users:
+            team.users.append(u)
+    _db.session.commit()
+    access._cache().clear()
+    return team

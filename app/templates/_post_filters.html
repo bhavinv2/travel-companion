@@ -7,6 +7,8 @@
    with no extra plumbing -- "Show results" just submits that form. Everything rendered here comes
    from app/services/post_filters.py, so a new filter is one entry there and nothing to do here. #}
 
+{% from '_who_sees.html' import who_sees %}
+
 {% macro filter_button(chips) -%}
 <button type="button" class="pf-btn" data-pf-open aria-controls="pfDrawer">
   <i class="fa-solid fa-sliders"></i> Filters{% if chips %}<span class="pf-count">{{ chips|length }}</span>{% endif %}
@@ -127,7 +129,7 @@
         {% if f.rolls_forward %}<i class="fa-solid fa-rotate sv-roll" title="Moves with the date"></i>{% endif %}
         <span>{{ f.name }}</span>
         {% if f.is_new %}<span class="sv-new" title="Saved in the last few days">New</span>{% endif %}
-        {% if f.owner_id != current_user.id %}<i class="fa-solid fa-user-group sv-shared" title="Shared by {{ f.owner.username if f.owner else 'a colleague' }}"></i>{% endif %}
+        {% if f.owner_id != current_user.id %}<i class="fa-solid fa-user-group sv-shared" title="Shared with {{ f.team.name if f.team else 'your team' }} by {{ f.owner.username if f.owner else 'a colleague' }}"></i>{% endif %}
       </a>
       {% endfor %}
     </div>
@@ -176,10 +178,9 @@
     <input class="sv-dlg-inp" id="svName" name="name" maxlength="60" required
            placeholder="e.g. Departing today from Delhi" autocomplete="off"/>
 
-    <label class="sv-dlg-check">
-      <input type="checkbox" name="shared"/>
-      <span>Share with the CS team <small>They can use it; only you can change it.</small></span>
-    </label>
+    {# shared with one team of mine, never everybody (services/team_share.py) #}
+    {{ who_sees(None, 'svTeam') }}
+    <small class="sv-dlg-note">Your team can use it; only you can change it.</small>
 
     <div class="sv-dlg-ft">
       <button type="button" class="btn btn-light" id="svCancel">Cancel</button>

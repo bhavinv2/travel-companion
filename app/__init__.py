@@ -530,6 +530,7 @@ def create_app(test_config=None):
     from app.routes.jobs import jobs_bp
     from app.routes.scraper import scraper_bp
     from app.routes.saved_views import saved_bp
+    from app.routes.favourites import my_bp
     from app.routes.crm import crm_bp, crm_public_bp
     from app.routes import crm_setup  # noqa: F401 -- Set-up -> Pipelines: its rules are on crm_bp, before it is registered
     from app.routes import crm_wa  # noqa: F401 -- Quick replies, WhatsApp connection, What goes out by itself: rules on crm_bp, before it is registered
@@ -567,6 +568,7 @@ def create_app(test_config=None):
     app.register_blueprint(jobs_bp)
     app.register_blueprint(scraper_bp, url_prefix='/cs/scraper')
     app.register_blueprint(saved_bp)
+    app.register_blueprint(my_bp)
     app.register_blueprint(crm_bp, url_prefix='/cs/crm')
     # the same Sales CRM inside the admin portal, with the admin menu (see routes/crm.py)
     app.register_blueprint(crm_bp, url_prefix='/admin/crm', name='admin_crm')

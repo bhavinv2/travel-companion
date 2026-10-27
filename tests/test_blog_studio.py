@@ -92,11 +92,13 @@ def test_the_template_reads_as_a_clean_post_and_leaves_its_samples_out():
     assert r['title'] == 'How to Buy Travel Insurance for Parents Visiting the USA'
     assert r['slug'] == 'how-to-buy-travel-insurance-for-parents-visiting-the-usa'
     assert 70 <= len(r['summary']) <= 160 and r['cover_alt'].startswith('Indian parents')
-    assert r['cover'] == '' and r['embedded'] == {}                     # the sample pictures are not the writer's
-    assert any('sample picture' in n for n in r['notes'])
+    assert r['cover'] == '' and r['thumb'] == '' and r['embedded'] == {}   # the sample pictures are not the writer's
+    assert any('sample picture' in n for n in r['notes']) and any('sample video' in n for n in r['notes'])
     h = r['html']
-    assert 'HOW TO USE' not in h and 'POST DETAILS' not in h and 'Your caption goes here' not in h
-    assert h.count('<h2>') == 3 and h.count('<h3>') == 1
+    for writer_only in ('HOW TO USE', 'POST DETAILS', 'NEW IN THIS TEMPLATE', 'BLOG TEMPLATE', 'Your caption goes here',
+                        'PICTURE BESIDE TEXT', 'YOUR-VIDEO', 'Slideshow', 'A day at the airport', 'Check-in:', 'BUTTONS'):
+        assert writer_only not in h, writer_only
+    assert h.count('<h2>') == 3 and h.count('<h3>') == 2 and h.count('<hr/>') == 1
     assert '<ul><li>Full name and date of birth</li>' in h and '<ol><li>Compare the policy maximum' in h
     assert '<aside class="blog-note">Check whether' in h and '<blockquote>The best plan' in h
     assert ('<a class="blog-cta" href="https://nriparentservice.com/travel-insurance">Get a free travel insurance quote</a>'
@@ -108,13 +110,15 @@ def test_the_template_carries_the_whole_writing_guide_and_never_publishes_it():
     data = be.template_docx()
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         text = unescape(re.sub(r'<[^>]+>', '', z.read('word/document.xml').decode()))
-    for what, becomes in be.FORMAT_RULES + be.CHECK_RULES + be.ADVANCED_RULES:
+    for what, becomes in (be.DETAIL_RULES + be.FORMAT_RULES + be.EDITOR_RULES + be.CHECK_RULES
+                          + be.ADVANCED_RULES):
         assert what in text and becomes in text, what
     for rule in be.IMAGE_RULES + be.ADVANCED_IMAGE_RULES:
         assert rule in text, rule
     assert 'The full writing guide is at the end of this document' in text
     html = be.parse_docx(data)['html']
-    for guide_bit in ('WRITING GUIDE', 'On the website', '@title', 'Stops publishing', 'never published'):
+    for guide_bit in ('WRITING GUIDE', 'On the website', '@title', 'Stops publishing', 'never published',
+                      'What it is for', 'Blog → Sidebars'):
         assert guide_bit not in html
 
 

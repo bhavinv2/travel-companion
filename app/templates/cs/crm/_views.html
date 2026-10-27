@@ -1,6 +1,9 @@
-{# The Views menu on Leads and Contacts (Sales CRM 2.0, run 4b): built-in views, my saved views, views colleagues
-   shared, and "Save this view...". Plain forms and links. scope: 'crm_leads' / 'crm_contacts'; params: the page's
-   filter words as they are now (the same words the download button carries). #}
+{# The Views menu on Leads and Contacts (Sales CRM 2.0, run 4b): built-in views, my saved views, views my team
+   shared with me, and "Save this view...". Plain forms and links. scope: 'crm_leads' / 'crm_contacts'; params: the
+   page's filter words as they are now (the same words the download button carries). Shared with one team only, and
+   any view can be starred into the favourites (2026-10-27: _who_sees.html, _fav_star.html). #}
+{% from '_who_sees.html' import who_sees %}
+{% from '_fav_star.html' import view_star %}
 {% macro views_menu(scope, params) -%}
 {%- set page = 'board' if scope == 'crm_leads' else 'contacts' -%}
 {%- set mine_shared = VIEWS_FOR(scope) -%}
@@ -15,13 +18,13 @@
     <p class="vw-h">My views</p>
     {% for v in mine_shared.mine %}
     <div class="vw-own">
-      <a class="vw-item{{ ' on' if VIEW_ACTIVE(v.params, params) }}" href="{{ crm_url(page, **v.params) }}">{{ v.name }}{% if v.shared %} <small class="muted" title="Your team can use it">shared</small>{% endif %}</a>
-      <details class="vw-edit"><summary class="cb sm quiet" aria-label="Rename or delete {{ v.name }}">⋯</summary>
+      <a class="vw-item{{ ' on' if VIEW_ACTIVE(v.params, params) }}" href="{{ crm_url(page, **v.params) }}">{{ v.name }}{% if v.team_id and v.team %} <small class="muted" title="Shared with {{ v.team.name }}">{{ v.team.name }}</small>{% endif %}</a>
+      {{ view_star(v) }}
+      <details class="vw-edit"><summary class="cb sm quiet" aria-label="Rename, share or delete {{ v.name }}">⋯</summary>
         <form method="POST" action="{{ crm_url('view_rename', view_id=v.id) }}" class="vw-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="scope" value="{{ scope }}"/>
           <input type="text" name="name" value="{{ v.name }}" maxlength="60" aria-label="Name"/>
-          <input type="hidden" name="shared_present" value="1"/>
-          <label class="small"><input type="checkbox" name="shared"{{ ' checked' if v.shared }}/> Share with the team</label>
+          {{ who_sees(v.team_id) }}
           <button class="cb sm">Save</button>
         </form>
         <form method="POST" action="{{ crm_url('view_delete', view_id=v.id) }}" class="fam-confirm vw-del">
@@ -32,9 +35,12 @@
     </div>
     {% else %}<p class="muted small vw-none">None yet. Set the filters you want, then “Save this view”.</p>{% endfor %}
     {% if mine_shared.shared %}
-    <p class="vw-h">Shared by colleagues</p>
+    <p class="vw-h">Shared with my team</p>
     {% for v in mine_shared.shared %}
-    <a class="vw-item{{ ' on' if VIEW_ACTIVE(v.params, params) }}" href="{{ crm_url(page, **v.params) }}">{{ v.name }} <small class="muted">{{ v.owner.first_name or v.owner.username if v.owner else '' }}</small></a>
+    <div class="vw-own">
+      <a class="vw-item{{ ' on' if VIEW_ACTIVE(v.params, params) }}" href="{{ crm_url(page, **v.params) }}">{{ v.name }} <small class="muted">{{ v.owner.first_name or v.owner.username if v.owner else '' }}</small></a>
+      {{ view_star(v) }}
+    </div>
     {% endfor %}
     {% endif %}
     <details class="vw-save"><summary class="cb sm primary">Save this view…</summary>
@@ -43,7 +49,7 @@
         {% for k, v in params.items() %}<input type="hidden" name="f_{{ k }}" value="{{ v }}"/>{% endfor %}
         <label class="lb" for="vw-name-{{ scope }}">Call it</label>
         <input id="vw-name-{{ scope }}" type="text" name="name" maxlength="60" required placeholder="e.g. Quotes to chase"/>
-        <label class="small"><input type="checkbox" name="shared"/> Share with the team</label>
+        {{ who_sees(None, 'vw-team-' ~ scope) }}
         <button class="cb sm primary">Save</button>
       </form>
     </details>

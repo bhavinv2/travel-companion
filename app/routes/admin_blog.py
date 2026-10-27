@@ -363,6 +363,7 @@ def blog_import():
             else:
                 flash('Nothing was imported: see why below.', 'danger')
     return render_template('admin/blog_import.html', results=results, notes=notes, rules=be.FORMAT_RULES,
+                           detail_rules=be.DETAIL_RULES, editor_rules=be.EDITOR_RULES,
                            image_rules=be.IMAGE_RULES, check_rules=be.CHECK_RULES, advanced_rules=be.ADVANCED_RULES,
                            advanced_image_rules=be.ADVANCED_IMAGE_RULES)
 

@@ -15,18 +15,18 @@
       <li>
         <span class="bs-n">1</span>
         <strong>Download the template</strong>
-        <p>A Word file with a box for the title, summary and cover, and an example post to type over.</p>
+        <p>A Word file with the Post details box (title, summary, cover, thumbnail, category and tags, what Google shows) and an example post showing every block, to type over.</p>
         <a class="btn btn-primary btn-sm" href="{{ url_for('admin.blog_template') }}"><i class="fa-solid fa-file-word"></i> Blog template (.docx)</a>
       </li>
       <li>
         <span class="bs-n">2</span>
         <strong>Write it like any Word document</strong>
-        <p>Headings, bold, lists and links as usual. Start a line with <b>Tip:</b>, <b>Quote:</b> or <b>Button:</b> for the special boxes. <a href="#bs-format">How each thing comes out</a></p>
+        <p>Headings, bold, lists and links as usual. Start a line with <b>Tip:</b>, <b>Quote:</b>, <b>Button:</b>, <b>Video:</b> or <b>Slideshow:</b> for the special blocks; type <b>---</b> for a line. <a href="#bs-format">How each thing comes out</a></p>
       </li>
       <li>
         <span class="bs-n">3</span>
         <strong>Paste the pictures in</strong>
-        <p>Right where they belong. The one at the top is the cover. Right-click → Edit Alt Text to describe it. <a href="#bs-pictures">Picture tips</a></p>
+        <p>Right where they belong. The one at the top is the cover (1200 × 630); the thumbnail for the blog list is 800 × 450. A table of two cells puts a picture beside your words. Right-click → Edit Alt Text to describe a picture. <a href="#bs-pictures">Picture tips</a></p>
       </li>
       <li>
         <span class="bs-n">4</span>
@@ -105,17 +105,30 @@
       <summary>
         <span class="bs-guide-ico"><i class="fa-solid fa-book-open"></i></span>
         <span><strong>Writing guide</strong>
-          <small>What each thing in Word becomes, picture tips, what is checked before publishing, and the advanced labels.
-            The same guide is at the end of the Word template.</small></span>
+          <small>The Post details box, what each thing in Word becomes, picture tips, what to do in the editor afterwards,
+            what is checked before publishing, and the advanced labels. The same guide is at the end of the Word template.</small></span>
         <i class="fa-solid fa-chevron-down bs-guide-arrow"></i>
       </summary>
       <div class="bs-guide-body">
         <nav class="bs-guide-nav">
+          <a href="#bs-details">The Post details box</a>
           <a href="#bs-format">How each thing comes out</a>
           <a href="#bs-pictures">Pictures</a>
+          <a href="#bs-editor">In the editor afterwards</a>
           <a href="#bs-checks">What is checked</a>
           <a href="#bs-advanced">Advanced: labels and separate picture files</a>
         </nav>
+
+        <section class="bs-rules bs-guide-sec" id="bs-details">
+          <h2>The Post details box</h2>
+          <p class="muted">The box at the top of the template. Only the title is needed; every other row is optional.</p>
+          <div class="table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>Row</th><th>What it is for</th></tr></thead>
+            <tbody>{% for row, what in detail_rules %}<tr><td>{{ row }}</td><td>{{ what }}</td></tr>{% endfor %}</tbody>
+          </table>
+          </div>
+        </section>
 
         <section class="bs-rules bs-guide-sec" id="bs-format">
           <h2>How each thing comes out</h2>
@@ -135,6 +148,17 @@
         <section class="bs-rules bs-guide-sec" id="bs-pictures">
           <h2>Pictures</h2>
           <ul class="bs-list">{% for r in image_rules %}<li>{{ r }}</li>{% endfor %}</ul>
+        </section>
+
+        <section class="bs-rules bs-guide-sec" id="bs-editor">
+          <h2>In the editor afterwards</h2>
+          <p class="muted">A Word document does not say these. Open the draft in the editor and:</p>
+          <div class="table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>What</th><th>Where</th></tr></thead>
+            <tbody>{% for what, where in editor_rules %}<tr><td>{{ what }}</td><td>{{ where }}</td></tr>{% endfor %}</tbody>
+          </table>
+          </div>
         </section>
 
         <section class="bs-rules bs-guide-sec" id="bs-checks">

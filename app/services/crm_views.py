@@ -1,4 +1,12 @@
-"""Saved views of Leads and Contacts (Sales CRM 2.0, run 4b): the page's filters under a name.
+"""Saved views: a staff page's filters under a name. Leads and Contacts since Sales CRM 2.0 (run 4b), with the Views
+menu of their own toolbars; every other staff page since 2026-10-27, from the star in the header (base.html, "This
+page"). One table and one set of rules for all of them:
+
+  * Leads and Contacts keep their whitelists below (clean); any other page keeps plain filter words
+    (services/page_address.clean_params) and its endpoint and path words (`endpoint`, `args`), and only a screen a
+    menu line opens may have views (page_address.menu_endpoints) -- not one lead, not a download.
+  * Shared with ONE team, the owner's, and only with them (services/team_share). `shared` is true while it is.
+  * Anybody who can open a view can star it (services/favourites); deleting the view takes the stars with it.
 
 WHY A TABLE OF ITS OWN (crm_views) AND NOT SavedFilter + a `scope` column. SavedFilter (services/saved_filters.py,
 routes/saved_views.py) is built around the post listings' filter engine: its params are cleaned against
@@ -17,11 +25,11 @@ from sqlalchemy import or_
 
 from app import db
 from app.models import CRM_FORECASTS, CRM_LIKELIHOOD, CrmView
-from app.services import crm, crm_money
+from app.services import crm, crm_money, team_share
 
 LEADS, CONTACTS = 'crm_leads', 'crm_contacts'
 SCOPES = (LEADS, CONTACTS)
-MAX_PER_USER = 30
+MAX_PER_USER = 60
 NAME_MAX = 60
 OWNER_WORDS = ('mine', 'all', 'none')
 IST = timedelta(hours=5, minutes=30)
@@ -122,12 +130,66 @@ def builtins(scope, today=None):
             ('opted-out', 'Opted out', {'wa': 'optout'}), ('waiting', 'Waiting on us', {'wa': 'waiting'})]
 
 
-def for_user(user, scope):
-    """{'mine': [CrmView], 'shared': [CrmView]}: the views this person made, and what colleagues shared."""
-    rows = (CrmView.query.filter(CrmView.scope == scope)
-            .filter(or_(CrmView.owner_id == user.id, CrmView.shared.is_(True)))
+def _visible(user, query):
+    """{'mine': [CrmView], 'shared': [CrmView]} of a query: this person's, and the ones shared with their team."""
+    rows = (query.filter(or_(CrmView.owner_id == user.id, CrmView.team_id.in_(sorted(team_share.team_ids(user)) or [0])))
             .order_by(CrmView.name, CrmView.id).all())
-    return {'mine': [v for v in rows if v.owner_id == user.id], 'shared': [v for v in rows if v.owner_id != user.id]}
+    return {'mine': [v for v in rows if v.owner_id == user.id], 'shared': team_share.shared_with(user, rows)}
+
+
+def for_user(user, scope, endpoint=None):
+    """{'mine': [CrmView], 'shared': [CrmView]}: the views of a page this person made, and the ones their team shared
+    with them. `endpoint`: of the page's screen (any page but Leads and Contacts)."""
+    q = CrmView.query.filter(CrmView.scope == scope)
+    if scope not in SCOPES and endpoint:
+        q = q.filter(CrmView.endpoint.in_(_console_twins(endpoint)))
+    return _visible(user, q)
+
+
+def everything_for(user):
+    """Every view this person can open, for "Favourites & views": {'mine': [...], 'shared': [...]}."""
+    return _visible(user, CrmView.query)
+
+
+def _console_twins(endpoint):
+    """The Sales CRM's screens are mounted twice: a view saved in one console is the same view in the other."""
+    if endpoint.startswith('admin_crm.'):
+        return (endpoint, 'crm.' + endpoint[len('admin_crm.'):])
+    if endpoint.startswith('crm.'):
+        return (endpoint, 'admin_crm.' + endpoint[len('crm.'):])
+    return (endpoint,)
+
+
+def get_for(user, view_id):
+    """A view this person may open (theirs, or shared with their team), or None."""
+    v = db.session.get(CrmView, view_id)
+    return v if team_share.sees(user, v) else None
+
+
+def url_of(v, user):
+    """Where a view opens, for `user` (their console), or None when its screen is gone."""
+    from app.services import page_address
+    if v.scope in SCOPES:
+        return page_address.url('crm.board' if v.scope == LEADS else 'crm.contacts', {}, v.params, user)
+    return page_address.url(v.endpoint, v.args, v.params, user) if v.endpoint else None
+
+
+def page_label(v):
+    from app.services import access
+    p = access.PAGES.get(v.scope)
+    return 'Leads' if v.scope == LEADS else ('Contacts' if v.scope == CONTACTS else (p['label'] if p else v.scope))
+
+
+def may_have_views(endpoint):
+    """May a screen have saved views of the kind "This page" saves? Leads and Contacts keep theirs in their own Views
+    menu, the trip lists as saved filters (saved_filters); one record's page, a download, a JSON answer have none."""
+    from app.services import page_address
+    return bool(endpoint) and endpoint in page_address.menu_endpoints() and endpoint not in OWN_MENUS
+
+
+# screens whose views live in a menu of their own (the one home for them): the header points there
+OWN_MENUS = {'crm.board': 'views', 'admin_crm.board': 'views', 'crm.contacts': 'views', 'admin_crm.contacts': 'views',
+             'cs.posts': 'filters', 'admin.listings': 'filters'}
 
 
 def _name(name):
@@ -137,17 +199,38 @@ def _name(name):
     return name
 
 
-def create(user, scope, name, raw, shared=False):
+def _team(user, team, shared):
+    """The team a view is shared with: the one given (one of theirs), else for the older "shared" tick their first
+    team, else nobody."""
+    if team is not None:
+        return team if team in team_share.teams(user) else None
+    if shared:
+        mine = team_share.teams(user)
+        return mine[0] if mine else None
+    return None
+
+
+def create(user, scope, name, raw, shared=False, team=None, endpoint=None, args=None):
+    """A view of Leads / Contacts (scope LEADS / CONTACTS, `raw` checked against their whitelists), or of any other
+    page: `scope` its page key, `endpoint` its screen, `raw` its filter words. `team`: shared with that team of the
+    person's (shared=True: their first team)."""
+    from app.services import page_address
     name = _name(name)
-    params = clean(scope, raw)
+    if scope in SCOPES:
+        params, endpoint, args = clean(scope, raw), None, None
+    else:
+        if not may_have_views(endpoint) or page_address.page_of(endpoint) != scope:
+            raise ViewError('This screen cannot be saved as a view.')
+        params, args = page_address.clean_params(raw), {k: v for k, v in (args or {}).items() if isinstance(v, (int, str))}
     if not params:
         raise ViewError('Choose at least one filter before saving a view.')
     if CrmView.query.filter_by(owner_id=user.id).count() >= MAX_PER_USER:
         raise ViewError('You already have %d saved views. Delete one to make room.' % MAX_PER_USER)
     if CrmView.query.filter_by(owner_id=user.id, scope=scope, name=name).first():
         raise ViewError('You already have a view called "%s".' % name)
-    v = CrmView(owner_id=user.id, scope=scope, name=name, params=params, shared=bool(shared),
-                created_at=datetime.utcnow())
+    team = _team(user, team, shared)
+    v = CrmView(owner_id=user.id, scope=scope, name=name, params=params, endpoint=endpoint, args=args or None,
+                team_id=team.id if team else None, shared=team is not None, created_at=datetime.utcnow())
     db.session.add(v)
     db.session.commit()
     return v
@@ -158,7 +241,11 @@ def own(user, view_id):
     return v if v is not None and v.owner_id == user.id else None
 
 
-def rename(user, view_id, name=None, shared=None):
+_KEEP = object()
+
+
+def rename(user, view_id, name=None, shared=None, team=_KEEP):
+    """Rename and / or share: `team` a team of theirs (None: only them); the older `shared` tick: their first team."""
     v = own(user, view_id)
     if v is None:
         raise ViewError('That view is not yours to change.')
@@ -168,8 +255,9 @@ def rename(user, view_id, name=None, shared=None):
         if clash is not None and clash.id != v.id:
             raise ViewError('You already have a view called "%s".' % name)
         v.name = name
-    if shared is not None:
-        v.shared = bool(shared)
+    if team is not _KEEP or shared is not None:
+        t = _team(user, None if team is _KEEP else team, bool(shared) if team is _KEEP else False)
+        v.team_id, v.shared = (t.id if t else None), t is not None
     db.session.commit()
     return v
 

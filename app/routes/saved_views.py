@@ -13,7 +13,7 @@ from flask import (Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
 from app.routes.cs import cs_required
-from app.services import post_filters, saved_filters
+from app.services import post_filters, saved_filters, team_share
 
 saved_bp = Blueprint('saved', __name__, url_prefix='/saved-filters')
 
@@ -72,12 +72,13 @@ def save():
     listing = request.form.get('from') or 'cs'
     # `partial` would send the redirect back to the bare results fragment -- no layout, no
     # styles. `page` and `view` describe this visit, not the filter.
-    skip = ('name', 'from', 'shared', 'csrf_token', 'partial', 'page', 'view')
+    skip = ('name', 'from', 'shared', 'team', 'csrf_token', 'partial', 'page', 'view')
     keep = {k: v for k, v in request.form.items() if k not in skip}
+    team = team_share.pick(current_user, request.form.get('team'))
     try:
         f = saved_filters.create(current_user, request.form.get('name'), keep,
                                  sort=request.form.get('sort'),
-                                 shared=request.form.get('shared') == 'on')
+                                 shared=team is not None or request.form.get('shared') == 'on', team=team)
     except saved_filters.FilterError as e:
         flash(str(e), 'danger')
         return redirect(_back(listing, **keep))
@@ -99,10 +100,12 @@ def rename(filter_id):
 @saved_bp.route('/<int:filter_id>/share', methods=['POST'])
 @cs_required
 def share(filter_id):
-    want = request.form.get('shared') == 'on'
+    # "Who sees it": `team` (only me, or one of my teams); the older Share button sent shared=on (my first team)
+    team = team_share.pick(current_user, request.form.get('team'))
+    want = team is not None or ('team' not in request.form and request.form.get('shared') == 'on')
     try:
-        saved_filters.update(current_user, filter_id, shared=want)
-        flash('Shared with the team.' if want else 'This filter is private again.', 'success')
+        f = saved_filters.update(current_user, filter_id, shared=want, team=team)
+        flash('Shared with %s.' % f.team.name if f.team_id else 'Only you see this filter now.', 'success')
     except saved_filters.FilterError as e:
         flash(str(e), 'danger')
     return redirect(url_for('saved.manage', **{'from': request.form.get('from') or 'cs'}))

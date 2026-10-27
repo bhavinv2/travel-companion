@@ -375,6 +375,20 @@ def tags_from(text, make=True):
     return out
 
 
+def named_terms(kind, names):
+    """([BlogTerm], [names not found]): the blog's own categories or tags, by name or address, in any case. Nothing
+    is made -- a Word document names terms, it never adds them (blog_engine._terms)."""
+    found, missing = [], []
+    for name in names:
+        term = (BlogTerm.query.filter(BlogTerm.kind == kind, db.func.lower(BlogTerm.name) == name.lower()).first()
+                or BlogTerm.query.filter_by(kind=kind, slug=slugify(name, max_length=80, word_boundary=True)).first())
+        if term is None:
+            missing.append(name)
+        elif term not in found:
+            found.append(term)
+    return found, missing
+
+
 def set_terms(post, category_ids, tag_text):
     cats = BlogTerm.query.filter(BlogTerm.kind == 'category', BlogTerm.id.in_(category_ids or [0])).all()
     post.terms = cats + tags_from(tag_text)

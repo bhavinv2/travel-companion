@@ -9,7 +9,7 @@ from flask_login import current_user
 from app import db
 from app.routes.crm import crm_bp, crm_url
 from app.routes.cs import cs_required
-from app.services import crm_views
+from app.services import crm_views, team_share
 
 PAGE = {crm_views.LEADS: 'board', crm_views.CONTACTS: 'contacts'}
 
@@ -44,12 +44,14 @@ def view_save():
     scope = _scope()
     raw = {k[2:]: v for k, v in request.form.items() if k.startswith('f_')}
     try:
-        v = crm_views.create(current_user, scope, request.form.get('name'), raw, request.form.get('shared') == 'on')
+        v = crm_views.create(current_user, scope, request.form.get('name'), raw, request.form.get('shared') == 'on',
+                             team=team_share.pick(current_user, request.form.get('team')))
     except crm_views.ViewError as exc:
         db.session.rollback()
         flash(str(exc), 'danger')
         return redirect(_back(scope, raw))
-    flash('Saved the view "%s". It is in the Views menu.' % v.name, 'success')
+    flash('Saved the view "%s"%s. It is in the Views menu.' % (
+        v.name, ' and shared it with %s' % v.team.name if v.team_id else ''), 'success')
     return redirect(_back(scope, v.params))
 
 
@@ -58,8 +60,12 @@ def view_save():
 def view_rename(view_id):
     scope = _scope()
     try:
-        crm_views.rename(current_user, view_id, request.form.get('name'),
-                         shared=(request.form.get('shared') == 'on') if 'shared_present' in request.form else None)
+        if 'team' in request.form:              # "Who sees it": only me, or one of my teams
+            crm_views.rename(current_user, view_id, request.form.get('name'),
+                             team=team_share.pick(current_user, request.form.get('team')))
+        else:
+            crm_views.rename(current_user, view_id, request.form.get('name'),
+                             shared=(request.form.get('shared') == 'on') if 'shared_present' in request.form else None)
         flash('Saved.', 'success')
     except crm_views.ViewError as exc:
         db.session.rollback()

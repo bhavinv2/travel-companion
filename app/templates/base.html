@@ -50,6 +50,7 @@
   {# staff pages only: the CRM can be installed as an app (run 5b; no service worker) #}
   <link rel="manifest" href="{{ url_for('main.staff_manifest') }}"/>
   <meta name="theme-color" content="#1f6fd6"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/staff-tools.css') }}"/>
   {%- endif %}
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@700&family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
@@ -125,7 +126,7 @@
         {# Everything else is in the menu on the left, grouped by module; repeating four of its
            lines up here was a second menu that disagreed with the first. On a page without the
            menu, this is the way back to it. #}
-        {% if not request.blueprint or request.blueprint not in ('admin', 'admin_crm', 'cs', 'crm', 'matches', 'imports', 'scraper', 'saved', 'workspace', 'messaging') %}
+        {% if not request.blueprint or request.blueprint not in ('admin', 'admin_crm', 'cs', 'crm', 'matches', 'imports', 'scraper', 'saved', 'workspace', 'messaging', 'my') %}
         <li><a href="{{ staff_home(current_user) }}"><i class="fa-solid fa-table-columns"></i> Console</a></li>
         {% endif %}
       {% else %}
@@ -278,6 +279,70 @@
           </div>
         </div>
         {% endif %}
+        {# ★ "This page" (routes/favourites.py): star it with its filters, save the filters as a view for me or my team,
+           the views of it. Leads and Contacts keep their views in their own Views menu, the trip lists as saved filters. #}
+        {% set fh = FAV_HERE() %}
+        {% if fh %}{% from '_who_sees.html' import who_sees %}{% from '_fav_star.html' import view_star %}
+        {% set fh_n = ((fh.views.mine|length) + (fh.views.shared|length)) if fh.views else 0 %}
+        <div class="fav-dd" id="favDD">
+          <button type="button" class="notif-btn fav-btn{{ ' on' if fh.fav }}" data-fav-toggle aria-haspopup="dialog" aria-expanded="false"
+                  title="{{ 'In your favourites · views of this page' if fh.fav else 'Star this page · save it as a view' }}" aria-label="This page: favourites and saved views">
+            <i class="fa-{{ 'solid' if fh.fav else 'regular' }} fa-star" aria-hidden="true"></i>{% if fh_n %}<span class="fav-n" aria-hidden="true">{{ fh_n }}</span>{% endif %}
+          </button>
+          <div class="fav-pop" role="dialog" aria-label="This page" hidden>
+            <p class="fav-h">This page{% if fh.page %} <b>{{ fh.page }}</b>{% endif %}</p>
+            {% if fh.fav %}
+            <div class="fav-is">
+              <i class="fa-solid fa-star" aria-hidden="true"></i>
+              <span>In your favourites as <b>{{ fh.fav.label or fh.page }}</b></span>
+              <form method="POST" action="{{ url_for('my.fav_remove', fav_id=fh.fav.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ fh.next }}"/>
+                <button type="submit" class="cb sm quiet">Remove</button>
+              </form>
+            </div>
+            {% else %}
+            <form method="POST" action="{{ url_for('my.fav_add') }}" class="fav-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ fh.next }}"/>
+              <label class="fav-lbl" for="favLabel">Add to my favourites as</label>
+              <div class="fav-line">
+                <input id="favLabel" name="label" maxlength="80" value="{{ fh.page }}" data-fav-label autocomplete="off"/>
+                <button type="submit" class="cb sm primary"><i class="fa-solid fa-star" aria-hidden="true"></i> Add</button>
+              </div>
+              {% if fh.params %}<small class="fav-note">With the {{ fh.params|length }} filter{{ 's' if fh.params|length != 1 }} it has now.</small>{% endif %}
+            </form>
+            {% endif %}
+            {% if fh.own_menu == 'views' %}
+            <p class="fav-note fav-sep">Views of this page are in its own <b>Views</b> menu, beside the filters. <button type="button" class="link-btn" data-fav-open-views>Open it</button></p>
+            {% elif fh.own_menu == 'filters' %}
+            <p class="fav-note fav-sep">This list keeps its views as <a href="{{ url_for('saved.manage') }}">saved filters</a>, in the filter bar.</p>
+            {% elif fh.views is not none %}
+            <div class="fav-sec">
+              <p class="fav-h2">Views of this page</p>
+              {% for v in fh.views.mine + fh.views.shared %}
+              <div class="fav-view">
+                <a href="{{ fh.url_of(v) }}"{% if fh.active(v) %} class="on" aria-current="true"{% endif %}>{{ v.name }}</a>
+                <small>{% if v.owner_id != current_user.id %}{{ v.owner.first_name or v.owner.username if v.owner else '' }} · {% endif %}{{ v.team.name if v.team_id and v.team else 'Only me' }}</small>
+                {{ view_star(v) }}
+              </div>
+              {% else %}<p class="fav-none">No views of this page yet.</p>{% endfor %}
+              {% if fh.can_save %}
+              <details class="fav-save"><summary class="cb sm">Save these filters as a view…</summary>
+                <form method="POST" action="{{ url_for('my.view_save') }}" class="fav-form">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="next" value="{{ fh.next }}"/>
+                  <label class="fav-lbl" for="favViewName">Call it</label>
+                  <input id="favViewName" name="name" maxlength="60" required placeholder="e.g. Waiting since yesterday" autocomplete="off"/>
+                  {{ who_sees(None, 'favViewTeam') }}
+                  <label class="fav-check"><input type="checkbox" name="star" checked/> Also add it to my favourites</label>
+                  <button type="submit" class="cb sm primary">Save view</button>
+                </form>
+              </details>
+              {% else %}<p class="fav-note">Set some filters on this page, then save them as a view.</p>{% endif %}
+            </div>
+            {% endif %}
+            <a class="fav-all" href="{{ url_for('my.favourites') }}">All favourites &amp; views <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
+          </div>
+        </div>
+        {% endif %}
         {% if CAN('crm_calendar') %}
         <a href="{{ crm_url('calendar', view='week') }}" class="notif-btn nav-cal{{ ' active' if request.endpoint in ('crm.calendar', 'admin_crm.calendar') }}" title="Calendar: tasks, calls, meetings and follow-ups" aria-label="Calendar"><i class="fa-solid fa-calendar-days"></i></a>
         {% endif %}
@@ -352,6 +417,7 @@
             {% endif %}{% endif %}
             <div class="dd-menu">
             {% if is_staff %}
+              <a href="{{ url_for('my.favourites') }}"><i class="fa-solid fa-star"></i> Favourites &amp; views</a>
               <a href="{{ url_for('main.notification_settings') }}"><i class="fa-solid fa-bell"></i> {{ _('Notification settings') }}</a>
             {% else %}
               <a href="{{ url_for('main.index') }}"><i class="fa-solid fa-house"></i> {{ _('Home') }}</a>
@@ -617,6 +683,18 @@
   <script src="{{ url_for('static', filename='js/notify.js') }}" data-api="{{ url_for('notifications.list_notifications') }}" defer></script>
   {% endif %}
   {% if is_staff and (CAN('crm_people') or CAN('crm_board') or CAN('crm_today')) %}<script src="{{ url_for('static', filename='js/find-person.js') }}" defer></script>{% endif %}
+  {% if is_staff %}
+  {# The tour guide (services/tours.py, static/js/tour.js): the round button at the bottom left of every staff page
+     opens tours for this person's role, the common places and every screen they may open; ten seconds after landing
+     it asks once whether to show them round (TOUR_ASK). The header's star is static/js/fav.js. #}
+  <button type="button" class="tg-btn" id="tgBtn" aria-haspopup="dialog" aria-controls="tgPanel" aria-expanded="false"
+          title="Tour guide: tours of the console, and every screen explained"><i class="fa-solid fa-route" aria-hidden="true"></i><span>Tour guide</span></button>
+  <aside class="tg-panel" id="tgPanel" role="dialog" aria-label="Tour guide" hidden></aside>
+  <script src="{{ url_for('static', filename='js/fav.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/tour.js') }}" data-api="{{ url_for('my.tours') }}"
+          data-answer="{{ url_for('my.tour_answer') }}" data-done="{{ url_for('my.tour_done') }}"
+          data-ask="{{ '1' if TOUR_ASK() else '0' }}" data-after="10" defer></script>
+  {% endif %}
   {% block extra_js %}{% endblock %}
 </body>
 </html>

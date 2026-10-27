@@ -6,12 +6,19 @@ import re
 from conftest import login, make_user
 
 
+def _qc_end(html):
+    """Where the + menu ends: the star ("This page") comes next in the header."""
+    start = html.index('id="qcDD"')
+    return html.index('id="favDD"', start) if 'id="favDD"' in html[start:] else html.index('<!-- Notifications -->', start)
+
+
 def test_the_rail_has_every_section_and_lights_the_one_worked_in(app, client, admin_user):
     login(client, admin_user.email)
     html = client.get('/admin/health').get_data(as_text=True)
     tabs = re.findall(r'data-area-(?:tab|link)="([a-z_0-9]+)"', html)
     groups = re.findall(r'class="sn-group[^"]*" data-group="([a-z_0-9]+)"', html)
-    assert tabs == groups == ['home', 'inbox', 'leads', 'contacts', 'tasks', 'services', 'reports', 'content',
+    # ★ Favourites first (2026-10-27, routes/favourites.py), then the work areas
+    assert tabs == groups == ['fav', 'home', 'inbox', 'leads', 'contacts', 'tasks', 'services', 'reports', 'content',
                               'automate', 'help', 'setup']
     assert re.search(r'class="sn-tab on" data-area-tab="home"', html)
     assert re.search(r'class="sn-group[^"]*current[^"]*" data-group="home"', html)
@@ -30,7 +37,7 @@ def test_the_rail_has_every_section_and_lights_the_one_worked_in(app, client, ad
 def test_the_plus_button_offers_what_the_role_allows(app, client, admin_user):
     login(client, admin_user.email)
     html = client.get('/admin/health').get_data(as_text=True)
-    menu = html[html.index('id="qcDD"'):html.index('<!-- Notifications -->', html.index('id="qcDD"'))]
+    menu = html[html.index('id="qcDD"'):_qc_end(html)]
     for word in ('Lead', 'Companion post', 'Blog post', 'Import a list'):
         assert word in menu, word
     agent = make_user('agent@test.com', 'agent', role='cs')
@@ -38,5 +45,5 @@ def test_the_plus_button_offers_what_the_role_allows(app, client, admin_user):
     login(c, agent.email)
     html = c.get('/cs/').get_data(as_text=True)
     if 'id="qcDD"' in html:
-        menu = html[html.index('id="qcDD"'):html.index('<!-- Notifications -->', html.index('id="qcDD"'))]
+        menu = html[html.index('id="qcDD"'):_qc_end(html)]
         assert 'Blog post' not in menu and 'Import a list' not in menu

@@ -1,0 +1,17 @@
+{# "Who sees it", for a saved view or a saved filter (services/team_share.py): only me, or me and one of my teams --
+   never everybody. Somebody in no team keeps it to themselves, and is told how to change that. The field is `team`:
+   'me' or a team id. #}
+{% macro who_sees(team_id=None, id=None) -%}
+{%- set teams = SHARE_TEAMS() -%}
+{%- if teams %}
+<label class="who-sees"><span>Who sees it</span>
+  <select name="team"{% if id %} id="{{ id }}"{% endif %}>
+    <option value="me"{{ ' selected' if not team_id }}>Only me</option>
+    {% for t in teams %}<option value="{{ t.id }}"{{ ' selected' if team_id == t.id }}>Me and my team: {{ t.name }}</option>{% endfor %}
+  </select>
+</label>
+{%- else %}
+<input type="hidden" name="team" value="me"/>
+<p class="who-sees-none">Only you will see it: you are not in a team yet (Set-up › People › Teams).</p>
+{%- endif %}
+{%- endmacro %}

@@ -3,7 +3,8 @@
     choice     a views table of its own (crm_views), not SavedFilter + a scope: SavedFilter is bound to the post
                listings' filter engine (see services/crm_views.py)
     built-ins  My open leads, Due today, Late, Quoted this week, Won this month, No value yet -- each finds the right leads
-    mine       save, rename, share, delete; names are unique per person; a colleague can use a shared view but not change it
+    mine       save, rename, share, delete; names are unique per person; a colleague in the owner's team can use a shared
+               view but not change it; nobody outside that team sees it (2026-10-27)
     safe       only whitelisted filter words are kept; a scoped viewer sees only their leads through any view; the
                download follows the view's filters
 """
@@ -16,7 +17,7 @@ from decimal import Decimal
 import pytest
 from flask import g
 
-from conftest import login, logout, make_user
+from conftest import login, logout, make_user, same_team
 from app import db as _db
 from app.models import CrmLead, CrmQuote, CrmTask, CrmTouchpoint, CrmView, WorkspaceRole
 from app.services import access, crm, crm_views
@@ -190,11 +191,18 @@ def test_a_view_needs_a_name_a_filter_and_a_name_nobody_else_of_yours_has(app, c
 
 def test_rename_share_and_delete_are_mine_only(app, client, agent):
     other = make_user('other@test.com', 'other', role='cs')
+    outsider = make_user('outsider@test.com', 'outsider', role='cs')
+    same_team(agent, other)
+    same_team(outsider, name='Team B')
     mine = crm_views.create(agent, crm_views.LEADS, 'Private one', {'owner': 'mine'})
     shared = crm_views.create(agent, crm_views.LEADS, 'Team one', {'owner': 'all'}, shared=True)
+    assert shared.team.name == 'Team A'
+    as_user(client, outsider)                       # in another team: sees none of it
+    html = client.get('/cs/crm/').get_data(as_text=True)
+    assert 'Team one' not in html and 'Private one' not in html
     as_user(client, other)
     html = client.get('/cs/crm/').get_data(as_text=True)
-    assert 'Team one' in html and 'Private one' not in html and 'Shared by colleagues' in html
+    assert 'Team one' in html and 'Private one' not in html and 'Shared with my team' in html
     r = client.post('/cs/crm/views/%d/rename' % shared.id, data={'scope': 'crm_leads', 'name': 'Mine now'}, follow_redirects=True)
     assert 'not yours to change' in r.get_data(as_text=True)
     r = client.post('/cs/crm/views/%d/delete' % shared.id, data={'scope': 'crm_leads'}, follow_redirects=True)
@@ -251,7 +259,8 @@ def test_a_scoped_agent_sees_only_their_leads_through_any_view_and_download(app,
     access._cache().clear()
     mk('Asha Own Lead', '+919876600071', asha)
     mk('Bela Hidden Lead', '+919876600072', bela)
-    # a view an admin shared, pointing at everyone's leads
+    # a view an admin shared with asha's team, pointing at everyone's leads
+    same_team(admin_user, asha)
     crm_views.create(admin_user, crm_views.LEADS, 'Everyone', {'owner': 'all', 'p': 'all', 'view': 'list'}, shared=True)
     as_user(client, asha)
     html = client.get('/cs/crm/?owner=all&p=all&view=list').get_data(as_text=True)

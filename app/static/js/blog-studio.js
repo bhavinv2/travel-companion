@@ -1913,6 +1913,13 @@
     if (d.cover_alt) form.querySelector('[name=cover_alt]').value = d.cover_alt;
     structural(() => { editor.innerHTML = d.content; });
     if (d.cover) setCover(d.cover, d.cover_src);
+    // what the document's Post details box says beyond that: only what it gives replaces what is here
+    if (d.thumb) setThumb(d.thumb, d.thumb_src);
+    const cats = (d.categories || []).map(String);
+    if (cats.length) form.querySelectorAll('[name=categories]').forEach(i => { i.checked = cats.includes(i.value); });
+    if (d.tags) { tagList = splitTags(d.tags); drawTags(); }
+    const put = (n, v) => { const i = form.querySelector('[name=' + n + ']'); if (i && v) i.value = v; };
+    put('focus_keyword', d.keyword); put('seo_title', d.seo_title);
     const missing = (d.missing || []).length;
     busy.querySelector('span').textContent = 'Brought in from ' + (d.file || file.name) + ': ' + d.words + ' words' +
       (missing ? ', ' + missing + ' picture' + (missing === 1 ? '' : 's') + ' missing (the red boxes)' : '') +
