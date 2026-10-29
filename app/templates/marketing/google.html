@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% from '_page_head.html' import page_head %}
+{# Reports > Dashboard designer > Google Analytics (routes/marketing.google): the GA4 property the website boxes read,
+   and the service account that may read it (services/ga4). The key is sealed when saved and never shown again. #}
+{% block title %}Google Analytics – Dashboard designer{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/marketing.css') }}"/>{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+{% include 'admin/_sidebar.html' %}
+<main class="admin-main">
+<div class="mk dzl">
+  {{ page_head('Google Analytics', 'fa-brands fa-google',
+               'Where the website boxes get their numbers: visitors, visits, pages, channels, countries — and who is on the site right now.',
+               more=[{'label': 'Back to the Dashboard designer', 'href': url_for('marketing.designer'), 'icon': 'fa-solid fa-arrow-left'}]) }}
+
+  <div class="dzl-cards">
+    <section class="dzl-card">
+      <h3>Now</h3>
+      {% if ga.connected %}
+      <p><span class="ok-dot"></span>Connected to property <b>{{ ga.property_id }}</b> as <code>{{ ga.email }}</code>
+        {% if ga.where == 'server' %}— set on the server (GA4_PROPERTY_ID / GA4_SERVICE_ACCOUNT){% elif ga.saved_at %}— saved {{ ga.saved_at }}{% if ga.saved_by %} by {{ ga.saved_by }}{% endif %}{% endif %}.</p>
+      <div class="dzl-acts">
+        <form method="post" action="{{ url_for('marketing.google_test') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <button type="submit" class="mk-btn sm primary"><i class="fa-solid fa-plug-circle-check" aria-hidden="true"></i> Test the connection</button></form>
+        {% if ga.where == 'saved' %}
+        <form method="post" action="{{ url_for('marketing.google_disconnect') }}" onsubmit="return confirm('Disconnect Google Analytics? The website boxes go empty until it is connected again.');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <button type="submit" class="mk-btn sm quiet danger">Disconnect</button></form>
+        {% endif %}
+      </div>
+      {% else %}
+      <p><span class="off-dot"></span>Not connected.{% if ga.unreadable %} A key was saved, but it cannot be read any more (the server's secret changed): save it again below.{% endif %}</p>
+      {% endif %}
+      <p class="hint">The site's tag is <code>{{ measurement_id or 'not set' }}</code>. That is the <i>measurement id</i>; the
+        connection needs the property's <i>number</i>.</p>
+    </section>
+
+    <section class="dzl-card">
+      <h3>How to connect it (about five minutes, once)</h3>
+      <ol class="dzl-steps">
+        <li>In <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud</a>, pick or make a project and
+          switch on the <b>Google Analytics Data API</b> (APIs &amp; Services › Library).</li>
+        <li>IAM &amp; Admin › <b>Service accounts</b> › Create. No roles are needed. Open it › Keys › Add key ›
+          <b>JSON</b>: a file downloads.</li>
+        <li>In <a href="https://analytics.google.com/" target="_blank" rel="noopener">Google Analytics</a>: Admin ›
+          <b>Property access management</b> › + › add the service account's e-mail (it ends in
+          <code>iam.gserviceaccount.com</code>) as a <b>Viewer</b>.</li>
+        <li>Admin › <b>Property details</b>: copy the <b>property id</b> (a number like <code>412345678</code>).</li>
+        <li>Paste both below and press Save, then Test the connection.</li>
+      </ol>
+    </section>
+  </div>
+
+  <section class="dzl-card dzl-form">
+    <form method="post" action="{{ url_for('marketing.google') }}" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <label>Property id
+        <input type="text" name="property_id" value="{{ ga.property_id }}" inputmode="numeric" placeholder="412345678" required/>
+      </label>
+      <label>Service account key (the whole JSON file)
+        <textarea name="key_json" spellcheck="false" placeholder="{{ 'A key is saved. Paste a new one only to replace it.' if ga.email else '{ &quot;type&quot;: &quot;service_account&quot;, … }' }}"></textarea>
+        <span class="hint">Kept sealed in our database and never shown again. Read-only: it can look at the numbers, not change anything in Google Analytics.</span>
+      </label>
+      <button type="submit" class="mk-btn primary">Save</button>
+    </form>
+  </section>
+</div>
+</main>
+</div>
+{% endblock %}

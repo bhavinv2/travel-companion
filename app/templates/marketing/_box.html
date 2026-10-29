@@ -1,0 +1,91 @@
+{# One Promotion dashboard box (services/mkt_dashboards.render): its frame on the 12-column grid and, when the server
+   worked its numbers out, those numbers as text -- the big number, or a table -- that static/js/mkt-charts.js then
+   draws as the chart chosen. Website boxes arrive empty (`async`) and the script asks /promotion/box for them.
+   Numbers only: nothing here can name a person. #}
+
+{% macro fmt(v, unit) -%}
+{%- if v is none -%}—
+{%- elif unit == 'pct' -%}{{ '%.1f'|format(v * 100) }}%
+{%- elif unit == 'seconds' -%}{{ (v // 60)|int }}m {{ '%02d'|format((v % 60)|int) }}s
+{%- elif unit == 'rating' -%}{{ '%.1f'|format(v) }}
+{%- elif v is number -%}{{ '{:,}'.format(v|round|int) if v == v|round else '{:,.1f}'.format(v) }}
+{%- else -%}{{ v }}{%- endif -%}
+{%- endmacro %}
+
+{% macro change(r) -%}
+{%- if r.change is not none -%}
+<span class="mk-chg {{ 'up' if r.change > 0 else ('down' if r.change < 0 else 'flat') }}">
+  <i class="fa-solid {{ 'fa-arrow-trend-up' if r.change > 0 else ('fa-arrow-trend-down' if r.change < 0 else 'fa-minus') }}" aria-hidden="true"></i>
+  {{ '+' if r.change > 0 }}{{ r.change }}% <small>vs the {{ r.period.days }} days before</small></span>
+{%- elif r.prev == 0 and r.total -%}
+<span class="mk-chg up"><i class="fa-solid fa-star" aria-hidden="true"></i> New <small>none in the {{ r.period.days }} days before</small></span>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro body(b, r) -%}
+{%- if r is none -%}
+<div class="mk-wait"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Fetching the numbers…</div>
+{%- elif r.hidden or not r.ok -%}
+<p class="mk-msg"><i class="fa-solid {{ 'fa-lock' if r.hidden else 'fa-circle-exclamation' }}" aria-hidden="true"></i> {{ r.message }}</p>
+{%- elif b.chart == 'number' -%}
+<div class="mk-num">
+  <b class="mk-n" data-n="{{ r.total if r.total is not none else '' }}">{{ fmt(r.total, r.unit) }}</b>
+  {{ change(r) }}
+  {% if r.time %}<div class="mk-spark"><canvas aria-hidden="true"></canvas></div>{% endif %}
+</div>
+{%- elif r.empty -%}
+<p class="mk-empty"><i class="fa-regular fa-folder-open" aria-hidden="true"></i> {{ b.empty or 'Nothing in these dates yet.' }}</p>
+{%- else -%}
+{% if b.chart != 'table' %}<div class="mk-chart"><canvas role="img" aria-label="{{ b.title }}"></canvas></div>{% endif %}
+<div class="mk-tablewrap{{ ' sr-only' if b.chart != 'table' }}">
+  <table class="mk-table">
+    <thead><tr><th scope="col"></th>{% for s in r.series %}<th scope="col">{{ s.name }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for row in r.rows %}
+      <tr><th scope="row">{{ row.label }}</th>{% for v in row['values'] %}<td>{{ fmt(v, r.series[loop.index0].unit or r.unit) }}</td>{% endfor %}</tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro box(item) -%}
+{%- set b = item.box -%}
+<section class="mk-box c-{{ b.colour }} k-{{ b.chart }}" id="box-{{ b.id }}" data-box="{{ b.id }}"
+         data-chart="{{ b.chart }}"{% if item.async %} data-async="1"{% endif %}
+         style="--x:{{ b.x }};--y:{{ b.y }};--w:{{ b.w }};--h:{{ b.h }}">
+  {%- if b.chart != 'text' %}
+  <header class="mk-box-h">
+    <h2>{{ item.title }}</h2>
+    {% if b.note %}<span class="mk-note" tabindex="0" title="{{ b.note }}"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><span class="sr-only">{{ b.note }}</span></span>{% endif %}
+    {% if item.result and item.result.ok and b.range != 'page' %}<small class="mk-range">{{ item.result.period.label }}</small>{% endif %}
+  </header>
+  {%- endif %}
+  <div class="mk-box-b">
+    {%- if b.chart == 'text' %}
+    <div class="mk-text">{% for line in (b.body or '').split('\n') %}{% if loop.first %}<h2>{{ line }}</h2>{% elif line.strip() %}<p>{{ line }}</p>{% endif %}{% endfor %}</div>
+    {%- elif b.chart == 'quotes' %}
+      {% if item.quotes %}
+      <div class="mk-quotes">
+        {% for q in item.quotes %}
+        <figure class="mk-quote">
+          <span class="mk-q-stars" aria-label="{{ q.rating }} out of 5">{% for i in range(q.rating) %}&#9733;{% endfor %}</span>
+          <blockquote>{{ q.text }}</blockquote>
+          <figcaption>{{ q.who }} &middot; {{ q.site }}{% if q.when %} &middot; {{ q.when|istd('%d %b %Y') }}{% endif %}</figcaption>
+        </figure>
+        {% endfor %}
+      </div>
+      {% else %}<p class="mk-empty">No published reviews yet. They appear here once somebody approves one.</p>{% endif %}
+    {%- elif b.chart == 'links' %}
+      <ul class="mk-links">
+        {% for l in item.links %}<li><a href="{{ l.url }}"><b>{{ l.label }}</b><span>{{ l.url }}</span></a></li>{% endfor %}
+      </ul>
+    {%- else %}
+      {{ body(b, item.result) }}
+      <script type="application/json" class="mk-cfg">{{ {'chart': b.chart, 'colour': b.colour, 'empty': b.empty, 'title': item.title, 'range': b.range}|tojson }}</script>
+      {% if item.result and item.result.ok %}<script type="application/json" class="mk-json">{{ item.result|tojson }}</script>{% endif %}
+    {%- endif %}
+  </div>
+</section>
+{%- endmacro %}

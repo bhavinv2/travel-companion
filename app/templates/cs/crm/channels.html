@@ -1,5 +1,6 @@
 {% extends 'cs/crm/_layout.html' %}
 {% from '_page_head.html' import page_head %}
+{% from 'cs/crm/_bits.html' import num_chip %}
 {# Set-up › Channels › WhatsApp numbers (routes/channels.py): every number, the system that answers it, and what
    each kind of provider can do -- the one place that says which system talks to which number. #}
 {% block crm_title %}WhatsApp numbers{% endblock %}
@@ -20,7 +21,7 @@
     <tbody>
     {% for r in rows %}{% set pv = PROVIDERS[r.provider] %}
     <tr>
-      <td><b>{{ r.name }}</b>{% if r.number %}<br/><span class="muted small">{{ PHONE.pretty(r.number, r.number) }}</span>{% endif %}</td>
+      <td><b>{{ r.name }}</b>{% if r.num %} {{ num_chip(r.num) }}{% endif %}{% if r.number %}<br/><span class="muted small">{{ PHONE.pretty(r.number, r.number) }}</span>{% endif %}</td>
       <td><span class="ch-pv" style="--pv:{{ pv.color }}"><i class="{{ pv.icon }}" aria-hidden="true"></i> {{ pv.label }}</span></td>
       <td>{% for l in r.listens %}<span class="ch-pv quiet" style="--pv:{{ PROVIDERS[l].color }}"><i class="{{ PROVIDERS[l].icon }}" aria-hidden="true"></i> {{ PROVIDERS[l].label }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
       <td><span class="chip {{ CHIP.get(r.state, '') }}">{{ r.state_words }}</span></td>
@@ -33,6 +34,11 @@
     {% endfor %}
     </tbody>
   </table></div>
+  {% for u in unheard %}
+  <p class="ig-note bad" data-unheard><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+    <span>The website's WhatsApp button offers <b>{{ u.label }} · {{ u.display }}</b>, but nothing of ours hears that number: a message sent to it never reaches us.
+    Connect it here, or untick WhatsApp for it in <a href="{{ url_for('admin.landing_page') }}">Admin › Landing page</a>.</span></p>
+  {% endfor %}
   {% if not rows|selectattr('line')|list %}
   <p class="ch-empty"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> No number of our own yet. <a href="{{ crm_url('channel_new') }}">Add one</a>
     to answer a WhatsApp number from the portal itself, such as one connected in tawk.to.</p>

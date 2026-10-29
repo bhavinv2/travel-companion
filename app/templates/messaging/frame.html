@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}{{ heading }} – WhatsApp{% endblock %}
 {% from 'cs/crm/_tabs.html' import tab_strip with context %}
+{% from 'cs/crm/_bits.html' import num_chip %}
 {% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/crm.css') }}"/>{% endblock %}
 {% block content %}
@@ -24,6 +25,12 @@
           <ul data-frame-help>{% for line in help %}<li>{{ line }}</li>{% endfor %}</ul></details>
         {% if panel %}<button type="button" class="cb primary wa-new-chat" data-new-chat title="Message a lead who has no chat yet, or find any lead"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> New chat</button>{% endif %}
       </div>
+      {% if inbox_num and (inbox_num.last4 or inbox_others) %}
+      <p class="ws-note onum-banner" data-inbox-number><i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
+        <span>Every chat here is on our number {{ num_chip(inbox_num, full=True) }}.
+        {% if inbox_others %}Chats on {% for b in inbox_others %}<a href="{{ crm_url('inbox', num=b.key) }}">{{ num_chip(b) }}</a>{{ ', ' if not loop.last }}{% endfor %}
+        are in Inbox › All conversations and on each lead's page.{% endif %}</span></p>
+      {% endif %}
       {% if rules %}<p class="ws-note warn" data-frame-rules><i class="fa-solid fa-triangle-exclamation"></i>
         <span>{{ rules_line }}{% if rules|length == 1 %} <a href="{{ url_for('messaging.automations', p='/automations/' ~ rules[0].id ~ '/edit') }}">Open it</a>{% endif %}
         {% if rules_at %}<small> · last checked {{ rules_at }}</small>{% endif %}</span></p>{% endif %}

@@ -2,7 +2,7 @@
    conversation is opened; crm.js binds it (CRM_bindLead). A fragment, not a page.
    On top: who, whether WhatsApp lets us write freely, and the quick replies -- filled in for them, one click puts
    one in the chat's box (contract 25: it never sends). The lead card follows. #}
-{% from 'cs/crm/_bits.html' import initials %}
+{% from 'cs/crm/_bits.html' import initials, num_chip %}
 {% if state == 'lead' %}
 {% set first = (person.name or '').split(' ')[0] or 'them' %}
 {% set template_only = window_left is none or window_left <= 0 %}
@@ -15,6 +15,7 @@
       <span>{{ PRODUCTS.get(lead.product, lead.product) }} · {{ lead.owner.full_name if lead.owner else 'Not given to anyone' }}</span></div>
     <a class="lp-open" href="{{ crm_url('lead', lead_id=lead.id) }}" target="_top" title="Open the whole lead page"><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i> Lead</a>
   </div>
+  {% if us and us.last4 %}<p class="onum-from lp-us" data-chat-on><span>Chat on our</span>{{ num_chip(us, full=True) }}<span>with</span><strong>{{ person.display_name }}</strong></p>{% endif %}
   {% if window_left is none %}
   <p class="lp-window w-shut"><i class="fa-solid fa-lock" aria-hidden="true"></i><span>{{ first }} hasn't written on WhatsApp yet, so start with an approved template: <b>Templates</b>, under the chat.</span></p>
   {% elif window_left <= 0 %}

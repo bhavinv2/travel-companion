@@ -1,5 +1,11 @@
 {# Small pieces the CRM screens share. Import with context so they can read the label maps. #}
 
+{# One of our WhatsApp numbers (channels.badge): its country code, name and last four digits, in its own colour --
+   the same chip on every screen, so nobody answers from the wrong number. `full` writes the whole number. #}
+{% macro num_chip(b, full=False) -%}
+{%- if b -%}<span class="onum {{ b.tone }}" title="{{ b.name }}{% if b.phone %} · {{ b.phone }}{% endif %} · {{ b.engine }}"><b>{{ b.code }}</b>{{ b.name }}{% if full and b.phone %} · {{ b.phone }}{% elif b.last4 %} ·{{ b.last4 }}{% endif %}</span>{%- endif -%}
+{%- endmacro %}
+
 {% macro product_chip(code) -%}
 {%- set icon = CRM_PRODUCT_ICON(code) -%}
 <span class="chip prod p-{{ code }}"><i class="fa-solid {{ icon }}" aria-hidden="true"></i> {{ PRODUCTS.get(code, code) }}</span>

@@ -335,7 +335,8 @@ def test_the_page_is_a_line_of_reports_and_comes_with_sales_results(app):
     page = access.PAGES['crm_report_builder']
     assert 'crm_insights' in page['with'] and 'crm.report_builder' in page['endpoints'] and page['nav']
     reports = {s['key']: s for s in access.SECTIONS}['reports']['pages']
-    assert reports[-3:] == ('crm_report_builder', 'dashboard', 'promo')  # then the site's own dashboards
+    # then the site's own dashboards, and the Promotion dashboard's designer (2026-10-29)
+    assert reports[-4:] == ('crm_report_builder', 'dashboard', 'promo', 'mkt_design')
     assert access.PAGES['crm_export']['section'] == 'setup'             # Downloads: Set-up › Data
 
 

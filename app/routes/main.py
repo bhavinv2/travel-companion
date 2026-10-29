@@ -320,14 +320,11 @@ def promo_dashboard():
     outside the consoles.
 
     There is no POST and no action on the page. "Read-only as of now" is enforced by there being
-    nothing here that writes, rather than by a flag somebody could flip by accident.
+    nothing here that writes, rather than by a flag somebody could flip by accident. Since 2026-10-29 it is the
+    Overview and the published dashboards of the Dashboard designer, drawn by routes/marketing.page.
     """
-    from app.services import access, promo
-
-    if not access.can(current_user, 'promo'):
-        flash('That dashboard is for the promotion team.', 'warning')
-        return redirect(url_for('main.index'))
-    return render_template('pages/promo_dashboard.html', data=promo.snapshot())
+    from app.routes import marketing
+    return marketing.page()
 
 
 # The installable staff app (Sales CRM 2.0, run 5b): linked only from staff pages (base.html), no service worker.

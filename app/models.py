@@ -2947,3 +2947,41 @@ class WorkspaceMember(db.Model):
 
     user = db.relationship('User', foreign_keys=[user_id])
     role = db.relationship('WorkspaceRole')
+
+
+class MktDashboard(db.Model):
+    """A Promotion dashboard a Marketing head designed (Reports > Dashboard designer, 2026-10-29): boxes on a
+    12-column grid, each one the numbers services/mkt_engine works out. `draft` is what the designer is changing;
+    `published` is what everybody with the Promotion dashboard sees, copied from the draft on Publish -- so editing
+    never shows half a dashboard to anyone. `audience`: 'all' (everyone with the Promotion dashboard) or
+    'designers' (only people who may design them)."""
+    __tablename__ = 'mkt_dashboards'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False)
+    description = db.Column(db.String(300))
+    icon = db.Column(db.String(40))
+    draft = db.Column(db.JSON, nullable=False, default=list)
+    published = db.Column(db.JSON, nullable=True)
+    audience = db.Column(db.String(12), nullable=False, default='all', server_default='all')
+    range_key = db.Column(db.String(20), nullable=False, default='last_30', server_default='last_30')
+    position = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    published_by_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+    published_at = db.Column(db.DateTime)
+
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+    updated_by = db.relationship('User', foreign_keys=[updated_by_id])
+    published_by = db.relationship('User', foreign_keys=[published_by_id])
+
+    @property
+    def is_published(self):
+        return self.published is not None
+
+    @property
+    def has_changes(self):
+        """The draft differs from what people see."""
+        return self.published is None or (self.draft or []) != (self.published or [])

@@ -53,7 +53,8 @@ def _log(what, line, **extra):
 def channels_page():
     ws = access.current_workspace(current_user)
     return render_template('cs/crm/channels.html', rows=channels.numbers(ws), PROVIDERS=channels.PROVIDERS,
-                           CHECKLIST=channels.CHECKLIST, label_of=channels.label_of, **_common())
+                           CHECKLIST=channels.CHECKLIST, label_of=channels.label_of, unheard=channels.unheard(),
+                           **_common())
 
 
 @crm_bp.route('/channels/new', methods=['GET', 'POST'])

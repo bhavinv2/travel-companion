@@ -160,7 +160,8 @@ def test_reports_and_help_are_menus_of_their_own(app, client, admin_user):
     assert [i['label'] for i in groups['home']['items']][0] == 'Health'
     assert groups['reports']['subs'] == []
     assert [i['label'] for i in groups['reports']['items']] == ['Sales results', 'Team today', 'Report builder',
-                                                                'Site dashboard', 'Promotion dashboard']
+                                                                'Site dashboard', 'Promotion dashboard',
+                                                                'Dashboard designer']
     assert groups['help']['subs'] == [] and [i['label'] for i in groups['help']['items']] == ['Help centre']
     # nothing informative is left in the work areas; Downloads is set-up (Set-up › Data)
     for key in ('services', 'content', 'inbox'):

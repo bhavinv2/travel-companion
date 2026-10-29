@@ -47,7 +47,7 @@ def _event(at, icon, text, detail=None, order=0):
     return {'kind': 'event', 'icon': icon, 'text': text, 'detail': detail or None, 'at': at, 'order': order}
 
 
-def _touch(tp, lead, person):
+def _touch(tp, lead, person, crm_via=None):
     """One touchpoint as a timeline item, or None when it is not for this page."""
     here = tp.lead_id == lead.id
     ch, body, who = tp.channel, tp.body or '', _agent(tp)
@@ -95,8 +95,8 @@ def _touch(tp, lead, person):
     elif ch == 'email' and out and tp.status == 'failed':
         tick, fail = 'failed', 'The e-mail did not go.'
     if ch == 'whatsapp':
-        # a number of our own (Set-up › Channels) is named; the WhatsApp CRM's needs no label
-        via_label = ('WhatsApp · %s' % tp.line.label) if tp.line_id and tp.line is not None else None
+        # a number of our own (Set-up › Channels) is named; so is the WhatsApp CRM's once it is not the only one
+        via_label = ('WhatsApp · %s' % tp.line.label) if tp.line_id and tp.line is not None else crm_via
     else:
         via_label = 'Phone call' if ch == 'call' else CRM_CHANNEL_LABELS.get(ch, ch)
     return {'kind': 'msg', 'side': tp.direction, 'channel': ch, 'via_label': via_label,
@@ -114,9 +114,15 @@ def build(lead, now=None, limit=TIMELINE_LIMIT):
                         CrmTouchpoint.lead_id == lead.id))
             .order_by(CrmTouchpoint.created_at.desc(), CrmTouchpoint.id.desc()).limit(limit + 1).all())
     more = len(rows) > limit
+    # the WhatsApp CRM's number is named only once there is another (channels.several): asked once, not per message
+    crm_via = None
+    if any(tp.channel == 'whatsapp' and not tp.line_id for tp in rows[:limit]):
+        from app.services import channels
+        if channels.several():
+            crm_via = 'WhatsApp · %s' % channels.badge(None)['name']
     items = []
     for tp in reversed(rows[:limit]):
-        it = _touch(tp, lead, p)
+        it = _touch(tp, lead, p, crm_via)
         if it is not None and tp.created_at is not None:
             items.append(it)
     for ch in (CrmStageChange.query.options(joinedload(CrmStageChange.from_stage), joinedload(CrmStageChange.to_stage),

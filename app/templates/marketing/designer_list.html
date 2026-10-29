@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% from '_page_head.html' import page_head %}
+{# Reports > Dashboard designer (routes/marketing.designer): every dashboard the marketing team made, whether people
+   see it, and the buttons -- new, change, publish, take off, copy, order, delete. The designer itself is
+   designer.html; Google Analytics is connected on google.html. #}
+{% block title %}Dashboard designer – Admin{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/marketing.css') }}"/>{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+{% include 'admin/_sidebar.html' %}
+<main class="admin-main">
+<div class="mk dzl">
+  {{ page_head('Dashboard designer', 'fa-solid fa-table-cells-large',
+               'Make Promotion dashboards out of any numbers we have, and publish them for the marketing team.',
+               help=['A dashboard is boxes on a grid. Each box counts something (trips, website visitors, quotes …), '
+                     'splits it by something (direction, country, month …) and draws it (a number, a line, bars, a pie).',
+                     'Changes stay in a draft until you press Publish, so nobody sees half a dashboard.',
+                     'Published dashboards are tabs on the Promotion dashboard, after the Overview.',
+                     'Everything is counts and averages: no box can show a name, an e-mail or a phone number.'],
+               primary={'label': 'Open the Promotion dashboard', 'href': url_for('main.promo_dashboard'), 'icon': 'fa-solid fa-bullhorn'}) }}
+
+  <div class="dzl-cards">
+    <section class="dzl-card">
+      <h3><i class="fa-solid fa-plus" aria-hidden="true"></i> New dashboard</h3>
+      <p>Start empty, from a copy of the Overview, or from a copy of one below.</p>
+      <form class="dzl-new" method="post" action="{{ url_for('marketing.designer_new') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="text" name="name" placeholder="e.g. Diwali campaign" maxlength="80" required aria-label="Name"/>
+        <select name="start" aria-label="Start from">
+          <option value="blank">Empty</option>
+          <option value="overview">A copy of the Overview</option>
+          {% for d in rows %}<option value="{{ d.id }}">A copy of "{{ d.name }}"</option>{% endfor %}
+        </select>
+        <button type="submit" class="mk-btn primary">Create</button>
+      </form>
+    </section>
+    <section class="dzl-card">
+      <h3><i class="fa-brands fa-google" aria-hidden="true"></i> Google Analytics</h3>
+      {% if ga.connected %}
+      <p><span class="ok-dot"></span>Connected to property <b>{{ ga.property_id }}</b>{% if ga.where == 'server' %} (set on the server){% endif %}. Website boxes show its numbers.</p>
+      {% else %}
+      <p><span class="off-dot"></span>Not connected yet: website boxes stay empty until it is.{% if ga.unreadable %} The saved key cannot be read any more — save it again.{% endif %}</p>
+      {% endif %}
+      <a class="mk-btn sm" href="{{ url_for('marketing.google') }}">{{ 'Settings' if ga.connected else 'Connect it' }}</a>
+    </section>
+  </div>
+
+  {% if rows %}
+  <table class="dzl-table">
+    <thead><tr><th>Dashboard</th><th>Who sees it</th><th>State</th><th>Last changed</th><th></th></tr></thead>
+    <tbody>
+      {% for d in rows %}
+      <tr>
+        <td><a href="{{ url_for('marketing.designer_edit', dash_id=d.id) }}"><b><i class="fa-solid {{ d.icon or 'fa-chart-pie' }}" aria-hidden="true"></i> {{ d.name }}</b></a>
+          {% if d.description %}<br/><small class="muted">{{ d.description }}</small>{% endif %}</td>
+        <td>{{ audiences[d.audience] }}</td>
+        <td>
+          {% if d.is_published and d.has_changes %}<span class="dz-state changed">Published · changes not published</span>
+          {% elif d.is_published %}<span class="dz-state live">Published</span>
+          {% else %}<span class="dz-state">Draft</span>{% endif %}
+        </td>
+        <td><small>{{ d.updated_at|istd('%d %b %Y, %H:%M') if d.updated_at }}{% if d.updated_by %}<br/>{{ d.updated_by.full_name or d.updated_by.username }}{% endif %}</small></td>
+        <td>
+          <div class="dzl-acts">
+            <a class="mk-btn sm" href="{{ url_for('marketing.designer_edit', dash_id=d.id) }}"><i class="fa-solid fa-pen" aria-hidden="true"></i> Change</a>
+            {% if d.is_published %}<a class="mk-btn sm quiet" href="{{ url_for('main.promo_dashboard', d=d.id) }}">View</a>{% endif %}
+            {% if not d.is_published or d.has_changes %}
+            <form method="post" action="{{ url_for('marketing.designer_publish', dash_id=d.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <button type="submit" class="mk-btn sm primary">Publish</button></form>
+            {% endif %}
+            {% if d.is_published %}
+            <form method="post" action="{{ url_for('marketing.designer_unpublish', dash_id=d.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <button type="submit" class="mk-btn sm quiet" title="Take it off the Promotion dashboard">Take off</button></form>
+            {% endif %}
+            <form method="post" action="{{ url_for('marketing.designer_duplicate', dash_id=d.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <button type="submit" class="mk-btn sm quiet" title="Copy"><i class="fa-regular fa-copy" aria-hidden="true"></i><span class="sr-only">Copy</span></button></form>
+            {% if not loop.first %}<form method="post" action="{{ url_for('marketing.designer_move', dash_id=d.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="direction" value="up"/>
+              <button type="submit" class="mk-btn sm quiet" title="Earlier in the tabs"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i><span class="sr-only">Earlier</span></button></form>{% endif %}
+            {% if not loop.last %}<form method="post" action="{{ url_for('marketing.designer_move', dash_id=d.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><input type="hidden" name="direction" value="down"/>
+              <button type="submit" class="mk-btn sm quiet" title="Later in the tabs"><i class="fa-solid fa-arrow-down" aria-hidden="true"></i><span class="sr-only">Later</span></button></form>{% endif %}
+            <form method="post" action="{{ url_for('marketing.designer_delete', dash_id=d.id) }}"
+                  onsubmit="return confirm('Delete &quot;{{ d.name|e }}&quot;? It goes off the Promotion dashboard and cannot be brought back.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <button type="submit" class="mk-btn sm quiet danger" title="Delete"><i class="fa-regular fa-trash-can" aria-hidden="true"></i><span class="sr-only">Delete</span></button></form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="dz-none">No dashboards yet. The Overview is always there; make one above for a campaign, a product or a
+    question of your own — "how many parents flew from Hyderabad to the US this summer?".</p>
+  {% endif %}
+</div>
+</main>
+</div>
+{% endblock %}

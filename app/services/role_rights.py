@@ -12,7 +12,7 @@ A role with no rights stored behaves as every role did before them: nothing look
 hidden. Somebody with several roles (their own and their teams') gets the most generous answer, as with the lead
 scope; somebody "Working as" one role gets just that role's. Site admins and the workspace owner are never limited.
 
-    PROFILES          the six profiles: five fill the role form ("Start from a profile"), Owner is the workspace owner
+    PROFILES          the profiles: all but Owner fill the role form ("Start from a profile"), Owner is the workspace owner
     rights_of(user)   {'view': frozenset, 'remove': bool, 'mask': bool} in the current workspace
     may_change(user, endpoint)  False when every page of theirs that owns `endpoint` is look-only
     look_only_here()  the same for the screen open now (the notice under its heading)
@@ -30,14 +30,16 @@ LOOKING = frozenset({
     'admin.blog_check', 'admin.blog_preview', 'admin.preview_message', 'cs.check_duplicates',
     'scraper.mapping_preview', 'scraper.preview_recipe', 'workspace.menu_preview',
     'crm.view_save', 'crm.view_rename', 'crm.view_delete', 'admin_crm.view_save', 'admin_crm.view_rename',
-    'admin_crm.view_delete', 'crm.contact_show', 'admin_crm.contact_show', 'admin.checklist_hide'})
+    'admin_crm.view_delete', 'crm.contact_show', 'admin_crm.contact_show', 'admin.checklist_hide',
+    'marketing.preview'})
 
 _SALES = ('crm_today', 'crm_checks', 'crm_inbox', 'wa_inbox', 'crm_board', 'crm_add', 'crm_calendar', 'crm_people',
           'crm_process', 'notifications', 'guide')
 _FORMS = ('voices_general', 'voices_contact', 'voices_feedback', 'voices_report', 'voices_insurance', 'voices_sahayak')
 
-# The six profiles (Staff Console 2.0's matrix). `pages` go through access.clean_pages, so a page that cannot be
-# given on its own is simply left out; `admin` means every page the role form offers.
+# The profiles (Staff Console 2.0's matrix, and the marketing team's two since 2026-10-29). `pages` go through
+# access.clean_pages, so a page that cannot be given on its own is simply left out; `admin` means every page the role
+# form offers.
 PROFILES = (
     {'key': 'sales_agent', 'label': 'Sales agent', 'icon': 'fa-headset',
      'says': 'Works their own leads: My day, the Inbox, Leads, Contacts and Tasks. Sees only their own leads and new '
@@ -59,6 +61,16 @@ PROFILES = (
      'pages': ('blog_list', 'blog', 'landing', 'insurance_page', 'help', 'help_insurance', 'help_sahayak',
                'notifications', 'guide'),
      'scope': 'own', 'remove': False, 'mask': True, 'view': ()},
+    # 2026-10-29: the marketing team -- its head designs and publishes the Promotion dashboards
+    {'key': 'marketing_head', 'label': 'Marketing head', 'icon': 'fa-bullhorn',
+     'says': 'The Promotion dashboard and the Dashboard designer: makes dashboards out of any numbers we have, '
+             'publishes them for the marketing team and connects Google Analytics. No leads to work, no set-up.',
+     'pages': ('promo', 'mkt_design', 'dashboard', 'notifications', 'guide'),
+     'scope': 'own', 'remove': False, 'mask': True, 'view': ()},
+    {'key': 'marketing', 'label': 'Marketing team', 'icon': 'fa-chart-simple',
+     'says': 'The Promotion dashboard with every dashboard the Marketing head published, for any dates. Numbers '
+             'only: no names, e-mails or phone numbers.',
+     'pages': ('promo', 'notifications', 'guide'), 'scope': 'own', 'remove': False, 'mask': True, 'view': ()},
     {'key': 'admin', 'label': 'Admin', 'icon': 'fa-user-gear',
      'says': 'Every page and every set-up screen; sees all leads. Deleting for good stays with the Super admin.',
      'pages': 'admin', 'scope': 'all', 'remove': True, 'mask': False, 'view': ()},

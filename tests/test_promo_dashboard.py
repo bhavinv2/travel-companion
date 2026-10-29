@@ -110,9 +110,10 @@ def test_it_never_prints_who_wrote_in(client, db, influencer, some_activity):
         assert private not in html, private
 
 
-def test_there_is_nothing_on_it_to_press(client, db, influencer, some_activity):
+def test_there_is_nothing_on_it_that_writes(client, db, influencer, some_activity):
     """"Read-only as of now" is enforced by there being nothing that writes, rather than by a
-    flag somebody could flip by accident.
+    flag somebody could flip by accident. Since 2026-10-29 the page has a date picker: a GET form, so a period is a
+    link -- and still nothing on the page, or behind the addresses its script asks, accepts a write.
 
     Asserted against the template source and the route rather than by slicing the rendered page:
     the shared shell around it has a newsletter form and a chat button, and a test that has to
@@ -120,13 +121,16 @@ def test_there_is_nothing_on_it_to_press(client, db, influencer, some_activity):
     """
     login(client, 'promo@test.com')
     assert client.get(PAGE).status_code == 200
-    assert client.post(PAGE).status_code == 405, 'the route must not accept a write at all'
+    for address in (PAGE, PAGE + '/box', PAGE + '/live'):
+        assert client.post(address).status_code == 405, 'the route must not accept a write at all: ' + address
 
-    tpl = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                       'app', 'templates', 'pages', 'promo_dashboard.html')
-    body = open(tpl, encoding='utf-8').read().lower()
-    for writes in ('<form', '<button', '<input', 'method="post"'):
-        assert writes not in body, writes
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for tpl in (('pages', 'promo_dashboard.html'), ('marketing', '_box.html')):
+        body = open(os.path.join(here, 'app', 'templates', *tpl), encoding='utf-8').read().lower()
+        assert 'method="post"' not in body, tpl
+        assert body.count('<form') == (1 if tpl[0] == 'pages' else 0), 'only the date picker'
+    assert 'method="get"' in open(os.path.join(here, 'app', 'templates', 'pages', 'promo_dashboard.html'),
+                                  encoding='utf-8').read()
 
 
 def test_an_average_needs_enough_reviews_behind_it(client, db, influencer, user):
@@ -175,7 +179,7 @@ def test_the_detail_is_aggregate_only(client, db, influencer, some_activity):
     login(client, influencer.email)
     html = client.get(PAGE).data.decode()
     for section in ('Most requested routes', 'Insurance destinations asked about',
-                    'How people rate us', 'The last'):
+                    'How people rate us', 'Our growth', 'From India: where they fly to'):
         assert section in html, section
     for leaked in ('asha@example.com', 'ravi@example.com', 'meena@example.com',
                    '>Asha<', '>Ravi<', '>Meena<'):

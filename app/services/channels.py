@@ -186,6 +186,72 @@ def label_of(line):
     return '%s · %s' % (line.label, num) if num else line.label
 
 
+# ============================================================== how every screen names one of our numbers
+# Messaging Hub, phase 1 (2026-10-29): a chat is one person on one of our numbers, and every screen says which --
+# the chip on a row, "From … to …" on a box, the banner over WhatsApp chats. One colour per number everywhere.
+
+TONES = 6           # crm.css .onum0 … .onum5: onum0 is the WhatsApp CRM's number, a Meta-direct number onum1-5 by its id
+
+
+def crm_number():
+    """{'phone', 'state'} of the WhatsApp CRM's number, as the workspace linked to it last reported it -- stored,
+    never asked live (wacrm_team.number_of). Once per request."""
+    from app.models import Workspace, request_cache
+    from app.services import crm_scope, wacrm_team
+    c = request_cache('channels')
+    if 'crm' not in c:
+        wid = crm_scope.whatsapp_id()
+        c['crm'] = wacrm_team.number_of(db.session.get(Workspace, wid) if wid else None)
+    return c['crm']
+
+
+def badge(line=None):
+    """How a screen names one of our WhatsApp numbers: {'key', 'code', 'name', 'last4', 'phone', 'engine', 'tone',
+    'short'}. `line` None is the WhatsApp CRM's number (key 'crm', named after its country); a Meta-direct number
+    goes by its own label. A country code, never a flag: Windows draws flag emoji as two plain letters."""
+    from app.services import phone as phone_svc
+    if line is None:
+        e164 = phone_svc.normalise(crm_number().get('phone') or '')[0] or None
+        country = phone_svc.BY_ISO.get(phone_svc.iso_for(e164), {}).get('name') if e164 else None
+        key, name, engine, tone = 'crm', country or 'WhatsApp CRM', PROVIDERS['wacrm']['label'], 'onum0'
+    else:
+        e164 = line.phone or None
+        key, name, engine = str(line.id), line.label, PROVIDERS['meta']['label']
+        tone = 'onum%d' % (1 + (line.id - 1) % (TONES - 1))
+    digits = (e164 or '').lstrip('+')
+    last4 = digits[-4:] if len(digits) >= 4 else ''
+    return {'key': key, 'code': phone_svc.iso_for(e164) if e164 else 'WA', 'name': name, 'last4': last4,
+            'phone': phone_svc.pretty(e164, e164) if e164 else '', 'engine': engine, 'tone': tone,
+            'short': '%s ·%s' % (name, last4) if last4 else name}
+
+
+def badges():
+    """Every WhatsApp number of ours, the WhatsApp CRM's first -- [] while it is the only one (nothing to tell
+    apart). The inbox's number tabs."""
+    rest = lines()
+    return [badge(None)] + [badge(l) for l in rest] if rest else []
+
+
+def several():
+    """More than one WhatsApp number of ours: the screens that named only Meta-direct numbers name every one. Once
+    per request (a timeline asks for each message)."""
+    from app.models import request_cache
+    c = request_cache('channels')
+    if 'several' not in c:
+        c['several'] = db.session.query(CrmChannelLine.id).first() is not None
+    return c['several']
+
+
+def unheard():
+    """The numbers the website's WhatsApp buttons offer (Admin › Landing page) that nothing of ours hears -- neither
+    the WhatsApp CRM's nor a connected Meta-direct number. A message to one never reaches us."""
+    from app.services import offices, wa_meta
+    crm = badge(None)['phone']
+    heard = {wa_meta.digits(crm)} if crm else set()
+    heard |={wa_meta.digits(l.phone) for l in lines() if l.phone and l.status in ('live', 'paused')}
+    return [r for r in offices.numbers() if r.get('whatsapp') and r['digits'] not in heard]
+
+
 # =========================================================================================== the send paths
 
 class _CrmSender:
@@ -410,22 +476,22 @@ def _record_echo(line, ev):
 # ================================================================================ "Numbers & who answers"
 
 def numbers(ws=None):
-    """[{'name', 'number', 'provider', 'answers', 'listens', 'state', 'state_words', 'line'}] -- the WhatsApp CRM's
+    """[{'name', 'number', 'provider', 'answers', 'listens', 'state', 'state_words', 'line', 'num'}] -- the WhatsApp CRM's
     number, each Meta-direct number, and tawk.to's website chat."""
     from app.services import tawk, wacrm, wacrm_team
     rows = []
     wa = wacrm_team.number_of(ws) if ws is not None else {'phone': None, 'state': 'none'}
     rows.append({'name': 'WhatsApp CRM number', 'number': wa.get('phone'), 'provider': 'wacrm', 'answers': 'wacrm',
-                 'listens': [], 'line': None,
+                 'listens': [], 'line': None, 'num': badge(None) if wa.get('phone') else None,
                  'state': 'live' if wa.get('state') == 'live' else ('new' if wacrm.base_url() else 'off'),
                  'state_words': {'live': 'Live', 'planned': 'Set up, not linked yet'}.get(wa.get('state'),
                                                                                        'Not linked')})
     for line in lines():
         rows.append({'name': line.label, 'number': line.phone, 'provider': 'meta', 'answers': 'meta',
-                     'listens': list(line.also_on or []), 'line': line, 'state': line.status,
+                     'listens': list(line.also_on or []), 'line': line, 'num': badge(line), 'state': line.status,
                      'state_words': STATUS_WORDS.get(line.status, line.status)})
     rows.append({'name': 'Website chat bubble', 'number': None, 'provider': 'tawk', 'answers': 'tawk', 'listens': [],
-                 'line': None, 'state': 'live' if tawk.enabled() else 'off',
+                 'line': None, 'num': None, 'state': 'live' if tawk.enabled() else 'off',
                  'state_words': 'Live' if tawk.enabled() else 'Webhook not connected'})
     return rows
 

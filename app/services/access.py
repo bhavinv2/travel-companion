@@ -96,11 +96,25 @@ MODULES = [
                desc='Numbers across every product on the site.', tip='Numbers across every product on the site.'),
          # the promotion team's read-only figures (main.promo_dashboard): given by a role like any page; an account
          # with the site-wide Influencer role has it too (pages_for), as it always had
-         _page('promo', 'Promotion dashboard', 'fa-bullhorn', ['main.promo_dashboard'], admin='main.promo_dashboard',
-               cs='main.promo_dashboard',
-               desc='Read-only figures for whoever promotes the service: enquiries, trips and published reviews per '
-                    'product, with no names, e-mails or phone numbers.',
-               tip='How things are going, read-only: counts, trends and published reviews.'),
+         _page('promo', 'Promotion dashboard', 'fa-bullhorn', ['main.promo_dashboard', 'marketing.box', 'marketing.live'],
+               admin='main.promo_dashboard', cs='main.promo_dashboard',
+               desc='Read-only figures for whoever promotes the service: the website right now and over time, our '
+                    'growth, trips India ↔ abroad, insurance, reviews -- for any dates -- and the dashboards the '
+                    'Marketing head published. No names, e-mails or phone numbers.',
+               tip='How things are going: the website live, our growth, travel India ↔ abroad, for any dates.'),
+         # the Marketing head's: make Promotion dashboards out of any numbers we have, and publish them as its tabs
+         # (routes/marketing.py); also where Google Analytics is connected
+         _page('mkt_design', 'Dashboard designer', 'fa-table-cells-large',
+               ['marketing.designer', 'marketing.designer_new', 'marketing.designer_edit', 'marketing.designer_save',
+                'marketing.designer_publish', 'marketing.designer_unpublish', 'marketing.designer_discard',
+                'marketing.designer_duplicate', 'marketing.designer_delete', 'marketing.designer_move',
+                'marketing.preview', 'marketing.options', 'marketing.google', 'marketing.google_test',
+                'marketing.google_disconnect'],
+               admin='marketing.designer', cs='marketing.designer',
+               desc='Design Promotion dashboards: boxes of any numbers we have (the website, trips, insurance, '
+                    'Sahayak, enquiries, reviews, sign-ups, leads), drawn as numbers, lines, bars or pies, and '
+                    'published for the marketing team. Also connects Google Analytics.',
+               tip='Make your own Promotion dashboards and publish them.'),
          # every screen, what it is for, by area -- built from this file, so it is never out of date. Whoever
          # has any page has it (its `with` is set below, once every page is known)
          _page('guide', 'Help centre', 'fa-circle-question', ['admin.screen_guide'], admin='admin.screen_guide',
@@ -470,7 +484,7 @@ SECTIONS = [
     # Sales results / Forecast and Team today / Team analysis are one line each, with a switch (TAB_GROUPS)
     {'key': 'reports', 'label': 'Reports', 'icon': 'fa-chart-line',
      'pages': ('reports', 'crm_insights', 'crm_forecast', 'crm_tracker', 'crm_team', 'crm_report_builder',
-               'dashboard', 'promo')},
+               'dashboard', 'promo', 'mkt_design')},
     {'key': 'content', 'label': 'Content', 'icon': 'fa-pen-nib',
      'pages': ('blog_list', 'blog', 'blog_import', 'landing', 'insurance_page')},
     # the rules, WhatsApp's reply rules, the chatbot and AI replies are tabs of Automation (TAB_GROUPS)

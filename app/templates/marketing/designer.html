@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{# The Dashboard designer (routes/marketing.designer_edit): "Add a box" on the left, the dashboard's grid in the
+   middle (drag a box by its title, resize it by its corner), the chosen box's settings on the right. Every change is
+   drawn at once from /promotion/designer/preview; Save keeps the draft, Publish puts it on the Promotion dashboard.
+   The page is static/js/mkt-designer.js; the catalogue it offers is services/mkt_engine.catalogue(). #}
+{% block title %}{{ dash.name }} – Dashboard designer{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/marketing.css') }}"/>{% endblock %}
+
+{% block content %}
+<div class="dz" id="dz">
+  <div class="dz-top">
+    <a class="mk-btn sm quiet" href="{{ url_for('marketing.designer') }}" title="All dashboards"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span class="sr-only">All dashboards</span></a>
+    <input class="dz-name" id="dz-name" type="text" value="{{ dash.name }}" maxlength="80" aria-label="Dashboard name"/>
+    <span class="dz-state" id="dz-state"></span>
+    <span class="dz-saved" id="dz-saved" aria-live="polite"></span>
+    <span class="grow"></span>
+    <label class="sr-only" for="dz-aud">Who sees it</label>
+    <select id="dz-aud" title="Who sees it once it is published">
+      {% for k, v in audiences.items() %}<option value="{{ k }}"{% if k == dash.audience %} selected{% endif %}>{{ v }}</option>{% endfor %}
+    </select>
+    <label class="sr-only" for="dz-opens">Opens on</label>
+    <select id="dz-opens" title="The dates it opens on">
+      {% for k, v in ranges.items() %}{% if k != 'custom' %}<option value="{{ k }}"{% if k == dash.range_key %} selected{% endif %}>Opens on: {{ v }}</option>{% endif %}{% endfor %}
+    </select>
+    <a class="mk-btn sm" id="dz-view" href="{{ url_for('main.promo_dashboard', d=dash.id, draft=1) }}" target="_blank" rel="noopener">
+      <i class="fa-regular fa-eye" aria-hidden="true"></i> Preview</a>
+    <button type="button" class="mk-btn sm" id="dz-save"><i class="fa-regular fa-floppy-disk" aria-hidden="true"></i> Save draft</button>
+    <button type="button" class="mk-btn sm primary" id="dz-publish"><i class="fa-solid fa-upload" aria-hidden="true"></i> Publish</button>
+  </div>
+
+  <aside class="dz-side" aria-label="Add a box">
+    <h3>Add a box</h3>
+    <div class="dz-sugs">
+      <button type="button" class="dz-sug" data-blank><i class="fa-solid fa-plus" aria-hidden="true"></i> An empty box</button>
+    </div>
+    <div id="dz-sugs"></div>
+    {% if not ga.connected %}
+    <p class="dz-none"><i class="fa-brands fa-google" aria-hidden="true"></i> Website boxes stay empty until
+      <a href="{{ url_for('marketing.google') }}">Google Analytics is connected</a>.</p>
+    {% endif %}
+  </aside>
+
+  <main class="dz-canvas">
+    <div class="dz-canvas-bar">
+      <label>Draw with the numbers of
+        <select id="dz-range">
+          {% for k, v in ranges.items() %}{% if k != 'custom' %}<option value="{{ k }}"{% if k == dash.range_key %} selected{% endif %}>{{ v }}</option>{% endif %}{% endfor %}
+        </select></label>
+      <span>Drag a box by its title to move it, by its corner to resize it. Click it to change what it shows.</span>
+    </div>
+    <div class="mk-grid dz-grid" id="dz-grid" aria-label="The dashboard"></div>
+  </main>
+
+  <aside class="dz-panel" id="dz-panel" aria-label="Box settings"></aside>
+</div>
+<script type="application/json" id="dz-data">{{ {
+  'boxes': boxes, 'catalogue': catalogue, 'suggestions': suggestions,
+  'published': dash.is_published, 'changes': dash.has_changes,
+  'urls': {'save': url_for('marketing.designer_save', dash_id=dash.id), 'preview': url_for('marketing.preview'),
+           'options': url_for('marketing.options')}
+}|tojson }}</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="{{ url_for('static', filename='js/mkt-charts.js') }}"></script>
+<script src="{{ url_for('static', filename='js/mkt-designer.js') }}"></script>
+{% endblock %}

@@ -581,6 +581,9 @@ def create_app(test_config=None):
     from app.routes.security import security_bp
     app.register_blueprint(security_bp)
     app.register_blueprint(messaging_bp)
+    # the Promotion dashboard's boxes and the Dashboard designer (/promotion/...)
+    from app.routes.marketing import marketing_bp
+    app.register_blueprint(marketing_bp)
 
     from app import cli
     cli.register(app)

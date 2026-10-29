@@ -199,7 +199,14 @@ def _screen_view(name):
             rules, seen = crm.known_rule_conflicts()
             from app.services import clock
             rules_at = clock.fmt(seen, '%d %b, %H:%M') if seen else None
+        # the inbox holds ONE number of ours (the WhatsApp CRM's): the banner names it, and where the others' chats are
+        inbox_num = inbox_others = None
+        if name == 'inbox' and src:
+            from app.services import channels
+            inbox_num = channels.badge(None)
+            inbox_others = [channels.badge(l) for l in channels.lines()]
         return render_template('messaging/frame.html', rules=rules, rules_line=crm.rule_strip(rules),
+                               inbox_num=inbox_num, inbox_others=inbox_others,
                                rules_at=rules_at, heading=screen['heading'],
                                helper=INBOX_HELPER_ALONE if alone else screen['helper'],
                                help=screen['help'][:2] if alone else screen['help'],
@@ -506,14 +513,17 @@ def lead_panel():
         from app.services import crm_products
         return render_template('messaging/lead_panel.html', state='none', phone=digits,
                                name=name[:120], conversation=conversation_id, tiles=crm_products.tiles())
-    from app.services import crm, crm_metrics
+    from app.models import CrmTouchpoint
+    from app.services import channels, crm, crm_metrics
     belongs = sum(1 for l in person.leads if l.status == 'open') > 1
-    # what WhatsApp allows now, from what we hold: free text inside 24 hours of their last message, else a template
-    entry = crm_metrics.last_touches({person.id}).get(person.id) or {}
+    # what WhatsApp allows now, from what we hold: free text inside 24 hours of their last message ON THIS INBOX'S
+    # NUMBER (the WhatsApp CRM's) -- a message to another number of ours opens that number's 24 hours, not this one's
+    last = (crm._real_whatsapp_in(person.id).filter(CrmTouchpoint.line_id.is_(None))
+            .with_entities(CrmTouchpoint.created_at).order_by(CrmTouchpoint.created_at.desc()).first())
     return render_template('messaging/lead_panel.html', state='lead', belongs=belongs,
                            suggested=crm.suggested_reply(lead, current_user), conversation=conversation_id,
-                           window_left=crm_metrics.window_left_hours(entry.get('wa_last_in')),
-                           **lead_card_context(lead, compact=True), **_common())
+                           window_left=crm_metrics.window_left_hours(last[0] if last else None),
+                           us=channels.badge(None), **lead_card_context(lead, compact=True), **_common())
 
 
 @messaging_bp.route('/lead-panel/make', methods=['POST'])

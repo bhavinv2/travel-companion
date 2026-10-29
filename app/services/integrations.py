@@ -443,6 +443,16 @@ def _analytics(ctx):
                      'and opening WhatsApp.']
     c['steps'] = ['These IDs are public. To change one, your developer sets GA4_ID, GTM_ID, GOOGLE_ADS2_ID or '
                   'GOOGLE_ADS_ID on the server; an empty value switches it off.']
+    # reading the numbers back, for the Promotion dashboard (services/ga4): its settings live with the designer
+    from app.services import ga4
+    got = ga4.status()
+    c['lines'].append(_line(got['connected'], 'Promotion dashboard reads it back: %s' % (
+        'property %s' % got['property_id'] if got['connected'] else 'not connected yet')))
+    c['overview'].append('The Promotion dashboard shows the same numbers -- visitors, channels, countries, who is on '
+                         'the site right now -- once a read-only service account is connected.')
+    if _page(ctx, 'mkt_design'):
+        c['home'] = {'label': 'Connect it to the Promotion dashboard', 'url': url_for('marketing.google'),
+                     'says': 'The property id and a read-only service-account key.'}
     return c
 
 

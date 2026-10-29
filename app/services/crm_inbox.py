@@ -13,7 +13,7 @@ What somebody sees is what they may see anywhere else: the listeners of crm_acce
     filters(args)      the page's filters from the query string, made safe
     page(f, user, n)   the rows of one page, the total, and the count of each "whose" tab
 """
-from sqlalchemy import case, exists, func, or_, select
+from sqlalchemy import case, exists, func, or_, select, true
 
 from app import db
 from app.models import CrmLead, CrmPerson, CrmTouchpoint
@@ -37,13 +37,26 @@ NO_MATCH = 'Nothing here with these filters.'
 
 
 def filters(args):
+    """`num` is one of our WhatsApp numbers (a tab per number, as tawk.to gives each number its own inbox): 'crm'
+    for the WhatsApp CRM's, a Meta-direct number's id, '' for all; choosing one means the WhatsApp channel."""
+    from app.services import channels
     who = args.get('who') if args.get('who') in dict(WHO) else 'all'
     ch = args.get('ch') if args.get('ch') in GROUP_BY_KEY else ''
-    return {'who': who, 'ch': ch, 'q': ' '.join((args.get('q') or '').split())[:80]}
+    num = args.get('num') or ''
+    if num != 'crm' and not (num.isdigit() and channels.get(int(num)) is not None):
+        num = ''
+    return {'who': who, 'ch': 'whatsapp' if num else ch, 'num': num, 'q': ' '.join((args.get('q') or '').split())[:80]}
 
 
 def _channels(f):
     return GROUP_BY_KEY[f['ch']][3] if f['ch'] else CHANNELS
+
+
+def _on_number(f):
+    """The touchpoints of the chosen number (filters' `num`), or everything."""
+    if not f.get('num'):
+        return true()
+    return CrmTouchpoint.line_id.is_(None) if f['num'] == 'crm' else CrmTouchpoint.line_id == int(f['num'])
 
 
 def _people(f):
@@ -53,7 +66,7 @@ def _people(f):
     said = or_(tp.direction == 'in', func.coalesce(tp.status, '') != 'failed')
     last_in = func.max(case((tp.direction == 'in', tp.created_at)))
     return (select(tp.person_id.label('pid'), last_in.label('last_in'), func.max(tp.created_at).label('last_at'))
-            .where(tp.channel.in_(_channels(f)), tp.direction.in_(('in', 'out')), said)
+            .where(tp.channel.in_(_channels(f)), tp.direction.in_(('in', 'out')), said, _on_number(f))
             .group_by(tp.person_id)
             .having(last_in.isnot(None)))
 
@@ -78,8 +91,10 @@ def _query(f, user, who):
 
 
 def page(f, user, n=1):
-    """{'rows', 'total', 'pages', 'page', 'counts': {who: n}} for the filters `f` (filters()). A row: {'person',
-    'lead', 'channel', 'group', 'direction', 'body', 'at', 'agent', 'waiting', 'waiting_since'}."""
+    """{'rows', 'total', 'pages', 'page', 'counts': {who: n}, 'numbers'} for the filters `f` (filters()). A row:
+    {'person', 'lead', 'channel', 'group', 'direction', 'body', 'at', 'agent', 'waiting', 'waiting_since', 'line',
+    'num', 'also'}; `numbers` are the number tabs (channels.badges: none while there is one number)."""
+    from app.services import channels
     counts = {key: _query(f, user, key).count() for key, _w in WHO}
     total = counts[f['who']]
     pages = max(1, -(-total // PER_PAGE))
@@ -87,13 +102,15 @@ def page(f, user, n=1):
     hits = _query(f, user, f['who']).subquery()
     ids = [pid for (pid,) in db.session.query(hits.c.pid).order_by(hits.c.last_at.desc(), hits.c.pid.desc())
            .offset((n - 1) * PER_PAGE).limit(PER_PAGE)]
-    return {'rows': _rows(ids, f), 'total': total, 'pages': pages, 'page': n, 'counts': counts}
+    return {'rows': _rows(ids, f), 'total': total, 'pages': pages, 'page': n, 'counts': counts,
+            'numbers': channels.badges()}
 
 
 def _rows(ids, f):
     if not ids:
         return []
     from sqlalchemy.orm import joinedload, selectinload
+    from app.services import channels
     people = {p.id: p for p in CrmPerson.query.options(selectinload(CrmPerson.leads).joinedload(CrmLead.owner),
                                                        selectinload(CrmPerson.leads).joinedload(CrmLead.stage))
               .filter(CrmPerson.id.in_(ids))}
@@ -102,11 +119,24 @@ def _rows(ids, f):
     ranked = (select(tp.id, tp.person_id,
                      func.row_number().over(partition_by=tp.person_id,
                                             order_by=(tp.created_at.desc(), tp.id.desc())).label('n'))
-              .where(tp.person_id.in_(ids), tp.channel.in_(_channels(f)), tp.direction.in_(('in', 'out')), said)
+              .where(tp.person_id.in_(ids), tp.channel.in_(_channels(f)), tp.direction.in_(('in', 'out')), said,
+                     _on_number(f))
               .subquery())
     newest = {t.person_id: t for t in CrmTouchpoint.query.options(joinedload(CrmTouchpoint.agent))
               .filter(CrmTouchpoint.id.in_(select(ranked.c.id).where(ranked.c.n == 1)))}
     touches = crm_metrics.last_touches(ids)
+    # which of our WhatsApp numbers each person has talked on: a chat is one person on one number
+    used, named = {}, {}
+    if channels.several():
+        for pid, lid in (db.session.query(tp.person_id, tp.line_id).distinct()
+                         .filter(tp.person_id.in_(ids), tp.channel == 'whatsapp', tp.direction.in_(('in', 'out')))):
+            used.setdefault(pid, set()).add(lid)
+
+    def chip(line_id):
+        if line_id not in named:
+            named[line_id] = channels.badge(channels.get(line_id) if line_id else None)
+        return named[line_id]
+
     out = []
     for pid in ids:
         person, t = people.get(pid), newest.get(pid)
@@ -114,8 +144,12 @@ def _rows(ids, f):
             continue
         entry = touches.get(pid) or {}
         waiting = crm_metrics.waiting_on_us(entry)
+        own = t.line_id if t.channel == 'whatsapp' else 'none'
         out.append({'person': person, 'lead': _lead_of(person, t), 'channel': t.channel,
-                    # the number of our own it went through (Set-up › Channels); None = the WhatsApp CRM's
+                    # the number of ours it went through: a chip on every WhatsApp row, the WhatsApp CRM's too
+                    'num': chip(t.line_id) if t.channel == 'whatsapp' else None,
+                    'also': [chip(lid) for lid in sorted(used.get(pid, set()) - {own}, key=lambda x: x or 0)],
+                    # a Meta-direct number (Set-up › Channels) is answered on the lead page, not in WhatsApp chats
                     'line': t.line.label if t.line_id and t.line is not None else None,
                     'group': CHANNEL_GROUP.get(t.channel, GROUPS[0]), 'direction': t.direction,
                     'body': _snippet(t.body), 'at': t.created_at,

@@ -3240,7 +3240,7 @@ def wa_chat_state(lead, confirm=False, now=None):
     """Where their WhatsApp chat stands, for the strip and the box -- from portal data, plus what
     the WhatsApp CRM said in the last minute. `confirm` asks it (at most once a minute): only the
     live endpoint does, never the page. {'mode', 'state', 'left', 'last_in', 'opted_out_at',
-    'chat_status', 'line'}; state: off | no_phone | opted_out_open | opted_out | open | never | closed.
+    'chat_status', 'line', 'num'}; state: off | no_phone | opted_out_open | opted_out | open | never | closed.
     On a Meta-direct number (services/channels.line_for) the clock is what they wrote to that number, and it is on
     while that number is live; `line` names it."""
     from app.services import channels, crm_metrics
@@ -3284,7 +3284,9 @@ def wa_chat_state(lead, confirm=False, now=None):
         state = 'closed'
     return {'mode': mode, 'state': state, 'left': int(round(left or 0)), 'last_in': last,
             'opted_out_at': out_at, 'chat_status': status,
-            'line': channels.label_of(line) if line is not None else None}
+            'line': channels.label_of(line) if line is not None else None,
+            # which of our numbers it goes from, the WhatsApp CRM's too (channels.badge) -- "From … to …"
+            'num': channels.badge(line)}
 
 
 def wa_line(wa):
