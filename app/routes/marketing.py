@@ -8,6 +8,7 @@ services/mkt_dashboards', the website's services/ga4's.
     /promotion/designer/<id>         the designer itself: the grid, the box settings, Save and Publish
     /promotion/designer/preview      one box's numbers while it is being made (POST, changes nothing)
     /promotion/designer/options      the values a filter can choose
+    /promotion/designer/library      reusable boxes: save one for every designer, delete one
     /promotion/designer/google       the Google Analytics connection
 
 Who: the Promotion dashboard is the `promo` page (a role gives it; an Influencer account has it too); designing is
@@ -25,7 +26,8 @@ VIEW_ENDPOINTS = ('main.promo_dashboard', 'marketing.box', 'marketing.live')
 DESIGN_ENDPOINTS = ('marketing.designer', 'marketing.designer_new', 'marketing.designer_edit',
                     'marketing.designer_save', 'marketing.designer_publish', 'marketing.designer_unpublish',
                     'marketing.designer_discard', 'marketing.designer_duplicate', 'marketing.designer_delete',
-                    'marketing.designer_move', 'marketing.preview', 'marketing.options', 'marketing.google',
+                    'marketing.designer_move', 'marketing.preview', 'marketing.options', 'marketing.library_add',
+                    'marketing.library_delete', 'marketing.google',
                     'marketing.google_test', 'marketing.google_disconnect')
 
 
@@ -62,9 +64,9 @@ def _which(tabs, key, draft):
     dash = None
     if key and key != 'overview':
         dash = md.find(key)
-        if dash is not None and draft and md.can_design(current_user):
+        if dash is not None and (draft or dash.published is None) and md.can_design(current_user):
             return dash, md.boxes_for(dash, draft=True), True
-        if dash is None or not any(t['key'] == str(dash.id) for t in tabs):
+        if dash is None or not any(t['key'] == str(dash.id) and not t['draft'] for t in tabs):
             return None, md.overview(), False
         return dash, md.boxes_for(dash), False
     return None, md.overview(), False
@@ -79,7 +81,9 @@ def page():
     dash, boxes, is_draft = _which(tabs, request.args.get('d'), request.args.get('draft') == '1')
     period = _period(request.args, default=(dash.range_key if dash is not None else 'last_30'))
     items = md.render(boxes, period, current_user)
+    from app.services import promo
     return render_template('pages/promo_dashboard.html', tabs=tabs, here=str(dash.id) if dash else 'overview',
+                           reach=promo.reach(),
                            dash=dash, items=items, period=period, ranges=eng.PAGE_RANGES, is_draft=is_draft,
                            designer=md.can_design(current_user), ga=ga4.status(),
                            staff=access.is_staff(current_user))
@@ -170,7 +174,7 @@ def designer_edit(dash_id):
     suggestions = [{'group': g, 'name': n, 'box': b} for g, n, b in md.SUGGESTIONS]
     return render_template('marketing/designer.html', dash=d, boxes=md.boxes_for(d, draft=True),
                            catalogue=eng.catalogue(), suggestions=suggestions, ranges=eng.PAGE_RANGES,
-                           audiences=md.AUDIENCES, ga=ga4.status())
+                           audiences=md.AUDIENCES, ga=ga4.status(), library=md.library())
 
 
 @marketing_bp.route('/designer/<int:dash_id>/save', methods=['POST'])
@@ -275,6 +279,30 @@ def preview():
     return jsonify(res)
 
 
+@marketing_bp.route('/designer/library', methods=['POST'])
+@login_required
+def library_add():
+    """Save a box to the library every designer can use again (JSON: {name, box})."""
+    denied = _deny_design()
+    if denied:
+        return denied
+    body = request.get_json(silent=True) or {}
+    try:
+        rows = md.library_add(current_user, body.get('name'), body.get('box'))
+    except md.DashError as e:
+        return _json_error(str(e))
+    return jsonify({'ok': True, 'library': rows})
+
+
+@marketing_bp.route('/designer/library/<lid>/delete', methods=['POST'])
+@login_required
+def library_delete(lid):
+    denied = _deny_design()
+    if denied:
+        return denied
+    return jsonify({'ok': True, 'library': md.library_delete(current_user, lid)})
+
+
 @marketing_bp.route('/designer/options')
 @login_required
 def options():
@@ -298,29 +326,45 @@ def google():
         return denied
     if request.method == 'POST':
         try:
-            ga4.save(request.form.get('property_id'), request.form.get('key_json'), by=current_user)
+            ga4.save(request.form.get('property_id'), request.form.get('key_json'), by=current_user,
+                     sc_site=request.form.get('sc_site') or '')
         except ga4.GAError as e:
             flash(str(e), 'warning')
             return redirect(url_for('marketing.google'))
-        flash('Google Analytics is connected. Use "Test the connection" to see the first numbers.', 'success')
+        flash('Saved. Use "Test the connection" to see the first numbers.', 'success')
         return redirect(url_for('marketing.google'))
     from app.services import analytics
-    return render_template('marketing/google.html', ga=ga4.status(), measurement_id=analytics.ga4_id())
+    return render_template('marketing/google.html', ga=ga4.status(), measurement_id=analytics.ga4_id(),
+                           site_verification=bool(analytics.site_verification()))
 
 
 @marketing_bp.route('/designer/google/test', methods=['POST'])
 @login_required
 def google_test():
+    """A small real question to each of the two that are set up: Analytics and Search Console."""
     denied = _deny_design()
     if denied:
         return denied
-    try:
-        got = ga4.test()
-    except ga4.GAError as e:
-        flash('The test did not work: %s' % e, 'warning')
-    else:
-        flash('It works: %s visitors and %s visits in the last 7 days, %s on the site right now.'
-              % ('{:,}'.format(got['users']), '{:,}'.format(got['sessions']), '{:,}'.format(got['now'])), 'success')
+    from app.services import gsc
+    if not ga4.connected() and not gsc.connected():
+        flash('Nothing to test yet: save the key and a property first.', 'warning')
+    if ga4.connected():
+        try:
+            got = ga4.test()
+        except ga4.GAError as e:
+            flash('Google Analytics did not work: %s' % e, 'warning')
+        else:
+            flash('Google Analytics works: %s visitors and %s visits in the last 7 days, %s on the site right now.'
+                  % ('{:,}'.format(got['users']), '{:,}'.format(got['sessions']), '{:,}'.format(got['now'])),
+                  'success')
+    if gsc.connected():
+        try:
+            got = gsc.test()
+        except ga4.GAError as e:
+            flash('Search Console did not work: %s' % e, 'warning')
+        else:
+            flash('Search Console works: %s clicks from Google and shown %s times in the last 28 days.'
+                  % ('{:,}'.format(got['clicks']), '{:,}'.format(got['impressions'])), 'success')
     return redirect(url_for('marketing.google'))
 
 
@@ -331,5 +375,5 @@ def google_disconnect():
     if denied:
         return denied
     ga4.disconnect(by=current_user)
-    flash('Google Analytics is disconnected. The website boxes say so until it is connected again.', 'success')
+    flash('Google is disconnected. The website and search boxes say so until it is connected again.', 'success')
     return redirect(url_for('marketing.google'))

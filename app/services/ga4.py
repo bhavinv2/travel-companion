@@ -28,7 +28,8 @@ from datetime import date
 
 import requests
 
-SCOPE = 'https://www.googleapis.com/auth/analytics.readonly'
+# one read-only token for both: Analytics, and Search Console (services/gsc)
+SCOPE = 'https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/webmasters.readonly'
 API = 'https://analyticsdata.googleapis.com/v1beta/properties/%s:%s'
 TOKEN_URI = 'https://oauth2.googleapis.com/token'
 SETTING = 'mkt.ga4'
@@ -63,38 +64,69 @@ def _key_from_text(text):
     return key
 
 
-def _config():
-    """(property id, the key as a dict, where they came from) -- or (None, None, None)."""
+def key():
+    """(the service-account key as a dict, where it came from): the saved one, else the server's -- or (None, None)."""
     from app.services import secretbox
     saved = _saved()
-    pid = str(saved.get('property_id') or '').strip()
-    key = None
     if saved.get('key'):
         opened = secretbox.open(saved['key'])
-        key = (opened or {}).get('key') if opened else None
-    if pid and key:
-        return pid, key, 'saved'
-    env_pid = (os.environ.get('GA4_PROPERTY_ID') or '').strip()
+        if opened and opened.get('key'):
+            return opened['key'], 'saved'
     env_key = _key_from_text(os.environ.get('GA4_SERVICE_ACCOUNT') or '')
-    if env_pid and env_key:
-        return env_pid, env_key, 'server'
+    return (env_key, 'server') if env_key else (None, None)
+
+
+def _config():
+    """(property id, the key as a dict, where the key came from) -- or (None, None, None)."""
+    k, where = key()
+    pid = str(_saved().get('property_id') or '').strip() or (os.environ.get('GA4_PROPERTY_ID') or '').strip()
+    if pid and k:
+        return pid, k, where
     return None, None, None
 
 
+def search_site():
+    """The Search Console property the search boxes read ('sc-domain:example.com' or 'https://example.com/')."""
+    return str(_saved().get('sc_site') or '').strip() or (os.environ.get('GSC_SITE_URL') or '').strip() or None
+
+
 def connected():
-    pid, key, _ = _config()
-    return bool(pid and key)
+    pid, k, _ = _config()
+    return bool(pid and k)
+
+
+def search_connected():
+    return bool(search_site() and key()[0])
 
 
 def status():
-    pid, key, where = _config()
+    pid, k, where = _config()
     saved = _saved()
     from app.services import secretbox
     unreadable = bool(saved.get('key')) and secretbox.open(saved['key']) is None
-    return {'connected': bool(pid and key), 'property_id': pid or str(saved.get('property_id') or ''),
-            'email': (key or {}).get('client_email') or saved.get('email') or '', 'where': where,
+    k = k or key()[0]
+    return {'connected': bool(pid and k), 'property_id': pid or str(saved.get('property_id') or ''),
+            'email': (k or {}).get('client_email') or saved.get('email') or '', 'where': where or key()[1],
+            'has_key': bool(k), 'search_connected': search_connected(), 'sc_site': search_site() or '',
             'unreadable': unreadable, 'saved_at': saved.get('saved_at'), 'saved_by': saved.get('saved_by'),
             'server_set': bool((os.environ.get('GA4_PROPERTY_ID') or '').strip())}
+
+
+def clean_search_site(text):
+    """A Search Console property as Search Console names it: a domain property ('sc-domain:example.com') or a URL
+    prefix ('https://example.com/', its slash kept)."""
+    text = str(text or '').strip()
+    if not text:
+        return ''
+    low = text.lower()
+    if low.startswith('sc-domain:'):
+        host = low.split(':', 1)[1].strip().strip('/')
+        if host and '.' in host and ' ' not in host and '/' not in host:
+            return 'sc-domain:' + host
+    elif low.startswith(('https://', 'http://')) and ' ' not in text and '.' in text:
+        return text if text.endswith('/') else text + '/'
+    raise GAError('The Search Console property is written as Search Console shows it: sc-domain:nriparentservice.com '
+                  '(a domain property) or https://nriparentservice.com/ (a URL-prefix property).')
 
 
 def clean_property_id(text):
@@ -107,12 +139,14 @@ def clean_property_id(text):
     return text
 
 
-def save(property_id, key_text, by=None):
-    """Keep the connection. An empty key keeps the one saved before (a page never shows it again)."""
+def save(property_id, key_text, by=None, sc_site=None):
+    """Keep the connection: the Analytics property, the Search Console property, or both. An empty key keeps the one
+    saved before (a page never shows it again)."""
     from app.services import secretbox, settings
-    pid = clean_property_id(property_id)
     saved = _saved()
-    out = {'property_id': pid, 'key': saved.get('key'), 'email': saved.get('email')}
+    site = clean_search_site(sc_site if sc_site is not None else saved.get('sc_site'))
+    pid = clean_property_id(property_id) if str(property_id or '').strip() or not site else ''
+    out = {'property_id': pid, 'sc_site': site, 'key': saved.get('key'), 'email': saved.get('email')}
     if str(key_text or '').strip():
         key = _key_from_text(key_text)
         if key is None:

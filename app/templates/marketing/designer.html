@@ -1,13 +1,20 @@
 {% extends 'base.html' %}
-{# The Dashboard designer (routes/marketing.designer_edit): "Add a box" on the left, the dashboard's grid in the
-   middle (drag a box by its title, resize it by its corner), the chosen box's settings on the right. Every change is
-   drawn at once from /promotion/designer/preview; Save keeps the draft, Publish puts it on the Promotion dashboard.
-   The page is static/js/mkt-designer.js; the catalogue it offers is services/mkt_engine.catalogue(). #}
+{# The Dashboard designer (routes/marketing.designer_edit).
+
+     left    "Add a box" (empty, ready-made, the reusable ones, a copied one: click one, or drag it onto the grid) and
+             "Outline" (every box on the dashboard in order: click to find it, drag to put it before another);
+             its groups fold, and the whole panel folds away
+     middle  the dashboard's grid: drag a box by its title, resize it by its corner
+     right   the chosen box's settings, one folding section each ("Draw it as", "Count", "Split it" ...); the whole
+             panel folds away too
+
+   Every change is drawn at once from /promotion/designer/preview; Save keeps the draft, Publish puts it on the
+   Promotion dashboard. The page is static/js/mkt-designer.js; what it offers is services/mkt_engine.catalogue(). #}
 {% block title %}{{ dash.name }} – Dashboard designer{% endblock %}
 {% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/marketing.css') }}"/>{% endblock %}
 
 {% block content %}
-<div class="dz" id="dz">
+<div class="dz pm" id="dz">
   <div class="dz-top">
     <a class="mk-btn sm quiet" href="{{ url_for('marketing.designer') }}" title="All dashboards"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span class="sr-only">All dashboards</span></a>
     <input class="dz-name" id="dz-name" type="text" value="{{ dash.name }}" maxlength="80" aria-label="Dashboard name"/>
@@ -28,16 +35,30 @@
     <button type="button" class="mk-btn sm primary" id="dz-publish"><i class="fa-solid fa-upload" aria-hidden="true"></i> Publish</button>
   </div>
 
-  <aside class="dz-side" aria-label="Add a box">
-    <h3>Add a box</h3>
-    <div class="dz-sugs">
-      <button type="button" class="dz-sug" data-blank><i class="fa-solid fa-plus" aria-hidden="true"></i> An empty box</button>
+  <aside class="dz-side" id="dz-side" aria-label="Add a box and the outline">
+    <div class="dz-side-head">
+      <div class="dz-seg" role="tablist" aria-label="Left panel">
+        <button type="button" role="tab" class="on" data-tab="add" aria-selected="true"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add a box</button>
+        <button type="button" role="tab" data-tab="outline" aria-selected="false"><i class="fa-solid fa-list-ul" aria-hidden="true"></i> Outline <span class="dz-count" id="dz-count"></span></button>
+      </div>
+      <button type="button" class="dz-fold" data-fold="side" title="Fold this panel away" aria-label="Fold the left panel"><i class="fa-solid fa-angles-left" aria-hidden="true"></i></button>
     </div>
-    <div id="dz-sugs"></div>
-    {% if not ga.connected %}
-    <p class="dz-none"><i class="fa-brands fa-google" aria-hidden="true"></i> Website boxes stay empty until
-      <a href="{{ url_for('marketing.google') }}">Google Analytics is connected</a>.</p>
-    {% endif %}
+    <button type="button" class="dz-unfold" data-fold="side" title="Open the left panel" aria-label="Open the left panel"><i class="fa-solid fa-angles-right" aria-hidden="true"></i><span>Add a box</span></button>
+    <div class="dz-pane" data-pane="add">
+      <p class="dz-tip">Click a box to add it at the bottom, or drag it onto the grid where it should go.</p>
+      <div id="dz-paste"></div>
+      <div class="dz-sugs"><button type="button" class="dz-sug" data-blank draggable="true"><i class="fa-solid fa-plus" aria-hidden="true"></i> An empty box</button></div>
+      <div id="dz-library"></div>
+      <div id="dz-sugs"></div>
+      {% if not (ga.connected and ga.search_connected) %}
+      <p class="dz-none"><i class="fa-brands fa-google" aria-hidden="true"></i> Website and Google search boxes stay
+        empty until <a href="{{ url_for('marketing.google') }}">Google is connected</a>.</p>
+      {% endif %}
+    </div>
+    <div class="dz-pane" data-pane="outline" hidden>
+      <p class="dz-tip">Every box, top to bottom. Click one to find it; drag one onto another to put it there.</p>
+      <ol class="dz-outline" id="dz-outline"></ol>
+    </div>
   </aside>
 
   <main class="dz-canvas">
@@ -46,18 +67,27 @@
         <select id="dz-range">
           {% for k, v in ranges.items() %}{% if k != 'custom' %}<option value="{{ k }}"{% if k == dash.range_key %} selected{% endif %}>{{ v }}</option>{% endif %}{% endfor %}
         </select></label>
-      <span>Drag a box by its title to move it, by its corner to resize it. Click it to change what it shows.</span>
+      <span>Drag a box by its title to move it, by its corner to resize it. Click it to change what it shows.
+        <kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>Ctrl</kbd>+<kbd>V</kbd> copy and paste the chosen box, here or in another dashboard.</span>
     </div>
     <div class="mk-grid dz-grid" id="dz-grid" aria-label="The dashboard"></div>
   </main>
 
-  <aside class="dz-panel" id="dz-panel" aria-label="Box settings"></aside>
+  <aside class="dz-panel" id="dz-panel-wrap" aria-label="Box settings">
+    <div class="dz-side-head">
+      <b class="dz-panel-t"><i class="fa-solid fa-sliders" aria-hidden="true"></i> Box settings</b>
+      <button type="button" class="dz-fold" data-fold="panel" title="Fold this panel away" aria-label="Fold the settings panel"><i class="fa-solid fa-angles-right" aria-hidden="true"></i></button>
+    </div>
+    <button type="button" class="dz-unfold" data-fold="panel" title="Open the settings" aria-label="Open the settings panel"><i class="fa-solid fa-angles-left" aria-hidden="true"></i><span>Settings</span></button>
+    <div id="dz-panel"></div>
+  </aside>
 </div>
 <script type="application/json" id="dz-data">{{ {
-  'boxes': boxes, 'catalogue': catalogue, 'suggestions': suggestions,
+  'boxes': boxes, 'catalogue': catalogue, 'suggestions': suggestions, 'library': library, 'dash': dash.id,
   'published': dash.is_published, 'changes': dash.has_changes,
   'urls': {'save': url_for('marketing.designer_save', dash_id=dash.id), 'preview': url_for('marketing.preview'),
-           'options': url_for('marketing.options')}
+           'options': url_for('marketing.options'), 'library': url_for('marketing.library_add'),
+           'library_delete': url_for('marketing.library_delete', lid='LID')}
 }|tojson }}</script>
 {% endblock %}
 

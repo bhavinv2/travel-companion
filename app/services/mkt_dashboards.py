@@ -90,14 +90,30 @@ OVERVIEW = [
     _box(24, 'Top landing pages', 'table', 6, 29, 6, 5, [_m('website', 'sessions', label='Visits'),
                                                        _m('website', 'activeUsers', label='Visitors')],
          group='landing', top=10),
-    _box(25, 'Enquiries by service', 'table', 0, 34, 4, 5, [_m('enquiries')], group='topic', top=0),
-    _box(26, 'Reviews by service', 'table', 4, 34, 4, 5, [_m('reviews', label='Published'),
+    _box(30, 'Clicks from Google search', 'number', 0, 34, 3, 2, [_m('search', 'clicks')], group='auto',
+         colour='forest', note='From Google Search Console: a click on one of our pages in Google results.'),
+    _box(31, 'Times shown in Google', 'number', 3, 34, 3, 2, [_m('search', 'impressions')], group='auto',
+         colour='forest'),
+    _box(32, 'Click rate in Google', 'number', 6, 34, 3, 2, [_m('search', 'ctr')], group='auto', colour='forest'),
+    _box(33, 'Average position in Google', 'number', 9, 34, 3, 2, [_m('search', 'position')], group='auto',
+         colour='forest', note='1 is the top of the first page. Lower is better.'),
+    _box(34, 'Clicks from Google over time', 'area', 0, 36, 6, 5, [_m('search', 'clicks', label='Clicks')],
+         group='auto', colour='forest'),
+    _box(35, 'What people search for', 'table', 6, 36, 6, 5,
+         [_m('search', 'clicks', label='Clicks'), _m('search', 'impressions', label='Shown'),
+          _m('search', 'position', label='Position')], group='query', top=10),
+    _box(36, 'Pages people find in Google', 'table', 0, 41, 6, 5,
+         [_m('search', 'clicks', label='Clicks'), _m('search', 'impressions', label='Shown')], group='page', top=10),
+    _box(37, 'Google search by country', 'hbar', 6, 41, 6, 5, [_m('search', 'clicks')], group='country', top=8,
+         colour='forest'),
+    _box(25, 'Enquiries by service', 'table', 0, 46, 4, 5, [_m('enquiries')], group='topic', top=0),
+    _box(26, 'Reviews by service', 'table', 4, 46, 4, 5, [_m('reviews', label='Published'),
                                                         _m('reviews', 'rating', label='Average rating')],
          group='product', top=0, rng='all', compare=False),
-    _box(27, 'How people rate us', 'hbar', 8, 34, 4, 5, [_m('reviews')], group='stars', top=0, rng='all',
+    _box(27, 'How people rate us', 'hbar', 8, 46, 4, 5, [_m('reviews')], group='stars', top=0, rng='all',
          colour='sunset', compare=False, empty='No published reviews yet.'),
-    _box(28, 'Published reviews you can quote', 'quotes', 0, 39, 8, 6, top=6),
-    _box(29, 'Pages to send people to', 'links', 8, 39, 4, 6),
+    _box(28, 'Published reviews you can quote', 'quotes', 0, 51, 8, 6, top=6),
+    _box(29, 'Pages to send people to', 'links', 8, 51, 4, 6),
 ]
 
 # "Add a ready-made box": a starting point for each kind of question, which the designer then changes
@@ -151,6 +167,20 @@ SUGGESTIONS = [
                                   group='campaign')),
     ('Website', 'Conversions by channel', _box(0, 'Key events by channel', 'bar', 0, 0, 6, 5,
                                                [_m('website', 'keyEvents')], group='channel')),
+    ('Search', 'Words people search for', _box(0, 'What people search for', 'table', 0, 0, 6, 5,
+                                               [_m('search', 'clicks', label='Clicks'),
+                                                _m('search', 'impressions', label='Shown')], group='query')),
+    ('Search', 'Pages found in Google', _box(0, 'Pages people find in Google', 'table', 0, 0, 6, 5,
+                                             [_m('search', 'clicks')], group='page')),
+    ('Search', 'Clicks from Google over time', _box(0, 'Clicks from Google', 'area', 0, 0, 6, 5,
+                                                    [_m('search', 'clicks')], group='auto', colour='forest')),
+    ('Search', 'Shown and clicked, by device', _box(0, 'Google search by device', 'bar', 0, 0, 4, 5,
+                                                    [_m('search', 'impressions', label='Shown'),
+                                                     _m('search', 'clicks', label='Clicks')], group='device')),
+    ('Search', 'Average position (big number)', _box(0, 'Average position in Google', 'number', 0, 0, 3, 2,
+                                                     [_m('search', 'position')], group='auto')),
+    ('Search', 'Searches from India', _box(0, 'What people in India search for', 'table', 0, 0, 6, 5,
+                                           [_m('search', 'clicks', filters={'country': ['India']})], group='query')),
     ('Growth', 'Our growth', _box(0, 'Our growth', 'line', 0, 0, 8, 5,
                                   [_m('enquiries', label='Enquiries'), _m('trips', label='Trips posted'),
                                    _m('insurance', label='Insurance quotes'), _m('signups', label='Sign-ups')],
@@ -189,13 +219,15 @@ def _query():
 
 
 def tabs(user):
-    """[{'key', 'label', 'icon'}]: the Overview, then every published dashboard this person may see."""
-    out = [{'key': 'overview', 'label': 'Overview', 'icon': 'fa-chart-simple', 'dash': None}]
+    """[{'key', 'label', 'icon', 'draft'}]: the Overview, then every published dashboard this person may see -- and,
+    for the people who design them, the ones never published yet (their drafts), so the switcher shows them all."""
+    out = [{'key': 'overview', 'label': 'Overview', 'icon': 'fa-chart-simple', 'dash': None, 'draft': False}]
     designer = can_design(user)
     for d in _query().all():
-        if d.published is None or (d.audience == 'designers' and not designer):
-            continue
-        out.append({'key': str(d.id), 'label': d.name, 'icon': d.icon or 'fa-chart-pie', 'dash': d})
+        if d.published is not None and (d.audience != 'designers' or designer):
+            out.append({'key': str(d.id), 'label': d.name, 'icon': d.icon or 'fa-chart-pie', 'dash': d, 'draft': False})
+        elif d.published is None and designer:
+            out.append({'key': str(d.id), 'label': d.name, 'icon': d.icon or 'fa-chart-pie', 'dash': d, 'draft': True})
     return out
 
 
@@ -233,13 +265,23 @@ def _overlaps(a, b):
 
 
 def pack(boxes):
-    """Move boxes down until none overlaps one placed before it (top to bottom, left to right)."""
+    """Move boxes down until none overlaps one placed before it (top to bottom, left to right), then let each one
+    rise into any space left above it -- the designer's grid does the same (mkt-designer.js pack)."""
     placed = []
     for b in sorted(boxes, key=lambda b: (b['y'], b['x'])):
         while any(_overlaps(b, p) for p in placed):
             b['y'] += 1
         placed.append(b)
-    return placed
+    return compact(placed)
+
+
+def compact(boxes):
+    settled = []
+    for b in sorted(boxes, key=lambda b: (b['y'], b['x'])):
+        while b['y'] > 0 and not any(_overlaps(dict(b, y=b['y'] - 1), p) for p in settled):
+            b['y'] -= 1
+        settled.append(b)
+    return settled
 
 
 def overview():
@@ -264,9 +306,9 @@ def boxes_for(dash, draft=False):
 
 
 def is_async(box):
-    """Website boxes are asked for by the page's script, after it has drawn."""
+    """Website and Google search boxes are asked for by the page's script, after it has drawn."""
     return box['chart'] not in eng.NO_DATA_CHARTS and any(
-        eng.source(m['source']).kind == 'ga' for m in box.get('metrics') or ())
+        eng.source(m['source']).kind in ('ga', 'gsc') for m in box.get('metrics') or ())
 
 
 def render(boxes, period, user):
@@ -385,3 +427,51 @@ def move(user, d, direction):
             r.position = n
         db.session.commit()
     return d
+
+
+# ================================================================================================ reusable boxes
+
+LIBRARY = 'mkt.box_library'
+LIBRARY_MAX = 80
+
+
+def library():
+    """The boxes the designers saved to use again, newest first: [{'id', 'name', 'box', 'by', 'at'}]."""
+    from app.services import settings
+    rows = settings.get_setting(LIBRARY) or []
+    out = []
+    for r in rows if isinstance(rows, list) else []:
+        try:
+            out.append({'id': str(r['id']), 'name': str(r.get('name') or '')[:NAME_MAX], 'box': eng.clean_box(r['box']),
+                        'by': r.get('by') or '', 'at': r.get('at') or ''})
+        except (KeyError, TypeError, eng.EngineError):
+            continue                # one an older version saved that no longer checks out
+    return out
+
+
+def library_add(user, name, box):
+    """Keep a box for every designer to use again, in any dashboard. Its place on the grid is not kept."""
+    import secrets
+    from app.services import settings
+    try:
+        b = eng.clean_box(box)
+    except eng.EngineError as e:
+        raise DashError(str(e)) from None
+    b.pop('x', None)
+    b.pop('y', None)
+    name = ' '.join(str(name or '').split())[:NAME_MAX] or eng.describe(b)[:NAME_MAX]
+    rows = [r for r in library()]
+    if len(rows) >= LIBRARY_MAX:
+        raise DashError('The box library is full (%d). Delete a box you no longer use first.' % LIBRARY_MAX)
+    rows.insert(0, {'id': secrets.token_hex(4), 'name': name, 'box': b,
+                    'by': getattr(user, 'full_name', None) or getattr(user, 'username', ''),
+                    'at': datetime.utcnow().strftime('%Y-%m-%d %H:%M')})
+    settings.set_setting(LIBRARY, rows, actor=user)
+    return library()
+
+
+def library_delete(user, lid):
+    from app.services import settings
+    rows = [r for r in library() if r['id'] != str(lid)]
+    settings.set_setting(LIBRARY, rows, actor=user)
+    return rows

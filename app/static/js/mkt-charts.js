@@ -7,7 +7,8 @@
   'use strict';
 
   var PALETTES = {
-    brand: ['#1f6fd6', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#64748b'],
+    // the site's own: Travel Companion blue, Insurance green, the amber accent, then the rest
+    brand: ['#2f80ed', '#16a34a', '#f5a623', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#64748b'],
     ocean: ['#0369a1', '#0ea5e9', '#14b8a6', '#38bdf8', '#0f766e', '#1e40af', '#5eead4', '#93c5fd', '#155e75'],
     sunset: ['#ea580c', '#f59e0b', '#dc2626', '#fb923c', '#f43f5e', '#facc15', '#c2410c', '#fda4af', '#b45309'],
     forest: ['#15803d', '#65a30d', '#0f766e', '#22c55e', '#84cc16', '#14b8a6', '#166534', '#a3e635', '#4d7c0f'],
@@ -29,7 +30,7 @@
     if (isNaN(n)) return String(v);
     if (unit === 'pct') return (n * 100).toFixed(1) + '%';
     if (unit === 'seconds') { var m = Math.floor(n / 60); return m + 'm ' + String(Math.round(n % 60)).padStart(2, '0') + 's'; }
-    if (unit === 'rating') return n.toFixed(1);
+    if (unit === 'rating' || unit === 'position') return n.toFixed(1);
     if (short && Math.abs(n) >= 10000) {
       return (Math.abs(n) >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : (n / 1e3).toFixed(Math.abs(n) >= 1e5 ? 0 : 1) + 'k');
     }
@@ -53,7 +54,9 @@
 
   function changeHtml(r) {
     if (r.change !== null && r.change !== undefined) {
-      var dir = r.change > 0 ? 'up' : (r.change < 0 ? 'down' : 'flat');
+      // green is the good news: more of something, or less of a thing where less is better (a position)
+      var good = (r.change > 0) !== !!r.lower_better;
+      var dir = r.change === 0 ? 'flat' : (good ? 'up' : 'down');
       var icon = r.change > 0 ? 'fa-arrow-trend-up' : (r.change < 0 ? 'fa-arrow-trend-down' : 'fa-minus');
       return '<span class="mk-chg ' + dir + '"><i class="fa-solid ' + icon + '" aria-hidden="true"></i> ' +
         (r.change > 0 ? '+' : '') + r.change + '% <small>vs the ' + r.period.days + ' days before</small></span>';

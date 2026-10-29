@@ -108,8 +108,8 @@ MODULES = [
                ['marketing.designer', 'marketing.designer_new', 'marketing.designer_edit', 'marketing.designer_save',
                 'marketing.designer_publish', 'marketing.designer_unpublish', 'marketing.designer_discard',
                 'marketing.designer_duplicate', 'marketing.designer_delete', 'marketing.designer_move',
-                'marketing.preview', 'marketing.options', 'marketing.google', 'marketing.google_test',
-                'marketing.google_disconnect'],
+                'marketing.preview', 'marketing.options', 'marketing.library_add', 'marketing.library_delete',
+                'marketing.google', 'marketing.google_test', 'marketing.google_disconnect'],
                admin='marketing.designer', cs='marketing.designer',
                desc='Design Promotion dashboards: boxes of any numbers we have (the website, trips, insurance, '
                     'Sahayak, enquiries, reviews, sign-ups, leads), drawn as numbers, lines, bars or pies, and '

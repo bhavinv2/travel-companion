@@ -1,7 +1,8 @@
 {% extends 'base.html' %}
 {% from 'marketing/_box.html' import box %}
 {# The Promotion dashboard (routes/marketing.page): the Overview and every dashboard the Marketing head published,
-   one tab each, for any dates -- the last 7 days to all time, or two dates of one's own.
+   one tab each, for any dates -- the last 7 days to all time, or two dates of one's own. Dressed like /contact-us,
+   as it always was: the pale sky band, the map and the photograph, the reach numbers under the title.
 
    Deliberately short of PEOPLE. Whoever promotes the service needs to know how much is happening, which way it is
    going and what people are saying; they do not need the people themselves, so no name, e-mail or phone number
@@ -13,79 +14,100 @@
 {% block meta_description %}Read-only activity figures for NRI Parent Service.{% endblock %}
 {% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/marketing.css') }}"/>{% endblock %}
 
+{% macro art(name, cls='') -%}
+<img class="{{ cls }}" src="{{ url_for('static', filename='img/contact/' ~ name ~ '.webp') }}"
+     alt="" aria-hidden="true" loading="lazy" decoding="async"/>
+{%- endmacro %}
+
 {% block content %}
 {%- set keep = {'range': period.key, 'from': period.start.isoformat() if period.key == 'custom' else None,
                 'to': period.end.isoformat() if period.key == 'custom' else None} %}
-{# staff open it inside the console, with the menu; an influencer account sees the page on its own #}
-{% if staff %}<div class="admin-page">{% include 'admin/_sidebar.html' %}<main class="admin-main">{% endif %}
-<div class="mk" data-page="{{ here }}" data-draft="{{ '1' if is_draft else '' }}"
+{%- set when = (period.label|lower if period.key != 'custom' else 'the dates chosen') ~ ' (' ~ period.dates ~ ')' %}
+{# staff open it inside the console, with the menu; an influencer account sees the page on its own -- the same page #}
+{% if staff %}<div class="admin-page">{% include 'admin/_sidebar.html' %}<main class="admin-main mk-console">{% endif %}
+<div class="pm mk" data-page="{{ here }}" data-draft="{{ '1' if is_draft else '' }}"
      data-box-url="{{ url_for('marketing.box') }}" data-live-url="{{ url_for('marketing.live') }}"
      data-range="{{ period.key }}" data-from="{{ period.start.isoformat() }}" data-to="{{ period.end.isoformat() }}">
 
-  <header class="mk-head">
-    <div class="mk-head-tx">
-      <span class="mk-kick"><i class="fa-solid fa-bullhorn" aria-hidden="true"></i> Promotion</span>
-      <h1>{{ dash.name if dash else 'How we are growing' }}</h1>
-      {%- set when = (period.label|lower if period.key != 'custom' else 'the dates chosen') ~ ' (' ~ period.dates ~ ')' %}
-      <p class="mk-lead">{% if dash %}{{ dash.description ~ ' ' if dash.description }}Shown for {{ when }},
-        compared with the {{ period.days }} days before.{% else %}The website right now, our growth and where people
-        travel, for {{ when }}, compared with the {{ period.days }} days before.{% endif %} Numbers only &mdash;
-        nothing here names anyone who wrote in.</p>
+  <!-- ===== hero ===== -->
+  <section class="pm-hero">
+    {{ art('world-map-flight', 'pm-hero-map') }}
+    {{ art('dots-pattern', 'pm-hero-dots') }}
+    <div class="wrap">
+      <div class="pm-hero-tx">
+        <span class="pm-kick">Promotion{% if dash %} &middot; {{ 'Draft' if is_draft else 'Dashboard' }}{% endif %}</span>
+        <h1>{{ dash.name if dash else 'How things are going' }}</h1>
+        <p class="pm-lead">{% if dash %}{{ dash.description ~ ' ' if dash.description }}Shown for {{ when }},
+          compared with the {{ period.days }} days before.{% else %}The website right now, our growth and where
+          people travel, for {{ when }}, compared with the {{ period.days }} days before.{% endif %} Nothing here
+          identifies anyone who wrote in &mdash; the reviews shown are the ones already published on the site.</p>
+        {% if designer %}
+        <p class="mk-hero-acts">
+          <a class="mk-btn primary" href="{{ url_for('marketing.designer_edit', dash_id=dash.id) if dash else url_for('marketing.designer') }}">
+            <i class="fa-solid fa-table-cells-large" aria-hidden="true"></i> {{ 'Change this dashboard' if dash else 'Design dashboards' }}</a>
+        </p>
+        {% endif %}
+      </div>
+      {# the same photograph the contact page opens with, so the two read as one site #}
+      <div class="pm-hero-art">{{ art('hero-parents') }}</div>
+      <ul class="pm-reach">
+        {% for r in reach %}<li><b>{{ r.value }}</b><span>{{ r.label }}</span></li>{% endfor %}
+      </ul>
     </div>
-    {% if designer %}
-    <a class="mk-btn" href="{{ url_for('marketing.designer_edit', dash_id=dash.id) if dash else url_for('marketing.designer') }}">
-      <i class="fa-solid fa-table-cells-large" aria-hidden="true"></i> {{ 'Change this dashboard' if dash else 'Design dashboards' }}</a>
+  </section>
+
+  <div class="wrap mk-body">
+    <!-- ===== which dashboard, which dates ===== -->
+    <div class="mk-bar">
+      <nav class="mk-tabs" aria-label="Dashboards">
+        <span class="mk-tabs-l"><i class="fa-solid fa-layer-group" aria-hidden="true"></i> Dashboards</span>
+        {% for t in tabs %}
+        <a href="{{ url_for('main.promo_dashboard', d=(None if t.key == 'overview' else t.key), draft=(1 if t.draft else None), **keep) }}"
+           class="{{ 'on' if t.key == here }}{{ ' draft' if t.draft }}"{% if t.key == here %} aria-current="page"{% endif %}
+           {% if t.draft %}title="A draft: only the people who design dashboards see it"{% endif %}>
+          <i class="fa-solid {{ t.icon }}" aria-hidden="true"></i> {{ t.label }}{% if t.draft %} <small>Draft</small>{% endif %}</a>
+        {% endfor %}
+        {% if designer %}<a class="mk-tab-new" href="{{ url_for('marketing.designer') }}" title="Make a new dashboard"><i class="fa-solid fa-plus" aria-hidden="true"></i> New</a>{% endif %}
+      </nav>
+
+      {# the dates: a GET form, so a period is a link that can be shared #}
+      <form class="mk-dates" method="get" action="{{ url_for('main.promo_dashboard') }}">
+        {% if here != 'overview' %}<input type="hidden" name="d" value="{{ here }}"/>{% endif %}
+        {% if is_draft %}<input type="hidden" name="draft" value="1"/>{% endif %}
+        <label class="mk-dates-l"><i class="fa-regular fa-calendar" aria-hidden="true"></i><span class="sr-only">Dates</span>
+          <select name="range" data-range-pick>
+            {% for k, v in ranges.items() %}<option value="{{ k }}"{% if k == period.key %} selected{% endif %}>{{ v }}</option>{% endfor %}
+          </select>
+        </label>
+        <span class="mk-custom"{% if period.key != 'custom' %} hidden{% endif %} data-custom>
+          <label><span class="sr-only">From</span><input type="date" name="from" value="{{ period.start.isoformat() }}"/></label>
+          <span aria-hidden="true">to</span>
+          <label><span class="sr-only">To</span><input type="date" name="to" value="{{ period.end.isoformat() }}"/></label>
+        </span>
+        <button type="submit" class="mk-btn quiet">Show</button>
+      </form>
+    </div>
+
+    {% if is_draft %}
+    <p class="mk-banner"><i class="fa-solid fa-pen-ruler" aria-hidden="true"></i> This is the <b>draft</b> of
+      "{{ dash.name }}": only the people who design dashboards see it until it is published.</p>
     {% endif %}
-  </header>
-
-  <div class="mk-bar">
-    {% if tabs|length > 1 %}
-    <nav class="mk-tabs" aria-label="Dashboards">
-      {% for t in tabs %}
-      <a href="{{ url_for('main.promo_dashboard', d=(None if t.key == 'overview' else t.key), **keep) }}"
-         class="{{ 'on' if t.key == here }}"{% if t.key == here %} aria-current="page"{% endif %}>
-        <i class="fa-solid {{ t.icon }}" aria-hidden="true"></i> {{ t.label }}</a>
-      {% endfor %}
-    </nav>
+    {% if designer and not (ga.connected and ga.search_connected) %}
+    <p class="mk-banner warn"><i class="fa-brands fa-google" aria-hidden="true"></i> The
+      {{ 'website and Google search' if not ga.connected and not ga.search_connected else ('website' if not ga.connected else 'Google search') }}
+      boxes are empty until {{ 'Google Analytics and Search Console are' if not ga.connected and not ga.search_connected else ('Google Analytics is' if not ga.connected else 'Search Console is') }}
+      connected. <a href="{{ url_for('marketing.google') }}">Connect</a> (about ten minutes, once).</p>
     {% endif %}
 
-    {# the dates: a GET form, so a period is a link that can be shared #}
-    <form class="mk-dates" method="get" action="{{ url_for('main.promo_dashboard') }}">
-      {% if here != 'overview' %}<input type="hidden" name="d" value="{{ here }}"/>{% endif %}
-      {% if is_draft %}<input type="hidden" name="draft" value="1"/>{% endif %}
-      <label class="mk-dates-l"><i class="fa-regular fa-calendar" aria-hidden="true"></i><span class="sr-only">Dates</span>
-        <select name="range" data-range-pick>
-          {% for k, v in ranges.items() %}<option value="{{ k }}"{% if k == period.key %} selected{% endif %}>{{ v }}</option>{% endfor %}
-        </select>
-      </label>
-      <span class="mk-custom"{% if period.key != 'custom' %} hidden{% endif %} data-custom>
-        <label><span class="sr-only">From</span><input type="date" name="from" value="{{ period.start.isoformat() }}" max="{{ period.end.isoformat() if period.key == 'custom' else '' }}"/></label>
-        <span aria-hidden="true">to</span>
-        <label><span class="sr-only">To</span><input type="date" name="to" value="{{ period.end.isoformat() }}"/></label>
-      </span>
-      <button type="submit" class="mk-btn quiet">Show</button>
-    </form>
+    <div class="mk-grid">
+      {% for item in items %}{{ box(item) }}{% endfor %}
+    </div>
+    {% if not items %}<p class="mk-empty big">This dashboard has no boxes yet.</p>{% endif %}
+
+    <p class="pm-foot">This dashboard only reads: there is nothing on it that changes anything, and nothing on it that
+      names a customer. Website and search numbers come from Google and are a little behind; the rest are ours, to
+      the minute.</p>
   </div>
-
-  {% if is_draft %}
-  <p class="mk-banner"><i class="fa-solid fa-pen-ruler" aria-hidden="true"></i> This is the <b>draft</b> of
-    "{{ dash.name }}": only the people who design dashboards see it until it is published.</p>
-  {% endif %}
-  {% if designer and not ga.connected %}
-  <p class="mk-banner warn"><i class="fa-brands fa-google" aria-hidden="true"></i> The website boxes are empty until
-    Google Analytics is connected. <a href="{{ url_for('marketing.google') }}">Connect it</a> (about five minutes).</p>
-  {% endif %}
-
-  <div class="mk-grid">
-    {% for item in items %}{{ box(item) }}{% endfor %}
-  </div>
-  {% if not items %}
-  <p class="mk-empty big">This dashboard has no boxes yet.</p>
-  {% endif %}
-
-  <p class="mk-foot">This dashboard only reads: there is nothing on it that changes anything, and nothing on it that
-    names a customer. Website numbers come from Google Analytics and are a few minutes behind; the rest are ours,
-    to the minute.</p>
 </div>
 {% if staff %}</main></div>{% endif %}
 {% endblock %}

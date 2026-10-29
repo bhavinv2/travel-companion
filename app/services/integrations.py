@@ -448,11 +448,13 @@ def _analytics(ctx):
     got = ga4.status()
     c['lines'].append(_line(got['connected'], 'Promotion dashboard reads it back: %s' % (
         'property %s' % got['property_id'] if got['connected'] else 'not connected yet')))
+    c['lines'].append(_line(got['search_connected'], 'Search Console (Google search numbers): %s' % (
+        got['sc_site'] if got['search_connected'] else 'not connected yet')))
     c['overview'].append('The Promotion dashboard shows the same numbers -- visitors, channels, countries, who is on '
                          'the site right now -- once a read-only service account is connected.')
     if _page(ctx, 'mkt_design'):
         c['home'] = {'label': 'Connect it to the Promotion dashboard', 'url': url_for('marketing.google'),
-                     'says': 'The property id and a read-only service-account key.'}
+                     'says': 'The Analytics and Search Console properties and one read-only service-account key.'}
     return c
 
 

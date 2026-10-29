@@ -266,9 +266,11 @@ def _age_band(age):
 class Measure:
     """kind: count | sum (of a field) | avg (of a field) | ratio (sum of `field` / sum of `of`)."""
 
-    def __init__(self, key, label, kind='count', field=None, of=None, unit='count', additive=True):
+    def __init__(self, key, label, kind='count', field=None, of=None, unit='count', additive=True, lower_better=False):
         self.key, self.label, self.kind, self.field, self.of, self.unit = key, label, kind, field, of, unit
         self.additive = additive and kind in ('count', 'sum')
+        # a smaller number is the good news (an average position, a bounce rate): the change is coloured the other way
+        self.lower_better = lower_better
 
     def value(self, rows):
         if self.kind == 'count':
@@ -720,7 +722,7 @@ GA_METRICS = [
     Measure('engagedSessions', 'Engaged visits'),
     Measure('engagementRate', 'Engagement rate', kind='avg', unit='pct', additive=False),
     Measure('averageSessionDuration', 'Average visit length', kind='avg', unit='seconds', additive=False),
-    Measure('bounceRate', 'Bounce rate', kind='avg', unit='pct', additive=False),
+    Measure('bounceRate', 'Bounce rate', kind='avg', unit='pct', additive=False, lower_better=True),
     Measure('keyEvents', 'Key events (conversions)'), Measure('eventCount', 'Events'),
 ]
 GA_DIMS = OrderedDict([
@@ -742,6 +744,29 @@ GA_LIVE_DIMS = OrderedDict([
 ])
 
 
+class GSCSource(Source):
+    """Google Search Console: Google search results that showed one of our pages. Its only time is the day, so weeks,
+    months and the rest are added up here (clicks and times shown add up; the click rate and the position are worked
+    out again from them, the position weighted by how often each page was shown)."""
+    kind = 'gsc'
+
+    def __init__(self, key, label, group, icon, says, metrics, dims):
+        super().__init__(key, label, group, icon, says, metrics, [], [('search', 'Searched on')], None)
+        self.gsc_dims = OrderedDict(dims)
+        self.dims = OrderedDict((k, Dim(k, v[0], None)) for k, v in dims.items())
+
+
+GSC_METRICS = [
+    Measure('clicks', 'Clicks from Google'), Measure('impressions', 'Times shown in Google'),
+    Measure('ctr', 'Click rate', kind='avg', unit='pct', additive=False),
+    Measure('position', 'Average position', kind='avg', unit='position', additive=False, lower_better=True),
+]
+GSC_DIMS = OrderedDict([
+    ('query', ('Words people searched', 'query')), ('page', ('Page Google showed', 'page')),
+    ('country', ('Country', 'country')), ('device', ('Device', 'device')),
+])
+
+
 # ------------------------------------------------------------------------------------------------ the catalogue
 
 def _sources():
@@ -752,6 +777,9 @@ def _sources():
         GASource('website_now', 'Website right now (last 30 minutes)', 'Website', 'fa-signal',
                  'Who is on the website now, from Google Analytics in real time.', GA_LIVE_METRICS, GA_LIVE_DIMS,
                  live=True),
+        GSCSource('search', 'Google search (Search Console)', 'Website', 'fa-magnifying-glass',
+                  'How we do in Google search: the words people searched, the pages Google showed, how often they '
+                  'clicked and how high we came. Two or three days behind; 16 months back.', GSC_METRICS, GSC_DIMS),
         Source('trips', 'Trips posted (Travel Companion)', 'Travel', 'fa-plane-departure',
                'Every trip posted: where from and to, India ↔ abroad, when, the airline, who and what help.',
                [Measure('count', 'Trips'), Measure('travellers', 'Travellers', kind='sum', field='n_travellers')],
@@ -839,7 +867,7 @@ def catalogue():
     return {'sources': out, 'charts': [{'key': k, 'label': v[0], 'icon': v[1]} for k, v in CHARTS.items()],
             'time_charts': TIME_CHARTS, 'cat_charts': CAT_CHARTS, 'no_data': NO_DATA_CHARTS,
             'ranges': [{'key': k, 'label': v} for k, v in RANGES.items()], 'colours': COLOURS,
-            'ga_connected': ga4.connected(), 'max_metrics': MAX_METRICS}
+            'ga_connected': ga4.connected(), 'search_connected': ga4.search_connected(), 'max_metrics': MAX_METRICS}
 
 
 # ================================================================================================ a box, cleaned
@@ -987,13 +1015,15 @@ def run(box, period, viewer=None, compare=None):
     if grain:
         grain = fit_grain(p, grain)
     try:
-        parts = [(_run_ga if s.kind == 'ga' else _run_db)(s, m, box, p, grain, want_prev and not s.live)
+        parts = [{'ga': _run_ga, 'gsc': _run_gsc}.get(s.kind, _run_db)(s, m, box, p, grain, want_prev and not s.live)
                  for s, m in zip(srcs, box['metrics'])]
     except ga4.GAError as e:
         return {'ok': False, 'message': str(e), 'ga': True}
     first = srcs[0].measures[box['metrics'][0]['measure']]
     out = {'ok': True, 'kind': 'data', 'unit': first.unit, 'time': bool(grain), 'grain': grain,
-           'period': p.as_dict(), 'live': srcs[0].live, 'notes': []}
+           'period': p.as_dict(), 'live': srcs[0].live, 'lower_better': first.lower_better, 'notes': []}
+    for part in parts:
+        out['notes'] += [n for n in part.get('notes', ()) if n not in out['notes']]
     if grain and box['group'] not in ('auto', grain):
         out['notes'].append('Shown by %s: %d %ss would not fit.' % (grain, len(buckets(p, box['group'])), box['group']))
     if len(parts) == 1:
@@ -1196,6 +1226,114 @@ def _ga_shape(src, m, box, data, dims, grain, p, prev):
     return {'labels': labels, 'series': series, 'total': _round(total), 'prev': _round(prev)}
 
 
+class _Acc:
+    """Search Console numbers of a group: clicks and times shown add up; the position is weighted by times shown."""
+    __slots__ = ('clicks', 'shown', 'pos_w')
+
+    def __init__(self):
+        self.clicks = self.shown = self.pos_w = 0.0
+
+    def add(self, clicks, shown, position):
+        self.clicks += clicks or 0
+        self.shown += shown or 0
+        self.pos_w += (position or 0) * (shown or 0)
+
+    def value(self, mk):
+        if mk == 'clicks':
+            return int(self.clicks)
+        if mk == 'impressions':
+            return int(self.shown)
+        if not self.shown:
+            return None
+        if mk == 'ctr':
+            return round(self.clicks / self.shown, 4)
+        return round(self.pos_w / self.shown, 1)
+
+
+def _gsc_label(dim, value):
+    if dim == 'country':
+        code = str(value or '').upper()
+        return _iso3_names().get(code) or code or NOT_KNOWN
+    if dim == 'device':
+        return str(value or '').capitalize() or NOT_KNOWN
+    return value or NOT_KNOWN
+
+
+def _gsc_values(dim, values):
+    """The labels a filter chose, as Search Console spells them: a country's ISO-3 code, a device in capitals."""
+    if dim == 'country':
+        codes = {name.lower(): code.lower() for code, name in _iso3_names().items()}
+        return [codes.get(v.lower(), v.lower()) for v in values]
+    if dim == 'device':
+        return [v.upper() for v in values]
+    return list(values)
+
+
+def _run_gsc(src, metric, box, p, grain, want_prev):
+    from app.services import gsc
+    t = today()
+    oldest = t - timedelta(days=gsc.KEEPS_DAYS - 1)
+    notes = []
+    q = Period(max(p.start, oldest), max(min(p.end, t), oldest), p.key)
+    if p.start < oldest:
+        notes.append('Google keeps 16 months of search numbers: these start on %s.' % day_range(q.start, q.start))
+    mk = metric['measure']
+    m = src.measures[mk]
+    filters = {src.gsc_dims[k][1]: _gsc_values(src.gsc_dims[k][1], v) for k, v in metric['filters'].items()}
+    group, split = box['group'], box.get('split')
+    dims = ['date'] if grain else ([src.gsc_dims[group][1]] if group else [])
+    if split:
+        dims.append(src.gsc_dims[split][1])
+    totals = gsc.query(q.start, q.end, [], filters, limit=1)
+    rows = gsc.query(q.start, q.end, dims, filters, limit=gsc.MAX_ROWS) if dims else totals
+    whole = _Acc()
+    for r in totals:
+        whole.add(*r[-3:])
+    prev = None
+    if want_prev:
+        pp = q.previous()
+        if pp.end >= oldest:
+            before = _Acc()
+            for r in gsc.query(max(pp.start, oldest), pp.end, [], filters, limit=1):
+                before.add(*r[-3:])
+            prev = before.value(mk)
+    cells, gacc, sacc = defaultdict(_Acc), defaultdict(_Acc), defaultdict(_Acc)
+    for row in rows:
+        keys = row[:len(dims)]
+        if grain:
+            try:
+                gk = bucket(datetime.strptime(keys[0], '%Y-%m-%d').date(), grain)
+            except (ValueError, IndexError):
+                continue
+        else:
+            gk = _gsc_label(dims[0], keys[0]) if group else 'All'
+        sk = _gsc_label(dims[-1], keys[-1]) if split else None
+        for acc in (cells[(gk, sk)], gacc[gk]) + ((sacc[sk],) if split else ()):
+            acc.add(*row[-3:])
+
+    # biggest first; a rate or a position is ranked by how often Google showed the group
+    def rank(accs):
+        return lambda k: (-(accs[k].value(mk) or 0) if m.additive else -accs[k].shown, str(k))
+    if grain:
+        order = buckets(p, grain)
+        labels = [bucket_label(k, grain) for k in order]
+    elif group:
+        order = sorted(gacc, key=rank(gacc))
+        top = box.get('top') or 0
+        order = order[:top] if top else order
+        labels = list(order)
+    else:
+        order, labels = ['All'], ['All']
+    if split:
+        skeys = sorted(sacc, key=rank(sacc))[:MAX_SPLITS]
+        series = [{'name': sk, 'data': [cells[(gk, sk)].value(mk) or 0 for gk in order]} for sk in skeys]
+    else:
+        series = [{'name': metric['label'] or m.label, 'data': [cells[(gk, None)].value(mk) or 0 for gk in order]}]
+    if q.end >= t - timedelta(days=2):
+        notes.append("Google's newest two or three days are still coming in.")
+    return {'labels': labels, 'series': series, 'total': whole.value(mk), 'prev': prev, 'notes': notes}
+
+
 def _round(v):
     if v is None:
         return None
@@ -1213,6 +1351,11 @@ def options(source_key, dim_key, limit=100):
     if dim_key not in s.dims:
         raise EngineError('That cannot be used to narrow "%s".' % s.label)
     p = period_for('last_365')
+    if s.kind == 'gsc':
+        from app.services import gsc
+        name = s.gsc_dims[dim_key][1]
+        rows = gsc.query(today() - timedelta(days=89), today(), [name], limit=limit)
+        return [_gsc_label(name, r[0]) for r in sorted(rows, key=lambda r: -r[1])]
     if s.kind == 'ga':
         name = s.ga_dims[dim_key][1]
         if s.live:

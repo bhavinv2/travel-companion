@@ -36,13 +36,11 @@
       </form>
     </section>
     <section class="dzl-card">
-      <h3><i class="fa-brands fa-google" aria-hidden="true"></i> Google Analytics</h3>
-      {% if ga.connected %}
-      <p><span class="ok-dot"></span>Connected to property <b>{{ ga.property_id }}</b>{% if ga.where == 'server' %} (set on the server){% endif %}. Website boxes show its numbers.</p>
-      {% else %}
-      <p><span class="off-dot"></span>Not connected yet: website boxes stay empty until it is.{% if ga.unreadable %} The saved key cannot be read any more — save it again.{% endif %}</p>
-      {% endif %}
-      <a class="mk-btn sm" href="{{ url_for('marketing.google') }}">{{ 'Settings' if ga.connected else 'Connect it' }}</a>
+      <h3><i class="fa-brands fa-google" aria-hidden="true"></i> Google Analytics &amp; Search Console</h3>
+      <p><span class="{{ 'ok-dot' if ga.connected else 'off-dot' }}"></span>Analytics: {{ 'property ' ~ ga.property_id if ga.connected else 'not connected yet — website boxes stay empty' }}<br/>
+        <span class="{{ 'ok-dot' if ga.search_connected else 'off-dot' }}"></span>Search Console: {{ ga.sc_site if ga.search_connected else 'not connected yet — Google search boxes stay empty' }}
+        {% if ga.unreadable %}<br/>The saved key cannot be read any more — save it again.{% endif %}</p>
+      <a class="mk-btn sm" href="{{ url_for('marketing.google') }}">{{ 'Settings' if ga.connected and ga.search_connected else 'Connect' }}</a>
     </section>
   </div>
 

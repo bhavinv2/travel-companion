@@ -1,10 +1,17 @@
 /* The Dashboard designer (2026-10-29): templates/marketing/designer.html.
 
-   The dashboard is a list of boxes on a 12-column grid ({x, y, w, h} in columns and 64px rows). A box is dragged by
-   its title and resized by its corner; clicking it opens its settings on the right: what to count (one or more
-   numbers, each from any source, narrowed by any of its dimensions), what to split it by (time or a dimension, then
-   a second dimension), the dates, how it is drawn and how it looks. Every change asks /promotion/designer/preview for
-   the box's numbers and draws them with MK.render (mkt-charts.js), exactly as the published dashboard will.
+   The dashboard is a list of boxes on a 12-column grid ({x, y, w, h} in columns and 64px rows).
+     * Add a box (left): an empty one, a ready-made one, a reusable one (the box library every designer shares) or
+       the one last copied (here or in another dashboard). Click it to add it at the bottom, or drag it onto the
+       grid where it should go. The groups fold; the whole panel folds away.
+     * Outline (left, second tab): every box in order. Click one to find it; drag one onto another to put it there.
+     * The grid: a box is dragged by its title and resized by its corner; its little buttons duplicate it, copy it,
+       keep it as a reusable box, or delete it.
+     * Box settings (right): one folding section each -- the title, how it is drawn, what it counts (one or more
+       numbers, each from any source, narrowed by any of its dimensions), how it is split, its dates, its look, its
+       size and place. The whole panel folds away too. What is folded is remembered in this browser.
+   Every change asks /promotion/designer/preview for the box's numbers and draws them with MK.render (mkt-charts.js),
+   exactly as the published dashboard will.
 
    Save sends the boxes; the server checks every choice again (services/mkt_engine.clean_box) and answers the cleaned
    boxes, which replace ours. Publish is Save, then the draft becomes what everybody sees. */
@@ -17,6 +24,7 @@
   var CAT = DATA.catalogue, URLS = DATA.urls;
   var CSRF = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
   var grid = document.getElementById('dz-grid'), panel = document.getElementById('dz-panel');
+  var side = document.getElementById('dz-side');
   var rangeSel = document.getElementById('dz-range');
   var esc = MK.esc;
   var ROW = 64, GAP = 16, MAX_H = 10;
@@ -24,7 +32,8 @@
   var SRC = {}, CH = {};
   CAT.sources.forEach(function (s) { SRC[s.key] = s; });
   CAT.charts.forEach(function (c) { CH[c.key] = c; });
-  var S = { boxes: DATA.boxes || [], sel: null, dirty: false, published: DATA.published, changes: DATA.changes };
+  var S = { boxes: DATA.boxes || [], sel: null, dirty: false, published: DATA.published, changes: DATA.changes,
+    library: DATA.library || [] };
   var optionCache = {};
 
   // ------------------------------------------------------------------------------------------- small things
@@ -39,7 +48,15 @@
   function kindOf(b) { return !b.group ? '' : (isGrain(b.group) ? 'time' : 'cat'); }
   function noData(chart) { return CAT.no_data.indexOf(chart) >= 0; }
   function title(b) { return b.title || b._title || (CH[b.chart] || {}).label || 'A box'; }
+  function iconOf(b) { return (CH[b.chart] || {}).icon || 'fa-square'; }
   function bottom() { return S.boxes.reduce(function (m, b) { return Math.max(m, b.y + b.h); }, 0); }
+  function typing(el) { return el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable); }
+
+  // what is folded, the open tab, the copied box: remembered in this browser only
+  var LS = {
+    get: function (k, d) { try { var v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* private window */ } }
+  };
 
   function post(url, body) {
     return fetch(url, { method: 'POST', credentials: 'same-origin', body: JSON.stringify(body),
@@ -66,23 +83,33 @@
     S.changes = true;
     stateChip();
     say('Not saved yet');
+    drawOutline();
   }
 
   // ------------------------------------------------------------------------------------------- the layout
 
   function overlaps(a, b) { return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h; }
 
-  // the box just moved keeps its place; the others move down out of its way, top to bottom
+  // The box just moved goes where it was put: a box whose middle it has passed stays above it, the others move down
+  // out of its way. Then every box rises into any space left above it, so the dashboard never has holes
+  // (services/mkt_dashboards.pack does the same). Passing the middle is what swaps two boxes, in either direction.
   function pack(firstId) {
     var first = byId(firstId);
     var rest = S.boxes.filter(function (b) { return b !== first; })
       .sort(function (a, b) { return a.y - b.y || a.x - b.x; });
-    var placed = first ? [first] : [];
-    rest.forEach(function (b) {
+    var before = first ? rest.filter(function (b) { return b.y + b.h / 2 <= first.y; }) : [];
+    var after = rest.filter(function (b) { return before.indexOf(b) < 0; });
+    var placed = [];
+    before.concat(first ? [first] : [], after).forEach(function (b) {
       while (placed.some(function (p) { return overlaps(b, p); })) b.y += 1;
       placed.push(b);
     });
-    S.boxes = placed.sort(function (a, b) { return a.y - b.y || a.x - b.x; });
+    var settled = [];
+    placed.sort(function (a, b) { return a.y - b.y || a.x - b.x; }).forEach(function (b) {
+      while (b.y > 0 && !settled.some(function (p) { return overlaps({ x: b.x, y: b.y - 1, w: b.w, h: b.h }, p); })) b.y -= 1;
+      settled.push(b);
+    });
+    S.boxes = settled.sort(function (a, b) { return a.y - b.y || a.x - b.x; });
   }
 
   function place(el, b) {
@@ -98,7 +125,10 @@
     el.setAttribute('aria-label', title(b) + ' — arrow keys move it, Shift and arrows resize it');
     place(el, b);
     el.innerHTML = (b.chart === 'text' ? '' : '<header class="mk-box-h"><h2>' + esc(title(b)) + '</h2></header>') +
-      '<div class="dz-tools"><button type="button" data-act="copy" title="Copy this box"><i class="fa-regular fa-copy"></i></button>' +
+      '<div class="dz-tools">' +
+      '<button type="button" data-act="dup" title="Duplicate it here"><i class="fa-regular fa-clone"></i></button>' +
+      '<button type="button" data-act="copy" title="Copy it, to paste here or in another dashboard"><i class="fa-regular fa-copy"></i></button>' +
+      '<button type="button" data-act="keep" title="Keep it as a reusable box, for every dashboard"><i class="fa-regular fa-bookmark"></i></button>' +
       '<button type="button" data-act="del" title="Delete this box"><i class="fa-solid fa-xmark"></i></button></div>' +
       '<div class="mk-box-b"></div><span class="dz-resize" title="Drag to resize" aria-hidden="true"></span>';
     return el;
@@ -108,10 +138,11 @@
     grid.innerHTML = '';
     if (!S.boxes.length) {
       grid.innerHTML = '<div class="dz-empty"><i class="fa-solid fa-table-cells-large fa-2x" aria-hidden="true"></i>' +
-        '<p><b>An empty dashboard.</b> Add a box from the left: an empty one, or a ready-made one to change.</p></div>';
-      return;
+        '<p><b>An empty dashboard.</b> Drag a box here from the left, or click one there.</p></div>';
+    } else {
+      S.boxes.forEach(function (b) { var el = frame(b); grid.appendChild(el); preview(b, el, true); });
     }
-    S.boxes.forEach(function (b) { var el = frame(b); grid.appendChild(el); preview(b, el, true); });
+    drawOutline();
   }
 
   function placeAll() {
@@ -137,14 +168,14 @@
 
   function quotesHtml(list) {
     if (!list || !list.length) return '<p class="mk-empty">No published reviews yet.</p>';
-    return '<div class="mk-quotes">' + list.map(function (q) {
-      return '<figure class="mk-quote"><span class="mk-q-stars">' + new Array(q.rating + 1).join('★') +
+    return '<div class="pm-quotes">' + list.map(function (q) {
+      return '<figure class="pm-quote"><span class="pm-q-stars">' + new Array(q.rating + 1).join('★') +
         '</span><blockquote>' + esc(q.text) + '</blockquote><figcaption>' + esc(q.who) + ' · ' + esc(q.site) + '</figcaption></figure>';
     }).join('') + '</div>';
   }
 
   function linksHtml(list) {
-    return '<ul class="mk-links">' + (list || []).map(function (l) {
+    return '<ul class="pm-links">' + (list || []).map(function (l) {
       return '<li><a href="' + esc(l.url) + '" target="_blank" rel="noopener"><b>' + esc(l.label) + '</b><span>' + esc(l.url) + '</span></a></li>';
     }).join('') + '</ul>';
   }
@@ -164,6 +195,7 @@
           b._title = r.title;
           var h = el.querySelector('.mk-box-h h2');
           if (h && !b.title) h.textContent = r.title;
+          drawOutline();
         }
         if (S.sel === b.id) showErr(r.ok === false && !r.hidden ? (r.error || r.message) : '');
         if (b.chart === 'quotes') { body.innerHTML = quotesHtml(r.quotes); return; }
@@ -191,13 +223,27 @@
     return '<label>' + esc(label) + control + (hint ? '<span class="hint">' + esc(hint) + '</span>' : '') + '</label>';
   }
 
+  var secs = LS.get('mk-dz-secs', {});
+  function sec(key, label, html, openByDefault) {
+    var open = key in secs ? secs[key] : openByDefault;
+    return '<details class="dz-sec" data-sec="' + key + '"' + (open ? ' open' : '') + '><summary>' + esc(label) +
+      '</summary><div class="dz-sec-b">' + html + '</div></details>';
+  }
+  panel.addEventListener('toggle', function (e) {
+    var d = e.target;
+    if (!d.classList || !d.classList.contains('dz-sec')) return;
+    secs[d.getAttribute('data-sec')] = d.open;
+    LS.set('mk-dz-secs', secs);
+  }, true);
+
   function sourceSelect(m, i) {
     var groups = {}, order = [];
     CAT.sources.forEach(function (s) { if (!groups[s.group]) { groups[s.group] = []; order.push(s.group); } groups[s.group].push(s); });
     var h = '<select data-m="' + i + '" data-mk="source">';
     order.forEach(function (g) {
       h += '<optgroup label="' + esc(g) + '">' + groups[g].map(function (s) {
-        return opt(s.key, s.label + (s.kind === 'ga' && !CAT.ga_connected ? ' (not connected)' : ''), s.key === m.source);
+        var off = (s.kind === 'ga' && !CAT.ga_connected) || (s.kind === 'gsc' && !CAT.search_connected);
+        return opt(s.key, s.label + (off ? ' (not connected)' : ''), s.key === m.source);
       }).join('') + '</optgroup>';
     });
     return h + '</select>';
@@ -247,6 +293,12 @@
     return base.concat(CAT.no_data);
   }
 
+  function measureLabel(m) {
+    var src = SRC[m.source];
+    var x = src && src.measures.filter(function (y) { return y.key === m.measure; })[0];
+    return x ? x.label : '';
+  }
+
   function metricHtml(b, m, i) {
     var src = SRC[m.source];
     var h = '<div class="dz-metric" data-mi="' + i + '"><div class="dz-metric-h"><span>Number ' + (i + 1) + '</span>' +
@@ -274,63 +326,65 @@
     return h + '</div>';
   }
 
-  function measureLabel(m) {
-    var src = SRC[m.source];
-    var x = src && src.measures.filter(function (y) { return y.key === m.measure; })[0];
-    return x ? x.label : '';
-  }
-
   function drawPanel() {
     var b = byId(S.sel);
     if (!b) {
-      panel.innerHTML = '<h3>Box settings</h3><p class="dz-none">Click a box to change it, or add one from the left.</p>' +
-        '<h3>Ideas</h3><ul class="dz-none"><li>Trips, filtered to "India → abroad", grouped by "Flying to (country)".</li>' +
-        '<li>Insurance quotes by month, split by plan.</li><li>Website visitors over time, with sign-ups as a second line.</li>' +
-        '<li>Visitors right now, by country, as a live counter.</li></ul>';
+      panel.innerHTML = '<p class="dz-none">Click a box to change it, or add one from the left.</p>' +
+        sec('ideas', 'Ideas', '<ul class="dz-none"><li>Trips, only "India → abroad", grouped by "Flying to (country)".</li>' +
+          '<li>Insurance quotes by month, split by plan.</li><li>Website visitors over time, with sign-ups as a second line.</li>' +
+          '<li>The words people search in Google, with clicks and position.</li>' +
+          '<li>Visitors right now, by country, as a live counter.</li></ul>', true);
       return;
     }
     var h = '<div class="dz-err" id="dz-err" hidden></div>';
-    h += field('Title', '<input type="text" data-k="title" maxlength="90" value="' + esc(b.title || '') + '" placeholder="' + esc(b._title || 'Its title') + '"/>',
-      b.chart === 'text' ? '' : 'Empty: a title made from what it counts.');
+    h += sec('about', 'Title', field('Title', '<input type="text" data-k="title" maxlength="90" value="' + esc(b.title || '') + '" placeholder="' + esc(b._title || 'Its title') + '"/>',
+      b.chart === 'text' ? '' : 'Empty: a title made from what it counts.'), true);
     var ok = allowed(b);
-    h += '<h3>Draw it as</h3><div class="dz-charts">' + CAT.charts.map(function (c) {
+    h += sec('draw', 'Draw it as', '<div class="dz-charts">' + CAT.charts.map(function (c) {
       if (c.key === 'live' && !(srcOf(b) && srcOf(b).live) && !noData(b.chart)) return '';
       return '<button type="button" data-chart="' + c.key + '" class="' + (b.chart === c.key ? 'on' : '') + '" title="' + esc(c.label) +
         (ok.indexOf(c.key) < 0 ? ' (changes how it is grouped)' : '') + '"><i class="fa-solid ' + c.icon + '"></i>' + esc(c.label.split(' (')[0]) + '</button>';
-    }).join('') + '</div>';
+    }).join('') + '</div>', true);
     if (b.chart === 'text') {
-      h += field('Words', '<textarea data-k="body" maxlength="2000">' + esc(b.body || '') + '</textarea>', 'The first line is the heading; the rest are lines under it.');
+      h += sec('words', 'Words', field('Words', '<textarea data-k="body" maxlength="2000">' + esc(b.body || '') + '</textarea>', 'The first line is the heading; the rest are lines under it.'), true);
     } else if (b.chart === 'quotes') {
-      h += field('How many reviews', '<input type="number" data-k="top" min="1" max="20" value="' + (b.top || 6) + '"/>', 'The newest published reviews with words in them.');
+      h += sec('reviews', 'Reviews', field('How many reviews', '<input type="number" data-k="top" min="1" max="20" value="' + (b.top || 6) + '"/>', 'The newest published reviews with words in them.'), true);
     } else if (b.chart === 'links') {
-      h += '<p class="dz-none">The public address of each service, to put in a post or under a video.</p>';
+      h += sec('links', 'Pages', '<p class="dz-none">The public address of each service, to put in a post or under a video.</p>', true);
     } else {
       var src = srcOf(b);
-      h += '<h3>Count</h3>' + b.metrics.map(function (m, i) { return metricHtml(b, m, i); }).join('');
+      var count = b.metrics.map(function (m, i) { return metricHtml(b, m, i); }).join('');
       if (b.metrics.length < CAT.max_metrics && !b.split && !(src && src.live)) {
-        h += '<button type="button" class="dz-link" data-act="add-metric">+ Add another number (another line or bar)</button>';
+        count += '<button type="button" class="dz-link" data-act="add-metric">+ Add another number (another line or bar)</button>';
       }
-      h += '<h3>Split it</h3>' + field('Group by', groupSelect(b), b.group === 'auto' ? 'Days for a month, weeks for a quarter, months for a year.' : '');
-      h += field('Then split by', splitSelect(b), 'One colour per group: trips a month, one colour per direction.');
-      if (kindOf(b) === 'cat') h += field('Show the top', '<input type="number" data-k="top" min="0" max="50" value="' + (b.top || 0) + '"/>', '0 shows every group.');
+      h += sec('count', 'Count', count, true);
+      var split = field('Group by', groupSelect(b), b.group === 'auto' ? 'Days for a month, weeks for a quarter, months for a year.' : '') +
+        field('Then split by', splitSelect(b), 'One colour per group: trips a month, one colour per direction.');
+      if (kindOf(b) === 'cat') split += field('Show the top', '<input type="number" data-k="top" min="0" max="50" value="' + (b.top || 0) + '"/>', '0 shows every group.');
+      h += sec('split', 'Split it', split, true);
       if (!(src && src.live)) {
-        h += field('Dates', rangeSelect(b), 'The dashboard\'s dates follow the date picker; any other choice is fixed.');
-        h += '<label class="dz-check"><input type="checkbox" data-k="compare"' + (b.compare !== false ? ' checked' : '') + '/> Compare with the days before</label>';
+        h += sec('dates', 'Dates', field('Dates', rangeSelect(b), 'The dashboard\'s dates follow the date picker; any other choice is fixed.') +
+          '<label class="dz-check"><input type="checkbox" data-k="compare"' + (b.compare !== false ? ' checked' : '') + '/> Compare with the days before</label>', false);
       }
-      h += field('When there is nothing to show', '<input type="text" data-k="empty" maxlength="120" value="' + esc(b.empty || '') + '" placeholder="Nothing in these dates yet."/>');
     }
+    var look = '';
     if (b.chart !== 'text') {
-      h += '<h3>Look</h3>' + field('Colours', '<select data-k="colour">' + CAT.colours.map(function (c) {
-        return opt(c, { brand: 'Ours (blue)', ocean: 'Ocean', sunset: 'Sunset', forest: 'Forest', berry: 'Berry', mono: 'Grey' }[c] || c, b.colour === c);
+      look += field('Colours', '<select data-k="colour">' + CAT.colours.map(function (c) {
+        return opt(c, { brand: 'Ours', ocean: 'Ocean', sunset: 'Sunset', forest: 'Forest', berry: 'Berry', mono: 'Grey' }[c] || c, b.colour === c);
       }).join('') + '</select>');
-      h += field('A note (the ⓘ beside the title)', '<input type="text" data-k="note" maxlength="200" value="' + esc(b.note || '') + '"/>');
+      look += field('A note (the ⓘ beside the title)', '<input type="text" data-k="note" maxlength="200" value="' + esc(b.note || '') + '"/>');
+      if (!noData(b.chart)) look += field('When there is nothing to show', '<input type="text" data-k="empty" maxlength="120" value="' + esc(b.empty || '') + '" placeholder="Nothing in these dates yet."/>');
+      h += sec('look', 'Look', look, false);
     }
-    h += '<h3>Size and place</h3><div class="dz-row4">' +
+    h += sec('place', 'Size and place', '<div class="dz-row4">' +
       ['x', 'y', 'w', 'h'].map(function (k) {
         var lbl = { x: 'Column', y: 'Row', w: 'Width', h: 'Height' }[k];
         return '<label>' + lbl + '<input type="number" data-k="' + k + '" value="' + (k === 'x' || k === 'y' ? b[k] + 1 : b[k]) + '" min="1"/></label>';
-      }).join('') + '</div><p class="hint dz-none">12 columns across; a row is a finger tall.</p>';
-    h += '<div class="dzl-acts"><button type="button" class="mk-btn sm" data-act="copy"><i class="fa-regular fa-copy"></i> Copy</button>' +
+      }).join('') + '</div><p class="hint dz-none">12 columns across; a row is a finger tall.</p>', false);
+    h += '<div class="dz-acts">' +
+      '<button type="button" class="mk-btn sm" data-act="dup"><i class="fa-regular fa-clone"></i> Duplicate</button>' +
+      '<button type="button" class="mk-btn sm" data-act="copy"><i class="fa-regular fa-copy"></i> Copy</button>' +
+      '<button type="button" class="mk-btn sm" data-act="keep"><i class="fa-regular fa-bookmark"></i> Keep as reusable</button>' +
       '<button type="button" class="mk-btn sm quiet danger" data-act="del"><i class="fa-regular fa-trash-can"></i> Delete</button></div>';
     panel.innerHTML = h;
     loadFilters(b);
@@ -363,6 +417,11 @@
   function defaultMetric(sourceKey) {
     var s = SRC[sourceKey] || CAT.sources[0];
     return { source: s.key, measure: s.measures[0].key, date: s.dates[0].key, filters: {}, label: '' };
+  }
+
+  function blankBox() {
+    return { chart: 'number', title: '', metrics: [defaultMetric('trips')], group: 'auto', split: '', range: 'page', top: 10,
+      compare: true, colour: 'brand', note: '', empty: '', w: 3, h: 2 };
   }
 
   function fitGroup(b) {
@@ -430,16 +489,15 @@
       return;
     }
     if (t.getAttribute('data-act') === 'add-filter') {
-      var mi = +t.getAttribute('data-m');
-      if (t.value) { b.metrics[mi].filters[t.value] = []; changed(b, true); }
+      if (t.value) { b.metrics[+t.getAttribute('data-m')].filters[t.value] = []; changed(b, true); }
       return;
     }
     if (mk) {
-      var m2 = b.metrics[+t.getAttribute('data-m')];
+      var mi = +t.getAttribute('data-m'), m2 = b.metrics[mi];
       if (mk === 'source') {
         var fresh = defaultMetric(t.value);
         fresh.label = m2.label;
-        b.metrics[+t.getAttribute('data-m')] = fresh;
+        b.metrics[mi] = fresh;
         if (SRC[t.value].live) { b.metrics = [fresh]; b.group = 'device'; b.split = ''; b.chart = 'live'; b.range = 'page'; }
         else if (b.chart === 'live') b.chart = 'number';
         fitGroup(b);
@@ -494,39 +552,38 @@
       var f = t.closest('.dz-filter');
       delete b.metrics[+f.getAttribute('data-m')].filters[f.getAttribute('data-dim')];
       changed(b, true);
-    } else if (act === 'copy') copyBox(b);
-    else if (act === 'del') deleteBox(b);
+    } else if (act) boxAction(act, b);
   });
 
   // ------------------------------------------------------------------------------------------- boxes in and out
 
-  function select(id) {
+  function select(id, scroll) {
     S.sel = id;
     grid.querySelectorAll('.mk-box').forEach(function (el) { el.classList.toggle('sel', el.getAttribute('data-id') === id); });
     drawPanel();
+    drawOutline();
+    if (id && scroll) {
+      var el = grid.querySelector('[data-id="' + id + '"]');
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.focus({ preventScroll: true }); }
+    }
   }
 
-  function addBox(b) {
+  function addBox(b, at) {
     b = clone(b);
     b.id = uid();
-    b.x = 0;
-    b.y = bottom();
     b.w = Math.min(b.w || 4, 12);
+    b.h = b.h || 4;
+    if (at) { b.x = clamp(at.x, 0, 12 - b.w); b.y = Math.max(0, at.y); }
+    else { b.x = 0; b.y = bottom(); }
     if (!S.boxes.length) grid.innerHTML = '';
     S.boxes.push(b);
     pack(b.id);
     var el = frame(b);
     grid.appendChild(el);
+    placeAll();
     preview(b, el, true);
-    select(b.id);
     touch();
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-
-  function copyBox(b) {
-    var c = clone(wire(b));
-    c.title = c.title ? (c.title + ' (copy)').slice(0, 90) : '';
-    addBox(c);
+    select(b.id, true);
   }
 
   function deleteBox(b) {
@@ -539,28 +596,233 @@
     touch();
   }
 
-  // the "Add a box" list
-  (function () {
-    var holder = document.getElementById('dz-sugs'), groups = {}, order = [];
-    DATA.suggestions.forEach(function (s, i) { if (!groups[s.group]) { groups[s.group] = []; order.push(s.group); } groups[s.group].push(i); });
-    holder.innerHTML = order.map(function (g) {
-      return '<h3>' + esc(g) + '</h3><div class="dz-sugs">' + groups[g].map(function (i) {
-        var s = DATA.suggestions[i], src = s.box.metrics && s.box.metrics[0] ? SRC[s.box.metrics[0].source] : null;
-        var icon = src ? src.icon : (CH[s.box.chart] || {}).icon || 'fa-square';
-        return '<button type="button" class="dz-sug" data-sug="' + i + '"><i class="fa-solid ' + icon + '" aria-hidden="true"></i>' + esc(s.name) + '</button>';
-      }).join('') + '</div>';
-    }).join('');
-    root.querySelector('.dz-side').addEventListener('click', function (e) {
-      var t = e.target.closest('.dz-sug');
-      if (!t) return;
-      if (t.hasAttribute('data-blank')) {
-        addBox({ chart: 'number', title: '', metrics: [defaultMetric('trips')], group: 'auto', split: '', range: 'page', top: 10,
-          compare: true, colour: 'brand', note: '', empty: '', w: 3, h: 2 });
-      } else addBox(DATA.suggestions[+t.getAttribute('data-sug')].box);
+  function copyBox(b) {
+    LS.set('mk-clipboard', { box: wire(b), title: title(b), from: DATA.dash });
+    drawPaste();
+    say('Copied "' + title(b) + '": paste it here or in another dashboard (Ctrl+V, or "Paste" on the left).');
+  }
+
+  function keepBox(b) {
+    var name = prompt('A name for this reusable box (every designer will see it under "Reusable boxes"):', title(b));
+    if (name === null) return;
+    post(URLS.library, { name: name, box: wire(b) }).then(function (r) {
+      if (!r.ok) { say(r.error || 'Not kept.', true); return; }
+      S.library = r.library;
+      drawLibrary();
+      say('Kept as a reusable box: it is under "Reusable boxes" in every dashboard.');
     });
+  }
+
+  function boxAction(act, b) {
+    if (act === 'dup') {
+      var c = clone(wire(b));
+      c.title = c.title ? (c.title + ' (copy)').slice(0, 90) : '';
+      addBox(c, { x: b.x, y: b.y + b.h });
+    } else if (act === 'copy') copyBox(b);
+    else if (act === 'keep') keepBox(b);
+    else if (act === 'del') deleteBox(b);
+  }
+
+  // ------------------------------------------------------------------------------------------- the left panel
+
+  function group(label, key, inner, openByDefault) {
+    var open = LS.get('mk-dz-groups', {});
+    var on = key in open ? open[key] : openByDefault;
+    return '<details class="dz-group" data-group="' + esc(key) + '"' + (on ? ' open' : '') + '><summary>' + label + '</summary>' +
+      '<div class="dz-sugs">' + inner + '</div></details>';
+  }
+
+  side.addEventListener('toggle', function (e) {
+    var d = e.target;
+    if (!d.classList || !d.classList.contains('dz-group')) return;
+    var open = LS.get('mk-dz-groups', {});
+    open[d.getAttribute('data-group')] = d.open;
+    LS.set('mk-dz-groups', open);
+  }, true);
+
+  function sugIcon(box) {
+    var src = box.metrics && box.metrics[0] ? SRC[box.metrics[0].source] : null;
+    return src ? src.icon : (CH[box.chart] || {}).icon || 'fa-square';
+  }
+
+  (function drawSuggestions() {
+    var groups = {}, order = [];
+    DATA.suggestions.forEach(function (s, i) { if (!groups[s.group]) { groups[s.group] = []; order.push(s.group); } groups[s.group].push(i); });
+    document.getElementById('dz-sugs').innerHTML = order.map(function (g, gi) {
+      return group(esc(g) + ' <span class="dz-count">' + groups[g].length + '</span>', 'sug:' + g, groups[g].map(function (i) {
+        var s = DATA.suggestions[i];
+        return '<button type="button" class="dz-sug" draggable="true" data-sug="' + i + '"><i class="fa-solid ' + sugIcon(s.box) +
+          '" aria-hidden="true"></i>' + esc(s.name) + '</button>';
+      }).join(''), gi === 0);
+    }).join('');
   })();
 
-  // ------------------------------------------------------------------------------------------- drag, resize, keys
+  function drawLibrary() {
+    var inner = S.library.length ? S.library.map(function (l) {
+      return '<div class="dz-lib"><button type="button" class="dz-sug" draggable="true" data-lib="' + esc(l.id) + '" title="Kept by ' +
+        esc(l.by || 'a designer') + (l.at ? ', ' + esc(l.at) : '') + '"><i class="fa-solid ' + sugIcon(l.box) + '" aria-hidden="true"></i>' +
+        esc(l.name) + '</button><button type="button" class="dz-lib-x" data-lib-del="' + esc(l.id) + '" title="Take it out of the library">' +
+        '<i class="fa-solid fa-xmark"></i></button></div>';
+    }).join('') : '<p class="dz-none">None yet. Press <i class="fa-regular fa-bookmark"></i> on any box to keep it here, for every dashboard.</p>';
+    document.getElementById('dz-library').innerHTML = group('<i class="fa-regular fa-bookmark"></i> Reusable boxes <span class="dz-count">' +
+      S.library.length + '</span>', 'library', inner, true);
+  }
+
+  function drawPaste() {
+    var clip = LS.get('mk-clipboard', null);
+    document.getElementById('dz-paste').innerHTML = clip && clip.box ?
+      '<div class="dz-lib dz-clip"><button type="button" class="dz-sug" draggable="true" data-paste="1"><i class="fa-solid fa-paste" aria-hidden="true"></i>' +
+      'Paste: ' + esc(clip.title || 'the copied box') + '</button><button type="button" class="dz-lib-x" data-paste-clear="1" title="Forget the copied box">' +
+      '<i class="fa-solid fa-xmark"></i></button></div>' : '';
+  }
+
+  function templateOf(t) {
+    if (!t) return null;
+    if (t.blank) return blankBox();
+    if (t.sug !== undefined) return DATA.suggestions[t.sug].box;
+    if (t.lib !== undefined) { var l = S.library.filter(function (x) { return x.id === t.lib; })[0]; return l && l.box; }
+    if (t.paste) { var c = LS.get('mk-clipboard', null); return c && c.box; }
+    return null;
+  }
+
+  function whatIs(el) {
+    if (el.hasAttribute('data-blank')) return { blank: true };
+    if (el.hasAttribute('data-sug')) return { sug: +el.getAttribute('data-sug') };
+    if (el.hasAttribute('data-lib')) return { lib: el.getAttribute('data-lib') };
+    if (el.hasAttribute('data-paste')) return { paste: true };
+    return null;
+  }
+
+  side.addEventListener('click', function (e) {
+    var tab = e.target.closest('[data-tab]');
+    if (tab) { showTab(tab.getAttribute('data-tab')); return; }
+    var del = e.target.closest('[data-lib-del]');
+    if (del) {
+      if (!confirm('Take this box out of the library? Dashboards that use it keep their copy.')) return;
+      post(URLS.library_delete.replace('LID', del.getAttribute('data-lib-del')), {}).then(function (r) {
+        if (r.ok) { S.library = r.library; drawLibrary(); }
+      });
+      return;
+    }
+    if (e.target.closest('[data-paste-clear]')) { LS.set('mk-clipboard', null); drawPaste(); return; }
+    var ol = e.target.closest('.dz-ol');
+    if (ol) {
+      var b = byId(ol.getAttribute('data-id'));
+      var act = e.target.closest('[data-act]');
+      if (act && b) { boxAction(act.getAttribute('data-act'), b); return; }
+      if (b) select(b.id, true);
+      return;
+    }
+    var t = e.target.closest('.dz-sug');
+    if (!t) return;
+    var box = templateOf(whatIs(t));
+    if (box) addBox(box);
+  });
+
+  function showTab(name) {
+    side.querySelectorAll('[data-tab]').forEach(function (b) {
+      var on = b.getAttribute('data-tab') === name;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    side.querySelectorAll('[data-pane]').forEach(function (p) { p.hidden = p.getAttribute('data-pane') !== name; });
+    LS.set('mk-dz-tab', name);
+    drawOutline();
+  }
+
+  // the outline: every box in order, the chosen one marked
+  function drawOutline() {
+    var n = document.getElementById('dz-count');
+    if (n) n.textContent = S.boxes.length;
+    var ol = document.getElementById('dz-outline');
+    if (!ol || ol.closest('[data-pane]').hidden) return;
+    ol.innerHTML = S.boxes.length ? S.boxes.map(function (b) {
+      return '<li class="dz-ol' + (S.sel === b.id ? ' sel' : '') + '" draggable="true" data-id="' + b.id + '">' +
+        '<span class="dz-ol-grip" aria-hidden="true"><i class="fa-solid fa-grip-vertical"></i></span>' +
+        '<i class="fa-solid ' + iconOf(b) + ' dz-ol-i" aria-hidden="true"></i>' +
+        '<span class="dz-ol-t">' + esc(title(b)) + '</span><small>' + b.w + '×' + b.h + '</small>' +
+        '<span class="dz-ol-acts"><button type="button" data-act="dup" title="Duplicate"><i class="fa-regular fa-clone"></i></button>' +
+        '<button type="button" data-act="del" title="Delete"><i class="fa-solid fa-xmark"></i></button></span></li>';
+    }).join('') : '<li class="dz-none">No boxes yet.</li>';
+  }
+
+  // ------------------------------------------------------------------------------------------- dragging in, and the outline
+
+  var dragNew = null, dragOl = null, ghost = null;
+
+  side.addEventListener('dragstart', function (e) {
+    var ol = e.target.closest && e.target.closest('.dz-ol');
+    if (ol) {
+      dragOl = ol.getAttribute('data-id');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', 'box:' + dragOl);
+      ol.classList.add('dragging');
+      return;
+    }
+    var t = e.target.closest && e.target.closest('.dz-sug');
+    if (!t) return;
+    dragNew = templateOf(whatIs(t));
+    if (!dragNew) { e.preventDefault(); return; }
+    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.setData('text/plain', 'new');
+  });
+  side.addEventListener('dragend', function () {
+    dragNew = null; dragOl = null;
+    side.querySelectorAll('.dz-ol.over, .dz-ol.dragging').forEach(function (x) { x.classList.remove('over', 'dragging'); });
+    hideGhost();
+  });
+
+  side.addEventListener('dragover', function (e) {
+    if (!dragOl) return;
+    var li = e.target.closest('.dz-ol');
+    if (!li) return;
+    e.preventDefault();
+    side.querySelectorAll('.dz-ol.over').forEach(function (x) { if (x !== li) x.classList.remove('over'); });
+    li.classList.add('over');
+  });
+  side.addEventListener('drop', function (e) {
+    if (!dragOl) return;
+    var li = e.target.closest('.dz-ol');
+    e.preventDefault();
+    if (!li || li.getAttribute('data-id') === dragOl) return;
+    // the dragged box takes the place of the one it was dropped on; that one, and the rest, move down
+    var a = byId(dragOl), b = byId(li.getAttribute('data-id'));
+    a.x = b.x; a.y = b.y; a.w = Math.min(a.w, 12 - a.x);
+    pack(a.id); placeAll(); touch(); select(a.id, true);
+  });
+
+  function cellAt(e, w) {
+    var r = grid.getBoundingClientRect(), col = (r.width - 11 * GAP) / 12;
+    return { x: clamp(Math.floor((e.clientX - r.left) / (col + GAP)), 0, 12 - w),
+      y: clamp(Math.floor((e.clientY - r.top) / (ROW + GAP)), 0, 400) };
+  }
+  function hideGhost() { if (ghost) { ghost.remove(); ghost = null; } }
+
+  grid.addEventListener('dragover', function (e) {
+    if (!dragNew) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    var w = Math.min(dragNew.w || 4, 12), h = dragNew.h || 4, at = cellAt(e, w);
+    if (!ghost) {
+      // the "empty dashboard" words stay where they are (they let the drop through): removing the element under the
+      // pointer in the middle of a drag makes the browser cancel the drop
+      ghost = document.createElement('div');
+      ghost.className = 'dz-ghost';
+      grid.appendChild(ghost);
+    }
+    place(ghost, { x: at.x, y: at.y, w: w, h: h });
+  });
+  grid.addEventListener('dragleave', function (e) { if (!grid.contains(e.relatedTarget)) hideGhost(); });
+  grid.addEventListener('drop', function (e) {
+    if (!dragNew) return;
+    e.preventDefault();
+    var box = dragNew, at = cellAt(e, Math.min(box.w || 4, 12));
+    dragNew = null;
+    hideGhost();
+    addBox(box, at);
+  });
+
+  // ------------------------------------------------------------------------------------------- moving boxes on the grid
 
   var drag = null;
   grid.addEventListener('pointerdown', function (e) {
@@ -568,9 +830,8 @@
     if (!el) return;
     var b = byId(el.getAttribute('data-id'));
     if (e.target.closest('.dz-tools button')) {
-      var act = e.target.closest('button').getAttribute('data-act');
       e.preventDefault();
-      if (act === 'copy') copyBox(b); else if (act === 'del') deleteBox(b);
+      boxAction(e.target.closest('button').getAttribute('data-act'), b);
       return;
     }
     if (S.sel !== b.id) select(b.id);
@@ -610,12 +871,31 @@
     if (!step) return;
     e.preventDefault();
     if (e.shiftKey) { b.w = clamp(b.w + step[0], 1, 12 - b.x); b.h = clamp(b.h + step[1], 1, MAX_H); }
-    else { b.x = clamp(b.x + step[0], 0, 12 - b.w); b.y = Math.max(0, b.y + step[1]); }
+    else {
+      b.x = clamp(b.x + step[0], 0, 12 - b.w); b.y = Math.max(0, b.y + step[1]);
+      // up or down onto a neighbour: jump past its middle, so one press swaps the two
+      var hit = step[1] && S.boxes.filter(function (o) { return o !== b && overlaps(b, o); })[0];
+      if (hit) b.y = step[1] > 0 ? hit.y + Math.ceil(hit.h / 2) : hit.y;
+    }
     pack(b.id); placeAll(); touch(); if (S.sel === b.id) drawPanel();
     el.focus();
   });
 
-  // ------------------------------------------------------------------------------------------- save, publish
+  // ------------------------------------------------------------------------------------------- folding the panels
+
+  function applyFolds() {
+    root.classList.toggle('side-folded', !!LS.get('mk-dz-side-folded', false));
+    root.classList.toggle('panel-folded', !!LS.get('mk-dz-panel-folded', false));
+  }
+  root.addEventListener('click', function (e) {
+    var f = e.target.closest('[data-fold]');
+    if (!f) return;
+    var k = 'mk-dz-' + f.getAttribute('data-fold') + '-folded';
+    LS.set(k, !LS.get(k, false));
+    applyFolds();
+  });
+
+  // ------------------------------------------------------------------------------------------- save, publish, keys
 
   function save(publish) {
     say(publish ? 'Publishing…' : 'Saving…');
@@ -661,10 +941,25 @@
     if (S.dirty) { e.preventDefault(); e.returnValue = ''; }
   });
   document.addEventListener('keydown', function (e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(false); }
+    if (!(e.ctrlKey || e.metaKey)) return;
+    var k = e.key.toLowerCase();
+    if (k === 's') { e.preventDefault(); save(false); return; }
+    if (typing(document.activeElement) || (window.getSelection && String(window.getSelection()))) return;
+    var b = byId(S.sel);
+    if (k === 'c' && b) { e.preventDefault(); copyBox(b); }
+    else if (k === 'v') {
+      var clip = LS.get('mk-clipboard', null);
+      if (clip && clip.box) { e.preventDefault(); addBox(clip.box, b ? { x: b.x, y: b.y + b.h } : null); }
+    }
   });
+  // a box copied in another tab shows up here to paste
+  window.addEventListener('storage', function (e) { if (e.key === 'mk-clipboard') drawPaste(); });
 
+  applyFolds();
   stateChip();
+  drawLibrary();
+  drawPaste();
+  showTab(LS.get('mk-dz-tab', 'add') === 'outline' ? 'outline' : 'add');
   drawAll();
   drawPanel();
 })();

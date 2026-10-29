@@ -337,7 +337,7 @@ def test_the_sign_in_is_signed_with_the_key(app):
     head, claims, sig = token.split('.')
     pad = lambda s: base64.urlsafe_b64decode(s + '=' * (-len(s) % 4))   # noqa: E731
     body = json.loads(pad(claims))
-    assert body['iss'] == key['client_email'] and body['scope'].endswith('analytics.readonly')
+    assert body['iss'] == key['client_email'] and 'analytics.readonly' in body['scope']
     assert body['exp'] - body['iat'] == 3600
     pk.public_key().verify(pad(sig), ('%s.%s' % (head, claims)).encode(), padding.PKCS1v15(), hashes.SHA256())
 
@@ -419,3 +419,137 @@ def test_google_saying_no_is_said_in_words(app, admin_user, monkeypatch):
         ga4.save('412345678', json.dumps(key), by=admin_user)
         r = _run({'chart': 'number', 'metrics': [{'source': 'website'}]}, admin_user)
     assert r['ok'] is False and 'Property access management' in r['message'] and 'Viewer' in r['message']
+
+
+# ================================================================================================ Search Console
+
+def test_one_token_reads_analytics_and_search_console(app):
+    from app.services import ga4
+    assert 'analytics.readonly' in ga4.SCOPE and 'webmasters.readonly' in ga4.SCOPE
+
+
+def test_the_search_console_property_is_written_as_google_writes_it(app):
+    from app.services import ga4
+    assert ga4.clean_search_site('sc-domain:NRIparentservice.com') == 'sc-domain:nriparentservice.com'
+    assert ga4.clean_search_site('https://nriparentservice.com') == 'https://nriparentservice.com/'
+    for bad in ('nriparentservice.com', 'sc-domain:', 'G-NPHSR9PNTC', 'https://no spaces.com'):
+        with pytest.raises(ga4.GAError):
+            ga4.clean_search_site(bad)
+
+
+def test_search_console_can_be_connected_on_its_own(client, admin_user):
+    from app.services import ga4
+    _, key = _key()
+    login(client, admin_user.email)
+    client.post('/promotion/designer/google', data={'property_id': '', 'sc_site': 'sc-domain:nriparentservice.com',
+                                                    'key_json': json.dumps(key)})
+    st = ga4.status()
+    assert st['search_connected'] and not st['connected'] and st['has_key']
+    page = client.get('/promotion/designer/google').data.decode()
+    assert 'sc-domain:nriparentservice.com' in page and 'PRIVATE KEY' not in page
+
+
+def test_google_search_boxes(client, app, admin_user, monkeypatch):
+    from app.services import ga4, gsc, mkt_engine as eng
+    _, key = _key()
+    bodies = []
+
+    def fake(site, body, k):
+        bodies.append(body)
+        dims = body['dimensions']
+        rows = []
+        if dims == ['query']:
+            rows = [(['nri parent care'], 30, 600, 3.0), (['travel companion for parents'], 20, 200, 1.5),
+                    (['visitor insurance usa'], 5, 900, 12.0)]
+        elif dims == ['country']:
+            rows = [(['ind'], 40, 900, 4.0), (['usa'], 15, 800, 9.0)]
+        elif dims == ['date']:
+            rows = [([(eng.today() - timedelta(days=i)).isoformat()], 2 + i, 50, 5.0) for i in range(3)]
+        elif not dims:
+            rows = [([], 55, 1700, 7.0)]
+        return {'rows': [{'keys': k_, 'clicks': c, 'impressions': i, 'ctr': c / i, 'position': p}
+                         for k_, c, i, p in rows]}
+    monkeypatch.setattr(gsc, '_post', fake)
+    with app.test_request_context('/'):
+        ga4.save('', json.dumps(key), by=admin_user, sc_site='sc-domain:nriparentservice.com')
+        words = _run({'chart': 'table', 'metrics': [{'source': 'search', 'measure': 'clicks'},
+                                                    {'source': 'search', 'measure': 'position'}], 'group': 'query'},
+                     admin_user)
+        assert words['labels'][:2] == ['nri parent care', 'travel companion for parents']
+        assert words['series'][1]['data'][:2] == [3.0, 1.5] and words['total'] == 55
+        pos = _run({'chart': 'number', 'metrics': [{'source': 'search', 'measure': 'position'}]}, admin_user)
+        assert pos['total'] == 7.0 and pos['lower_better'] is True and pos['unit'] == 'position'
+        by_country = _run({'chart': 'hbar', 'metrics': [{'source': 'search', 'measure': 'ctr',
+                                                         'filters': {'country': ['India', 'United States']}}],
+                           'group': 'country'}, admin_user)
+        assert by_country['labels'] == ['India', 'United States'], 'ISO-3 codes become names'
+        assert by_country['series'][0]['data'][0] == round(40 / 900, 4)
+        flt = [b for b in bodies if b.get('dimensionFilterGroups')][0]['dimensionFilterGroups'][0]['filters'][0]
+        assert flt == {'dimension': 'country', 'operator': 'includingRegex', 'expression': '^(?:ind|usa)$'}
+        weekly = _run({'chart': 'line', 'metrics': [{'source': 'search', 'measure': 'clicks'}], 'group': 'month'},
+                      admin_user, key='last_7')
+        assert sum(weekly['series'][0]['data']) == 2 + 3 + 4, 'days are added up into months here'
+        old = _run({'chart': 'number', 'metrics': [{'source': 'search'}]}, admin_user, key='all')
+        assert any('16 months' in n for n in old['notes'])
+        assert min(b['startDate'] for b in bodies) >= (eng.today() - timedelta(days=gsc.KEEPS_DAYS)).isoformat()
+
+
+def test_search_console_saying_no_is_said_in_words(app, admin_user, monkeypatch):
+    from app.services import ga4, gsc
+
+    class R:
+        status_code = 403
+
+        def json(self):
+            return {'error': {'message': 'User does not have sufficient permission for site'}}
+    _, key = _key()
+    monkeypatch.setattr(ga4, '_access_token', lambda k: 'token')
+    monkeypatch.setattr(gsc.requests, 'post', lambda *a, **kw: R())
+    with app.test_request_context('/'):
+        ga4.save('', json.dumps(key), by=admin_user, sc_site='https://nriparentservice.com/')
+        r = _run({'chart': 'number', 'metrics': [{'source': 'search', 'measure': 'clicks'}]}, admin_user)
+    assert r['ok'] is False and 'Users and permissions' in r['message']
+
+
+# ================================================================================================ reuse and switching
+
+def test_a_box_kept_as_reusable_is_there_for_every_designer(client, trips, admin_user, influencer):
+    login(client, admin_user.email)
+    r = client.post('/promotion/designer/library', json={'name': 'From India', 'box': _box(x=4, y=9)}).get_json()
+    assert r['ok'] and r['library'][0]['name'] == 'From India'
+    kept = r['library'][0]
+    assert kept['box']['x'] == 0 and kept['box']['y'] == 0, 'its place on the grid is not kept'
+    d = MktDashboard(name='Another', draft=[], position=1)
+    _db.session.add(d)
+    _db.session.commit()
+    assert 'From India' in client.get('/promotion/designer/%d' % d.id).data.decode()
+    bad = client.post('/promotion/designer/library', json={'name': 'x', 'box': _box(group='poster_name')})
+    assert bad.status_code == 400
+    gone = client.post('/promotion/designer/library/%s/delete' % kept['id']).get_json()
+    assert gone['ok'] and gone['library'] == []
+    logout(client)
+    login(client, influencer.email)
+    assert client.post('/promotion/designer/library', json={'name': 'x', 'box': _box()}).status_code == 403
+
+
+def test_the_switcher_shows_drafts_to_designers_only(client, trips, admin_user, influencer):
+    d = MktDashboard(name='Not out yet', draft=[_box()], position=1)
+    _db.session.add(d)
+    _db.session.commit()
+    login(client, admin_user.email)
+    html = client.get('/promotion').data.decode()
+    assert 'Not out yet' in html and 'Draft</small>' in html
+    page = client.get('/promotion?d=%d' % d.id).data.decode()
+    assert '>From India</h2>' in page, 'a never-published dashboard opens as its draft for a designer'
+    logout(client)
+    login(client, influencer.email)
+    html = client.get('/promotion').data.decode()
+    assert 'Not out yet' not in html and 'Dashboards' in html, 'the switcher is always there'
+    assert '>From India</h2>' not in client.get('/promotion?d=%d' % d.id).data.decode()
+
+
+def test_the_page_keeps_its_old_look(client, influencer):
+    login(client, influencer.email)
+    html = client.get('/promotion').data.decode()
+    for part in ('pm-hero', 'world-map-flight.webp', 'hero-parents.webp', 'pm-reach', 'Countries we have an office in'):
+        assert part in html, part
