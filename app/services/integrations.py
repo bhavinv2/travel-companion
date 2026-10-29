@@ -183,9 +183,55 @@ def _whatsapp(ctx):
     return c
 
 
+def _livechat(ctx):
+    """Live chat (2026-10-30): our own chat bubble on our websites, answered in the portal (services/livechat.py)."""
+    from app.models import CrmLiveChat
+    from app.services import livechat
+    cfg = livechat.config()
+    c = _base('livechat', 'Live chat', 'conversations', 'fa-regular fa-comment-dots', '#0F1F3D',
+              'Our own chat bubble on our websites. Visitors write; you answer in the portal, live.')
+    since = datetime.utcnow() - timedelta(days=30)
+    n30 = CrmLiveChat.query.filter(CrmLiveChat.started_at >= since).count()
+    last = CrmLiveChat.query.order_by(CrmLiveChat.started_at.desc()).first()
+    c['last'] = last.started_at if last is not None else None
+    sites = intake_origins()
+    online = livechat.online()
+    if cfg['on']:
+        c.update(state='on', chip='On')
+    else:
+        c.update(state='off', chip='Switched off', note='The bubble is off: our pages show tawk.to\'s, if it is set.')
+    c['lines'] = [_line(cfg['on'], 'The bubble is on our own pages (Travel Companion, Travel Insurance, Sahayak, '
+                                   'Contact us, the blog)' if cfg['on'] else 'The bubble is switched off'),
+                  _line(bool(sites) or None, '%d other website%s may carry it (Website lead forms › Settings)'
+                        % (len(sites), '' if len(sites) == 1 else 's') if sites else
+                        'Only pages on this site carry it so far (nriparentservice.com shares the address)'),
+                  _line(bool(online) or None, 'Online now: %s' % ', '.join(online) if online else
+                        'Nobody who can answer is online: visitors see “away” and leave a message'),
+                  _line(True, '%d chat%s in the last 30 days' % (n30, '' if n30 == 1 else 's'))]
+    c['overview'] = ['A visitor gives a name, an e-mail or WhatsApp number and a question; the chat becomes a lead '
+                     'under “Website live chat”, with every message on its timeline.',
+                     'You answer in Inbox › Live chat, or in WhatsApp chats › Live chat on the rail. A green dot means '
+                     'they are on the website now; they see when you are typing.',
+                     'A visitor sees only their own chat, and of us a first name.',
+                     'If they leave, your reply waits in their chat; the lead has their e-mail or number for the rest.']
+    c['where'] = [(t, u) for t, u in (('Live chat', _page(ctx, 'web_chat')), ('Leads', _page(ctx, 'crm_board')))
+                  if u]
+    c['steps'] = ['Pages on this site carry the bubble already.',
+                  'On the WordPress site: switch off the tawk.to plugin (Plugins › tawk.to › Deactivate), so there '
+                  'are not two bubbles.',
+                  'Paste the line below just before </body> -- a header-and-footer plugin, or the theme footer.',
+                  'A website at another address (preventia360.com): add it under Website lead forms › Settings too.',
+                  'Open the website, press the round chat button and start a test chat: it shows in Live chat.']
+    tag = '<script src="%s" async></script>' % _addr('crm_public.live_chat_script')
+    c['addresses'] = [{'id': 'ig-lc-tag', 'label': 'The line for a website', 'value': tag}]
+    c['form'] = 'livechat'
+    c['cfg'] = cfg
+    return c
+
+
 def _tawk(ctx):
     from app.models import CrmSource
-    from app.services import tawk
+    from app.services import tawk, livechat
     c = _base('tawk', 'tawk.to chat', 'conversations', 'fa-solid fa-comment-dots', '#03a84e',
               'The chat bubble on the websites. A chat that leaves a phone or e-mail becomes a lead.')
     on = tawk.enabled()
@@ -204,9 +250,11 @@ def _tawk(ctx):
                   _line(bool(src and src.status == 'live'),
                         'Its leads go to the lead source “Tawk chat”' + ('' if src and src.status == 'live' else
                                                                           ' (set it up under Lead sources)')),
-                  # the bubble itself on the portal's own pages (services/tawk.widget); WordPress has its plugin
-                  _line(bool(tawk.widget()), 'The chat bubble on our own pages (Travel Companion, Travel Insurance, '
-                                             'Sahayak, Contact us): ' + (tawk.widget() or 'switched off'))]
+                  # the bubble itself on the portal's own pages (services/tawk.widget) -- while our own live chat
+                  # is off; WordPress has its plugin
+                  _line(None, 'Our own Live chat is the bubble on our pages now (see its card)') if livechat.enabled()
+                  else _line(bool(tawk.widget()), 'The chat bubble on our own pages (Travel Companion, Travel '
+                                                  'Insurance, Sahayak, Contact us): ' + (tawk.widget() or 'switched off'))]
     c['overview'] = ['A chat where the visitor leaves an e-mail or phone number becomes a lead under “Tawk chat”, '
                      'with the chat on its timeline.',
                      'The same chat is filed once; its whole transcript replaces the first message when the chat ends.',
@@ -495,10 +543,10 @@ def _storage(ctx):
     return c
 
 
-BUILDERS = (_whatsapp, _tawk, _meta, _email, _website, _google, _payments, _ai, _preventia, _analytics, _signin,
-            _storage)
-KEYS = ('whatsapp', 'tawk', 'meta', 'email', 'website', 'google', 'payments', 'ai', 'preventia', 'analytics',
-        'signin', 'storage')
+BUILDERS = (_whatsapp, _livechat, _tawk, _meta, _email, _website, _google, _payments, _ai, _preventia, _analytics,
+            _signin, _storage)
+KEYS = ('whatsapp', 'livechat', 'tawk', 'meta', 'email', 'website', 'google', 'payments', 'ai', 'preventia',
+        'analytics', 'signin', 'storage')
 BY_KEY = dict(zip(KEYS, BUILDERS))
 
 

@@ -1,12 +1,19 @@
 {# The message box under the timeline. Not a live region: a half-typed message is never touched.
    crm.js (syncBox) shows the free text, the template picker or only a note, from the timeline's
-   data-wa-state, and from the channel chosen in "Send on". "WhatsApp goes from … to …" names our number (channels.badge). #}
+   data-wa-state, and from the channel chosen in "Send on". "WhatsApp goes from … to …" names our number (channels.badge).
+   via0 'webchat' (messaging/live_chat.html): the box answers in the website's live chat, free text only. On the lead
+   page `live_chat` (they have one) adds "Live chat" to Send on -- chosen first while they are on the site. #}
 {% from 'cs/crm/_bits.html' import num_chip %}
-<section class="card lead-box" id="box" data-box data-via="{{ via0 or ('whatsapp' if person.phone else (social[0] if social else '')) }}">
-  {% if person.phone or social %}
+<section class="card lead-box" id="box" data-box data-via="{{ via0 or ('whatsapp' if person.phone else (social[0] if social else ('webchat' if live_chat else ''))) }}">
+  {% if via0 == 'webchat' %}
+  <div class="box-on" role="group" aria-label="Send on"><span class="lbl">Send on:</span>
+    <button type="button" class="chip on" data-box-via data-via="webchat"><i class="fa-regular fa-comment-dots"></i> Live chat</button>
+  </div>
+  {% elif person.phone or social or live_chat %}
   <div class="box-on" role="group" aria-label="Send on"><span class="lbl">Send on:</span>
     {% if person.phone %}<button type="button" class="chip" data-box-via data-via="whatsapp"><i class="fa-brands fa-whatsapp"></i> WhatsApp</button>{% endif %}
     {% for ch in social %}<button type="button" class="chip" data-box-via data-via="{{ ch }}"><i class="fa-brands fa-{{ 'instagram' if ch == 'instagram' else 'facebook-messenger' }}"></i> {{ 'Instagram' if ch == 'instagram' else 'Messenger' }}</button>{% endfor %}
+    {% if live_chat %}<button type="button" class="chip" data-box-via data-via="webchat"><i class="fa-regular fa-comment-dots"></i> Live chat</button>{% endif %}
   </div>
   {% endif %}
   {% if person.phone and wa and wa.num and (wa.line or wa.num.last4) %}
@@ -27,6 +34,7 @@
       <button type="button" class="cb primary" data-act="box-send" data-kind="text"><i class="fa-solid fa-paper-plane"></i> Send</button>
     </div>
   </div>
+  {% if via0 != 'webchat' %}
   <div class="box-tpl" data-box-tpl hidden>
     <span class="lbl">Choose an approved template</span>
     {% include 'cs/crm/_box_templates.html' %}
@@ -35,4 +43,5 @@
       <button type="button" class="cb primary" data-act="box-send" data-kind="template"><i class="fa-solid fa-paper-plane"></i> Send template</button>
     </div>
   </div>
+  {% endif %}
 </section>

@@ -144,11 +144,12 @@ MODULES = [
                desc='Everybody who wrote to us -- WhatsApp, e-mail, Instagram, Facebook, the website forms and its '
                     'chat -- one row each, newest first, and who is waiting on us.',
                tip='Every conversation on every channel, newest first.'),
-         # the website's chat bubble, answered live in tawk.to -- tawk.to's own screens inside the portal (2026-10-30)
-         _page('web_chat', 'Website chat', 'fa-comment-dots', ['messaging.website_chat'],
-               admin='messaging.website_chat', cs='messaging.website_chat', with_=('crm_inbox', 'wa_inbox'), grant=True,
-               desc="Visitors on our websites, live: tawk.to's chat inbox inside the portal.",
-               tip='Chat live with visitors on our websites (tawk.to).'),
+         # the website's chat bubble -- the portal's own (services/livechat.py), answered here (2026-10-30)
+         _page('web_chat', 'Live chat', 'fa-comment-dots',
+               ['messaging.live_chat_page', 'messaging.live_chats', 'messaging.live_chat', 'messaging.live_typing'],
+               admin='messaging.live_chat_page', cs='messaging.live_chat_page', with_=('crm_inbox', 'wa_inbox'),
+               grant=True, desc='Visitors on our websites write in the chat bubble; answer them here, live.',
+               tip='Chat live with visitors on our websites.'),
          _page('crm_people', 'Contacts', 'fa-address-book',
                _both('contacts', 'contact', 'contact_edit', 'contact_tags', 'find', 'contact_family_add',
                      'contact_family_role', 'contact_family_remove', 'contact_family_rename', 'contact_merge',
@@ -326,6 +327,11 @@ MODULES = [
          _page('insurance', 'Quote leads', 'fa-shield-heart', ['admin.insurance_quotes', 'cs.insurance_quotes'],
                admin='admin.insurance_quotes', cs='cs.insurance_quotes',
                desc='Every travel insurance quote request, and whether the quote went out.'),
+         # comes with Quote leads: the same requests, the Canada ones with what they picked and today's price
+         _page('insurance_canada', 'Canada quotes', 'fa-leaf', ['admin.canada_quotes_admin', 'admin.canada_rates_check'],
+               admin='admin.canada_quotes_admin', with_=('insurance',),
+               desc='Super visa and visitors to Canada quotes: what each customer picked, the price then and now, '
+                    'and the check of Secure Travel’s rates.'),
          _page('voices_insurance', 'Enquiries', 'fa-envelope', VOICES, admin='admin.voices', cs='cs.voices',
                args={'tab': 'contact', 'topic': 'insurance'}, line='Insurance enquiries',
                desc='Contact us messages about travel insurance.'),
@@ -484,7 +490,7 @@ SECTIONS = [
     {'key': 'services', 'label': 'Services', 'icon': 'fa-briefcase', 'subs': (
         {'key': 'companion', 'label': 'Travel Companion', 'icon': 'fa-plane-departure',
          'pages': ('posts', 'matches', 'new', 'import', 'scraper', 'listings')},
-        {'key': 'insurance', 'label': 'Travel Insurance', 'icon': 'fa-shield-heart', 'pages': ('insurance',)},
+        {'key': 'insurance', 'label': 'Travel Insurance', 'icon': 'fa-shield-heart', 'pages': ('insurance', 'insurance_canada')},
         {'key': 'sahayak', 'label': 'Sahayak', 'icon': 'fa-house-medical', 'pages': ('sahayak',)},
     )},
     # Sales results / Forecast and Team today / Team analysis are one line each, with a switch (TAB_GROUPS)

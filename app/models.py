@@ -1202,6 +1202,12 @@ class InsuranceQuote(db.Model):
     status = db.Column(db.String(15), default='quoted', index=True)
     quote_url = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    # Canada (insurance_type 'canada'): priced here from Secure Travel's calculators, shown on our own
+    # quotes page at /travel-insurance/canada/quotes/<token>. `extra` = {'cover': 'super_visa'|'visitors',
+    # 'days', 'picks': [{product, plan, limit, deductible, pay, total, each, fingerprint}], 'callback':
+    # {at, name, best_time, how, note}, 'emailed': [...]}. No rate table is kept: picks hold the price shown.
+    token = db.Column(db.String(32), unique=True, index=True)
+    extra = db.Column(db.JSON)
 
     user = db.relationship('User', foreign_keys=[user_id])
 
@@ -1897,7 +1903,7 @@ CRM_CHANNELS = ('whatsapp', 'call', 'email', 'sms', 'instagram', 'facebook', 'te
 CRM_CHANNEL_LABELS = {'whatsapp': 'WhatsApp', 'call': 'Call', 'email': 'E-mail', 'sms': 'SMS',
                       'instagram': 'Instagram', 'facebook': 'Facebook', 'telegram': 'Telegram',
                       'chat': 'Chat', 'note': 'Note', 'form': 'Form', 'system': 'System',
-                      'wa_other': 'WhatsApp (other number)', 'todo': 'To-do'}
+                      'wa_other': 'WhatsApp (other number)', 'todo': 'To-do', 'webchat': 'Live chat'}
 # the read-only "Replies" line: what the temperature codes mean, in plain words
 CRM_REPLIES = {'L': 'Comes back', 'R': 'Replied', 'U': 'Not replying', 'Z': 'Stopped replying',
                'DL': 'Wrong number', 'EL': 'Cover ended'}
@@ -2653,9 +2659,38 @@ class CrmTouchpoint(db.Model):
     # the WhatsApp number it went through (Set-up › Channels); NULL = the WhatsApp CRM's, or not WhatsApp
     line_id = db.Column(db.Integer, db.ForeignKey('crm_channel_lines.id', ondelete='SET NULL'), nullable=True,
                         index=True)
+    # the live chat (channel 'webchat') it was said in: a visitor sees only their own chat's messages
+    live_chat_id = db.Column(db.Integer, db.ForeignKey('crm_live_chats.id', ondelete='SET NULL'), nullable=True,
+                             index=True)
 
     agent = db.relationship('User', foreign_keys=[agent_id])
     line = db.relationship('CrmChannelLine', foreign_keys=[line_id])
+
+
+class CrmLiveChat(db.Model):
+    """One chat a visitor started from the portal's own chat bubble on our websites (services/livechat.py, 2026-10-30):
+    the secret their browser keeps to come back to it, the person and lead it made, the page they were on, and when
+    their browser last asked for news (so we know they are still on the site). Its messages are touchpoints
+    (channel 'webchat', live_chat_id) on the lead's timeline, like every other message."""
+    __tablename__ = 'crm_live_chats'
+
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(64), nullable=False, unique=True)
+    person_id = db.Column(db.Integer, db.ForeignKey('crm_people.id', ondelete='CASCADE'), nullable=True, index=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey('crm_leads.id', ondelete='SET NULL'), nullable=True)
+    agent_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)   # last to answer
+    site = db.Column(db.String(120))                 # nriparentservice.com
+    page_url = db.Column(db.String(500))
+    page_title = db.Column(db.String(200))
+    started_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    seen_at = db.Column(db.DateTime)                 # their browser last asked for news
+    read_upto = db.Column(db.Integer)                # the newest message of ours they had on screen
+    agent_typing_at = db.Column(db.DateTime)
+    closed_at = db.Column(db.DateTime)               # they ended it
+
+    person = db.relationship('CrmPerson', foreign_keys=[person_id])
+    lead = db.relationship('CrmLead', foreign_keys=[lead_id])
+    agent = db.relationship('User', foreign_keys=[agent_id])
 
 
 class CrmChannelLine(db.Model):

@@ -17,14 +17,15 @@ it separately:
                      tag at all and what the four conversion actions are called
 """
 import re
+from datetime import datetime
 
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user
 
 from app import db
 from app.models import ActivityEvent, ContactMessage, Feedback
-from app.services import (ads, help_center, insurance_countries, insurance_page, offices, org,
-                          phone, settings, urls)
+from app.services import (ads, canada_quotes, help_center, insurance_countries, insurance_page, offices,
+                          org, phone, settings, urls)
 from app.services.ratelimit import rate_limit
 
 insurance_bp = Blueprint('insurance', __name__)
@@ -303,3 +304,379 @@ def enquiry():
                        consent_from='insurance form',
                        details={'destination': destination, 'about': subject, 'preferred_contact': preferred})
     return jsonify({'success': True}), 201
+
+
+# --------------------------------------------------------------------------------------------------------------
+# Canada: super visa and visitors to Canada, priced on our own quotes page.
+#
+# Step 1 (here, from any of the quote forms): the trip is checked, saved as an InsuranceQuote with its own
+# unguessable address, made a lead (source ti-canada, the Travel insurance pipeline) and the quotes are
+# e-mailed to the customer -- in the background, so the form answers at once. The prices themselves come
+# live from Secure Travel's calculators every time (services/canada_quotes.py); nothing of theirs is stored.
+# Step 2 is a call from our team, never a checkout: the customer picks what they want on the quotes page and
+# asks for a call back; staff complete the purchase on Secure Travel's form with our tracking code.
+
+CANADA_COVERS = {'super_visa': 'Super visa insurance', 'visitors': 'Visitors to Canada insurance'}
+CALL_TIMES = ('Any time', 'Morning', 'Afternoon', 'Evening')
+CALL_HOW = ('Phone call', 'WhatsApp')
+MAX_PICKS = 6
+
+
+def _canada_err(text, status=400):
+    return jsonify({'success': False, 'error': text}), status
+
+
+def _yes(value):
+    return str(value or '').strip().lower() in ('y', 'yes', 'true', '1', 'on')
+
+
+def _canada_travellers(raw, default_pre):
+    """[{'age': '66', 'pre': 'n'}, ...] from the form's travellers, or an error message."""
+    out = []
+    for t in (raw if isinstance(raw, list) else []):
+        age = str((t.get('age') if isinstance(t, dict) else t) or '').strip()
+        if not age:
+            continue
+        if not age.isdigit() or int(age) > 120:
+            return None, 'Traveller ages must be whole numbers (years).'
+        pre = t.get('pre') if isinstance(t, dict) and t.get('pre') not in (None, '') else default_pre
+        out.append({'age': str(int(age)), 'pre': 'y' if _yes(pre) else 'n'})
+    if not out:
+        return None, "Enter at least one traveller's age."
+    if len(out) > canada_quotes.MAX_TRAVELLERS:
+        return None, 'We can quote up to %d travellers at a time.' % canada_quotes.MAX_TRAVELLERS
+    return out, None
+
+
+def _canada_url(quote, absolute=False):
+    if absolute:
+        return urls.site_link('insurance.canada_quotes', token=quote.token)
+    return urls.public_url('insurance.canada_quotes', token=quote.token)
+
+
+def _canada_ref(quote):
+    return 'CQ-%d' % quote.id
+
+
+def _canada_books(quote):
+    """Both covers priced for this request, now: {'super_visa': book | {'error'}, 'visitors': ...}.
+
+    The cover they chose is priced for their own dates; the other one is there to compare -- a year for a
+    super visa, their trip's days for a visit (a year when they asked for a super visa)."""
+    extra = quote.extra or {}
+    days = {'super_visa': 365, 'visitors': int(extra.get('days') or 365)}
+    if extra.get('cover') == 'super_visa':
+        days['visitors'] = 365
+    out = {}
+    for product in ('super_visa', 'visitors'):
+        try:
+            table_days = days[product]
+            book = canada_quotes.book(product, quote.travellers or [], table_days)
+            out[product] = book
+        except canada_quotes.Unavailable:
+            out[product] = {'product': product, 'label': canada_quotes.PRODUCTS[product]['label'],
+                            'error': 'Secure Travel’s prices could not be read just now.'}
+    return out
+
+
+def _lowest(book):
+    """Per plan, the lowest total for everyone, and the lowest with no deductible: for the e-mail and the lead."""
+    out = {}
+    if not book or book.get('error'):
+        return out
+    pres = [p['pre'] for p in book['people']]
+    for plan in book['plans']:
+        best = zero = None
+        for lim in book['limits'].get(plan['code'], ()):
+            for ded in book['deductibles']:
+                each = [p['prices'][pre][plan['code']][lim['code']][str(ded['value'])]
+                        for p, pre in zip(book['people'], pres)]
+                if any(x is None for x in each):
+                    continue
+                total = round(sum(each), 2)
+                row = (total, lim['label'], ded['label'])
+                if best is None or total < best[0]:
+                    best = row
+                if ded['value'] == 0 and (zero is None or total < zero[0]):
+                    zero = row
+        if best:
+            out[plan['label']] = {'from': best, 'no_deductible': zero}
+    return out
+
+
+def _canada_summary(quote):
+    extra = quote.extra or {}
+    ages = [t['age'] for t in (quote.travellers or [])]
+    pre = [i + 1 for i, t in enumerate(quote.travellers or []) if t.get('pre') == 'y']
+    cover = CANADA_COVERS.get(extra.get('cover'), 'Canada insurance')
+    when = '%s to %s' % (quote.start_date.strftime('%d %b %Y'), quote.end_date.strftime('%d %b %Y'))
+    return {
+        'cover': cover + (' · 1 year' if extra.get('cover') == 'super_visa' else ' · %s days' % extra.get('days')),
+        'dates': when,
+        'travellers': ('1 traveller · age %s' % ages[0]) if len(ages) == 1
+                      else '%d travellers · ages %s' % (len(ages), ', '.join(ages)),
+        'pre_existing': ('No' if not pre else 'Yes, traveller %s' % ', '.join(map(str, pre))),
+    }
+
+
+def _pick_line(p):
+    return '%s · %s · %s · %s%s' % (
+        canada_quotes.PRODUCTS.get(p['product'], {}).get('label', p['product']), p.get('plan_label', p['plan']),
+        p.get('limit_label', p['limit']), p.get('deductible_label', '$%s deductible' % p['deductible']),
+        (' · ' + canada_quotes.money(p['total'])) if p.get('total') is not None else '')
+
+
+def _in_background(fn, *args):
+    """Run `fn(app, *args)` after the response, in its own app context (inline under tests)."""
+    import threading
+    app = current_app._get_current_object()
+    if app.config.get('TESTING') or app.config.get('CANADA_MAIL_INLINE'):
+        fn(app, *args)
+        return
+    threading.Thread(target=fn, args=(app, *args), daemon=True, name='canada-quote-mail').start()
+
+
+def _mail_quote(app, quote_id, kind, link):
+    """E-mail the customer: 'quote' (step 1, their prices and the link) or 'callback' (we will call you).
+
+    `link` is built by the request that sends it: this runs on its own thread, where there is no request to
+    build an address from."""
+    from app.models import InsuranceQuote
+    from app.services import clock, mailer
+    with app.app_context():
+        try:
+            quote = db.session.get(InsuranceQuote, quote_id)
+            if quote is None:
+                return
+            s = _canada_summary(quote)
+            lines = ['Hello%s,' % ((' ' + (quote.name or '').split()[0]) if (quote.name or '').strip() else ''), '']
+            if kind == 'quote':
+                subject = 'Your Canada insurance quotes (%s)' % _canada_ref(quote)
+                lines += ['Thank you for asking NRI Parent Service for Canada insurance quotes.', '',
+                          'Cover:        %s' % s['cover'], 'Dates:        %s' % s['dates'],
+                          'Travellers:   %s' % s['travellers'], 'Pre-existing: %s' % s['pre_existing'],
+                          'Reference:    %s' % _canada_ref(quote), '']
+                book = _canada_books(quote).get((quote.extra or {}).get('cover') or 'super_visa')
+                low = _lowest(book)
+                if low:
+                    lines.append('Lowest prices for everyone together:')
+                    for plan, row in low.items():
+                        best = row['from']
+                        lines.append('  %s plan: from %s (%s cover, %s deductible)'
+                                     % (plan, canada_quotes.money(best[0]), best[1], best[2]))
+                        if row['no_deductible'] and row['no_deductible'] != best:
+                            z = row['no_deductible']
+                            lines.append('    with no deductible: from %s (%s cover)' % (canada_quotes.money(z[0]), z[1]))
+                    lines.append('')
+                    lines.append('Prices are estimates from Secure Travel’s published rates, checked %s IST. The final '
+                                 'premium is confirmed when the policy is issued.' % clock.fmt(datetime.utcnow(), zone='IST'))
+                else:
+                    lines.append('We could not read the prices just now. Open the link below in a little while, or '
+                                 'reply to this e-mail and our team will call you with them.')
+                lines += ['', 'See every option, compare the Standard and Enhanced plans, and pick the one you want:',
+                          link, '', 'Pick one and press "Request a call back": our agent will call you and complete '
+                                    'the application with you.']
+            else:
+                cb = (quote.extra or {}).get('callback') or {}
+                subject = 'We will call you about your Canada insurance (%s)' % _canada_ref(quote)
+                lines += ['Your request is in progress. Our agent will contact you%s%s.'
+                          % (' on WhatsApp' if cb.get('how') == 'WhatsApp' else ' by phone',
+                             (' (' + cb['best_time'].lower() + ')') if cb.get('best_time') and cb['best_time'] != 'Any time' else ''),
+                          '', 'What you picked:']
+                for p in (quote.extra or {}).get('picks') or []:
+                    lines.append('  • ' + _pick_line(p))
+                lines += ['', 'Cover:      %s' % s['cover'], 'Dates:      %s' % s['dates'],
+                          'Travellers: %s' % s['travellers'], 'Reference:  %s' % _canada_ref(quote), '',
+                          'Your quotes stay here: ' + link]
+            lines += ['', 'NRI Parent Service']
+            ok = mailer.send(subject, [quote.email], '\n'.join(lines), category='cs', force=True,
+                             from_name='NRI Parent Service · Travel insurance')
+            extra = dict(quote.extra or {})
+            extra['emailed'] = (extra.get('emailed') or []) + [{'kind': kind, 'ok': bool(ok), 'at': datetime.utcnow().isoformat()}]
+            quote.extra = extra
+            db.session.commit()
+        except Exception:          # noqa: BLE001 -- a mail we could not send never undoes a quote
+            db.session.rollback()
+            current_app.logger.exception('Canada quote e-mail (%s) failed for quote %s', kind, quote_id)
+
+
+def canada_start(data):
+    """Step 1 for Canada, from POST /api/insurance-quote with insurance_type 'canada' (main.api_insurance_quote)."""
+    import secrets
+    from datetime import date as _date, datetime as _dt, timedelta
+    from app.models import InsuranceQuote
+    from app.services import crm
+
+    def _day(key):
+        try:
+            return _dt.strptime(str(data.get(key, '') or '').strip(), '%Y-%m-%d').date()
+        except ValueError:
+            return None
+
+    cover = str(data.get('cover') or '').strip().lower().replace('-', '_')
+    if cover not in CANADA_COVERS:
+        cover = 'super_visa'
+    start = _day('start_date')
+    if not start or start < _date.today():
+        return _canada_err('Pick a coverage start date from today onwards.')
+    if cover == 'super_visa':
+        end = start + timedelta(days=364)          # a super visa policy is one full year, both ends counted
+    else:
+        end = _day('end_date')
+        if not end or end < start:
+            return _canada_err('The coverage end date must be on or after the start date.')
+    days = canada_quotes.cover_days(cover, start, end)
+    if days > canada_quotes.MAX_DAYS:
+        return _canada_err('A visitor policy covers up to a year. For longer, choose Super visa or ask our team.')
+    travellers, bad = _canada_travellers(data.get('travellers'), data.get('pre_existing'))
+    if bad:
+        return _canada_err(bad)
+    citizenship = str(data.get('citizenship', '') or '').strip().upper()
+    if citizenship and not re.fullmatch(r'[A-Z]{3}', citizenship):
+        citizenship = ''
+    email = str(data.get('email', '') or '').strip().lower()
+    if not EMAIL_RE.match(email):
+        return _canada_err('Please enter a valid email address.')
+    raw_phone = str(data.get('phone', '') or '').strip()
+    if not raw_phone:
+        return _canada_err('Please enter a phone number.')
+    e164, bad_phone = phone.normalise(raw_phone, str(data.get('phone_cc', '') or '').strip().upper() or phone.DEFAULT_ISO)
+    if bad_phone:
+        return _canada_err(bad_phone)
+
+    name = str(data.get('name') or '').strip()[:120]          # the popup asks for it; the other forms do not
+
+    quote = InsuranceQuote(
+        user_id=current_user.id if current_user.is_authenticated else None, email=email[:255], phone=e164[:30],
+        name=name or None, insurance_type='canada', citizenship=citizenship, destination='CAN', start_date=start,
+        end_date=end, travellers=travellers, token=secrets.token_urlsafe(16)[:22],
+        extra={'cover': cover, 'days': days})
+    # priced once now: their page must be readable for the quotes to show, and the lead says so either way
+    book = _canada_books_for(cover, travellers, days)
+    low = _lowest(book)
+    quote.status = 'quoted' if low else 'failed'
+    db.session.add(quote)
+    db.session.commit()
+    quote.quote_url = _canada_url(quote)
+    db.session.commit()
+
+    s = _canada_summary(quote)
+    crm.capture_safely(
+        'ti-canada', name=name or None, phone=quote.phone, email=quote.email, product='TI', user_id=quote.user_id,
+        departure_date=start, ends_on=end, ref=('insurance_quotes', quote.id),
+        consent=crm.ticked(data.get('wa_consent')), consent_from='Canada quote form',
+        details={'plan': 'Canada · ' + s['cover'], 'travellers_ages': ', '.join(t['age'] for t in travellers),
+                 'pre_existing': s['pre_existing'], 'cover': s['dates'], 'citizenship': citizenship,
+                 'quote': ('; '.join('%s from %s' % (k, canada_quotes.money(v['from'][0])) for k, v in low.items())
+                           if low else 'Secure Travel prices could not be read'),
+                 'quotes_page': _canada_url(quote, absolute=True), 'reference': _canada_ref(quote)})
+    _in_background(_mail_quote, quote.id, 'quote', _canada_url(quote, absolute=True))
+    return jsonify({'success': True, 'url': quote.quote_url, 'ref': _canada_ref(quote)})
+
+
+def _canada_books_for(cover, travellers, days):
+    try:
+        return canada_quotes.book(cover, travellers, days)
+    except canada_quotes.Unavailable:
+        return None
+
+
+def _canada_quote_or_404(token):
+    from flask import abort
+    from app.models import InsuranceQuote
+    quote = InsuranceQuote.query.filter_by(token=token, insurance_type='canada').first() if token else None
+    if quote is None:
+        abort(404)
+    return quote
+
+
+@insurance_bp.route('/travel-insurance/canada/quotes/<token>', endpoint='canada_quotes')
+def canada_quotes_page(token):
+    """The quotes page: every option, Standard on the left and Enhanced on the right, filters in the middle."""
+    quote = _canada_quote_or_404(token)
+    books = _canada_books(quote)
+    extra = quote.extra or {}
+    sv, vi = books.get('super_visa'), books.get('visitors')
+    page = {
+        'ref': _canada_ref(quote), 'cover': extra.get('cover') or 'super_visa',
+        'start': quote.start_date.isoformat(), 'end': quote.end_date.isoformat(),
+        'summary': _canada_summary(quote), 'books': books,
+        'travellers': quote.travellers or [],
+        'picks': extra.get('picks') or [], 'callback': extra.get('callback'),
+        'callbackUrl': url_for('insurance.canada_callback', token=quote.token),
+        'editUrl': urls.public_url('insurance.landing') + '#canada',
+        'callTimes': list(CALL_TIMES), 'callHow': list(CALL_HOW), 'maxPicks': MAX_PICKS,
+        'phone': phone.pretty(quote.phone, quote.phone) if quote.phone else '', 'email': quote.email,
+        'source': {k: v['url'] for k, v in canada_quotes.PRODUCTS.items()},
+    }
+    return render_template('insurance/canada_quotes.html', quote=quote, page=page,
+                           check_ok=all(not b.get('error') for b in books.values()))
+
+
+@insurance_bp.route('/travel-insurance/canada/quotes/<token>/call-back', methods=['POST'])
+@rate_limit(20, 3600)
+def canada_callback(token):
+    """Step 2 starts here: the options they picked, priced again now, and when to call them."""
+    from app.services import crm
+    quote = _canada_quote_or_404(token)
+    data = request.get_json(silent=True) or {}
+    name = str(data.get('name') or '').strip()[:120]
+    if not name:
+        return _canada_err('Please tell us your name, so our agent knows who to ask for.')
+    best_time = data.get('best_time') if data.get('best_time') in CALL_TIMES else CALL_TIMES[0]
+    how = data.get('how') if data.get('how') in CALL_HOW else CALL_HOW[0]
+    note = str(data.get('note') or '').strip()[:1000]
+
+    # their answers to "pre-existing condition?" may have changed on the page, one person at a time
+    pres = data.get('pre') if isinstance(data.get('pre'), list) else []
+    travellers = [dict(t, pre=('y' if _yes(pres[i]) else 'n') if i < len(pres) else t.get('pre', 'n'))
+                  for i, t in enumerate(quote.travellers or [])]
+    extra = dict(quote.extra or {})
+    raw = data.get('picks') if isinstance(data.get('picks'), list) else []
+    picks = []
+    for p in raw[:MAX_PICKS]:
+        if not isinstance(p, dict) or p.get('product') not in canada_quotes.PRODUCTS:
+            continue
+        product = p['product']
+        days = 365 if product == 'super_visa' or extra.get('cover') == 'super_visa' else int(extra.get('days') or 365)
+        try:
+            priced = canada_quotes.price_pick(product, travellers, days, str(p.get('plan')), str(p.get('limit')),
+                                              int(p.get('deductible') or 0))
+        except (canada_quotes.Unavailable, ValueError, TypeError):
+            priced = None
+        if priced is None:
+            continue
+        total, each, table = priced
+        monthly = p.get('pay') == 'monthly' and table.monthly_ok(days, str(p.get('limit')))
+        picks.append({'product': product, 'plan': str(p['plan']), 'plan_label': table.plan_label(str(p['plan'])),
+                      'limit': str(p['limit']), 'limit_label': table.limit_label(str(p['plan']), str(p['limit'])),
+                      'deductible': int(p.get('deductible') or 0),
+                      'deductible_label': '%s deductible' % dict(table.deductibles).get(int(p.get('deductible') or 0), ''),
+                      'days': days, 'total': total, 'each': each, 'pay': 'monthly' if monthly else 'once',
+                      'monthly': (round(total / table.monthly.get('months', 12), 2) if monthly else None),
+                      'monthly_fee': table.monthly.get('fee') if monthly else None,
+                      'fingerprint': table.fingerprint, 'priced_at': datetime.utcnow().isoformat()})
+    if raw and not picks:
+        return _canada_err('Those options could not be priced just now. Please try again, or ask for a call without a pick.')
+
+    extra.update({'picks': picks, 'callback': {'at': datetime.utcnow().isoformat(), 'name': name, 'best_time': best_time,
+                                               'how': how, 'note': note}})
+    quote.extra = extra
+    quote.travellers = travellers
+    quote.name = name
+    quote.status = 'callback'
+    db.session.commit()
+
+    lines = ['Asked for a call back (%s, %s) about their Canada quotes %s.' % (how, best_time.lower(), _canada_ref(quote))]
+    lines += ['Picked: ' + _pick_line(p) + (' (monthly)' if p['pay'] == 'monthly' else '') for p in picks] or \
+             ['No option picked: wants to talk it through.']
+    if note:
+        lines.append('Their note: ' + note)
+    crm.capture_safely('ti-canada', name=name, phone=quote.phone, email=quote.email, product='TI',
+                       user_id=quote.user_id, departure_date=quote.start_date, ends_on=quote.end_date,
+                       ref=('insurance_quotes', quote.id), message='\n'.join(lines),
+                       consent=crm.ticked(data.get('wa_consent')), consent_from='Canada quotes page',
+                       details={'picked': '; '.join(_pick_line(p) for p in picks) or 'nothing yet',
+                                'call_back': '%s · %s' % (how, best_time), 'reference': _canada_ref(quote)})
+    _in_background(_mail_quote, quote.id, 'callback', _canada_url(quote, absolute=True))
+    return jsonify({'success': True, 'ref': _canada_ref(quote), 'picks': picks})

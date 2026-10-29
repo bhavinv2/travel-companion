@@ -2,11 +2,12 @@
    its own colour, and how many people on it wait on us -- plus "Find a contact" across all of them. Small by default;
    the top button shows the names (remembered in this browser). The WhatsApp CRM's number opens its inbox in the frame;
    a Meta-direct number's chats are drawn here (messaging.number_chats). A number the website offers that nothing of
-   ours hears is greyed. #}
+   ours hears is greyed. Live chat (the website's own bubble, 2026-10-30) opens the same way (messaging.live_chats). #}
 <nav class="wr crm" data-wr aria-label="Our WhatsApp numbers"
      data-list-url="{{ url_for('messaging.number_chats', line_id=0) }}"
      data-thread-url="{{ url_for('messaging.number_chat', line_id=0, person_id=0) }}"
-     data-find-url="{{ url_for('messaging.find_chat') }}" data-start-url="{{ url_for('messaging.start_chat') }}">
+     data-find-url="{{ url_for('messaging.find_chat') }}" data-start-url="{{ url_for('messaging.start_chat') }}"
+     data-web-list-url="{{ url_for('messaging.live_chats') }}" data-web-thread-url="{{ url_for('messaging.live_chat', person_id=0) }}">
   <button type="button" class="wr-item wr-toggle" data-wr-toggle aria-expanded="false" title="Show the names">
     <span class="wr-ico"><i class="fa-solid fa-angles-right" aria-hidden="true"></i></span>
     <span class="wr-tx"><b>Our numbers</b><small>Hide the names</small></span></button>
@@ -33,10 +34,11 @@
     {% if CAN('crm_channels') %}</a>{% else %}</span>{% endif %}</li>
     {% endfor %}
   </ul>
-  {% if CAN('web_chat') %}
-  <a class="wr-item wr-web" href="{{ url_for('messaging.website_chat') }}" title="Website chat: visitors on our websites, live (tawk.to)">
-    <span class="wr-ico"><i class="fa-regular fa-comment-dots" aria-hidden="true"></i></span>
-    <span class="wr-tx"><b>Website chat</b><small>Live visitors · tawk.to</small></span></a>
+  {% if rail.live is not none %}
+  <button type="button" class="wr-item wr-num wr-live{{ ' on' if rail.on == 'web' }}" data-wr-num="web" aria-pressed="{{ 'true' if rail.on == 'web' else 'false' }}"
+          title="Live chat: visitors on our websites, answered here{% if rail.live %} · {{ rail.live }} waiting on us{% endif %}">
+    <span class="wr-ico wr-av"><i class="fa-regular fa-comment-dots" aria-hidden="true"></i><em class="wr-count" data-wr-count{{ ' hidden' if not rail.live }}>{{ rail.live if rail.live < 100 else '99+' }}</em></span>
+    <span class="wr-tx"><b>Live chat</b><small>Visitors on our websites</small></span></button>
   {% endif %}
   {% if CAN('crm_inbox') %}
   <a class="wr-item wr-all" href="{{ crm_url('inbox') }}" title="All conversations: WhatsApp, e-mail, the website's chat and forms">

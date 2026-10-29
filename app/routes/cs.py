@@ -274,7 +274,7 @@ def insurance_quotes():
         query = query.filter(InsuranceQuote.id == rec_id)
     if status in ('quoted', 'failed'):
         query = query.filter(InsuranceQuote.status == status)
-    if ins_type in ('visitors', 'health', 'schengen'):
+    if ins_type in ('visitors', 'canada', 'health', 'schengen'):
         query = query.filter(InsuranceQuote.insurance_type == ins_type)
     if q:
         pat = f'%{q}%'

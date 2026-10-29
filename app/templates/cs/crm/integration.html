@@ -119,6 +119,22 @@
     {% endif %}
     {% endif %}
 
+    {% elif c.form == 'livechat' %}
+    <form method="POST" action="{{ crm_url('integration_save', key='livechat') }}" class="stack ig-form" data-lc-form>{{ csrf() }}
+      <label class="ig-switch"><input type="checkbox" name="on" value="1"{{ ' checked' if c.cfg.on }}/> <span>The chat bubble is on</span></label>
+      <p class="hint">Off: our pages show tawk.to's bubble instead, if it is set; chats already open carry on.</p>
+      <label class="lb" for="ig-lc-title">Name on the chat window</label>
+      <input id="ig-lc-title" name="title" maxlength="60" value="{{ c.cfg.title }}" required/>
+      <label class="lb" for="ig-lc-greeting">Hello, the first thing a visitor reads</label>
+      <textarea id="ig-lc-greeting" name="greeting" rows="2" maxlength="240" required>{{ c.cfg.greeting }}</textarea>
+      <label class="lb" for="ig-lc-away">When nobody is online</label>
+      <textarea id="ig-lc-away" name="away" rows="2" maxlength="240" required>{{ c.cfg.away }}</textarea>
+      <label class="lb" for="ig-lc-color">Colour of the button and the window's top</label>
+      <div class="row"><input id="ig-lc-color" type="color" name="color" value="{{ c.cfg.color }}"/> <span class="hint">Dark colours read best: the words on it are white.</span></div>
+      <div class="row"><button class="cb primary">Save</button></div>
+    </form>
+    <p class="muted small">A new look reaches the websites within five minutes.</p>
+
     {% elif c.form == 'origins' %}
     <h3 class="small">Other websites that may send leads</h3>
     <p class="muted">Pages on this site always may. Add each other website whose forms use the snippet, such as a WordPress site.</p>

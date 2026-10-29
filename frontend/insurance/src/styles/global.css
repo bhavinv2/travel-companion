@@ -226,8 +226,8 @@ section[id]{scroll-margin-top:84px}
 /* concave joint so the tab bar and the card read as one shape, as in the reference */
 .iform-tabs::after{content:"";position:absolute;right:-36px;bottom:0;width:36px;height:36px;
   background:radial-gradient(circle 36px at 100% 0,transparent 0 36px,#fff 36px);pointer-events:none}
-.iform-tab{display:flex;align-items:center;gap:13px;padding:11px 26px 11px 11px;
-  min-width:272px;flex:0 0 auto;
+.iform-tab{display:flex;align-items:center;gap:13px;padding:11px 22px 11px 11px;
+  min-width:236px;flex:0 0 auto;
   border:1.5px solid var(--mist);border-radius:999px;background:#fff;cursor:pointer;
   font-family:inherit;text-align:left;
   transition:background .2s,border-color .2s,box-shadow .2s,transform .2s}
@@ -244,6 +244,7 @@ section[id]{scroll-margin-top:84px}
 .iform-tab.t-blue  .iform-tab-ic{background:var(--sky)}          .iform-tab.t-blue  .iform-tab-ic .ico{stroke:var(--blue)}
 .iform-tab.t-amber .iform-tab-ic{background:var(--sky)}          .iform-tab.t-amber .iform-tab-ic .ico{stroke:var(--blue)}
 .iform-tab.t-green .iform-tab-ic{background:var(--green-light)}  .iform-tab.t-green .iform-tab-ic .ico{stroke:var(--green)}
+.iform-tab.t-red   .iform-tab-ic{background:#FDECEA}             .iform-tab.t-red   .iform-tab-ic .ico{stroke:#D52B1E}
 /* the selected pill always gets the amber marker */
 .iform-tab.on .iform-tab-ic{background:var(--horizon)}
 .iform-tab.on .iform-tab-ic .ico{stroke:var(--navy)}
@@ -255,6 +256,16 @@ section[id]{scroll-margin-top:84px}
 }
 .iform-fields{margin-top:22px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .iform-fields-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+/* Canada: super visa or a visit, and pre-existing conditions -- what its prices turn on */
+.iform-ca{margin-top:22px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.iform-seg{max-width:none;margin-top:0}
+.iform-seg .seg{min-height:54px;font-size:15px;line-height:1.2;padding:6px 10px;font-family:inherit;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.iform-seg .seg small{display:block;font-size:11.5px;font-weight:500;color:var(--slate);margin-top:3px}
+.iform-seg .seg.on small{color:var(--blue)}
+.iform-sv-end{display:flex;align-items:center;gap:8px;min-height:48px;border:1.5px dashed var(--mist);border-radius:10px;
+  padding:0 12px;font-size:14px;font-weight:600;color:var(--navy);background:var(--sky)}
+@media(max-width:700px){.iform-ca{grid-template-columns:1fr}}
 @media(max-width:1080px){.iform-fields-4{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .iform-ages{margin-top:20px}
 .iform-ages-hd{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px}

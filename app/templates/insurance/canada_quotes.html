@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+{# Canada quotes: every option Secure Travel's calculators give these travellers, priced live
+   (services/canada_quotes.py), Standard on the left, Enhanced on the right, the filters, search and the
+   customer's picks in the middle. Step 2 is a call back from our team -- this page never sends anybody to a
+   checkout. Everything the page draws comes from `page` (routes/insurance.py: canada_quotes), handed to
+   static/js/canada-quotes.js as JSON; the server prices the picks again when the call back is asked for. #}
+{% block title %}Your Canada insurance quotes · {{ page.ref }}{% endblock %}
+{% block logo_sub %}Travel Insurance{% endblock %}
+{% block meta_description %}Super visa and visitors to Canada insurance quotes, compared side by side.{% endblock %}
+{% block extra_head %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/canada-quotes.css') }}">
+{% endblock %}
+
+{% block content %}
+{% set s = page.summary %}
+<div class="cq" id="cq">
+  <header class="cq-hero">
+    <svg class="cq-hero-leaf" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 4l5 10 6-3-2 13 9-9 2 6 9-2-4 11 4 3-15 12 2 6-14-2v15h-4V49l-14 2 2-6L4 33l4-3-4-11 9 2 2-6 9 9-2-13 6 3z"/></svg>
+    <svg class="cq-hero-trail" viewBox="0 0 900 120" preserveAspectRatio="none" aria-hidden="true"><path d="M6 96 C 190 26, 430 110, 640 44 C 760 8, 840 26, 894 58"/></svg>
+    <div class="cq-wrap">
+      <div class="cq-hero-top">
+        <span class="cq-eyebrow">
+          <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 4l5 10 6-3-2 13 9-9 2 6 9-2-4 11 4 3-15 12 2 6-14-2v15h-4V49l-14 2 2-6L4 33l4-3-4-11 9 2 2-6 9 9-2-13 6 3z"/></svg>
+          Canada · Reference {{ page.ref }}
+        </span>
+        <a class="cq-edit" href="{{ page.editUrl }}">Change the trip</a>
+      </div>
+      <h1>Your Canada insurance quotes</h1>
+      <p class="cq-lede">Every plan, limit and deductible for your travellers, side by side. Pick what suits you and our agent will call you to complete the application.</p>
+      <ul class="cq-facts">
+        <li><span>Cover</span><b>{{ s.cover }}</b></li>
+        <li><span>Dates</span><b>{{ s.dates }}</b></li>
+        <li><span>Travellers</span><b>{{ s.travellers }}</b></li>
+        <li><span>Pre-existing</span><b data-pre-fact>{{ s.pre_existing }}</b></li>
+      </ul>
+      <p class="cq-check" id="cqCheck" role="status"></p>
+    </div>
+  </header>
+
+  <div class="cq-wrap">
+    <div class="cq-board" id="cqBoard" data-show="s">
+      <section class="cq-col cq-std" aria-labelledby="cqStdH">
+        <div class="cq-col-hd">
+          <span class="cq-col-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3z"/><path d="m9 12 2 2 4-4"/></svg></span>
+          <div><h2 id="cqStdH">Standard plan</h2><p>Emergency medical care, hospital, drugs and dental.</p></div>
+          <span class="cq-count" data-count="s"></span>
+        </div>
+        <div class="cq-list" data-plan="s" aria-live="polite"></div>
+      </section>
+
+      <aside class="cq-mid" id="cqMid" aria-label="Filters, search and your picks">
+        <div class="cq-panel">
+          <div class="cq-panel-hd"><h2>Find your plan</h2><button type="button" class="cq-reset" id="cqReset">Reset</button></div>
+
+          <div class="cq-f">
+            <span class="cq-lbl">Cover</span>
+            <div class="cq-seg" id="cqProduct" role="radiogroup" aria-label="Cover"></div>
+          </div>
+
+          <label class="cq-search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input type="search" id="cqSearch" placeholder="Search: 500k, 1000, $2,900…" autocomplete="off" aria-label="Search the options">
+          </label>
+
+          <div class="cq-f" id="cqPreBox">
+            <span class="cq-lbl">Pre-existing medical condition</span>
+            <div class="cq-pre" id="cqPre"></div>
+          </div>
+
+          <div class="cq-f">
+            <span class="cq-lbl">Policy limit</span>
+            <div class="cq-chips" id="cqLimits"></div>
+          </div>
+
+          <div class="cq-f">
+            <span class="cq-lbl">Deductible</span>
+            <div class="cq-chips" id="cqDeds"></div>
+          </div>
+
+          <div class="cq-f cq-f-row">
+            <div>
+              <span class="cq-lbl">Show price</span>
+              <div class="cq-seg cq-seg-sm" id="cqPay" role="radiogroup" aria-label="Show price">
+                <button type="button" data-pay="once" aria-pressed="true">Total</button>
+                <button type="button" data-pay="monthly" aria-pressed="false">Monthly</button>
+              </div>
+            </div>
+            <div>
+              <span class="cq-lbl">Sort</span>
+              <select id="cqSort" class="cq-select" aria-label="Sort">
+                <option value="cover">Cover, low to high</option>
+                <option value="cover-desc">Cover, high to low</option>
+                <option value="price">Price, low to high</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="cq-picks" id="cqPicks">
+            <div class="cq-picks-hd"><b>Your picks</b><span id="cqPickN">0</span></div>
+            <ul id="cqPickList"></ul>
+            <p class="cq-picks-empty" id="cqPickEmpty">Tap any price on the left or right to add it here. Pick one, or a few to talk through.</p>
+            <button type="button" class="cq-cta" id="cqCall">Request a call back
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+            <p class="cq-cta-note">No payment here. Our agent calls you, answers your questions and completes the application with you.</p>
+          </div>
+
+          <div class="cq-done" id="cqDone" hidden></div>
+        </div>
+      </aside>
+
+      <div class="cq-tabs" id="cqTabs" role="tablist" aria-label="Plan">
+        <button type="button" role="tab" data-tab="s" aria-selected="true">Standard</button>
+        <button type="button" role="tab" data-tab="e" aria-selected="false">Enhanced</button>
+      </div>
+
+      <section class="cq-col cq-enh" aria-labelledby="cqEnhH">
+        <div class="cq-col-hd">
+          <span class="cq-col-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2l2.6 6.1 6.4.6-4.9 4.3 1.5 6.4L12 16l-5.6 3.4 1.5-6.4L3 8.7l6.4-.6z"/></svg></span>
+          <div><h2 id="cqEnhH">Enhanced plan</h2><p>Everything in Standard, with higher limits and extras.</p></div>
+          <span class="cq-count" data-count="e"></span>
+        </div>
+        <div class="cq-list" data-plan="e" aria-live="polite"></div>
+      </section>
+    </div>
+
+    <section class="cq-benefits" id="cqBenefits" hidden aria-labelledby="cqBenH">
+      <div class="cq-benefits-hd">
+        <h2 id="cqBenH">What each plan covers</h2>
+        <p>As Secure Travel lists it for the Visitors to Canada plan. Our agent will go through it with you.</p>
+      </div>
+      <div class="cq-ben-table" role="table" aria-label="Standard and Enhanced benefits">
+        <div class="cq-ben-row cq-ben-head" role="row">
+          <span role="columnheader">Benefit</span><span role="columnheader" class="std">Standard</span><span role="columnheader" class="enh">Enhanced</span>
+        </div>
+        <div id="cqBenRows"></div>
+      </div>
+    </section>
+
+    <section class="cq-fine">
+      <h2>Good to know</h2>
+      <ul>
+        <li>Prices are estimates read live from Secure Travel’s published calculators (<a href="{{ page.source.super_visa }}" target="_blank" rel="noopener">super visa</a>, <a href="{{ page.source.visitors }}" target="_blank" rel="noopener">visitors</a>) for RIMI’s Visitors to Canada plan. The final premium is confirmed from each traveller’s date of birth when the policy is issued.</li>
+        <li>Super visa cover is one full year (365 days) with at least $100,000 of emergency medical cover, as the super visa requires.</li>
+        <li>Each traveller is priced on their own; the totals add them up. A deductible is what you pay first on a claim: a bigger one lowers the price.</li>
+        <li>Monthly payment is the yearly price spread over 12 months, plus Secure Travel’s one-time monthly option fee.</li>
+        <li>Pre-existing conditions are covered when they have been stable for 90 days (under 70) or 180 days (70 to 84). Ages 85 to 89 with a pre-existing condition are not offered.</li>
+      </ul>
+    </section>
+  </div>
+
+  {# phones: the picks and the button stay in reach while scrolling the plans #}
+  <div class="cq-bar" id="cqBar" hidden>
+    <span><b id="cqBarN">0</b> picked</span>
+    <button type="button" class="cq-cta cq-cta-sm" data-open-call>Call me back</button>
+  </div>
+
+  {# the call-back form #}
+  <div class="cq-ov" id="cqOv" hidden>
+    <div class="cq-modal" role="dialog" aria-modal="true" aria-labelledby="cqModalH">
+      <button type="button" class="cq-x" data-close aria-label="Close">&times;</button>
+      <form id="cqForm" novalidate>
+        <span class="cq-eyebrow dark">Step 2 · A call from our team</span>
+        <h2 id="cqModalH">When should we call you?</h2>
+        <p class="cq-modal-sub">We’ll call <b>{{ page.phone or page.email }}</b> about <span id="cqFormWhat">your quotes</span>.</p>
+        <label class="cq-in"><span>Your name <i>*</i></span><input id="cqName" name="name" maxlength="120" autocomplete="name" required value="{{ quote.name or '' }}"></label>
+        <div class="cq-in"><span>Best time (India time)</span><div class="cq-chips" id="cqTimes"></div></div>
+        <div class="cq-in"><span>How</span><div class="cq-chips" id="cqHow"></div></div>
+        <label class="cq-in"><span>Anything we should know? <small>(optional)</small></span><textarea id="cqNote" rows="3" maxlength="1000" placeholder="e.g. My mother takes blood-pressure tablets"></textarea></label>
+        <label class="cq-tick"><input type="checkbox" id="cqWa"> Send my quote and updates on WhatsApp</label>
+        <p class="cq-err" id="cqErr" role="alert" hidden></p>
+        <button type="submit" class="cq-cta" id="cqSend">Send my request</button>
+      </form>
+      <div class="cq-ok" id="cqOk" hidden>
+        <span class="cq-ok-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></span>
+        <h2>Request received</h2>
+        <p>Your request is in progress. Our agent will contact you soon. We’ve e-mailed a copy to <b>{{ page.email }}</b>.</p>
+        <p class="cq-ok-ref">Reference <b>{{ page.ref }}</b></p>
+        <button type="button" class="cq-cta" data-close>Back to my quotes</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="application/json" id="cqData">{{ page|tojson }}</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/canada-quotes.js') }}" defer></script>
+{% endblock %}

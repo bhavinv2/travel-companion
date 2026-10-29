@@ -198,10 +198,12 @@ body:has(.wa-frame-wrap) #whatsNew { display: none; }
 .wr-off .wr-av { background: transparent; color: #8793a8; border: 2px dashed #b8c2d3; }
 .wr-off .wr-tx b { color: var(--c-muted); }
 .wr-nums { list-style: none; margin: 6px 0 0; padding: 6px 0 0; border-top: 1px solid #e3e8f0; display: flex; flex-direction: column; gap: 6px; }
-.wr-all, .wr-web { margin-top: auto; }
-.wr-web + .wr-all { margin-top: 0; }
-.wr-all .wr-ico, .wr-web .wr-ico { background: #fff; border: 1px solid #e3e8f0; }
-.wr-web .wr-ico { color: #03a84e; }
+.wr-all { margin-top: auto; }
+.wr-all .wr-ico { background: #fff; border: 1px solid #e3e8f0; }
+/* Live chat: the website's own bubble, drawn as a number of ours is -- below the numbers, in the bubble's navy */
+.wr-live { --onum: #0F1F3D; --onum-soft: #fff1d6; margin-top: 6px; }
+.wr-live .wr-av { font-size: 16px; }
+.wr-live:not(.on) .wr-av { color: #9a6510; }
 /* Find a contact: the button while small, the box once open */
 .wr-q { display: none; align-items: center; gap: 8px; margin: 2px 0; padding: 8px 10px; border: 1px solid #d8dfea; border-radius: 10px; background: #fff; }
 .wr-q i { color: var(--c-muted); font-size: 12px; }
@@ -276,6 +278,26 @@ body:has(.wa-frame-wrap) #whatsNew { display: none; }
 .nt .tl-scroll { flex: 1; max-height: none; min-height: 0; }
 .nt .lead-box { flex: none; border-bottom: 0; position: static; }   /* not the lead page's sticky box: it hid the messages */
 .nt .box-on { display: none; }               /* WhatsApp only: "WhatsApp goes from … to …" says it */
+/* a live chat: the visitor's avatar in the bubble's colours, a green ring and dot while they are on the website */
+.nc-av.live { --onum: #8a5a00; --onum-soft: #fff1d6; }
+.nc-av.here { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1f9d6c; }
+.lc-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: #1f9d6c;
+  box-shadow: 0 0 0 3px rgba(31, 157, 108, .18); margin-right: 6px; vertical-align: 1px; }
+.lc-where { color: var(--c-muted); }
+.lc-where.here { color: #146c4a; font-weight: 600; }
+.nt-who .lc-where { display: flex; align-items: center; gap: 0; flex-wrap: nowrap; min-width: 0; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+.nt-page { flex: none; }
+.nt-other.lc-gone { background: #eef2f7; color: #44526a; }
+/* Live chat's own page (messaging/live_chat_page.html): the same pane, filling the space under the bar */
+.lc-page .wa-mid { flex: 1; }
+.lc-page .wa-frame-bar h1 .lc-ico { color: #0F1F3D; }
+.lc-status { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; align-self: center; }
+.lc-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }
+.lc-chip.on { background: #e3f6ee; color: #146c4a; }
+.lc-chip.on .lc-dot { margin-right: 0; }
+.lc-chip.away { background: #eef2f7; color: #44526a; }
+.lc-chip.off { background: var(--c-warn-soft); color: var(--c-warn-ink); }
 @media (max-width: 1100px) {
   .wa-split.has-rail { grid-template-columns: auto minmax(0, 1fr); }
   .wa-split.has-rail .wa-lead-panel { grid-column: 1 / -1; }
@@ -299,9 +321,8 @@ body:has(.wa-frame-wrap) #whatsNew { display: none; }
   .wr .wr-tx, .wr.open .wr-tx { display: none; }
   .wr-nums { flex-direction: row; margin: 0; padding: 0 0 0 6px; border-top: 0; border-left: 1px solid #e3e8f0; }
   .wr-item { width: auto; }
-  .wr-web { margin: 0 0 0 auto; }
+  .wr-live { margin: 0 0 0 6px; }
   .wr-all { margin: 0 0 0 auto; }
-  .wr-web + .wr-all { margin: 0; }
   .wr.open .wr-q { order: 10; flex: 1 1 100%; }
   .wr.open .wr-hits { order: 11; flex: 1 1 100%; }
 }

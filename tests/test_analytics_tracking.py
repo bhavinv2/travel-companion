@@ -116,17 +116,32 @@ def test_site_verification_has_both_attributes(app, db, live):
 
 
 # ---------------------------------------------------------------------------
-# The tawk.to chat bubble (services/tawk.widget_here): the same gate as the tags
+# The chat bubble: ours (the website's live chat, services/livechat.py) while it is on; tawk.to's
+# (services/tawk.widget_here: the same gate as the tags) once ours is switched off -- never both
 # ---------------------------------------------------------------------------
 
 TAWK = 'embed.tawk.to/'
+OURS = '/live-chat.js'
+
+
+def _off(admin):
+    from app.services import livechat
+    livechat.save_config({'on': ''}, admin)
 
 
 def test_the_chat_bubble_is_on_the_public_pages(app, db, live):
     c = app.test_client()
     for path in ('/', '/travel-insurance', '/contact-us', '/trips'):
         html = c.get(path, environ_overrides=LIVE, base_url='https://nriparentservice.com').data.decode()
-        assert TAWK in html and '6a024ea8e784421c33cd4277/1jocg6h2o' in html, path
+        assert html.count(OURS) == 1 and TAWK not in html, path
+
+
+def test_tawks_bubble_comes_back_when_ours_is_switched_off(app, db, live, admin_user):
+    _off(admin_user)
+    c = app.test_client()
+    for path in ('/', '/travel-insurance', '/contact-us', '/trips'):
+        html = c.get(path, environ_overrides=LIVE, base_url='https://nriparentservice.com').data.decode()
+        assert TAWK in html and '6a024ea8e784421c33cd4277/1jocg6h2o' in html and OURS not in html, path
         assert html.count('Tawk_API = Tawk_API') == 1, path
 
 
@@ -137,7 +152,7 @@ def test_no_chat_bubble_in_the_tests_on_a_laptop_or_for_staff(app, db, client, a
         assert tawk.widget_here() == ''
     login(client, admin_user.email)
     html = client.get('/admin/health', environ_overrides=LIVE, base_url='https://nriparentservice.com').data.decode()
-    assert TAWK not in html, 'staff answer the chats; the bubble is for visitors'
+    assert TAWK not in html and OURS not in html, 'staff answer the chats; the bubble is for visitors'
 
 
 def test_the_bubble_can_be_switched_off_or_changed(app, db, live, monkeypatch):

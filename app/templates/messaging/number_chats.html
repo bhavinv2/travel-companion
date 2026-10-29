@@ -1,12 +1,14 @@
 {# The chats on one Meta-direct number of ours (messaging.number_chats), in the middle of WhatsApp chats when the rail
    picks it: All conversations' rows for that number, a search and the "whose" tabs. A fragment; `more` (page 2 and on)
-   brings only the next rows. #}
+   brings only the next rows. `live` (messaging.live_chats): the website's live chats -- a green dot for a visitor
+   still on the site, and where they are; nobody starts one from here. #}
 {% from 'cs/crm/_bits.html' import initials, when %}
 {% macro rows_of(rows) -%}
 {% for r in rows %}
-<li><button type="button" class="nc-row{{ ' waiting' if r.waiting }}" data-num-chat="{{ r.person.id }}">
-  <span class="nc-av {{ here.tone }}" aria-hidden="true">{{ initials(r.person.display_name) }}</span>
+<li><button type="button" class="nc-row{{ ' waiting' if r.waiting }}{{ ' here' if r.live }}" data-num-chat="{{ r.person.id }}">
+  <span class="nc-av {{ here.tone }}{{ ' here' if r.live }}" aria-hidden="true">{{ initials(r.person.display_name) }}</span>
   <span class="nc-main"><b>{{ r.person.display_name }}</b>
+    {% if live and r.where %}<small class="lc-where{{ ' here' if r.live }}">{% if r.live %}<i class="lc-dot" aria-hidden="true"></i>{% endif %}{{ r.where }}</small>{% endif %}
     <small>{% if r.direction == 'out' %}<i class="fa-solid fa-reply" aria-hidden="true"></i> {{ r.agent or 'We' }}: {% endif %}{{ r.body or '…' }}</small></span>
   <span class="nc-side"><time>{{ when(r.at, utcnow) }}</time>{% if r.waiting %}<em class="nc-wait" title="Waiting on us since {{ when(r.waiting_since, utcnow) }}">Waiting</em>{% endif %}</span>
 </button></li>
@@ -16,9 +18,9 @@
 {% if more %}{{ rows_of(rows) }}{% else %}
 <div class="nc" data-num-chats="{{ here.key }}" data-waiting="{{ counts.waiting }}">
   <div class="nc-head">
-    <button type="button" class="cb sm wa nc-new" data-num-new title="Message a lead on our {{ here.name }} number"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> New chat on {{ here.name }}</button>
+    {% if not live %}<button type="button" class="cb sm wa nc-new" data-num-new title="Message a lead on our {{ here.name }} number"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> New chat on {{ here.name }}</button>{% endif %}
     <label class="nc-find"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-      <input type="search" data-num-q value="{{ f.q }}" placeholder="Find a chat on {{ here.name }}" aria-label="Find a chat on {{ here.name }}" autocomplete="off"/></label>
+      <input type="search" data-num-q value="{{ f.q }}" placeholder="{{ 'Find a live chat' if live else 'Find a chat on ' ~ here.name }}" aria-label="{{ 'Find a live chat' if live else 'Find a chat on ' ~ here.name }}" autocomplete="off"/></label>
     <div class="nc-who" role="group" aria-label="Whose chats">
       {% for key, words in WHO %}<button type="button" data-num-who="{{ key }}" class="{{ 'on' if f.who == key }}" aria-pressed="{{ 'true' if f.who == key else 'false' }}">{{ words }} <span>{{ counts[key] }}</span></button>{% endfor %}
     </div>
@@ -26,7 +28,11 @@
   {% if rows %}
   <ul class="nc-rows" data-num-rows>{{ rows_of(rows) }}</ul>
   {% else %}
+  {% if live %}
+  <p class="nc-empty">{% if f.q or f.who != 'all' %}No live chat with these filters.{% else %}No live chats yet. When a visitor writes in the chat bubble on our website, they show up here.{% endif %}</p>
+  {% else %}
   <p class="nc-empty">{% if f.q or f.who != 'all' %}No chat on our {{ here.name }} number with these filters.{% else %}Nobody has written to our {{ here.name }} number yet. <b>New chat</b> starts one.{% endif %}</p>
+  {% endif %}
   {% endif %}
 </div>
 {% endif %}

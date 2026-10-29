@@ -2434,3 +2434,4 @@ a.cal-card:hover { box-shadow: 0 3px 10px rgba(15, 35, 64, .14); }
 .ws-note.onum-banner { align-items: center; }
 .ws-note.onum-banner a { text-decoration: none; }
 .lp-us { margin: -2px 0 8px; }
+.ig-switch { display: flex; align-items: center; gap: 8px; font-weight: 700; cursor: pointer; }

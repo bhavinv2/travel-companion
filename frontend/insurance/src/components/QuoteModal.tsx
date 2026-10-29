@@ -6,6 +6,8 @@ import { openQuotes, planFor, requestQuote } from '../utils/quoteRequest';
 
 const today = new Date().toISOString().slice(0, 10);
 const TITLES = ['Tell us about your trip', 'Who is travelling?', 'Your quotes are ready'];
+/** the purpose that makes a Canada trip a super visa (one year, priced on our own quotes page) */
+const SUPER_VISA = 'Super visa (parents & grandparents)';
 
 export default function QuoteModal() {
   const { quoteOpen, closeQuote, step, goStep, form, setForm, setAge, addTraveller, removeTraveller } = useQuote();
@@ -47,8 +49,9 @@ export default function QuoteModal() {
     setQuoteUrl('');
     setError('');
     (async () => {
+      const plan = planFor(form.destination);
       const res = await requestQuote({
-        plan: planFor(form.destination),
+        plan,
         start: form.start,
         end: form.end,
         citizenship: form.citizenship,
@@ -58,6 +61,10 @@ export default function QuoteModal() {
         phone: form.phone.trim(),
         phoneCc: form.cc,
         waConsent: form.waConsent,
+        // Canada is priced on our own quotes page: it needs these two, and a super visa needs no end date
+        cover: form.purpose === SUPER_VISA ? 'super_visa' : 'visitors',
+        preExisting: form.preExisting,
+        name: form.name.trim(),
       });
       if (cancelled) return;
       if (res.url) {
@@ -208,6 +215,7 @@ export default function QuoteModal() {
                   <label className="lbl" htmlFor="m-purp">Purpose of trip</label>
                   <span className="iw"><Icon name="i-plane" className="ico sm" />
                     <select className="inp" id="m-purp" value={form.purpose} onChange={(e) => setForm({ purpose: e.target.value })}>
+                      {form.destination === 'Canada' && <option>{SUPER_VISA}</option>}
                       <option>Visiting family</option>
                       <option>Holiday</option>
                       <option>Business</option>
@@ -240,7 +248,11 @@ export default function QuoteModal() {
                   View My Plans<Icon name="i-arrow" className="ico w sm" />
                 </button>
               </div>
-              <p className="tiny" style={{ marginTop: 12 }}>You’ll be taken to our secure quote page to compare the available plans and buy online.</p>
+              <p className="tiny" style={{ marginTop: 12 }}>
+                {form.destination === 'Canada'
+                  ? 'You’ll see every Canada plan side by side. Pick one and our agent calls you to complete it.'
+                  : 'You’ll be taken to our secure quote page to compare the available plans and buy online.'}
+              </p>
             </div>
           )}
 
@@ -261,10 +273,12 @@ export default function QuoteModal() {
                   <span className="tile" style={{ width: 64, height: 64, borderRadius: 20 }}><Icon name="i-checkc" /></span>
                   <h3 className="h3">Your quotes are ready</h3>
                   <p className="small" style={{ maxWidth: 420, textAlign: 'center' }}>
-                    They opened in a new tab. If nothing happened, your browser blocked it — use the button below.
+                    {form.destination === 'Canada'
+                      ? 'They opened in a new tab, and we’ve e-mailed them to you. Pick one there and our agent will call you.'
+                      : 'They opened in a new tab. If nothing happened, your browser blocked it — use the button below.'}
                   </p>
                   <a className="btn btn-p btn-lg" href={quoteUrl} target="_blank" rel="noopener noreferrer">
-                    View &amp; Buy My Plans<Icon name="i-arrow" className="ico w sm" />
+                    {form.destination === 'Canada' ? 'View My Quotes' : <>View &amp; Buy My Plans</>}<Icon name="i-arrow" className="ico w sm" />
                   </a>
                 </>
               )}

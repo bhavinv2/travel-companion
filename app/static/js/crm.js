@@ -317,7 +317,8 @@
     if (via && via !== 'whatsapp') {
       return post('lead/' + leadId + '/send', { text: text, task_id: taskId || null, via: via, answer_id: answerId || null }).then(function (d) {
         if (!d._ok) { toast(d.error || 'Could not send.', true); return null; }
-        toast(via === 'instagram' ? 'Sent on Instagram' : 'Sent on Messenger');
+        toast(via === 'webchat' ? (d.here === false ? 'Sent. They left the site: it waits in their chat' : 'Sent in the live chat')
+              : via === 'instagram' ? 'Sent on Instagram' : 'Sent on Messenger');
         return d;
       });
     }
@@ -757,7 +758,9 @@
     var d = tl ? tl.dataset : {};
     var via = box.dataset.via || 'whatsapp', st = d.waState || 'never', mode = box.dataset.userMode || '';
     var showText = false, showTpl = false, note = '', setup = false, toTpl = false, toText = false;
-    if (via === 'instagram' || via === 'facebook') {
+    if (via === 'webchat') {
+      showText = true;                       // the website's live chat: free text, whenever
+    } else if (via === 'instagram' || via === 'facebook') {
       note = (via === 'instagram' ? d.igNote : d.fbNote) || '';
       showText = !note;
     } else if (st === 'off') {

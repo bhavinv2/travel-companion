@@ -70,6 +70,9 @@ GROUPS = (
         _i('contact-other', 'Contact us · Others', 'Others', 'form', sub='Contact us'),
         _i('ti-quote', 'Travel insurance site · Search quote', 'Search quote', 'form', 'TI', 'ti-standard',
            'Travel insurance site'),
+        # super visa / visitors to Canada, priced on our own quotes page (services/canada_quotes.py)
+        _i('ti-canada', 'Travel insurance site · Canada quote', 'Canada quote', 'form', 'TI', 'ti-standard',
+           'Travel insurance site'),
         _i('ti-expert', 'Travel insurance site · Request (WhatsApp / call)', 'Request (WhatsApp / call)', 'popup',
            'TI', 'ti-standard', 'Travel insurance site'),
         _i('tc-trip-post', 'Travel companion site · Companion post', 'Companion posts', 'form', 'TC', 'tc-companion',
@@ -83,6 +86,8 @@ GROUPS = (
         _i('sh-apply', 'Sahayak site · Nurse job application', 'Nurse job application', 'form', 'SH',
            'nurse-recruitment', 'Sahayak site'),
         _i('web-other', 'Website · Others', 'Others', 'form', sub='Other websites'),
+        # our own chat bubble (services/livechat.py): answered in the portal, so it needs no half-hourly check
+        _i('live-chat', 'Website live chat', 'Live chat', 'chat', sub='Every website'),
     )),
 )
 ITEMS = {it.key: (g, it) for g, _n, _ic, items in GROUPS for it in items}
@@ -94,7 +99,7 @@ GROUP_SAYS = {
     'staff': 'Companion posts the team put up from Facebook groups and WhatsApp.',
     'other': 'Anything that fits nowhere else, an e-mail to us included.',
     'imports': 'Lists brought in on Bring in & download: Excel sheets, the scraper, CSV files.',
-    'web': 'Forms on our websites: they file their leads here by themselves.',
+    'web': 'Forms and the live chat on our websites: they file their leads here by themselves.',
     'unsorted': 'Not on the list: an old source, or a page nobody has set up. Move their leads onto the list.'}
 GROUP_NAMES = {g: (name, icon) for g, name, icon, _items in GROUPS}
 UNSORTED = ('unsorted', 'Not in the list', 'fa-circle-question')

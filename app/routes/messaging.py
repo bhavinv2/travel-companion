@@ -229,9 +229,11 @@ def _rail(num, chat):
     """The rail beside WhatsApp chats (Messaging Hub, 2026-10-29): each WhatsApp number of ours, the WhatsApp CRM's
     first, with how many people on it wait on us, and the website's WhatsApp numbers nothing of ours hears. `num` is the
     number to open on: the WhatsApp CRM's (its inbox in the frame) unless it names a Meta-direct number, whose chats
-    are drawn here (number_chats) -- with `chat`, that person's chat open."""
+    are drawn here (number_chats) -- with `chat`, that person's chat open. 'web' is Live chat (the website's own
+    bubble): `live` its people waiting on us, None for somebody without the page."""
     from app.services import channels, crm_inbox
     waiting = crm_inbox.waiting_by_number(current_user)
+    live = crm_inbox.live_waiting(current_user) if access.can(current_user, 'web_chat') else None
     nums = []
     for line in [None] + channels.lines():
         b = channels.badge(line)
@@ -239,8 +241,9 @@ def _rail(num, chat):
                  state=None if line is None or line.status == 'live'
                  else channels.STATUS_WORDS.get(line.status, line.status))
         nums.append(b)
-    on = num if num != 'crm' and num in {b['key'] for b in nums} else 'crm'
-    return {'nums': nums, 'unheard': channels.unheard(), 'on': on, 'chat': chat if on != 'crm' else None}
+    keys = {b['key'] for b in nums} | ({'web'} if live is not None else set())
+    on = num if num != 'crm' and num in keys else 'crm'
+    return {'nums': nums, 'unheard': channels.unheard(), 'on': on, 'chat': chat if on != 'crm' else None, 'live': live}
 
 
 @messaging_bp.route('/contacts')
@@ -572,6 +575,7 @@ def lead_panel():
     from app.services import channels
     conversation_id = (request.args.get('conversation') or '').strip()[:64]
     line = None
+    live = request.args.get('num') == 'web'          # beside a website live chat (Live chat on the rail)
     if request.args.get('person', type=int):
         # a chat on a Meta-direct number, opened in the rail's chats (number_chat): that number's 24 hours
         person = _visible_person(request.args.get('person', type=int))
@@ -598,8 +602,9 @@ def lead_panel():
             .with_entities(CrmTouchpoint.created_at).order_by(CrmTouchpoint.created_at.desc()).first())
     return render_template('messaging/lead_panel.html', state='lead', belongs=belongs,
                            suggested=crm.suggested_reply(lead, current_user), conversation=conversation_id,
-                           window_left=crm_metrics.window_left_hours(last[0] if last else None),
-                           us=channels.badge(line), **lead_card_context(lead, compact=True), **_common())
+                           window_left=crm_metrics.window_left_hours(last[0] if last else None), live=live,
+                           us=None if live else channels.badge(line), **lead_card_context(lead, compact=True),
+                           **_common())
 
 
 @messaging_bp.route('/lead-panel/make', methods=['POST'])
@@ -631,28 +636,81 @@ def lead_panel_make():
     return redirect(url_for('messaging.lead_panel', conversation=request.form.get('conversation'), phone=digits))
 
 
-# ------------------------------------------------- the website's live chat (tawk.to), inside the portal
+# ------------------------------------------------- the website's live chat: our own bubble, answered here
 
-TAWK_DASHBOARD = 'https://dashboard.tawk.to/'
-
-
-@messaging_bp.route('/website-chat')
+@messaging_bp.route('/live-chat')
 @login_required
-def website_chat():
-    """Website chat: tawk.to's own inbox in the portal's frame, to chat live with visitors on our websites (the bubble
-    on nriparentservice.com, preventia360.com and the portal's public pages). tawk.to has no way for another system
-    to answer, so its screens come in whole; each person signs in to tawk.to once, inside the frame. Every chat still
-    lands on its lead through the webhook (services/tawk.py)."""
-    from app.services import tawk
+def live_chat_page():
+    """Live chat (2026-10-30): visitors on our websites, answered here -- the chats on the left (live_chats), one chat
+    with the lead page's own box in the middle (live_chat). The same pane opens from the rail beside WhatsApp chats.
+    The bubble itself is services/livechat.py; nothing of tawk.to's is framed."""
+    from app.routes.crm import _common
+    from app.services import livechat
     if not access.allowed(current_user, request.endpoint):
         flash('Your role does not include that page.', 'warning')
         return redirect(access.home_url(current_user))
-    return render_template('messaging/website_chat.html', tawk_url=TAWK_DASHBOARD, hooked=tawk.enabled())
+    leads = access.can(current_user, 'crm_board') or access.can(current_user, 'crm_today')
+    return render_template('messaging/live_chat_page.html', cfg=livechat.config(), leads=leads,
+                           online=livechat.online(now=datetime.utcnow()), chat=request.args.get('chat', type=int),
+                           **_common())
+
+
+@messaging_bp.route('/live-chat/chats')
+@login_required
+def live_chats():
+    """The website's live chats, newest first (crm_inbox, channel 'webchat'): who is still on the site, the page they
+    are on, its search and "whose" tabs. A fragment; ?n=2 and on bring only the next rows."""
+    from app.services import crm_inbox, livechat
+    _for_leads()
+    f = crm_inbox.live_filters(request.args)
+    n = request.args.get('n', type=int) or 1
+    data = crm_inbox.page(f, current_user, n)
+    now = datetime.utcnow()
+    chats = livechat.chats_of([r['person'].id for r in data['rows']])
+    for r in data['rows']:
+        c = chats.get(r['person'].id)
+        r['live'] = livechat.here(c, now)
+        r['where'] = livechat.status_line(c, now)
+    return render_template('messaging/number_chats.html', f=f, here=LIVE_BADGE, WHO=crm_inbox.WHO, live=True,
+                           more=n > 1, utcnow=now, **data)
+
+
+@messaging_bp.route('/live-chat/<int:person_id>')
+@login_required
+def live_chat(person_id):
+    """One visitor's live chat in the middle: their messages (livechat.thread), where they are, and the lead page's
+    own box sending on "Live chat" (livechat.reply). A fragment, fetched again to stay fresh (crm.js CRM_applyLive)."""
+    from app.routes.crm import _common
+    from app.services import crm, livechat
+    _for_leads()
+    person = _visible_person(person_id)
+    chat = livechat.chat_of(person)
+    lead = (chat.lead if chat is not None and chat.lead is not None and chat.lead.deleted_at is None else None)         or crm.wa_lead_for(person) or next((l for l in person.leads if l.deleted_at is None), None)
+    now = datetime.utcnow()
+    ctx = dict(person=person, lead=lead, here=LIVE_BADGE, chat=chat, live=livechat.here(chat, now),
+               where=livechat.status_line(chat, now))
+    if lead is None or chat is None:
+        return render_template('messaging/live_chat.html', **ctx)
+    return render_template('messaging/live_chat.html', wa={'state': 'live', 'num': None}, stream=livechat.thread(lead),
+                           box_note='', social_notes={}, social=[], chat_url=None, via0=livechat.CHANNEL,
+                           quick=crm.quick_replies_for(lead, current_user), **ctx, **_common())
+
+
+@messaging_bp.route('/live-chat/<int:person_id>/typing', methods=['POST'])
+@login_required
+def live_typing(person_id):
+    """One of us is typing in this chat: the visitor sees it for a few seconds."""
+    from app.services import livechat
+    _for_leads()
+    return jsonify(ok=livechat.typing(_visible_person(person_id), current_user))
 
 
 # ------------------------------------------------- our other numbers, beside WhatsApp chats (the rail)
 
 FIND_SHOWN = 12
+# the live chat in the rail and its screens, drawn as a number of ours is (channels.badge's keys)
+LIVE_BADGE = {'key': 'web', 'code': 'LIVE', 'name': 'Live chat', 'tone': 'live', 'phone': None, 'last4': None,
+              'engine': 'Our websites', 'live': True}
 
 
 def _for_leads():

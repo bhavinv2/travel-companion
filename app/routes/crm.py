@@ -990,6 +990,10 @@ def lead_page_context(lead, confirm=False):
                 if crm.wa_team_on() and crm_role(current_user) and (person.phone or person.wacrm_conversation_id)
                 and not wa.get('line') else None)
     via = request.args.get('via')
+    # the website's live chat (services/livechat.py): "Live chat" in Send on, first while they are on the site
+    from app.services import livechat
+    live_chat = livechat.chat_of(person)
+    live_here = livechat.here(live_chat)
     back = session.get('crm_back') or ''
     if back.startswith('/') and not back.startswith('//'):
         back_url = back
@@ -1008,7 +1012,8 @@ def lead_page_context(lead, confirm=False):
                family=crm_household.line(person, current_user), files=crm_files.for_lead(lead.id),
                qp=crm_quotes.card(lead, current_user), ai_on=_ai_on(),
                chat_url=chat_url, stream=crm_timeline.build(lead), tpl=crm.box_templates(lead, current_user),
-               via0=via if via in ('whatsapp', 'instagram', 'facebook') else '')
+               live_chat=live_chat is not None,
+               via0=via if via in ('whatsapp', 'instagram', 'facebook', 'webchat') else ('webchat' if live_here else ''))
     return ctx
 
 
@@ -1170,6 +1175,18 @@ def send(lead_id):
     if quick is not None and quick.code:
         quick.use_count = (quick.use_count or 0) + 1
         data['code'] = quick.code
+    if via == 'webchat':
+        # the website's live chat (services/livechat.py): their chat on our website, whenever they come back to it
+        from app.services import livechat
+        try:
+            result = livechat.reply(lead, text, current_user)
+        except livechat.ChatError as exc:
+            db.session.rollback()
+            return jsonify({'error': str(exc)}), 400
+        if task is not None and task.status == 'open':
+            crm.complete_task(task, user=current_user)
+            db.session.commit()
+        return jsonify({'success': True, **result})
     if via in crm.SOCIAL_ID:
         try:
             result = crm.send_social(lead, via, text[:1900], user=current_user, task=task,

@@ -1,7 +1,7 @@
 """Inbox › All conversations (Staff Console 2.0, 2026-10-26): everybody who wrote to us, on any channel, one row each.
 
 WhatsApp, e-mail, Instagram, Facebook, the website's forms (contact us, insurance, Sahayak, trip posts, ad forms) and
-its chat (tawk.to) all land on the lead's timeline as a message from them (CrmTouchpoint, direction 'in'), so this
+its chat (the portal's own live chat, and tawk.to's before it) all land on the lead's timeline as a message from them (CrmTouchpoint, direction 'in'), so this
 is a list over those messages and stores nothing of its own. A row is a person: what was said last either way, the
 lead it is about, who looks after it, and whether they are waiting on us (crm_metrics.waiting_on_us -- the one
 meaning of that number). Opening a row goes where it is answered: their chat in WhatsApp chats when the last word
@@ -13,6 +13,7 @@ What somebody sees is what they may see anywhere else: the listeners of crm_acce
     filters(args)      the page's filters from the query string, made safe
     page(f, user, n)   the rows of one page, the total, and the count of each "whose" tab
     waiting_by_number  per WhatsApp number of ours, the people waiting on us (the rail beside WhatsApp chats)
+    live_filters / live_waiting  the website's live chats only (Live chat, and its place on the rail)
 """
 from sqlalchemy import case, exists, func, or_, select, true
 
@@ -24,7 +25,7 @@ from app.services import crm_metrics
 GROUPS = (('whatsapp', 'WhatsApp', 'fa-brands fa-whatsapp', ('whatsapp',)),
           ('email', 'E-mail', 'fa-solid fa-envelope', ('email',)),
           ('forms', 'Website forms', 'fa-solid fa-file-lines', ('form',)),
-          ('chat', 'Website chat', 'fa-regular fa-comment-dots', ('chat',)),
+          ('chat', 'Website chat', 'fa-regular fa-comment-dots', ('webchat', 'chat')),
           ('social', 'Instagram & Facebook', 'fa-brands fa-instagram', ('instagram', 'facebook')))
 GROUP_BY_KEY = {g[0]: g for g in GROUPS}
 CHANNELS = tuple(c for g in GROUPS for c in g[3])
@@ -50,7 +51,25 @@ def filters(args):
 
 
 def _channels(f):
+    """`f['only']`: these touchpoint channels and no others (the live chats: ('webchat',))."""
+    if f.get('only'):
+        return f['only']
     return GROUP_BY_KEY[f['ch']][3] if f['ch'] else CHANNELS
+
+
+LIVE = ('webchat',)
+
+
+def live_filters(args):
+    """filters() for the website's live chats alone: tawk.to's chats (channel 'chat') were never answered here."""
+    f = filters({'who': args.get('who'), 'q': args.get('q'), 'ch': 'chat'})
+    f['only'] = LIVE
+    return f
+
+
+def live_waiting(user):
+    """How many people wait on us in the website's live chat: the "Waiting on us" tab of Live chat."""
+    return _query(dict(live_filters({}), who='waiting'), user, 'waiting').count()
 
 
 def _on_number(f):
@@ -98,6 +117,8 @@ def _waiting(f, person_filter):
     chat is one person on one number, as tawk.to gives each number its own inbox."""
     w = crm_metrics.waiting_rows(person_filter).subquery()
     q = select(w.c.person_id, w.c.created_at)
+    if f.get('only'):
+        q = q.where(w.c.channel.in_(f['only']))
     if f.get('num'):
         q = q.where(w.c.channel == 'whatsapp',
                     w.c.line_id.is_(None) if f['num'] == 'crm' else w.c.line_id == int(f['num']))
@@ -148,7 +169,8 @@ def _rows(ids, f):
               .filter(CrmTouchpoint.id.in_(select(ranked.c.id).where(ranked.c.n == 1)))}
     touches = crm_metrics.last_touches(ids)
     # with a number chosen, "waiting" is on that number (_waiting): the message we owe an answer to went to it
-    owed = dict(db.session.execute(_waiting(f, CrmTouchpoint.person_id.in_(ids))).all()) if f.get('num') else None
+    owed = (dict(db.session.execute(_waiting(f, CrmTouchpoint.person_id.in_(ids))).all())
+            if f.get('num') or f.get('only') else None)
     # which of our WhatsApp numbers each person has talked on: a chat is one person on one number
     used, named = {}, {}
     if channels.several():

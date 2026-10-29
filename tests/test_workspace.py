@@ -43,7 +43,8 @@ def test_the_first_workspace_is_written_from_how_the_site_already_works(app, adm
     a, c, n = member(ws, admin_user), member(ws, cs_user), member(ws, narrow)
     assert a.is_owner and a.role.system_key == 'admin'
     assert c.role.system_key == 'cs' and not c.is_owner
-    assert sorted(n.role.pages) == ['guide', 'home', 'insurance'] and n.role.name.startswith('Customer service: ')
+    # Canada quotes comes with Quote leads (its `with_`)
+    assert sorted(n.role.pages) == ['guide', 'home', 'insurance', 'insurance_canada'] and n.role.name.startswith('Customer service: ')
     assert access.ensure_defaults().id == ws.id                      # never twice
     assert Workspace.query.count() == 1
 

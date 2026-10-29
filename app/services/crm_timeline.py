@@ -8,7 +8,8 @@ What goes in:
   events     only this lead's: stage moves, calls, notes, who looks after it, follow-ups done or
              not needed, "I sent the quote", the opt-out -- as slim lines
 
-number_thread() is one chat beside WhatsApp chats: only their WhatsApp messages with one number of ours.
+number_thread() is one chat beside WhatsApp chats: only their WhatsApp messages with one number of ours;
+channel_thread() is one chat of another channel the portal answers in (the website's live chat).
 
 Nothing here calls the WhatsApp CRM.
 """
@@ -21,9 +22,10 @@ from app.models import (CRM_CALL_OUTCOMES, CRM_CHANNEL_LABELS, CrmStageChange, C
 from app.services import crm
 
 TIMELINE_LIMIT = 300
-PERSON_CHANNELS = ('whatsapp', 'instagram', 'facebook')     # every one of their leads' messages
-BUBBLE_CHANNELS = ('whatsapp', 'instagram', 'facebook', 'wa_other', 'sms', 'telegram', 'email', 'chat', 'call')
-ICONS = {'whatsapp': 'fa-brands fa-whatsapp', 'wa_other': 'fa-brands fa-whatsapp',
+PERSON_CHANNELS = ('whatsapp', 'instagram', 'facebook', 'webchat')     # every one of their leads' messages
+BUBBLE_CHANNELS = ('whatsapp', 'instagram', 'facebook', 'wa_other', 'sms', 'telegram', 'email', 'chat', 'call',
+                   'webchat')
+ICONS = {'webchat': 'fa-regular fa-comment-dots', 'whatsapp': 'fa-brands fa-whatsapp', 'wa_other': 'fa-brands fa-whatsapp',
          'instagram': 'fa-brands fa-instagram', 'facebook': 'fa-brands fa-facebook-messenger',
          'telegram': 'fa-brands fa-telegram', 'sms': 'fa-solid fa-comment-sms', 'email': 'fa-solid fa-envelope',
          'call': 'fa-solid fa-phone', 'chat': 'fa-regular fa-comment'}
@@ -165,10 +167,20 @@ def number_thread(lead, line, now=None, limit=THREAD_LIMIT):
     """One chat as WhatsApp chats shows it for a number answered in the portal: the person's WhatsApp messages with
     one number of ours (`line`; None = the WhatsApp CRM's), oldest first, with the days between. The bubbles do not
     name the number: the whole thread is on it."""
-    p = lead.person
     on = CrmTouchpoint.line_id.is_(None) if line is None else CrmTouchpoint.line_id == line.id
+    return _thread(lead, [CrmTouchpoint.channel == 'whatsapp', on], now, limit)
+
+
+def channel_thread(lead, channel, now=None, limit=THREAD_LIMIT):
+    """One chat of one channel, all of it the person's (the website's live chat: 'webchat'), as number_thread draws a
+    number's."""
+    return _thread(lead, [CrmTouchpoint.channel == channel], now, limit)
+
+
+def _thread(lead, where, now, limit):
+    p = lead.person
     rows = (CrmTouchpoint.query.options(joinedload(CrmTouchpoint.agent))
-            .filter(CrmTouchpoint.person_id == p.id, CrmTouchpoint.channel == 'whatsapp', on)
+            .filter(CrmTouchpoint.person_id == p.id, *where)
             .order_by(CrmTouchpoint.created_at.desc(), CrmTouchpoint.id.desc()).limit(limit + 1).all())
     items = []
     for tp in reversed(rows[:limit]):

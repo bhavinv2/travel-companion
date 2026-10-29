@@ -30,7 +30,8 @@ from app import db
 from app.models import CrmLead, CrmPerson, CrmTouchpoint
 from app.services.crm import WINDOW_HOURS
 
-REPLY_CHANNELS = ('whatsapp', 'instagram', 'facebook', 'email')    # where they write and we answer from here
+# where they write and we answer from here ('webchat': the website's live chat, the portal's own bubble)
+REPLY_CHANNELS = ('whatsapp', 'instagram', 'facebook', 'email', 'webchat')
 
 
 def _ranked(person_filter, until=None):

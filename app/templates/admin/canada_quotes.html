@@ -1,0 +1,155 @@
+{% extends 'base.html' %}
+{# Admin -> Travel Insurance -> Canada quotes (routes/admin_canada.py). A copy for following up: the lead itself
+   is in the Sales CRM. Each pick shows the price the customer was shown and today's price for the same pick,
+   read live from Secure Travel, so a changed price is seen before the call, not during it. #}
+{% from '_crm_pill.html' import crm_pill with context %}
+{% block title %}Canada quotes{% endblock %}
+{% block extra_css %}
+<style>
+  .caq-check{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:0 0 14px}
+  .caq-src{border:1px solid #e3eaf5;border-radius:14px;padding:14px 16px;background:#fff;display:grid;gap:4px;font-size:13px}
+  .caq-src b{font-size:14px}
+  .caq-src .ok{color:#15803d;font-weight:700}.caq-src .chg{color:#b45309;font-weight:700}.caq-src .bad{color:#b91c1c;font-weight:700}
+  .caq-src small{color:#64748b}
+  .caq-note{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:14px;padding:12px 14px;margin:0 0 18px;font-size:13px}
+  .caq-note code{background:#0f1f3d;color:#fff;border-radius:6px;padding:2px 7px;font-weight:700;letter-spacing:.05em}
+  .caq-differ{margin:0 0 14px;font-size:13px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:10px 14px}
+  .caq-differ ul{margin:6px 0 0;padding-left:18px}
+  .caq-picks{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+  .caq-picks li{font-size:12.5px;line-height:1.4;border-left:3px solid #2457c5;padding-left:8px}
+  .caq-picks li.e{border-left-color:#b76e00}
+  .caq-picks .now{font-weight:700}.caq-picks .now.same{color:#15803d}.caq-picks .now.changed{color:#b45309}
+  .caq-actions{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+  .caq-cb{font-size:12px;color:#475569;margin-top:4px}
+  .caq-filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .caq-filters select{border:1px solid #d6dee9;border-radius:10px;padding:7px 10px;font:inherit;font-size:13px;background:#fff}
+</style>
+{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% with active='insurance' %}{% include 'admin/_sidebar.html' %}{% endwith %}
+  <main class="admin-main">
+    <h1>Canada quotes</h1>
+    <p class="admin-sub">Super visa and visitors to Canada quotes from our own quotes page. This list is a copy for
+      following up: every request is also a lead in the Sales CRM (came from <b>Canada quote</b>, Travel insurance pipeline){% if pipeline_url %} —
+      <a href="{{ pipeline_url }}">open them in the pipeline</a>{% endif %}.</p>
+
+    <div class="caq-check">
+      {% for c in check.rows %}
+      <div class="caq-src">
+        <b>Secure Travel · {{ c.label }} page</b>
+        {% if c.error and not c.checked_at %}
+          <span class="bad">Could not be read: {{ c.error }}</span>
+        {% else %}
+          <span>Checked {{ c.checked_at|ist('%d %b, %H:%M') if c.checked_at else '—' }}{% if c.stale %} <span class="chg">(their page is not answering; showing that read)</span>{% endif %}</span>
+          {% if c.same is sameas true %}<span class="ok">✓ Same as the check before</span>
+          {% elif c.same is sameas false %}<span class="chg">↻ Changed since the check before{% if c.codes_changed %} ({{ c.codes_changed }} prices){% endif %}</span>
+          {% else %}<span><small>First read: nothing to compare with yet</small></span>{% endif %}
+          {% if c.changed_at %}<small>Last change seen {{ c.changed_at|ist('%d %b %Y, %H:%M') }}</small>{% endif %}
+          <small>{{ c.rates or 0 }} rates · fingerprint {{ c.fingerprint or '—' }} · <a href="{{ c.url }}" target="_blank" rel="noopener">their page</a></small>
+          {% if c.error %}<small class="bad">Last attempt failed: {{ c.error }}</small>{% endif %}
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% if check.differ %}
+    <div class="caq-differ"><b>The two pages disagree on {{ check.differ|length }} price{{ 's' if check.differ|length != 1 }}.</b>
+      Super visa quotes use the super visa page; visitor quotes use the visitors page.
+      <ul>{% for d in check.differ[:8] %}<li>{{ d.text }}: {{ money(d.super_visa) }} a day (super visa) vs {{ money(d.visitors) }} (visitors)</li>{% endfor %}</ul>
+    </div>
+    {% elif check.differ is not none %}
+    <p class="admin-count"><i class="fa-solid fa-circle-check"></i> The super visa and visitors pages agree on every price the super visa page offers.</p>
+    {% endif %}
+
+    <div class="caq-note">
+      <form method="post" action="{{ url_for('admin.canada_rates_check') }}" style="margin:0">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-primary btn-sm" type="submit"><i class="fa-solid fa-rotate"></i> Check Secure Travel now</button>
+      </form>
+      <span>Completing a purchase after the call? Use Secure Travel’s form with our tracking code <code>{{ tracking_code }}</code>:
+        <a href="{{ checkout_url }}" target="_blank" rel="noopener">open the checkout</a>.</span>
+    </div>
+
+    <div class="filter-row">
+      <div class="seg" role="tablist">
+        <a class="seg-item {{ 'active' if not status }}" role="tab" href="{{ url_for('admin.canada_quotes_admin', cover=cover or None, q=q or None, days=days or None) }}">
+          All <span class="seg-n">{{ counts.all }}</span></a>
+        {% for k, label in statuses.items() %}
+        <a class="seg-item {{ 'active' if status == k }}{{ ' empty' if not counts[k] }}" role="tab"
+           href="{{ url_for('admin.canada_quotes_admin', status=k, cover=cover or None, q=q or None, days=days or None) }}">
+          {{ label }} <span class="seg-n">{{ counts[k] }}</span></a>
+        {% endfor %}
+      </div>
+      <form method="get" class="inline-search caq-filters">
+        {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+        <select name="cover" aria-label="Cover" onchange="this.form.submit()">
+          <option value="">Any cover</option>
+          {% for k, label in covers.items() %}<option value="{{ k }}" {{ 'selected' if cover == k }}>{{ label }}</option>{% endfor %}
+        </select>
+        <select name="days" aria-label="When" onchange="this.form.submit()">
+          <option value="">Any time</option>
+          {% for d, label in [('1', 'Today'), ('7', 'Last 7 days'), ('30', 'Last 30 days'), ('90', 'Last 90 days')] %}<option value="{{ d }}" {{ 'selected' if days == d }}>{{ label }}</option>{% endfor %}
+        </select>
+        <input type="search" name="q" value="{{ q }}" placeholder="Search name, e-mail or phone">
+        <button class="btn btn-primary btn-sm" type="submit"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+        {% if q or cover or days %}<a class="btn-sm" href="{{ url_for('admin.canada_quotes_admin', status=status or None) }}">Clear</a>{% endif %}
+      </form>
+    </div>
+
+    <div class="admin-panel">
+    <div class="table-wrap">
+      <table class="admin-table stack-mobile">
+      <thead><tr><th>When</th><th>Who</th><th>Cover</th><th>Travellers</th><th>What they picked · shown → today</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for iq in quotes %}
+        {% set x = iq.extra or {} %}
+        <tr id="rec-{{ iq.id }}">
+          <td data-label="When">{{ iq.created_at|istd('%d %b %Y') }}<br><small>{{ iq.created_at|ist('%H:%M') }} · CQ-{{ iq.id }}</small></td>
+          <td data-label="Who">
+            <b>{{ iq.name or iq.email }}</b><br>
+            <small><a href="mailto:{{ iq.email }}">{{ iq.email }}</a>{% if iq.phone %} · {{ PHONE.pretty(iq.phone, iq.phone) }}{% endif %}</small>
+            <div style="margin-top:6px">{{ crm_pill('insurance_quote', 'insurance_quotes', iq.id, iq.phone, iq.email) }}</div>
+          </td>
+          <td data-label="Cover">{{ covers.get(x.cover, 'Canada') }}<br>
+            <small>{{ iq.start_date.strftime('%d %b %Y') }} → {{ iq.end_date.strftime('%d %b %Y') }} · {{ x.days or '' }} days</small></td>
+          <td data-label="Travellers">{{ iq.traveller_count }}<br>
+            <small>{% for t in iq.travellers or [] %}{{ t.age }}{% if t.pre == 'y' %} (pre-existing){% endif %}{{ ', ' if not loop.last }}{% endfor %}</small></td>
+          <td data-label="Picked">
+            {% set ps = picks.get(iq.id) or [] %}
+            {% if ps %}
+            <ul class="caq-picks">
+              {% for p in ps %}
+              <li class="{{ p.plan }}">{{ 'Super visa' if p.product == 'super_visa' else 'Visitor' }} · {{ p.plan_label }} · {{ p.limit_label }} · {{ p.deductible_label }}{% if p.pay == 'monthly' %} · monthly{% endif %}<br>
+                shown <b>{{ money(p.total) }}</b> →
+                {% if p.now is none %}<span class="now">today: cannot price</span>
+                {% elif p.same %}<span class="now same">today {{ money(p.now) }} ✓ same</span>
+                {% else %}<span class="now changed">today {{ money(p.now) }} ⚠ changed</span>{% endif %}</li>
+              {% endfor %}
+            </ul>
+            {% elif iq.status == 'callback' %}<small>No pick: wants to talk it through</small>
+            {% else %}<small>Nothing picked yet</small>{% endif %}
+          </td>
+          <td data-label="Status">
+            <span class="badge-pill {{ 'green' if iq.status == 'callback' else ('red' if iq.status == 'failed' else 'yellow') }}">{{ statuses.get(iq.status, iq.status) }}</span>
+            {% if x.callback %}<div class="caq-cb">{{ x.callback.how }} · {{ x.callback.best_time }}{% if x.callback.note %}<br>“{{ x.callback.note }}”{% endif %}</div>{% endif %}
+            {% set mails = x.emailed or [] %}{% if mails %}<div class="caq-cb">{{ mails|selectattr('ok')|list|length }}/{{ mails|length }} e-mails sent</div>{% endif %}
+          </td>
+          <td class="nowrap" data-label="">
+            <div class="caq-actions">
+              {% if iq.token %}<a class="btn-sm-outline" href="{{ url_for('insurance.canada_quotes', token=iq.token) }}" target="_blank" rel="noopener">Their quotes page</a>{% endif %}
+              <a class="btn-sm-outline" href="{{ checkout_url }}" target="_blank" rel="noopener" title="Secure Travel's form, tracking code {{ tracking_code }}">Buy at Secure Travel</a>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="admin-empty"><i class="fa-regular fa-folder-open"></i>
+          {{ 'No Canada quotes match this filter.' if (status or q or cover or days) else 'No Canada quotes yet.' }}</td></tr>
+        {% endfor %}
+      </tbody>
+      </table>
+    </div>
+    </div>
+    {% include 'admin/_pager.html' %}
+  </main>
+</div>
+{% endblock %}

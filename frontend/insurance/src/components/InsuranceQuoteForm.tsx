@@ -21,9 +21,15 @@ const PLANS = [
     blurb: 'Medical cover for eligible emergencies, hospitalisation, and doctor visits during your family’s stay in the USA.',
   },
   {
-    id: 'medical', icon: 'i-plane', tone: 'amber', title: 'Travel Medical', subtitle: 'Canada, Australia & the rest of the world',
+    // priced on our own quotes page from Secure Travel's calculators; step 2 is a call from our team
+    id: 'canada', icon: 'i-maple', tone: 'red', title: 'Canada', subtitle: 'Super visa & visitors to Canada',
+    presection: 'canada', heading: 'Canada Super Visa & Visitor Insurance',
+    blurb: 'Every Standard and Enhanced plan, limit and deductible for your parents, compared side by side. Pick one and our agent calls you to complete it.',
+  },
+  {
+    id: 'medical', icon: 'i-plane', tone: 'amber', title: 'Travel Medical', subtitle: 'UK, Australia & the rest of the world',
     presection: 'travelOutsideUSA', heading: 'Travel Medical Insurance',
-    blurb: 'Explore travel medical plans for Canada, Australia, and other destinations. Benefits and exclusions vary by plan.',
+    blurb: 'Explore travel medical plans for the UK, Australia, and other destinations. Benefits and exclusions vary by plan.',
   },
   {
     id: 'schengen', icon: 'i-globe', tone: 'green', title: 'Schengen', subtitle: 'Schengen visa cover',
@@ -40,7 +46,10 @@ export default function InsuranceQuoteForm() {
   const [end, setEnd] = useState('');
   const [citizenship, setCitizenship] = useState('India');
   const [citizenshipInvalid, setCitizenshipInvalid] = useState(false);
-  const [destination, setDestination] = useState('Canada');
+  // Canada has its own tab, so Travel Medical starts on the next most asked-about destination
+  const [destination, setDestination] = useState('United Kingdom');
+  const [cover, setCover] = useState<'super_visa' | 'visitors'>('super_visa');
+  const [preExisting, setPreExisting] = useState<'no' | 'yes'>('no');
   const [destinationInvalid, setDestinationInvalid] = useState(false);
   const [ages, setAges] = useState<string[]>(['', '']);
   const [email, setEmail] = useState('');
@@ -69,6 +78,14 @@ export default function InsuranceQuoteForm() {
   }
 
   const isMedical = plan === 'medical';
+  const isCanada = plan === 'canada';
+  const superVisa = isCanada && cover === 'super_visa';
+  const svEnd = (() => {
+    if (!start) return '';
+    const d = new Date(start + 'T00:00:00');
+    d.setDate(d.getDate() + 364);
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  })();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -79,20 +96,20 @@ export default function InsuranceQuoteForm() {
 
     // What the fields actually hold, not what state believes they hold.
     const startValue = startRef.current?.value || start;
-    const endValue = endRef.current?.value || end;
-    if (!endValue) {
+    const endValue = superVisa ? '' : (endRef.current?.value || end);
+    if (!superVisa && !endValue) {
       setError('Please choose the date your cover should end.');
       endRef.current?.focus();
       return;
     }
-    if (endValue < startValue) {
+    if (!superVisa && endValue < startValue) {
       setError('The end date has to be on or after the start date.');
       endRef.current?.focus();
       return;
     }
     // keep state in step, so the two fields constrain each other correctly from here on
     if (startValue !== start) setStart(startValue);
-    if (endValue !== end) setEnd(endValue);
+    if (!superVisa && endValue !== end) setEnd(endValue);
 
     setBusy(true);
     setError('');
@@ -110,6 +127,8 @@ export default function InsuranceQuoteForm() {
       phone: phone.trim(),
       phoneCc: cc,
       destination: isMedical ? destination : undefined,
+      cover: isCanada ? cover : undefined,
+      preExisting: isCanada ? preExisting : undefined,
     });
     setBusy(false);
     if (res.error || !res.url) {
@@ -184,6 +203,30 @@ export default function InsuranceQuoteForm() {
         </div>
 
         <div className="iform-panel">
+          {isCanada && (
+            <div className="iform-ca">
+              <div className="fg">
+                <span className="lbl">Cover</span>
+                <div className="seg-g iform-seg" role="radiogroup" aria-label="Canada cover">
+                  <button className={`seg${cover === 'super_visa' ? ' on' : ''}`} type="button" aria-pressed={cover === 'super_visa'} onClick={() => setCover('super_visa')}>
+                    Super visa<small>Parents &amp; grandparents · 1 year</small>
+                  </button>
+                  <button className={`seg${cover === 'visitors' ? ' on' : ''}`} type="button" aria-pressed={cover === 'visitors'} onClick={() => setCover('visitors')}>
+                    Visiting Canada<small>Any trip up to a year</small>
+                  </button>
+                </div>
+              </div>
+              <div className="fg">
+                <span className="lbl">Any pre-existing medical condition?</span>
+                <div className="seg-g iform-seg" role="radiogroup" aria-label="Pre-existing medical condition">
+                  <button className={`seg${preExisting === 'no' ? ' on' : ''}`} type="button" aria-pressed={preExisting === 'no'} onClick={() => setPreExisting('no')}>No</button>
+                  <button className={`seg${preExisting === 'yes' ? ' on' : ''}`} type="button" aria-pressed={preExisting === 'yes'} onClick={() => setPreExisting('yes')}>
+                    Yes<small>e.g. blood pressure, diabetes</small>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <div className={`iform-fields${isMedical ? ' iform-fields-4' : ''}`}>
             <p className="fg">
               <label className="lbl" htmlFor="if-start">Cover start date <span style={{ color: 'var(--blue)' }}>*</span></label>
@@ -205,16 +248,25 @@ export default function InsuranceQuoteForm() {
                 />
               </span>
             </p>
-            <p className="fg">
-              <label className="lbl" htmlFor="if-end">Cover end date <span style={{ color: 'var(--blue)' }}>*</span></label>
-              <span className="iw"><Icon name="i-cal" className="ico sm" />
-                <input
-                  ref={endRef}
-                  className="inp" id="if-end" type="date" min={start || today} required
-                  onChange={(e) => setEnd(e.target.value)}
-                />
-              </span>
-            </p>
+            {superVisa ? (
+              <p className="fg">
+                <span className="lbl">Cover ends</span>
+                <span className="iform-sv-end"><Icon name="i-checkc" className="ico g sm" />
+                  {svEnd ? `${svEnd} · one full year` : 'One full year from the start date'}
+                </span>
+              </p>
+            ) : (
+              <p className="fg">
+                <label className="lbl" htmlFor="if-end">Cover end date <span style={{ color: 'var(--blue)' }}>*</span></label>
+                <span className="iw"><Icon name="i-cal" className="ico sm" />
+                  <input
+                    ref={endRef}
+                    className="inp" id="if-end" type="date" min={start || today} required
+                    onChange={(e) => setEnd(e.target.value)}
+                  />
+                </span>
+              </p>
+            )}
             <div className="fg">
               <label className="lbl" htmlFor="if-cit">Country of citizenship <span style={{ color: 'var(--blue)' }}>*</span></label>
               <DestinationCombo
@@ -231,7 +283,12 @@ export default function InsuranceQuoteForm() {
                   id="if-dest"
                   value={destination}
                   invalid={destinationInvalid}
-                  onChange={(v) => { setDestination(v); setDestinationInvalid(false); }}
+                  onChange={(v) => {
+                    setDestinationInvalid(false);
+                    // Canada has its own tab now, with its own prices
+                    if (v === 'Canada') { setPlan('canada'); return; }
+                    setDestination(v);
+                  }}
                 />
               </div>
             )}
@@ -319,7 +376,8 @@ export default function InsuranceQuoteForm() {
               <span className="iform-done-ic"><Icon name="i-checkc" className="ico" /></span>
               <span className="iform-done-tx">
                 <b>Your quotes are ready</b>
-                <span>They opened in a new tab. If nothing happened, use the button.</span>
+                <span>{isCanada ? 'They opened in a new tab, and we’ve e-mailed them to you. Pick one there and our agent will call you.'
+                                : 'They opened in a new tab. If nothing happened, use the button.'}</span>
               </span>
               <a className="btn btn-p" href={quoteUrl} target="_blank" rel="noopener noreferrer">
                 View my quotes<Icon name="i-arrow" className="ico w sm" />
@@ -330,7 +388,9 @@ export default function InsuranceQuoteForm() {
           <div className="iform-ft">
             <span className="iform-trust">
               <span className="l1"><Icon name="i-lock" className="ico g sm" />Free quote &middot; no account needed</span>
-              <span>Live pricing from <a href="https://preventia360.com/" target="_blank" rel="noopener noreferrer" className="preventia-link">Preventia360</a></span>
+              {isCanada
+                ? <span>Every plan compared · e-mailed to you</span>
+                : <span>Live pricing from <a href="https://preventia360.com/" target="_blank" rel="noopener noreferrer" className="preventia-link">Preventia360</a></span>}
             </span>
             <button className="btn btn-p btn-lg" type="submit" disabled={busy}>
               {busy ? 'Getting quotes…' : 'Get a Free Quote'}
@@ -340,7 +400,9 @@ export default function InsuranceQuoteForm() {
         </div>
 
         <p className="iform-note iform-note-hl">
-          Quotes are provided by <a href="https://preventia360.com/" target="_blank" rel="noopener noreferrer" className="preventia-link">Preventia360</a>. You’ll complete your purchase on its website.
+          {isCanada
+            ? <>Canada prices are read live from Secure Travel’s published rates. You pick a plan; our agent calls you to complete it.</>
+            : <>Quotes are provided by <a href="https://preventia360.com/" target="_blank" rel="noopener noreferrer" className="preventia-link">Preventia360</a>. You’ll complete your purchase on its website.</>}
         </p>
       </form>
       </div>

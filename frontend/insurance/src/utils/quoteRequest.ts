@@ -18,7 +18,8 @@ import { SCHENGEN } from '../data/countries';
 import { site } from '../data/site';
 import { track } from './track';
 
-export type PlanKind = 'visitors' | 'health' | 'schengen';
+/** 'canada' is priced on our own quotes page from Secure Travel's calculators, not by the partner. */
+export type PlanKind = 'visitors' | 'canada' | 'health' | 'schengen';
 
 /** ISO-3 for a country name, using the list the server sent. '' when we cannot map it. */
 export function iso3(name?: string): string {
@@ -29,6 +30,7 @@ export function iso3(name?: string): string {
 /** Which of the three products this trip is, matching the server's own rules. */
 export function planFor(destination: string, presection?: string): PlanKind {
   if (presection === 'visitorUSA' || destination === 'United States') return 'visitors';
+  if (presection === 'canada' || (presection !== 'schengen' && destination === 'Canada')) return 'canada';
   if (presection === 'schengen' || SCHENGEN.has(destination)) return 'schengen';
   return 'health';
 }
@@ -46,6 +48,12 @@ export interface QuoteRequest {
   phoneCc?: string;
   /** ticked "Send my quote and updates on WhatsApp" */
   waConsent?: boolean;
+  /** Canada: a super visa (one year, no end date needed) or a visit */
+  cover?: 'super_visa' | 'visitors';
+  /** Canada: "does any traveller have a pre-existing medical condition?" */
+  preExisting?: 'yes' | 'no';
+  /** the lead traveller's name, where the form asked for it */
+  name?: string;
 }
 
 export interface QuoteResult {
@@ -66,7 +74,7 @@ export async function requestQuote(req: QuoteRequest): Promise<QuoteResult> {
   if (!citizenship) {
     return { error: 'Please choose the country of citizenship.' };
   }
-  // Travel-medical is the only product priced for a specific country.
+  // Travel-medical is the only partner product priced for a specific country.
   if (req.plan === 'health' && !destination) {
     return { error: 'Please choose the country being travelled to.' };
   }
@@ -86,6 +94,11 @@ export async function requestQuote(req: QuoteRequest): Promise<QuoteResult> {
     wa_consent: !!req.waConsent,
   };
   if (req.plan === 'health') body.destination = destination;
+  if (req.plan === 'canada') {
+    body.cover = req.cover || 'super_visa';
+    body.pre_existing = req.preExisting || 'no';
+    if (req.name) body.name = req.name;
+  }
 
   try {
     const res = await fetch(site.quoteUrl, {

@@ -5,10 +5,14 @@
    <input type="date"> (value is already ISO), so both are read the same way.
 
    Everything is scoped to one form element: the macro renders three times on the site (landing
-   widget tab, landing drawer, signed-in home) and the copies must not read each other's state. */
+   widget tab, landing drawer, signed-in home) and the copies must not read each other's state.
+
+   Canada is different: the same endpoint prices it on OUR quotes page (Secure Travel's calculators, read
+   live by the server), so it asks two more things -- super visa or a visit, and pre-existing conditions --
+   and a super visa has no end date to pick (it is one year). */
 (function () {
   const MAX_TRAVELLERS = 8;          // matches MAX_TRAVELLERS in routes/main.py
-  const TYPE_LABELS = { visitors: 'Visitors Medical', health: 'Travel Medical', schengen: 'Schengen Visa' };
+  const TYPE_LABELS = { visitors: 'Visitors Medical', canada: 'Canada', health: 'Travel Medical', schengen: 'Schengen Visa' };
   // Only Travel Medical takes a destination — visitors is the USA and schengen is the Schengen
   // area, so for those the country is implied (mirrors INSURANCE_TYPES in routes/main.py).
   const NEEDS_DESTINATION = { health: true };
@@ -25,6 +29,40 @@
   };
 
   const selectedType = form => (form.querySelector('.ins-type.is-on') || {}).dataset?.insType || 'visitors';
+  const caValue = (form, which) => (form.querySelector('.ins-seg[data-ca="' + which + '"] .is-on') || {}).dataset?.v || '';
+  const isSuperVisa = form => selectedType(form) === 'canada' && caValue(form, 'cover') === 'super_visa';
+  const fmtDay = d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  /* Canada's extra questions, the super visa's year in place of an end date, and the wording that names
+     who prices the quote: shown for the tab that is on. */
+  function syncType(form) {
+    const type = selectedType(form);
+    const canada = type === 'canada';
+    const dest = form.querySelector('.ins-dest-f');
+    if (dest) dest.hidden = !NEEDS_DESTINATION[type];
+    const ca = form.querySelector('.ins-ca');
+    if (ca) ca.hidden = !canada;
+    const endF = form.querySelector('.ins-end-f');
+    if (endF) endF.hidden = isSuperVisa(form);
+    form.querySelectorAll('[data-for]').forEach(el => {
+      el.hidden = (el.dataset.for === 'canada') !== canada;
+    });
+    const hint = form.querySelector('.ins-ca-hint');
+    if (hint) {
+      const iso = isoOf(form.querySelector('.ins-start'));
+      const start = iso ? new Date(iso + 'T00:00:00') : null;
+      if (isSuperVisa(form) && start && !isNaN(start)) {
+        const end = new Date(start.getTime()); end.setDate(end.getDate() + 364);
+        hint.textContent = 'Super visa cover is one year: ' + fmtDay(start) + ' to ' + fmtDay(end) + '.';
+        hint.hidden = false;
+      } else if (isSuperVisa(form)) {
+        hint.textContent = 'Super visa cover is one full year from this date.';
+        hint.hidden = false;
+      } else {
+        hint.hidden = true;
+      }
+    }
+  }
 
   function renumber(form) {
     const rows = [...form.querySelectorAll('.ins-trav-row')];
@@ -67,21 +105,29 @@
     const q = s => form.querySelector(s);
 
     // product chips — selection is per form, read back at submit time
-    const syncDestination = () => {
-      const f = form.querySelector('.ins-dest-f');
-      if (f) f.hidden = !NEEDS_DESTINATION[selectedType(form)];
-    };
-    form.querySelectorAll('.ins-type').forEach(chip => {
-      chip.addEventListener('click', () => {
-        form.querySelectorAll('.ins-type').forEach(c => {
-          const on = c === chip;
-          c.classList.toggle('is-on', on);
-          c.setAttribute('aria-selected', on ? 'true' : 'false');
-        });
-        syncDestination();
+    const pickType = chip => {
+      form.querySelectorAll('.ins-type').forEach(c => {
+        const on = c === chip;
+        c.classList.toggle('is-on', on);
+        c.setAttribute('aria-selected', on ? 'true' : 'false');
       });
+      syncType(form);
+    };
+    form.querySelectorAll('.ins-type').forEach(chip => chip.addEventListener('click', () => pickType(chip)));
+    // Canada picked as a Travel Medical destination: it has its own tab now, with its own prices
+    q('.ins-dest')?.addEventListener('change', e => {
+      const ca = form.querySelector('.ins-type[data-ins-type="canada"]');
+      if (e.target.value === 'CAN' && ca) pickType(ca);
     });
-    syncDestination();
+    form.querySelectorAll('.ins-seg button').forEach(b => b.addEventListener('click', () => {
+      b.parentElement.querySelectorAll('button').forEach(x => {
+        x.classList.toggle('is-on', x === b);
+        x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+      });
+      syncType(form);
+    }));
+    ['change', 'input', 'blur'].forEach(ev => q('.ins-start')?.addEventListener(ev, () => syncType(form)));
+    syncType(form);
 
     addRow(form); addRow(form);          // a visiting couple is the common case
     q('.ins-add').addEventListener('click', () => addRow(form, true));
@@ -94,9 +140,10 @@
       const start = isoOf(q('.ins-start')), end = isoOf(q('.ins-end'));
       const fail = (m, el) => { err.querySelector('span').textContent = m; err.hidden = false; ok.hidden = true; form.classList.remove('done'); el?.focus(); };
       err.hidden = true;
+      const superVisa = isSuperVisa(form);
 
       if (!start) return fail('Pick the date your cover should start.', q('.ins-start'));
-      if (!end || end < start) return fail('Pick an end date on or after the start date.', q('.ins-end'));
+      if (!superVisa && (!end || end < start)) return fail('Pick an end date on or after the start date.', q('.ins-end'));
 
       const travellers = [];
       for (const ageEl of form.querySelectorAll('.ins-age')) {
@@ -124,6 +171,11 @@
         wa_consent: !!(q('.ins-wa input') || {}).checked,
       };
       if (NEEDS_DESTINATION[insType]) body.destination = q('.ins-dest').value;
+      if (insType === 'canada') {
+        body.cover = caValue(form, 'cover') || 'super_visa';
+        body.pre_existing = caValue(form, 'pre') || 'no';
+        if (superVisa) body.end_date = '';
+      }
 
       btn.disabled = true; btn.querySelector('span').textContent = 'Getting quotes…';
       try {
@@ -132,9 +184,9 @@
         if (!d.success) return fail(d.error || 'Could not get quotes right now.');
         q('.ins-ok-link').href = d.url; err.hidden = true;
         q('.ins-ok-sum').innerHTML = [
-          TYPE_LABELS[insType] || 'Travel insurance',
+          insType === 'canada' ? (superVisa ? 'Canada · Super visa' : 'Canada · Visiting') : (TYPE_LABELS[insType] || 'Travel insurance'),
           body.destination ? 'To ' + q('.ins-dest').selectedOptions[0].textContent : null,
-          `${pretty(q('.ins-start'))} → ${pretty(q('.ins-end'))}`,
+          superVisa ? `From ${pretty(q('.ins-start'))} · 1 year` : `${pretty(q('.ins-start'))} → ${pretty(q('.ins-end'))}`,
           travellers.length === 1 ? `1 traveller · age ${travellers[0].age}` : `${travellers.length} travellers · ages ${travellers.map(t => t.age).join(', ')}`,
           q('.ins-cit').selectedOptions[0].textContent,
         ].filter(Boolean).map(s => `<span>${esc(s)}</span>`).join('');

@@ -712,6 +712,10 @@ def api_insurance_quote():
     from app import db
     from app.models import InsuranceQuote
     data = request.get_json(silent=True) or {}
+    # Canada is priced on our own quotes page from Secure Travel's calculators, not by this partner
+    if str(data.get('insurance_type', '') or '').strip().lower() == 'canada':
+        from app.routes.insurance import canada_start
+        return canada_start(data)
 
     def _day(key):
         try:

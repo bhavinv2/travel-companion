@@ -1,0 +1,27 @@
+{# One visitor's live chat (messaging.live_chat), in the middle of Live chat and of WhatsApp chats when the rail picks
+   Live chat: who, where they are on our website, their messages and the lead page's own message box -- sending on
+   "Live chat" (livechat.reply). crm.js binds it (CRM_bindLead); wa-rail.js tells the visitor when one of us types
+   (data-typing-url). A fragment, fetched again to stay fresh. #}
+{% from 'cs/crm/_bits.html' import initials %}
+<div class="nt" data-num-thread-in data-person="{{ person.id }}" data-typing-url="{{ url_for('messaging.live_typing', person_id=person.id) }}"{% if lead %} data-lead-page data-lead="{{ lead.id }}"
+     data-product="{{ lead.product }}" data-phone="{{ person.phone or '' }}"
+     data-reasons='{{ ((lead.pipeline.fallout_reasons if lead.pipeline else []) or [])|tojson|forceescape }}'{% endif %}>
+  <div class="nt-head">
+    <button type="button" class="nt-back" data-num-back title="Back to the chats" aria-label="Back to the chats"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i></button>
+    <span class="nc-av live{{ ' here' if live }}" aria-hidden="true">{{ initials(person.display_name) }}</span>
+    <div class="nt-who"><b>{{ person.display_name }}</b>
+      <span class="lc-where{{ ' here' if live }}" data-live-where>{% if live %}<i class="lc-dot" aria-hidden="true"></i>{% endif %}{{ where or 'Live chat on our website' }}</span></div>
+    {% if chat and chat.page_url %}<a class="cb sm quiet nt-page" href="{{ chat.page_url }}" target="_blank" rel="noopener" title="The page they started the chat on: {{ chat.page_title or chat.page_url }}"><i class="fa-solid fa-globe" aria-hidden="true"></i><span class="nt-lead-tx"> Their page</span></a>{% endif %}
+    {% if lead %}<a class="cb sm quiet nt-lead" href="{{ crm_url('lead', lead_id=lead.id) }}" target="_top" title="Open the whole lead page"><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i><span class="nt-lead-tx"> Lead page</span></a>{% endif %}
+  </div>
+  {% if lead and chat %}
+  {% if not live %}
+  <p class="nt-other lc-gone" data-live-gone><i class="fa-regular fa-clock" aria-hidden="true"></i>
+    <span>{{ (person.display_name or 'They').split(' ')[0] }} is not on the website now. Your reply waits in their chat for when they come back.{% if person.phone %} For a quicker answer, write on WhatsApp from the lead page.{% elif person.email %} For a quicker answer, e-mail them from the lead page.{% endif %}</span></p>
+  {% endif %}
+  {% include 'cs/crm/_timeline.html' %}
+  {% include 'cs/crm/_box.html' %}
+  {% else %}
+  <p class="nc-empty">{{ person.display_name }} has no live chat with us.</p>
+  {% endif %}
+</div>

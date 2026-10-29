@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}Live chat{% endblock %}
+{% from 'cs/crm/_tabs.html' import tab_strip with context %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/crm.css') }}"/>{% endblock %}
+{% block content %}
+{# Live chat (messaging.live_chat_page, 2026-10-30): visitors on our websites, answered here -- the portal's own chat
+   bubble (services/livechat.py), nothing of tawk.to's framed. The chats on the left, one chat with the lead page's box
+   in the middle; the same pane as Live chat in the rail beside WhatsApp chats (static/js/wa-rail.js draws both). #}
+<div class="admin-page">
+  {% include 'admin/_sidebar.html' %}
+  <main class="admin-main">
+    {{ tab_strip('web_chat') }}
+    <div class="wa-frame-wrap lc-page">
+      <div class="wa-frame-bar">
+        <div class="wa-frame-title">
+          <h1><i class="fa-regular fa-comment-dots lc-ico" aria-hidden="true"></i> <span>Live chat</span></h1>
+          <p class="wa-frame-helper">Visitors on our websites write in the chat bubble; answer them here.</p>
+        </div>
+        <details class="help-fold wa-frame-help"><summary>(?) How this works</summary>
+          <ul data-live-help>
+            <li>The chat bubble on our websites asks for a name, an e-mail or WhatsApp number and a question. Each chat becomes a lead under “Website live chat”, with the chat on its timeline.</li>
+            <li>A green dot means the visitor is on the website now: your reply shows in their chat at once, and they see when you are typing.</li>
+            <li>If they have left, your reply waits in their chat for when they come back. For a quicker answer, write on WhatsApp or e-mail from the lead page.</li>
+            <li>Visitors see your first name only.</li>
+            <li>“Waiting on us” counts the chats where they wrote last.</li>
+          </ul></details>
+        <p class="lc-status" data-live-status>
+          {% if not cfg.on %}<span class="lc-chip off"><i class="fa-solid fa-circle-pause" aria-hidden="true"></i> The bubble is switched off</span>
+          {% elif online %}<span class="lc-chip on" title="Staff who can answer, seen in the portal in the last 10 minutes"><i class="lc-dot" aria-hidden="true"></i> Online: {{ online|join(', ') }}</span>
+          {% else %}<span class="lc-chip away" title="Nobody who can answer was in the portal in the last 10 minutes"><i class="fa-regular fa-moon" aria-hidden="true"></i> Visitors see “away”</span>{% endif %}
+          {% if current_user.is_admin %}<a class="cb sm quiet" href="{{ crm_url('integration', key='livechat') }}"><i class="fa-solid fa-gear" aria-hidden="true"></i> Set-up</a>{% endif %}
+        </p>
+      </div>
+      {% if leads %}
+      <div class="wa-solo crm" data-crm="{{ crm_url('board') }}" data-wa="{{ 1 if wa_ready else 0 }}">
+        <div class="wa-mid">
+          <section class="nc-pane crm" data-num-pane data-on="web" data-chat="{{ chat or '' }}" aria-label="Live chats"
+                   data-web-list-url="{{ url_for('messaging.live_chats') }}" data-web-thread-url="{{ url_for('messaging.live_chat', person_id=0) }}">
+            <div class="nc-list" data-num-list></div>
+            <div class="nc-thread" data-num-thread><p class="nc-pick"><i class="fa-regular fa-comment-dots" aria-hidden="true"></i> Pick a chat to read it and answer.</p></div>
+          </section>
+        </div>
+      </div>
+      <dialog class="crm-dialog" id="crm-dialog"><div class="in"></div></dialog>
+      {% else %}
+      <p class="ws-note warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+        <span>Live chats are answered on their leads, and your role does not include leads. Ask an admin.</span></p>
+      {% endif %}
+    </div>
+  </main>
+</div>
+{% endblock %}
+{% block extra_js %}
+{% if leads %}
+<script src="{{ url_for('static', filename='js/crm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/wa-rail.js') }}"></script>
+{% endif %}
+{% endblock %}

@@ -520,6 +520,7 @@ def create_app(test_config=None):
     from app.routes.chat import chat_bp
     from app.routes.admin import admin_bp
     from app.routes import admin_blog  # noqa: F401 -- adds the blog studio's screens to admin_bp
+    from app.routes import admin_canada  # noqa: F401 -- Travel Insurance -> Canada quotes, on admin_bp
     from app.routes.blog import blog_bp
     from app.routes.notifications import notifications_bp
     from app.routes.cs import cs_bp
@@ -542,6 +543,7 @@ def create_app(test_config=None):
     from app.routes import crm_activities  # noqa: F401 -- Tasks, Calendar, e-mail: rules on crm_bp / crm_public_bp, before they are registered
     from app.routes import crm_rules  # noqa: F401 -- Automation rules, scoring, AI on the lead page, offers consent: rules on crm_bp, before it is registered
     from app.routes import crm_integrations  # noqa: F401 -- Set-up > Integrations and tawk.to's webhook: rules on crm_bp / crm_public_bp, before they are registered
+    from app.routes import livechat  # noqa: F401 -- the website's live chat, the visitor's side: rules on crm_public_bp, before it is registered
     from app.routes import crm_inbox  # noqa: F401 -- Inbox > All conversations: rules on crm_bp, before it is registered
     from app.routes import channels as channels_routes  # noqa: F401 -- Set-up > Channels (WhatsApp numbers) and Meta's webhook for them: rules on crm_bp / crm_public_bp, before they are registered
 
@@ -664,7 +666,7 @@ def create_app(test_config=None):
         from app import options
         from flask_login import current_user
         from app.services import (access, ads, analytics, contact_form, cs_access,
-                                  insurance_countries, nav_badges, nri_services, offices, phone,
+                                  insurance_countries, livechat, nav_badges, nri_services, offices, phone,
                                   portals, products, tawk, urls, wacrm_team, whats_new)
         return {
             # Site-wide GA4 / GTM / second Ads account / Search Console verification -- see
@@ -678,7 +680,9 @@ def create_app(test_config=None):
             'ADS2_ID': analytics.ads2_id(),
             'GOOGLE_SITE_VERIFICATION': analytics.site_verification(),
             'ADS_ACCOUNT_ID': ads.account_id() if ads.enabled() else '',
-            # the tawk.to chat bubble on the public pages (services/tawk.widget_here, _tawk.html)
+            # the chat bubble on the public pages (_site_chat.html): ours while it is on (services/livechat.py),
+            # else tawk.to's (services/tawk.widget_here)
+            'LIVE_CHAT': livechat.bubble_on,
             'TAWK_WIDGET': tawk.widget_here(),
             # Templates use this for "today" in date inputs. Between 18:30 and 00:00 IST,
             # utcnow() is still yesterday in India, which would let somebody pick a date that

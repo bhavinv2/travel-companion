@@ -64,7 +64,7 @@ def test_admin_sees_every_card_with_its_state(app, client, admin_user, monkeypat
     r = client.get('/admin/crm/integrations')
     assert r.status_code == 200
     html = r.get_data(as_text=True)
-    assert html.count('data-ig-card') == len(integrations.KEYS) == 12
+    assert html.count('data-ig-card') == len(integrations.KEYS) == 13
     for key in integrations.KEYS:
         assert '/admin/crm/integrations/%s' % key in html
     page = text(client, '/admin/crm/integrations')

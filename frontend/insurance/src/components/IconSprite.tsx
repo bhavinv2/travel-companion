@@ -30,6 +30,7 @@ export default function IconSprite() {
 
         <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z" /><path d="m9 12 2 2 4-4" /></symbol>
         <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.5 3.8 5.5 3.8 9s-1.3 6.5-3.8 9c-2.5-2.5-3.8-5.5-3.8-9S9.5 5.5 12 3z" /></symbol>
+        <symbol id="i-maple" viewBox="0 0 24 24"><path d="M12 2.5l1.8 3.6 2.2-1.1-.8 4.7 3.3-3.3.8 2.2 3.2-.7-1.4 4 1.4 1.1-5.4 4.4.7 2.2-5-.7V22h-1.6v-3.1l-5 .7.7-2.2-5.4-4.4 1.4-1.1-1.4-4 3.2.7.8-2.2 3.3 3.3-.8-4.7 2.2 1.1z" /></symbol>
         <symbol id="i-heart" viewBox="0 0 24 24"><path d="M20.4 12.5 12 21l-8.4-8.5A5 5 0 0 1 12 6a5 5 0 0 1 8.4 6.5z" /><path d="M3.5 12H8l1.5-2.5 3 5 1.5-2.5h6" /></symbol>
         <symbol id="i-headset" viewBox="0 0 24 24"><path d="M4 15v-3a8 8 0 0 1 16 0v3" /><rect x="2.5" y="14" width="4.5" height="6" rx="1.5" /><rect x="17" y="14" width="4.5" height="6" rx="1.5" /></symbol>
         <symbol id="i-steth" viewBox="0 0 24 24"><path d="M5 3v5a4 4 0 0 0 8 0V3" /><path d="M9 12v2a5 5 0 0 0 10 0v-2" /><circle cx="19" cy="10" r="2" /></symbol>

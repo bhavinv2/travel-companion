@@ -1,8 +1,11 @@
-{# The tawk.to chat bubble (services/tawk.widget_here): the same widget as the WordPress site's, so every chat is in
-   one tawk inbox and becomes a lead through tawk's webhook. Included at the end of the public pages -- base.html for
-   anybody who is not staff, and the standalone landing.html. Where a page has its own WhatsApp button in the same
+{# The chat bubble on the public pages -- base.html for anybody who is not staff, and the standalone landing.html.
+   Ours (the website's live chat, services/livechat.py: answered in the portal) while it is switched on; else tawk.to's
+   (services/tawk.widget_here: the same widget as the WordPress site's tawk plugin, its chats coming back as leads
+   through tawk's webhook). Never both: two bubbles in one corner. Where a page has its own WhatsApp button in the same
    corner (.wa-float), the bubble sits just above it rather than on top of it. #}
-{% if TAWK_WIDGET %}
+{% if LIVE_CHAT() %}
+<script src="{{ url_for('crm_public.live_chat_script') }}" async></script>
+{% elif TAWK_WIDGET %}
 <script>
   var Tawk_API = Tawk_API || {}, Tawk_LoadStart = new Date();
   (function () {

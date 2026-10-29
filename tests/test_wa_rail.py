@@ -245,21 +245,3 @@ def test_message_on_a_number_puts_their_chat_on_it_and_sends_nothing(app, client
     _db.session.commit()
     d = client.post(START, data={'lead': nora.id, 'num': two_numbers.id}).get_json()
     assert d['ok'] is False and 'not connected' in d['error']
-
-
-def test_website_chat_is_tawk_inside_the_portal(app, client, admin_user, two_numbers):
-    from app.services import access
-    assert access.PAGES['web_chat']['section'] == 'inbox'
-    login(client, admin_user.email)
-    html = page(client, '/admin/messaging/website-chat')
-    assert 'data-web-frame' in html and 'src="https://dashboard.tawk.to/"' in html
-    assert 'Open in a new tab' in html and 'Website chat' in html
-    assert 'data-web-unhooked' in html                                # no webhook secret in the tests
-    rail = page(client, INBOX).split('data-wr', 1)[1].split('</nav>', 1)[0]
-    assert '/admin/messaging/website-chat' in rail and 'Live visitors' in rail
-
-
-def test_website_chat_is_for_people_who_work_conversations(app, client, user):
-    login(client, user.email)
-    r = client.get('/admin/messaging/website-chat')
-    assert r.status_code in (302, 403)

@@ -1,5 +1,6 @@
-"""Set-up > Integrations (2026-10-26): the cards (services/integrations.py), one integration's three tabs, the two
-settings kept here (tawk.to's key, the other websites allowed to send leads), and tawk.to's webhook."""
+"""Set-up > Integrations (2026-10-26): the cards (services/integrations.py), one integration's three tabs, the
+settings kept here (tawk.to's key, the other websites allowed to send leads, the live chat bubble's switch and words),
+and tawk.to's webhook."""
 import json
 
 from flask import abort, current_app, flash, jsonify, redirect, render_template, request
@@ -9,7 +10,7 @@ from app import csrf, db
 from app.models import ActivityEvent, CrmSource
 from app.routes.crm import _common, admin_only, crm_bp, crm_public_bp, crm_url
 from app.routes.cs import cs_required
-from app.services import crm_editor, integrations, tawk
+from app.services import crm_editor, integrations, livechat, tawk
 
 TABS = (('overview', 'Overview'), ('install', 'Installation'), ('settings', 'Settings'))
 
@@ -65,6 +66,16 @@ def integration_save(key):
         ActivityEvent.log('integration_saved', actor=current_user, integration='tawk',
                           action=request.form.get('action') or 'save')
         db.session.commit()
+    elif key == 'livechat':
+        dark = livechat.save_config(request.form, current_user)
+        cfg = livechat.config()
+        ActivityEvent.log('integration_saved', actor=current_user, integration='livechat', on=cfg['on'])
+        db.session.commit()
+        if dark:
+            flash('Saved. The chat bubble is %s.' % ('on' if cfg['on'] else 'switched off'), 'success')
+        else:
+            flash('Saved, but that colour is too light for white words: the dark blue is kept. Pick a darker one.',
+                  'warning')
     elif key == 'website':
         kept, refused = integrations.save_origins(request.form.get('sites'), current_user)
         ActivityEvent.log('integration_saved', actor=current_user, integration='website', sites=kept)

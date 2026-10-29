@@ -5,12 +5,17 @@
    over the frame: its list (messaging.number_chats) and one chat with the lead page's own message box
    (messaging.number_chat), kept fresh every few seconds and never over something half typed (crm.js applyLive). The
    panel on the right follows the open chat (frame.html: CRM_numberMode). The address keeps ?num= and ?chat=, so a
-   reload lands on the same chat. */
+   reload lands on the same chat.
+
+   Live chat ('web': the website's own bubble, 2026-10-30) opens the same way: its chats (messaging.live_chats) and one
+   chat (messaging.live_chat), fresher than a number's, and the visitor is told when one of us types. Its own page
+   (messaging/live_chat_page.html) has the pane and no rail: the addresses are on the pane then. */
 (function () {
   'use strict';
   var rail = document.querySelector('[data-wr]');
   var pane = document.querySelector('[data-num-pane]');
-  if (!rail || !pane) return;
+  if (!pane) return;
+  var urls = (rail || pane).dataset;
   var frame = document.querySelector('[data-wa-frame]');
   var list = pane.querySelector('[data-num-list]');
   var thread = pane.querySelector('[data-num-thread]');
@@ -30,9 +35,13 @@
       .catch(function () { return ''; });
   }
   function listUrl(key, args) {
-    return rail.dataset.listUrl.replace(/\/0\/chats$/, '/' + key + '/chats') + '?' + new URLSearchParams(args).toString();
+    var base = key === 'web' ? urls.webListUrl : urls.listUrl.replace(/\/0\/chats$/, '/' + key + '/chats');
+    return base + '?' + new URLSearchParams(args).toString();
   }
-  function threadUrl(key, pid) { return rail.dataset.threadUrl.replace(/\/0\/chat\/0$/, '/' + key + '/chat/' + pid); }
+  function threadUrl(key, pid) {
+    return key === 'web' ? urls.webThreadUrl.replace(/\/0$/, '/' + pid)
+                         : urls.threadUrl.replace(/\/0\/chat\/0$/, '/' + key + '/chat/' + pid);
+  }
   function state(key) { return lists[key] || (lists[key] = { q: '', who: 'all' }); }
   function address(set) {
     var url = new URL(window.location.href);
@@ -41,23 +50,25 @@
   }
 
   // ------------------------------------------------------------------ small, or with the names
-  var toggle = rail.querySelector('[data-wr-toggle]');
+  var toggle = rail && rail.querySelector('[data-wr-toggle]');
   function setOpen(on, remember) {
     rail.classList.toggle('open', on);
     toggle.setAttribute('aria-expanded', on ? 'true' : 'false');
     toggle.title = on ? 'Hide the names' : 'Show the names';
     if (remember) { try { localStorage.setItem(STORE, on ? 'open' : 'shut'); } catch (err) { /* private window */ } }
   }
-  var saved = null;
-  try { saved = localStorage.getItem(STORE); } catch (err) { saved = null; }
-  setOpen(saved === 'open', false);
-  toggle.addEventListener('click', function () { setOpen(!rail.classList.contains('open'), true); });
+  if (rail) {
+    var saved = null;
+    try { saved = localStorage.getItem(STORE); } catch (err) { saved = null; }
+    setOpen(saved === 'open', false);
+    toggle.addEventListener('click', function () { setOpen(!rail.classList.contains('open'), true); });
+  }
 
   // ------------------------------------------------------------------ picking a number
   function pick(key, pid) {
     mode = key;
     if (pid) open[key] = String(pid);
-    rail.querySelectorAll('[data-wr-num]').forEach(function (b) {
+    if (rail) rail.querySelectorAll('[data-wr-num]').forEach(function (b) {
       var on = b.dataset.wrNum === key;
       b.classList.toggle('on', on);
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
@@ -82,7 +93,7 @@
       if (window.CRM_numberMode) window.CRM_numberMode(key, null);
     }
   }
-  rail.addEventListener('click', function (e) {
+  if (rail) rail.addEventListener('click', function (e) {
     var b = e.target.closest('[data-wr-num]');
     if (b) pick(b.dataset.wrNum);
   });
@@ -93,7 +104,7 @@
   }
   function count(key) {
     var holder = list.querySelector('[data-waiting]');
-    var badge = rail.querySelector('[data-wr-num="' + key + '"] [data-wr-count]');
+    var badge = rail && rail.querySelector('[data-wr-num="' + key + '"] [data-wr-count]');
     if (!holder || !badge) return;
     var n = +holder.dataset.waiting || 0;
     badge.textContent = n > 99 ? '99+' : String(n);
@@ -163,6 +174,16 @@
   thread.addEventListener('click', function (e) {
     if (e.target.closest('[data-num-back]')) pane.classList.remove('reading');
   });
+  // a live chat: the visitor sees "... is typing" while one of us writes (told at most every 4 seconds)
+  var typedAt = 0;
+  thread.addEventListener('input', function (e) {
+    if (mode !== 'web' || !e.target.matches('[data-box-input]') || !e.target.value.trim()) return;
+    var nt = thread.querySelector('[data-typing-url]');
+    if (!nt || Date.now() - typedAt < 4000) return;
+    typedAt = Date.now();
+    fetch(nt.dataset.typingUrl, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRFToken': csrf } })
+      .catch(function () { /* only a courtesy */ });
+  });
   // "New chat" from the panel's start list: their chat on this number, opened (frame.html)
   window.CRM_openNumberChat = function (key, pid) {
     if (mode !== String(key)) { pick(String(key), pid); return; }
@@ -170,8 +191,9 @@
     loadList(mode);
   };
 
-  // fresh by itself: the open chat every 8 seconds, the list every 30 -- never over what is being typed (applyLive
-  // leaves a busy region alone), and right after a send (crm.js calls CRM_refreshThread)
+  // fresh by itself: the open chat every 8 seconds (a live chat's every 4), the list every 32 (Live chat's every 16)
+  // -- never over what is being typed (applyLive leaves a busy region alone), and right after a send (crm.js calls
+  // CRM_refreshThread)
   function refreshThread() {
     if (mode === 'crm' || !open[mode] || document.visibilityState !== 'visible') return;
     var want = mode + '|' + open[mode];
@@ -179,7 +201,21 @@
     get(threadUrl(mode, open[mode])).then(function (html) {
       var root = thread.querySelector('[data-lead-page]');
       if (html && root && threadWant === want && window.CRM_applyLive) window.CRM_applyLive(root, html);
+      if (html && threadWant === want && mode === 'web') freshHead(html);
     });
+  }
+  // a live chat's head says whether they are still on the site: kept fresh with the messages
+  function freshHead(html) {
+    var doc = new DOMParser().parseFromString(html, 'text/html');
+    var where = thread.querySelector('[data-live-where]'), nextWhere = doc.querySelector('[data-live-where]');
+    if (where && nextWhere) where.outerHTML = nextWhere.outerHTML;
+    var gone = thread.querySelector('[data-live-gone]'), nextGone = doc.querySelector('[data-live-gone]');
+    if (gone && !nextGone) gone.remove();
+    else if (gone && nextGone) gone.outerHTML = nextGone.outerHTML;
+    else if (!gone && nextGone) {
+      var tl = thread.querySelector('[data-lead-live="timeline"]');
+      if (tl) tl.insertAdjacentHTML('beforebegin', nextGone.outerHTML);
+    }
   }
   function refreshList() {
     if (mode === 'crm' || document.visibilityState !== 'visible') return;
@@ -189,10 +225,15 @@
     loadList(mode);
   }
   window.CRM_refreshThread = function () { setTimeout(refreshThread, 300); setTimeout(refreshList, 900); };
-  setInterval(refreshThread, 8000);
-  setInterval(refreshList, 30000);
+  var ticks = 0;
+  setInterval(function () {
+    ticks += 1;
+    if (mode === 'web' || ticks % 2 === 0) refreshThread();
+    if (ticks % (mode === 'web' ? 4 : 8) === 0) refreshList();
+  }, 4000);
 
   // ------------------------------------------------------------------ "Find a contact"
+  if (!rail) { pick(mode, open[mode]); return; }
   var q = rail.querySelector('[data-wr-q]'), hits = rail.querySelector('[data-wr-hits]');
   var findTimer = null, asked = '';
   function find() {

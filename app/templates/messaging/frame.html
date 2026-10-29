@@ -23,7 +23,7 @@
         </div>
         <details class="help-fold wa-frame-help"><summary>(?) How this works</summary>
           <ul data-frame-help>{% for line in help %}<li>{{ line }}</li>{% endfor %}</ul></details>
-        {% if panel %}<button type="button" class="cb primary wa-new-chat" data-new-chat title="Message a lead who has no chat yet, or find any lead"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> New chat</button>{% endif %}
+        {% if panel %}<button type="button" class="cb primary wa-new-chat" data-new-chat{{ ' hidden' if rail and rail.on == 'web' }} title="Message a lead who has no chat yet, or find any lead"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> New chat</button>{% endif %}
       </div>
       {% if rail %}
       {# which number the chats below are on, and that replies go from it -- one line per number, the rail shows one #}
@@ -32,6 +32,10 @@
         <span>You are on our {{ num_chip(b, full=True) }} number{% if b.key != 'crm' %}, answered here in the portal{% endif %}:
         every chat below is on it{% if b.key == 'crm' %} and replies go from it{% endif %}.{% if rail.nums|length > 1 %} Our other numbers are on the left.{% endif %}</span></p>
       {% endfor %}
+      {% if rail.live is not none %}
+      <p class="ws-note onum-banner" data-num-banner="web"{{ ' hidden' if rail.on != 'web' }}><i class="fa-regular fa-comment-dots" aria-hidden="true"></i>
+        <span>Live chat: visitors on our websites, answered here. A green dot means they are on the site now; a reply goes to their chat on the website.</span></p>
+      {% endif %}
       {% elif inbox_num and (inbox_num.last4 or inbox_others) %}
       <p class="ws-note onum-banner" data-inbox-number><i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
         <span>Every chat here is on our number {{ num_chip(inbox_num, full=True) }}.
@@ -248,7 +252,12 @@
   // with none open, leads to message on the number being worked on
   function load(q) {
     current = q;
-    if (!q || (!q.conversation && !q.person)) { showStart({}); return; }
+    if (!q || (!q.conversation && !q.person)) {
+      // Live chat: nobody is messaged from here -- a chat starts when a visitor writes on the website
+      if (mode === 'web') { starting = null; panel.innerHTML = '<p class="muted lp-hint"><i class="fa-regular fa-comment-dots"></i> Open a live chat to see their lead here.</p>'; return; }
+      showStart({});
+      return;
+    }
     var args = q.person ? { person: q.person, num: q.num }
                         : { conversation: q.conversation, phone: q.phone || '', name: q.name || '' };
     fetch(panelUrl + '?' + new URLSearchParams(args).toString(), { credentials: 'same-origin' })
@@ -366,6 +375,7 @@
   window.CRM_numberMode = function (key, q) {
     mode = key;
     starting = null;
+    document.querySelectorAll('[data-new-chat]').forEach(function (b) { b.hidden = key === 'web'; });
     soon.forEach(clearTimeout);
     load(key === 'crm' ? crmCurrent : q);
   };
