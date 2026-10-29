@@ -204,6 +204,9 @@
     var body = boxEl.querySelector('.mk-box-b');
     opts = opts || {};
     if (!opts.keepHtml) body.innerHTML = bodyHtml(cfg, r);
+    // the headline number in the title row: what a folded box still shows (the dashboard's "open one big")
+    var mini = boxEl.querySelector('.mk-mini');
+    if (mini) mini.textContent = r && r.ok && r.total !== null && r.total !== undefined ? fmt(r.total, r.unit) : '';
     if (!r || !r.ok) return;
     var n = body.querySelector('.mk-n');
     if (n) { n.setAttribute('data-unit', r.unit || 'count'); if (!opts.noCount) countUp(n, opts.from); }
@@ -233,20 +236,126 @@
     return q.toString();
   }
 
-  function fetchBox(boxEl, cfg, quiet) {
+  var reg = {};          // box id -> {el, cfg, r}: every box, its settings and its numbers once they are here
+  var focused = null;    // the box opened big, if any
+
+  function fetchBox(entry, quiet) {
+    var boxEl = entry.el, cfg = entry.cfg;
     var old = boxEl.querySelector('.mk-n');
     var from = old ? Number(old.getAttribute('data-n')) : 0;
     return fetch(root.getAttribute('data-box-url') + '?' + query({ b: boxEl.getAttribute('data-box') }),
       { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
       .then(function (res) { return res.json(); })
       .then(function (r) {
-        render(boxEl, cfg, r, { from: quiet ? from : 0 });
+        entry.r = r;
+        if (focused === boxEl.getAttribute('data-box')) drawBig(entry);
+        else render(boxEl, cfg, r, { from: quiet ? from : 0 });
         if (quiet && old && r.ok && Number(r.total) !== from) boxEl.classList.add('bump');
         setTimeout(function () { boxEl.classList.remove('bump'); }, 900);
         return r;
       })
       .catch(function () { if (!quiet) render(boxEl, cfg, { ok: false, message: 'The numbers could not be fetched. Reload the page to try again.' }); });
   }
+
+  // ------------------------------------------------------------------------------------------- one box, big
+  // Clicking a box opens it across the page with everything it knows -- the chart drawn large, the total, the
+  // days before and the change, the busiest group, every row -- and folds every other box to its title and its
+  // number. Clicking another folded box opens that one; its title, the button or Esc closes it again.
+
+  function moreHtml(cfg, r) {
+    if (!r || !r.ok) return '';
+    var facts = [];
+    if (cfg.chart === 'live') facts.push(['In the last 30 minutes', fmt(r.total, r.unit)]);
+    else {
+      facts.push(['In these dates', fmt(r.total, r.unit)]);
+      if (r.prev !== null && r.prev !== undefined) facts.push(['The ' + r.period.days + ' days before', fmt(r.prev, r.unit)]);
+      if (r.change !== null && r.change !== undefined) facts.push(['Change', (r.change > 0 ? '+' : '') + r.change + '%']);
+      facts.push(['Dates', r.period.dates || r.period.label]);
+    }
+    var s0 = r.series && r.series[0];
+    if (s0 && r.labels && r.labels.length > 1 && !(r.multi)) {
+      var best = 0;
+      s0.data.forEach(function (v, i) { if ((v || 0) > (s0.data[best] || 0)) best = i; });
+      if (s0.data[best]) facts.push([r.time ? 'The busiest' : 'The most', r.labels[best] + ' (' + fmt(s0.data[best], r.unit) + ')']);
+    }
+    if (r.multi) (r.series || []).forEach(function (s) { facts.push([s.name, fmt(s.total, s.unit || r.unit)]); });
+    var h = '<div class="mk-more"><dl class="mk-facts">' + facts.map(function (f) {
+      return '<div><dt>' + esc(f[0]) + '</dt><dd>' + esc(f[1]) + '</dd></div>';
+    }).join('') + '</dl>';
+    if (cfg.chart !== 'table' && r.rows && r.rows.length > 1) h += tableHtml(r, false);
+    if (r.notes && r.notes.length) h += '<p class="mk-notes">' + esc(r.notes.join(' ')) + '</p>';
+    return h + '</div>';
+  }
+
+  function drawBig(entry) {
+    if (!entry.cfg || !entry.r) return;        // words, reviews and links simply get bigger
+    var cfg = {}, k;
+    for (k in entry.cfg) cfg[k] = entry.cfg[k];
+    if (cfg.chart === 'number' && entry.r.time) cfg.chart = 'area';     // a big number opens as its line
+    render(entry.el, cfg, entry.r, { noCount: true });
+    if (!entry.r.ok || entry.r.empty) return;
+    entry.el.querySelector('.mk-box-b').insertAdjacentHTML('beforeend', moreHtml(entry.cfg, entry.r));
+    if (cfg.chart === 'live') liveMinutes();
+  }
+
+  function drawSmall(entry) {
+    if (entry.cfg && entry.r) render(entry.el, entry.cfg, entry.r, { noCount: true });
+    if (entry.cfg && entry.cfg.chart === 'live') liveMinutes();
+  }
+
+  function setButton(el, open) {
+    var b = el.querySelector('.mk-x');
+    if (!b) return;
+    b.innerHTML = '<i class="fa-solid ' + (open ? 'fa-down-left-and-up-right-to-center' : 'fa-up-right-and-down-left-from-center') + '" aria-hidden="true"></i>';
+    b.title = open ? 'Back to all the boxes (Esc)' : 'Open this box big';
+    b.setAttribute('aria-label', b.title);
+    el.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
+  function open(id) {
+    var grid = root.querySelector('.mk-grid');
+    if (!reg[id]) return;
+    if (focused === id) { close(); return; }
+    var was = focused && reg[focused];
+    focused = id;
+    grid.classList.add('has-focus');
+    Object.keys(reg).forEach(function (k) {
+      reg[k].el.classList.toggle('focus', k === id);
+      setButton(reg[k].el, k === id);
+    });
+    if (was) drawSmall(was);
+    drawBig(reg[id]);
+    try { history.replaceState(null, '', '#box-' + id); } catch (e) { /* a sandboxed page */ }
+    reg[id].el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function close() {
+    if (!focused) return;
+    var entry = reg[focused];
+    focused = null;
+    root.querySelector('.mk-grid').classList.remove('has-focus');
+    Object.keys(reg).forEach(function (k) { reg[k].el.classList.remove('focus'); setButton(reg[k].el, false); });
+    drawSmall(entry);
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* a sandboxed page */ }
+    entry.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  root.querySelector('.mk-grid').addEventListener('click', function (e) {
+    var el = e.target.closest('.mk-box');
+    if (!el || el.classList.contains('k-text') || e.target.closest('a')) return;
+    var id = el.getAttribute('data-box');
+    var onTitle = e.target.closest('.mk-box-h');
+    // inside the open box only its title row (or the button) closes it: the chart and the table stay clickable
+    if (id === focused && !onTitle) return;
+    open(id);
+  });
+  root.querySelector('.mk-grid').addEventListener('keydown', function (e) {
+    var el = e.target.closest && e.target.closest('.mk-box');
+    if (!el || e.target !== el || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    open(el.getAttribute('data-box'));
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && focused) close(); });
 
   // the last 30 minutes, minute by minute, under every live counter
   function liveMinutes() {
@@ -266,23 +375,36 @@
 
   var lives = [];
   root.querySelectorAll('.mk-box').forEach(function (boxEl) {
+    var id = boxEl.getAttribute('data-box');
     var cfg = readJson(boxEl, 'mk-cfg');
+    var entry = reg[id] = { el: boxEl, cfg: cfg, r: null };
+    if (!boxEl.classList.contains('k-text')) {
+      // every box can be opened big: a button in its title row, the number it shows when folded, and the keyboard
+      var head = boxEl.querySelector('.mk-box-h');
+      if (head) head.insertAdjacentHTML('beforeend', '<b class="mk-mini" aria-hidden="true"></b>' +
+        '<button type="button" class="mk-x"></button>');
+      boxEl.tabIndex = 0;
+      setButton(boxEl, false);
+    }
     if (!cfg) return;
     if (boxEl.hasAttribute('data-async')) {
-      fetchBox(boxEl, cfg).then(function () { if (cfg.chart === 'live') liveMinutes(); });
-      if (cfg.chart === 'live') lives.push([boxEl, cfg]);
+      fetchBox(entry).then(function () { if (cfg.chart === 'live') liveMinutes(); });
+      if (cfg.chart === 'live') lives.push(entry);
       return;
     }
-    var r = readJson(boxEl, 'mk-json');
-    if (r) render(boxEl, cfg, r, { keepHtml: true });
+    entry.r = readJson(boxEl, 'mk-json');
+    if (entry.r) render(boxEl, cfg, entry.r, { keepHtml: true });
   });
   if (lives.length) {
     setInterval(function () {
       if (document.hidden) return;
-      lives.forEach(function (l) { fetchBox(l[0], l[1], true); });
+      lives.forEach(function (l) { fetchBox(l, true); });
       setTimeout(liveMinutes, 400);
     }, REFRESH_MS);
   }
+  // a link to one box (#box-o12) opens it big
+  var hash = (location.hash.match(/^#box-([\w-]+)$/) || [])[1];
+  if (hash && reg[hash]) setTimeout(function () { open(hash); }, 50);
 
   // the date picker: "Choose dates" shows the two dates; any other choice is applied at once
   var pick = root.querySelector('[data-range-pick]');
