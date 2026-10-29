@@ -138,6 +138,7 @@
     }
     var row = e.target.closest('[data-num-chat]');
     if (row) openChat(mode, row.dataset.numChat);
+    if (e.target.closest('[data-num-new]') && window.CRM_newChat) window.CRM_newChat();
   });
 
   // ------------------------------------------------------------------ one chat
@@ -162,6 +163,12 @@
   thread.addEventListener('click', function (e) {
     if (e.target.closest('[data-num-back]')) pane.classList.remove('reading');
   });
+  // "New chat" from the panel's start list: their chat on this number, opened (frame.html)
+  window.CRM_openNumberChat = function (key, pid) {
+    if (mode !== String(key)) { pick(String(key), pid); return; }
+    openChat(mode, pid);
+    loadList(mode);
+  };
 
   // fresh by itself: the open chat every 8 seconds, the list every 30 -- never over what is being typed (applyLive
   // leaves a busy region alone), and right after a send (crm.js calls CRM_refreshThread)

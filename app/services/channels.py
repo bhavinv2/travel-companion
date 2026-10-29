@@ -191,6 +191,7 @@ def label_of(line):
 # the chip on a row, "From … to …" on a box, the banner over WhatsApp chats. One colour per number everywhere.
 
 TONES = 6           # crm.css .onum0 … .onum5: onum0 is the WhatsApp CRM's number, a Meta-direct number onum1-5 by its id
+TEST_PREFIX = '+1555'   # Meta's free test numbers (+1 555 …): no real US number starts so, and customers cannot reach one
 
 
 def crm_number():
@@ -208,7 +209,8 @@ def crm_number():
 def badge(line=None):
     """How a screen names one of our WhatsApp numbers: {'key', 'code', 'name', 'last4', 'phone', 'engine', 'tone',
     'short'}. `line` None is the WhatsApp CRM's number (key 'crm', named after its country); a Meta-direct number
-    goes by its own label. A country code, never a flag: Windows draws flag emoji as two plain letters."""
+    goes by its own label. A country code, never a flag: Windows draws flag emoji as two plain letters. Meta's test
+    number (TEST_PREFIX) is coded TEST, and the WhatsApp CRM's is then named "Meta test number"."""
     from app.services import phone as phone_svc
     if line is None:
         e164 = phone_svc.normalise(crm_number().get('phone') or '')[0] or None
@@ -220,7 +222,11 @@ def badge(line=None):
         tone = 'onum%d' % (1 + (line.id - 1) % (TONES - 1))
     digits = (e164 or '').lstrip('+')
     last4 = digits[-4:] if len(digits) >= 4 else ''
-    return {'key': key, 'code': phone_svc.iso_for(e164) if e164 else 'WA', 'name': name, 'last4': last4,
+    code = phone_svc.iso_for(e164) if e164 else 'WA'
+    if e164 and e164.startswith(TEST_PREFIX):
+        # never "United States": a test number looks like a real one, and nobody outside can write to it
+        code, name = 'TEST', name if line is not None else 'Meta test number'
+    return {'key': key, 'code': code, 'name': name, 'last4': last4,
             'phone': phone_svc.pretty(e164, e164) if e164 else '', 'engine': engine, 'tone': tone,
             'short': '%s ·%s' % (name, last4) if last4 else name}
 

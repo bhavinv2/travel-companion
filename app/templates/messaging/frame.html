@@ -23,7 +23,7 @@
         </div>
         <details class="help-fold wa-frame-help"><summary>(?) How this works</summary>
           <ul data-frame-help>{% for line in help %}<li>{{ line }}</li>{% endfor %}</ul></details>
-        {% if panel %}<button type="button" class="cb primary wa-new-chat" data-new-chat{{ ' hidden' if rail and rail.on != 'crm' }} title="Message a lead who has no chat yet, or find any lead"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> New chat</button>{% endif %}
+        {% if panel %}<button type="button" class="cb primary wa-new-chat" data-new-chat title="Message a lead who has no chat yet, or find any lead"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> New chat</button>{% endif %}
       </div>
       {% if rail %}
       {# which number the chats below are on, and that replies go from it -- one line per number, the rail shows one #}
@@ -244,15 +244,11 @@
     });
   }
 
-  function hint() {
-    starting = null;
-    panel.innerHTML = '<p class="muted lp-hint"><i class="fa-solid fa-hand-pointer"></i> Open a chat on the left to see their lead here.</p>';
-  }
-
-  // q: {conversation, phone, name} for the WhatsApp CRM's chat, {person, num} for a chat on a Meta-direct number
+  // q: {conversation, phone, name} for the WhatsApp CRM's chat, {person, num} for a chat on a Meta-direct number;
+  // with none open, leads to message on the number being worked on
   function load(q) {
     current = q;
-    if (!q || (!q.conversation && !q.person)) { if (mode === 'crm') showStart({}); else hint(); return; }
+    if (!q || (!q.conversation && !q.person)) { showStart({}); return; }
     var args = q.person ? { person: q.person, num: q.num }
                         : { conversation: q.conversation, phone: q.phone || '', name: q.name || '' };
     fetch(panelUrl + '?' + new URLSearchParams(args).toString(), { credentials: 'same-origin' })
@@ -266,8 +262,10 @@
     var was = starting || {};
     starting = { q: opts.q != null ? opts.q : (was.q || ''), who: opts.who || was.who || '' };
     var want = starting;
-    var back = current && current.conversation ? (current.name || 'the open chat') : '';
-    var qs = new URLSearchParams({ q: want.q, who: want.who, back: back });
+    var back = current && (current.conversation || current.person) ? (current.name || 'the open chat') : '';
+    var args = { q: want.q, who: want.who, back: back };
+    if (mode !== 'crm') args.num = mode;                 // a Meta-direct number: its own leads and first message
+    var qs = new URLSearchParams(args);
     fetch(startUrl + '?' + qs.toString(), { credentials: 'same-origin' })
       .then(function (r) { return r.ok ? r.text() : ''; })
       .then(function (html) {
@@ -294,6 +292,12 @@
     panel.querySelectorAll('[data-start-chat]').forEach(function (b) {
       b.addEventListener('click', function () { startChat(b); });
     });
+    // already chatting with them on this number: their chat opens, nothing changes
+    panel.querySelectorAll('[data-start-open]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (window.CRM_openNumberChat) window.CRM_openNumberChat(mode, b.getAttribute('data-start-open'));
+      });
+    });
   }
   function startChat(b) {
     var label = b.innerHTML;
@@ -301,10 +305,17 @@
     b.textContent = 'Opening…';
     var fd = new FormData();
     fd.set('lead', b.getAttribute('data-start-chat'));
+    if (mode !== 'crm') fd.set('num', mode);
     fetch(startUrl, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-CSRFToken': csrf } })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d.ok) { b.disabled = false; b.innerHTML = label; toast(d.error || 'The chat could not be opened.', true); return; }
+        if (d.person) {
+          // on a Meta-direct number: their chat opens in the middle, where an approved template starts it
+          if (window.CRM_openNumberChat) window.CRM_openNumberChat(d.num, d.person);
+          toast('Chat with ' + d.name + ' is open on the left. Start it with an approved template.');
+          return;
+        }
         // the inbox opens on their chat (a fresh hand-off), and their lead shows here at once
         frame.src = d.src;
         crmCurrent = { conversation: d.conversation, phone: '', name: d.name };
@@ -313,9 +324,8 @@
       })
       .catch(function () { b.disabled = false; b.innerHTML = label; toast('The chat could not be opened. Try again.', true); });
   }
-  document.querySelectorAll('[data-new-chat]').forEach(function (b) {
-    b.addEventListener('click', function () { showStart({ q: '', focus: true }); });
-  });
+  window.CRM_newChat = function () { showStart({ q: '', focus: true }); };
+  document.querySelectorAll('[data-new-chat]').forEach(function (b) { b.addEventListener('click', window.CRM_newChat); });
   window.CRM_reloadPanel = function () { load(current); };
   // contract 25: words for the open conversation's composer -- the WhatsApp CRM fills it and never sends. On a
   // Meta-direct number the words go into the box under its chat, the lead page's own.
@@ -355,7 +365,7 @@
   // the rail picked a number: the panel follows the chat open on it
   window.CRM_numberMode = function (key, q) {
     mode = key;
-    document.querySelectorAll('[data-new-chat]').forEach(function (b) { b.hidden = key !== 'crm'; });
+    starting = null;
     soon.forEach(clearTimeout);
     load(key === 'crm' ? crmCurrent : q);
   };

@@ -62,14 +62,15 @@ def _on_number(f):
 
 def _people(f):
     """Per person who ever wrote on the chosen channels: their newest message from them, and the newest either way
-    (a send that failed is no message). One grouped select."""
+    (a send that failed is no message). One grouped select. `f['started']` (a number's chats beside WhatsApp chats)
+    also keeps the chats we started that they have not answered yet."""
     tp = CrmTouchpoint
     said = or_(tp.direction == 'in', func.coalesce(tp.status, '') != 'failed')
     last_in = func.max(case((tp.direction == 'in', tp.created_at)))
-    return (select(tp.person_id.label('pid'), last_in.label('last_in'), func.max(tp.created_at).label('last_at'))
-            .where(tp.channel.in_(_channels(f)), tp.direction.in_(('in', 'out')), said, _on_number(f))
-            .group_by(tp.person_id)
-            .having(last_in.isnot(None)))
+    q = (select(tp.person_id.label('pid'), last_in.label('last_in'), func.max(tp.created_at).label('last_at'))
+         .where(tp.channel.in_(_channels(f)), tp.direction.in_(('in', 'out')), said, _on_number(f))
+         .group_by(tp.person_id))
+    return q if f.get('started') else q.having(last_in.isnot(None))
 
 
 def _query(f, user, who):

@@ -16,6 +16,7 @@
 {% if more %}{{ rows_of(rows) }}{% else %}
 <div class="nc" data-num-chats="{{ here.key }}" data-waiting="{{ counts.waiting }}">
   <div class="nc-head">
+    <button type="button" class="cb sm wa nc-new" data-num-new title="Message a lead on our {{ here.name }} number"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> New chat on {{ here.name }}</button>
     <label class="nc-find"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
       <input type="search" data-num-q value="{{ f.q }}" placeholder="Find a chat on {{ here.name }}" aria-label="Find a chat on {{ here.name }}" autocomplete="off"/></label>
     <div class="nc-who" role="group" aria-label="Whose chats">
@@ -25,7 +26,7 @@
   {% if rows %}
   <ul class="nc-rows" data-num-rows>{{ rows_of(rows) }}</ul>
   {% else %}
-  <p class="nc-empty">{% if f.q or f.who != 'all' %}No chat on our {{ here.name }} number with these filters.{% else %}Nobody has written to our {{ here.name }} number yet.{% endif %}</p>
+  <p class="nc-empty">{% if f.q or f.who != 'all' %}No chat on our {{ here.name }} number with these filters.{% else %}Nobody has written to our {{ here.name }} number yet. <b>New chat</b> starts one.{% endif %}</p>
   {% endif %}
 </div>
 {% endif %}

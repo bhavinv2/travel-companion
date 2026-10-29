@@ -186,6 +186,7 @@ body:has(.wa-frame-wrap) #whatsNew { display: none; }
 /* a number: its country code in a circle of its colour; the one being worked on is filled */
 .wr-num .wr-av { background: var(--onum-soft); color: var(--onum); border: 2px solid transparent; }
 .wr-num .wr-av b { font-size: 13px; font-weight: 800; letter-spacing: .04em; }
+.wr-num .wr-av b.long { font-size: 10px; letter-spacing: 0; }          /* TEST: Meta's test number */
 .wr-num.on { background: #fff; box-shadow: 0 1px 3px rgba(15, 35, 64, .1); }
 .wr-num.on .wr-av { background: var(--onum); color: #fff; box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--onum); }
 .wr-num.paused .wr-av { border-style: dashed; border-color: var(--onum); }
@@ -197,8 +198,10 @@ body:has(.wa-frame-wrap) #whatsNew { display: none; }
 .wr-off .wr-av { background: transparent; color: #8793a8; border: 2px dashed #b8c2d3; }
 .wr-off .wr-tx b { color: var(--c-muted); }
 .wr-nums { list-style: none; margin: 6px 0 0; padding: 6px 0 0; border-top: 1px solid #e3e8f0; display: flex; flex-direction: column; gap: 6px; }
-.wr-all { margin-top: auto; }
-.wr-all .wr-ico { background: #fff; border: 1px solid #e3e8f0; }
+.wr-all, .wr-web { margin-top: auto; }
+.wr-web + .wr-all { margin-top: 0; }
+.wr-all .wr-ico, .wr-web .wr-ico { background: #fff; border: 1px solid #e3e8f0; }
+.wr-web .wr-ico { color: #03a84e; }
 /* Find a contact: the button while small, the box once open */
 .wr-q { display: none; align-items: center; gap: 8px; margin: 2px 0; padding: 8px 10px; border: 1px solid #d8dfea; border-radius: 10px; background: #fff; }
 .wr-q i { color: var(--c-muted); font-size: 12px; }
@@ -229,6 +232,7 @@ body:has(.wa-frame-wrap) #whatsNew { display: none; }
 .nc-list { border-right: 1px solid var(--c-line); min-height: 0; display: flex; flex-direction: column; }
 .nc { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .nc-head { padding: 10px; border-bottom: 1px solid var(--c-line); display: flex; flex-direction: column; gap: 8px; }
+.nc-new { align-self: flex-start; }
 .nc-find { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid var(--c-line); border-radius: 10px; background: var(--c-soft); }
 .nc-find:focus-within { border-color: var(--c-blue); background: #fff; }
 .nc-find i { color: var(--c-muted); font-size: 12px; }
@@ -295,7 +299,9 @@ body:has(.wa-frame-wrap) #whatsNew { display: none; }
   .wr .wr-tx, .wr.open .wr-tx { display: none; }
   .wr-nums { flex-direction: row; margin: 0; padding: 0 0 0 6px; border-top: 0; border-left: 1px solid #e3e8f0; }
   .wr-item { width: auto; }
+  .wr-web { margin: 0 0 0 auto; }
   .wr-all { margin: 0 0 0 auto; }
+  .wr-web + .wr-all { margin: 0; }
   .wr.open .wr-q { order: 10; flex: 1 1 100%; }
   .wr.open .wr-hits { order: 11; flex: 1 1 100%; }
 }

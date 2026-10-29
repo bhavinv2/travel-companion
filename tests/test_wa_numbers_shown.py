@@ -142,3 +142,16 @@ def test_a_website_whatsapp_button_nobody_hears_is_flagged(app, client, admin_us
     html = unescape(client.get('/admin/crm/channels').get_data(as_text=True))
     assert 'Canada · +1 (647) 770-2288' in html and 'nothing of ours hears that number' in html
     assert 'India ·1360' in html and 'USA ·5094' in html
+
+
+def test_metas_test_number_is_never_called_united_states(app, two_numbers):
+    """+1 555 … is Meta's free test number: customers cannot write to it, so it must not look like a real US number."""
+    from app.models import Workspace
+    from app.services import crm_scope
+    ws = _db.session.get(Workspace, crm_scope.whatsapp_id())
+    ws.wacrm = dict(ws.wacrm, phone='+15553598522')
+    _db.session.commit()
+    b = channels.badge(None)
+    assert (b['code'], b['name'], b['last4']) == ('TEST', 'Meta test number', '8522') and 'United States' not in b['short']
+    assert channels.badge(two_numbers)['code'] == 'US'                 # the real US number keeps its country
+

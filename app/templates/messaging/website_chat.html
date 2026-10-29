@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Website chat{% endblock %}
+{% from 'cs/crm/_tabs.html' import tab_strip with context %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/crm.css') }}"/>{% endblock %}
+{% block content %}
+{# Website chat (messaging.website_chat): tawk.to's own inbox in the portal's frame -- the chat bubble on our websites,
+   answered live. tawk.to signs each person in itself, once, inside the frame; "Open in a new tab" is there for a
+   browser that keeps no sign-in inside another site (Safari, a private window) and for "Sign in with Google". #}
+<div class="admin-page">
+  {% include 'admin/_sidebar.html' %}
+  <main class="admin-main">
+    {{ tab_strip('web_chat') }}
+    <div class="wa-frame-wrap">
+      <div class="wa-frame-bar">
+        <div class="wa-frame-title">
+          <h1><i class="fa-regular fa-comment-dots" style="color:#03a84e" aria-hidden="true"></i> <span>Website chat</span></h1>
+          <p class="wa-frame-helper">Chat live with visitors on our websites. This is tawk.to, inside the portal.</p>
+        </div>
+        <details class="help-fold wa-frame-help"><summary>(?) How this works</summary>
+          <ul data-web-help>
+            <li>The chat bubble on nriparentservice.com, preventia360.com and the portal's own pages comes here.</li>
+            <li>Sign in to tawk.to once in this browser, with your tawk.to e-mail and password. "Sign in with Google" does not work inside the portal: use Open in a new tab for that.</li>
+            <li>If it asks you to sign in every time, your browser keeps no sign-in inside another site (Safari, a private window): use Open in a new tab.</li>
+            <li>WhatsApp to our USA number shows in tawk.to too. Answer it in WhatsApp chats › USA, so your reply is on the lead.</li>
+            <li>When a website chat ends, it lands on the person's lead (All conversations › Website chat).</li>
+          </ul></details>
+        <a class="cb wa-new-chat" href="{{ tawk_url }}" target="_blank" rel="noopener" data-web-open><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i> Open in a new tab</a>
+      </div>
+      {% if not hooked and current_user.is_admin %}
+      <p class="ws-note warn" data-web-unhooked><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+        <span>Website chats do not reach the leads yet: tawk.to's webhook is not set up. <a href="{{ crm_url('integrations_page') }}">Set it up in Integrations</a>.</span></p>
+      {% endif %}
+      <div class="wa-solo">
+        <iframe class="wa-frame" src="{{ tawk_url }}" title="Website chat — tawk.to" data-web-frame
+                allow="clipboard-write; microphone; autoplay"></iframe>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

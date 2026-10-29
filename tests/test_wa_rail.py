@@ -64,7 +64,7 @@ def test_the_rail_opens_on_a_number_and_chat_from_the_address(app, client, admin
     login(client, admin_user.email)
     html = page(client, INBOX + '?num=%d&chat=%d' % (two_numbers.id, ravi.person_id))
     assert 'data-on="%d" data-chat="%d"' % (two_numbers.id, ravi.person_id) in html
-    assert 'data-num-pane hidden' not in html and 'data-new-chat hidden' in html
+    assert 'data-num-pane hidden' not in html and 'data-new-chat hidden' not in html      # New chat on USA too
     rail = html.split('data-wr', 1)[1].split('</nav>', 1)[0]
     assert 'aria-pressed="true"' in rail.split('data-wr-num="%d"' % two_numbers.id, 1)[1].split('</button>', 1)[0]
     # a number that is not ours opens on the CRM's
@@ -193,3 +193,73 @@ def test_waiting_on_us_is_counted_on_the_number_the_unanswered_message_went_to(a
                   at=datetime.utcnow() - timedelta(minutes=1), status='sent')
     _db.session.commit()
     assert crm_inbox.waiting_by_number(admin_user) == {'crm': 0, str(two_numbers.id): 0}
+
+
+START = '/admin/messaging/start-chat'
+
+
+def test_new_chat_on_a_number_lists_its_leads_and_says_what_is_missing(app, client, admin_user, two_numbers):
+    """New chat on USA: open leads with a +1 phone and no chat on USA yet; with no approved template it says so."""
+    us_new = crm.capture('ti-quote', name='Nora Diaz', phone='+19175550111', utm={})
+    in_new = crm.capture('ti-quote', name='Meera Iyer', phone='+919000012399', utm={})
+    chatting = wrote('Ravi Kumar', '+19175550199', line=two_numbers)
+    _db.session.commit()
+    login(client, admin_user.email)
+    html = page(client, START + '?who=all&num=%d' % two_numbers.id)
+    assert 'Start a chat on' in html and 'USA ·5094' in html
+    assert 'Nora Diaz' in html and 'Meera Iyer' not in html and 'Ravi Kumar' not in html
+    assert 'with a +1 phone and no chat on USA yet' in html
+    warn = html.split('data-start-warn', 1)[1].split('</p>', 1)[0]
+    assert 'no approved templates yet' in warn and 'Copy our templates' in warn
+    # a search finds anyone; somebody already on USA opens, nothing is posted
+    found = page(client, START + '?q=Ravi&num=%d' % two_numbers.id)
+    assert 'data-start-open="%d"' % chatting.person_id in found
+    # the India list is as before: Meera, who has no chat in the WhatsApp CRM
+    assert 'Meera Iyer' in page(client, START + '?who=all')
+    assert us_new and in_new
+
+
+def test_message_on_a_number_puts_their_chat_on_it_and_sends_nothing(app, client, admin_user, two_numbers):
+    nora = crm.capture('ti-quote', name='Nora Diaz', phone='+19175550111', utm={})
+    two_numbers.templates, two_numbers.templates_at = [], datetime.utcnow()      # Meta listed none (the hourly job)
+    _db.session.commit()
+    login(client, admin_user.email)
+    d = client.post(START, data={'lead': nora.id, 'num': two_numbers.id}).get_json()
+    assert d == {'ok': True, 'person': nora.person_id, 'num': str(two_numbers.id), 'name': 'Nora Diaz'}
+    _db.session.expire_all()
+    from app.models import CrmPerson, CrmTouchpoint
+    assert _db.session.get(CrmPerson, nora.person_id).wa_line_id == two_numbers.id
+    assert CrmTouchpoint.query.filter_by(person_id=nora.person_id, direction='out').count() == 0
+    # her chat on USA opens with the box: the first message goes from USA, as an approved template
+    html = page(client, chat(two_numbers, nora))
+    assert 'USA · +1 (917) 900-5094' in html.split('WhatsApp goes from', 1)[1][:300]
+    assert 'data-wa-state="never"' in html and 'No approved templates on USA' in html
+    # a chat we started is in the number's chats, not in All conversations' WhatsApp (people who wrote to us)
+    crm.log_touch(nora, 'whatsapp', 'out', body='[template] hello_followup', user=admin_user, line_id=two_numbers.id,
+                  status='sent')
+    _db.session.commit()
+    assert 'Nora Diaz' in page(client, chats(two_numbers))
+    assert 'Nora Diaz' not in page(client, '/admin/crm/inbox?ch=whatsapp')       # she wrote by form, not WhatsApp
+    # a number that is not connected sends nothing
+    two_numbers.status = 'paused'
+    _db.session.commit()
+    d = client.post(START, data={'lead': nora.id, 'num': two_numbers.id}).get_json()
+    assert d['ok'] is False and 'not connected' in d['error']
+
+
+def test_website_chat_is_tawk_inside_the_portal(app, client, admin_user, two_numbers):
+    from app.services import access
+    assert access.PAGES['web_chat']['section'] == 'inbox'
+    login(client, admin_user.email)
+    html = page(client, '/admin/messaging/website-chat')
+    assert 'data-web-frame' in html and 'src="https://dashboard.tawk.to/"' in html
+    assert 'Open in a new tab' in html and 'Website chat' in html
+    assert 'data-web-unhooked' in html                                # no webhook secret in the tests
+    rail = page(client, INBOX).split('data-wr', 1)[1].split('</nav>', 1)[0]
+    assert '/admin/messaging/website-chat' in rail and 'Live visitors' in rail
+
+
+def test_website_chat_is_for_people_who_work_conversations(app, client, user):
+    login(client, user.email)
+    r = client.get('/admin/messaging/website-chat')
+    assert r.status_code in (302, 403)

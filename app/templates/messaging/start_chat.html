@@ -1,14 +1,22 @@
 {# Beside WhatsApp chats when no chat is open, or after "New chat" (messaging.start_chat_panel): leads to message.
    "Message" makes their chat in the WhatsApp CRM (never sends) and opens it on the left; frame.html does the
-   clicks. A fragment, not a page. #}
-{% from 'cs/crm/_bits.html' import product_chip, when, initials with context %}
+   clicks. With `here` (a Meta-direct number picked in the rail) "Message" puts their chat on that number and opens it
+   in the middle, where the first message is an approved template. A fragment, not a page. #}
+{% from 'cs/crm/_bits.html' import product_chip, when, initials, num_chip with context %}
 {% if state == 'list' %}
 <div class="sc" data-start>
   <div class="sc-head">
-    <h2><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> Start a chat</h2>
+    <h2><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> Start a chat{% if here %} on {{ num_chip(here) }}{% endif %}</h2>
     {% if back %}<button type="button" class="sc-back" data-start-back>Back to {{ back }}</button>{% endif %}
   </div>
+  {% if here %}
+  <p class="sc-lede">Pick a lead to message from our {{ here.name }} number. Their chat opens on the left, where the first message is an approved template.</p>
+  {% if not here.live %}<p class="sc-off" data-start-warn><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Our {{ here.name }} number is not connected, so nothing can go from it.</p>
+  {% elif not here.templates %}<p class="sc-off" data-start-warn><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> {{ here.name }} has no approved templates yet, so a first message cannot go.
+    {% if CAN('crm_channels') %}<a href="{{ crm_url('channel', line_id=here.line_id) }}" target="_top">Copy our templates to it</a>, and add a payment method for its account in Meta.{% else %}Ask an admin to copy our templates to it.{% endif %}</p>{% endif %}
+  {% else %}
   <p class="sc-lede">Pick a lead to message. Their chat opens on the left, where you send the first message.</p>
+  {% endif %}
   <form class="sc-find" data-start-find role="search" onsubmit="return false">
     <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
     <input type="search" name="q" value="{{ q }}" placeholder="Find a lead: name or phone" aria-label="Find a lead by name or phone" autocomplete="off"/>
@@ -17,17 +25,17 @@
   <div class="sc-who" role="group" aria-label="Whose leads">
     {% for k, label in WHO %}<button type="button" class="{{ 'on' if who == k }}" data-start-who="{{ k }}" aria-pressed="{{ 'true' if who == k else 'false' }}">{{ label }}</button>{% endfor %}
   </div>
-  <p class="sc-count">{% if total %}{{ total }} new lead{{ 's' if total != 1 }} with no WhatsApp chat yet{% if total > leads|length %}, newest {{ leads|length }} shown{% endif %}{% endif %}</p>
+  <p class="sc-count">{% if total %}{{ total }} new lead{{ 's' if total != 1 }}{% if here %}{% if here.prefixes %} with a {{ here.prefixes }} phone{% endif %} and no chat on {{ here.name }} yet{% else %} with no WhatsApp chat yet{% endif %}{% if total > leads|length %}, newest {{ leads|length }} shown{% endif %}{% endif %}</p>
   {% else %}
   <p class="sc-count">{{ total or 'No' }} lead{{ 's' if total != 1 }} found{% if total > leads|length %}, first {{ leads|length }} shown{% endif %}</p>
   {% endif %}
 
-  {% if not writes %}<p class="sc-off"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> WhatsApp is on “Not yet” in Set-up, so only leads that already have a chat can be opened from here.</p>{% endif %}
+  {% if not writes and not here %}<p class="sc-off"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> WhatsApp is on “Not yet” in Set-up, so only leads that already have a chat can be opened from here.</p>{% endif %}
 
   <ul class="sc-list">
     {% for l in leads %}
     {% set p = l.person %}
-    {% set has_chat = p.wacrm_conversation_id %}
+    {% set has_chat = (p.id in chatting) if here else p.wacrm_conversation_id %}
     <li class="sc-row">
       <span class="sc-av" aria-hidden="true">{{ initials(p.display_name) }}</span>
       <div class="sc-main">
@@ -35,8 +43,12 @@
         <span class="sc-meta">{{ product_chip(l.product) }}{% if l.status != 'open' %} <span class="chip">{{ 'Won' if l.status == 'won' else 'Lost' }}</span>{% endif %}</span>
         <span class="sc-sub">{{ p.phone or 'No phone' }} · came in {{ when(l.created_at, utcnow) }}{% if l.owner %} · {{ l.owner.full_name }}{% endif %}</span>
       </div>
-      {% if has_chat %}
+      {% if has_chat and here %}
+      <button type="button" class="cb sm" data-start-open="{{ p.id }}">Open chat</button>
+      {% elif has_chat %}
       <button type="button" class="cb sm" data-start-chat="{{ l.id }}" data-name="{{ p.display_name }}">Open chat</button>
+      {% elif p.phone and here %}
+      <button type="button" class="cb sm wa" data-start-chat="{{ l.id }}" data-name="{{ p.display_name }}"{{ ' disabled title="Our number is not connected"' if not here.live }}><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Message</button>
       {% elif p.phone %}
       <button type="button" class="cb sm wa" data-start-chat="{{ l.id }}" data-name="{{ p.display_name }}"{{ ' disabled title="WhatsApp is on “Not yet” in Set-up"' if not writes }}><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Message</button>
       {% else %}
@@ -44,7 +56,7 @@
       {% endif %}
     </li>
     {% else %}
-    <li class="sc-empty">{% if q %}No lead matches “{{ q }}”.{% elif who == 'mine' %}None of your leads is waiting for a first message.{% else %}Every new lead already has a chat.{% endif %}</li>
+    <li class="sc-empty">{% if q %}No lead matches “{{ q }}”.{% elif who == 'mine' %}None of your leads is waiting for a first message.{% elif here %}Every new lead{% if here.prefixes %} with a {{ here.prefixes }} phone{% endif %} already has a chat on {{ here.name }}.{% else %}Every new lead already has a chat.{% endif %}</li>
     {% endfor %}
   </ul>
   <p class="sc-foot">Already chatting with them? Click their chat on the left.</p>

@@ -144,6 +144,11 @@ MODULES = [
                desc='Everybody who wrote to us -- WhatsApp, e-mail, Instagram, Facebook, the website forms and its '
                     'chat -- one row each, newest first, and who is waiting on us.',
                tip='Every conversation on every channel, newest first.'),
+         # the website's chat bubble, answered live in tawk.to -- tawk.to's own screens inside the portal (2026-10-30)
+         _page('web_chat', 'Website chat', 'fa-comment-dots', ['messaging.website_chat'],
+               admin='messaging.website_chat', cs='messaging.website_chat', with_=('crm_inbox', 'wa_inbox'), grant=True,
+               desc="Visitors on our websites, live: tawk.to's chat inbox inside the portal.",
+               tip='Chat live with visitors on our websites (tawk.to).'),
          _page('crm_people', 'Contacts', 'fa-address-book',
                _both('contacts', 'contact', 'contact_edit', 'contact_tags', 'find', 'contact_family_add',
                      'contact_family_role', 'contact_family_remove', 'contact_family_rename', 'contact_merge',
@@ -467,7 +472,7 @@ SECTIONS = [
      'pages': ('health', 'crm_today', 'home', 'notifications')},
     {'key': 'inbox', 'label': 'Inbox', 'icon': 'fa-inbox', 'subs': (
         {'key': 'chats', 'label': 'Conversations', 'icon': 'fa-comments',
-         'pages': ('crm_inbox', 'wa_inbox', 'crm_checks')},
+         'pages': ('crm_inbox', 'wa_inbox', 'web_chat', 'crm_checks')},
         {'key': 'forms', 'label': 'Website forms', 'icon': 'fa-envelope-open-text',
          'pages': ('voices_general', 'voices_contact', 'voices_feedback', 'voices_report', 'voices_insurance',
                    'voices_sahayak')},

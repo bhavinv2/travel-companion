@@ -385,14 +385,17 @@ def _start_who(raw):
 def start_chat_panel():
     """The panel beside WhatsApp chats when no chat is open, or after "New chat": leads to message. With no search,
     open leads with a phone and no WhatsApp chat yet, newest first (whose: mine / not given to anyone / everyone);
-    with a search, any lead it finds, open first, each with "Message" or "Open chat". A fragment."""
-    from sqlalchemy import case
-    from app.models import CrmLead, CrmPerson
-    from app.services import crm, crm_people, crm_products
+    with a search, any lead it finds, open first, each with "Message" or "Open chat". A fragment.
+    `num`: a Meta-direct number picked in the rail -- "no chat yet" is then no message on that number, the list keeps
+    to phones that number serves (its prefixes), and it says when the number cannot send a first message."""
+    from sqlalchemy import case, exists, or_
+    from app.models import CrmLead, CrmPerson, CrmTouchpoint
+    from app.services import channels, crm, crm_people, crm_products
     if not access.allowed(current_user, request.endpoint):
         abort(403)
     if not (access.can(current_user, 'crm_board') or access.can(current_user, 'crm_today')):
         return render_template('messaging/start_chat.html', state='no_crm')
+    line = channels.get(request.args.get('num', type=int))
     q = ' '.join((request.args.get('q') or '').split())[:80]
     who = _start_who(request.args.get('who'))
     query = CrmLead.query.join(CrmPerson, CrmPerson.id == CrmLead.person_id).options(*crm.lead_load())
@@ -400,8 +403,14 @@ def start_chat_panel():
         query = (query.filter(crm_people.person_match(q))
                  .order_by(case((CrmLead.status == 'open', 0), else_=1), CrmLead.last_activity_at.desc()))
     else:
-        query = query.filter(CrmLead.status == 'open', CrmPerson.phone.isnot(None),
-                             CrmPerson.wacrm_conversation_id.is_(None))
+        query = query.filter(CrmLead.status == 'open', CrmPerson.phone.isnot(None))
+        if line is None:
+            query = query.filter(CrmPerson.wacrm_conversation_id.is_(None))
+        else:
+            query = query.filter(~exists().where(CrmTouchpoint.person_id == CrmLead.person_id,
+                                                 CrmTouchpoint.channel == 'whatsapp', CrmTouchpoint.line_id == line.id))
+            if line.prefixes:
+                query = query.filter(or_(*[CrmPerson.phone.startswith(p) for p in line.prefixes]))
         if who == 'mine':
             query = query.filter(CrmLead.owner_id == current_user.id)
         elif who == 'none':
@@ -409,9 +418,18 @@ def start_chat_panel():
         query = query.order_by(CrmLead.created_at.desc(), CrmLead.id.desc())
     total = query.count()
     leads = query.limit(30).all()
+    here = chatting = None
+    if line is not None:
+        here = channels.badge(line)
+        here.update(live=line.status == 'live', templates=len(channels.templates(line).approved_list()),
+                    prefixes=', '.join(line.prefixes or ()), line_id=line.id)
+        ids = [l.person_id for l in leads]
+        chatting = {pid for (pid,) in db.session.query(CrmTouchpoint.person_id).distinct().filter(
+            CrmTouchpoint.person_id.in_(ids), CrmTouchpoint.channel == 'whatsapp',
+            CrmTouchpoint.line_id == line.id)} if ids else set()
     return render_template('messaging/start_chat.html', state='list', leads=leads, total=total, q=q, who=who,
                            WHO=START_WHO, writes=crm.wa_writes_on(), utcnow=datetime.utcnow(),
-                           PRODUCTS=crm_products.labels(),
+                           PRODUCTS=crm_products.labels(), here=here, chatting=chatting,
                            back=(request.args.get('back') or '').strip()[:120])
 
 
@@ -420,10 +438,13 @@ def start_chat_panel():
 def start_chat():
     """"Message" beside WhatsApp chats: the lead's chat, made in the WhatsApp CRM when it has none (never sends
     anything), and the address that opens it in the frame. {ok, conversation, src, name} or {ok: false, error}.
-    `person` instead of `lead`: "Find a contact" in the rail opening somebody's chat on the WhatsApp CRM's number."""
+    `person` instead of `lead`: "Find a contact" in the rail opening somebody's chat on the WhatsApp CRM's number.
+    `num`: a Meta-direct number picked in the rail -- their chat is put on that number (start_on_number)."""
     from app.services import crm
     if not access.allowed(current_user, request.endpoint):
         abort(403)
+    if request.form.get('num'):
+        return start_on_number()
     if request.form.get('person'):
         _for_leads()
         person = _visible_person(request.form.get('person', type=int) or 0)
@@ -447,6 +468,27 @@ def start_chat():
     path = _with_panel('/inbox?mine=1&c=%s' % conv)
     return jsonify(ok=True, conversation=str(conv), name=person.display_name,
                    src=wacrm_team.sso_url(current_user, role, path, pages=granted))
+
+
+def start_on_number():
+    """"Message" beside a Meta-direct number's chats: their chat is put on that number -- what goes to them next goes
+    from it, as when they last wrote to it (channels.line_for) -- and nothing is sent; the first message is an
+    approved template in the chat's box. {ok, person, num, name} or {ok: false, error}."""
+    from app.services import channels
+    _for_leads()
+    line = channels.get(request.form.get('num', type=int))
+    if line is None:
+        abort(404)
+    lead = _lead(request.form.get('lead', type=int) or 0)
+    person = lead.person
+    if line.status != 'live':
+        return jsonify(ok=False, error='Our %s number is not connected (%s), so nothing can go from it.'
+                       % (line.label, channels.STATUS_WORDS.get(line.status, line.status).lower()))
+    if not person.phone:
+        return jsonify(ok=False, error='%s has no phone number. Add one on the lead page first.' % person.display_name)
+    person.wa_line_id = line.id
+    db.session.commit()
+    return jsonify(ok=True, person=person.id, num=str(line.id), name=person.display_name)
 
 
 START_OFF = ("They have no WhatsApp chat yet, and WhatsApp is on “Not yet” in Set-up → WhatsApp, so a new chat "
@@ -589,6 +631,25 @@ def lead_panel_make():
     return redirect(url_for('messaging.lead_panel', conversation=request.form.get('conversation'), phone=digits))
 
 
+# ------------------------------------------------- the website's live chat (tawk.to), inside the portal
+
+TAWK_DASHBOARD = 'https://dashboard.tawk.to/'
+
+
+@messaging_bp.route('/website-chat')
+@login_required
+def website_chat():
+    """Website chat: tawk.to's own inbox in the portal's frame, to chat live with visitors on our websites (the bubble
+    on nriparentservice.com, preventia360.com and the portal's public pages). tawk.to has no way for another system
+    to answer, so its screens come in whole; each person signs in to tawk.to once, inside the frame. Every chat still
+    lands on its lead through the webhook (services/tawk.py)."""
+    from app.services import tawk
+    if not access.allowed(current_user, request.endpoint):
+        flash('Your role does not include that page.', 'warning')
+        return redirect(access.home_url(current_user))
+    return render_template('messaging/website_chat.html', tawk_url=TAWK_DASHBOARD, hooked=tawk.enabled())
+
+
 # ------------------------------------------------- our other numbers, beside WhatsApp chats (the rail)
 
 FIND_SHOWN = 12
@@ -630,6 +691,7 @@ def number_chats(line_id):
     _for_leads()
     line = _line(line_id)
     f = crm_inbox.filters({'num': str(line.id), 'who': request.args.get('who'), 'q': request.args.get('q')})
+    f['started'] = True                  # a chat we started there is a chat on the number too
     n = request.args.get('n', type=int) or 1
     return render_template('messaging/number_chats.html', f=f, here=channels.badge(line), WHO=crm_inbox.WHO,
                            more=n > 1, utcnow=datetime.utcnow(), **crm_inbox.page(f, current_user, n))

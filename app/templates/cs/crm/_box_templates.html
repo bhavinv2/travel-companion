@@ -3,7 +3,7 @@
 <div class="box-tpl-pick" data-lead-live="templates">
   {% if not tpl.known %}<p class="muted small">Loading approved templates…</p>
   {% elif tpl.error %}<p class="muted small">The templates could not be loaded. Try again in a minute.</p>
-  {% elif not tpl['items'] %}<p class="muted small">{{ 'They opted out, so no template can go.' if person.wa_opt_out_at else 'No approved templates yet. They are made in WhatsApp templates.' }}</p>
+  {% elif not tpl['items'] %}<p class="muted small">{{ 'They opted out, so no template can go.' if person.wa_opt_out_at else ('No approved templates on ' ~ tpl.line ~ ' yet. Copy ours in Set-up › WhatsApp numbers.') if tpl.line else 'No approved templates yet. They are made in WhatsApp templates.' }}</p>
   {% else %}
   <select data-tpl aria-label="Choose an approved template">
     {% for t in tpl['items'] %}

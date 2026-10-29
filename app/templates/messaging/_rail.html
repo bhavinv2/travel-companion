@@ -20,7 +20,7 @@
     <li><button type="button" class="wr-item wr-num {{ b.tone }}{{ ' on' if b.key == rail.on }}{{ ' paused' if b.state }}" data-wr-num="{{ b.key }}"
                 aria-pressed="{{ 'true' if b.key == rail.on else 'false' }}"
                 title="{{ b.name }}{% if b.phone %} · {{ b.phone }}{% endif %} · {{ b.engine }}{% if b.state %} · {{ b.state }}{% endif %}{% if b.waiting %} · {{ b.waiting }} waiting on us{% endif %}">
-      <span class="wr-ico wr-av"><b>{{ b.code }}</b><em class="wr-count" data-wr-count{{ ' hidden' if not b.waiting }}>{{ b.waiting if b.waiting < 100 else '99+' }}</em></span>
+      <span class="wr-ico wr-av"><b{{ ' class=long' if b.code|length > 2 }}>{{ b.code }}</b><em class="wr-count" data-wr-count{{ ' hidden' if not b.waiting }}>{{ b.waiting if b.waiting < 100 else '99+' }}</em></span>
       <span class="wr-tx"><b>{{ b.name }}</b><small>{{ b.phone or 'Number not known yet' }}</small>
         <small>{{ b.engine }}{% if b.state %} · {{ b.state }}{% endif %}</small></span>
     </button></li>
@@ -33,6 +33,11 @@
     {% if CAN('crm_channels') %}</a>{% else %}</span>{% endif %}</li>
     {% endfor %}
   </ul>
+  {% if CAN('web_chat') %}
+  <a class="wr-item wr-web" href="{{ url_for('messaging.website_chat') }}" title="Website chat: visitors on our websites, live (tawk.to)">
+    <span class="wr-ico"><i class="fa-regular fa-comment-dots" aria-hidden="true"></i></span>
+    <span class="wr-tx"><b>Website chat</b><small>Live visitors · tawk.to</small></span></a>
+  {% endif %}
   {% if CAN('crm_inbox') %}
   <a class="wr-item wr-all" href="{{ crm_url('inbox') }}" title="All conversations: WhatsApp, e-mail, the website's chat and forms">
     <span class="wr-ico"><i class="fa-regular fa-comments" aria-hidden="true"></i></span>
