@@ -17,7 +17,7 @@ it separately:
                      tag at all and what the four conversion actions are called
 """
 import re
-from datetime import datetime
+from datetime import date, datetime
 
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user
@@ -411,7 +411,8 @@ def _canada_summary(quote):
     cover = CANADA_COVERS.get(extra.get('cover'), 'Canada insurance')
     when = '%s to %s' % (quote.start_date.strftime('%d %b %Y'), quote.end_date.strftime('%d %b %Y'))
     return {
-        'cover': cover + (' · 1 year' if extra.get('cover') == 'super_visa' else ' · %s days' % extra.get('days')),
+        'cover': cover + (' · 1 year' if extra.get('cover') == 'super_visa'
+                          else ' · %s day%s' % (extra.get('days'), '' if extra.get('days') == 1 else 's')),
         'dates': when,
         'travellers': ('1 traveller · age %s' % ages[0]) if len(ages) == 1
                       else '%d travellers · ages %s' % (len(ages), ', '.join(ages)),
@@ -500,12 +501,10 @@ def _mail_quote(app, quote_id, kind, link):
             current_app.logger.exception('Canada quote e-mail (%s) failed for quote %s', kind, quote_id)
 
 
-def canada_start(data):
-    """Step 1 for Canada, from POST /api/insurance-quote with insurance_type 'canada' (main.api_insurance_quote)."""
-    import secrets
+def _canada_trip(data):
+    """The trip from a form: ({'cover', 'start', 'end', 'days', 'travellers'}, None) or (None, what is wrong).
+    Step 1 and "Change the trip" on the quotes page check it the same way."""
     from datetime import date as _date, datetime as _dt, timedelta
-    from app.models import InsuranceQuote
-    from app.services import crm
 
     def _day(key):
         try:
@@ -518,19 +517,32 @@ def canada_start(data):
         cover = 'super_visa'
     start = _day('start_date')
     if not start or start < _date.today():
-        return _canada_err('Pick a coverage start date from today onwards.')
+        return None, 'Pick a coverage start date from today onwards.'
     if cover == 'super_visa':
         end = start + timedelta(days=364)          # a super visa policy is one full year, both ends counted
     else:
         end = _day('end_date')
         if not end or end < start:
-            return _canada_err('The coverage end date must be on or after the start date.')
+            return None, 'The coverage end date must be on or after the start date.'
     days = canada_quotes.cover_days(cover, start, end)
     if days > canada_quotes.MAX_DAYS:
-        return _canada_err('A visitor policy covers up to a year. For longer, choose Super visa or ask our team.')
+        return None, 'A visitor policy covers up to a year. For longer, choose Super visa or ask our team.'
     travellers, bad = _canada_travellers(data.get('travellers'), data.get('pre_existing'))
     if bad:
+        return None, bad
+    return {'cover': cover, 'start': start, 'end': end, 'days': days, 'travellers': travellers}, None
+
+
+def canada_start(data):
+    """Step 1 for Canada, from POST /api/insurance-quote with insurance_type 'canada' (main.api_insurance_quote)."""
+    import secrets
+    from app.models import InsuranceQuote
+    from app.services import crm
+
+    trip, bad = _canada_trip(data)
+    if bad:
         return _canada_err(bad)
+    cover, start, end, days, travellers = trip['cover'], trip['start'], trip['end'], trip['days'], trip['travellers']
     citizenship = str(data.get('citizenship', '') or '').strip().upper()
     if citizenship and not re.fullmatch(r'[A-Z]{3}', citizenship):
         citizenship = ''
@@ -604,6 +616,8 @@ def canada_quotes_page(token):
         'travellers': quote.travellers or [],
         'picks': extra.get('picks') or [], 'callback': extra.get('callback'),
         'callbackUrl': url_for('insurance.canada_callback', token=quote.token),
+        'tripUrl': url_for('insurance.canada_trip', token=quote.token),
+        'today': date.today().isoformat(),
         'editUrl': urls.public_url('insurance.landing') + '#canada',
         'callTimes': list(CALL_TIMES), 'callHow': list(CALL_HOW), 'maxPicks': MAX_PICKS,
         'phone': phone.pretty(quote.phone, quote.phone) if quote.phone else '', 'email': quote.email,
@@ -611,6 +625,39 @@ def canada_quotes_page(token):
     }
     return render_template('insurance/canada_quotes.html', quote=quote, page=page,
                            check_ok=all(not b.get('error') for b in books.values()))
+
+
+@insurance_bp.route('/travel-insurance/canada/quotes/<token>/trip', methods=['POST'])
+@rate_limit(30, 3600)
+def canada_trip(token):
+    """"Change the trip" on the quotes page: new cover, dates or travellers for the same request, priced again
+    on the same page. The lead hears about it, so an agent who already has the request calls about the new trip."""
+    from app.services import crm
+    quote = _canada_quote_or_404(token)
+    trip, bad = _canada_trip(request.get_json(silent=True) or {})
+    if bad:
+        return _canada_err(bad)
+    before = _canada_summary(quote)
+    quote.start_date, quote.end_date, quote.travellers = trip['start'], trip['end'], trip['travellers']
+    extra = dict(quote.extra or {})
+    extra.update({'cover': trip['cover'], 'days': trip['days'],
+                  'changes': (extra.get('changes') or []) + [{'at': datetime.utcnow().isoformat(), 'before': before}]})
+    quote.extra = extra
+    low = _lowest(_canada_books_for(trip['cover'], trip['travellers'], trip['days']))
+    if quote.status != 'callback':
+        quote.status = 'quoted' if low else 'failed'
+    db.session.commit()
+    s = _canada_summary(quote)
+    crm.capture_safely(
+        'ti-canada', name=quote.name, phone=quote.phone, email=quote.email, product='TI', user_id=quote.user_id,
+        departure_date=quote.start_date, ends_on=quote.end_date, ref=('insurance_quotes', quote.id),
+        message='Changed the trip on their quotes page %s: %s, %s, %s (was %s, %s, %s).' % (
+            _canada_ref(quote), s['cover'], s['dates'], s['travellers'], before['cover'], before['dates'], before['travellers']),
+        details={'plan': 'Canada · ' + s['cover'], 'travellers_ages': ', '.join(t['age'] for t in quote.travellers),
+                 'pre_existing': s['pre_existing'], 'cover': s['dates'],
+                 'quote': ('; '.join('%s from %s' % (k, canada_quotes.money(v['from'][0])) for k, v in low.items())
+                           if low else 'Secure Travel prices could not be read')})
+    return jsonify({'success': True})
 
 
 @insurance_bp.route('/travel-insurance/canada/quotes/<token>/call-back', methods=['POST'])

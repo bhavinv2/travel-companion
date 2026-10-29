@@ -20,7 +20,7 @@ export default function Hero() {
             Travel insurance for your journey, with cover for eligible medical emergencies, trip disruptions, and other travel-related expenses.
           </p>
           <p className="small" style={{ marginTop: 12, maxWidth: 520 }}>
-            Get quotes and compare international travel insurance and travel medical plans online through NRI Parent Service. Complete your purchase with Preventia360.
+            Get quotes and compare visitor insurance for the USA, super visa and visitor insurance for Canada, and Schengen visa cover online through NRI Parent Service.
           </p>
         </div>
       </div>

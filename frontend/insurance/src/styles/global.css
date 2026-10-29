@@ -256,16 +256,24 @@ section[id]{scroll-margin-top:84px}
 }
 .iform-fields{margin-top:22px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .iform-fields-4{grid-template-columns:repeat(4,minmax(0,1fr))}
-/* Canada: super visa or a visit, and pre-existing conditions -- what its prices turn on */
-.iform-ca{margin-top:22px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-.iform-seg{max-width:none;margin-top:0}
-.iform-seg .seg{min-height:54px;font-size:15px;line-height:1.2;padding:6px 10px;font-family:inherit;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
-.iform-seg .seg small{display:block;font-size:11.5px;font-weight:500;color:var(--slate);margin-top:3px}
-.iform-seg .seg.on small{color:var(--blue)}
+/* Canada: super visa or a visit, and pre-existing conditions -- what its prices turn on. Radio cards, the
+   cover tabs' language: a ring and a filled dot for the one that is on. */
+.iform-ca{margin-top:22px;display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:18px}
+.iform-opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.iform-opt{display:flex;align-items:center;gap:12px;min-height:60px;padding:10px 14px;border:1.5px solid var(--mist);
+  border-radius:14px;background:#fff;cursor:pointer;text-align:left;font-family:inherit;color:var(--navy);
+  transition:border-color .15s,background .15s,box-shadow .15s}
+.iform-opt:hover{border-color:#B9CCF2;background:#FAFCFF}
+.iform-opt i{flex:none;width:20px;height:20px;border-radius:50%;border:2px solid #C9D3E6;background:#fff;transition:all .15s}
+.iform-opt b{display:block;font-size:15px;font-weight:700;line-height:1.25}
+.iform-opt small{display:block;font-size:12.5px;color:var(--slate);margin-top:2px;line-height:1.35}
+.iform-opt.on{border-color:var(--blue);background:var(--sky);box-shadow:0 0 0 3px rgba(0,78,254,.12)}
+.iform-opt.on i{border-color:var(--blue);background:var(--blue);box-shadow:inset 0 0 0 4px #fff}
+.iform-opt:focus-visible{outline:0;box-shadow:0 0 0 3px rgba(0,78,254,.35)}
+.iform-ca-note{margin-top:8px}
 .iform-sv-end{display:flex;align-items:center;gap:8px;min-height:48px;border:1.5px dashed var(--mist);border-radius:10px;
   padding:0 12px;font-size:14px;font-weight:600;color:var(--navy);background:var(--sky)}
-@media(max-width:700px){.iform-ca{grid-template-columns:1fr}}
+@media(max-width:760px){.iform-ca{grid-template-columns:1fr}}
 @media(max-width:1080px){.iform-fields-4{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .iform-ages{margin-top:20px}
 .iform-ages-hd{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px}
@@ -1208,3 +1216,6 @@ a.ec-v:hover{color:var(--blue)}
   .fcta{border-radius:24px}
   .fcta-btns .btn{width:100%}
 }
+/* #quote / #canada: land below the site header, not under it */
+.iform-outer{scroll-margin-top:80px}
+.iform-anchor{position:absolute;top:-80px;left:0;width:1px;height:1px}

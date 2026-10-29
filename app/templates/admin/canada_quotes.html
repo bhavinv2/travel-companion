@@ -111,7 +111,7 @@
             <div style="margin-top:6px">{{ crm_pill('insurance_quote', 'insurance_quotes', iq.id, iq.phone, iq.email) }}</div>
           </td>
           <td data-label="Cover">{{ covers.get(x.cover, 'Canada') }}<br>
-            <small>{{ iq.start_date.strftime('%d %b %Y') }} → {{ iq.end_date.strftime('%d %b %Y') }} · {{ x.days or '' }} days</small></td>
+            <small>{{ iq.start_date.strftime('%d %b %Y') }} → {{ iq.end_date.strftime('%d %b %Y') }} · {{ x.days or '' }} day{{ 's' if x.days != 1 }}</small></td>
           <td data-label="Travellers">{{ iq.traveller_count }}<br>
             <small>{% for t in iq.travellers or [] %}{{ t.age }}{% if t.pre == 'y' %} (pre-existing){% endif %}{{ ', ' if not loop.last }}{% endfor %}</small></td>
           <td data-label="Picked">

@@ -26,10 +26,6 @@
         <span class="ins-type-ic"><svg viewBox="0 0 64 64" fill="currentColor" width="18" height="18"><path d="M32 4l5 10 6-3-2 13 9-9 2 6 9-2-4 11 4 3-15 12 2 6-14-2v15h-4V49l-14 2 2-6L4 33l4-3-4-11 9 2 2-6 9 9-2-13 6 3z"/></svg></span>
         <span class="ins-type-tx"><b>Canada</b><small>Super visa &amp; visitors to Canada</small></span>
       </button>
-      <button type="button" class="ins-type" data-ins-type="health" role="tab" aria-selected="false">
-        <span class="ins-type-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L11 19v-5.5L21 16z"/></svg></span>
-        <span class="ins-type-tx"><b>Travel Medical</b><small>UK, Australia &amp; the rest of the world</small></span>
-      </button>
       <button type="button" class="ins-type" data-ins-type="schengen" role="tab" aria-selected="false">
         <span class="ins-type-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 4 5.7 4 9s-1.4 6.3-4 9c-2.6-2.7-4-5.7-4-9s1.4-6.3 4-9Z"/></svg></span>
         <span class="ins-type-tx"><b>Schengen</b><small>Schengen visa cover</small></span>
@@ -38,17 +34,18 @@
 
     {# Canada only: the two things its prices turn on that the other products do not ask #}
     <div class="ins-ca" hidden>
-      <div class="f"><span class="lbl-like">Cover</span>
-        <div class="ins-seg" data-ca="cover" role="radiogroup" aria-label="Canada cover">
-          <button type="button" class="is-on" data-v="super_visa" aria-pressed="true">Super visa<small>Parents &amp; grandparents · 1 year</small></button>
-          <button type="button" data-v="visitors" aria-pressed="false">Visiting Canada<small>Any trip up to a year</small></button>
+      <div class="ins-ca-g"><span class="lbl-like">Cover</span>
+        <div class="ins-opts" data-ca="cover" role="radiogroup" aria-label="Canada cover">
+          <button type="button" class="ins-opt is-on" data-v="super_visa" role="radio" aria-checked="true"><i aria-hidden="true"></i><span><b>Super visa</b><small>1 year · parents &amp; grandparents</small></span></button>
+          <button type="button" class="ins-opt" data-v="visitors" role="radio" aria-checked="false"><i aria-hidden="true"></i><span><b>Visiting Canada</b><small>Any trip, up to a year</small></span></button>
         </div>
       </div>
-      <div class="f"><span class="lbl-like">Any pre-existing medical condition?</span>
-        <div class="ins-seg" data-ca="pre" role="radiogroup" aria-label="Pre-existing medical condition">
-          <button type="button" class="is-on" data-v="no" aria-pressed="true">No</button>
-          <button type="button" data-v="yes" aria-pressed="false">Yes<small>e.g. blood pressure, diabetes</small></button>
+      <div class="ins-ca-g"><span class="lbl-like">Any pre-existing medical condition?</span>
+        <div class="ins-opts" data-ca="pre" role="radiogroup" aria-label="Pre-existing medical condition">
+          <button type="button" class="ins-opt is-on" data-v="no" role="radio" aria-checked="true"><i aria-hidden="true"></i><span><b>No</b></span></button>
+          <button type="button" class="ins-opt" data-v="yes" role="radio" aria-checked="false"><i aria-hidden="true"></i><span><b>Yes</b></span></button>
         </div>
+        <p class="ins-ca-note">e.g. blood pressure or diabetes: covered when stable.</p>
       </div>
     </div>
 
@@ -63,15 +60,6 @@
           <option value="IND">India</option><option value="USA">United States</option><option value="CAN">Canada</option><option value="GBR">United Kingdom</option><option value="AUS">Australia</option><option value="ARE">United Arab Emirates</option><option value="SGP">Singapore</option><option value="NPL">Nepal</option><option value="LKA">Sri Lanka</option><option value="BGD">Bangladesh</option><option value="PAK">Pakistan</option>
           <option disabled>──────────</option>
           <option value="BHR">Bahrain</option><option value="BRA">Brazil</option><option value="CHN">China</option><option value="FJI">Fiji</option><option value="FRA">France</option><option value="DEU">Germany</option><option value="GUY">Guyana</option><option value="HKG">Hong Kong</option><option value="IRL">Ireland</option><option value="ITA">Italy</option><option value="JPN">Japan</option><option value="KEN">Kenya</option><option value="KWT">Kuwait</option><option value="MYS">Malaysia</option><option value="MUS">Mauritius</option><option value="MEX">Mexico</option><option value="NLD">Netherlands</option><option value="NZL">New Zealand</option><option value="NGA">Nigeria</option><option value="OMN">Oman</option><option value="PHL">Philippines</option><option value="QAT">Qatar</option><option value="SAU">Saudi Arabia</option><option value="ZAF">South Africa</option><option value="KOR">South Korea</option><option value="ESP">Spain</option><option value="SWE">Sweden</option><option value="CHE">Switzerland</option><option value="THA">Thailand</option><option value="TTO">Trinidad and Tobago</option>
-        </select>
-      </div>
-      {# Only Travel Medical prices an arbitrary destination; the other two imply their region,
-         so JS hides this field for them. Countries come from the partner's own list. #}
-      <div class="f ins-dest-f" hidden><label for="{{ p }}-dest">Travelling to <i class="rq">*</i></label>
-        <select id="{{ p }}-dest" class="ins-dest" data-no-search>
-          {% for code, name in INSURANCE_DESTINATIONS.POPULAR %}<option value="{{ code }}"{% if code == INSURANCE_DESTINATIONS.DEFAULT %} selected{% endif %}>{{ name }}</option>{% endfor %}
-          <option disabled>──────────</option>
-          {% for code, name in INSURANCE_DESTINATIONS.OTHERS %}<option value="{{ code }}">{{ name }}</option>{% endfor %}
         </select>
       </div>
     </div>

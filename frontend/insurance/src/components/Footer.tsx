@@ -55,7 +55,7 @@ export default function Footer() {
             <div className="fh">Insurance</div>
             <a className="fl" href="#top">Travel Insurance</a>
             <a className="fl" href="#visitor">Visitor Insurance</a>
-            <a className="fl" href="#benefits">Travel Medical Insurance</a>
+            <a className="fl" href="#quote">Canada Super Visa Insurance</a>
             <a className="fl" href="#benefits">International Travel Insurance</a>
             <a className="fl" href="#faq">Travel Claims</a>
           </nav>

@@ -29,7 +29,7 @@
   };
 
   const selectedType = form => (form.querySelector('.ins-type.is-on') || {}).dataset?.insType || 'visitors';
-  const caValue = (form, which) => (form.querySelector('.ins-seg[data-ca="' + which + '"] .is-on') || {}).dataset?.v || '';
+  const caValue = (form, which) => (form.querySelector('.ins-opts[data-ca="' + which + '"] .is-on') || {}).dataset?.v || '';
   const isSuperVisa = form => selectedType(form) === 'canada' && caValue(form, 'cover') === 'super_visa';
   const fmtDay = d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -114,15 +114,10 @@
       syncType(form);
     };
     form.querySelectorAll('.ins-type').forEach(chip => chip.addEventListener('click', () => pickType(chip)));
-    // Canada picked as a Travel Medical destination: it has its own tab now, with its own prices
-    q('.ins-dest')?.addEventListener('change', e => {
-      const ca = form.querySelector('.ins-type[data-ins-type="canada"]');
-      if (e.target.value === 'CAN' && ca) pickType(ca);
-    });
-    form.querySelectorAll('.ins-seg button').forEach(b => b.addEventListener('click', () => {
-      b.parentElement.querySelectorAll('button').forEach(x => {
+    form.querySelectorAll('.ins-opts .ins-opt').forEach(b => b.addEventListener('click', () => {
+      b.parentElement.querySelectorAll('.ins-opt').forEach(x => {
         x.classList.toggle('is-on', x === b);
-        x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+        x.setAttribute('aria-checked', x === b ? 'true' : 'false');
       });
       syncType(form);
     }));

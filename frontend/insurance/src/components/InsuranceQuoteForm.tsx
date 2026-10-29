@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
 import { DestinationCombo } from './CountryCombo';
 import { DialSelect } from './CountrySelect';
@@ -27,11 +27,6 @@ const PLANS = [
     blurb: 'Every Standard and Enhanced plan, limit and deductible for your parents, compared side by side. Pick one and our agent calls you to complete it.',
   },
   {
-    id: 'medical', icon: 'i-plane', tone: 'amber', title: 'Travel Medical', subtitle: 'UK, Australia & the rest of the world',
-    presection: 'travelOutsideUSA', heading: 'Travel Medical Insurance',
-    blurb: 'Explore travel medical plans for the UK, Australia, and other destinations. Benefits and exclusions vary by plan.',
-  },
-  {
     id: 'schengen', icon: 'i-globe', tone: 'green', title: 'Schengen', subtitle: 'Schengen visa cover',
     presection: 'schengen', heading: 'Schengen Visa Insurance',
     blurb: 'Explore travel medical plans for Schengen visa applications. Check that your chosen policy meets the relevant visa requirements.',
@@ -41,16 +36,20 @@ const PLANS = [
 export default function InsuranceQuoteForm() {
   const reveal = useReveal<HTMLElement>();
   const [plan, setPlan] = useState<typeof PLANS[number]['id']>('visitors');
+  // /travel-insurance#canada (the Canada quotes page's "Change the trip") opens on the Canada tab
+  useEffect(() => {
+    const pick = () => { if (window.location.hash === '#canada') setPlan('canada'); };
+    pick();
+    window.addEventListener('hashchange', pick);
+    return () => window.removeEventListener('hashchange', pick);
+  }, []);
   const active = PLANS.find((p) => p.id === plan)!;
   const [start, setStart] = useState(today);
   const [end, setEnd] = useState('');
   const [citizenship, setCitizenship] = useState('India');
   const [citizenshipInvalid, setCitizenshipInvalid] = useState(false);
-  // Canada has its own tab, so Travel Medical starts on the next most asked-about destination
-  const [destination, setDestination] = useState('United Kingdom');
   const [cover, setCover] = useState<'super_visa' | 'visitors'>('super_visa');
   const [preExisting, setPreExisting] = useState<'no' | 'yes'>('no');
-  const [destinationInvalid, setDestinationInvalid] = useState(false);
   const [ages, setAges] = useState<string[]>(['', '']);
   const [email, setEmail] = useState('');
   // The dialling code is chosen, not typed: this was one free-text box with a "+91 98765 43210"
@@ -77,7 +76,6 @@ export default function InsuranceQuoteForm() {
     setAges((a) => (a.length > 1 ? a.filter((_, idx) => idx !== i) : a));
   }
 
-  const isMedical = plan === 'medical';
   const isCanada = plan === 'canada';
   const superVisa = isCanada && cover === 'super_visa';
   const svEnd = (() => {
@@ -91,7 +89,6 @@ export default function InsuranceQuoteForm() {
     e.preventDefault();
     let ok = true;
     if (!citizenship) { setCitizenshipInvalid(true); ok = false; }
-    if (isMedical && !destination) { setDestinationInvalid(true); ok = false; }
     if (!ok) return;
 
     // What the fields actually hold, not what state believes they hold.
@@ -119,14 +116,13 @@ export default function InsuranceQuoteForm() {
     // the visitor was reading -- is still here when they come back. Same behaviour as the quote
     // drawer on the companion landing.
     const res = await requestQuote({
-      plan: planFor(destination, presection),
+      plan: planFor('', presection),
       start: startValue,
       end: endValue,
       citizenship, ages, email,
       // the number and its country apart; the server normalises the pair to E.164
       phone: phone.trim(),
       phoneCc: cc,
-      destination: isMedical ? destination : undefined,
       cover: isCanada ? cover : undefined,
       preExisting: isCanada ? preExisting : undefined,
     });
@@ -141,7 +137,8 @@ export default function InsuranceQuoteForm() {
   }
 
   return (
-    <section className="iform-outer" aria-label="Travel insurance quote form">
+    <section className="iform-outer" id="quote" aria-label="Travel insurance quote form">
+      <span id="canada" className="iform-anchor" aria-hidden="true" />
       {/* travel motifs scattered across the navy ground, as in the reference */}
       <span className="iform-motifs" aria-hidden="true">
         <Icon name="i-plane" className="ifm ifm-1" rotate={-18} />
@@ -207,27 +204,31 @@ export default function InsuranceQuoteForm() {
             <div className="iform-ca">
               <div className="fg">
                 <span className="lbl">Cover</span>
-                <div className="seg-g iform-seg" role="radiogroup" aria-label="Canada cover">
-                  <button className={`seg${cover === 'super_visa' ? ' on' : ''}`} type="button" aria-pressed={cover === 'super_visa'} onClick={() => setCover('super_visa')}>
-                    Super visa<small>Parents &amp; grandparents · 1 year</small>
-                  </button>
-                  <button className={`seg${cover === 'visitors' ? ' on' : ''}`} type="button" aria-pressed={cover === 'visitors'} onClick={() => setCover('visitors')}>
-                    Visiting Canada<small>Any trip up to a year</small>
-                  </button>
+                <div className="iform-opts" role="radiogroup" aria-label="Canada cover">
+                  {([['super_visa', 'Super visa', '1 year · parents & grandparents'],
+                     ['visitors', 'Visiting Canada', 'Any trip, up to a year']] as const).map(([v, b, s]) => (
+                    <button key={v} type="button" role="radio" aria-checked={cover === v}
+                            className={`iform-opt${cover === v ? ' on' : ''}`} onClick={() => setCover(v)}>
+                      <i aria-hidden="true" /><span><b>{b}</b><small>{s}</small></span>
+                    </button>
+                  ))}
                 </div>
               </div>
               <div className="fg">
                 <span className="lbl">Any pre-existing medical condition?</span>
-                <div className="seg-g iform-seg" role="radiogroup" aria-label="Pre-existing medical condition">
-                  <button className={`seg${preExisting === 'no' ? ' on' : ''}`} type="button" aria-pressed={preExisting === 'no'} onClick={() => setPreExisting('no')}>No</button>
-                  <button className={`seg${preExisting === 'yes' ? ' on' : ''}`} type="button" aria-pressed={preExisting === 'yes'} onClick={() => setPreExisting('yes')}>
-                    Yes<small>e.g. blood pressure, diabetes</small>
-                  </button>
+                <div className="iform-opts" role="radiogroup" aria-label="Pre-existing medical condition">
+                  {([['no', 'No'], ['yes', 'Yes']] as const).map(([v, b]) => (
+                    <button key={v} type="button" role="radio" aria-checked={preExisting === v}
+                            className={`iform-opt${preExisting === v ? ' on' : ''}`} onClick={() => setPreExisting(v)}>
+                      <i aria-hidden="true" /><span><b>{b}</b></span>
+                    </button>
+                  ))}
                 </div>
+                <p className="tiny iform-ca-note">e.g. blood pressure or diabetes: covered when stable.</p>
               </div>
             </div>
           )}
-          <div className={`iform-fields${isMedical ? ' iform-fields-4' : ''}`}>
+          <div className="iform-fields">
             <p className="fg">
               <label className="lbl" htmlFor="if-start">Cover start date <span style={{ color: 'var(--blue)' }}>*</span></label>
               <span className="iw"><Icon name="i-cal" className="ico sm" />
@@ -276,22 +277,6 @@ export default function InsuranceQuoteForm() {
                 onChange={(v) => { setCitizenship(v); setCitizenshipInvalid(false); }}
               />
             </div>
-            {isMedical && (
-              <div className="fg">
-                <label className="lbl" htmlFor="if-dest">Travelling to <span style={{ color: 'var(--blue)' }}>*</span></label>
-                <DestinationCombo
-                  id="if-dest"
-                  value={destination}
-                  invalid={destinationInvalid}
-                  onChange={(v) => {
-                    setDestinationInvalid(false);
-                    // Canada has its own tab now, with its own prices
-                    if (v === 'Canada') { setPlan('canada'); return; }
-                    setDestination(v);
-                  }}
-                />
-              </div>
-            )}
           </div>
 
           <div className="iform-ages">

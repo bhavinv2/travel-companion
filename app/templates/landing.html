@@ -1110,7 +1110,7 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
    stacked list whenever the *form* is narrow (drawer, phone) — a container query, because the
    drawer is narrow on a wide screen where a viewport query would not fire. */
 .ins-fields{container-type:inline-size}
-.ins-types{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:18px}
+.ins-types{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:18px}
 .ins-type{position:relative;display:flex;align-items:flex-start;gap:11px;padding:13px 42px 13px 13px;border:1.5px solid #E6E1D8;border-radius:16px;background:#fff;cursor:pointer;text-align:left;font:inherit;min-height:66px;transition:border-color .15s,background .15s,box-shadow .15s,transform .15s}
 .ins-type:hover{border-color:#D9C79F;background:#FFFDF8;transform:translateY(-1px)}
 .ins-type::after{content:"";position:absolute;right:13px;top:14px;width:20px;height:20px;border-radius:50%;border:2px solid #D9D2C5;background:#fff;transition:border-color .15s,background .15s}
@@ -1123,19 +1123,21 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .ins-type.is-on .ins-type-ic{background:var(--rd-amber)}
 .ins-type.is-on::after{border-color:var(--rd-amber);background:var(--rd-amber) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231b2b4d' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l4 4 10-10'/%3E%3C/svg%3E") center/12px no-repeat}
 .ins-type:focus-visible{outline:0;box-shadow:0 0 0 3px rgba(245,166,35,.45)}
-/* four products: two by two before the row turns into a list */
-@container (max-width:900px){.ins-types{grid-template-columns:repeat(2,minmax(0,1fr))}}
 /* Canada: super visa or a visit, and pre-existing conditions -- only while its tab is on */
-.ins-ca{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px}
+.ins-ca{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px;margin-bottom:14px}
+@container (max-width:640px){.ins-ca{grid-template-columns:1fr;gap:12px}}
 .ins-ca[hidden],.ins-end-f[hidden],.ins-ca-hint[hidden]{display:none}
-.ins-ca .f{margin-bottom:0}
 .ins-form .lbl-like{display:block;font-size:13px;font-weight:600;color:var(--rd-navy-ink,#0F1F3D);margin-bottom:6px}
-.ins-seg{display:flex;gap:4px;background:#F3EEE4;border:1px solid #E6E1D8;border-radius:12px;padding:4px}
-.ins-seg button{flex:1;border:0;background:transparent;border-radius:9px;padding:9px 8px;font:inherit;font-size:13px;font-weight:700;color:var(--rd-navy-ink,#0F1F3D);cursor:pointer;line-height:1.2;text-align:center}
-.ins-seg button small{display:block;font-size:11px;font-weight:500;color:var(--rd-text-soft,#66728A);margin-top:2px}
-.ins-seg button.is-on{background:var(--rd-navy-ink,#0F1F3D);color:#fff;box-shadow:0 6px 14px -8px rgba(11,28,58,.7)}
-.ins-seg button.is-on small{color:rgba(255,255,255,.75)}
-.ins-seg button:focus-visible{outline:2px solid var(--rd-amber,#F5A623);outline-offset:1px}
+.ins-opts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ins-opt{display:flex;align-items:center;gap:10px;min-height:56px;padding:10px 12px;border:1.5px solid #E6E1D8;border-radius:14px;background:#fff;cursor:pointer;text-align:left;font:inherit;transition:border-color .15s,background .15s,box-shadow .15s}
+.ins-opt:hover{border-color:#D9C79F;background:#FFFDF8}
+.ins-opt i{flex:none;width:18px;height:18px;border-radius:50%;border:2px solid #D2CABB;background:#fff;transition:border-color .15s,box-shadow .15s}
+.ins-opt b{display:block;font-size:14px;font-weight:700;color:var(--rd-navy-ink,#0F1F3D);line-height:1.25}
+.ins-opt small{display:block;font-size:11.5px;font-weight:500;color:var(--rd-text-soft,#66728A);line-height:1.35;margin-top:2px}
+.ins-opt.is-on{border-color:var(--rd-amber,#F5A623);background:linear-gradient(180deg,#FFFBF2,#FFF4DE);box-shadow:0 0 0 3px rgba(245,166,35,.18)}
+.ins-opt.is-on i{border-color:var(--rd-amber,#F5A623);box-shadow:inset 0 0 0 4px #fff;background:var(--rd-amber,#F5A623)}
+.ins-opt:focus-visible{outline:0;box-shadow:0 0 0 3px rgba(245,166,35,.45)}
+.ins-ca-note{font-size:11.5px;color:var(--rd-text-soft,#66728A);margin:6px 2px 0}
 .ins-ca-hint{font-size:12px;font-weight:600;color:#1E7F4F;margin:6px 0 0}
 .ins-type[data-ins-type="canada"] .ins-type-ic{color:#D52B1E}
 .ins-type[data-ins-type="canada"].is-on .ins-type-ic{color:#fff;background:#D52B1E}
@@ -2456,7 +2458,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
       {{ ins_quote_form('ins') }}
     </div>
     <ul class="ins-points">
-      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Compare visitor, Canada super visa, travel medical &amp; Schengen plans</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Compare visitor, Canada super visa &amp; Schengen plans</li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Medical, evacuation &amp; baggage cover</li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Quote in under a minute, buy online</li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Ideal for parents visiting the USA</li>

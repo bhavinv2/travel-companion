@@ -136,7 +136,7 @@ export default function SupportModal() {
           </p>
 
           <ul className="spop-points">
-            <li><Icon name="i-check" className="ico w xs" />Help choosing between visitor, travel medical and Schengen cover</li>
+            <li><Icon name="i-check" className="ico w xs" />Help choosing between visitor, Canada super visa and Schengen cover</li>
             <li><Icon name="i-check" className="ico w xs" />Questions about a policy you already hold</li>
             <li><Icon name="i-check" className="ico w xs" />Guidance on claims and documents</li>
           </ul>

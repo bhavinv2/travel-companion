@@ -3,6 +3,11 @@ import Icon from './Icon';
 import CountrySelect, { DialSelect } from './CountrySelect';
 import { useQuote } from '../context/QuoteContext';
 import { openQuotes, planFor, requestQuote } from '../utils/quoteRequest';
+import { SCHENGEN } from '../data/countries';
+
+/** Where a product here covers: the USA (Visitors), Canada (our own quotes page) and the Schengen area.
+ *  Travel Medical for the rest of the world is no longer offered, so no other destination is listed. */
+const COVERED = (name: string) => name === 'United States' || name === 'Canada' || SCHENGEN.has(name);
 
 const today = new Date().toISOString().slice(0, 10);
 const TITLES = ['Tell us about your trip', 'Who is travelling?', 'Your quotes are ready'];
@@ -119,7 +124,7 @@ export default function QuoteModal() {
                 <p className="fg">
                   <label className="lbl" htmlFor="m-dest">Destination</label>
                   <span className="iw"><Icon name="i-pin" className="ico sm" />
-                    <CountrySelect id="m-dest" className="inp" value={form.destination} onChange={(v) => setForm({ destination: v })} />
+                    <CountrySelect id="m-dest" className="inp" value={form.destination} onChange={(v) => setForm({ destination: v })} only={COVERED} />
                   </span>
                 </p>
                 <p className="fg">

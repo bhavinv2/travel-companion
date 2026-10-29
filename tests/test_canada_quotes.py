@@ -288,6 +288,38 @@ def test_call_back_needs_a_name_and_real_options(client):
     assert ok.status_code == 200 and _db.session.get(InsuranceQuote, q.id).status == 'callback'
 
 
+# ------------------------------------------------------------------------------------------- change the trip, in place
+
+def test_change_the_trip_on_the_quotes_page(client):
+    q = _token(client)
+    page = client.get('/travel-insurance/canada/quotes/%s' % q.token).data.decode()
+    assert 'id="cqTrip"' in page and '/trip' in page                      # the form is on the page itself
+    end = (date.today() + timedelta(days=12 + 20)).isoformat()
+    r = client.post('/travel-insurance/canada/quotes/%s/trip' % q.token, json={
+        'cover': 'visitors', 'start_date': _start(), 'end_date': end,
+        'travellers': [{'age': '66', 'pre': 'y'}, {'age': '62'}, {'age': '30'}]})
+    assert r.status_code == 200, r.get_json()
+    q = _db.session.get(InsuranceQuote, q.id)
+    assert q.extra['cover'] == 'visitors' and q.extra['days'] == 21 and len(q.travellers) == 3
+    assert q.travellers[0]['pre'] == 'y' and q.extra['changes'][0]['before']['cover'].startswith('Super visa')
+    assert InsuranceQuote.query.count() == 1 and CrmLead.query.count() == 1      # the same request, the same lead
+    lead = CrmLead.query.one()
+    body = ' '.join(t.body or '' for t in CrmTouchpoint.query.filter_by(lead_id=lead.id).all())
+    assert 'Changed the trip' in body and '21 days' in body
+    data = client.get('/travel-insurance/canada/quotes/%s' % q.token).data.decode()
+    assert '"days": 21' in data or '"days":21' in data
+    # checked like step 1
+    bad = client.post('/travel-insurance/canada/quotes/%s/trip' % q.token, json={'cover': 'visitors', 'start_date': _start()})
+    assert bad.status_code == 400
+    assert client.post('/travel-insurance/canada/quotes/nope/trip', json={}).status_code == 404
+
+
+def test_one_day_reads_as_a_day(client):
+    r = _ask(client, cover='visitors', end_date=_start())
+    html = client.get(r.get_json()['url']).data.decode()
+    assert '1 day' in html and '1 days' not in html
+
+
 # ------------------------------------------------------------------------------------------- the admin copy
 
 def test_admin_copy_shows_picks_then_and_now(client, admin_user, secure_travel):

@@ -21,7 +21,11 @@
   const PRODUCTS = ['super_visa', 'visitors'].filter(p => books[p]);
   const usable = p => books[p] && !books[p].error;
   const people = (D.travellers || []).map(t => ({ age: +t.age }));
+  // Table (a price grid per plan) on a desk, Cards on a phone; the visitor's own choice is remembered
+  let savedView = null;
+  try { savedView = window.localStorage.getItem('cq.view'); } catch (e) { savedView = null; }
   const state = {
+    view: savedView === 'table' || savedView === 'cards' ? savedView : (window.innerWidth >= 1100 ? 'table' : 'cards'),
     product: usable(D.cover) ? D.cover : (PRODUCTS.find(usable) || D.cover || 'super_visa'),
     pre: (D.travellers || []).map(t => (t.pre === 'y' ? 'y' : 'n')),
     limits: new Set(), deds: new Set(), pay: 'once', sort: 'cover', q: '',
@@ -54,7 +58,8 @@
     return (books[product].deductibles || []).find(d => d.value === +value) || { value: +value, label: '$' + value };
   }
   const planLabel = plan => (plan === 'e' ? 'Enhanced' : 'Standard');
-  const daysText = b => (b.product === 'super_visa' || b.days === 365 ? 'a year' : 'for ' + b.days + ' days');
+  const dayWord = n => n + (n === 1 ? ' day' : ' days');
+  const daysText = b => (b.product === 'super_visa' || b.days === 365 ? 'a year' : 'for ' + dayWord(b.days));
   const who = i => 'Traveller ' + (i + 1) + ' · ' + people[i].age;
 
   /* ------------------------------------------------------------------ search */
@@ -85,6 +90,7 @@
       count.textContent = '';
       return;
     }
+    if (state.view === 'table') { renderTable(plan, list, count, b); return; }
     const toks = tokens();
     const lims = (b.limits[plan] || []).filter(l => !state.limits.size || state.limits.has(l.code));
     const deds = b.deductibles.filter(d => !state.deds.size || state.deds.has(d.value));
@@ -113,6 +119,82 @@
         '<div class="cq-rows">' + c.rows.map(r => rowHtml(b, plan, c.lim, r, r.total != null && r.total === low)).join('') + '</div>' +
         '</article>';
     }).join('');
+  }
+
+  /* The table: one row per policy limit, one column per deductible, every price at a glance. Filters take
+     rows and columns away; the search dims what does not match, so the grid keeps its shape. */
+  function renderTable(plan, list, count, b) {
+    const toks = tokens();
+    const lims = (b.limits[plan] || []).filter(l => !state.limits.size || state.limits.has(l.code));
+    const deds = b.deductibles.filter(d => !state.deds.size || state.deds.has(d.value));
+    let rows = lims.map(lim => {
+      const cells = deds.map(ded => {
+        const c = Object.assign({ lim, ded }, row(state.product, plan, lim, ded));
+        c.hit = matches(toks, plan, lim, ded, c);
+        return c;
+      });
+      const priced = cells.filter(c => c.total != null && c.hit).map(c => c.total);
+      return { lim, cells, min: priced.length ? Math.min.apply(null, priced) : Infinity, any: cells.some(c => c.hit) };
+    }).filter(r => r.any);
+    if (state.sort === 'cover-desc') rows.reverse();
+    if (state.sort === 'price') rows.sort((a, z) => a.min - z.min);
+    const low = Math.min.apply(null, rows.map(r => r.min).concat([Infinity]));
+    const offered = rows.reduce((n, r) => n + r.cells.filter(c => c.total != null && c.hit).length, 0);
+    count.textContent = offered + (offered === 1 ? ' option' : ' options');
+    if (!rows.length || !deds.length) {
+      list.innerHTML = '<div class="cq-empty">Nothing matches these filters.<br><button type="button" class="cq-link" data-reset>Clear the filters</button></div>';
+      return;
+    }
+    const unit = state.pay === 'monthly' ? 'a month' : (b.product === 'super_visa' || b.days === 365 ? 'a year' : dayWord(b.days));
+    list.innerHTML = '<div class="cq-tbl"><div class="cq-tbl-scroll"><table>' +
+      '<caption class="cq-tbl-cap">' + esc(planLabel(plan)) + ' plan prices, ' + esc(unit) + (people.length > 1 ? ', everyone together' : '') + '</caption>' +
+      '<thead><tr><th scope="col" class="cq-tbl-corner"><span>Deductible</span><b>Cover</b></th>' +
+      deds.map(d => '<th scope="col">' + esc(d.label) + '</th>').join('') + '</tr></thead><tbody>' +
+      rows.map(r => '<tr><th scope="row"><b>' + esc(r.lim.label) + '</b>' +
+        (state.product === 'super_visa' ? '<small>Super visa ready</small>' : '') + '</th>' +
+        r.cells.map(c => cellHtml(b, plan, r.lim, c, c.total != null && c.total === low && c.hit)).join('') + '</tr>').join('') +
+      '</tbody></table></div><p class="cq-tbl-detail" data-detail="' + plan + '"></p></div>';
+    showDetail(plan, null);
+  }
+
+  function cellHtml(b, plan, lim, c, isLow) {
+    const k = key(state.product, plan, lim.code, c.ded.value);
+    if (c.total == null) {
+      return '<td><span class="cq-cell is-na" title="Not offered for ' +
+        esc(c.missing.map(i => who(i)).join(', ')) + '">—</span></td>';
+    }
+    const picked = state.picks.has(k);
+    const monthly = state.pay === 'monthly';
+    const main = monthly ? (c.monthlyOk ? money(c.monthly) : money(c.total)) : money(c.total);
+    const sub = monthly ? (c.monthlyOk ? 'a month' : 'full price') : money(round2(c.total / b.days)) + '/day';
+    return '<td><button type="button" class="cq-cell' + (picked ? ' is-picked' : '') + (isLow ? ' is-low' : '') +
+      (c.hit ? '' : ' is-dim') + '" data-key="' + esc(k) + '" aria-pressed="' + picked + '" aria-label="' +
+      esc(planLabel(plan) + ', ' + lim.label + ' cover, ' + c.ded.label + ' deductible: ' + money(c.total)) + '">' +
+      (isLow ? '<i class="cq-low">Lowest</i>' : '') + '<b>' + main + '</b><small>' + esc(sub) + '</small></button></td>';
+  }
+
+  /* Under each table: who pays what for the price under the pointer (or the last one picked). */
+  function showDetail(plan, k) {
+    const el = $('[data-detail="' + plan + '"]');
+    if (!el) return;
+    if (!k) {
+      const mine = [...state.picks.keys()].filter(x => x.split('|')[0] === state.product && x.split('|')[1] === plan);
+      k = mine[mine.length - 1];
+    }
+    if (!k) {
+      el.innerHTML = '<span class="cq-tbl-hint">Tap a price to pick it. Point at one to see what each traveller pays.</span>';
+      return;
+    }
+    const [product, p, limit, ded] = k.split('|');
+    const b = books[product];
+    const r = row(product, p, limitOf(product, p, limit), dedOf(product, ded));
+    if (r.total == null) { el.textContent = ''; return; }
+    const head = '<b>' + esc(planLabel(p) + ' · ' + limitOf(product, p, limit).label + ' · ' + dedOf(product, ded).label + ' deductible') + '</b>';
+    const each = people.length > 1
+      ? r.each.map((x, i) => '<span>' + esc(who(i)) + ' <b>' + money(x) + '</b></span>').join('')
+      : '<span>' + money(round2(r.total / b.days)) + ' a day</span>';
+    const monthly = r.monthlyOk ? '<span>or ' + money(r.monthly) + ' a month + ' + money(b.monthly.fee).replace('.00', '') + ' once</span>' : '';
+    el.innerHTML = head + '<span class="cq-tbl-total">' + money(r.total) + '</span>' + each + monthly;
   }
 
   function rowHtml(b, plan, lim, r, isLow) {
@@ -146,7 +228,7 @@
   function renderProducts() {
     $('#cqProduct').innerHTML = PRODUCTS.map(p => {
       const b = books[p];
-      const sub = p === 'super_visa' ? '1 year · $100k+' : (b.days ? b.days + ' days' : '');
+      const sub = p === 'super_visa' ? '1 year · $100k+' : (b.days ? dayWord(b.days) : '');
       return '<button type="button" role="radio" data-product="' + p + '" aria-pressed="' + (state.product === p) + '"' +
         ' aria-checked="' + (state.product === p) + '">' + (p === 'super_visa' ? 'Super visa' : 'Visitor') +
         '<small>' + esc(sub) + '</small></button>';
@@ -252,8 +334,13 @@
       '<span role="cell" class="' + (enh && enh !== std ? 'more' : '') + '">' + esc(enh || '—') + '</span></div>').join('');
   }
 
+  function renderView() {
+    $('#cqBoard').dataset.view = state.view;
+    $$('#cqView [data-view]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.view === state.view)));
+  }
+
   function render() {
-    renderProducts(); renderPre(); renderFilters();
+    renderView(); renderProducts(); renderPre(); renderFilters();
     renderPlan('s'); renderPlan('e');
     renderPicks(); renderCheck();
   }
@@ -267,10 +354,16 @@
     if (t.dataset.limit !== undefined) { toggle(state.limits, t.dataset.limit); render(); return; }
     if (t.dataset.ded !== undefined) { toggle(state.deds, t.dataset.ded === '' ? '' : +t.dataset.ded); render(); return; }
     if (t.dataset.pay) { if (!t.disabled) { state.pay = t.dataset.pay; render(); } return; }
+    if (t.dataset.view) {
+      state.view = t.dataset.view;
+      try { window.localStorage.setItem('cq.view', state.view); } catch (e) { /* private window: not remembered */ }
+      render();
+      return;
+    }
     if (t.dataset.tab) { setTab(t.dataset.tab); return; }
     if (t.dataset.unpick) { state.picks.delete(t.dataset.unpick); render(); return; }
     if (t.hasAttribute('data-reset') || t.id === 'cqReset') { resetFilters(); return; }
-    if (t.classList.contains('cq-row')) { togglePick(t); return; }
+    if (t.classList.contains('cq-row') || t.classList.contains('cq-cell')) { togglePick(t); return; }
     if (t.id === 'cqCall' || t.hasAttribute('data-open-call')) { openCall(); return; }
     if (t.hasAttribute('data-close')) { closeCall(); return; }
   });
@@ -304,6 +397,17 @@
     el.hidden = false; el.textContent = msg;
     setTimeout(() => { el.textContent = 'Tap any price on the left or right to add it here. Pick one, or a few to talk through.'; renderPicks(); }, 2600);
   }
+
+  ['mouseover', 'focusin'].forEach(ev => document.addEventListener(ev, e => {
+    const cell = e.target.closest && e.target.closest('button.cq-cell');
+    if (cell) showDetail(cell.dataset.key.split('|')[1], cell.dataset.key);
+  }));
+  document.addEventListener('mouseout', e => {
+    const cell = e.target.closest && e.target.closest('button.cq-cell');
+    if (cell && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('button.cq-cell'))) {
+      showDetail(cell.dataset.key.split('|')[1], null);
+    }
+  });
 
   let typing;
   $('#cqSearch').addEventListener('input', e => {
@@ -377,6 +481,111 @@
       btn.disabled = false; btn.textContent = 'Send my request';
     }
   });
+
+  /* ------------------------------------------------------------------ change the trip, here */
+  const trip = $('#cqTrip');
+  const tripState = { cover: D.cover || 'super_visa', people: (D.travellers || []).map(t => ({ age: String(t.age), pre: t.pre === 'y' ? 'y' : 'n' })) };
+  const fmtDay = d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  function drawTrip() {
+    $$('#cqTripCover [data-cover]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.cover === tripState.cover)));
+    const sv = tripState.cover === 'super_visa';
+    $('#cqTripEndF').hidden = sv;
+    $('#cqTripYear').hidden = !sv;
+    const start = $('#cqTripStart').value;
+    if (sv) {
+      const d = start ? new Date(start + 'T00:00:00') : null;
+      if (d) d.setDate(d.getDate() + 364);
+      $('#cqTripYear .cq-trip-year').textContent = d && !isNaN(d) ? fmtDay(d) + ' · one full year' : 'One full year';
+    }
+    $('#cqTripEnd').min = start || D.today;
+    $('#cqTripPeople').innerHTML = tripState.people.map((p, i) =>
+      '<div class="cq-trip-person"><span class="n">' + (i + 1) + '</span>' +
+      '<input type="number" min="0" max="120" inputmode="numeric" data-age="' + i + '" value="' + esc(p.age) + '" aria-label="Traveller ' + (i + 1) + ' age" placeholder="Age">' +
+      '<div class="cq-trip-pre" role="radiogroup" aria-label="Traveller ' + (i + 1) + ' pre-existing condition">' +
+      ['n', 'y'].map(v => '<button type="button" role="radio" data-tpre="' + i + '" data-v="' + v + '" aria-checked="' + (p.pre === v) + '"><i aria-hidden="true"></i>' +
+        (v === 'y' ? 'Pre-existing' : 'None') + '</button>').join('') + '</div>' +
+      (tripState.people.length > 1 ? '<button type="button" class="rm" data-trm="' + i + '" aria-label="Remove traveller ' + (i + 1) + '">&times;</button>' : '') +
+      '</div>').join('');
+    $('#cqTripAdd').hidden = tripState.people.length >= 8;
+  }
+
+  function openTrip(open) {
+    trip.hidden = !open;
+    $('#cqEditBtn').setAttribute('aria-expanded', String(open));
+    if (open) {
+      $('#cqTripStart').min = D.today;
+      $('#cqTripStart').value = D.start && D.start >= D.today ? D.start : D.today;
+      $('#cqTripEnd').value = D.cover === 'visitors' ? D.end : '';
+      tripState.cover = D.cover || 'super_visa';
+      tripState.people = (D.travellers || []).map((t, i) => ({ age: String(t.age), pre: state.pre[i] || 'n' }));
+      $('#cqTripErr').hidden = true;
+      drawTrip();
+      $('#cqTripStart').focus();
+    } else {
+      $('#cqEditBtn').focus();
+    }
+  }
+
+  $('#cqEditBtn').addEventListener('click', () => openTrip(trip.hidden));
+  $('#cqTripCancel').addEventListener('click', () => openTrip(false));
+  $('#cqTripAdd').addEventListener('click', () => {
+    if (tripState.people.length < 8) tripState.people.push({ age: '', pre: 'n' });
+    drawTrip();
+    const ages = $$('#cqTripPeople [data-age]');
+    ages[ages.length - 1].focus();
+  });
+  $('#cqTripStart').addEventListener('change', drawTrip);
+  trip.addEventListener('input', e => {
+    if (e.target.dataset.age !== undefined) tripState.people[+e.target.dataset.age].age = e.target.value.trim();
+  });
+  trip.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.cover) { tripState.cover = b.dataset.cover; drawTrip(); }
+    if (b.dataset.tpre !== undefined) { tripState.people[+b.dataset.tpre].pre = b.dataset.v; drawTrip(); }
+    if (b.dataset.trm !== undefined) { tripState.people.splice(+b.dataset.trm, 1); drawTrip(); }
+  });
+  trip.addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = $('#cqTripErr'), go = $('#cqTripGo');
+    const fail = m => { err.textContent = m; err.hidden = false; };
+    err.hidden = true;
+    const start = $('#cqTripStart').value, end = $('#cqTripEnd').value;
+    if (!start) return fail('Pick the date the cover starts.');
+    if (tripState.cover === 'visitors' && (!end || end < start)) return fail('Pick an end date on or after the start date.');
+    const people = tripState.people.filter(p => p.age !== '');
+    if (!people.length) return fail('Enter at least one traveller’s age.');
+    if (people.some(p => !/^\d{1,3}$/.test(p.age))) return fail('Ages must be whole numbers (years).');
+    go.disabled = true; go.textContent = 'Updating…';
+    try {
+      const r = await fetch(D.tripUrl, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+        body: JSON.stringify({ cover: tripState.cover, start_date: start, end_date: tripState.cover === 'visitors' ? end : '',
+          travellers: people.map(p => ({ age: p.age, pre: p.pre })) }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.success) throw new Error(d.error || 'We could not update that just now. Please try again.');
+      // the same page, priced for the new trip; the picks come along where they still exist
+      try { window.sessionStorage.setItem('cq.picks.' + D.ref, JSON.stringify([...state.picks.values()])); } catch (ex) { /* not kept */ }
+      window.location.reload();
+    } catch (ex) {
+      fail(ex.message);
+      go.disabled = false; go.textContent = 'Update my quotes';
+    }
+  });
+
+  // picks carried over a "Change the trip" reload
+  try {
+    const kept = JSON.parse(window.sessionStorage.getItem('cq.picks.' + D.ref) || 'null');
+    window.sessionStorage.removeItem('cq.picks.' + D.ref);
+    (kept || []).forEach(p => {
+      const b = books[p.product];
+      if (b && !b.error && (b.limits[p.plan] || []).some(l => l.code === String(p.limit))) {
+        state.picks.set(key(p.product, p.plan, p.limit, p.deductible), p);
+      }
+    });
+  } catch (ex) { /* nothing kept */ }
 
   renderBenefits();
   render();

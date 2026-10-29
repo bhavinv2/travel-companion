@@ -8,6 +8,8 @@ interface CountrySelectProps {
   required?: boolean;
   placeholder?: string;
   'aria-label'?: string;
+  /** only the countries this keeps (by name); every country when left out */
+  only?: (name: string) => boolean;
 }
 
 const sorted = [...COUNTRIES].sort((a, b) => a.name.localeCompare(b.name));
@@ -19,6 +21,7 @@ export default function CountrySelect({
   className = 'inp',
   required,
   placeholder = 'Select a country',
+  only,
   ...rest
 }: CountrySelectProps) {
   return (
@@ -31,7 +34,7 @@ export default function CountrySelect({
       {...rest}
     >
       <option value="">{placeholder}</option>
-      {sorted.map((c) => (
+      {sorted.filter((c) => !only || only(c.name)).map((c) => (
         <option key={c.iso} value={c.name}>
           {flagEmoji(c.iso)} {c.name}
         </option>
