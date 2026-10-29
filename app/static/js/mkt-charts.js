@@ -204,9 +204,6 @@
     var body = boxEl.querySelector('.mk-box-b');
     opts = opts || {};
     if (!opts.keepHtml) body.innerHTML = bodyHtml(cfg, r);
-    // the headline number in the title row: what a folded box still shows (the dashboard's "open one big")
-    var mini = boxEl.querySelector('.mk-mini');
-    if (mini) mini.textContent = r && r.ok && r.total !== null && r.total !== undefined ? fmt(r.total, r.unit) : '';
     if (!r || !r.ok) return;
     var n = body.querySelector('.mk-n');
     if (n) { n.setAttribute('data-unit', r.unit || 'count'); if (!opts.noCount) countUp(n, opts.from); }
@@ -258,9 +255,47 @@
   }
 
   // ------------------------------------------------------------------------------------------- one box, big
-  // Clicking a box opens it across the page with everything it knows -- the chart drawn large, the total, the
-  // days before and the change, the busiest group, every row -- and folds every other box to its title and its
-  // number. Clicking another folded box opens that one; its title, the button or Esc closes it again.
+  // Clicking a box opens it where it is: it takes the whole width of its row and grows taller, with everything it
+  // knows -- the chart drawn large, the total, the days before and the change, the busiest group, every row. Only
+  // the boxes in its way move down to make room; nothing else changes. Its title, its button or Esc closes it, and
+  // every box goes back to its place.
+
+  var BIG_H = 9;           // rows an opened box is tall
+  var home = {};           // box id -> {x, y, w, h}: where the dashboard put it
+
+  function overlaps(a, b) { return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h; }
+
+  // the same rule the designer lays boxes out by (mkt-designer.js pack): the opened box keeps its row, a box whose
+  // middle is above that row stays above it, the others move down out of its way; then every box rises into any
+  // space left above it
+  function layout(openId) {
+    var boxes = Object.keys(home).map(function (k) {
+      var h = home[k];
+      return { id: k, x: h.x, y: h.y, w: h.w, h: h.h };
+    });
+    var first = null;
+    boxes.forEach(function (b) {
+      if (b.id === openId) { first = b; b.x = 0; b.w = 12; b.h = Math.max(b.h, BIG_H); }
+    });
+    var rest = boxes.filter(function (b) { return b !== first; }).sort(function (a, b) { return a.y - b.y || a.x - b.x; });
+    var before = first ? rest.filter(function (b) { return b.y + b.h / 2 <= first.y; }) : [];
+    var after = rest.filter(function (b) { return before.indexOf(b) < 0; });
+    var placed = [];
+    before.concat(first ? [first] : [], after).forEach(function (b) {
+      while (placed.some(function (p) { return overlaps(b, p); })) b.y += 1;
+      placed.push(b);
+    });
+    var settled = [];
+    placed.sort(function (a, b) { return a.y - b.y || a.x - b.x; }).forEach(function (b) {
+      while (b.y > 0 && !settled.some(function (p) { return overlaps({ x: b.x, y: b.y - 1, w: b.w, h: b.h }, p); })) b.y -= 1;
+      settled.push(b);
+    });
+    settled.forEach(function (b) {
+      var el = reg[b.id].el;
+      el.style.setProperty('--x', b.x); el.style.setProperty('--y', b.y);
+      el.style.setProperty('--w', b.w); el.style.setProperty('--h', b.h);
+    });
+  }
 
   function moreHtml(cfg, r) {
     if (!r || !r.ok) return '';
@@ -307,22 +342,21 @@
     var b = el.querySelector('.mk-x');
     if (!b) return;
     b.innerHTML = '<i class="fa-solid ' + (open ? 'fa-down-left-and-up-right-to-center' : 'fa-up-right-and-down-left-from-center') + '" aria-hidden="true"></i>';
-    b.title = open ? 'Back to all the boxes (Esc)' : 'Open this box big';
+    b.title = open ? 'Make it small again (Esc)' : 'Open this box big';
     b.setAttribute('aria-label', b.title);
     el.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
 
   function open(id) {
-    var grid = root.querySelector('.mk-grid');
     if (!reg[id]) return;
     if (focused === id) { close(); return; }
     var was = focused && reg[focused];
     focused = id;
-    grid.classList.add('has-focus');
     Object.keys(reg).forEach(function (k) {
       reg[k].el.classList.toggle('focus', k === id);
       setButton(reg[k].el, k === id);
     });
+    layout(id);
     if (was) drawSmall(was);
     drawBig(reg[id]);
     try { history.replaceState(null, '', '#box-' + id); } catch (e) { /* a sandboxed page */ }
@@ -333,8 +367,8 @@
     if (!focused) return;
     var entry = reg[focused];
     focused = null;
-    root.querySelector('.mk-grid').classList.remove('has-focus');
     Object.keys(reg).forEach(function (k) { reg[k].el.classList.remove('focus'); setButton(reg[k].el, false); });
+    layout(null);
     drawSmall(entry);
     try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* a sandboxed page */ }
     entry.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -378,11 +412,12 @@
     var id = boxEl.getAttribute('data-box');
     var cfg = readJson(boxEl, 'mk-cfg');
     var entry = reg[id] = { el: boxEl, cfg: cfg, r: null };
+    home[id] = { x: +boxEl.style.getPropertyValue('--x') || 0, y: +boxEl.style.getPropertyValue('--y') || 0,
+      w: +boxEl.style.getPropertyValue('--w') || 4, h: +boxEl.style.getPropertyValue('--h') || 3 };
     if (!boxEl.classList.contains('k-text')) {
-      // every box can be opened big: a button in its title row, the number it shows when folded, and the keyboard
+      // every box can be opened big: a button in its title row, a click anywhere on it, and the keyboard
       var head = boxEl.querySelector('.mk-box-h');
-      if (head) head.insertAdjacentHTML('beforeend', '<b class="mk-mini" aria-hidden="true"></b>' +
-        '<button type="button" class="mk-x"></button>');
+      if (head) head.insertAdjacentHTML('beforeend', '<button type="button" class="mk-x"></button>');
       boxEl.tabIndex = 0;
       setButton(boxEl, false);
     }

@@ -325,38 +325,26 @@
 }
 
 /* ================================================================ one box, big (mkt-charts.js open / close)
-   The grid stops using the designer's places: the open box goes first, across the page and tall, with its facts
-   and every row beside the chart; every other box folds to its title and its number, four to a row. */
+   The opened box takes the whole width of its row and grows taller where it is (the script moves it and the boxes
+   in its way); inside, the chart on the left, its facts and every row on the right. */
 .mk-grid .mk-box:not(.k-text) { cursor: zoom-in; }
 .mk-grid .mk-box:focus-visible { outline: 3px solid rgba(31, 111, 214, .35); outline-offset: 2px; }
-.mk-x { margin-left: 6px; flex: none; width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--mk-line);
+.mk-grid .mk-box { scroll-margin-top: 84px; }
+.mk-x { margin-left: auto; flex: none; width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--mk-line);
   background: var(--mk-card); color: var(--mk-muted); cursor: pointer; font-size: 12px; opacity: 0; transition: opacity .15s; }
+.mk-box-h .mk-note + .mk-x, .mk-box-h .mk-range + .mk-x { margin-left: 6px; }
 .mk-box:hover .mk-x, .mk-box:focus-within .mk-x, .mk-box.focus .mk-x { opacity: 1; }
 .mk-x:hover { color: var(--mk-primary); border-color: var(--mk-primary); }
-.mk-mini { display: none; margin-left: auto; font-family: var(--font-head, inherit); font-weight: 800; font-size: 18px;
-  color: var(--mk-ink); white-space: nowrap; }
-.mk-grid.has-focus { grid-auto-flow: row dense; }
-.mk-grid.has-focus .mk-box { grid-column: span 3; grid-row: span 1; }
-.mk-grid.has-focus .mk-box .mk-box-b, .mk-grid.has-focus .mk-box .mk-note, .mk-grid.has-focus .mk-box .mk-range { display: none; }
-.mk-grid.has-focus .mk-box:not(.focus) .mk-box-h { height: 100%; align-items: center; padding: 10px 14px; }
-.mk-grid.has-focus .mk-box:not(.focus) .mk-box-h h2 { font-size: 13.5px; white-space: nowrap; display: block; text-transform: none;
-  letter-spacing: 0; color: var(--mk-ink); font-family: inherit; font-weight: 700; }
-.mk-grid.has-focus .mk-box:not(.focus) .mk-mini { display: inline; }
-.mk-grid.has-focus .mk-box:not(.focus) .mk-x { display: none; }
-.mk-grid.has-focus .mk-box:not(.focus):hover { border-color: var(--mk-primary); }
-.mk-grid.has-focus .mk-box.k-text { display: none; }
-.mk-grid.has-focus .mk-box.focus { grid-column: 1 / -1; grid-row: span 9; order: -1; cursor: default;
-  box-shadow: 0 12px 40px rgba(15, 35, 64, .14); border-color: var(--mk-primary); }
-.mk-grid.has-focus .mk-box.focus .mk-box-h { cursor: zoom-out; padding: 20px 22px 6px; }
-.mk-grid.has-focus .mk-box.focus .mk-box-h h2 { font-size: 22px; white-space: normal; text-transform: none; letter-spacing: 0;
-  color: var(--mk-ink); font-family: var(--font-head, inherit); }
-.mk-grid.has-focus .mk-box.focus .mk-note, .mk-grid.has-focus .mk-box.focus .mk-range { display: inline; }
-.mk-grid.has-focus .mk-box.focus .mk-box-b { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
-  gap: 22px; padding: 10px 22px 22px; align-items: stretch; }
-.mk-grid.has-focus .mk-box.focus .mk-box-b > :only-child { grid-column: 1 / -1; }
+.mk-box.focus { cursor: default; box-shadow: 0 12px 40px rgba(15, 35, 64, .14); border-color: var(--mk-primary); z-index: 2; }
+.mk-box.focus .mk-box-h { cursor: zoom-out; padding: 20px 22px 6px; }
+.mk-box.focus .mk-box-h h2 { font-size: 22px; white-space: normal; text-transform: none; letter-spacing: 0; color: var(--mk-ink);
+  font-family: var(--font-head, inherit); display: block; }
+.mk-box.focus .mk-box-b { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 22px;
+  padding: 10px 22px 22px; align-items: stretch; }
+.mk-box.focus .mk-box-b > :only-child, .mk-box.focus .pm-quotes, .mk-box.focus .pm-links { grid-column: 1 / -1; }
+.mk-box.focus .mk-box-b > .mk-notes { display: none; }
 .mk-box.focus .mk-chart, .mk-box.focus .mk-num, .mk-box.focus .mk-live { min-height: 0; }
 .mk-box.focus .mk-num .mk-n { font-size: 54px; }
-.mk-box.focus .pm-quotes, .mk-box.focus .pm-links { grid-column: 1 / -1; }
 .mk-more { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: auto; }
 .mk-facts { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .mk-facts div { background: var(--mk-soft); border: 1px solid var(--mk-line); border-radius: 12px; padding: 10px 12px; min-width: 0; }
@@ -365,10 +353,6 @@
   overflow-wrap: anywhere; }
 .mk-more .mk-tablewrap { border: 1px solid var(--mk-line); border-radius: 12px; }
 @media (max-width: 900px) {
-  .mk-grid.has-focus .mk-box { grid-column: span 1; }
-  .mk-grid.has-focus .mk-box.focus { grid-column: 1 / -1; grid-row: span 12; }
-  .mk-grid.has-focus .mk-box.focus .mk-box-b { grid-template-columns: 1fr; }
+  .mk-box.focus { grid-column: 1 / -1; }
+  .mk-box.focus .mk-box-b { grid-template-columns: 1fr; }
 }
-.mk-grid.has-focus .mk-box.focus .mk-box-b > .mk-notes { display: none; }
-/* scrolled to (an opened box, a #box- link): it stops under the site's sticky top bar, not behind it */
-.mk-grid .mk-box { scroll-margin-top: 84px; }
