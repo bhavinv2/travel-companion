@@ -1,0 +1,15 @@
+{# "Find a contact" in the rail beside WhatsApp chats (messaging.find_chat): people with a WhatsApp chat on any number of
+   ours, newest first, each with the numbers they talk to us on -- a click on one opens that chat. A fragment. #}
+{% from 'cs/crm/_bits.html' import num_chip, when %}
+{% if rows %}
+<ul class="wr-hitlist">
+  {% for r in rows %}
+  <li class="wr-hit"><span class="wr-hn"><b>{{ r.person.display_name }}</b><small>{{ when(r.at, utcnow) }}</small></span>
+    <span class="wr-hon">{% for b in [r.num] + r.also if b %}<button type="button" data-wr-open="{{ b.key }}" data-person="{{ r.person.id }}"
+      title="Open the chat on our {{ b.name }} number">{{ num_chip(b) }}</button>{% endfor %}</span></li>
+  {% endfor %}
+</ul>
+{% if total > rows|length %}<p class="wr-hnote">{{ total - rows|length }} more. Add a word to narrow it down.</p>{% endif %}
+{% else %}
+<p class="wr-hnote">No WhatsApp chat with “{{ q }}”. To write to someone new, use <b>New chat</b>.</p>
+{% endif %}

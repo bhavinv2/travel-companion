@@ -354,7 +354,8 @@ MODULES = [
      'pages': [
          _page('wa_inbox', 'WhatsApp chats', 'fa-brands fa-whatsapp',
                ['messaging.inbox', 'messaging.lead_panel', 'messaging.lead_panel_make', 'messaging.start_chat_panel',
-                'messaging.start_chat', 'messaging.contact_chat'], admin='messaging.inbox',
+                'messaging.start_chat', 'messaging.contact_chat', 'messaging.number_chats', 'messaging.number_chat',
+                'messaging.find_chat'], admin='messaging.inbox',
                cs='messaging.inbox', desc='Every WhatsApp conversation.',
                tip='Every WhatsApp conversation; the lead shows beside the open chat.'),
          _page('wa_templates', 'WhatsApp templates', 'fa-file-lines', ['messaging.templates'],

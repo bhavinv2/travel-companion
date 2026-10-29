@@ -113,3 +113,38 @@ def test_site_verification_has_both_attributes(app, db, live):
     html = app.test_client().get('/', environ_overrides=LIVE,
                                  base_url='https://nriparentservice.com').data.decode()
     assert '<meta name="google-site-verification" content="WzvybcLxnJKDG6UvLhtOCjOOJLR86bnoWng1yR_qxW0"' in html
+
+
+# ---------------------------------------------------------------------------
+# The tawk.to chat bubble (services/tawk.widget_here): the same gate as the tags
+# ---------------------------------------------------------------------------
+
+TAWK = 'embed.tawk.to/'
+
+
+def test_the_chat_bubble_is_on_the_public_pages(app, db, live):
+    c = app.test_client()
+    for path in ('/', '/travel-insurance', '/contact-us', '/trips'):
+        html = c.get(path, environ_overrides=LIVE, base_url='https://nriparentservice.com').data.decode()
+        assert TAWK in html and '6a024ea8e784421c33cd4277/1jocg6h2o' in html, path
+        assert html.count('Tawk_API = Tawk_API') == 1, path
+
+
+def test_no_chat_bubble_in_the_tests_on_a_laptop_or_for_staff(app, db, client, admin_user, live):
+    from conftest import login
+    with app.test_request_context('/', environ_overrides={'HTTP_HOST': '127.0.0.1:8080'}):
+        from app.services import tawk
+        assert tawk.widget_here() == ''
+    login(client, admin_user.email)
+    html = client.get('/admin/health', environ_overrides=LIVE, base_url='https://nriparentservice.com').data.decode()
+    assert TAWK not in html, 'staff answer the chats; the bubble is for visitors'
+
+
+def test_the_bubble_can_be_switched_off_or_changed(app, db, live, monkeypatch):
+    from app.services import tawk
+    monkeypatch.setenv('TAWK_WIDGET', '')
+    assert tawk.widget() == ''
+    monkeypatch.setenv('TAWK_WIDGET', 'not a widget"><script>')
+    assert tawk.widget() == '', 'only something shaped like a tawk widget reaches the page'
+    monkeypatch.setenv('TAWK_WIDGET', 'abcdef0123456789abcdef01/1abcdef2')
+    assert tawk.widget() == 'abcdef0123456789abcdef01/1abcdef2'

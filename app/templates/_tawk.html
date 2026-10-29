@@ -1,0 +1,22 @@
+{# The tawk.to chat bubble (services/tawk.widget_here): the same widget as the WordPress site's, so every chat is in
+   one tawk inbox and becomes a lead through tawk's webhook. Included at the end of the public pages -- base.html for
+   anybody who is not staff, and the standalone landing.html. Where a page has its own WhatsApp button in the same
+   corner (.wa-float), the bubble sits just above it rather than on top of it. #}
+{% if TAWK_WIDGET %}
+<script>
+  var Tawk_API = Tawk_API || {}, Tawk_LoadStart = new Date();
+  (function () {
+    if (document.querySelector('.wa-float')) {
+      Tawk_API.customStyle = { visibility: {
+        desktop: { position: 'br', xOffset: 20, yOffset: 92 },
+        mobile: { position: 'br', xOffset: 14, yOffset: 150 } } };
+    }
+    var s1 = document.createElement('script'), s0 = document.getElementsByTagName('script')[0];
+    s1.async = true;
+    s1.src = 'https://embed.tawk.to/' + {{ TAWK_WIDGET|tojson }};
+    s1.charset = 'UTF-8';
+    s1.setAttribute('crossorigin', '*');
+    s0.parentNode.insertBefore(s1, s0);
+  })();
+</script>
+{% endif %}

@@ -199,14 +199,17 @@ def _screen_view(name):
             rules, seen = crm.known_rule_conflicts()
             from app.services import clock
             rules_at = clock.fmt(seen, '%d %b, %H:%M') if seen else None
-        # the inbox holds ONE number of ours (the WhatsApp CRM's): the banner names it, and where the others' chats are
-        inbox_num = inbox_others = None
+        # the inbox holds ONE number of ours (the WhatsApp CRM's): the banner names it, and where the others' chats are;
+        # beside the lead panel the rail lists every number and draws a Meta-direct number's chats here (_rail)
+        inbox_num = inbox_others = rail = None
         if name == 'inbox' and src:
             from app.services import channels
             inbox_num = channels.badge(None)
             inbox_others = [channels.badge(l) for l in channels.lines()]
+            if panel:
+                rail = _rail(request.args.get('num'), request.args.get('chat', type=int))
         return render_template('messaging/frame.html', rules=rules, rules_line=crm.rule_strip(rules),
-                               inbox_num=inbox_num, inbox_others=inbox_others,
+                               inbox_num=inbox_num, inbox_others=inbox_others, rail=rail,
                                rules_at=rules_at, heading=screen['heading'],
                                helper=INBOX_HELPER_ALONE if alone else screen['helper'],
                                help=screen['help'][:2] if alone else screen['help'],
@@ -220,6 +223,24 @@ def _screen_view(name):
 
 for _name in SCREENS:
     messaging_bp.add_url_rule('/' + _name.replace('_', '-'), endpoint=_name, view_func=_screen_view(_name))
+
+
+def _rail(num, chat):
+    """The rail beside WhatsApp chats (Messaging Hub, 2026-10-29): each WhatsApp number of ours, the WhatsApp CRM's
+    first, with how many people on it wait on us, and the website's WhatsApp numbers nothing of ours hears. `num` is the
+    number to open on: the WhatsApp CRM's (its inbox in the frame) unless it names a Meta-direct number, whose chats
+    are drawn here (number_chats) -- with `chat`, that person's chat open."""
+    from app.services import channels, crm_inbox
+    waiting = crm_inbox.waiting_by_number(current_user)
+    nums = []
+    for line in [None] + channels.lines():
+        b = channels.badge(line)
+        b.update(waiting=waiting.get(b['key'], 0),
+                 state=None if line is None or line.status == 'live'
+                 else channels.STATUS_WORDS.get(line.status, line.status))
+        nums.append(b)
+    on = num if num != 'crm' and num in {b['key'] for b in nums} else 'crm'
+    return {'nums': nums, 'unheard': channels.unheard(), 'on': on, 'chat': chat if on != 'crm' else None}
 
 
 @messaging_bp.route('/contacts')
@@ -398,26 +419,33 @@ def start_chat_panel():
 @login_required
 def start_chat():
     """"Message" beside WhatsApp chats: the lead's chat, made in the WhatsApp CRM when it has none (never sends
-    anything), and the address that opens it in the frame. {ok, conversation, src, name} or {ok: false, error}."""
+    anything), and the address that opens it in the frame. {ok, conversation, src, name} or {ok: false, error}.
+    `person` instead of `lead`: "Find a contact" in the rail opening somebody's chat on the WhatsApp CRM's number."""
     from app.services import crm
     if not access.allowed(current_user, request.endpoint):
         abort(403)
-    lead = _lead(request.form.get('lead', type=int) or 0)
+    if request.form.get('person'):
+        _for_leads()
+        person = _visible_person(request.form.get('person', type=int) or 0)
+        lead = crm.wa_lead_for(person)
+    else:
+        lead = _lead(request.form.get('lead', type=int) or 0)
+        person = lead.person
     role = crm_role(current_user)
     if not (wacrm_team.enabled() and role):
         return jsonify(ok=False, error='WhatsApp is not connected for you here.')
-    if not lead.person.phone and not lead.person.wacrm_conversation_id:
+    if not person.phone and not person.wacrm_conversation_id:
         return jsonify(ok=False, error='%s has no phone number. Add one on the lead page first.'
-                       % lead.person.display_name)
+                       % person.display_name)
     try:
-        conv = _lead_conversation(lead)
+        conv = _person_conversation(person, lead.owner if lead is not None else None)
     except crm.WaChatRefused as exc:
         return jsonify(ok=False, error=str(exc))
     if not conv:
         return jsonify(ok=False, error=START_OFF)
     granted = wacrm_team.wa_pages(wacrm_team.user_pages(current_user))
     path = _with_panel('/inbox?mine=1&c=%s' % conv)
-    return jsonify(ok=True, conversation=str(conv), name=lead.person.display_name,
+    return jsonify(ok=True, conversation=str(conv), name=person.display_name,
                    src=wacrm_team.sso_url(current_user, role, path, pages=granted))
 
 
@@ -440,13 +468,10 @@ def contact_chat(person_id):
     """"Start WhatsApp chat" on a contact page and in Contacts: their chat, made in the WhatsApp CRM when they have
     none (never sends anything) and given to the owner of their open lead if nobody has it, opened in WhatsApp chats
     with their lead beside it. What stops it is said on the page it came from (`next`)."""
-    from app.models import CrmPerson
-    from app.services import crm, crm_access, crm_scope
+    from app.services import crm
     if not access.allowed(current_user, request.endpoint):
         abort(403)
-    person = db.session.get(CrmPerson, person_id)
-    if person is None or not crm_access.can_see_person(current_user, person) or not crm_scope.visible(person):
-        abort(404)
+    person = _visible_person(person_id)
     back = request.form.get('next') or ''
     if not back.startswith('/') or back.startswith('//') or '\\' in back:
         back = access.page_url(access.PAGES['crm_people']) or access.home_url(current_user)
@@ -502,9 +527,17 @@ def lead_panel():
         abort(403)
     if not (access.can(current_user, 'crm_board') or access.can(current_user, 'crm_today')):
         return render_template('messaging/lead_panel.html', state='no_crm')
+    from app.services import channels
     conversation_id = (request.args.get('conversation') or '').strip()[:64]
-    person, digits, name = _person_for(conversation_id, request.args.get('phone'),
-                                       (request.args.get('name') or '').strip())
+    line = None
+    if request.args.get('person', type=int):
+        # a chat on a Meta-direct number, opened in the rail's chats (number_chat): that number's 24 hours
+        person = _visible_person(request.args.get('person', type=int))
+        line = channels.get(request.args.get('num', type=int))
+        digits, name = (person.phone or '').lstrip('+'), person.display_name
+    else:
+        person, digits, name = _person_for(conversation_id, request.args.get('phone'),
+                                           (request.args.get('name') or '').strip())
     lead = None
     if person is not None:
         from app.services import crm
@@ -514,16 +547,17 @@ def lead_panel():
         return render_template('messaging/lead_panel.html', state='none', phone=digits,
                                name=name[:120], conversation=conversation_id, tiles=crm_products.tiles())
     from app.models import CrmTouchpoint
-    from app.services import channels, crm, crm_metrics
+    from app.services import crm, crm_metrics
     belongs = sum(1 for l in person.leads if l.status == 'open') > 1
-    # what WhatsApp allows now, from what we hold: free text inside 24 hours of their last message ON THIS INBOX'S
-    # NUMBER (the WhatsApp CRM's) -- a message to another number of ours opens that number's 24 hours, not this one's
-    last = (crm._real_whatsapp_in(person.id).filter(CrmTouchpoint.line_id.is_(None))
+    # what WhatsApp allows now, from what we hold: free text inside 24 hours of their last message ON THE CHAT'S
+    # NUMBER (the WhatsApp CRM's beside its inbox) -- a message to another number of ours opens that number's 24 hours
+    on = CrmTouchpoint.line_id.is_(None) if line is None else CrmTouchpoint.line_id == line.id
+    last = (crm._real_whatsapp_in(person.id).filter(on)
             .with_entities(CrmTouchpoint.created_at).order_by(CrmTouchpoint.created_at.desc()).first())
     return render_template('messaging/lead_panel.html', state='lead', belongs=belongs,
                            suggested=crm.suggested_reply(lead, current_user), conversation=conversation_id,
                            window_left=crm_metrics.window_left_hours(last[0] if last else None),
-                           us=channels.badge(None), **lead_card_context(lead, compact=True), **_common())
+                           us=channels.badge(line), **lead_card_context(lead, compact=True), **_common())
 
 
 @messaging_bp.route('/lead-panel/make', methods=['POST'])
@@ -553,3 +587,89 @@ def lead_panel_make():
         crm.mark_wa_due(lead.person, assign=took_it, assign_if_free=not took_it)
         db.session.commit()
     return redirect(url_for('messaging.lead_panel', conversation=request.form.get('conversation'), phone=digits))
+
+
+# ------------------------------------------------- our other numbers, beside WhatsApp chats (the rail)
+
+FIND_SHOWN = 12
+
+
+def _for_leads():
+    """The rail's chats and its "Find a contact" are for whoever works leads, as the lead panel beside them is."""
+    if not access.allowed(current_user, request.endpoint):
+        abort(403)
+    if not (access.can(current_user, 'crm_board') or access.can(current_user, 'crm_today')):
+        abort(403)
+
+
+def _visible_person(person_id):
+    """The contact, if this person may see them (crm_access, and the workspace being worked in); 404 otherwise."""
+    from app.models import CrmPerson
+    from app.services import crm_access, crm_scope
+    person = db.session.get(CrmPerson, person_id) if person_id else None
+    if person is None or not crm_access.can_see_person(current_user, person) or not crm_scope.visible(person):
+        abort(404)
+    return person
+
+
+def _line(line_id):
+    from app.services import channels
+    line = channels.get(line_id)
+    if line is None:
+        abort(404)
+    return line
+
+
+@messaging_bp.route('/number/<int:line_id>/chats')
+@login_required
+def number_chats(line_id):
+    """The chats on one Meta-direct number of ours, newest first, in the middle of WhatsApp chats when the rail picks
+    it: All conversations' rows for that number (crm_inbox), its search and its "whose" tabs. A fragment; ?n=2 and on
+    bring only the next rows."""
+    from app.services import channels, crm_inbox
+    _for_leads()
+    line = _line(line_id)
+    f = crm_inbox.filters({'num': str(line.id), 'who': request.args.get('who'), 'q': request.args.get('q')})
+    n = request.args.get('n', type=int) or 1
+    return render_template('messaging/number_chats.html', f=f, here=channels.badge(line), WHO=crm_inbox.WHO,
+                           more=n > 1, utcnow=datetime.utcnow(), **crm_inbox.page(f, current_user, n))
+
+
+@messaging_bp.route('/number/<int:line_id>/chat/<int:person_id>')
+@login_required
+def number_chat(line_id, person_id):
+    """One person's chat on one Meta-direct number of ours, in the middle of WhatsApp chats: their messages with that
+    number (crm_timeline.number_thread) and the lead page's own message box -- which sends from the number WhatsApp
+    allows (channels.line_for) and says which. A fragment, fetched again to stay fresh (crm.js CRM_applyLive)."""
+    from app.routes.crm import _common
+    from app.services import channels, crm, crm_timeline, wacrm
+    _for_leads()
+    line = _line(line_id)
+    person = _visible_person(person_id)
+    lead = crm.wa_lead_for(person) or next((l for l in person.leads if l.deleted_at is None), None)
+    here = channels.badge(line)
+    if lead is None:
+        return render_template('messaging/number_chat.html', person=person, lead=None, here=here)
+    with wacrm.short_timeouts():
+        wa = crm.wa_chat_state(lead)
+        tpl = crm.box_templates(lead, current_user)
+    return render_template('messaging/number_chat.html', person=person, lead=lead, here=here, wa=wa, tpl=tpl,
+                           stream=crm_timeline.number_thread(lead, line), box_note=crm.box_note(wa), social_notes={},
+                           social=[], chat_url=None, via0='whatsapp', quick=crm.quick_replies_for(lead, current_user),
+                           **_common())
+
+
+@messaging_bp.route('/find')
+@login_required
+def find_chat():
+    """"Find a contact" in the rail beside WhatsApp chats: people with a WhatsApp chat on any number of ours whose
+    name, phone or e-mail has the words, newest chat first, each with the numbers they talk to us on -- one click opens
+    that chat. A fragment."""
+    from app.services import crm_inbox
+    _for_leads()
+    q = ' '.join((request.args.get('q') or '').split())[:80]
+    if len(q) < 2:
+        return ''
+    data = crm_inbox.page(crm_inbox.filters({'ch': 'whatsapp', 'q': q}), current_user)
+    return render_template('messaging/find_chat.html', q=q, rows=data['rows'][:FIND_SHOWN], total=data['total'],
+                           utcnow=datetime.utcnow())

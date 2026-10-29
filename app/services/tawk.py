@@ -44,6 +44,30 @@ def enabled():
     return bool(secret())
 
 
+# ------------------------------------------------------------------------------------------------ the bubble
+# The chat bubble itself, on the portal's own public pages (2026-10-29): Travel Companion, Travel Insurance, Sahayak,
+# Contact us, the blog. The same widget the WordPress site carries (its tawk.to plugin), so every chat lands in one
+# tawk inbox and comes back here through the webhook above. TAWK_WIDGET on the server changes it ("<property id>/
+# <widget id>", tawk: Administration > Channels > Chat Widget); an empty value switches the bubble off. Like the
+# analytics tags it never loads in the tests or on a laptop (services/analytics.enabled), nor on a staff page.
+DEFAULT_WIDGET = '6a024ea8e784421c33cd4277/1jocg6h2o'
+_WIDGET = re.compile(r'^[a-f0-9]{24}/[a-z0-9]{6,20}$')
+WIDGET_ENV = 'TAWK_WIDGET'
+
+
+def widget():
+    """'<property>/<widget>' when it looks like one tawk gives out, else '' (off)."""
+    value = os.environ.get(WIDGET_ENV)
+    value = (DEFAULT_WIDGET if value is None else value).strip()
+    return value if _WIDGET.match(value) else ''
+
+
+def widget_here():
+    """The widget for this request: '' in the tests, on a laptop, or when it is switched off."""
+    from app.services import analytics
+    return widget() if analytics.enabled() else ''
+
+
 def save_secret(value, actor):
     """Keep the key tawk showed (or forget it with an empty value). Commits."""
     value = (value or '').strip()

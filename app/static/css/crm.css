@@ -1229,6 +1229,9 @@ span.cb.mk { cursor: default; }
 .onum5 { --onum: #4d6b12; --onum-soft: #eef4e0; }
 .onum-from { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--c-muted); margin: 0 0 8px; }
 .onum-from strong { color: var(--c-ink); }
+/* each piece stays whole and wraps as one (a shrinking name broke "Ravi Kumar" over the chip) */
+.onum-from > * { flex: none; max-width: 100%; }
+.onum-from strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ib-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--c-line); border-radius: 14px; background: #fff; overflow: hidden; }
 .ib-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px;
   border-top: 1px solid var(--c-line); }
@@ -2428,6 +2431,6 @@ a.cal-card:hover { box-shadow: 0 3px 10px rgba(15, 35, 64, .14); }
 .ig-pick select { max-width: 420px; }
 .ig-form { max-width: 520px; margin-bottom: 10px; }
 .ig-dev summary { cursor: pointer; font-weight: 600; }
-.ws-note.onum-banner { align-items: center; flex-wrap: wrap; }
+.ws-note.onum-banner { align-items: center; }
 .ws-note.onum-banner a { text-decoration: none; }
 .lp-us { margin: -2px 0 8px; }

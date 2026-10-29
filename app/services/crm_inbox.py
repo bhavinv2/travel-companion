@@ -12,6 +12,7 @@ What somebody sees is what they may see anywhere else: the listeners of crm_acce
 
     filters(args)      the page's filters from the query string, made safe
     page(f, user, n)   the rows of one page, the total, and the count of each "whose" tab
+    waiting_by_number  per WhatsApp number of ours, the people waiting on us (the rail beside WhatsApp chats)
 """
 from sqlalchemy import case, exists, func, or_, select, true
 
@@ -85,8 +86,20 @@ def _query(f, user, who):
     elif who == 'none':                  # an open lead nobody has taken yet
         q = q.filter(exists().where(L.person_id == sub.c.pid, L.status == 'open', L.owner_id.is_(None)))
     elif who == 'waiting':               # they wrote last and nobody answered (crm_metrics: the one meaning)
-        w = crm_metrics.waiting_rows(CrmTouchpoint.person_id.in_(select(sub.c.pid))).subquery()
+        w = _waiting(f, CrmTouchpoint.person_id.in_(select(sub.c.pid))).subquery()
         q = q.filter(sub.c.pid.in_(select(w.c.person_id)))
+    return q
+
+
+def _waiting(f, person_filter):
+    """(person_id, created_at) of the people `person_filter` picks who wait on us (crm_metrics.waiting_rows, the one
+    meaning) -- with a number chosen (filters' `num`), only those whose message we owe an answer to went to it: a
+    chat is one person on one number, as tawk.to gives each number its own inbox."""
+    w = crm_metrics.waiting_rows(person_filter).subquery()
+    q = select(w.c.person_id, w.c.created_at)
+    if f.get('num'):
+        q = q.where(w.c.channel == 'whatsapp',
+                    w.c.line_id.is_(None) if f['num'] == 'crm' else w.c.line_id == int(f['num']))
     return q
 
 
@@ -104,6 +117,14 @@ def page(f, user, n=1):
            .offset((n - 1) * PER_PAGE).limit(PER_PAGE)]
     return {'rows': _rows(ids, f), 'total': total, 'pages': pages, 'page': n, 'counts': counts,
             'numbers': channels.badges()}
+
+
+def waiting_by_number(user):
+    """{number key: how many people wait on us there} for each WhatsApp number of ours ('crm' = the WhatsApp CRM's):
+    the "Waiting on us" count of that number's tab here (_waiting), so the rail beside WhatsApp chats says the same."""
+    from app.services import channels
+    keys = ['crm'] + [str(l.id) for l in channels.lines()]
+    return {k: _query({'who': 'waiting', 'ch': 'whatsapp', 'num': k, 'q': ''}, user, 'waiting').count() for k in keys}
 
 
 def _rows(ids, f):
@@ -125,6 +146,8 @@ def _rows(ids, f):
     newest = {t.person_id: t for t in CrmTouchpoint.query.options(joinedload(CrmTouchpoint.agent))
               .filter(CrmTouchpoint.id.in_(select(ranked.c.id).where(ranked.c.n == 1)))}
     touches = crm_metrics.last_touches(ids)
+    # with a number chosen, "waiting" is on that number (_waiting): the message we owe an answer to went to it
+    owed = dict(db.session.execute(_waiting(f, CrmTouchpoint.person_id.in_(ids))).all()) if f.get('num') else None
     # which of our WhatsApp numbers each person has talked on: a chat is one person on one number
     used, named = {}, {}
     if channels.several():
@@ -143,7 +166,7 @@ def _rows(ids, f):
         if person is None or t is None:
             continue
         entry = touches.get(pid) or {}
-        waiting = crm_metrics.waiting_on_us(entry)
+        waiting = crm_metrics.waiting_on_us(entry) if owed is None else pid in owed
         own = t.line_id if t.channel == 'whatsapp' else 'none'
         out.append({'person': person, 'lead': _lead_of(person, t), 'channel': t.channel,
                     # the number of ours it went through: a chip on every WhatsApp row, the WhatsApp CRM's too
@@ -154,7 +177,8 @@ def _rows(ids, f):
                     'group': CHANNEL_GROUP.get(t.channel, GROUPS[0]), 'direction': t.direction,
                     'body': _snippet(t.body), 'at': t.created_at,
                     'agent': t.agent.full_name if t.direction == 'out' and t.agent is not None else None,
-                    'waiting': waiting, 'waiting_since': entry['reply_last'][2] if waiting else None})
+                    'waiting': waiting,
+                    'waiting_since': (owed[pid] if owed is not None else entry['reply_last'][2]) if waiting else None})
     return out
 
 

@@ -658,6 +658,8 @@
     <script src="{{ url_for('static', filename='js/contact-modal.js') }}" defer></script>
   {% endif %}
   {% endblock %}
+  {# the tawk.to chat bubble, for visitors and travellers (never on a staff page: staff answer the chats) #}
+  {% if not is_staff %}{% include '_tawk.html' %}{% endif %}
   <script src="{{ url_for('static', filename='js/insurance.js') }}"></script>
   <script src="{{ url_for('static', filename='js/contact-modal.js') }}"></script>
   {# Hard delete, for admins only: the type-DELETE dialog once per page and the one script every

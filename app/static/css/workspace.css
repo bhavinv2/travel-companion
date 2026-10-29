@@ -164,6 +164,142 @@ body:has(.wa-frame-wrap) #whatsNew { display: none; }
   .wa-lead-panel { border-left: 0; border-top: 1px solid #e3e8f0; }
 }
 
+/* The rail beside WhatsApp chats (messaging/_rail.html, js/wa-rail.js): our numbers as round icons in their own colour
+   (crm.css .onum0-5), small by default, with their names when opened; "Find a contact" across all of them. */
+.wa-split.has-rail { grid-template-columns: auto minmax(0, 1fr) 380px; }
+.wr { display: flex; flex-direction: column; gap: 4px; width: 64px; padding: 10px 8px; background: #f3f6fa;
+  border-right: 1px solid #e3e8f0; overflow-y: auto; overflow-x: hidden; transition: width .15s ease; }
+.wr.open { width: 248px; }
+.wr-item { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; padding: 4px; border: 0; border-radius: 14px;
+  background: transparent; color: var(--c-ink); font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
+.wr-item:hover { background: #e8edf5; }
+.wr-item:focus-visible { outline: 2px solid var(--c-blue); outline-offset: 1px; }
+.wr-ico { position: relative; flex: none; width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center;
+  justify-content: center; color: var(--c-muted); font-size: 15px; }
+.wr-tx { display: none; min-width: 0; flex-direction: column; line-height: 1.3; }
+.wr.open .wr-tx { display: flex; }
+.wr-tx b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wr-tx small { font-size: 12px; color: var(--c-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wr-toggle .wr-ico i { transition: transform .15s ease; }
+.wr.open .wr-toggle .wr-ico i { transform: rotate(180deg); }
+.wr-toggle .wr-tx small { display: none; }
+/* a number: its country code in a circle of its colour; the one being worked on is filled */
+.wr-num .wr-av { background: var(--onum-soft); color: var(--onum); border: 2px solid transparent; }
+.wr-num .wr-av b { font-size: 13px; font-weight: 800; letter-spacing: .04em; }
+.wr-num.on { background: #fff; box-shadow: 0 1px 3px rgba(15, 35, 64, .1); }
+.wr-num.on .wr-av { background: var(--onum); color: #fff; box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--onum); }
+.wr-num.paused .wr-av { border-style: dashed; border-color: var(--onum); }
+.wr-count { position: absolute; top: -5px; right: -7px; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 10px;
+  background: var(--c-bad); color: #fff; font-size: 11px; font-weight: 800; font-style: normal; line-height: 19px; text-align: center;
+  box-shadow: 0 0 0 2px #f3f6fa; }
+.wr-count[hidden] { display: none; }
+/* a number the website offers that nothing of ours hears */
+.wr-off .wr-av { background: transparent; color: #8793a8; border: 2px dashed #b8c2d3; }
+.wr-off .wr-tx b { color: var(--c-muted); }
+.wr-nums { list-style: none; margin: 6px 0 0; padding: 6px 0 0; border-top: 1px solid #e3e8f0; display: flex; flex-direction: column; gap: 6px; }
+.wr-all { margin-top: auto; }
+.wr-all .wr-ico { background: #fff; border: 1px solid #e3e8f0; }
+/* Find a contact: the button while small, the box once open */
+.wr-q { display: none; align-items: center; gap: 8px; margin: 2px 0; padding: 8px 10px; border: 1px solid #d8dfea; border-radius: 10px; background: #fff; }
+.wr-q i { color: var(--c-muted); font-size: 12px; }
+.wr-q input { border: 0; outline: 0; background: transparent; font: inherit; font-size: 13.5px; min-width: 0; width: 100%; }
+.wr-q:focus-within { border-color: var(--c-blue); }
+.wr.open .wr-q { display: flex; }
+.wr.open .wr-find-btn { display: none; }
+.wr-hits { background: #fff; border: 1px solid #e3e8f0; border-radius: 10px; max-height: 46vh; overflow-y: auto; }
+.wr-hits[hidden], .wr:not(.open) .wr-hits { display: none; }
+.wr-hitlist { list-style: none; margin: 0; padding: 0; }
+.wr-hit { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-top: 1px solid #eef1f6; }
+.wr-hit:first-child { border-top: 0; }
+.wr-hn { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; min-width: 0; }
+.wr-hn b { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wr-hn small { flex: none; font-size: 11.5px; color: var(--c-muted); }
+.wr-hon { display: flex; flex-wrap: wrap; gap: 4px; }
+.wr-hon button { border: 0; padding: 0; background: none; cursor: pointer; border-radius: 999px; }
+.wr-hon button:hover .onum, .wr-hon button:focus-visible .onum { box-shadow: 0 0 0 2px var(--onum); }
+.wr-hnote { margin: 0; padding: 8px 10px; font-size: 12.5px; color: var(--c-muted); }
+
+/* the middle: the WhatsApp CRM's inbox, with a Meta-direct number's chats laid over it when the rail picks one. The
+   chats and the open chat sit side by side when the middle is wide enough for both, else one at a time (by the
+   middle's own width -- the rail opening and the panel moving below change it, not only the window) */
+.wa-mid { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; container: wamid / inline-size; }
+.wa-mid .wa-frame { flex: 1; height: 100%; min-height: 0; }
+.nc-pane { position: absolute; inset: 0; z-index: 2; display: grid; grid-template-columns: 300px minmax(0, 1fr); background: #fff; }
+.nc-pane[hidden] { display: none; }
+.nc-list { border-right: 1px solid var(--c-line); min-height: 0; display: flex; flex-direction: column; }
+.nc { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.nc-head { padding: 10px; border-bottom: 1px solid var(--c-line); display: flex; flex-direction: column; gap: 8px; }
+.nc-find { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid var(--c-line); border-radius: 10px; background: var(--c-soft); }
+.nc-find:focus-within { border-color: var(--c-blue); background: #fff; }
+.nc-find i { color: var(--c-muted); font-size: 12px; }
+.nc-find input { border: 0; outline: 0; background: transparent; font: inherit; font-size: 13.5px; width: 100%; min-width: 0; }
+.nc-who { display: flex; flex-wrap: wrap; gap: 4px; }
+.nc-who button { border: 1px solid var(--c-line); background: #fff; border-radius: 999px; padding: 3px 10px; font: inherit; font-size: 12.5px;
+  font-weight: 600; color: var(--c-muted); cursor: pointer; }
+.nc-who button span { font-weight: 800; }
+.nc-who button.on { background: var(--c-ink); border-color: var(--c-ink); color: #fff; }
+.nc-rows { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; min-height: 0; }
+.nc-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; padding: 10px 12px;
+  border: 0; border-bottom: 1px solid #eef1f6; background: #fff; font: inherit; text-align: left; color: var(--c-ink); cursor: pointer; }
+.nc-row:hover { background: var(--c-soft); }
+.nc-row.on { background: var(--c-blue-soft); }
+.nc-av { flex: none; width: 38px; height: 38px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--onum-soft); color: var(--onum); font-size: 13px; font-weight: 800; }
+.nc-main { min-width: 0; display: flex; flex-direction: column; }
+.nc-main b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nc-main small { font-size: 12.5px; color: var(--c-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nc-side { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.nc-side time { font-size: 11.5px; color: var(--c-muted); white-space: nowrap; }
+.nc-wait { font-style: normal; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--c-warn-soft); color: var(--c-warn-ink); }
+.nc-more-li { padding: 10px; text-align: center; }
+.nc-more { border: 1px solid var(--c-line); background: #fff; border-radius: 999px; padding: 5px 14px; font: inherit; font-size: 13px; cursor: pointer; }
+.nc-empty, .nc-pick { margin: 0; padding: 36px 20px; text-align: center; color: var(--c-muted); font-size: 14px; }
+.nc-thread { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+/* one chat: who and the number on top, the messages, the lead page's box at the foot. The messages keep room to be
+   read: when the box would squeeze them, the chat scrolls instead */
+.nt { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; background: var(--c-soft); }
+.nt-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 9px 14px; background: #fff; border-bottom: 1px solid var(--c-line); }
+.nt-head .nc-av { flex: none; }
+.nt-who { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.nt-who b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nt-who span { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px; color: var(--c-muted); }
+.nt-back { display: none; flex: none; width: 34px; height: 34px; border: 1px solid var(--c-line); border-radius: 50%; background: #fff; cursor: pointer; }
+.nt-lead { flex: none; }
+.nt-other { flex: none; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 12px 0; padding: 8px 10px; border-radius: 10px;
+  font-size: 13px; background: var(--c-warn-soft); color: var(--c-warn-ink); }
+.nt .card { margin: 0; border-radius: 0; box-shadow: none; border-left: 0; border-right: 0; }
+.nt .lead-tl { flex: 1 0 auto; min-height: 240px; display: flex; flex-direction: column; border: 0; background: transparent; }
+.nt .tl-scroll { flex: 1; max-height: none; min-height: 0; }
+.nt .lead-box { flex: none; border-bottom: 0; position: static; }   /* not the lead page's sticky box: it hid the messages */
+.nt .box-on { display: none; }               /* WhatsApp only: "WhatsApp goes from … to …" says it */
+@media (max-width: 1100px) {
+  .wa-split.has-rail { grid-template-columns: auto minmax(0, 1fr); }
+  .wa-split.has-rail .wa-lead-panel { grid-column: 1 / -1; }
+}
+@container wamid (max-width: 699px) {
+  .nc-pane { grid-template-columns: minmax(0, 1fr); }
+  .nc-pane .nc-thread, .nc-pane.reading .nc-list { display: none; }
+  .nc-pane.reading .nc-thread { display: flex; }
+  .nt-back { display: inline-flex; align-items: center; justify-content: center; }
+}
+@container wamid (max-width: 520px) {
+  .nt-lead-tx { display: none; }
+}
+/* a phone: the rail is a row of icons over the chats; Find a contact opens a box across it */
+@media (max-width: 640px) {
+  .wa-split.has-rail { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(620px, 1fr) auto; }
+  .wr, .wr.open { width: auto; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 6px 8px; border-right: 0;
+    border-bottom: 1px solid #e3e8f0; overflow: visible; }
+  .wr-toggle { display: none; }
+  .wr.open .wr-find-btn { display: flex; }
+  .wr .wr-tx, .wr.open .wr-tx { display: none; }
+  .wr-nums { flex-direction: row; margin: 0; padding: 0 0 0 6px; border-top: 0; border-left: 1px solid #e3e8f0; }
+  .wr-item { width: auto; }
+  .wr-all { margin: 0 0 0 auto; }
+  .wr.open .wr-q { order: 10; flex: 1 1 100%; }
+  .wr.open .wr-hits { order: 11; flex: 1 1 100%; }
+}
+
 /* + New workspace, in one flow (new.html, static/js/new-workspace.js) */
 .nw-steps { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; padding: 0; counter-reset: none; }
 .nw-steps li { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px 7px 8px; border-radius: 999px; cursor: pointer;

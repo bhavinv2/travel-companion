@@ -231,3 +231,13 @@ def test_no_chat_button_while_whatsapp_is_not_connected(app, client, admin_user)
     r = client.post('/admin/messaging/contact/%d/chat' % l.person_id, data={'next': page})
     assert r.status_code == 302 and 'not connected for you' in words(client.get(page).get_data(as_text=True))
     assert client.post('/admin/messaging/contact/999999/chat').status_code == 404
+
+
+def test_find_a_contact_opens_a_persons_chat_on_the_crm_number(app, client, admin_user, world):
+    """The rail beside WhatsApp chats: a person found there, opened on the WhatsApp CRM's number (never sends)."""
+    l = lead('Rail Rani', '+' + DIGITS, admin_user)
+    login(client, admin_user.email)
+    d = client.post(START, data={'person': l.person_id}).get_json()
+    assert d['ok'] and d['name'] == 'Rail Rani' and '/api/portal/sso?t=' in d['src'] and d['conversation']
+    assert world.messages == []
+    assert client.post(START, data={'person': 99999}).status_code == 404

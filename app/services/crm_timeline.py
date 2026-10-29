@@ -8,6 +8,8 @@ What goes in:
   events     only this lead's: stage moves, calls, notes, who looks after it, follow-ups done or
              not needed, "I sent the quote", the opt-out -- as slim lines
 
+number_thread() is one chat beside WhatsApp chats: only their WhatsApp messages with one number of ours.
+
 Nothing here calls the WhatsApp CRM.
 """
 from datetime import datetime, timedelta
@@ -27,6 +29,8 @@ ICONS = {'whatsapp': 'fa-brands fa-whatsapp', 'wa_other': 'fa-brands fa-whatsapp
          'call': 'fa-solid fa-phone', 'chat': 'fa-regular fa-comment'}
 TICKS = ('sent', 'delivered', 'read', 'failed', 'opened', 'sending')
 MORE_TEXT = 'Older messages are in Open full chat.'
+THREAD_LIMIT = 200
+THREAD_MORE = 'Older messages are on the lead page.'
 
 
 def day_label(d, today):
@@ -154,11 +158,35 @@ def build(lead, now=None, limit=TIMELINE_LIMIT):
     if p.wa_opt_out_at is not None:
         items.append(_event(p.wa_opt_out_at, 'fa-solid fa-ban', 'Opted out of WhatsApp'))
     items.sort(key=lambda i: (i['at'], i['order']))
+    return _days(items, now, MORE_TEXT if more else None)
+
+
+def number_thread(lead, line, now=None, limit=THREAD_LIMIT):
+    """One chat as WhatsApp chats shows it for a number answered in the portal: the person's WhatsApp messages with
+    one number of ours (`line`; None = the WhatsApp CRM's), oldest first, with the days between. The bubbles do not
+    name the number: the whole thread is on it."""
+    p = lead.person
+    on = CrmTouchpoint.line_id.is_(None) if line is None else CrmTouchpoint.line_id == line.id
+    rows = (CrmTouchpoint.query.options(joinedload(CrmTouchpoint.agent))
+            .filter(CrmTouchpoint.person_id == p.id, CrmTouchpoint.channel == 'whatsapp', on)
+            .order_by(CrmTouchpoint.created_at.desc(), CrmTouchpoint.id.desc()).limit(limit + 1).all())
+    items = []
+    for tp in reversed(rows[:limit]):
+        it = _touch(tp, lead, p)
+        if it is not None and it['kind'] == 'msg' and tp.created_at is not None:      # the lead's events: its page
+            it['via_label'] = None
+            items.append(it)
+    return _days(items, now or datetime.utcnow(), THREAD_MORE if len(rows) > limit else None)
+
+
+def _days(items, now, more):
+    """The items with a day line before each new day and their times filled in; `more` first when older ones were
+    left out."""
     from app.services import clock
     today = clock.local(now).date()
     out, last_day = [], None
     if more:
-        out.append({'kind': 'more', 'text': MORE_TEXT})
+        out.append({'kind': 'more', 'text': more})
     for it in items:
         day = clock.local(it['at']).date()
         if day != last_day:

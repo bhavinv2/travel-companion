@@ -55,7 +55,7 @@ def _ranked(person_filter, until=None):
     where = [person_filter, tp.channel.in_(REPLY_CHANNELS), tp.direction.in_(('in', 'out'))]
     if until is not None:
         where.append(tp.created_at < until)
-    return (select(tp.person_id, tp.lead_id, tp.body, tp.channel, tp.direction, tp.status, tp.created_at,
+    return (select(tp.person_id, tp.lead_id, tp.body, tp.channel, tp.direction, tp.status, tp.created_at, tp.line_id,
                    wa.label('is_wa'), reply_ok.label('reply_ok'), real_in.label('real_in'),
                    func.row_number().over(partition_by=(tp.person_id, wa), order_by=newest).label('wa_n'),
                    func.row_number().over(partition_by=(tp.person_id, reply_ok), order_by=newest).label('reply_n'),
@@ -129,12 +129,12 @@ VIA_PERSON = 'person'
 
 
 def waiting_rows(person_filter, until=None):
-    """The SQL form of waiting_on_us(): a select of (person_id, lead_id, channel, created_at, body), one
+    """The SQL form of waiting_on_us(): a select of (person_id, lead_id, channel, created_at, body, line_id), one
     row per person `person_filter` picks who is waiting on us, with the message they are waiting with
-    -- their newest that counts (see _ranked). `until`: as it stood then. Run it, or use it inside a
-    query of your own; one query either way."""
+    -- their newest that counts (see _ranked); line_id is the WhatsApp number of ours it went to (NULL: the WhatsApp
+    CRM's). `until`: as it stood then. Run it, or use it inside a query of your own; one query either way."""
     r = _ranked(person_filter, until)
-    return (select(r.c.person_id, r.c.lead_id, r.c.channel, r.c.created_at, r.c.body)
+    return (select(r.c.person_id, r.c.lead_id, r.c.channel, r.c.created_at, r.c.body, r.c.line_id)
             .where(r.c.reply_ok == 1, r.c.reply_n == 1, r.c.direction == 'in'))
 
 

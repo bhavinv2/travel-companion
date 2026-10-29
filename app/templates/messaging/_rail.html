@@ -1,0 +1,41 @@
+{# The rail beside WhatsApp chats (messaging._rail): each WhatsApp number of ours as one round icon -- its country code in
+   its own colour, and how many people on it wait on us -- plus "Find a contact" across all of them. Small by default;
+   the top button shows the names (remembered in this browser). The WhatsApp CRM's number opens its inbox in the frame;
+   a Meta-direct number's chats are drawn here (messaging.number_chats). A number the website offers that nothing of
+   ours hears is greyed. #}
+<nav class="wr crm" data-wr aria-label="Our WhatsApp numbers"
+     data-list-url="{{ url_for('messaging.number_chats', line_id=0) }}"
+     data-thread-url="{{ url_for('messaging.number_chat', line_id=0, person_id=0) }}"
+     data-find-url="{{ url_for('messaging.find_chat') }}" data-start-url="{{ url_for('messaging.start_chat') }}">
+  <button type="button" class="wr-item wr-toggle" data-wr-toggle aria-expanded="false" title="Show the names">
+    <span class="wr-ico"><i class="fa-solid fa-angles-right" aria-hidden="true"></i></span>
+    <span class="wr-tx"><b>Our numbers</b><small>Hide the names</small></span></button>
+  <button type="button" class="wr-item wr-find-btn" data-wr-find title="Find a contact on any of our numbers">
+    <span class="wr-ico"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span></button>
+  <label class="wr-q"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+    <input type="search" data-wr-q placeholder="Find a contact" aria-label="Find a contact on any of our numbers" autocomplete="off"/></label>
+  <div class="wr-hits" data-wr-hits hidden aria-live="polite"></div>
+  <ul class="wr-nums">
+    {% for b in rail.nums %}
+    <li><button type="button" class="wr-item wr-num {{ b.tone }}{{ ' on' if b.key == rail.on }}{{ ' paused' if b.state }}" data-wr-num="{{ b.key }}"
+                aria-pressed="{{ 'true' if b.key == rail.on else 'false' }}"
+                title="{{ b.name }}{% if b.phone %} · {{ b.phone }}{% endif %} · {{ b.engine }}{% if b.state %} · {{ b.state }}{% endif %}{% if b.waiting %} · {{ b.waiting }} waiting on us{% endif %}">
+      <span class="wr-ico wr-av"><b>{{ b.code }}</b><em class="wr-count" data-wr-count{{ ' hidden' if not b.waiting }}>{{ b.waiting if b.waiting < 100 else '99+' }}</em></span>
+      <span class="wr-tx"><b>{{ b.name }}</b><small>{{ b.phone or 'Number not known yet' }}</small>
+        <small>{{ b.engine }}{% if b.state %} · {{ b.state }}{% endif %}</small></span>
+    </button></li>
+    {% endfor %}
+    {% for u in rail.unheard %}
+    {% set tip = u.label ~ ' · ' ~ u.display ~ ' · Not connected: the website offers it, but a message to it never reaches us' %}
+    <li>{% if CAN('crm_channels') %}<a class="wr-item wr-num wr-off" href="{{ crm_url('channels_page') }}" title="{{ tip }}" data-wr-off>{% else %}<span class="wr-item wr-num wr-off" title="{{ tip }}" data-wr-off>{% endif %}
+      <span class="wr-ico wr-av"><b>{{ u.iso }}</b></span>
+      <span class="wr-tx"><b>{{ u.label }}</b><small>{{ u.display }}</small><small>Not connected</small></span>
+    {% if CAN('crm_channels') %}</a>{% else %}</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% if CAN('crm_inbox') %}
+  <a class="wr-item wr-all" href="{{ crm_url('inbox') }}" title="All conversations: WhatsApp, e-mail, the website's chat and forms">
+    <span class="wr-ico"><i class="fa-regular fa-comments" aria-hidden="true"></i></span>
+    <span class="wr-tx"><b>All conversations</b><small>Every channel</small></span></a>
+  {% endif %}
+</nav>

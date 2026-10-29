@@ -665,7 +665,7 @@ def create_app(test_config=None):
         from flask_login import current_user
         from app.services import (access, ads, analytics, contact_form, cs_access,
                                   insurance_countries, nav_badges, nri_services, offices, phone,
-                                  portals, products, urls, wacrm_team, whats_new)
+                                  portals, products, tawk, urls, wacrm_team, whats_new)
         return {
             # Site-wide GA4 / GTM / second Ads account / Search Console verification -- see
             # app/services/analytics.py and _analytics.html. ADS_ACCOUNT_ID reuses ads.py's own
@@ -678,6 +678,8 @@ def create_app(test_config=None):
             'ADS2_ID': analytics.ads2_id(),
             'GOOGLE_SITE_VERIFICATION': analytics.site_verification(),
             'ADS_ACCOUNT_ID': ads.account_id() if ads.enabled() else '',
+            # the tawk.to chat bubble on the public pages (services/tawk.widget_here, _tawk.html)
+            'TAWK_WIDGET': tawk.widget_here(),
             # Templates use this for "today" in date inputs. Between 18:30 and 00:00 IST,
             # utcnow() is still yesterday in India, which would let somebody pick a date that
             # has already gone or block one that has not.

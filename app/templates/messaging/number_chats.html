@@ -1,0 +1,31 @@
+{# The chats on one Meta-direct number of ours (messaging.number_chats), in the middle of WhatsApp chats when the rail
+   picks it: All conversations' rows for that number, a search and the "whose" tabs. A fragment; `more` (page 2 and on)
+   brings only the next rows. #}
+{% from 'cs/crm/_bits.html' import initials, when %}
+{% macro rows_of(rows) -%}
+{% for r in rows %}
+<li><button type="button" class="nc-row{{ ' waiting' if r.waiting }}" data-num-chat="{{ r.person.id }}">
+  <span class="nc-av {{ here.tone }}" aria-hidden="true">{{ initials(r.person.display_name) }}</span>
+  <span class="nc-main"><b>{{ r.person.display_name }}</b>
+    <small>{% if r.direction == 'out' %}<i class="fa-solid fa-reply" aria-hidden="true"></i> {{ r.agent or 'We' }}: {% endif %}{{ r.body or '…' }}</small></span>
+  <span class="nc-side"><time>{{ when(r.at, utcnow) }}</time>{% if r.waiting %}<em class="nc-wait" title="Waiting on us since {{ when(r.waiting_since, utcnow) }}">Waiting</em>{% endif %}</span>
+</button></li>
+{% endfor %}
+{% if pages > page %}<li class="nc-more-li"><button type="button" class="nc-more" data-num-more="{{ page + 1 }}">More chats</button></li>{% endif %}
+{%- endmacro %}
+{% if more %}{{ rows_of(rows) }}{% else %}
+<div class="nc" data-num-chats="{{ here.key }}" data-waiting="{{ counts.waiting }}">
+  <div class="nc-head">
+    <label class="nc-find"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+      <input type="search" data-num-q value="{{ f.q }}" placeholder="Find a chat on {{ here.name }}" aria-label="Find a chat on {{ here.name }}" autocomplete="off"/></label>
+    <div class="nc-who" role="group" aria-label="Whose chats">
+      {% for key, words in WHO %}<button type="button" data-num-who="{{ key }}" class="{{ 'on' if f.who == key }}" aria-pressed="{{ 'true' if f.who == key else 'false' }}">{{ words }} <span>{{ counts[key] }}</span></button>{% endfor %}
+    </div>
+  </div>
+  {% if rows %}
+  <ul class="nc-rows" data-num-rows>{{ rows_of(rows) }}</ul>
+  {% else %}
+  <p class="nc-empty">{% if f.q or f.who != 'all' %}No chat on our {{ here.name }} number with these filters.{% else %}Nobody has written to our {{ here.name }} number yet.{% endif %}</p>
+  {% endif %}
+</div>
+{% endif %}

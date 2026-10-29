@@ -847,7 +847,9 @@
   var liveBusy = false, liveAgain = false, liveOff = false;
 
   function refreshLive(first) {
-    if (!page || liveOff) return;
+    // beside WhatsApp chats: the chat open on a number of ours answered in the portal (wa-rail.js)
+    if (!page) { if (window.CRM_refreshThread) window.CRM_refreshThread(); return; }
+    if (liveOff) return;
     if (liveBusy) { liveAgain = true; return; }
     liveBusy = true;
     fetch(page.dataset.live + (first === true ? '?first=1' : ''), { credentials: 'same-origin', headers: { 'Accept': 'text/html' } })
@@ -1092,6 +1094,7 @@
     syncBox(leadPage);
   }
   window.CRM_bindLead = bindLead;
+  window.CRM_applyLive = applyLive;
   document.querySelectorAll('[data-lead-page]').forEach(bindLead);
   if (page) {
     setTimeout(function () { refreshLive(true); }, 300);

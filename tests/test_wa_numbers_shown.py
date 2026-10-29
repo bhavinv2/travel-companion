@@ -5,8 +5,8 @@
     inbox           a chip on every WhatsApp row (India's too), a tab per number, "Also on" for a second number
     lead page       "WhatsApp goes from … to …" on the box, the number in the WhatsApp strip, the timeline names India
                     too once there are two numbers
-    beside chats    the panel says which number the chat is on, and counts the 24 hours on that number only; the
-                    banner over WhatsApp chats names its number and links the others' chats
+    beside chats    the panel says which number the chat is on, and counts the 24 hours on that number only; a
+                    line over WhatsApp chats names the number they are on
     website         a WhatsApp button that offers a number nothing of ours hears is flagged
 """
 from datetime import datetime, timedelta
@@ -122,12 +122,15 @@ def test_the_panel_beside_whatsapp_chats_counts_the_24_hours_on_its_own_number(a
     assert "hasn't written on WhatsApp yet" in html and 'Free to write' not in html
 
 
-def test_whatsapp_chats_names_its_number_and_links_the_others(app, client, admin_user, two_numbers):
+def test_whatsapp_chats_names_the_number_its_chats_are_on(app, client, admin_user, two_numbers):
+    """One line per number over the chats; the one the rail has open shows (test_wa_rail.py has the rail)."""
     login(client, admin_user.email)
     html = unescape(client.get('/admin/messaging/inbox').get_data(as_text=True))
-    banner = html.split('data-inbox-number', 1)[1].split('</p>', 1)[0]
-    assert 'Every chat here is on our number' in banner and 'India · +91 80191 11360' in banner
-    assert 'USA ·5094' in banner and 'num=%d' % two_numbers.id in banner
+    india = html.split('data-num-banner="crm"', 1)[1].split('</p>', 1)[0]
+    assert 'You are on our' in india and 'India · +91 80191 11360' in india and 'replies go from it' in india
+    assert not india.lstrip().startswith('hidden')
+    usa = html.split('data-num-banner="%d"' % two_numbers.id, 1)[1].split('</p>', 1)[0]
+    assert usa.lstrip().startswith('hidden') and 'USA · +1 (917) 900-5094' in usa and 'answered here in the portal' in usa
 
 
 def test_a_website_whatsapp_button_nobody_hears_is_flagged(app, client, admin_user, two_numbers):

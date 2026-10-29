@@ -1,0 +1,24 @@
+{# One person's chat on one Meta-direct number of ours (messaging.number_chat), in the middle of WhatsApp chats: who, the
+   number, their messages with it and the lead page's own message box (crm.js binds it: CRM_bindLead). When they last
+   wrote to another number of ours, a reply goes from that one -- said above the messages and on the box. A fragment. #}
+{% from 'cs/crm/_bits.html' import initials, num_chip %}
+<div class="nt" data-num-thread-in data-person="{{ person.id }}"{% if lead %} data-lead-page data-lead="{{ lead.id }}"
+     data-product="{{ lead.product }}" data-phone="{{ person.phone or '' }}"
+     data-reasons='{{ ((lead.pipeline.fallout_reasons if lead.pipeline else []) or [])|tojson|forceescape }}'{% endif %}>
+  <div class="nt-head">
+    <button type="button" class="nt-back" data-num-back title="Back to the chats" aria-label="Back to the chats"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i></button>
+    <span class="nc-av {{ here.tone }}" aria-hidden="true">{{ initials(person.display_name) }}</span>
+    <div class="nt-who"><b>{{ person.display_name }}</b><span>on our {{ num_chip(here, full=True) }}</span></div>
+    {% if lead %}<a class="cb sm quiet nt-lead" href="{{ crm_url('lead', lead_id=lead.id) }}" target="_top" title="Open the whole lead page"><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i><span class="nt-lead-tx"> Lead page</span></a>{% endif %}
+  </div>
+  {% if lead %}
+  {% if wa.num and wa.num.key != here.key %}
+  <p class="nt-other" data-num-other><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+    <span>{{ (person.display_name or 'They').split(' ')[0] }} last wrote to our {{ num_chip(wa.num) }} number, so a reply goes from that number.</span></p>
+  {% endif %}
+  {% include 'cs/crm/_timeline.html' %}
+  {% include 'cs/crm/_box.html' %}
+  {% else %}
+  <p class="nc-empty">{{ person.display_name }} is not a sales lead yet. Make them one on the right to answer here.</p>
+  {% endif %}
+</div>

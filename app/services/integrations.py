@@ -203,7 +203,10 @@ def _tawk(ctx):
                         if on else 'No key yet: the address answers “not found”'),
                   _line(bool(src and src.status == 'live'),
                         'Its leads go to the lead source “Tawk chat”' + ('' if src and src.status == 'live' else
-                                                                          ' (set it up under Lead sources)'))]
+                                                                          ' (set it up under Lead sources)')),
+                  # the bubble itself on the portal's own pages (services/tawk.widget); WordPress has its plugin
+                  _line(bool(tawk.widget()), 'The chat bubble on our own pages (Travel Companion, Travel Insurance, '
+                                             'Sahayak, Contact us): ' + (tawk.widget() or 'switched off'))]
     c['overview'] = ['A chat where the visitor leaves an e-mail or phone number becomes a lead under “Tawk chat”, '
                      'with the chat on its timeline.',
                      'The same chat is filed once; its whole transcript replaces the first message when the chat ends.',
