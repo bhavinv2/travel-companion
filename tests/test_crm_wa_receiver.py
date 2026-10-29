@@ -297,7 +297,7 @@ def test_a_delivery_tick_never_steps_back(app, hook, cs_user):
 
 
 def test_error_code_text_is_a_number_or_nothing():
-    from app.routes.crm import _error_code
+    from app.services.crm import _error_code          # moved with the status handling (crm.wa_status_update)
     assert _error_code('131050') == 131050 and _error_code(None) is None and _error_code('x') is None
 
 

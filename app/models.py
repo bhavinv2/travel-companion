@@ -2197,6 +2197,8 @@ class CrmPerson(db.Model):
     wa_opt_in_due = db.Column(db.Boolean, nullable=True, default=False)
     # when their older WhatsApp messages were brought onto the lead page, once; null again after a failed try
     wa_history_at = db.Column(db.DateTime)
+    # the WhatsApp number they last wrote to (Set-up › Channels, services/channels.py); NULL = the WhatsApp CRM's, or never
+    wa_line_id = db.Column(db.Integer, db.ForeignKey('crm_channel_lines.id', ondelete='SET NULL'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     # the family they belong to (services/crm_household.py) and their part in it: payer / parent / carer / other
@@ -2648,8 +2650,44 @@ class CrmTouchpoint(db.Model):
     agent_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     external_id = db.Column(db.String(120), index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    # the WhatsApp number it went through (Set-up › Channels); NULL = the WhatsApp CRM's, or not WhatsApp
+    line_id = db.Column(db.Integer, db.ForeignKey('crm_channel_lines.id', ondelete='SET NULL'), nullable=True,
+                        index=True)
 
     agent = db.relationship('User', foreign_keys=[agent_id])
+    line = db.relationship('CrmChannelLine', foreign_keys=[line_id])
+
+
+class CrmChannelLine(db.Model):
+    """A WhatsApp number the portal talks to itself, through Meta's Cloud API (Set-up › Channels, 2026-10-29), beside
+    the WhatsApp CRM, which keeps its own number. What it is, how it is reached and what Meta last said about it;
+    services/channels.py and services/wa_meta.py do the work."""
+    __tablename__ = 'crm_channel_lines'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # the workspace whose CRM its people and leads belong to (NULL = the default one)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id', ondelete='SET NULL'), nullable=True,
+                             index=True)
+    key = db.Column(db.String(30), nullable=False, unique=True)
+    label = db.Column(db.String(60), nullable=False)               # "USA"
+    provider = db.Column(db.String(20), nullable=False, default='meta')
+    phone = db.Column(db.String(20))                                # +19179005094, as Meta lists it
+    phone_number_id = db.Column(db.String(40), nullable=False, unique=True)
+    waba_id = db.Column(db.String(40))                              # its WhatsApp Business Account
+    secrets = db.Column(db.Text)                                    # sealed {'token', 'app_secret'} (services/secretbox)
+    verify_token = db.Column(db.String(64), nullable=False)         # Meta's address check echoes it
+    source_key = db.Column(db.String(60))                           # the lead source its newcomers come in under
+    prefixes = db.Column(db.JSON)                                   # ['+1']: who it writes first to
+    also_on = db.Column(db.JSON)                                    # ['tawk']: other systems that hear this number
+    status = db.Column(db.String(12), nullable=False, default='new')   # new / live / paused / error
+    last_error = db.Column(db.String(300))
+    connected_at = db.Column(db.DateTime)
+    last_in_at = db.Column(db.DateTime)
+    last_out_at = db.Column(db.DateTime)
+    templates = db.Column(db.JSON)                                  # its account's templates, as Meta last listed them
+    templates_at = db.Column(db.DateTime)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class CrmTask(db.Model):

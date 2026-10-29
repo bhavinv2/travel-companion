@@ -94,8 +94,12 @@ def _touch(tp, lead, person):
         fail = tp.fail_reason or crm.wa_failure_text(None, None, person)
     elif ch == 'email' and out and tp.status == 'failed':
         tick, fail = 'failed', 'The e-mail did not go.'
-    return {'kind': 'msg', 'side': tp.direction, 'channel': ch,
-            'via_label': None if ch == 'whatsapp' else ('Phone call' if ch == 'call' else CRM_CHANNEL_LABELS.get(ch, ch)),
+    if ch == 'whatsapp':
+        # a number of our own (Set-up › Channels) is named; the WhatsApp CRM's needs no label
+        via_label = ('WhatsApp · %s' % tp.line.label) if tp.line_id and tp.line is not None else None
+    else:
+        via_label = 'Phone call' if ch == 'call' else CRM_CHANNEL_LABELS.get(ch, ch)
+    return {'kind': 'msg', 'side': tp.direction, 'channel': ch, 'via_label': via_label,
             'icon': ICONS.get(ch, 'fa-regular fa-comment'), 'who': sender, 'media': media, 'text': text,
             'tick': tick, 'fail': fail, 'full_chat': full_chat, 'at': tp.created_at, 'order': 0}
 

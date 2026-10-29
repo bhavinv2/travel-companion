@@ -34,6 +34,7 @@
   {% endif %}
   <div class="lead-wa" data-wa-strip>
     <span class="ico wa"><i class="fa-brands fa-whatsapp"></i></span><span>{{ wa_line }}</span>
+    {% if wa.line %}<span class="chip info" title="The WhatsApp number their messages go through (Set-up › Channels)">{{ wa.line }}</span>{% endif %}
     {% if wa.chat_status %}<span class="chip">Chat: {{ CHAT_STATUS.get(wa.chat_status, wa.chat_status) }}</span>{% endif %}
     {% if chat_url %}<a href="{{ chat_url }}" data-act="open-chat" target="_blank" rel="noopener">Open full chat</a>{% endif %}
     {% if can_opt_in %}<button type="button" class="cb sm" data-act="opt-in">Opt back in</button>{% endif %}

@@ -168,6 +168,30 @@ def test_an_anonymous_chat_is_not_stored(app, client, tawk_on):
     assert tawk_post(client, {'event': 'chat:end', 'chatId': 'C3'}).get_json() == {'ok': True, 'stored': False}
 
 
+def test_each_delivery_is_remembered_by_its_field_names_only(app, client, admin_user, tawk_on):
+    """What tawk sent lately (2026-10-29): with WhatsApp on tawk, one test message shows what a WhatsApp chat's
+    delivery carries -- its fields and one-word labels, never a name, an e-mail, a number or what was written."""
+    wa = chat_start('C9', email=None, name='Ravi Kumar', said='Call me on +1 917 555 0199 please')
+    wa['channel'] = 'whatsapp'
+    wa['visitor']['phone'] = '+19175550199'
+    tawk_post(client, wa)
+    tawk_post(client, {'event': 'chat:end', 'chatId': 'C9', 'visitor': {'name': 'Ravi Kumar'}})
+    rows = tawk.seen()
+    assert [r['event'] for r in rows] == ['chat:end', 'chat:start']
+    first = rows[1]
+    assert first['whatsapp'] and first['labels']['channel'] == 'whatsapp' and first['filed']
+    assert {'chatId', 'visitor.name', 'visitor.phone', 'message.text', 'message.sender.type'} <= set(first['fields'])
+    kept = json.dumps(rows)
+    for secret in ('Ravi', '917 555', '19175550199', 'Call me', 'Austin'):
+        assert secret not in kept, secret
+    for i in range(20):
+        tawk_post(client, {'event': 'chat:end', 'chatId': 'X%d' % i})
+    assert len(tawk.seen()) == tawk.SEEN_MAX
+    login(client, admin_user.email)
+    page = text(client, '/admin/crm/integrations/tawk?tab=overview')
+    assert 'What tawk sent lately' in page and 'chat:end' in page
+
+
 def test_an_offline_ticket_becomes_a_lead(app, client, tawk_on):
     body = {'event': 'ticket:create', 'time': '2026-10-26T11:00:00Z', 'property': {'id': 'P1'},
             'requester': {'name': 'Ravi', 'email': 'ravi@example.com', 'type': 'visitor'},

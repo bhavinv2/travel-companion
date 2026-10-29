@@ -24,10 +24,11 @@ def inbox():
 
 
 def _where(row, chats):
-    """(address, button words) a row opens: their WhatsApp chat beside the lead when the last word was on WhatsApp,
-    else the lead page, else the contact."""
+    """(address, button words) a row opens: their WhatsApp chat beside the lead when the last word was on the
+    WhatsApp CRM's number, else the lead page (where a number of our own -- Set-up › Channels -- is answered), else
+    the contact."""
     person, lead = row['person'], row['lead']
-    if chats and row['channel'] == 'whatsapp' and person.wacrm_conversation_id:
+    if chats and row['channel'] == 'whatsapp' and person.wacrm_conversation_id and not row.get('line'):
         return url_for('messaging.inbox', p='/inbox?mine=1&c=%s' % person.wacrm_conversation_id), 'Open chat'
     if lead is not None:
         return crm_url('lead', lead_id=lead.id), 'Open lead'

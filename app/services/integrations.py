@@ -165,8 +165,11 @@ def _whatsapp(ctx):
     c['last'] = _latest_touch(channel='whatsapp')
     c['overview'] = ["Every WhatsApp chat shows on the lead's timeline, with a message box underneath.",
                      'A follow-up step can go by itself as an approved WhatsApp template.',
-                     'Quick replies, templates and tags are shared with the WhatsApp CRM, so they exist once.']
-    c['where'] = [(t, u) for t, u in (('WhatsApp chats', _page(ctx, 'wa_inbox')), ('Messages', _page(ctx, 'crm_quick')))
+                     'Quick replies, templates and tags are shared with the WhatsApp CRM, so they exist once.',
+                     'Another WhatsApp number -- one connected in tawk.to, say -- can be answered from the portal '
+                     'itself: Set-up › Channels › WhatsApp numbers.']
+    c['where'] = [(t, u) for t, u in (('WhatsApp chats', _page(ctx, 'wa_inbox')), ('Messages', _page(ctx, 'crm_quick')),
+                                      ('WhatsApp numbers', _page(ctx, 'crm_channels')))
                   if u]
     c['steps'] = ['Your developer sets the four server settings below (the WhatsApp CRM gives the address and keys).',
                   'Open the WhatsApp settings and press Connect replies.',
@@ -214,6 +217,8 @@ def _tawk(ctx):
                   'tawk shows a Secret Key: copy it and paste it on the Settings tab here.',
                   'Start a test chat on the website and type an e-mail address: it shows under Leads.']
     c['addresses'] = [{'id': 'ig-tawk-url', 'label': 'Endpoint URL', 'value': _addr('crm_public.tawk_webhook')}]
+    from app.services.crm import _parse_utc
+    c['seen'] = [dict(r, at=_parse_utc(r.get('at'))) for r in tawk.seen()]
     c['env'] = _envs(tawk.ENV)
     c['form'] = 'tawk'
     from app.services import crm

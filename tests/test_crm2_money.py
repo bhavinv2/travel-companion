@@ -770,6 +770,8 @@ def test_the_bar_links_to_the_agents_own_leads_when_they_cannot_open_forecast(ap
 def test_sales_results_has_won_value_our_revenue_and_top_sellers(app, client, admin_user):
     product('TI', revenue_kind='percent', revenue_value=D('10'))
     lead, a, b, c, north, leads, period = _forecast_world(admin_user)
+    # last month's win, inside these 30 days whatever today's date (3 days before the 1st is over 30 days ago on the 29th-31st)
+    leads['old_won'].closed_at = datetime.utcnow() - timedelta(days=5)
     for l in leads.values():
         crm_money.recalc_revenue(l)
     _db.session.commit()

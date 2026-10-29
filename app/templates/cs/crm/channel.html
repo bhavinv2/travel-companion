@@ -1,0 +1,165 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from 'cs/crm/setup/_macros.html' import csrf with context %}
+{# One WhatsApp number the portal talks to Meta for itself (routes/channels.py): Overview, Connection, Templates.
+   Also "Add a number" (line is None: the Connection form only). Tokens and secrets are never shown again. #}
+{% block crm_title %}{{ line.label if line else 'Add a number' }} · WhatsApp numbers{% endblock %}
+{% block crm %}
+{% set CHIP = {'live': 'ok', 'new': 'due', 'paused': '', 'error': 'due'} %}
+<a class="ig-back" href="{{ crm_url('channels_page') }}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> WhatsApp numbers</a>
+<header class="ig-head">
+  <span class="ig-logo lg" style="--ig:#0866ff"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i></span>
+  <div class="ig-head-text">
+    <h1>{{ label_of(line) if line else 'Add a WhatsApp number' }}</h1>
+    <p class="muted">A number the portal talks to Meta for itself: answered from the lead page and All conversations.</p>
+  </div>
+  {% if line %}<span class="chip {{ CHIP.get(line.status, '') }} ig-head-chip">{{ STATUS_WORDS.get(line.status, line.status) }}</span>{% endif %}
+</header>
+
+{% if line %}
+<nav class="subtabs" aria-label="{{ line.label }}">
+  {% for t, label in TABS %}
+  <a href="{{ crm_url('channel', line_id=line.id, tab=t) }}" class="{{ 'on' if tab == t }}"{% if tab == t %} aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+
+{% macro act(name, label, cls='cb sm', t=None, ask=None, line2=None) -%}
+<form method="POST" action="{{ crm_url('channel_action', line_id=line.id) }}" class="ch-inline"{% if ask %} data-ask="{{ ask }}" data-ask-line="{{ line2 or '' }}" data-yes="{{ label }}"{% endif %}>{{ csrf() }}
+  <input type="hidden" name="action" value="{{ name }}"/><input type="hidden" name="tab" value="{{ t or tab }}"/>
+  <button class="{{ cls }}">{{ label }}</button>
+</form>
+{%- endmacro %}
+
+{% if line and tab == 'overview' %}
+<div class="ig-cols">
+  <section class="card">
+    <h2>Right now</h2>
+    <ul class="ig-checks">
+      <li class="{{ 'ok' if line.status == 'live' else ('no' if line.status == 'error' else 'mid') }}">
+        {% if line.status == 'live' %}Live: messages to {{ PHONE.pretty(line.phone, line.phone) if line.phone else 'this number' }} come in here, and the lead page answers through it.
+        {% elif line.status == 'paused' %}Paused: messages still come in; nothing goes out on it.
+        {% elif line.status == 'error' %}Not connected: {{ line.last_error or 'Meta refused the last try' }}.
+        {% else %}Not connected yet: open Connection, press “Check with Meta”, then “Connect”.{% endif %}</li>
+      <li class="{{ 'ok' if has.token else 'no' }}">{{ 'An access token is saved' if has.token else ('The saved token cannot be read any more: enter it again' if has.unreadable else 'No access token yet') }}</li>
+      <li class="{{ 'ok' if has.app_secret or env_secret else 'no' }}">{{ 'The app secret is saved' if has.app_secret else ('The app secret is set on the server' if env_secret else 'No app secret yet: incoming messages are refused until it is saved') }}</li>
+      <li class="{{ 'ok' if tpl.approved_list() else 'mid' }}">{{ tpl.approved_list()|length }} approved template(s){% if line.templates_at %}, as Meta listed them {{ line.templates_at|ist('%d %b, %H:%M') }}{% endif %}</li>
+    </ul>
+    <div class="ch-stats">
+      <div><b>{{ counts.in }}</b><span>messages in</span></div>
+      <div><b>{{ counts.out }}</b><span>messages out</span></div>
+      <div><b>{{ counts.people }}</b><span>people on it</span></div>
+    </div>
+    <p class="muted small">{% if line.last_in_at %}Last message in {{ line.last_in_at|ist('%d %b %Y, %H:%M') }} {{ TZ() }}.{% endif %}
+      {% if line.last_out_at %} Last message out {{ line.last_out_at|ist('%d %b %Y, %H:%M') }} {{ TZ() }}.{% endif %}
+      {% if line.connected_at %} Connected {{ line.connected_at|ist('%d %b %Y') }}.{% endif %}</p>
+    {% if 'tawk' in (line.also_on or []) %}
+    <p class="ig-note"><i class="fa-solid fa-comment-dots" aria-hidden="true"></i> tawk.to also hears this number. In tawk.to, switch off
+      triggers and AI Assist for WhatsApp so a customer gets one answer, and answer from here: tawk.to does not see the replies sent from the portal.</p>
+    {% endif %}
+    <div class="row ch-actions">
+      {% if line.status == 'live' %}{{ act('pause', 'Pause sending', 'cb sm quiet') }}
+      {% elif line.status == 'paused' %}{{ act('resume', 'Send again', 'cb sm primary') }}{% endif %}
+      {% if line.connected_at and line.status != 'new' %}{{ act('disconnect', 'Disconnect', 'cb sm quiet', ask='Disconnect ' ~ line.label ~ '?', line2='Our app stops hearing this number. tawk.to and any other app keep theirs; nothing changes in Meta otherwise.') }}{% endif %}
+    </div>
+  </section>
+  <aside class="card ig-side">
+    <h2>Send a test</h2>
+    <form method="POST" action="{{ crm_url('channel_action', line_id=line.id) }}" class="stack ig-form" autocomplete="off">{{ csrf() }}
+      <input type="hidden" name="action" value="test"/><input type="hidden" name="tab" value="overview"/>
+      <label class="lb" for="ch-to">To (with the country code)</label>
+      <input id="ch-to" type="tel" name="to" required placeholder="+91 98765 43210"/>
+      {% set ok = tpl.approved_list() %}
+      <label class="lb" for="ch-tpl">An approved template</label>
+      <select id="ch-tpl" name="template">
+        <option value="">— or write a message below —</option>
+        {% for t in ok %}<option value="{{ t.name }}">{{ t.name }}{{ ' (%d blanks, filled with “Test”)' % t.variables if t.variables }}</option>{% endfor %}
+      </select>
+      <label class="lb" for="ch-text">Or a message</label>
+      <textarea id="ch-text" name="text" rows="2" maxlength="1000" placeholder="Only reaches a number that wrote to this one in the last 24 hours"></textarea>
+      <div class="row"><button class="cb primary"{{ ' disabled' if line.status not in ('live', 'paused') }}>Send the test</button></div>
+      <p class="hint">Nothing is recorded on a lead. {% if line.status not in ('live', 'paused') %}Connect the number first.{% endif %}</p>
+    </form>
+    <h3 class="small">Where its messages show</h3>
+    <p class="ig-links"><a href="{{ crm_url('inbox', ch='whatsapp') }}">All conversations</a><a href="{{ crm_url('sources') }}">Lead sources</a></p>
+  </aside>
+</div>
+
+{% elif line and tab == 'templates' %}
+<section class="card">
+  <div class="row ch-tpl-head">
+    <h2>Templates of this number's account</h2>
+    <div class="row">{{ act('templates', 'Ask Meta again', 'cb sm quiet', 'templates') }}
+      {{ act('copy', 'Copy our follow-up templates here', 'cb sm primary', 'templates', ask='Send our follow-up templates to Meta for this number?', line2='Each follow-up with WhatsApp words becomes a template of this account with the same name and words, for Meta to approve. Names it already has are left alone.') }}</div>
+  </div>
+  <p class="muted">Templates belong to the WhatsApp Business Account, so they are made and approved in Meta. A follow-up uses the template with its name, so copying ours here lets every follow-up run on this number too.
+    {% if line.templates_at %}Meta listed these {{ line.templates_at|ist('%d %b, %H:%M') }}.{% endif %}</p>
+  {% set rows = (line.templates or [])|sort(attribute='name') %}
+  {% if rows %}
+  <div class="ch-wrap"><table class="crm-table">
+    <thead><tr><th>Name</th><th>State</th><th>Kind</th><th>Language</th><th>Words</th></tr></thead>
+    <tbody>{% for t in rows %}
+      <tr><td><code>{{ t.name }}</code></td>
+        <td><span class="chip {{ 'ok' if t.status == 'APPROVED' else ('due' if t.status in ('PENDING', 'IN_APPEAL') else '') }}">{{ t.status|capitalize }}</span>
+          {% if t.rejection_reason and t.status == 'REJECTED' %}<br/><span class="muted small">{{ t.rejection_reason|replace('_', ' ')|lower }}</span>{% endif %}</td>
+        <td>{{ (t.category or '')|capitalize }}</td><td>{{ t.language or '' }}</td>
+        <td class="ch-body">{{ t.body }}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="ch-empty"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> No templates known yet: press “Ask Meta again”, or copy our follow-up templates here.</p>{% endif %}
+</section>
+
+{% else %}
+{# Connection (and "Add a number") #}
+<div class="ig-cols">
+  <section class="card">
+    <h2>{{ 'Connection' if line else 'The number' }}</h2>
+    <form method="POST" action="{{ crm_url('channel_save', line_id=line.id) if line else crm_url('channel_new') }}" class="stack ig-form" autocomplete="off">{{ csrf() }}
+      <label class="lb" for="ch-label">Name</label>
+      <input id="ch-label" type="text" name="label" required maxlength="60" value="{{ line.label if line else form.get('label', 'USA') }}"/>
+      <label class="lb" for="ch-pnid">Phone number ID</label>
+      <input id="ch-pnid" type="text" name="phone_number_id" required inputmode="numeric" pattern="\d{6,25}" value="{{ line.phone_number_id if line else form.get('phone_number_id', '') }}" placeholder="1339068212613709"/>
+      <label class="lb" for="ch-waba">WhatsApp Business Account ID</label>
+      <input id="ch-waba" type="text" name="waba_id" inputmode="numeric" pattern="\d{6,25}"{{ ' required' if not line }} value="{{ (line.waba_id or '') if line else form.get('waba_id', '') }}" placeholder="2149016299364820"/>
+      <label class="lb" for="ch-token">Access token</label>
+      <input id="ch-token" type="password" name="token"{{ ' required' if not line }} autocomplete="off" spellcheck="false" placeholder="{{ 'Saved. Paste a new one to replace it' if line and has.token else 'The system user token (EAA…)' }}"/>
+      <label class="lb" for="ch-secret">Meta app secret</label>
+      <input id="ch-secret" type="password" name="app_secret" autocomplete="off" spellcheck="false" placeholder="{{ 'Saved. Paste a new one to replace it' if line and has.app_secret else 'App settings › Basic › App secret' }}"/>
+      <label class="lb" for="ch-prefixes">Writes first to numbers starting with</label>
+      <input id="ch-prefixes" type="text" name="prefixes" value="{{ (line.prefixes or [])|join(', ') if line else form.get('prefixes_text', '+1') }}" placeholder="+1"/>
+      <p class="hint">Somebody who never wrote to us on WhatsApp gets follow-ups from this number when their number starts like this. Everybody else gets answers on the number they last wrote to.</p>
+      <label class="check"><input type="checkbox" name="also_tawk"{{ ' checked' if (line and 'tawk' in (line.also_on or [])) or (not line) }}/> tawk.to is connected to this number too (it only listens)</label>
+      <div class="row"><button class="cb primary">{{ 'Save' if line else 'Save the number' }}</button></div>
+      <p class="hint">The token and the app secret are kept sealed and never shown again; leave them empty to keep the saved ones.</p>
+    </form>
+    {% if line %}
+    <div class="row ch-actions">
+      {{ act('check', 'Check with Meta', 'cb sm', 'connect') }}
+      {{ act('connect', 'Connect' if line.status != 'live' else 'Connect again', 'cb sm primary', 'connect') }}
+    </div>
+    {% if line.last_error %}<p class="ig-note bad"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Meta said: {{ line.last_error }}</p>{% endif %}
+    {% endif %}
+  </section>
+  <aside class="card ig-side">
+    <h2>Where to find each one</h2>
+    <ol class="ig-steps">
+      <li><b>Phone number ID</b> and <b>WhatsApp Business Account ID</b>: WhatsApp Manager › Phone numbers (the ids are under the number and the account name). Several accounts can list the same number: use the one where it shows <b>Connected</b>, not a Pending copy (your app's API Setup page may show a copy).</li>
+      <li><b>Access token</b>: Business Settings › Users › System users › the system user our WhatsApp CRM uses › Assign assets › WhatsApp accounts › this account, Full control. Then Generate new token for the same app, with <code>whatsapp_business_messaging</code> and <code>whatsapp_business_management</code>, never expiring.</li>
+      <li><b>App secret</b>: developers.facebook.com › that same app › App settings › Basic › App secret.</li>
+      <li>Save, press <b>Check with Meta</b>, then <b>Connect</b>: Meta then sends this number's messages here, and the WhatsApp CRM's own number is untouched.</li>
+    </ol>
+    {% if line %}
+    <h3 class="small">For the developer</h3>
+    <div class="ig-copy"><span class="lb">Callback address</span><code id="ch-hook">{{ hook }}</code>
+      <button type="button" class="cb sm" data-copy-from="ch-hook"><i class="fa-regular fa-copy" aria-hidden="true"></i> Copy</button></div>
+    <div class="ig-copy"><span class="lb">Verify token</span><code id="ch-verify">{{ line.verify_token }}</code>
+      <button type="button" class="cb sm" data-copy-from="ch-verify"><i class="fa-regular fa-copy" aria-hidden="true"></i> Copy</button></div>
+    <p class="hint">“Connect” sets these on the account by itself (Meta's per-account callback). They are here for a check by hand.</p>
+    <form method="POST" action="{{ crm_url('channel_action', line_id=line.id) }}" data-ask="Remove {{ line.label }} from the portal?" data-ask-line="Its messages stay on the leads. In Meta nothing changes: disconnect it first if our app should stop hearing it." data-yes="Yes, remove it">{{ csrf() }}
+      <input type="hidden" name="action" value="remove"/>
+      <button class="cb quiet sm danger">Remove this number</button>
+    </form>
+    {% endif %}
+  </aside>
+</div>
+{% endif %}
+{% endblock %}

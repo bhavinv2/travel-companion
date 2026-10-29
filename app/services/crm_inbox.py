@@ -115,6 +115,8 @@ def _rows(ids, f):
         entry = touches.get(pid) or {}
         waiting = crm_metrics.waiting_on_us(entry)
         out.append({'person': person, 'lead': _lead_of(person, t), 'channel': t.channel,
+                    # the number of our own it went through (Set-up › Channels); None = the WhatsApp CRM's
+                    'line': t.line.label if t.line_id and t.line is not None else None,
                     'group': CHANNEL_GROUP.get(t.channel, GROUPS[0]), 'direction': t.direction,
                     'body': _snippet(t.body), 'at': t.created_at,
                     'agent': t.agent.full_name if t.direction == 'out' and t.agent is not None else None,

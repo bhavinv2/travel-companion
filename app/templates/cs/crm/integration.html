@@ -35,6 +35,27 @@
     {% if c.state != 'on' %}<a class="cb primary sm" href="{{ crm_url('integration', key=c.key, tab='install') }}">How to connect it</a>{% endif %}
   </aside>
 </div>
+{% if c.key == 'tawk' and c.seen is defined %}
+{# services/tawk.note_delivery: the field names of what tawk sent, never what anybody wrote #}
+<section class="card ig-seen">
+  <h2>What tawk sent lately</h2>
+  <p class="muted small">The names of the fields in each delivery, never what anybody wrote. Send one test message to a
+    number connected in tawk to see what tawk sends for it.</p>
+  {% if c.seen %}
+  <div class="ig-wrap"><table class="crm-table">
+    <thead><tr><th>When</th><th>Event</th><th>Labels</th><th>Became a lead</th><th>Fields</th></tr></thead>
+    <tbody>{% for r in c.seen %}
+    <tr>
+      <td>{{ r.at|ist('%d %b, %H:%M') if r.at else '' }}</td>
+      <td><code>{{ r.event }}</code>{% if r.whatsapp %} <span class="chip ok">WhatsApp</span>{% endif %}</td>
+      <td>{% for k, v in r.labels.items() if k != 'event' %}<code>{{ k }}={{ v }}</code> {% else %}<span class="muted">none</span>{% endfor %}</td>
+      <td>{{ 'Yes' if r.filed else 'No' }}</td>
+      <td><details><summary>{{ r.fields|length }} fields</summary><code class="ig-fields">{{ r.fields|join(', ') }}</code></details></td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="muted">Nothing has come in since this list started.</p>{% endif %}
+</section>
+{% endif %}
 
 {% elif tab == 'install' %}
 <section class="card">

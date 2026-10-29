@@ -205,6 +205,14 @@ MODULES = [
                     'website forms, Google lead forms, payment links, AI and more. What each does, whether it works, '
                     'and how to connect it. Comes with WhatsApp.',
                tip='Everything the portal is connected to, and whether each one works.'),
+         # every WhatsApp number and the system that answers it; numbers the portal talks to Meta for itself
+         # (routes/channels.py, 2026-10-29)
+         _page('crm_channels', 'WhatsApp numbers', 'fa-tower-broadcast',
+               _both('channels_page', 'channel_new', 'channel', 'channel_save', 'channel_action'),
+               admin='admin_crm.channels_page', cs='crm.channels_page', grant=True,
+               desc='Every WhatsApp number and which system answers it: the WhatsApp CRM, a number the portal talks '
+                    'to Meta for itself, tawk.to. Connect a number, its templates, and what each provider can do.',
+               tip='Every WhatsApp number, and which system answers it.'),
          _page('crm_connection', 'WhatsApp', 'fa-plug',
                _both('connection', 'save_whatsapp', 'setup', 'connection_checks', 'connection_team',
                      'connection_retry', 'connection_settle', 'quick_replies_push', 'quick_replies_import',
@@ -477,7 +485,7 @@ SECTIONS = [
         {'key': 'company', 'label': 'Company', 'icon': 'fa-building', 'pages': ('ws_settings', 'ws_menu', 'ws_all')},
         {'key': 'people', 'label': 'People', 'icon': 'fa-users', 'pages': ('ws_members', 'ws_teams', 'ws_roles')},
         {'key': 'channels', 'label': 'Channels', 'icon': 'fa-plug',
-         'pages': ('crm_integrations', 'crm_connection', 'wa_settings', 'crm_sources')},
+         'pages': ('crm_integrations', 'crm_channels', 'crm_connection', 'wa_settings', 'crm_sources')},
         {'key': 'sales', 'label': 'Sales', 'icon': 'fa-sliders',
          'pages': ('crm_pipelines', 'crm_targets', 'sahayak_services')},
         {'key': 'messages', 'label': 'Messages', 'icon': 'fa-comment-dots',

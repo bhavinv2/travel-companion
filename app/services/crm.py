@@ -1869,8 +1869,26 @@ def wa_media(body):
     return None, None, b
 
 
+def _wa_source_key(line=None):
+    """The lead source WhatsApp newcomers come in under: the number's own (Set-up › Channels), else the WhatsApp CRM's."""
+    if line is not None and line.source_key:
+        return line.source_key
+    return current_app.config.get('WACRM_SOURCE_KEY') or 'wa-india'
+
+
+def _wa_on_line(person, wamid, line):
+    """The number they wrote to, kept on the message and on them (None: the WhatsApp CRM's). No commit."""
+    if person is None:
+        return
+    person.wa_line_id = line.id if line is not None else None
+    if line is not None and wamid:
+        db.session.flush()
+        (CrmTouchpoint.query.filter(CrmTouchpoint.external_id == wamid)
+         .update({'line_id': line.id}, synchronize_session=False))
+
+
 def record_whatsapp_in(contact_id=None, conversation_id=None, phone=None, name=None, wamid=None,
-                       text=None, content_type=None, at=None, chat_has_assignee=None):
+                       text=None, content_type=None, at=None, chat_has_assignee=None, line=None):
     """Somebody wrote to us on WhatsApp: the webhook's message.received, or the jobs runner
     catching up on one it missed (`at`: when they wrote). On the right lead:
 
@@ -1882,6 +1900,8 @@ def record_whatsapp_in(contact_id=None, conversation_id=None, phone=None, name=N
 
     A chat we had not seen for somebody already here goes to their lead's owner after the save,
     only if nobody in the WhatsApp CRM has it. Calls nothing outside; commits.
+    `line`: a Meta-direct number they wrote to (Set-up › Channels; None = the WhatsApp CRM's): the message
+    and the person keep it, a newcomer comes in under its lead source, and nothing is told to the WhatsApp CRM.
     'logged' | 'closed' | 'new_lead' | 'created' | 'opted_out' | 'duplicate' | 'ignored' | 'failed'."""
     if wamid and CrmTouchpoint.query.filter_by(external_id=wamid).first():
         return 'duplicate'
@@ -1891,7 +1911,7 @@ def record_whatsapp_in(contact_id=None, conversation_id=None, phone=None, name=N
     when = at or datetime.utcnow()
     person = wa_person(cid, phone)
     if person is None:
-        return _wa_newcomer(cid, conversation_id, phone, name, wamid, body, stop, text, at)
+        return _wa_newcomer(cid, conversation_id, phone, name, wamid, body, stop, text, at, line=line)
     new_chat = wa_link(person, cid, conversation_id, phone, name)
     _wa_inbound.pop(_digits(person.phone), None)      # they just wrote: the next free text asks again
     lead = wa_lead_for(person)
@@ -1912,8 +1932,7 @@ def record_whatsapp_in(contact_id=None, conversation_id=None, phone=None, name=N
             wa_opt_out(person, latest, _stop_note(text), at=at)
             result = 'opted_out'
         elif latest is None or closed <= when - WA_NEW_LEAD_AFTER:
-            key = current_app.config.get('WACRM_SOURCE_KEY') or 'wa-india'
-            if capture_safely(key, person=person, channel='whatsapp', message=body, utm={},
+            if capture_safely(_wa_source_key(line), person=person, channel='whatsapp', message=body, utm={},
                               external_id=wamid, when=at) is None:
                 return 'failed'
             result = 'new_lead'
@@ -1921,15 +1940,17 @@ def record_whatsapp_in(contact_id=None, conversation_id=None, phone=None, name=N
             log_touch(latest, 'whatsapp', 'in', body=body, external_id=wamid, at=at)
             _tell_closed_owner(latest)
             result = 'closed'
-    if new_chat and not chat_has_assignee:
+    _wa_on_line(person, wamid, line)
+    if new_chat and not chat_has_assignee and line is None:
         mark_wa_due(person, assign_if_free=True)
     db.session.commit()
     return result
 
 
-def _wa_newcomer(cid, conversation_id, phone, name, wamid, body, stop, text, at):
+def _wa_newcomer(cid, conversation_id, phone, name, wamid, body, stop, text, at, line=None):
     """Somebody the Sales CRM does not have: a lead from the WhatsApp source -- or, when all they
-    said is stop (to a WhatsApp CRM broadcast), no lead, but their no is kept on a person."""
+    said is stop (to a WhatsApp CRM broadcast), no lead, but their no is kept on a person. `line`: the
+    Meta-direct number they wrote to (its own lead source; nothing told to the WhatsApp CRM)."""
     e164 = wa_e164(phone)
     if not (e164 or cid):
         return 'ignored'
@@ -1939,15 +1960,17 @@ def _wa_newcomer(cid, conversation_id, phone, name, wamid, body, stop, text, at)
         person = upsert_person(e164, None, _wa_name(name), identities=ids)
         wa_link(person, cid, conversation_id, phone)
         wa_opt_out(person, at=at)
+        _wa_on_line(person, wamid, line)
         db.session.commit()
         return 'opted_out'
-    key = current_app.config.get('WACRM_SOURCE_KEY') or 'wa-india'
-    lead = capture_safely(key, name=_wa_name(name), phone=e164, message=body, channel='whatsapp', utm={},
-                          external_id=wamid, identities=ids, when=at, sync=False)
+    lead = capture_safely(_wa_source_key(line), name=_wa_name(name), phone=e164, message=body, channel='whatsapp',
+                          utm={}, external_id=wamid, identities=ids, when=at, sync=False)
     if lead is None:
         return 'failed'
     wa_link(lead.person, cid, conversation_id, phone)
-    mark_wa_due(lead.person)      # their contact and tags, after the save -- the ids above are kept first
+    _wa_on_line(lead.person, wamid, line)
+    if line is None:
+        mark_wa_due(lead.person)      # their contact and tags, after the save -- the ids above are kept first
     db.session.commit()
     return 'created'
 
@@ -1980,6 +2003,45 @@ def wa_failure_text(code=None, title=None, person=None):
     if (title or '').strip():
         return 'WhatsApp says: %s.%s' % (str(title).strip().rstrip('.')[:160], WA_TRY_ELSE)
     return 'Usually their last message is over 24 hours old.' + WA_TRY_ELSE
+
+
+WA_STATUS_ORDER = {'sending': 0, 'opened': 0, 'sent': 1, 'delivered': 2, 'read': 3, 'failed': 4}
+
+
+def _error_code(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def wa_status_update(wamid, status, error_code=None, error_title=None, conversation_id=None):
+    """A message we sent moved on (sent, delivered, read, failed) -- from the WhatsApp CRM or straight from Meta for
+    a number of our own (services/channels). A failure tells whoever sent it, in Meta's own words (wa_failure_text);
+    WhatsApp saying they stopped marketing messages from us (131050) opts them out. Deliveries repeat and arrive out
+    of order: a status never steps back from read or failed. Commits."""
+    tp = CrmTouchpoint.query.filter_by(external_id=wamid).first() if wamid else None
+    status = str(status or '')[:12]
+    code = _error_code(error_code)
+    if status == 'failed' and code == WA_OPT_OUT_CODE:
+        person = db.session.get(CrmPerson, tp.person_id) if tp else wa_person_by_chat(conversation_id)
+        if person is not None:
+            lead = ((tp.lead if tp else None) or wa_lead_for(person) or (person.leads[0] if person.leads else None))
+            wa_opt_out(person, lead, META_OPT_OUT_NOTE)
+    if tp and status and tp.status != status and tp.status != 'imported':
+        if WA_STATUS_ORDER.get(status, 0) >= WA_STATUS_ORDER.get(tp.status or '', 0):
+            tp.status = status
+            if status == 'failed':
+                person = db.session.get(CrmPerson, tp.person_id)
+                why = wa_failure_text(code, error_title, person)
+                tp.fail_reason = why[:300]
+                if tp.agent_id and tp.lead:
+                    from app.services import notify
+                    notify.push(tp.agent_id, 'crm_failed',
+                                title='WhatsApp message not delivered: %s' % tp.lead.person.display_name,
+                                body=why, link=_lead_link(tp.lead))
+    db.session.commit()
+    return tp
 
 
 # ======================================================================================= tasks
@@ -2379,16 +2441,18 @@ def set_pipeline(lead, pipeline, user=None):
 # ======================================================================================= touches
 
 def log_touch(lead, channel, direction='out', body=None, code=None, outcome=None, user=None,
-              status=None, external_id=None, at=None, activity=True, via=None):
+              status=None, external_id=None, at=None, activity=True, via=None, line_id=None):
     """`at`: when it happened, for one learnt about late (the jobs runner catching up on a WhatsApp
     message); now otherwise. `activity` False: a line for the record (who looks after the lead, an
     opt-in) that does not count as the lead being worked on. `via`: who sent an outbound message
-    (CRM_VIA); a person's own when `user` is given."""
+    (CRM_VIA); a person's own when `user` is given. `line_id`: the Meta-direct WhatsApp number it went
+    through (services/channels; None = the WhatsApp CRM's)."""
     when = at or datetime.utcnow()
     via = via or ('person' if direction == 'out' and user is not None else None)
     tp = CrmTouchpoint(lead=lead, person_id=lead.person_id, channel=channel, direction=direction,
                        body=(body or None), code=code, outcome=outcome, status=status, via=via,
-                       agent_id=getattr(user, 'id', None), external_id=external_id, created_at=when)
+                       agent_id=getattr(user, 'id', None), external_id=external_id, created_at=when,
+                       line_id=line_id)
     db.session.add(tp)
     if activity:
         lead.last_activity_at = max(lead.last_activity_at or when, when) if at else when
@@ -2635,6 +2699,8 @@ CHAT_STATUS = {'open': 'Open', 'pending': 'On hold', 'closed': 'Done'}      # sh
 SYNC_OK, SYNC_WAITING, SYNC_PROBLEM = 'In step with WhatsApp', 'Waiting to sync', 'Not in step: %s'
 SYNC_NOT_ADDED = 'not added to WhatsApp yet'
 BOX_OFF = 'WhatsApp is not connected for leads yet.'
+# a Meta-direct number (Set-up › Channels) that is not live: nothing goes out on it
+WA_LINE_PAUSED = 'The %s WhatsApp number is not sending right now (Set-up › Channels).'
 BOX_CLOSED = "They haven't written in 24 hours, so WhatsApp only allows an approved template."
 BOX_OPTED_OUT_OPEN = 'They opted out. You can still answer while the chat is open.'
 SOCIAL_CLOSED = '%s allows replies only within 24 hours of their last message'
@@ -2712,32 +2778,42 @@ def _wa_cached_inbound(person, now=None):
     return False, None, None
 
 
-def whatsapp_window_open(lead, now=None, confirm=False):
+_ANY_LINE = object()
+
+
+def whatsapp_window_open(lead, now=None, confirm=False, line=_ANY_LINE):
     """Whether they wrote on WhatsApp in the last 24 hours -- the only time WhatsApp lets a
     business send free text. After that only an approved template goes through.
 
     Only their real WhatsApp messages count, never a note, a form, a typed-in reply or a lead made
     by hand; after they opted out, only what they wrote since. `confirm`: the WhatsApp CRM, which
-    keeps Meta's clock, is asked too (at most once a minute per number), just before free text goes."""
+    keeps Meta's clock, is asked too (at most once a minute per number), just before free text goes.
+    The 24 hours are per business number (Meta's rule): only what they wrote to `line` counts -- the number a
+    message to them goes out on (channels.line_for) unless given; None = the WhatsApp CRM's."""
+    from app.services import channels
     now = now or datetime.utcnow()
     since = now - timedelta(hours=WINDOW_HOURS)
     out_at = lead.person.wa_opt_out_at
     if out_at is not None and out_at > since:
         since = out_at          # after opting out only what they wrote since counts (not the STOP itself)
-    if _real_whatsapp_in(lead.person_id).filter(CrmTouchpoint.created_at > since).first() is None:
+    if line is _ANY_LINE:
+        line = channels.line_for(lead.person)
+    q = _real_whatsapp_in(lead.person_id).filter(CrmTouchpoint.created_at > since)
+    q = q.filter(CrmTouchpoint.line_id == line.id) if line is not None else q.filter(CrmTouchpoint.line_id.is_(None))
+    if q.first() is None:
         return False
-    if not confirm:
+    if not confirm or line is not None:
         return True
     known, last = _wa_last_inbound(lead.person)
     # it cannot say: our own record (its server refuses free text outside the 24 hours anyway)
     return (last is not None and last > since) if known else True
 
 
-def _template_held(lead, name, step):
+def _template_held(lead, name, step, tpl=None):
     """Why an approved template is not used for them, or None: a marketing one to a US number, or
-    one with other blanks than the step's words make."""
-    from app.services import wa_templates
-    info = wa_templates.template_info(name)
+    one with other blanks than the step's words make. `tpl`: the templates of the number it goes out on."""
+    from app.services import channels, wa_templates
+    info = (tpl or channels.templates(None)).info(name)
     if _us_marketing(lead, info):
         return WA_US_MARKETING
     have, want = info.get('variables'), (wa_templates.step_blanks(step) if step is not None else 0)
@@ -2759,23 +2835,27 @@ def send_plan(lead, step=None, confirm=False, by_hand=False, window_open=None):
     Screens leave `confirm` off, so nothing is asked while a page draws; a send asks the WhatsApp
     CRM when they last wrote (whatsapp_window_open). `by_hand`: a person presses Send in the lead
     page's box, so "Keep contacts in step" is enough (not only "send follow-ups"). `window_open`: whether
-    their chat is open, already known (My day, from one batched query): nothing is asked."""
-    from app.services import wa_templates
+    their chat is open, already known (My day, from one batched query): nothing is asked.
+    It goes out on the number they last wrote to (services/channels.line_for): a Meta-direct number sends while it
+    is live, with its own account's templates."""
+    from app.services import channels
     name = step.wa_template if step is not None else None
     person = lead.person
+    line = channels.line_for(person)
+    tpl = channels.templates(line)
 
     def _window(confirm=confirm):
-        return window_open if window_open is not None else whatsapp_window_open(lead, confirm=confirm)
+        return window_open if window_open is not None else whatsapp_window_open(lead, confirm=confirm, line=line)
     if not person.phone:
         return {'mode': 'link', 'template': name, 'reason': 'There is no phone number for them.'}
     opted_out = person.wa_opt_out_at is not None
-    if not (wa_writes_on() if by_hand else wa_can_send()):
+    if not channels.sender(line).ready(by_hand):
         if opted_out and not _window(False):
             return {'mode': 'blocked', 'template': name, 'reason': WA_OPTED_OUT}
-        return {'mode': 'link', 'template': name, 'reason': ''}
+        return {'mode': 'link', 'template': name, 'reason': WA_LINE_PAUSED % line.label if line is not None else ''}
     held = None
-    if name and not opted_out and wa_templates.approved(name):
-        held = _template_held(lead, name, step)
+    if name and not opted_out and tpl.approved(name):
+        held = _template_held(lead, name, step, tpl)
         if held is None:
             return {'mode': 'template', 'template': name, 'reason': ''}
     if _window():
@@ -2789,9 +2869,11 @@ def send_plan(lead, step=None, confirm=False, by_hand=False, window_open=None):
     if by_hand:
         return {'mode': 'link', 'template': name, 'reason': WA_PICK_TEMPLATE}
     if name:
-        status = wa_templates.statuses().get(name)
+        status = tpl.statuses().get(name)
         why = ('its template "%s" is %s' % (name, status.lower())) if status else \
               ('its template "%s" is not in WhatsApp yet' % name)
+        if line is not None and not status:
+            why += ' for the %s number (Set-up › Channels › Templates)' % line.label
     else:
         why = 'this step has no WhatsApp template'
     return {'mode': 'link', 'template': name,
@@ -2871,7 +2953,7 @@ def send_step(lead, task, user=None, text=None, plan=None, auto=False):
     runner, which never gets a link (nobody would press send).
     Returns {'mode': 'sent' | 'link' | 'blocked' | 'taken' | 'unsure' | 'failed' | 'down',
     'via'?: 'template' | 'text', 'url'?, 'reason'?}."""
-    from app.services import wacrm, wa_templates
+    from app.services import channels, wa_templates
     step = task.step if task is not None else None
     body = text if text is not None else fill(step.body if step and step.body else (task.title if task else ''),
                                              lead, user)
@@ -2881,15 +2963,17 @@ def send_step(lead, task, user=None, text=None, plan=None, auto=False):
         return {'mode': 'blocked', 'reason': plan['reason']}
     if plan['mode'] == 'template':
         phone, name = lead.person.phone, plan['template']
+        line = channels.line_for(lead.person)          # the number it goes out on, with its own templates
+        snd, tpl = channels.sender(line), channels.templates(line)
         params = wa_templates.step_params(step, fill_values(lead, user))      # worked out before the claim
-        outcome, value = _wa_send(task, lambda: wacrm.send_template(phone, name, language=wa_templates.LANGUAGE,
-                                                                     params=params))
+        language = tpl.language(name)
+        outcome, value = _wa_send(task, lambda: snd.template(phone, name, language=language, params=params))
         if outcome != 'sent':
             return _send_outcome(outcome, value)
         # the timeline shows the approved words, filled in with the values that went
-        body = wa_templates.template_text(name, params) or body
+        body = tpl.text(name, params) or body
         log_touch(lead, 'whatsapp', 'out', body=body, code=code, user=user, status='sent', external_id=value,
-                  via='auto' if auto else None)
+                  via='auto' if auto else None, line_id=line.id if line is not None else None)
         if task is not None:
             complete_task(task, user=user)
         db.session.commit()
@@ -2924,17 +3008,19 @@ def send_whatsapp(lead, text, user=None, code=None, task=None, checked=False, au
     Returns {'mode': 'sent'}, {'mode': 'link', 'url', 'reason'?}, or one that did not go
     ('blocked' | 'taken' | 'unsure' | 'failed' | 'down', with 'reason').
     """
-    from app.services import wacrm
+    from app.services import channels
     person = lead.person
     result = {'mode': 'link', 'url': whatsapp_link(lead, text)}
-    if wa_can_send() and person.phone:
-        if checked or whatsapp_window_open(lead, confirm=True):
+    line = channels.line_for(person)                   # the number it goes out on (services/channels)
+    snd = channels.sender(line)
+    if snd.ready() and person.phone:
+        if checked or whatsapp_window_open(lead, confirm=True, line=line):
             phone = person.phone
-            outcome, value = _wa_send(task, lambda: wacrm.send_text(phone, text))
+            outcome, value = _wa_send(task, lambda: snd.text(phone, text))
             if outcome != 'sent':
                 return _send_outcome(outcome, value)
             log_touch(lead, 'whatsapp', 'out', body=text, code=code, user=user, status='sent', external_id=value,
-                      via='auto' if auto else None)
+                      via='auto' if auto else None, line_id=line.id if line is not None else None)
             if task is not None:
                 complete_task(task, user=user)
             db.session.commit()
@@ -2942,8 +3028,10 @@ def send_whatsapp(lead, text, user=None, code=None, task=None, checked=False, au
         if person.wa_opt_out_at is not None:
             return {'mode': 'blocked', 'reason': WA_OPTED_OUT}
         result['reason'] = WA_WINDOW_SHUT
-    elif person.wa_opt_out_at is not None and not whatsapp_window_open(lead):
+    elif person.wa_opt_out_at is not None and not whatsapp_window_open(lead, line=line):
         return {'mode': 'blocked', 'reason': WA_OPTED_OUT}
+    elif line is not None and person.phone:
+        result['reason'] = WA_LINE_PAUSED % line.label
     if auto:
         return {'mode': 'failed', 'reason': result.get('reason') or WA_NOT_SENDING}
     log_touch(lead, 'whatsapp', 'out', body=text, code=code, user=user, status='opened')
@@ -3007,11 +3095,13 @@ def send_by_hand(lead, user, kind, text=None, template=None, params=None, task=N
     it goes, so nothing goes twice, and ticked only once WhatsApp took it. Never a wa.me link.
     {'mode': 'sent' | 'unsure' | 'off' | 'blocked' | 'taken' | 'window_closed' | 'wrong_number' |
     'ambiguous' | 'invalid' | 'no_phone' | 'failed' | 'down', 'reason'?, 'via'?}"""
-    from app.services import wacrm, wa_templates
+    from app.services import channels, wa_templates
     person = lead.person
     now = datetime.utcnow()
-    if not wa_writes_on():
-        return {'mode': 'off', 'reason': BOX_OFF}
+    line = channels.line_for(person)       # the number they last wrote to (a Meta-direct one sends itself)
+    snd, tpl = channels.sender(line), channels.templates(line)
+    if not snd.ready(by_hand=True):
+        return {'mode': 'off', 'reason': WA_LINE_PAUSED % line.label if line is not None else BOX_OFF}
     if not person.phone:
         return {'mode': 'no_phone', 'reason': WA_LINE_NO_PHONE}
     if task is None and kind == 'template':
@@ -3026,9 +3116,9 @@ def send_by_hand(lead, user, kind, text=None, template=None, params=None, task=N
     if kind == 'template':
         if person.wa_opt_out_at is not None:
             return {'mode': 'blocked', 'reason': WA_OPTED_OUT}
-        if not template or not wa_templates.approved(template):
+        if not template or not tpl.approved(template):
             return {'mode': 'blocked', 'reason': WA_NOT_APPROVED}
-        info = wa_templates.template_info(template)
+        info = tpl.info(template)
         if _us_marketing(lead, info):
             return {'mode': 'blocked', 'reason': WA_US_MARKETING}
         if params is None and task is not None and task.step is not None and task.step.wa_template == template:
@@ -3038,7 +3128,7 @@ def send_by_hand(lead, user, kind, text=None, template=None, params=None, task=N
         need = info.get('variables')
         if (need is not None and len(params) != need) or any(not p for p in params):
             return {'mode': 'blocked', 'reason': WA_FILL_INS}
-        words = wa_templates.template_text(template, params) or '[template %s]' % template
+        words = tpl.text(template, params) or '[template %s]' % template
     else:
         text = (text or '').strip()
         if not text and task is not None:
@@ -3047,17 +3137,23 @@ def send_by_hand(lead, user, kind, text=None, template=None, params=None, task=N
             return {'mode': 'blocked', 'reason': WA_WRITE_FIRST}
         text = text[:4000]
         words = text
-    email = ((lead.owner.email or '') if lead.owner is not None else '').strip() or None
-    try:
-        r = wa_ensure_chat(person, create=True, assign_email=email, now=now)
-    except WaChatRefused as exc:
-        db.session.rollback()
-        return {'mode': exc.kind, 'reason': str(exc)}
-    db.session.commit()              # the ids are kept even if nothing goes
+    if line is None:
+        email = ((lead.owner.email or '') if lead.owner is not None else '').strip() or None
+        try:
+            r = wa_ensure_chat(person, create=True, assign_email=email, now=now)
+        except WaChatRefused as exc:
+            db.session.rollback()
+            return {'mode': exc.kind, 'reason': str(exc)}
+        db.session.commit()              # the ids are kept even if nothing goes
+    else:
+        r = {}                           # a Meta-direct number: the 24 hours are our own record of that number
     digits = _digits(person.phone)
     if kind == 'text':
         out_at = person.wa_opt_out_at
-        if 'last_inbound_at' in r:
+        if line is not None:
+            closed = not whatsapp_window_open(lead, now=now, line=line)
+            never = closed and _real_whatsapp_in(person.id).filter(CrmTouchpoint.line_id == line.id).first() is None
+        elif 'last_inbound_at' in r:
             last = _parse_utc(r.get('last_inbound_at')) if r.get('conversation_id') else None
             since = max(now - timedelta(hours=WINDOW_HOURS), out_at or datetime.min)
             closed = last is None or last <= since
@@ -3071,17 +3167,17 @@ def send_by_hand(lead, user, kind, text=None, template=None, params=None, task=N
     phone = person.phone
     if kind == 'template':
         language = info.get('language') or None
-        outcome, value = _wa_send(task, lambda: wacrm.send_template(phone, template, language=language,
-                                                                     params=params))
+        outcome, value = _wa_send(task, lambda: snd.template(phone, template, language=language, params=params))
     else:
-        outcome, value = _wa_send(task, lambda: wacrm.send_text(phone, text))
+        outcome, value = _wa_send(task, lambda: snd.text(phone, text))
     if outcome == 'refused' and getattr(value, 'code', None) == 'window_closed':
         _wa_inbound.pop(digits, None)
         return {'mode': 'window_closed', 'reason': WA_CHAT_CLOSED}
     if outcome != 'sent':
         return _send_outcome(outcome, value)
     code = task.code if task is not None else (answer.code if answer is not None else None)
-    log_touch(lead, 'whatsapp', 'out', body=words, code=code, user=user, status='sent', external_id=value)
+    log_touch(lead, 'whatsapp', 'out', body=words, code=code, user=user, status='sent', external_id=value,
+              line_id=line.id if line is not None else None)
     if answer is not None:
         answer.use_count = (answer.use_count or 0) + 1
     if task is not None:
@@ -3093,10 +3189,15 @@ def send_by_hand(lead, user, kind, text=None, template=None, params=None, task=N
 def box_templates(lead, user=None):
     """The approved templates for the lead page's box: {'known', 'error', 'items'}; each item is
     {name, label, language, body, vars, fill, blocked, warn, chosen}. The next follow-up's template
-    (chosen) comes first with its fill-ins worked out. None at all for somebody who opted out."""
-    from app.services import wa_templates
-    known = wa_templates.heard()
-    out = {'known': known, 'error': wa_templates.error() if known else None, 'items': []}
+    (chosen) comes first with its fill-ins worked out. None at all for somebody who opted out.
+    The templates are those of the number it goes out on (services/channels.line_for): a Meta-direct number's own
+    account's, as Meta last listed them (`line`: its name for the box)."""
+    from app.services import channels, wa_templates
+    line = channels.line_for(lead.person)
+    tpl = channels.templates(line)
+    known = wa_templates.heard() if line is None else line.templates_at is not None
+    out = {'known': known, 'error': (wa_templates.error() if known else None) if line is None else None, 'items': [],
+           'line': channels.label_of(line) if line is not None else None}
     if lead.person.wa_opt_out_at is not None or not known:
         return out
     values = fill_values(lead, user)
@@ -3105,7 +3206,7 @@ def box_templates(lead, user=None):
     pick = step.wa_template if step is not None else None
     kf = wa_templates.known_fills(values)
     items = []
-    for t in wa_templates.approved_templates():
+    for t in tpl.approved_list():
         name, n = t['name'], t.get('variables')
         warn = None
         if name == pick:
@@ -3139,14 +3240,23 @@ def wa_chat_state(lead, confirm=False, now=None):
     """Where their WhatsApp chat stands, for the strip and the box -- from portal data, plus what
     the WhatsApp CRM said in the last minute. `confirm` asks it (at most once a minute): only the
     live endpoint does, never the page. {'mode', 'state', 'left', 'last_in', 'opted_out_at',
-    'chat_status'}; state: off | no_phone | opted_out_open | opted_out | open | never | closed."""
-    from app.services import crm_metrics
+    'chat_status', 'line'}; state: off | no_phone | opted_out_open | opted_out | open | never | closed.
+    On a Meta-direct number (services/channels.line_for) the clock is what they wrote to that number, and it is on
+    while that number is live; `line` names it."""
+    from app.services import channels, crm_metrics
     now = now or datetime.utcnow()
-    mode, person = wa_mode(), lead.person
+    person = lead.person
+    line = channels.line_for(person)
+    mode = wa_mode() if line is None else ('send' if line.status == 'live' else 'off')
     digits = _digits(person.phone)
-    last = crm_metrics.last_touches([person.id])[person.id]['wa_last_in']
+    if line is None:
+        last = crm_metrics.last_touches([person.id])[person.id]['wa_last_in']
+    else:
+        row = (_real_whatsapp_in(person.id).filter(CrmTouchpoint.line_id == line.id)
+               .with_entities(CrmTouchpoint.created_at).order_by(CrmTouchpoint.created_at.desc()).first())
+        last = row[0] if row else None
     known, w_last, status = False, None, None
-    if digits and mode != 'off':
+    if digits and mode != 'off' and line is None:
         if confirm:
             known, w_last = _wa_last_inbound(person)
             status = (_wa_inbound.get(digits) or (0, 0, None))[2] if known else None
@@ -3173,7 +3283,8 @@ def wa_chat_state(lead, confirm=False, now=None):
     else:
         state = 'closed'
     return {'mode': mode, 'state': state, 'left': int(round(left or 0)), 'last_in': last,
-            'opted_out_at': out_at, 'chat_status': status}
+            'opted_out_at': out_at, 'chat_status': status,
+            'line': channels.label_of(line) if line is not None else None}
 
 
 def wa_line(wa):
@@ -3367,8 +3478,14 @@ def run_auto_steps(now=None, limit=200, budget=None):
 
     Each step is taken before it goes (_wa_send), so an overlapping run never sends it twice; one
     that may have gone waits for a person (stuck_sends), and the run stops. No new steps are taken
-    after WA_AUTO_BUDGET seconds: the rest go next run."""
-    if not wa_can_send():
+    after WA_AUTO_BUDGET seconds: the rest go next run.
+
+    A number of our own (Set-up › Channels) sends its people's steps while it is live, whatever the WhatsApp
+    CRM's switch says; while that switch is off, the steps of everybody on the WhatsApp CRM's number wait, as
+    before."""
+    from app.services import channels
+    crm_on = wa_can_send()
+    if not crm_on and not channels.lines(live_only=True):
         return {'crm_auto_sent': 0}
     now = now or datetime.utcnow()
     needs_ok = crm_settings()['wa_first_needs_ok']
@@ -3385,6 +3502,8 @@ def run_auto_steps(now=None, limit=200, budget=None):
         try:
             lead = task.lead
             person = lead.person
+            if not crm_on and channels.line_for(person) is None:
+                continue          # the WhatsApp CRM's number is not sending: their steps wait, untouched
             if not person.phone or lead.status == 'lost':
                 # nothing to send to, or nobody to send it to any more: off the list, not retried
                 _auto_skip(task, now)

@@ -172,7 +172,7 @@ def test_the_administrator_sees_every_section_in_order(app, admin_user):
     setup = next(g for g in groups if g['key'] == 'setup')
     assert [s['key'] for s in setup['subs']] == ['setup.' + k for k in SETUP_SUBS]
     lines = {s['key'].split('.')[1]: [i['label'] for i in s['items']] for s in setup['subs']}
-    assert lines['channels'] == ['Integrations', 'Lead sources']
+    assert lines['channels'] == ['Integrations', 'WhatsApp numbers', 'Lead sources']
     assert lines['sales'] == ['Pipelines & products', 'Targets', 'Sahayak services & prices']
     assert lines['messages'] == ['Quick replies & templates', 'Trip post texts & e-mails']
     assert lines['data'] == ['Import & export', 'Downloads'] and lines['security'] == ['Security']

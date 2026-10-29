@@ -1,0 +1,60 @@
+{% extends 'cs/crm/_layout.html' %}
+{% from '_page_head.html' import page_head %}
+{# Set-up › Channels › WhatsApp numbers (routes/channels.py): every number, the system that answers it, and what
+   each kind of provider can do -- the one place that says which system talks to which number. #}
+{% block crm_title %}WhatsApp numbers{% endblock %}
+{% block crm %}
+{% set CHIP = {'live': 'ok', 'new': 'due', 'paused': '', 'error': 'due', 'off': ''} %}
+{{ page_head('WhatsApp numbers', 'fa-solid fa-tower-broadcast',
+             'Every WhatsApp number, and which system answers it.',
+             help=['Each number has one system that answers it: it sends the replies, templates and follow-ups. Other systems connected to the same number only listen.',
+                   'Our WhatsApp CRM answers its own number and has its own inbox screens. A number added here is one the portal talks to Meta for itself: it is answered from the lead page and All conversations.',
+                   'Every message keeps the number it went through, so the 24 hours, the templates and the reply go by number.',
+                   'tawk.to only listens: it gives no way for another system to answer.'],
+             primary={'href': crm_url('channel_new'), 'label': 'Add a number', 'icon': 'fa-solid fa-plus'}) }}
+
+<section class="card ch-numbers">
+  <h2>Numbers &amp; who answers</h2>
+  <div class="ch-wrap"><table class="crm-table">
+    <thead><tr><th>Number</th><th>Answers</th><th>Also listening</th><th>State</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}{% set pv = PROVIDERS[r.provider] %}
+    <tr>
+      <td><b>{{ r.name }}</b>{% if r.number %}<br/><span class="muted small">{{ PHONE.pretty(r.number, r.number) }}</span>{% endif %}</td>
+      <td><span class="ch-pv" style="--pv:{{ pv.color }}"><i class="{{ pv.icon }}" aria-hidden="true"></i> {{ pv.label }}</span></td>
+      <td>{% for l in r.listens %}<span class="ch-pv quiet" style="--pv:{{ PROVIDERS[l].color }}"><i class="{{ PROVIDERS[l].icon }}" aria-hidden="true"></i> {{ PROVIDERS[l].label }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      <td><span class="chip {{ CHIP.get(r.state, '') }}">{{ r.state_words }}</span></td>
+      <td class="ch-go">
+        {% if r.line %}<a class="cb sm" href="{{ crm_url('channel', line_id=r.line.id) }}">Open</a>
+        {% elif r.provider == 'wacrm' %}<a class="cb sm quiet" href="{{ crm_url('integration', key='whatsapp') }}">Its settings</a>
+        {% else %}<a class="cb sm quiet" href="{{ crm_url('integration', key='tawk') }}">Its settings</a>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% if not rows|selectattr('line')|list %}
+  <p class="ch-empty"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> No number of our own yet. <a href="{{ crm_url('channel_new') }}">Add one</a>
+    to answer a WhatsApp number from the portal itself, such as one connected in tawk.to.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>What each provider can do</h2>
+  <p class="muted">The portal turns on only what a provider can do: a number of our own gets the message box on the lead page; tawk.to gets a link that opens it.</p>
+  <div class="ch-wrap"><table class="crm-table ch-can">
+    <thead><tr><th></th>{% for key, pv in PROVIDERS.items() %}<th><span class="ch-pv" style="--pv:{{ pv.color }}"><i class="{{ pv.icon }}" aria-hidden="true"></i> {{ pv.label }}</span></th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for key, words in CHECKLIST %}
+    <tr><td>{{ words }}</td>
+      {% for pk, pv in PROVIDERS.items() %}{% set v = pv.can.get(key) %}
+      <td>{% if v is sameas true %}<span class="ch-yes" aria-label="Yes"><i class="fa-solid fa-check"></i></span>
+          {% elif v is sameas false or v is none %}<span class="ch-no" aria-label="No"><i class="fa-solid fa-xmark"></i></span>
+          {% else %}<span class="ch-part">{{ v }}</span>{% endif %}</td>
+      {% endfor %}</tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <p class="hint">Another provider (another chat tool or WhatsApp provider) is checked against this same list before it is added.</p>
+</section>
+{% endblock %}

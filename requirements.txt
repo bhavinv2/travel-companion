@@ -27,3 +27,5 @@ playwright==1.62.0
 pypdf==5.1.0
 # Two-step sign-in: the QR code an authenticator app scans (pure Python, no other packages)
 segno==1.6.1
+# A WhatsApp number the portal talks to itself (Set-up > Channels): its Meta token, sealed in the database
+cryptography==43.0.3

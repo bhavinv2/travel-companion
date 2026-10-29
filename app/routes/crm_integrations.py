@@ -95,11 +95,14 @@ def tawk_webhook():
         return jsonify({'error': 'Not JSON.'}), 400
     ev = tawk.parse(payload)
     if ev is None:
+        tawk.note_delivery(payload, False)
         return jsonify({'ok': True, 'stored': False})
     try:
         lead = tawk.record(ev)
     except Exception:          # noqa: BLE001 -- answered and logged; tawk would only resend
         db.session.rollback()
         current_app.logger.exception('tawk event not stored')
+        tawk.note_delivery(payload, False)
         return jsonify({'ok': False}), 200
+    tawk.note_delivery(payload, lead is not None)
     return jsonify({'ok': True, 'stored': lead is not None})

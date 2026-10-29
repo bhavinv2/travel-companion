@@ -985,9 +985,10 @@ def lead_page_context(lead, confirm=False):
     wa = crm.wa_chat_state(lead, confirm=confirm)
     social_open = crm.social_windows(lead)
     admin_or_owner = bool(current_user.is_admin or lead.owner_id == current_user.id)
+    # the WhatsApp CRM's full chat -- not for somebody on a number of our own (Set-up › Channels): theirs is this page
     chat_url = (url_for('messaging.lead_chat', lead_id=lead.id)
                 if crm.wa_team_on() and crm_role(current_user) and (person.phone or person.wacrm_conversation_id)
-                else None)
+                and not wa.get('line') else None)
     via = request.args.get('via')
     back = session.get('crm_back') or ''
     if back.startswith('/') and not back.startswith('//'):
@@ -2803,42 +2804,11 @@ def _wacrm_assigned(data):
     return jsonify({'ok': True, 'owner': user.email})
 
 
-def _error_code(value):
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
-
-
 def _wacrm_status(data):
-    """A message we sent moved on (sent, delivered, read, failed). A failure tells whoever sent it,
-    in Meta's own words (crm.wa_failure_text); WhatsApp saying they stopped marketing messages
-    from us (131050) opts them out."""
-    wamid = data.get('whatsapp_message_id')
-    tp = CrmTouchpoint.query.filter_by(external_id=wamid).first() if wamid else None
-    status = str(data.get('status') or '')[:12]
-    code = _error_code(data.get('error_code'))
-    if status == 'failed' and code == crm.WA_OPT_OUT_CODE:
-        person = db.session.get(CrmPerson, tp.person_id) if tp else crm.wa_person_by_chat(data.get('conversation_id'))
-        if person is not None:
-            lead = ((tp.lead if tp else None) or crm.wa_lead_for(person)
-                    or (person.leads[0] if person.leads else None))
-            crm.wa_opt_out(person, lead, crm.META_OPT_OUT_NOTE)
-    if tp and status and tp.status != status and tp.status != 'imported':
-        # deliveries can repeat and arrive out of order: never step back from read / failed
-        order = {'sending': 0, 'opened': 0, 'sent': 1, 'delivered': 2, 'read': 3, 'failed': 4}
-        if order.get(status, 0) >= order.get(tp.status or '', 0):
-            tp.status = status
-            if status == 'failed':
-                person = db.session.get(CrmPerson, tp.person_id)
-                why = crm.wa_failure_text(code, data.get('error_title'), person)
-                tp.fail_reason = why[:300]
-                if tp.agent_id and tp.lead:
-                    from app.services import notify
-                    notify.push(tp.agent_id, 'crm_failed',
-                                title='WhatsApp message not delivered: %s' % tp.lead.person.display_name,
-                                body=why, link=crm._lead_link(tp.lead))
-    db.session.commit()
+    """A message we sent moved on (sent, delivered, read, failed): crm.wa_status_update, the same for a number of our
+    own (services/channels)."""
+    crm.wa_status_update(data.get('whatsapp_message_id'), data.get('status'), data.get('error_code'),
+                         data.get('error_title'), conversation_id=data.get('conversation_id'))
     return jsonify({'ok': True})
 
 

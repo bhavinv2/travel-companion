@@ -171,6 +171,15 @@ def run_all():
         from app import db
         db.session.rollback()
         out['crm_wa_caught_up'] = 'failed'
+    # WhatsApp numbers of our own (Set-up > Channels): their templates as Meta has them now, before anything sends
+    try:
+        from app.services import channels, wacrm
+        with wacrm.short_timeouts():
+            out.update(channels.refresh_due())
+    except Exception:          # noqa: BLE001
+        from app import db
+        db.session.rollback()
+        out['wa_lines_templates'] = 'failed'
     # Sales CRM: the follow-ups marked automatic, once the WhatsApp CRM is sending. Each step is
     # taken before it goes, so an overlapping run (cron and "flask run-jobs") or a worker stopped
     # mid-send never sends one twice; the run stops taking steps after a minute, and a step that

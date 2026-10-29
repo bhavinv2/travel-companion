@@ -2360,6 +2360,31 @@ a.cal-card:hover { box-shadow: 0 3px 10px rgba(15, 35, 64, .14); }
 .ig-head p { margin: 2px 0 0; }
 .ig-cols { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 @media (max-width: 900px) { .ig-cols { grid-template-columns: minmax(0, 1fr); } }
+/* tawk.to card: what tawk sent lately (field names only) */
+.ig-seen { margin-top: 16px; }
+.ig-seen .ig-wrap { overflow-x: auto; }
+.ig-seen code { font-size: 12px; }
+.ig-fields { display: block; max-width: 520px; margin-top: 6px; white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
+/* Set-up > Channels > WhatsApp numbers (channels.html, channel.html) */
+.ch-wrap { overflow-x: auto; }
+.ch-pv { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700;
+  color: var(--pv); background: color-mix(in srgb, var(--pv) 12%, transparent); white-space: nowrap; }
+.ch-pv.quiet { font-weight: 600; background: transparent; border: 1px solid color-mix(in srgb, var(--pv) 35%, transparent); }
+.ch-go { text-align: right; white-space: nowrap; }
+.ch-can td:first-child { font-weight: 600; }
+.ch-yes { color: var(--c-ok); } .ch-no { color: var(--c-muted); }
+.ch-part { font-size: 12.5px; color: var(--c-muted); }
+.ch-empty { margin: 12px 0 0; color: var(--c-muted); font-size: 14px; }
+.ch-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 6px 0 10px; }
+.ch-stats div { padding: 10px 12px; border: 1px solid var(--c-line); border-radius: 10px; background: var(--c-soft); display: grid; }
+.ch-stats b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.ch-stats span { font-size: 12.5px; color: var(--c-muted); }
+.ch-actions { gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.ch-inline { display: inline; margin: 0; }
+.ch-tpl-head { justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+.ch-tpl-head h2 { margin: 0; }
+.ch-body { max-width: 520px; white-space: pre-wrap; font-size: 13px; color: var(--c-muted); }
+.ig-note.bad { background: #fdecea; color: #8a1f17; }
 .ig-list { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
 .ig-steps { margin: 0 0 14px; padding-left: 22px; display: grid; gap: 10px; }
 .ig-note { margin-top: 14px; padding: 10px 12px; border-radius: 10px; background: var(--c-blue-soft); color: var(--c-blue-dark); font-size: 13.5px; }

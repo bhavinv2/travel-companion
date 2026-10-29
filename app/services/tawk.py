@@ -147,6 +147,54 @@ def record(ev):
                               channel='chat', external_id=ext)
 
 
+# ------------------------------------------------------------------------------------------- what tawk sent lately
+# tawk documents its webhook for the website chat only, and names no channel field; with WhatsApp connected to tawk
+# (2026-10-29: +1 917 900 5094) nobody knows yet what a WhatsApp chat's delivery carries. Each delivery is kept as
+# the names of its fields and a few one-word labels (the event, a type, a channel) -- never a name, an e-mail, a
+# number or what anybody wrote -- so one test message shows it on the card (Overview › What tawk sent lately).
+SEEN = 'integrations.tawk_seen'
+SEEN_MAX = 15
+LABEL_KEYS = ('event', 'type', 't', 'channel', 'source', 'platform', 'medium', 'origin', 'kind', 'via', 'domain')
+LABEL = re.compile(r'^[A-Za-z][\w.:-]{0,39}$')
+
+
+def _fields(v, at='', depth=0, out=None, labels=None):
+    out = set() if out is None else out
+    labels = {} if labels is None else labels
+    if depth > 5:
+        return out, labels
+    if isinstance(v, dict):
+        for k, x in list(v.items())[:80]:
+            k = re.sub(r'[^\w:-]', '', str(k))[:40] or '?'
+            path = at + '.' + k if at else k
+            out.add(path)
+            if k.lower() in LABEL_KEYS and isinstance(x, str) and LABEL.match(x.strip()) and '@' not in x:
+                labels.setdefault(path, x.strip())
+            _fields(x, path, depth + 1, out, labels)
+    elif isinstance(v, list):
+        for x in v[:25]:
+            _fields(x, at + '[]', depth + 1, out, labels)
+    return out, labels
+
+
+def note_delivery(payload, filed):
+    """Keep this delivery's shape, newest first, the last SEEN_MAX. Never raises: the webhook's answer comes first."""
+    try:
+        fields, labels = _fields(payload if isinstance(payload, dict) else {})
+        said = ' '.join(sorted(fields) + ['%s=%s' % kv for kv in labels.items()]).lower()
+        row = {'at': datetime.utcnow().isoformat(timespec='seconds'),
+               'event': labels.get('event') or '?', 'fields': sorted(fields)[:120], 'labels': labels,
+               'filed': bool(filed), 'whatsapp': 'whatsapp' in said or 'wa_id' in said or 'wamid' in said}
+        settings.set_setting(SEEN, ([row] + seen())[:SEEN_MAX])
+    except Exception:          # noqa: BLE001 -- a diagnostic, never a reason to fail tawk's delivery
+        db.session.rollback()
+
+
+def seen():
+    v = settings.get_setting(SEEN) or []
+    return v if isinstance(v, list) else []
+
+
 def last_seen():
     """When the newest tawk chat or ticket came in, or None."""
     row = (CrmTouchpoint.query.filter(CrmTouchpoint.external_id.like('tawk-%'))

@@ -543,6 +543,7 @@ def create_app(test_config=None):
     from app.routes import crm_rules  # noqa: F401 -- Automation rules, scoring, AI on the lead page, offers consent: rules on crm_bp, before it is registered
     from app.routes import crm_integrations  # noqa: F401 -- Set-up > Integrations and tawk.to's webhook: rules on crm_bp / crm_public_bp, before they are registered
     from app.routes import crm_inbox  # noqa: F401 -- Inbox > All conversations: rules on crm_bp, before it is registered
+    from app.routes import channels as channels_routes  # noqa: F401 -- Set-up > Channels (WhatsApp numbers) and Meta's webhook for them: rules on crm_bp / crm_public_bp, before they are registered
 
     from app.services import crm_access, crm_audit, crm_bin, crm_scope
     crm_bin.register()          # removed leads are hidden everywhere (the recycle bin)

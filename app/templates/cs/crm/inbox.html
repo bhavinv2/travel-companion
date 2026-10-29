@@ -47,7 +47,7 @@
     <div class="ib-main">
       <div class="ib-top">
         <a class="ib-name" href="{{ crm_url('contact', person_id=p.id) }}">{{ p.display_name }}</a>
-        <span class="ib-ch"><i class="{{ r.group[2] }}" aria-hidden="true"></i> {{ CHANNELS.get(r.channel, r.group[1]) }}</span>
+        <span class="ib-ch"><i class="{{ r.group[2] }}" aria-hidden="true"></i> {{ CHANNELS.get(r.channel, r.group[1]) }}{% if r.line %} · {{ r.line }}{% endif %}</span>
         <span class="ib-when" title="{{ ist(r.at) }}">{{ when(r.at, utcnow) }}</span>
       </div>
       <p class="ib-said">{% if r.direction == 'out' %}<b>{{ r.agent or 'We' }}:</b> {% endif %}{{ r.body or 'No words: a file, a call or a form with only details.' }}</p>
