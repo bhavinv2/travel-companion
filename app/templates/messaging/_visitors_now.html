@@ -1,0 +1,30 @@
+{# "On the site now" on Inbox › Visitors (messaging.visitors_page, and visitors_now every 10 seconds): one card per
+   browser on our websites now, the longest here first. A card opens the visitor (visitors.js). #}
+{% if now_rows %}
+<ul class="vz-cards" data-n="{{ now_rows|length }}">
+  {% for r in now_rows %}{% set v = r.v %}
+  <li>
+    <button type="button" class="vz-card{{ ' chatted' if r.chatted }}" data-visitor="{{ v.id }}">
+      <span class="vz-flag" title="{{ v.country or 'Country not known' }}">{{ v.country_code or '··' }}</span>
+      <span class="vz-card-main">
+        <span class="vz-card-top">
+          <b>{{ v.person.name if (v.person and leads) else 'Visitor #%d'|format(v.id) }}</b>
+          {% if r.chatted %}<span class="vz-chip chat"><i class="fa-regular fa-comment-dots" aria-hidden="true"></i> Chatted</span>{% endif %}
+          {% if v.visits > 1 %}<span class="vz-chip">Visit {{ v.visits }}</span>{% else %}<span class="vz-chip new">First visit</span>{% endif %}
+        </span>
+        <span class="vz-place"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> {{ r.place }}</span>
+        <span class="vz-page" title="{{ v.page_url or '' }}"><i class="fa-regular fa-file-lines" aria-hidden="true"></i> {{ v.page_title or v.page_url or '—' }}</span>
+        <span class="vz-meta">
+          <span><i class="fa-solid {{ V.DEVICE_ICON.get(v.device, 'fa-desktop') }}" aria-hidden="true"></i> {{ v.browser or '—' }} · {{ v.os or '—' }}</span>
+          <span><i class="fa-regular fa-clock" aria-hidden="true"></i> {{ V.secs_words(r.on_for) }} here</span>
+          <span><i class="fa-solid fa-arrow-right-to-bracket" aria-hidden="true"></i> {{ v.source or V.DIRECT }}</span>
+          {% if v.ip %}<span class="vz-ip">{{ V.show_ip(v.ip, masked) }}</span>{% endif %}
+        </span>
+      </span>
+    </button>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="vz-empty" data-n="0"><i class="fa-regular fa-moon" aria-hidden="true"></i> Nobody is on our websites just now. A visitor shows here as soon as a page of ours opens.</p>
+{% endif %}

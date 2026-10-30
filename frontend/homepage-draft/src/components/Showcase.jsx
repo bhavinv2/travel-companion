@@ -145,7 +145,6 @@ const INSURERS = [
 
 export function Insurance() {
   const tiles = useReveal(0.1);
-  const price = site.prices.insurance;
   return (
     <section className="sc sc-light sc-band sc-ins" id="insurance" aria-labelledby="ins-h">
       <Bg src={insBg} pos="70% center" />
@@ -173,7 +172,6 @@ export function Insurance() {
           <a className="btn btn-p" href={site.insuranceUrl}>Get a Free Quote</a>
           <a className="btn btn-o" href={site.insuranceUrl}>Compare 65+ A-rated plans</a>
         </div>
-        {price && <p className="sc-price center">Travel insurance: <b>{price}</b></p>}
       </div>
     </section>
   );
@@ -193,7 +191,6 @@ const SERVICES = [
 
 export function Sahayak() {
   const grid = useReveal(0.1);
-  const price = site.prices.sahayak;
   return (
     <section className="sc sc-soft sc-band sc-sah" id="sahayak" aria-labelledby="sah-h">
       <Bg src={sahBg} pos="20% center" />
@@ -219,7 +216,6 @@ export function Sahayak() {
           <a className="btn btn-p" href={site.sahayakUrl}>Book a Sahayak</a>
           <a className="btn btn-o" href={site.sahayakUrl}>Explore Sahayak Services</a>
         </div>
-        {price && <p className="sc-price center">Sahayak visits from <b>{price}</b></p>}
       </div>
     </section>
   );

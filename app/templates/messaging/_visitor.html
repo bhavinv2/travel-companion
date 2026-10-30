@@ -1,0 +1,62 @@
+{# One visitor on Inbox › Visitors (messaging.visitor), in the side sheet: where they are, their device, how they found
+   us, their chats, and each visit's pages in the order they read them. A fragment (visitors.js). #}
+{% set v = d.v %}
+{% set name = v.person.name if (v.person and leads) else 'Visitor #%d'|format(v.id) %}
+<header class="vz-d-head">
+  <span class="vz-flag lg" title="{{ v.country or 'Country not known' }}">{{ v.country_code or '··' }}</span>
+  <div class="vz-d-who">
+    <h2 id="vz-d-title">{{ name }}</h2>
+    <p class="vz-d-place">{{ d.place }}</p>
+    {% if d.here %}<p class="vz-d-here on"><i class="vz-dot" aria-hidden="true"></i> On the site now{% if v.page_title %} · {{ v.page_title }}{% endif %}</p>
+    {% else %}<p class="vz-d-here">Last seen {{ v.last_at|ist('%d %b %Y, %H:%M') }}</p>{% endif %}
+  </div>
+  <button type="button" class="cb quiet icon vz-d-close" data-sheet-close title="Close" aria-label="Close"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+</header>
+
+<dl class="vz-facts">
+  <div><dt>Internet address</dt><dd>{{ V.show_ip(v.ip, masked) or 'Not known' }}</dd></div>
+  <div><dt>Their time zone</dt><dd>{{ v.tz or '—' }}</dd></div>
+  <div><dt>Device</dt><dd><i class="fa-solid {{ V.DEVICE_ICON.get(v.device, 'fa-desktop') }}" aria-hidden="true"></i> {{ V.DEVICE_WORD.get(v.device, 'Computer') }} · {{ v.browser or '—' }} on {{ v.os or '—' }}</dd></div>
+  <div><dt>Language</dt><dd>{{ v.lang or '—' }}</dd></div>
+  <div><dt>First found us</dt><dd>{{ v.source or V.DIRECT }}{% if v.campaign %} <small class="vz-sub">Campaign: {{ v.campaign }}</small>{% endif %}
+    {% if v.referrer %}<small class="vz-sub"><a href="{{ v.referrer }}" target="_blank" rel="noopener noreferrer">{{ v.referrer|truncate(60, True) }}</a></small>{% endif %}</dd></div>
+  <div><dt>First visit</dt><dd>{{ v.first_at|ist('%d %b %Y, %H:%M') }}</dd></div>
+  <div><dt>Visits · pages</dt><dd>{{ v.visits }} visit{{ 's' if v.visits != 1 }} · {{ v.pages }} page{{ 's' if v.pages != 1 }}</dd></div>
+  <div><dt>First page</dt><dd>{% if v.landing_url %}<a href="{{ v.landing_url }}" target="_blank" rel="noopener">{{ v.landing_url|replace('https://', '')|truncate(48, True) }}</a>{% else %}—{% endif %}</dd></div>
+</dl>
+
+{% if d.chats %}
+<section class="vz-d-sec">
+  <h3><i class="fa-regular fa-comment-dots" aria-hidden="true"></i> Chats</h3>
+  <ul class="vz-chats">
+    {% for c in d.chats %}
+    <li>
+      <span><b>{{ c.started_at|istd('%d %b, %H:%M') }}</b> · {{ c.page_title or c.site or 'our website' }}{% if c.closed_at %} · <span class="muted">ended</span>{% endif %}</span>
+      <span class="vz-chat-go">
+        {% if chat_page and c.person_id %}<a class="cb sm" href="{{ url_for('messaging.live_chat_page', chat=c.person_id) }}">Open the chat</a>{% endif %}
+        {% if leads and c.lead_id %}<a class="cb sm quiet" href="{{ crm_url('lead', lead_id=c.lead_id) }}">Lead page</a>{% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="vz-d-sec">
+  <h3><i class="fa-regular fa-file-lines" aria-hidden="true"></i> Pages they read</h3>
+  {% for g in d.visits %}
+  <div class="vz-visit">
+    <p class="vz-visit-head"><b>Visit {{ g.visit }}</b> · {{ g.began|ist('%d %b, %H:%M') }}{% if g.from %} · from {{ g.from }}{% endif %} · {{ V.secs_words(g.secs) }}</p>
+    <ol class="vz-trail">
+      {% for p in g.pages|reverse %}
+      <li><time datetime="{{ p.at.isoformat() }}Z">{{ p.at|istd('%H:%M') }}</time>
+        <a href="{{ p.url }}" target="_blank" rel="noopener" title="{{ p.url }}">{{ p.title or p.url }}</a>
+        <span class="vz-secs">{{ V.secs_words(p.secs) }}</span></li>
+      {% endfor %}
+    </ol>
+  </div>
+  {% else %}
+  <p class="muted">No pages kept.</p>
+  {% endfor %}
+  {% if d.more %}<p class="muted small">The latest {{ V.PAGES_SHOWN }} pages are shown.</p>{% endif %}
+</section>

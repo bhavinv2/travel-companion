@@ -45,6 +45,63 @@
       return r.json().catch(function () { return {}; }).then(function (d) { d._status = r.status; return d; });
     });
   }
+  // ------------------------------------------------------------------------------------------------ the visit
+  // Which pages this browser reads (services/visitors.py, Inbox › Visitors): a random id kept here, a word when a page
+  // opens, every 30 s while it shows (90 s in the background) and when it closes -- to the app's own address
+  // (CFG.here), so the address that reaches us is the visitor's and not a proxy's. Nothing else about them: the page,
+  // the page that linked to it, the browser's language and time zone.
+  var visit = null;
+  function visitorId() {
+    var v = load('lc.vid');
+    if (typeof v === 'string' && /^[A-Za-z0-9_-]{16,40}$/.test(v)) return v;
+    var c = window.crypto || window.msCrypto;
+    if (!c || !c.getRandomValues) return null;
+    var a = new Uint8Array(18), s = '';
+    c.getRandomValues(a);
+    for (var i = 0; i < a.length; i++) s += ('0' + a[i].toString(16)).slice(-2);
+    keep('lc.vid', s);
+    return s;
+  }
+  function tell(kind) {
+    if (!visit) return;
+    var body = { vid: visit.vid, kind: kind };
+    if (kind === 'view') {
+      body.page = location.href.split('#')[0];
+      body.title = document.title.replace(/^\(\d+\+?\) /, '');
+      body.ref = document.referrer || '';
+      body.lang = navigator.language || '';
+      try { body.tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { /* an old browser */ }
+      body.touch = (navigator.maxTouchPoints || 0) > 1 ? 1 : 0;
+    }
+    var text = JSON.stringify(body);
+    try {
+      if (navigator.sendBeacon && navigator.sendBeacon(visit.url, new Blob([text], { type: 'text/plain;charset=UTF-8' }))) return;
+    } catch (e) { /* try fetch */ }
+    try {
+      fetch(visit.url, { method: 'POST', body: text, mode: 'no-cors', credentials: 'omit', keepalive: true,
+                         headers: { 'Content-Type': 'text/plain;charset=UTF-8' } }).catch(function () {});
+    } catch (e) { /* the next word tries again */ }
+  }
+  function beatLater() {
+    if (!visit) return;
+    clearTimeout(visit.timer);
+    visit.timer = setTimeout(function () { tell('beat'); beatLater(); },
+                             document.visibilityState === 'visible' ? 30000 : 90000);
+  }
+  function startVisit() {
+    var vid = CFG.track ? visitorId() : null;
+    if (!vid) return;
+    visit = { vid: vid, url: CFG.here || (API + '/here'), timer: null };
+    tell('view');
+    beatLater();
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') tell('beat');
+      beatLater();
+    });
+    window.addEventListener('pagehide', function () { tell('leave'); });
+    window.addEventListener('pageshow', function (e) { if (e.persisted) { tell('view'); beatLater(); } });
+  }
+
   var URL_RE = /(https?:\/\/[^\s<>"')]+)/g;
   function fill(node, text) {               // the words, with web addresses as links -- never as HTML
     String(text || '').split(URL_RE).forEach(function (part, i) {
@@ -397,7 +454,7 @@
       err.hidden = true; go.disabled = true; go.firstChild.textContent = 'Starting…';
       call('POST', '/start', { name: said.name, contact: said.contact, message: said.message, topic: state.topic,
                                page: location.href.split('#')[0], title: document.title.replace(/^\(\d+\+?\) /, ''),
-                               website: trap.value })
+                               website: trap.value, vid: visit ? visit.vid : null })
         .then(function (d) {
           if (!d.ok || !d.token) {
             go.disabled = false; go.firstChild.textContent = 'Start the chat';
@@ -639,6 +696,7 @@
   function begin() {
     if (document.querySelector('.wa-float')) wrap.classList.add('raised');     // the portal's own WhatsApp button
     document.body.appendChild(host);
+    startVisit();
     drawWho();
     if (state.token) { drawChat(); ask4news().then(function () { setBadge(); schedule(); }); }
     else { drawStart(); hello(); }

@@ -2687,10 +2687,66 @@ class CrmLiveChat(db.Model):
     read_upto = db.Column(db.Integer)                # the newest message of ours they had on screen
     agent_typing_at = db.Column(db.DateTime)
     closed_at = db.Column(db.DateTime)               # they ended it
+    # the browser it was started from (services/visitors.py): where they are, their device, the pages they read
+    visitor_id = db.Column(db.Integer, db.ForeignKey('crm_visitors.id', ondelete='SET NULL'), nullable=True)
 
     person = db.relationship('CrmPerson', foreign_keys=[person_id])
     lead = db.relationship('CrmLead', foreign_keys=[lead_id])
     agent = db.relationship('User', foreign_keys=[agent_id])
+    visitor = db.relationship('CrmVisitor', foreign_keys=[visitor_id])
+
+
+class CrmVisitor(db.Model):
+    """One browser on our websites, as our chat bubble sees it (services/visitors.py, 2026-10-30) -- tawk.to's
+    Visitors list, kept by us: the random id the browser keeps, its address and where that is (our own copy of a free
+    IP list, nothing asked of Cloudflare or anybody per visit), its browser and device, how it first found us, the page
+    it is on and when it last said it was there; the person, once it starts a chat. Kept visitors.KEEP_DAYS after the
+    last visit."""
+    __tablename__ = 'crm_visitors'
+
+    id = db.Column(db.Integer, primary_key=True)
+    vid = db.Column(db.String(40), nullable=False, unique=True)      # the browser's own random id (localStorage)
+    site = db.Column(db.String(120))                 # nriparentservice.com
+    first_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    last_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)   # its last word
+    visit_at = db.Column(db.DateTime)                # this visit began (pages less than 30 minutes apart)
+    gone_at = db.Column(db.DateTime)                 # its page closed, and no other page of ours has spoken since
+    visits = db.Column(db.Integer, nullable=False, default=1)
+    pages = db.Column(db.Integer, nullable=False, default=0)
+    ip = db.Column(db.String(64))
+    country_code = db.Column(db.String(2), index=True)
+    country = db.Column(db.String(80))
+    region = db.Column(db.String(80))
+    city = db.Column(db.String(80))
+    tz = db.Column(db.String(64))                    # the browser's own time zone: Asia/Kolkata
+    lang = db.Column(db.String(20))
+    browser = db.Column(db.String(40))
+    os = db.Column(db.String(40))
+    device = db.Column(db.String(10))                # phone / tablet / computer
+    source = db.Column(db.String(60), index=True)    # how it first found us: Google, WhatsApp, Direct...
+    referrer = db.Column(db.String(500))
+    campaign = db.Column(db.String(200))             # utm_source / utm_medium / utm_campaign
+    landing_url = db.Column(db.String(500))
+    page_url = db.Column(db.String(500))
+    page_title = db.Column(db.String(200))
+    person_id = db.Column(db.Integer, db.ForeignKey('crm_people.id', ondelete='SET NULL'), nullable=True, index=True)
+
+    person = db.relationship('CrmPerson', foreign_keys=[person_id])
+
+
+class CrmVisitorPage(db.Model):
+    """One page a visitor opened, and how long they stayed on it (their browser's last word while it showed)."""
+    __tablename__ = 'crm_visitor_pages'
+
+    id = db.Column(db.Integer, primary_key=True)
+    visitor_id = db.Column(db.Integer, db.ForeignKey('crm_visitors.id', ondelete='CASCADE'), nullable=False,
+                           index=True)
+    at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    url = db.Column(db.String(500))
+    title = db.Column(db.String(200))
+    visit = db.Column(db.Integer)                    # which of the visitor's visits
+    secs = db.Column(db.Integer, nullable=False, default=0)
+    came_from = db.Column(db.String(60))             # the first page of a visit: where from (Google, WhatsApp...)
 
 
 class CrmChannelLine(db.Model):

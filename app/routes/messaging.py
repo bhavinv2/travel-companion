@@ -687,8 +687,10 @@ def live_chat(person_id):
     chat = livechat.chat_of(person)
     lead = (chat.lead if chat is not None and chat.lead is not None and chat.lead.deleted_at is None else None)         or crm.wa_lead_for(person) or next((l for l in person.leads if l.deleted_at is None), None)
     now = datetime.utcnow()
+    from app.services import visitors
+    seen = chat.visitor if chat is not None else None           # the browser it came from: where, which device
     ctx = dict(person=person, lead=lead, here=LIVE_BADGE, chat=chat, live=livechat.here(chat, now),
-               where=livechat.status_line(chat, now))
+               where=livechat.status_line(chat, now), seen=seen, seen_place=visitors.place(seen) if seen else None)
     if lead is None or chat is None:
         return render_template('messaging/live_chat.html', **ctx)
     return render_template('messaging/live_chat.html', wa={'state': 'live', 'num': None}, stream=livechat.thread(lead),
@@ -703,6 +705,70 @@ def live_typing(person_id):
     from app.services import livechat
     _for_leads()
     return jsonify(ok=livechat.typing(_visible_person(person_id), current_user))
+
+
+# ------------------------------------------------- who is on our websites: the chat bubble's visitors
+
+def _visitors_ctx(now):
+    from app.services import role_rights, visitors
+    return {'V': visitors, 'masked': role_rights.masks(current_user), 'utcnow': now,
+            'chat_page': access.can(current_user, 'web_chat'),
+            'leads': access.can(current_user, 'crm_board') or access.can(current_user, 'crm_today')}
+
+
+@messaging_bp.route('/visitors')
+@login_required
+def visitors_page():
+    """Visitors (2026-10-30): who is on our websites now and lately -- where they are, their device, how they found
+    us and the pages they read -- recorded by our own chat bubble and placed by our own copy of a free IP list
+    (services/visitors.py), as tawk.to's Visitors list showed them. "On the site now" fetches itself again every
+    10 seconds (visitors_now); a visitor opens beside the list (visitor)."""
+    from app.services import livechat, visitors
+    if not access.allowed(current_user, request.endpoint):
+        flash('Your role does not include that page.', 'warning')
+        return redirect(access.home_url(current_user))
+    now = datetime.utcnow()
+    f = visitors.filters(request.args)
+    return render_template('messaging/visitors.html', f=f, found=visitors.find(f, request.args.get('n', type=int) or 1, now),
+                           now_rows=visitors.now_list(now), sums=visitors.summary(now), opts=visitors.choices(now),
+                           geo=visitors.geo_status(), cfg=livechat.config(), ping=visitors.ping_url(),
+                           open_id=request.args.get('v', type=int), **_visitors_ctx(now))
+
+
+@messaging_bp.route('/visitors/now')
+@login_required
+def visitors_now():
+    """"On the site now" again, for the screen to swap in (every 10 seconds while it shows)."""
+    from app.services import visitors
+    if not access.allowed(current_user, request.endpoint):
+        abort(403)
+    now = datetime.utcnow()
+    return render_template('messaging/_visitors_now.html', now_rows=visitors.now_list(now), **_visitors_ctx(now))
+
+
+@messaging_bp.route('/visitors/<int:visitor_id>')
+@login_required
+def visitor(visitor_id):
+    """One visitor: where they are, their device, how they found us, each visit's pages and their chats. A fragment."""
+    from app.models import CrmVisitor
+    from app.services import visitors
+    if not access.allowed(current_user, request.endpoint):
+        abort(403)
+    v = db.session.get(CrmVisitor, visitor_id) or abort(404)
+    now = datetime.utcnow()
+    return render_template('messaging/_visitor.html', d=visitors.detail(v, now), **_visitors_ctx(now))
+
+
+@messaging_bp.route('/visitors/ip-list', methods=['POST'])
+@login_required
+def visitors_geo():
+    """An admin fetches DB-IP's list now (it comes by itself once a month): in the background, a minute or two."""
+    from app.services import visitors
+    if not access.allowed(current_user, request.endpoint) or not current_user.is_admin:
+        abort(403)
+    visitors.refresh_geo_soon()
+    flash('Downloading the IP list (about 60 MB). It takes a minute or two: look again shortly.', 'info')
+    return redirect(url_for('messaging.visitors_page'))
 
 
 # ------------------------------------------------- our other numbers, beside WhatsApp chats (the rail)

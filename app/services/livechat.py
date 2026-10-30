@@ -49,7 +49,9 @@ DEFAULTS = {'on': True,
             'title': 'NRI Parent Service',
             'greeting': 'Hi there! Ask us anything about care, travel or insurance for your parents.',
             'away': "We are away just now. Leave a message and we will reply by e-mail or WhatsApp.",
-            'color': '#0F1F3D'}
+            'color': '#0F1F3D',
+            # the bubble also says which pages each browser reads (services/visitors.py: Inbox › Visitors)
+            'visitors': True}
 COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 
 
@@ -60,12 +62,13 @@ class ChatError(ValueError):
 # ------------------------------------------------------------------------------------------------ the settings
 
 def config():
-    """{'on', 'title', 'greeting', 'away', 'color'}: what an admin saved over the defaults."""
+    """{'on', 'title', 'greeting', 'away', 'color', 'visitors'}: what an admin saved over the defaults."""
     v = settings.get_setting(SETTING) or {}
     out = dict(DEFAULTS)
     if isinstance(v, dict):
         out.update({k: v[k] for k in DEFAULTS if k in v and v[k] not in (None, '')})
         out['on'] = bool(v.get('on', True))
+        out['visitors'] = bool(v.get('visitors', True))
     if not COLOR_RE.match(out['color']):
         out['color'] = DEFAULTS['color']
     return out
@@ -105,7 +108,8 @@ def save_config(form, actor):
     ok = dark_enough(color)
     settings.set_setting(SETTING, {'on': form.get('on') in ('1', 'on', 'true', True),
                                    'title': words('title', 60), 'greeting': words('greeting', 240),
-                                   'away': words('away', 240), 'color': color if ok else DEFAULTS['color']}, actor)
+                                   'away': words('away', 240), 'color': color if ok else DEFAULTS['color'],
+                                   'visitors': form.get('visitors') in ('1', 'on', 'true', True)}, actor)
     return ok
 
 
@@ -150,9 +154,10 @@ def _site(url):
     return m.group(1).lower()[:120] if m else None
 
 
-def start(name, contact, message, topic='', page_url=None, page_title=None):
-    """A new chat from the bubble: the lead (new, or the person's open one) with their first message on it. Returns
-    the CrmLiveChat; raises ChatError with what to put right. Commits."""
+def start(name, contact, message, topic='', page_url=None, page_title=None, vid=None):
+    """A new chat from the bubble: the lead (new, or the person's open one) with their first message on it, and the
+    browser it came from (`vid`, services/visitors.py). Returns the CrmLiveChat; raises ChatError with what to put
+    right. Commits."""
     from app.services import crm
     name = ' '.join(str(name or '').split())[:NAME_MAX]
     contact = str(contact or '').strip()[:120]
@@ -192,6 +197,8 @@ def start(name, contact, message, topic='', page_url=None, page_title=None):
     chat.person_id, chat.lead_id = lead.person_id, lead.id
     if tp is not None:
         tp.live_chat_id = chat.id
+    from app.services import visitors
+    visitors.link_chat(chat, vid)
     db.session.commit()
     return chat
 

@@ -9,9 +9,7 @@ import updatePhoto from '../assets/photos/why-updates.jpg';
 import youAbroad from '../assets/photos/tc-l4.jpg';
 import themAtHome from '../assets/photos/hero-parent-care.jpg';
 
-/* "How it works": the three steps from a first message to the updates, each with its own photo,
- * and the prices the service pages publish (routes/homepage_draft.py _prices) -- each shown only
- * once it is known. */
+/* "How it works": the three steps from a first message to the updates, each with its own photo. */
 const STEPS = [
   { img: askPhoto, pos: 'center 20%', tone: 'ask', title: 'Tell us what they need',
     text: 'Chat with us here, message us on WhatsApp or call. Tell us about your parents, their city and what they need.' },
@@ -24,7 +22,6 @@ const STEPS = [
 export default function Steps() {
   const head = useReveal();
   const list = useReveal(0.15);
-  const { sahayak, insurance } = site.prices;
   return (
     <section className="sc sc-map how" id="how" aria-labelledby="how-h">
       <Bg src={mapBg} pos="center" />
@@ -53,12 +50,6 @@ export default function Steps() {
           ))}
         </ol>
         <div className="how-foot">
-          {(sahayak || insurance) && (
-            <p className="how-prices">
-              {sahayak && <span>Sahayak visits from <b>{sahayak}</b></span>}
-              {insurance && <span>Travel insurance: <b>{insurance}</b></span>}
-            </p>
-          )}
           <a className="btn btn-p" href={site.contactUrl} onClick={talk}>{TALK}</a>
         </div>
       </div>

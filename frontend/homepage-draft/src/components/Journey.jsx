@@ -6,7 +6,10 @@ import companionStub from '../assets/photos/companion-stub.jpg';
 import tileParent from '../assets/photos/tile-parent.jpg';
 import sahayakPhoto from '../assets/photos/sahayak-photo.jpg';
 import readyToFly from '../assets/photos/tc-l2.jpg';
-import checkedPhoto from '../assets/photos/health-hero.jpg';
+import checkedPhoto from '../assets/photos/sah-svc-lab.jpg';
+import chTravel from '../assets/photos/why-travel.jpg';
+import chCare from '../assets/photos/why-local.jpg';
+import chHealth from '../assets/photos/health-hero.jpg';
 import { Doodles, Note, Snap, Trail } from './Deco.jsx';
 
 /* "Our services" as on the static page: a flight path drawn by scroll, stops alternating
@@ -25,13 +28,17 @@ function Chip({ cls, icon = 'check', stroke = 3, title, sub }) {
   );
 }
 
-/* A chapter's card on the path; `children` are the snapshots and notes in the space beside it. */
-function Stub({ id, n, word, title, text, children }) {
+/* A chapter's card on the path: its photo ringed in the chapter's colour with its number on a badge,
+ * "Chapter one" and its name, its line, and the services it covers. `children` are the snapshots
+ * and notes in the space beside it. */
+function Stub({ id, n, word, title, text, tone, img, pos = 'center', services, children }) {
   return (
     <div className="stub-wrap" id={id}>
       {children}
-      <div className="stub" data-pt>
-        <div className="stub-a"><span className="num">{n}</span><div><span>Chapter {word}</span><h3>{title}</h3><p>{text}</p></div></div>
+      <div className={`stub ${tone}`} data-pt>
+        <span className="stub-ph"><img src={img} alt="" loading="lazy" decoding="async" style={{ objectPosition: pos }} /><b>{n}</b></span>
+        <span className="stub-tx"><small>Chapter {word}</small><strong>{title}</strong><span>{text}</span></span>
+        <span className="stub-svcs">{services.map((sv) => <i key={sv}>{sv}</i>)}</span>
       </div>
     </div>
   );
@@ -293,9 +300,10 @@ export default function Journey() {
             <span className="badge-ok"><Check w={3.4} /></span>
           </div>
 
-          <Stub id="ch-travel" n="01" word="one" title="Travel" text="Safer, calmer journeys for your parents.">
+          <Stub id="ch-travel" n="01" word="one" title="Travel" text="Safer, calmer journeys for your parents." tone="travel"
+            img={chTravel} pos="center 30%" services={['Travel Companion', 'Travel Insurance']}>
             <Snap src={readyToFly} caption="Ready to fly!" pos="62% center" at={{ top: '-18px', left: '1%' }} rotate={-6} />
-            <Note at={{ top: '34px', right: '2%' }} rotate={5} icon="plane">Safer journeys, together</Note>
+            <Note at={{ top: '34px', right: '0%' }} rotate={5} icon="plane">Safer journeys, together</Note>
             <Trail at={{ top: '86px', right: '6%' }} width={170} flip />
           </Stub>
 
@@ -346,8 +354,9 @@ export default function Journey() {
             </div>
           </Stop>
 
-          <Stub id="ch-care" n="02" word="two" title="Care" text="Doctors and a helping hand, wherever you are.">
-            <Note at={{ top: '30px', left: '2%' }} rotate={-5} tone="blue">A helping hand at home</Note>
+          <Stub id="ch-care" n="02" word="two" title="Care" text="Doctors and a helping hand, wherever you are." tone="care"
+            img={chCare} pos="center 20%" services={['Virtual Doctor', 'Sahayak']}>
+            <Note at={{ top: '30px', left: '0%' }} rotate={-5} tone="blue">A helping hand at home</Note>
             <Trail at={{ top: '82px', left: '5%' }} width={170} />
             <Snap src={tileParent} caption="Amma, at home" pos="center 30%" at={{ top: '-22px', right: '1%' }} rotate={5} width={140} />
           </Stub>
@@ -381,9 +390,10 @@ export default function Journey() {
             </div>
           </Stop>
 
-          <Stub id="ch-health" n="03" word="three" title="Health" text="Proactive health support, arranged from abroad.">
-            <Note at={{ top: '40px', left: '2%' }} rotate={-4} icon="health" tone="blue">Their health, looked after</Note>
-            <Snap src={checkedPhoto} caption="Checked & ready" pos="70% center" at={{ top: '-20px', right: '1%' }} rotate={5} />
+          <Stub id="ch-health" n="03" word="three" title="Health" text="Proactive health support, arranged from abroad." tone="health"
+            img={chHealth} pos="70% center" services={['Gift Health', 'Fit2Fly']}>
+            <Note at={{ top: '40px', left: '0%' }} rotate={-4} icon="health" tone="blue">Their health, looked after</Note>
+            <Snap src={checkedPhoto} caption="Tests done at home" pos="100% 50%" at={{ top: '-20px', right: '1%' }} rotate={5} />
           </Stub>
 
           <Stop n={5} title="Gift Health" link={['Ask about Gift Health', site.contactUrl]} objClass="tall"

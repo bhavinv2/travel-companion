@@ -1,0 +1,193 @@
+{% extends 'base.html' %}
+{% from '_page_head.html' import page_head %}
+{% block title %}Visitors{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/crm.css') }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/visitors.css') }}"/>{% endblock %}
+{% block content %}
+{# Inbox › Visitors (messaging.visitors_page, services/visitors.py, 2026-10-30): who is on our websites -- tawk.to's
+   Visitors list, kept by us. Recorded by our own chat bubble, placed by our own copy of DB-IP's free list. "On the site
+   now" swaps itself every 10 seconds (visitors_now); a visitor opens in the side sheet (visitor). visitors.js. #}
+{% set base_args = {'when': f.when if f.when != 'week' else None, 'country': f.country or None, 'source': f.source or None,
+                    'device': f.device or None, 'chat': f.chat or None, 'q': f.q or None} %}
+<div class="admin-page">
+  {% include 'admin/_sidebar.html' %}
+  <main class="admin-main crm vz" data-now-url="{{ url_for('messaging.visitors_now') }}"
+        data-visitor-url="{{ url_for('messaging.visitor', visitor_id=0) }}" data-open="{{ open_id or '' }}">
+    {{ page_head('Visitors', 'fa-solid fa-eye',
+                 'Who is on our websites now and lately: where they are, their device, how they found us and what they read.',
+                 help=['Our own chat bubble records each browser on our websites. Nothing comes from tawk.to or Cloudflare.',
+                       'Where they are comes from the visitor’s internet address, looked up in a free list kept on our own server. It is usually the right city. Phone networks and offices can show a nearby city.',
+                       '“On the site now” updates every 10 seconds. Click a visitor to see every page they read and their chats.',
+                       'A visitor becomes a name when they start a chat.',
+                       'Addresses and pages are deleted 90 days after the last visit.' ~ (' Your role sees addresses partly hidden.' if masked else '')]) }}
+
+    {# what stands between this screen and a full picture #}
+    {% if not cfg.on or not cfg.visitors %}
+    <p class="vz-note warn"><i class="fa-solid fa-circle-pause" aria-hidden="true"></i>
+      <span>{% if not cfg.on %}The chat bubble is switched off, so no visitors are being recorded.{% else %}Recording visitors is switched off: the bubble only chats.{% endif %}
+      {% if current_user.is_admin %}<a href="{{ crm_url('integration', key='livechat') }}">Switch it on in Set-up › Live chat</a>{% else %}An admin can switch it on.{% endif %}</span></p>
+    {% endif %}
+    {% if current_user.is_admin and sums.no_address_day %}
+    <p class="vz-note warn"><i class="fa-solid fa-route" aria-hidden="true"></i>
+      <span>{{ sums.no_address_day }} visitor{{ 's' if sums.no_address_day != 1 }} in the last day came without their address, because the bubble reported through the Cloudflare forwarder.
+        Set <code>VISITOR_PING_URL</code> on the server to the app’s own address (for example <code>https://travel-companion-production-261c.up.railway.app</code>), so the bubble reports straight to it.
+        Now it reports to: <code>{{ ping or 'the address the bubble was loaded from' }}</code>.</span></p>
+    {% endif %}
+    {% if not geo.has %}
+    <div class="vz-note">
+      <i class="fa-solid fa-earth-asia" aria-hidden="true"></i>
+      <span><b>Where visitors are</b> needs the IP list on our server (DB-IP’s free list, about 60 MB, new each month).
+        {% if geo.error %}The last try failed: {{ geo.error }}{% else %}The server fetches it by itself after the first visit; addresses are kept meanwhile and placed as soon as it lands.{% endif %}</span>
+      {% if current_user.is_admin %}
+      <form method="POST" action="{{ url_for('messaging.visitors_geo') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <button class="cb sm">Download it now</button></form>{% endif %}
+    </div>
+    {% elif current_user.is_admin and (geo.old or geo.error) %}
+    <div class="vz-note">
+      <i class="fa-solid fa-rotate" aria-hidden="true"></i>
+      <span>{% if geo.error %}The IP list could not be updated: {{ geo.error }}{% else %}The IP list is more than a month old.{% endif %} The one we have still works.</span>
+      <form method="POST" action="{{ url_for('messaging.visitors_geo') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <button class="cb sm">Update it now</button></form>
+    </div>
+    {% endif %}
+
+    <section class="vz-tiles" aria-label="Visitors in figures">
+      <div class="vz-tile now"><span class="vz-tile-k"><i class="vz-pulse" aria-hidden="true"></i> On the site now</span><b data-now-count>{{ sums.now }}</b></div>
+      <a class="vz-tile" href="{{ url_for('messaging.visitors_page', when='day') }}#vz-all"><span class="vz-tile-k">Last 24 hours</span><b>{{ sums.day }}</b></a>
+      <a class="vz-tile" href="{{ url_for('messaging.visitors_page') }}#vz-all"><span class="vz-tile-k">Last 7 days</span><b>{{ sums.week }}</b></a>
+      <a class="vz-tile" href="{{ url_for('messaging.visitors_page', chat='yes') }}#vz-all"><span class="vz-tile-k">Started a chat · 7 days</span><b>{{ sums.chats }}</b></a>
+    </section>
+
+    <div class="vz-grid">
+      <section class="card vz-now" aria-labelledby="vz-now-h">
+        <header class="vz-sec-head">
+          <h2 id="vz-now-h"><i class="vz-pulse" aria-hidden="true"></i> On the site now <b class="vz-count" data-now-count>{{ now_rows|length }}</b></h2>
+          <span class="vz-live muted" data-now-stamp>Updates every 10 seconds</span>
+        </header>
+        <div data-now-list aria-live="polite">{% include 'messaging/_visitors_now.html' %}</div>
+      </section>
+
+      <aside class="vz-side" aria-label="The last 7 days">
+        <section class="card vz-box">
+          <h3>Where they are <span class="muted">· 7 days</span></h3>
+          {% set most = (sums.countries|map(attribute='n')|max) if sums.countries else 1 %}
+          {% if sums.countries %}<ul class="vz-bars">
+            {% for c in sums.countries %}
+            <li><a href="{{ url_for('messaging.visitors_page', country=c.code or None) }}#vz-all" title="Visitors from {{ c.name }}">
+              <span class="vz-flag sm">{{ c.code or '··' }}</span><span class="vz-bar-name">{{ c.name }}</span><b>{{ c.n }}</b>
+              <i class="vz-bar" style="--w: {{ (c.n * 100 / most)|round(0, 'ceil')|int }}%" aria-hidden="true"></i></a></li>
+            {% endfor %}</ul>
+          {% else %}<p class="muted small">Nobody yet.</p>{% endif %}
+        </section>
+        <section class="card vz-box">
+          <h3>How they found us <span class="muted">· 7 days</span></h3>
+          {% set most = (sums.sources|map(attribute='n')|max) if sums.sources else 1 %}
+          {% if sums.sources %}<ul class="vz-bars src">
+            {% for s in sums.sources %}
+            <li><a href="{{ url_for('messaging.visitors_page', source=s.name) }}#vz-all">
+              <span class="vz-bar-name">{{ s.name }}</span><b>{{ s.n }}</b>
+              <i class="vz-bar" style="--w: {{ (s.n * 100 / most)|round(0, 'ceil')|int }}%" aria-hidden="true"></i></a></li>
+            {% endfor %}</ul>
+          {% else %}<p class="muted small">Nobody yet.</p>{% endif %}
+        </section>
+        <section class="card vz-box">
+          <h3>On which device <span class="muted">· 7 days</span></h3>
+          <ul class="vz-devs">
+            {% for key, word, icon, n in sums.devices %}
+            <li><a href="{{ url_for('messaging.visitors_page', device=key) }}#vz-all"><i class="fa-solid {{ icon }}" aria-hidden="true"></i><b>{{ n }}</b><span>{{ word }}</span></a></li>
+            {% endfor %}
+          </ul>
+        </section>
+        <section class="card vz-box">
+          <h3>Most read pages <span class="muted">· 7 days</span></h3>
+          {% if sums.pages %}<ol class="vz-top-pages">
+            {% for p in sums.pages %}
+            <li><a href="{{ p.url }}" target="_blank" rel="noopener" title="{{ p.url }}">{{ p.title }}</a><b>{{ p.n }}</b></li>
+            {% endfor %}</ol>
+          {% else %}<p class="muted small">Nobody yet.</p>{% endif %}
+        </section>
+      </aside>
+    </div>
+
+    <section class="card vz-all" id="vz-all" aria-labelledby="vz-all-h">
+      <header class="vz-sec-head">
+        <h2 id="vz-all-h">All visitors</h2>
+        <span class="muted">{{ found.total }} visitor{{ 's' if found.total != 1 }}{% if f.active %} match{% endif %}</span>
+      </header>
+      <nav class="seg vz-when" aria-label="When">
+        {% for key, words, _span in V.PERIODS %}
+        {% set a = dict(base_args) %}{% set _ = a.update({'when': key if key != 'week' else None}) %}
+        <a href="{{ url_for('messaging.visitors_page', **a) }}#vz-all" class="{{ 'on' if f.when == key }}"{% if f.when == key %} aria-current="page"{% endif %}>{{ words }}</a>
+        {% endfor %}
+      </nav>
+      <form class="vz-filters" method="GET" action="{{ url_for('messaging.visitors_page') }}#vz-all">
+        {% if f.when != 'week' %}<input type="hidden" name="when" value="{{ f.when }}"/>{% endif %}
+        <label class="vz-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+          <input type="search" name="q" value="{{ f.q }}" placeholder="City, address, page or name" aria-label="Search visitors"/></label>
+        <select name="country" aria-label="Country" data-autosubmit>
+          <option value="">Every country</option>
+          {% for code, name in opts.countries %}<option value="{{ code }}"{{ ' selected' if f.country == code }}>{{ name }}</option>{% endfor %}
+        </select>
+        <select name="source" aria-label="How they found us" data-autosubmit>
+          <option value="">Every way in</option>
+          {% for s in opts.sources %}<option value="{{ s }}"{{ ' selected' if f.source == s }}>{{ s }}</option>{% endfor %}
+        </select>
+        <select name="device" aria-label="Device" data-autosubmit>
+          <option value="">Every device</option>
+          {% for key, word, _i in V.DEVICES %}<option value="{{ key }}"{{ ' selected' if f.device == key }}>{{ word }}</option>{% endfor %}
+        </select>
+        <select name="chat" aria-label="Chatted" data-autosubmit>
+          <option value="">Chatted or not</option>
+          <option value="yes"{{ ' selected' if f.chat == 'yes' }}>Started a chat</option>
+          <option value="no"{{ ' selected' if f.chat == 'no' }}>Never chatted</option>
+        </select>
+        <button class="cb sm">Search</button>
+        {% if f.active %}<a class="cb sm quiet" href="{{ url_for('messaging.visitors_page', when=f.when if f.when != 'week' else None) }}#vz-all">Clear</a>{% endif %}
+      </form>
+
+      {% if found.rows %}
+      <div class="vz-table-wrap">
+      <table class="vz-table">
+        <thead><tr><th scope="col">Visitor</th><th scope="col">Where</th><th scope="col">Came from</th><th scope="col">Device</th>
+          <th scope="col" class="num">Visits</th><th scope="col" class="num">Pages</th><th scope="col">Last page</th><th scope="col">Last seen <span class="muted">{{ TZ() }}</span></th></tr></thead>
+        <tbody>
+        {% for r in found.rows %}{% set v = r.v %}
+        <tr data-visitor="{{ v.id }}" tabindex="0" aria-label="Open visitor {{ v.id }}">
+          <td class="who">
+            {% if r.here %}<i class="vz-dot" title="On the site now" aria-label="On the site now"></i>{% endif %}
+            <b>{{ v.person.name if (v.person and leads) else 'Visitor #%d'|format(v.id) }}</b>
+            {% if r.chatted %}<span class="vz-chip chat"><i class="fa-regular fa-comment-dots" aria-hidden="true"></i> Chatted</span>{% endif %}
+            {% if v.ip %}<small class="vz-ip">{{ V.show_ip(v.ip, masked) }}</small>{% endif %}
+          </td>
+          <td><span class="vz-flag sm">{{ v.country_code or '··' }}</span> {{ r.place }}</td>
+          <td>{{ v.source or V.DIRECT }}{% if v.campaign %}<small class="vz-sub">{{ v.campaign }}</small>{% endif %}</td>
+          <td><i class="fa-solid {{ V.DEVICE_ICON.get(v.device, 'fa-desktop') }}" aria-hidden="true"></i> {{ v.browser or '—' }}<small class="vz-sub">{{ v.os or '' }}</small></td>
+          <td class="num">{{ v.visits }}</td>
+          <td class="num">{{ v.pages }}</td>
+          <td class="pg" title="{{ v.page_url or '' }}">{{ v.page_title or v.page_url or '—' }}</td>
+          <td class="when">{% if r.here %}<span class="vz-now-word">Now</span>{% else %}{{ v.last_at|istd('%d %b, %H:%M') }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% if found.pages > 1 %}
+      <nav class="vz-pager" aria-label="Pages of visitors">
+        {% set a = dict(base_args) %}
+        {% if found.n > 1 %}{% set _ = a.update({'n': found.n - 1}) %}<a class="cb sm" href="{{ url_for('messaging.visitors_page', **a) }}#vz-all">← Newer</a>{% endif %}
+        <span class="muted">Page {{ found.n }} of {{ found.pages }}</span>
+        {% if found.n < found.pages %}{% set _ = a.update({'n': found.n + 1}) %}<a class="cb sm" href="{{ url_for('messaging.visitors_page', **a) }}#vz-all">Older →</a>{% endif %}
+      </nav>
+      {% endif %}
+      {% else %}
+      <p class="vz-empty"><i class="fa-regular fa-eye-slash" aria-hidden="true"></i>
+        {% if f.active %}No visitor matches. <a href="{{ url_for('messaging.visitors_page', when=f.when if f.when != 'week' else None) }}#vz-all">Clear the filters</a>{% else %}No visitors in this time yet.{% endif %}</p>
+      {% endif %}
+    </section>
+
+    <p class="vz-credit">Where visitors are: <a href="{{ geo.credit[1] }}" target="_blank" rel="noopener">{{ geo.credit[0] }}</a>{% if geo.has %} · our copy: {{ geo.month or (geo.at|ist('%b %Y')) }}{% endif %}. Kept on our server; no visit is sent to anybody to look it up.</p>
+  </main>
+</div>
+<dialog class="vz-sheet" id="vz-sheet" aria-labelledby="vz-d-title"><div class="vz-sheet-in" data-visitor-in></div></dialog>
+{% endblock %}
+{% block extra_js %}<script src="{{ url_for('static', filename='js/visitors.js') }}" defer></script>{% endblock %}

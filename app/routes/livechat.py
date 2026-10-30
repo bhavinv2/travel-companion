@@ -1,10 +1,12 @@
-"""Live chat, the visitor's side (services/livechat.py): the bubble's script and the four calls it makes. Public, no
+"""Live chat, the visitor's side (services/livechat.py): the bubble's script and the calls it makes. Public, no
 sign-in: a chat's secret (token) is the only key to it.
 
     GET  /live-chat.js                  the bubble (static/js/live-chat.js with its words), for any page of ours or a
                                         website listed under Set-up › Integrations › Website lead forms
     GET  /api/live-chat/hello           who of us is here to answer (the window's head, before a chat)
-    POST /api/live-chat/start           {name, contact, message, topic, page, title} -> {token, ...news}
+    POST /api/live-chat/start           {name, contact, message, topic, page, title, vid} -> {token, ...news}
+    POST /api/live-chat/here            {vid, kind: view / beat / leave, page, title, ref, lang, tz, touch}: the pages
+                                        a browser reads (services/visitors.py), sent to the app's own address
     GET  /api/live-chat/<token>         ?after=<id>&open=1 -> news: messages after that one, typing, who is here
     POST /api/live-chat/<token>/send    {text}
     POST /api/live-chat/<token>/end
@@ -17,9 +19,9 @@ import os
 
 from flask import current_app, jsonify, make_response, request
 
-from app import csrf
+from app import csrf, db
 from app.routes.crm import crm_public_bp
-from app.services import crm_scope, livechat
+from app.services import crm_scope, livechat, visitors
 from app.services.ratelimit import rate_limit
 
 SCRIPT = os.path.join('js', 'live-chat.js')
@@ -61,6 +63,9 @@ def live_chat_script():
         with open(os.path.join(current_app.static_folder, SCRIPT), encoding='utf-8') as fh:
             words = {k: cfg[k] for k in ('title', 'greeting', 'away', 'color')}
             words['topics'] = [{'key': k, 'label': w} for k, w in livechat.TOPICS]
+            # which pages each browser reads, told to the app's own address (services/visitors.py)
+            words['track'] = bool(cfg['visitors'])
+            words['here'] = visitors.ping_url() if cfg['visitors'] else ''
             body = 'window.__liveChat = %s;\n%s' % (json.dumps(words), fh.read())
     resp = make_response(body)
     resp.headers['Content-Type'] = 'application/javascript; charset=utf-8'
@@ -87,10 +92,29 @@ def live_chat_start():
     with crm_scope.use(None):                     # a visitor is nobody's workspace; the source decides
         try:
             chat = livechat.start(data.get('name'), data.get('contact'), data.get('message'), data.get('topic') or '',
-                                  page_url=data.get('page'), page_title=data.get('title'))
+                                  page_url=data.get('page'), page_title=data.get('title'), vid=data.get('vid'))
         except livechat.ChatError as exc:
             return _answer({'ok': False, 'error': str(exc)}, 400)
         return _answer({'ok': True, 'token': chat.token, **livechat.news(chat, reading=True)}, 201)
+
+
+@crm_public_bp.route('/api/live-chat/here', methods=['POST', 'OPTIONS'])
+@csrf.exempt
+@rate_limit(240, 600)
+def live_chat_here():
+    """A word from the bubble about the page this browser is on (services/visitors.py): it opened, it still shows, it
+    closed. Sent with sendBeacon, which reads no answer: always 204."""
+    if request.method == 'OPTIONS':
+        return _cors(make_response('', 204))
+    cfg = livechat.config()
+    if cfg['on'] and cfg['visitors']:
+        try:
+            visitors.ping(_data(), request.headers.get('User-Agent'), visitors.address())
+            visitors.ensure_geo()
+        except Exception:                      # noqa: BLE001 -- a lost page view never fails the visitor's page
+            db.session.rollback()
+            current_app.logger.exception('visitors: a word from the bubble failed')
+    return _cors(make_response('', 204))
 
 
 @crm_public_bp.route('/api/live-chat/<token>', methods=['GET', 'OPTIONS'])

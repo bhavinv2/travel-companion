@@ -1,5 +1,6 @@
 {# One visitor's live chat (messaging.live_chat), in the middle of Live chat and of WhatsApp chats when the rail picks
-   Live chat: who, where they are on our website, their messages and the lead page's own message box -- sending on
+   Live chat: who, where they are on our website (and in the world: services/visitors.py), their messages and the lead
+   page's own message box -- sending on
    "Live chat" (livechat.reply). crm.js binds it (CRM_bindLead); wa-rail.js tells the visitor when one of us types
    (data-typing-url). A fragment, fetched again to stay fresh. #}
 {% from 'cs/crm/_bits.html' import initials %}
@@ -14,6 +15,11 @@
     {% if chat and chat.page_url %}<a class="cb sm quiet nt-page" href="{{ chat.page_url }}" target="_blank" rel="noopener" title="The page they started the chat on: {{ chat.page_title or chat.page_url }}"><i class="fa-solid fa-globe" aria-hidden="true"></i><span class="nt-lead-tx"> Their page</span></a>{% endif %}
     {% if lead %}<a class="cb sm quiet nt-lead" href="{{ crm_url('lead', lead_id=lead.id) }}" target="_top" title="Open the whole lead page"><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i><span class="nt-lead-tx"> Lead page</span></a>{% endif %}
   </div>
+  {% if seen %}
+  <p class="nt-visitor"><i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+    <span>{{ seen_place }}{% if seen.browser %} · {{ seen.browser }} on {{ seen.os }}{% endif %} · came from {{ seen.source or 'Direct' }} · {{ seen.visits }} visit{{ 's' if seen.visits != 1 }}, {{ seen.pages }} page{{ 's' if seen.pages != 1 }}</span>
+    {% if CAN('web_visitors') %}<a href="{{ url_for('messaging.visitors_page', v=seen.id) }}" target="_top">Pages they read</a>{% endif %}</p>
+  {% endif %}
   {% if lead and chat %}
   {% if not live %}
   <p class="nt-other lc-gone" data-live-gone><i class="fa-regular fa-clock" aria-hidden="true"></i>

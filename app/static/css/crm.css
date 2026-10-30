@@ -2435,3 +2435,10 @@ a.cal-card:hover { box-shadow: 0 3px 10px rgba(15, 35, 64, .14); }
 .ws-note.onum-banner a { text-decoration: none; }
 .lp-us { margin: -2px 0 8px; }
 .ig-switch { display: flex; align-items: center; gap: 8px; font-weight: 700; cursor: pointer; }
+
+/* a live chat's visitor (messaging/live_chat.html, services/visitors.py): where they are, their device, how they came */
+.nt-visitor { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 0; padding: 7px 14px; font-size: 12.5px;
+  color: var(--c-muted, #5b6b84); background: var(--c-soft, #f6f9fd); border-bottom: 1px solid var(--c-line, #e3eaf4); }
+.nt-visitor > i { color: #16a34a; }
+.nt-visitor > span { flex: 1 1 260px; min-width: 0; }
+.nt-visitor a { font-weight: 600; white-space: nowrap; }

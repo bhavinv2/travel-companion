@@ -30,8 +30,8 @@ html{scroll-behavior:smooth}
 @keyframes orbTurn{to{--turn:360deg}}
 @keyframes orbPulse{0%{transform:scale(1);opacity:.55}100%{transform:scale(1.45);opacity:0}}
 @keyframes drift{0%,100%{translate:0 0}50%{translate:0 -8px}}
-@keyframes hsvcIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-@keyframes hsvcRun{from{width:0}to{width:100%}}
+@keyframes hnowIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes hnowRun{from{width:0}to{width:100%}}
 @keyframes orbCard{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 
 .hpd{
@@ -114,58 +114,65 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .mmenu .mm-cta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
 
 /* ---------- hero: the care circle (Hero.jsx) ---------- */
-.hero2{position:relative;isolation:isolate;overflow:hidden;color:#fff;background:#011038;padding:56px 0 84px}
-.hero2 .secbg::after{background:linear-gradient(100deg,rgba(1,16,56,.96) 0%,rgba(1,16,56,.9) 40%,rgba(1,16,56,.74) 70%,rgba(1,16,56,.62) 100%)}
-.hero2-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.02fr);gap:40px;align-items:center}
-.hero2-copy{min-width:0}
-.tagline{display:block;font:600 30px/1.2 'Caveat','Segoe Script','Bradley Hand',cursive;color:#FFC56B;margin:0 0 8px;transform:rotate(-2deg);transform-origin:left}
-.hmsg{min-height:300px}
-.hpill{margin-bottom:4px;--c:#8DB0FF}
-.hx{font:800 50px/1.06 var(--body);letter-spacing:-.03em;margin:16px 0 14px;color:#fff;text-wrap:balance}
-.hx .w{display:inline-block;overflow:hidden;vertical-align:top;padding-bottom:.08em}
-.hx .w>span{display:inline-block;animation:wordUp .8s var(--ease) both;animation-delay:var(--d)}
-.s-p{font-size:18px;line-height:1.6;color:rgba(255,255,255,.88);margin:0 0 22px;max-width:540px}
-.hmsg .tagline,.hmsg .hpill,.hmsg .s-p{animation:up .8s var(--ease) both}
-.hmsg .s-p{animation-delay:.45s}
-.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:color-mix(in srgb,var(--c) 22%,transparent);border:1px solid color-mix(in srgb,var(--c) 55%,transparent);font-size:12.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#fff}
-.pill svg{width:15px;height:15px}
-/* the service in front: its photo and words, sliding in when it changes, a bar running to the next */
-.hsvc{position:relative;display:grid;grid-template-columns:132px minmax(0,1fr);gap:18px;align-items:center;max-width:560px;padding:14px 18px 14px 14px;border-radius:22px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);overflow:hidden;animation:hsvcIn .55s var(--ease)}
-.hsvc-ph img{width:132px;height:132px;border-radius:16px;object-fit:cover;box-shadow:0 0 0 3px var(--c)}
-.hsvc-b h2{margin:10px 0 6px;font:800 24px/1.15 var(--body);color:#fff;letter-spacing:-.01em}
-.hsvc-b p{margin:0;font-size:15px;line-height:1.55;color:rgba(255,255,255,.86)}
-.hsvc-bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.12)}
-.hsvc-bar i{display:block;height:100%;width:0;background:var(--c)}
-.hsvc-bar i.run{animation:hsvcRun 5s linear forwards}
-.s-ctas{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
+.hero3{position:relative;isolation:isolate;overflow:hidden;color:#fff;background:#011038;padding:60px 0 76px}
+.hero3 .secbg img{opacity:.16;filter:saturate(.6)}
+.hero3 .secbg::after{background:radial-gradient(ellipse at 20% 30%,rgba(22,43,110,.55) 0%,rgba(1,16,56,0) 55%),linear-gradient(180deg,rgba(1,16,56,.2) 0%,rgba(1,16,56,.65) 100%)}
+/* a soft light behind the circle in the front service's colour, easing from one to the next */
+.hero3-glow{position:absolute;z-index:-1;right:max(-80px,calc(50% - 720px));top:40px;width:640px;height:640px;border-radius:50%;background:var(--c);opacity:.32;filter:blur(110px);transition:background-color .9s ease;pointer-events:none}
+.hero3-grid{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);gap:40px;align-items:center}
+.hero3-copy{min-width:0}
+.tagline{display:block;font:600 30px/1.2 'Caveat','Segoe Script','Bradley Hand',cursive;color:#FFC56B;margin:0 0 6px;transform:rotate(-2deg);transform-origin:left}
+.hx{font:800 54px/1.05 var(--body);letter-spacing:-.03em;margin:0 0 26px;color:#fff;text-wrap:balance}
+.hx em{font-style:normal;color:#8DB0FF}
+/* the service in front, in a word: its group, its name, one line; a thin line runs to the next */
+.hnow{position:relative;max-width:540px;padding:16px 20px 18px 22px;border-radius:18px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-left:4px solid var(--c);overflow:hidden;animation:hnowIn .5s var(--ease)}
+.hnow-k{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:color-mix(in srgb,var(--c) 45%,#fff)}
+.hnow-k svg{width:15px;height:15px}
+.hnow b{display:block;margin:6px 0 4px;font-size:24px;font-weight:800;letter-spacing:-.01em;color:#fff}
+.hnow p{margin:0;font-size:15.5px;line-height:1.55;color:rgba(255,255,255,.84)}
+.hnow-bar{position:absolute;left:0;right:0;bottom:0;height:2px;background:rgba(255,255,255,.08)}
+.hnow-bar i{display:block;height:100%;width:0;background:var(--c)}
+.hnow-bar i.run{animation:hnowRun 4.5s linear forwards}
+/* the six as a legend: a name brings its photo forward in the circle */
+.hlegend{list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:18px 0 0;padding:0;max-width:560px}
+.hlegend button{width:100%;display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:rgba(255,255,255,.78);font:700 13.5px/1.2 var(--body);text-align:left;cursor:pointer;transition:background .3s,color .3s,border-color .3s}
+.hlegend button i{flex:none;width:9px;height:9px;border-radius:50%;background:var(--c);box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 30%,transparent)}
+.hlegend button:hover{color:#fff;border-color:rgba(255,255,255,.35)}
+.hlegend button.on{background:var(--c);border-color:var(--c);color:#fff}
+.hlegend button.on i{background:#fff;box-shadow:none}
+.s-ctas{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
 .btn-hero{background:#fff;color:var(--pd)}
 .btn-hero:hover{background:var(--pt);color:var(--pd);transform:translateY(-2px)}
 .btn-ghost{background:rgba(255,255,255,.08);color:#fff;border:1.5px solid rgba(255,255,255,.4)}
 .btn-ghost:hover{background:rgba(255,255,255,.16);border-color:#fff;color:#fff}
-/* the original hero's controls: labelled buttons with a line that fills for the one showing, and arrows */
-.hctrl{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px 20px;margin-top:26px;max-width:600px}
-.hdots{display:flex;gap:18px;flex-wrap:wrap}
-.hdots button{display:flex;flex-direction:column;gap:8px;min-width:96px;padding:0;border:0;background:none;color:rgba(255,255,255,.6);font:700 13px/1.2 var(--body);text-align:left;cursor:pointer;transition:color .3s}
-.hdots button i{display:block;height:3px;border-radius:3px;background:rgba(255,255,255,.22);overflow:hidden;position:relative}
-.hdots button i::after{content:"";position:absolute;inset:0;width:0;background:#FFC56B;transition:width .5s var(--ease)}
-.hdots button.on{color:#fff}
-.hdots button.on i::after{width:100%}
-.harrows{display:flex;align-items:center;gap:8px}
-.harr{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;padding:0;border:1.5px solid rgba(255,255,255,.35);background:rgba(255,255,255,.06);color:#fff;cursor:pointer;transition:background .2s,border-color .2s}
-.harr:hover{background:rgba(255,255,255,.16);border-color:#fff}
-.harr svg{width:18px;height:18px}
-.hsvc-stop{padding:6px 12px;border:1px solid rgba(255,255,255,.3);border-radius:999px;background:transparent;color:rgba(255,255,255,.8);font:700 12px/1 var(--body);cursor:pointer}
-.hsvc-stop:hover{color:#fff;border-color:#fff}
-/* the circle on the navy: sized by its own width, so it fits whatever column it is in */
-.hero2 .orbit{container-type:inline-size;width:min(580px,100%);--R:35cqw;--s:18cqw}
-.hero2 .orb-centre{width:30cqw;height:30cqw;margin:-15cqw 0 0 -15cqw}
-.hero2 .orb-track{stroke:rgba(255,255,255,.32)}
-.hero2 .orb-lines line{stroke:rgba(255,255,255,.18)}
-.hero2 .orb-centre img{box-shadow:0 0 0 4px #E4613F,0 26px 50px -20px rgba(0,0,0,.7)}
-.hero2 .dd{color:#BFD1FF}
-.hero2 .dk{z-index:3}
-.hero2 .note{color:#FFC56B}
-.hero2 .trail{color:#F5B642}
+/* the circle on the navy, sized by its own width */
+.hero3-circle{position:relative}
+.hero3 .orbit{container-type:inline-size;width:min(600px,100%);--R:35cqw;--s:18cqw}
+.hero3 .orb-centre{width:30cqw;height:30cqw;margin:-15cqw 0 0 -15cqw}
+.hero3 .orb-track{stroke:rgba(255,255,255,.28)}
+.hero3 .orb-lines line{stroke:rgba(255,255,255,.16)}
+.hero3 .orb-centre img{box-shadow:0 0 0 4px #E4613F,0 26px 50px -20px rgba(0,0,0,.7)}
+.hero3 .orb-name{background:rgba(255,255,255,.95)}
+.hero3 .dd{color:#BFD1FF}
+.hero3 .dk{z-index:3}
+.hero3 .note{color:#FFC56B}
+.hero3 .trail{color:#F5B642}
+@media (max-width:1100px){
+.hero3-grid{grid-template-columns:minmax(0,1fr);gap:24px}
+.hero3 .orbit{width:min(520px,100%)}
+.hero3-glow{right:50%;margin-right:-320px;top:auto;bottom:0}
+.hnow,.hlegend{max-width:none}
+}
+@media (max-width:760px){
+.hero3{padding:34px 0 60px}
+.hx{font-size:34px;margin-bottom:20px}
+.tagline{font-size:25px}
+.hnow b{font-size:20px}
+.hnow p{font-size:14.5px}
+.hlegend{grid-template-columns:repeat(2,minmax(0,1fr))}
+.hero3-glow{right:0;margin-right:0;width:100%;height:440px}
+.s-ctas .btn{width:100%}
+}
 
 /* ---------- sections on their own photos (Bg.jsx): the photo edge to edge, a shade over it ---------- */
 .sc{position:relative;isolation:isolate;overflow:hidden;padding-block:104px}
@@ -284,25 +291,6 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .hfaq-q p{padding:0 22px 20px;font-size:15.5px;line-height:1.65;color:var(--mut);animation:up .45s var(--ease)}
 
 /* ---------- tablet and phone, for the sections above ---------- */
-@media (max-width:1100px){
-.hero2-grid{grid-template-columns:minmax(0,1fr);gap:28px}
-.hero2 .orbit{width:min(520px,100%)}
-.hsvc{max-width:none}
-}
-@media (max-width:760px){
-.hero2{padding:36px 0 64px}
-.hx{font-size:32px}
-.hmsg{min-height:0}
-.s-p{font-size:16px}
-.hdots{gap:12px}
-.hdots button{min-width:0}
-.tagline{font-size:25px}
-.hsvc{grid-template-columns:84px minmax(0,1fr);gap:14px;padding:12px}
-.hsvc-ph img{width:84px;height:84px}
-.hsvc-b h2{font-size:19px;margin-top:8px}
-.hsvc-b p{font-size:14px}
-.s-ctas .btn{width:100%}
-}
 @media (max-width:1100px){
 .tiles.six{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
@@ -491,12 +479,18 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 /* chapter stubs */
 .stub-wrap{position:relative;z-index:2;display:flex;justify-content:center;padding-block:22px}
 .stub-wrap[id]{scroll-margin-top:150px}
-.stub{position:relative;display:grid;grid-template-columns:1fr;width:min(620px,100%);filter:drop-shadow(0 20px 30px rgba(15,28,85,.18))}
-.stub-a{position:relative;padding:22px 28px;border-radius:20px;background:var(--pn);color:#fff;display:flex;align-items:center;gap:24px}
-.stub-a .num{font:600 48px/1 var(--disp);color:#A9BBF5;font-variant-numeric:tabular-nums}
-.stub-a span{display:block;font-size:11.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#A9BBF5}
-.stub-a h3{margin:4px 0 2px;font:600 26px/1.15 var(--disp);color:#fff}
-.stub-a p{margin:0;font-size:14.5px;color:#C9D1EA}
+.stub{--t:#2446B8;--ts:#E9EEFC;position:relative;display:flex;align-items:center;gap:18px;width:min(640px,100%);padding:10px 26px 10px 10px;border-radius:999px;background:#fff;border:1px solid #E3E9F6;box-shadow:0 22px 44px -26px rgba(15,28,85,.45),0 0 0 6px rgba(255,255,255,.6)}
+.stub.care{--t:#E4613F;--ts:#FDECE6}
+.stub.health{--t:#1F6B57;--ts:#E3F1EC}
+.stub-ph{position:relative;flex:none;width:84px;height:84px}
+.stub-ph img{width:100%;height:100%;border-radius:50%;object-fit:cover;box-shadow:0 0 0 3px #fff,0 0 0 6px var(--t)}
+.stub-ph b{position:absolute;right:-8px;bottom:-4px;min-width:34px;height:34px;padding:0 6px;border-radius:999px;display:grid;place-items:center;background:var(--t);color:#fff;font:800 14px/1 var(--body);font-variant-numeric:tabular-nums;border:3px solid #fff}
+.stub-tx{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+.stub-tx small{font-size:11.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--t)}
+.stub-tx strong{font:800 26px/1.1 var(--body);letter-spacing:-.02em;color:#011038}
+.stub-tx span{font-size:14.5px;line-height:1.45;color:var(--mut)}
+.stub-svcs{flex:none;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.stub-svcs i{font-style:normal;padding:5px 11px;border-radius:999px;background:var(--ts);color:var(--t);font-size:12px;font-weight:800;white-space:nowrap}
 
 /* the journey on a tablet, a phone and a small phone */
 @media (max-width:1100px){
@@ -526,10 +520,10 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .plane .pi-help svg{width:22px;height:22px}
 .plane .badge-ok{width:16px;height:16px;right:-5px;top:-5px}
 .stub-wrap{padding:18px 0 4px 46px}
-.stub-a{flex-direction:row;align-items:center;padding:16px 18px;gap:12px}
-.stub-a .num{font-size:34px}
-.stub-a h3{font-size:21px}
-.stub-a p{display:none}
+.stub{border-radius:22px;padding:10px 14px 10px 10px;gap:12px}
+.stub-ph{width:58px;height:58px}
+.stub-tx strong{font-size:20px}
+.stub-tx span,.stub-svcs{display:none}
 .jr-end{justify-content:flex-start;padding-left:46px}
 }
 @media (max-width:420px){.obj{--s:.5}.o3 .float-chip{display:none}}
@@ -856,6 +850,7 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 /* on a phone these two take the same top band as the Travel slide, text below on navy */
 .tagline{font-size:25px}
 .hx{font-size:36px;margin:16px 0 14px}
+.s-p{font-size:16.5px;margin-bottom:24px}
 .s-ctas .btn{width:100%}
 
 

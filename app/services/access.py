@@ -150,6 +150,14 @@ MODULES = [
                admin='messaging.live_chat_page', cs='messaging.live_chat_page', with_=('crm_inbox', 'wa_inbox'),
                grant=True, desc='Visitors on our websites write in the chat bubble; answer them here, live.',
                tip='Chat live with visitors on our websites.'),
+         # who is on our websites, recorded by that bubble (services/visitors.py, 2026-10-30): tawk.to's Visitors, ours
+         _page('web_visitors', 'Visitors', 'fa-eye',
+               ['messaging.visitors_page', 'messaging.visitors_now', 'messaging.visitor', 'messaging.visitors_geo'],
+               admin='messaging.visitors_page', cs='messaging.visitors_page',
+               with_=('web_chat', 'crm_inbox', 'wa_inbox'), grant=True,
+               desc='Who is on our websites now and lately: where they are, their device, how they found us and the '
+                    'pages they read.',
+               tip='Who is on our websites now, where from, and what they read.'),
          _page('crm_people', 'Contacts', 'fa-address-book',
                _both('contacts', 'contact', 'contact_edit', 'contact_tags', 'find', 'contact_family_add',
                      'contact_family_role', 'contact_family_remove', 'contact_family_rename', 'contact_merge',
@@ -478,7 +486,7 @@ SECTIONS = [
      'pages': ('health', 'crm_today', 'home', 'notifications')},
     {'key': 'inbox', 'label': 'Inbox', 'icon': 'fa-inbox', 'subs': (
         {'key': 'chats', 'label': 'Conversations', 'icon': 'fa-comments',
-         'pages': ('crm_inbox', 'wa_inbox', 'web_chat', 'crm_checks')},
+         'pages': ('crm_inbox', 'wa_inbox', 'web_chat', 'web_visitors', 'crm_checks')},
         {'key': 'forms', 'label': 'Website forms', 'icon': 'fa-envelope-open-text',
          'pages': ('voices_general', 'voices_contact', 'voices_feedback', 'voices_report', 'voices_insurance',
                    'voices_sahayak')},
