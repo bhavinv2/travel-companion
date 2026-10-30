@@ -1,10 +1,13 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import Icon from './Icon.jsx';
 import { site, talk, TALK } from '../data/site.js';
-import { reduceMotion } from '../hooks.js';
+import { reduceMotion, useReveal } from '../hooks.js';
 import parentCare from '../assets/photos/hero-parent-care.jpg';
-import travel from '../assets/photos/hero-travel.jpg';
+import travel from '../assets/photos/tc-l2.jpg';
+import insurance from '../assets/photos/ins-hero-banner.jpg';
 import health from '../assets/photos/health-hero.jpg';
+import pickCompanion from '../assets/photos/ins-story-families.jpg';
+import pickInsurance from '../assets/photos/ins-world-map.jpg';
+import pickSahayak from '../assets/photos/sah-finder-care.jpg';
 import logoMark from '../assets/logo-mark.png';
 
 const AUTOPLAY_MS = 6000;           // long enough to read a headline before it changes
@@ -13,28 +16,73 @@ const SLIDES = [
   {
     key: 'care', full: true, img: parentCare, pos: 'center 30%',
     alt: 'A Sahayak smiling beside an elderly mother at her home in India',
-    tagline: 'Miles apart, never out of reach.', pill: 'Parent Care in India', icon: 'heart',
+    tagline: 'Miles apart, never out of reach.', pill: 'Parent Care in India',
     title: 'Your Parents Are in India. Their Care Is With Us.',
-    text: 'Trusted support for your parents, even when you’re miles away.',
-    cta: 'Explore Parent Care', href: '#ch-care',
+    text: 'A registered nurse at their door, help at every hospital visit, and updates for you wherever you are.',
+    cta: 'Explore Sahayak', href: '#sahayak',
   },
   {
-    key: 'travel', img: travel, pos: 'center 35%',
-    alt: 'A smiling elderly Indian couple with their luggage at the airport, ready to travel',
-    tagline: 'Worry-free travel for your loved ones.', pill: 'Travel Insurance & Travel Companion', icon: 'plane',
+    key: 'travel', full: true, img: travel, pos: '62% center',
+    alt: 'An elderly Indian couple with their luggage at the airport at sunset, ready to fly',
+    tagline: 'Safer journeys, together.', pill: 'Travel Companion',
     title: 'When Your Parents Travel, They Don’t Have to Travel Alone.',
-    text: 'From travel preparation to companionship, we help make every journey safer and more comfortable.',
-    cta: 'Explore Travel Support', href: '#ch-travel',
+    text: 'A fellow traveller on the same flight, who speaks their language, from check-in to arrival.',
+    cta: 'Explore Travel Companion', href: '#companion',
+  },
+  {
+    key: 'insurance', full: true, img: insurance, pos: '70% center',
+    alt: 'An Indian family with their luggage at the airport, about to travel',
+    tagline: 'Covered every corner.', pill: 'Travel Insurance',
+    title: 'When Parents Fly Out to See You, Keep Them Covered.',
+    text: 'Compare 65+ A-rated visitor insurance plans, with help choosing the right one for them.',
+    cta: 'Explore Travel Insurance', href: '#insurance',
   },
   {
     key: 'health', full: true, img: health, pos: '100% center',
     alt: 'A Sahayak checking an elderly father’s blood pressure at home in India',
-    tagline: 'Care that keeps them well.', pill: 'Health & Wellness', icon: 'health',
+    tagline: 'Care that keeps them well.', pill: 'Health & Wellness',
     title: 'Because Their Health Matters, Wherever You Are.',
-    text: 'Reliable health, wellness and everyday support for your parents in India.',
-    cta: 'Explore Health & Wellness', href: '#ch-health',
+    text: 'Doctor consultations, health checks and pre-travel assessments, arranged from abroad.',
+    cta: 'Explore Health & Wellness', href: '#health',
   },
 ];
+
+/* Under the hero, one card per service with its own photo and its own first step -- the way the
+ * travel-insurance and companion pages open with their quote and search cards. */
+const PICKS = [
+  { key: 'companion', img: pickCompanion, title: 'Travel Companion', href: site.companionUrl, cta: 'Find a Companion',
+    text: 'Someone beside them on the flight, who speaks their language.' },
+  { key: 'insurance', img: pickInsurance, title: 'Travel Insurance', href: site.insuranceUrl, cta: 'Get a Free Quote',
+    text: 'Visitor insurance for parents coming to see you.', price: () => site.prices.insurance },
+  { key: 'sahayak', img: pickSahayak, title: 'Sahayak', href: site.sahayakUrl, cta: 'Book a Sahayak',
+    text: 'A registered nurse with them for checkups, tests and hospital visits.',
+    price: () => site.prices.sahayak && `From ${site.prices.sahayak}` },
+];
+
+export function Picks() {
+  const ref = useReveal(0.1);
+  return (
+    <div className="picks-wrap">
+      <div className="wrap">
+        <div className="picks rv-stagger" ref={ref}>
+          {PICKS.map((p, i) => {
+            const price = p.price && p.price();
+            return (
+              <a className={`pick pick-${p.key}`} href={p.href} key={p.key} style={{ '--d': `${i * 90}ms` }}>
+                <img src={p.img} alt="" loading="eager" decoding="async" />
+                <span className="pick-b">
+                  <b>{p.title}</b>
+                  <small>{p.text}</small>
+                  <span className="pick-go">{p.cta}{price && <em>{price}</em>}</span>
+                </span>
+              </a>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* Splits a headline into words so each can rise in on its own delay. */
 function Words({ text }) {
@@ -91,14 +139,14 @@ export default function Hero() {
               <div className="wrap">
                 <div className="copy">
                   <span className="tagline">{s.tagline}</span>
-                  <span className="pill"><Icon name={s.icon} />{s.pill}</span>
+                  <span className="pill">{s.pill}</span>
                   <Head className="hx">{on ? <Words text={s.title} /> : s.title}</Head>
                   <p className="s-p">{s.text}</p>
                   {/* the page's one main action first, the same on every slide; the slide's
                       own service second */}
                   <div className="s-ctas">
                     <a className="btn btn-hero" href={site.contactUrl} onClick={talk} tabIndex={on ? 0 : -1}>
-                      {TALK}<Icon name="arrow" />
+                      {TALK}
                     </a>
                     <a className="btn btn-ghost" href={s.href} tabIndex={on ? 0 : -1}>{s.cta}</a>
                   </div>

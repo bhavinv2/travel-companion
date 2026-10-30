@@ -4,10 +4,11 @@ import { site } from '../data/site.js';
 import { useScroll } from '../hooks.js';
 
 const LINKS = [
-  ['#services', 'Services'],
+  ['#companion', 'Travel Companion'],
+  ['#insurance', 'Insurance'],
+  ['#sahayak', 'Sahayak'],
   ['#why', 'Why Us'],
-  ['#reviews', 'Reviews'],
-  ['#partners', 'Partners'],
+  ['#how', 'How It Works'],
   ['#resources', 'Resources'],
 ];
 

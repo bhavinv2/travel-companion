@@ -1,8 +1,10 @@
+import Bg from './Bg.jsx';
 import Icon from './Icon.jsx';
 import { Brand } from './Nav.jsx';
 import { site, talk, TALK } from '../data/site.js';
 import { useReveal, useScroll } from '../hooks.js';
 import ctaPhoto from '../assets/photos/cta-care.jpg';
+import landmarks from '../assets/photos/landmarks.webp';
 import coverUsa from '../assets/blog/travel-insurance-parents-usa.jpg';
 import coverClaim from '../assets/blog/claim-process.jpg';
 import coverAlone from '../assets/blog/parents-living-alone.jpg';
@@ -36,15 +38,17 @@ export function Blog() {
   const grid = useReveal(0.1);
   const posts = site.posts.length ? site.posts : FALLBACK;
   return (
-    <section className="sec blog" id="resources" aria-labelledby="blog-h">
+    <section className="sc sc-landmarks blog" id="resources" aria-labelledby="blog-h">
+      <Bg src={landmarks} pos="center bottom" />
       <div className="wrap">
         <div className="sec-h rv-up" ref={head}>
           <div>
             <span className="kick">Insights</span>
-            <h2 className="h2" id="blog-h">Helpful Resources for NRIs &amp; Their Parents</h2>
+            <h2 className="h2" id="blog-h">Helpful Resources for NRIs &amp; <em>Their Parents</em></h2>
+            <span className="script-tag">Guidance, made simple.</span>
             <p className="lede">Practical guidance on elderly care, healthcare, travel, wellness and supporting parents from abroad.</p>
           </div>
-          <a className="btn btn-o" href={BLOG_HOME}>View All Blogs<Icon name="arrow" /></a>
+          <a className="btn btn-o" href={BLOG_HOME}>View All Blogs</a>
         </div>
         {/* the "Why Choose" cards' format (.wgrid / .wcard), one row of four: the newest four
             posts; the rest are behind View All Blogs */}
@@ -81,12 +85,6 @@ export function FinalCTA({
           <img className="fcta-bg" src={ctaPhoto} loading="lazy" decoding="async"
             alt="An elderly mother at home in India on a tablet video call, with her Sahayak beside her" />
           <span className="fcta-scrim" aria-hidden="true" />
-          <svg className="fcta-path" viewBox="0 0 760 90" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M8 74 C 170 28, 330 14, 470 26" fill="none" stroke="#6B9BFF" strokeWidth="2.5"
-              strokeLinecap="round" strokeDasharray="2 12" />
-          </svg>
-          <Icon name="plane" className="fcta-plane" />
-          <Icon name="pin" className="fcta-pin" />
           <span className="fcta-script">{script[0]}<br />{script[1]}</span>
           <div className="fcta-copy">
             <h2 className="fcta-h" id="final-h">{title}</h2>
@@ -114,7 +112,7 @@ export function Footer() {
           </div>
           <nav aria-labelledby="fq"><h3 id="fq">Quick Links</h3><ul>
             <li><a href="#top">Home</a></li>
-            <li><a href="#services">Services</a></li>
+            <li><a href="#how">How It Works</a></li>
             <li><a href="#why">Why Us</a></li>
             {site.reviews.length > 0 && <li><a href="#reviews">Reviews</a></li>}
             <li><a href={site.blogUrl}>Blogs</a></li>
@@ -124,9 +122,9 @@ export function Footer() {
             <li><a href={site.insuranceUrl}>Travel Insurance</a></li>
             <li><a href={site.companionUrl}>Travel Companion</a></li>
             <li><a href={site.sahayakUrl}>Sahayak</a></li>
-            <li><a href="#ch-care">Virtual Doctor</a></li>
-            <li><a href="#ch-health">Gift Health</a></li>
-            <li><a href="#ch-health">Fit2Fly</a></li>
+            <li><a href="#health">Virtual Doctor</a></li>
+            <li><a href="#health">Gift Health</a></li>
+            <li><a href="#health">Fit2Fly</a></li>
           </ul></nav>
           <div><h3>Contact</h3><ul>
             {site.phones.map((p) => <li key={p.digits}><a href={`tel:+${p.digits}`}>{p.label}: {p.display}</a></li>)}

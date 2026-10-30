@@ -1,7 +1,9 @@
+import Bg from './Bg.jsx';
 import { Star } from './Icon.jsx';
 import Rail from './Rail.jsx';
 import { site } from '../data/site.js';
 import { useReveal } from '../hooks.js';
+import reviewsBg from '../assets/photos/ins-story-families.jpg';
 
 /* Reviews real customers left and staff approved (routes/homepage_draft.py _reviews), the ones
  * picked for the home page first. None approved yet: no section -- the sample stories this page
@@ -11,11 +13,13 @@ export default function Reviews() {
   const rail = useReveal(0.1);
   if (!site.reviews.length) return null;
   return (
-    <section className="sec reviews" id="reviews" aria-labelledby="test-h">
+    <section className="sc sc-soft reviews" id="reviews" aria-labelledby="test-h">
+      <Bg src={reviewsBg} pos="center 40%" />
       <div className="wrap">
-        <div className="p2-head rv-up" ref={head}>
+        <div className="sc-head center rv-up" ref={head}>
           <span className="kick">Testimonials</span>
-          <h2 className="h2" id="test-h">What Families Say</h2>
+          <h2 className="h2" id="test-h">What Families <em>Say</em></h2>
+          <span className="script-tag">Peace of mind, shared.</span>
           <p className="lede">In their own words: families who use NRI Parent Service.</p>
         </div>
         <div className="rv-zoom" ref={rail}>

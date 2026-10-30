@@ -1,4 +1,5 @@
-import Icon from './Icon.jsx';
+import Bg from './Bg.jsx';
+import faqBg from '../assets/photos/tc-l9.jpg';
 import { site } from '../data/site.js';
 import { useReveal } from '../hooks.js';
 
@@ -9,13 +10,15 @@ export default function Faq() {
   const list = useReveal(0.1);
   if (!site.faqs.length) return null;
   return (
-    <section className="sec hfaq" id="faq" aria-labelledby="faq-h">
+    <section className="sc sc-light hfaq" id="faq" aria-labelledby="faq-h">
+      <Bg src={faqBg} pos="center 30%" />
       <div className="wrap hfaq-in">
         <div className="hfaq-head rv-up" ref={head}>
           <span className="kick">Questions</span>
           <h2 className="h2" id="faq-h">Questions Families <em>Ask Us</em></h2>
           <p className="lede">Short answers to what families ask before they start.</p>
-          <a className="lnk" href={site.helpUrl}>More answers in our Help centre<Icon name="arrow" /></a>
+          <span className="script-tag">Answers, before you ask.</span>
+          <a className="lnk" href={site.helpUrl}>More answers in our Help centre</a>
         </div>
         <div className="hfaq-list rv-stagger" ref={list}>
           {site.faqs.map((f, i) => (
