@@ -1,13 +1,13 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
-import { site } from '../data/site.js';
+import { site, talk, TALK } from '../data/site.js';
 import { reduceMotion } from '../hooks.js';
 import parentCare from '../assets/photos/hero-parent-care.jpg';
 import travel from '../assets/photos/hero-travel.jpg';
 import health from '../assets/photos/health-hero.jpg';
 import logoMark from '../assets/logo-mark.png';
 
-const AUTOPLAY_MS = 3000;
+const AUTOPLAY_MS = 6000;           // long enough to read a headline before it changes
 
 const SLIDES = [
   {
@@ -76,10 +76,11 @@ export default function Hero() {
         touch.current = null;
       }}
     >
-      <h1 className="sr">Trusted Parent Care Services for NRIs in India</h1>
       <div className="slides">
         {SLIDES.map((s, n) => {
           const on = n === cur;
+          // the first slide's headline is the page's heading -- what it says, it is about
+          const Head = n === 0 ? 'h1' : 'p';
           return (
             <div key={s.key} className={`slide${s.full ? ' full' : ''}${on ? ' on' : ''}`} aria-hidden={!on} role="group"
               aria-roledescription="slide" aria-label={`${n + 1} of ${SLIDES.length}`}>
@@ -91,13 +92,15 @@ export default function Hero() {
                 <div className="copy">
                   <span className="tagline">{s.tagline}</span>
                   <span className="pill"><Icon name={s.icon} />{s.pill}</span>
-                  <p className="hx">{on ? <Words text={s.title} /> : s.title}</p>
+                  <Head className="hx">{on ? <Words text={s.title} /> : s.title}</Head>
                   <p className="s-p">{s.text}</p>
+                  {/* the page's one main action first, the same on every slide; the slide's
+                      own service second */}
                   <div className="s-ctas">
-                    <a className="btn btn-hero" href={s.href} tabIndex={on ? 0 : -1}>
-                      {s.cta}<Icon name="arrow" />
+                    <a className="btn btn-hero" href={site.contactUrl} onClick={talk} tabIndex={on ? 0 : -1}>
+                      {TALK}<Icon name="arrow" />
                     </a>
-                    <a className="btn btn-ghost" href={site.contactUrl} tabIndex={on ? 0 : -1}>Talk to Us</a>
+                    <a className="btn btn-ghost" href={s.href} tabIndex={on ? 0 : -1}>{s.cta}</a>
                   </div>
                 </div>
               </div>

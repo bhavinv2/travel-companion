@@ -646,6 +646,8 @@
     if (load(OPEN, sessionStorage)) setOpen(true, false);
     else setTimeout(showTeaser, 6000);
   }
+  // a page's own "Talk to us" button opens this window instead of leaving the page (the home page)
+  window.liveChat = { open: function () { setOpen(true, true); } };
   if (document.body) begin();
   else document.addEventListener('DOMContentLoaded', begin);
 })();

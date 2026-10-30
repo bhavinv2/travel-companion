@@ -1,5 +1,6 @@
-/* Server-supplied links, injected by templates/homepage_draft/landing.html as window.__HOMEPAGE__.
- * The defaults are what `npm run dev` uses standalone. */
+/* Server-supplied links and content, injected by templates/homepage_draft/landing.html as
+ * window.__HOMEPAGE__. The defaults are what `npm run dev` uses standalone. The content lists
+ * (reviews, questions, posts) may be empty: their sections then do not show. */
 const injected = (typeof window !== 'undefined' && window.__HOMEPAGE__) || {};
 
 export const site = {
@@ -14,4 +15,27 @@ export const site = {
   sahayakUrl: injected.sahayakUrl || '/sahayak',
   companionUrl: injected.companionUrl || '/',
   blogUrl: injected.blogUrl || '/blog',
+  helpUrl: injected.helpUrl || '/help',
+  // approved reviews: {quote, rating, name, photo, service}
+  reviews: injected.reviews || [],
+  // the Help centre's questions: {question, answer}
+  faqs: injected.faqs || [],
+  // {sahayak: '₹149', insurance: 'From …'}: each '' until known
+  prices: injected.prices || {},
+  // the WordPress blog's newest posts: {title, url, date, summary, img, label}
+  posts: injected.posts || [],
+  // the published numbers ({label, display, digits}) and address
+  phones: injected.phones || [],
+  email: injected.email || '',
 };
+
+/* "Talk to a Care Advisor": the site's live chat when it is on the page (static/js/live-chat.js),
+ * else the link goes where it points (the contact page). */
+export function talk(e) {
+  if (window.liveChat && typeof window.liveChat.open === 'function') {
+    e.preventDefault();
+    window.liveChat.open();
+  }
+}
+
+export const TALK = 'Talk to a Care Advisor';

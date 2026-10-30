@@ -42,7 +42,7 @@ export default function Bridge() {
           <span className="kick">Why we exist</span>
           <h2 className="h2" id="dist-h">Distance Shouldn’t Come Between You and <em>Your Parents’ Care</em></h2>
           <span className="script-tag st-amber">Close to them, wherever you are.</span>
-          <p className="lede">Living abroad can make it difficult to be there for every appointment, hospital visit, journey or everyday need. NRI Parent Service helps bridge that distance by providing trusted support for your parents in India — so you can stay connected, informed and reassured.</p>
+          <p className="lede">Living abroad makes it hard to be there when your parents need you. NRI Parent Service is there for them in India, and keeps you posted wherever you are — so you stay connected, informed and reassured.</p>
           <ul className="br-pts">
             {POINTS.map(([ic, t], i) => (
               <li key={t} style={{ '--d': `${200 + i * 90}ms` }}><span><Icon name={ic} /></span>{t}</li>

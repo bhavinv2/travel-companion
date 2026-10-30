@@ -7,20 +7,23 @@ import Why from './components/Why.jsx';
 import Reviews from './components/Reviews.jsx';
 import Partners from './components/Partners.jsx';
 import About from './components/About.jsx';
-import { Blog, FinalCTA, Footer, Floaters, Ticker } from './components/Closing.jsx';
+import Steps from './components/Steps.jsx';
+import Faq from './components/Faq.jsx';
+import { Blog, FinalCTA, Footer, Floaters } from './components/Closing.jsx';
 import { site } from './data/site.js';
 
 function Home() {
   return (
     <>
       <Hero />
-      <Ticker />
       <Orbit />
+      <Steps />
       <Journey />
       <Bridge />
       <Why />
       <Reviews />
       <Partners />
+      <Faq />
       <Blog />
       <FinalCTA />
     </>

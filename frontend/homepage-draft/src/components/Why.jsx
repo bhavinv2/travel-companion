@@ -26,7 +26,6 @@ export default function Why() {
           <div>
             <span className="kick">Why families choose us</span>
             <h2 className="h2" id="why-h">Why Choose NRI Parent Service?</h2>
-            <span className="script-tag st-blue">Care you can count on.</span>
             <p className="lede">Because caring for your parents from abroad should feel simpler, safer and more reassuring.</p>
           </div>
         </div>

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import Icon from './Icon.jsx';
 import { site } from '../data/site.js';
-import { reduceMotion } from '../hooks.js';
+import { reduceMotion, useReveal } from '../hooks.js';
 import companionStub from '../assets/photos/companion-stub.jpg';
 import tileParent from '../assets/photos/tile-parent.jpg';
 import sahayakPhoto from '../assets/photos/sahayak-photo.jpg';
@@ -34,10 +34,11 @@ function Stub({ id, n, word, title, text }) {
 
 function Stop({ rev, n, title, text, link, primary, objClass = '', children }) {
   const hid = `s${n}-h`;
+  const txt = useReveal(0.25);
   return (
     <article className={`stop${rev ? ' rev' : ''}`} aria-labelledby={hid}>
       <span className="node" data-pt />
-      <div className="stop-txt">
+      <div className="stop-txt rv-up" ref={txt}>
         <span className="stop-n">0{n}</span>
         <h3 id={hid}>{title}</h3>
         <p>{text}</p>
@@ -50,7 +51,13 @@ function Stop({ rev, n, title, text, link, primary, objClass = '', children }) {
 
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 
-/* The static page's script, scoped to this section. */
+// How fast the traveller and the 3D objects catch up with the scroll: the share of the gap
+// closed per 60 fps frame. A mouse wheel moves the page 100+ px at once; this turns that jump
+// into a glide of a few hundred milliseconds.
+const EASE = 0.14;
+
+/* The static page's script, scoped to this section -- with the traveller, the drawn path and
+ * the objects easing toward where the scroll says they should be, instead of jumping there. */
 function useJourney(sectionRef) {
   useEffect(() => {
     const sec = sectionRef.current;
@@ -64,8 +71,12 @@ function useJourney(sectionRef) {
     const objs = Array.from(body.querySelectorAll('.obj'));
     const stubs = Array.from(body.querySelectorAll('.stub-wrap'));
     const chaps = Array.from(sec.querySelectorAll('.chap'));
+    const ind = sec.querySelector('.chap-ind');
     const reduce = reduceMotion();
-    let samples = [], total = 0, ptY = [], ticking = false, raf = 0;
+    let samples = [], total = 0, ptY = [], raf = 0, running = false, last = 0;
+    let cur = null;                               // where the traveller is, as a length along the path
+    let chap = -1;
+    const eased = new Map();                      // each object's own {q, pr}, easing like the traveller
 
     function build() {
       const br = body.getBoundingClientRect();
@@ -98,7 +109,9 @@ function useJourney(sectionRef) {
         const L = (total * k) / N;
         samples.push([L, drawn.getPointAtLength(L).y]);
       }
-      update();
+      cur = null;                                 // a new path: start where the scroll is, no glide
+      moveMarker();
+      kick();
     }
 
     function lenAtY(y) {
@@ -113,27 +126,26 @@ function useJourney(sectionRef) {
       return total;
     }
 
-    function update() {
-      ticking = false;
-      if (!total) return;
-      const vh = window.innerHeight;
-      const br = body.getBoundingClientRect();
-      const target = vh * 0.55 - br.top;
-      const L = lenAtY(target);
+    // the traveller at length L: the path drawn up to it, its icon turned along the path, the
+    // stops it has passed lit, and its icon for the chapter it is in -- all from where it IS, so
+    // the icon changes exactly as it passes a stop
+    function draw(L) {
       drawn.style.strokeDashoffset = total - L;
       const p1 = drawn.getPointAtLength(Math.max(0, L - 1));
       const p2 = drawn.getPointAtLength(Math.min(total, L + 1));
       const p = drawn.getPointAtLength(L);
       let ang = (Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180) / Math.PI + 90;
       if (!isFinite(ang) || (p1.x === p2.x && p1.y === p2.y)) ang = 180;
-      plane.style.transform = `translate(${p.x}px,${p.y}px)`;
+      plane.style.transform = `translate3d(${p.x}px,${p.y}px,0)`;
+      rot.style.transform = `rotate(${ang}deg)`;
+      const y = p.y;
       // points: stub, stop, stop, stub, stop, stop, stub, stop, stop, pin
       let mode = 'plane';
       if (ptY.length >= 10) {
-        if (target >= (ptY[7] + ptY[8]) / 2) mode = 'fly';
-        else if (target >= ptY[6]) mode = 'gift';
-        else if (target >= (ptY[4] + ptY[5]) / 2) mode = 'help';
-        else if (target >= ptY[3]) mode = 'doc';
+        if (y >= (ptY[7] + ptY[8]) / 2) mode = 'fly';
+        else if (y >= ptY[6]) mode = 'gift';
+        else if (y >= (ptY[4] + ptY[5]) / 2) mode = 'help';
+        else if (y >= ptY[3]) mode = 'doc';
       }
       if (plane.getAttribute('data-mode') !== mode) {
         plane.setAttribute('data-mode', mode);
@@ -141,34 +153,73 @@ function useJourney(sectionRef) {
         void plane.offsetWidth;
         plane.classList.add('swap');
       }
-      rot.style.transform = `rotate(${ang}deg)`;
-
       pts.forEach((el, i) => {
-        if (el.classList.contains('node')) el.classList.toggle('passed', ptY[i] <= target + 1);
-      });
-
-      objs.forEach((o) => {
-        const r = o.getBoundingClientRect();
-        if (r.bottom < -200 || r.top > vh + 200) return;
-        const q = reduce ? 0 : clamp((r.top + r.height / 2 - vh / 2) / (vh * 0.75), -1, 1);
-        const pr = reduce ? 1 : clamp((vh * 0.92 - r.top) / (vh * 0.55), 0, 1);
-        o.style.setProperty('--q', q.toFixed(3));
-        o.style.setProperty('--pr', pr.toFixed(3));
-      });
-
-      let cur = 0;
-      stubs.forEach((s, i) => {
-        const r = s.getBoundingClientRect();
-        if (r.top < vh * 0.5) cur = i;
-      });
-      chaps.forEach((c, i) => {
-        c.classList.toggle('on', i === cur);
-        if (i === cur) c.setAttribute('aria-current', 'step'); else c.removeAttribute('aria-current');
+        if (el.classList.contains('node')) el.classList.toggle('passed', ptY[i] <= y + 1);
       });
     }
 
-    const onScroll = () => { if (!ticking) { ticking = true; raf = requestAnimationFrame(update); } };
-    const rebuild = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(build); };
+    // each 3D object turns and opens with the scroll, easing like the traveller; false once all
+    // have arrived
+    function objects(k, vh) {
+      let moving = false;
+      objs.forEach((o) => {
+        const r = o.getBoundingClientRect();
+        if (r.bottom < -200 || r.top > vh + 200) { eased.delete(o); return; }
+        const q = reduce ? 0 : clamp((r.top + r.height / 2 - vh / 2) / (vh * 0.75), -1, 1);
+        const pr = reduce ? 1 : clamp((vh * 0.92 - r.top) / (vh * 0.55), 0, 1);
+        let e = eased.get(o);
+        if (!e) { e = { q, pr }; eased.set(o, e); }
+        e.q += (q - e.q) * k;
+        e.pr += (pr - e.pr) * k;
+        if (Math.abs(q - e.q) < 0.002 && Math.abs(pr - e.pr) < 0.002) { e.q = q; e.pr = pr; } else moving = true;
+        o.style.setProperty('--q', e.q.toFixed(4));
+        o.style.setProperty('--pr', e.pr.toFixed(4));
+      });
+      return moving;
+    }
+
+    // the chapter bar's marker slides under the chapter being read
+    function moveMarker() {
+      const c = chaps[Math.max(chap, 0)];
+      if (!ind || !c) return;
+      ind.style.width = `${c.offsetWidth}px`;
+      ind.style.transform = `translateX(${c.offsetLeft}px)`;
+    }
+    function chapters(vh) {
+      let now = 0;
+      stubs.forEach((s, i) => { if (s.getBoundingClientRect().top < vh * 0.5) now = i; });
+      if (now === chap) return;
+      chap = now;
+      chaps.forEach((c, i) => {
+        c.classList.toggle('on', i === now);
+        if (i === now) c.setAttribute('aria-current', 'step'); else c.removeAttribute('aria-current');
+      });
+      moveMarker();
+    }
+
+    function frame(t) {
+      running = false;
+      if (!total) return;
+      const dt = last ? Math.min(t - last, 64) : 16.7;
+      last = t;
+      const k = reduce ? 1 : 1 - Math.pow(1 - EASE, dt / 16.7);
+      const vh = window.innerHeight;
+      const goal = lenAtY(vh * 0.55 - body.getBoundingClientRect().top);
+      cur = cur === null ? goal : cur + (goal - cur) * k;
+      if (Math.abs(goal - cur) < 0.4) cur = goal;
+      draw(cur);
+      const moving = objects(k, vh);
+      chapters(vh);
+      if (cur !== goal || moving) kick(); else last = 0;
+    }
+    function kick() {
+      if (running) return;
+      running = true;
+      raf = requestAnimationFrame(frame);
+    }
+
+    const onScroll = kick;
+    const rebuild = () => { cancelAnimationFrame(raf); running = false; raf = requestAnimationFrame(build); };
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', rebuild);
     window.addEventListener('load', rebuild);
@@ -188,20 +239,21 @@ function useJourney(sectionRef) {
 
 export default function Journey() {
   const ref = useRef(null);
+  const head = useReveal();
   useJourney(ref);
 
   return (
     <section className="jr" id="services" aria-labelledby="jr-h" ref={ref}>
       <div className="wrap">
-        <div className="jr-head">
+        <div className="jr-head rv-up" ref={head}>
           <span className="kick">Our services</span>
           <h2 className="h2" id="jr-h">Every Step of Their Journey, <em>Taken Care Of</em></h2>
-          <span className="script-tag st-blue">Every step, cared for.</span>
           <p className="lede">From the airport to their front door, here is how we support your parents in India.</p>
         </div>
 
         <nav className="chapnav" aria-label="Service chapters">
           <div className="chapnav-in">
+            <span className="chap-ind" aria-hidden="true" />
             <a className="chap on" href="#ch-travel"><Icon name="plane" className="" /><b>01</b>Travel</a>
             <a className="chap" href="#ch-care"><Icon name="home" className="" /><b>02</b>Care</a>
             <a className="chap" href="#ch-health"><Icon name="health" className="" /><b>03</b>Health</a>
@@ -258,8 +310,8 @@ export default function Journey() {
                 <div className="ic-hd"><span className="mk"><span><Icon name="heart" className="" /></span>NRI Parent Service</span><em>Travel Medical</em></div>
                 <div className="ic-body">
                   <div className="ic-l">
-                    <div><span>Member name</span><b>[PARENT NAME]</b></div>
-                    <div><span>Effective date</span><b>[DD Month YYYY]</b></div>
+                    <div><span>Member name</span><b>Lakshmi Rao</b></div>
+                    <div><span>Effective date</span><b>On the day they fly</b></div>
                     <div><span>Certificate #</span><b>XXXXXXXXX</b></div>
                     <span className="fine">Sample card for illustration</span>
                   </div>

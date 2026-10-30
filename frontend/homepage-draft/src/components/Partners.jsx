@@ -36,22 +36,24 @@ const LOGOS = [
 
 export default function Partners() {
   const head = useReveal();
+  const rail = useReveal(0.1);
   return (
     <section className="partners2" id="partners" aria-labelledby="part-h">
       <div className="wrap">
         <div className="p2-head rv-up" ref={head}>
           <span className="kick">Our network</span>
-          <h2 className="h2" id="part-h">Our Trusted Partners</h2>
-          <span className="script-tag st-blue">Partners you can trust.</span>
-          <p className="lede">Working with trusted healthcare, travel and insurance partners to support your parents better — including 65+ A-rated travel insurance plans to quote and compare.</p>
+          <h2 className="h2" id="part-h">Our Insurance Partners</h2>
+          <p className="lede">Compare 65+ A-rated travel insurance plans from these insurers, and we help you choose the right one for your parents.</p>
         </div>
-        <Rail label="partners" className="logo-rail">
-          {LOGOS.map((l) => (
-            <div className="lgo" key={l.name}>
-              <img src={l.src} alt={l.name} width={l.w} height={l.h} loading="lazy" decoding="async" draggable={false} />
-            </div>
-          ))}
-        </Rail>
+        <div className="rv-up" ref={rail}>
+          <Rail label="partners" className="logo-rail">
+            {LOGOS.map((l) => (
+              <div className="lgo" key={l.name}>
+                <img src={l.src} alt={l.name} width={l.w} height={l.h} loading="lazy" decoding="async" draggable={false} />
+              </div>
+            ))}
+          </Rail>
+        </div>
         <div className="p2-foot">
           <a className="lnk" href={site.insuranceUrl}>Compare travel insurance plans<Icon name="arrow" /></a>
         </div>
