@@ -108,7 +108,7 @@
 .cq-check.bad i { background: #E9493A; color: #fff; }
 
 /* ---------- board ---------- */
-.cq-board { display: grid; grid-template-columns: minmax(0, 1fr) 320px minmax(0, 1fr); gap: 24px; align-items: start; margin-top: -2px; padding-top: 26px; }
+.cq-board { display: grid; grid-template-columns: minmax(0, 1fr) 360px minmax(0, 1fr); gap: 24px; align-items: start; margin-top: -2px; padding-top: 26px; }
 .cq-col { min-width: 0; container-type: inline-size; }
 .cq-seg svg { width: 15px; height: 15px; vertical-align: -3px; margin-right: 5px; }
 
@@ -240,13 +240,19 @@
 .cq-picks-hd span { min-width: 24px; height: 24px; border-radius: 999px; background: var(--cq-navy); color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 800; padding: 0 7px; }
 .cq-picks ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 /* a pick: the plan and cover, what it is under it, the price on its own line -- no squeezing in a narrow column */
-.cq-picks li { display: grid; grid-template-columns: 5px minmax(0, 1fr) 24px; grid-template-rows: auto auto; gap: 3px 10px; align-items: center; background: var(--cq-bg); border-radius: 12px; padding: 10px 8px 10px 10px; font-size: 12.5px; }
-.cq-picks li::before { content: ""; grid-row: 1 / 3; align-self: stretch; width: 5px; border-radius: 4px; background: var(--cq-std); }
+.cq-picks li { display: grid; grid-template-columns: 5px minmax(0, 1fr) 24px; grid-template-rows: auto auto auto; gap: 3px 10px; align-items: center; background: var(--cq-bg); border-radius: 12px; padding: 10px 8px 10px 10px; font-size: 12.5px; }
+.cq-picks li::before { content: ""; grid-row: 1 / 4; align-self: stretch; width: 5px; border-radius: 4px; background: var(--cq-std); }
 .cq-picks li.e::before { background: var(--cq-enh); }
 .cq-picks li b { display: block; font-size: 13px; }
 .cq-picks li span { color: var(--cq-soft); }
 .cq-picks li .amt { grid-column: 2; grid-row: 2; font-weight: 800; font-size: 14.5px; color: var(--cq-ink); font-variant-numeric: tabular-nums; }
-.cq-picks li button { grid-column: 3; grid-row: 1 / 3; all: unset; cursor: pointer; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: var(--cq-soft); font-size: 18px; }
+.cq-picks li .amt small { font-weight: 600; font-size: 11.5px; color: var(--cq-soft); margin-left: 4px; }
+/* what each traveller's share of the one price is */
+.cq-picks li .split { grid-column: 2; grid-row: 3; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 12px;
+  margin-top: 2px; padding-top: 5px; border-top: 1px dashed var(--cq-line2); font-size: 11.5px; }
+.cq-picks li .split i { font-style: normal; color: var(--cq-soft); }
+.cq-picks li .split b { display: block; font-size: 11.5px; color: var(--cq-ink); text-align: right; font-variant-numeric: tabular-nums; }
+.cq-picks li button { grid-column: 3; grid-row: 1 / 4; all: unset; cursor: pointer; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: var(--cq-soft); font-size: 18px; }
 .cq-picks li button:hover { background: var(--cq-line2); color: var(--cq-red); }
 .cq-picks-empty { margin: 0; font-size: 12.5px; color: var(--cq-soft); line-height: 1.5; }
 .cq-cta { all: unset; box-sizing: border-box; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; background: var(--cq-amber); color: #2B1A00; font-weight: 800; font-size: 15px; border-radius: 14px; padding: 13px 16px; box-shadow: 0 12px 24px -14px rgba(245, 166, 35, .9); transition: transform .12s, background .12s; }
@@ -310,10 +316,10 @@
 
 /* ---------- narrower desks ---------- */
 @media (max-width: 1440px) {
-  .cq-board { grid-template-columns: minmax(0, 1fr) 300px minmax(0, 1fr); gap: 18px; }
+  .cq-board { grid-template-columns: minmax(0, 1fr) 340px minmax(0, 1fr); gap: 18px; }
 }
 @media (max-width: 1180px) {
-  .cq-board { grid-template-columns: minmax(0, 1fr) 280px minmax(0, 1fr); gap: 14px; }
+  .cq-board { grid-template-columns: minmax(0, 1fr) 300px minmax(0, 1fr); gap: 14px; }
   .cq-row { padding: 10px 14px; }
   .cq-card-hd { padding: 13px 14px 7px; }
   .cq-limit { font-size: 22px; }

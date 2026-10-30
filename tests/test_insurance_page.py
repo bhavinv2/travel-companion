@@ -436,7 +436,8 @@ def test_the_switcher_offers_the_other_products(client, db):
     """From the insurance page there was no visible route back to the companion app on a phone:
     the Services menu is inside the burger."""
     html = client.get('/travel-insurance').data.decode()
-    menu = html.split('id="svcSwMenu"', 1)[1].split('</div>', 1)[0] + html.split('id="svcSwMenu"', 1)[1][:2000]
+    # the whole menu: its items carry an icon each now (base.html), so a fixed slice of it misses the last ones
+    menu = html.split('id="svcSwMenu"', 1)[1].split('More from NRI Parent Service', 1)[0]
     for product in ('Travel Companion', 'Sahayak'):
         assert product in menu, product
     # and the one you are on is marked rather than offered as a destination

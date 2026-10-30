@@ -62,6 +62,11 @@
   const dayWord = n => n + (n === 1 ? ' day' : ' days');
   const daysText = b => (b.product === 'super_visa' || b.days === 365 ? 'a year' : 'for ' + dayWord(b.days));
   const who = i => 'Traveller ' + (i + 1) + ' · ' + people[i].age;
+  // every price is for everybody on the quote together: one pick covers them all
+  const everyone = people.length === 2 ? 'for both' : 'for all ' + people.length;
+  const EMPTY = 'Tap any price on the left or right to add it here. Pick one, or a few to talk through.' +
+    (people.length > 1 ? ' Each price covers all ' + people.length + ' travellers, so one pick is enough for everyone.' : '');
+  $('#cqPickEmpty').textContent = EMPTY;
 
   /* ------------------------------------------------------------------ search */
   function tokens() {
@@ -280,11 +285,15 @@
     $('#cqPickEmpty').hidden = !!rows.length;
     $('#cqPickList').innerHTML = rows.map(({ k, p, r, b }) => {
       const lim = b && !b.error ? limitOf(p.product, p.plan, p.limit) : { label: p.limit };
-      const amt = !r || r.total == null ? 'Not offered'
+      const ok = r && r.total != null;
+      const amt = !ok ? 'Not offered'
         : (state.pay === 'monthly' && r.monthlyOk ? money(r.monthly) + '/mo' : money(r.total));
-      return '<li class="' + p.plan + '"><div><b>' + esc(planLabel(p.plan)) + ' · ' + esc(lim.label) + '</b>' +
+      const many = ok && people.length > 1;
+      const split = many ? '<span class="split">' + r.each.map((x, i) => '<i>' + esc(who(i)) + '</i><b>' + money(x) + '</b>').join('') + '</span>' : '';
+      return '<li class="' + p.plan + (many ? ' many' : '') + '"><div><b>' + esc(planLabel(p.plan)) + ' · ' + esc(lim.label) + '</b>' +
         '<span>' + esc(p.product === 'super_visa' ? 'Super visa' : 'Visitor') + ' · ' + esc(dedOf(p.product, p.deductible).label) + ' deductible</span></div>' +
-        '<span class="amt">' + amt + '</span><button type="button" data-unpick="' + esc(k) + '" aria-label="Remove">&times;</button></li>';
+        '<span class="amt">' + amt + (many ? ' <small>' + everyone + '</small>' : '') + '</span>' + split +
+        '<button type="button" data-unpick="' + esc(k) + '" aria-label="Remove">&times;</button></li>';
     }).join('');
     $('#cqCall').firstChild.textContent = state.callback ? 'Update my request ' : 'Request a call back ';
     renderDone();
@@ -396,7 +405,7 @@
   function flash(msg) {
     const el = $('#cqPickEmpty');
     el.hidden = false; el.textContent = msg;
-    setTimeout(() => { el.textContent = 'Tap any price on the left or right to add it here. Pick one, or a few to talk through.'; renderPicks(); }, 2600);
+    setTimeout(() => { el.textContent = EMPTY; renderPicks(); }, 2600);
   }
 
   ['mouseover', 'focusin'].forEach(ev => document.addEventListener(ev, e => {
