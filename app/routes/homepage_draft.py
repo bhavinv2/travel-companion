@@ -100,7 +100,7 @@ def _contacts():
 
 
 def _render(page):
-    from app.services import wp_blog
+    from app.services import nri_services, wp_blog
     home = page == 'home'
     return render_template('homepage_draft/landing.html', meta=PAGES[page], links={
         'chrome': False,
@@ -118,6 +118,10 @@ def _render(page):
         'sahayakUrl': urls.public_url('sahayak.landing'),
         'companionUrl': urls.public_url('main.index'),
         'blogUrl': urls.public_url('blog.blog_list'),
+        # the services the group runs on its other site: each one's own page
+        'doctorUrl': nri_services.CALL_ON_DOC_URL,
+        'giftUrl': nri_services.page_of('Gift Health'),
+        'fitUrl': nri_services.page_of('Fit2Fly'),
     })
 
 

@@ -16,6 +16,10 @@ export const site = {
   companionUrl: injected.companionUrl || '/',
   blogUrl: injected.blogUrl || '/blog',
   helpUrl: injected.helpUrl || '/help',
+  // the services' own pages on the group's other site
+  doctorUrl: injected.doctorUrl || 'https://preventia360.com/call-on-doc/',
+  giftUrl: injected.giftUrl || 'https://preventia360.com/gift-health/',
+  fitUrl: injected.fitUrl || 'https://preventia360.com/fit2fly/',
   // approved reviews: {quote, rating, name, photo, service}
   reviews: injected.reviews || [],
   // the Help centre's questions: {question, answer}
@@ -39,3 +43,9 @@ export function talk(e) {
 }
 
 export const TALK = 'Talk to a Care Advisor';
+
+/* A page on another site (a full address: the group's Call-ON-Doc, Gift Health and Fit2Fly pages)
+ * opens in a new tab, as the site's own menu opens them; this app's pages (paths) open in place. */
+export function away(href) {
+  return /^https?:\/\//.test(href || '') ? { target: '_blank', rel: 'noopener' } : {};
+}

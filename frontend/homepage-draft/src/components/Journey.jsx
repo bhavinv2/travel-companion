@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react';
 import Icon from './Icon.jsx';
-import { site } from '../data/site.js';
+import { away, site } from '../data/site.js';
 import { reduceMotion, useReveal } from '../hooks.js';
 import companionStub from '../assets/photos/companion-stub.jpg';
 import tileParent from '../assets/photos/tile-parent.jpg';
-import sahayakPhoto from '../assets/photos/sahayak-photo.jpg';
+import docHero from '../assets/photos/call-on-doc-hero.webp';
+import docScreen from '../assets/photos/call-on-doc-screen.webp';
+import sahHero from '../assets/photos/sah-hero-ecosystem.jpg';
 import readyToFly from '../assets/photos/ins-story-parents.jpg';
 import checkedPhoto from '../assets/photos/sah-svc-lab.jpg';
 import chTravel from '../assets/photos/tc-l3.jpg';
@@ -55,7 +57,7 @@ function Stop({ rev, n, title, text, link, primary, objClass = '', children }) {
         <span className="stop-n">0{n}</span>
         <h3 id={hid}>{title}</h3>
         <p>{text}</p>
-        <a className={primary ? 'btn btn-a' : 'lnk'} href={link[1]}>{link[0]}<Icon name="arrow" /></a>
+        <a className={primary ? 'btn btn-a' : 'lnk'} href={link[1]} {...away(link[1])}>{link[0]}<Icon name="arrow" /></a>
       </div>
       <div className={`obj ${objClass}`} aria-hidden="true">{children}</div>
     </article>
@@ -362,31 +364,22 @@ export default function Journey() {
             <Snap src={tileParent} caption="Amma, at home" at={{ top: '-22px', right: '1%' }} rotate={5} width={140} />
           </Stub>
 
-          <Stop n={3} title="Virtual Doctor Consultation" link={['Book a Consultation', site.contactUrl]}
+          <Stop n={3} title="Virtual Doctor Consultation" link={['Book a Consultation', site.doctorUrl]}
             text="Video consultations with a doctor from home. You can join the call from abroad.">
-            <div className="o3 tb3">
-              <div className="tb-dev">
-                <div className="tb-scr">
-                  <div className="doc"><span className="av"><Icon name="steth" stroke={1.6} className="" /></span><b>Your doctor</b><small>Video consultation</small></div>
-                  <span className="live2"><i />Live · 12:04</span>
-                  <div className="tile t-parent"><img src={tileParent} alt="" /><span>Amma · Pune</span></div>
-                  <div className="tile t-you">R<span>You · Toronto</span></div>
-                  <div className="tb-ctl">
-                    <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M19 10a7 7 0 0 1-14 0M12 17v5" /></svg></i>
-                    <i><Icon name="video" className="" /></i>
-                    <i className="end"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" transform="rotate(135 12 12)" /></svg></i>
-                  </div>
-                </div>
-              </div>
+            {/* the Call-ON-Doc page's own pictures: its hero, and its call screen in front of it */}
+            <div className="o3 vd3">
+              <div className="vd-photo"><img src={docHero} alt="" loading="lazy" decoding="async" /></div>
+              <div className="vd-phone"><img src={docScreen} alt="" loading="lazy" decoding="async" /></div>
               <Chip cls="c1" title="Prescription shared" sub="Sent to you on WhatsApp" />
             </div>
           </Stop>
 
-          <Stop rev n={4} title="Sahayak" primary link={['Book a Sahayak', site.sahayakUrl]} objClass="tall"
+          <Stop rev n={4} title="Sahayak" primary link={['Book a Sahayak', site.sahayakUrl]}
             text="A trusted helping hand for hospital visits, doctor appointments, healthcare needs and everyday assistance.">
-            <div className="o3 ph3">
-              <div className="lay ph-bk" />
-              <div className="ph-card"><img src={sahayakPhoto} alt="" /></div>
+            {/* the Sahayak page's hero picture, whole, framed as that page frames it */}
+            <div className="o3 sh3">
+              <div className="lay sh-bk" />
+              <div className="sh-card"><img src={sahHero} alt="" loading="lazy" decoding="async" /></div>
               <Chip cls="c1" icon="calendar" stroke={2.4} title="Hospital visit" sub="Today, 10:30 AM" />
             </div>
           </Stop>
@@ -397,7 +390,7 @@ export default function Journey() {
             <Snap src={checkedPhoto} caption="Tests done at home" at={{ top: '-20px', right: '1%' }} rotate={5} />
           </Stub>
 
-          <Stop n={5} title="Gift Health" link={['Ask about Gift Health', site.contactUrl]} objClass="tall"
+          <Stop n={5} title="Gift Health" link={['Explore Gift Health', site.giftUrl]} objClass="tall"
             text="Give your parents the gift of better health, care and proactive support — even from miles away.">
             <div className="o3 gb3">
               <div className="cube"><div className="in" /><div className="face b" /><div className="face l" /><div className="face r" /><div className="face f" /></div>
@@ -407,7 +400,7 @@ export default function Journey() {
             </div>
           </Stop>
 
-          <Stop rev n={6} title="Fit2Fly" link={['Ask about Fit2Fly', site.contactUrl]} objClass="tall"
+          <Stop rev n={6} title="Fit2Fly" link={['Explore Fit2Fly', site.fitUrl]} objClass="tall"
             text="Prepare your parents for safe and confident travel with the right health assessment before their journey.">
             <div className="o3 ff3">
               <div className="clip" />

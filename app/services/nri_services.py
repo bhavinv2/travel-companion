@@ -14,6 +14,16 @@ SERVICES = [
     ]
 
 
+# Virtual doctor consultations are the group's Call-ON-Doc. The menu above does not list it (the
+# live site's does not either), but a page that tells somebody about the service links here.
+CALL_ON_DOC_URL = 'https://preventia360.com/call-on-doc/'
+
+
+def page_of(label):
+    """The address SERVICES gives the service with this menu label."""
+    return next(row[1] for row in SERVICES if row[0] == label)
+
+
 def resolved():
     """SERVICES with our own entries pointed at this app's routes.
 

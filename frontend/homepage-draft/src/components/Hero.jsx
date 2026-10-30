@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Doodles, Trail } from './Deco.jsx';
 import Icon from './Icon.jsx';
-import { site, talk, TALK } from '../data/site.js';
+import { away, site, talk, TALK } from '../data/site.js';
 import { reduceMotion } from '../hooks.js';
 import parents from '../assets/photos/parents-centre.jpg';
 import imgCompanion from '../assets/photos/why-travel.jpg';
@@ -31,16 +31,16 @@ const SERVICES = [
     cta: 'Explore Travel Insurance', href: site.insuranceUrl },
   { key: 'doctor', color: '#5B4BD6', icon: 'steth', img: imgDoctor, pos: '33% 30%', title: 'Virtual Doctor', group: 'Care',
     text: 'Video consultations with a doctor from home. You can join the call from abroad.',
-    cta: 'Book a Consultation', href: site.contactUrl },
+    cta: 'Book a Consultation', href: site.doctorUrl },
   { key: 'sahayak', color: '#E4613F', icon: 'home', img: imgSahayak, pos: '45% 35%', title: 'Sahayak', group: 'Care',
     text: 'A trusted helping hand for hospital visits, doctor appointments, healthcare needs and everyday assistance.',
     cta: 'Book a Sahayak', href: site.sahayakUrl },
   { key: 'gift', color: '#C98A12', icon: 'gift', img: imgGift, pos: '30% 40%', title: 'Gift Health', group: 'Health',
     text: 'Give your parents the gift of better health, care and proactive support — even from miles away.',
-    cta: 'Ask about Gift Health', href: site.contactUrl },
+    cta: 'Explore Gift Health', href: site.giftUrl },
   { key: 'fit', color: '#14946E', icon: 'clip', img: imgFit, pos: '62% 40%', title: 'Fit2Fly', group: 'Health',
     text: 'Prepare your parents for safe and confident travel with the right health assessment before their journey.',
-    cta: 'Ask about Fit2Fly', href: site.contactUrl },
+    cta: 'Explore Fit2Fly', href: site.fitUrl },
 ];
 
 export default function Hero() {
@@ -128,7 +128,7 @@ export default function Hero() {
             </div>
           </div>
 
-          <a className="h4-card" id="hero-svc" href={s.href} key={s.key} style={{ '--c': s.color }}>
+          <a className="h4-card" id="hero-svc" href={s.href} key={s.key} style={{ '--c': s.color }} {...away(s.href)}>
             <img src={s.img} alt="" style={{ objectPosition: s.pos }} />
             <span className="h4-card-b">
               <small><Icon name={s.icon} />{s.group}</small>

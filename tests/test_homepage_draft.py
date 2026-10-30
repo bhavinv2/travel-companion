@@ -144,3 +144,14 @@ def test_the_built_page_has_no_samples_placeholders_or_ticker():
                  'My father had a cataract surgery', 'tk-track'):
         assert gone not in js, gone
     assert 'Talk to a Care Advisor' in js and 'liveChat' in js
+
+
+def test_each_service_reads_more_on_its_own_page(app, client):
+    """Virtual Doctor, Gift Health and Fit2Fly are the group's pages (the Call-ON-Doc page, and the
+    two the site menu lists); the others are this app's. None of them is the contact page."""
+    d = data(client)
+    assert d['doctorUrl'] == 'https://preventia360.com/call-on-doc/'
+    assert d['giftUrl'] == 'https://preventia360.com/gift-health/'
+    assert d['fitUrl'] == 'https://preventia360.com/fit2fly/'
+    pages = [d[k] for k in ('companionUrl', 'insuranceUrl', 'doctorUrl', 'sahayakUrl', 'giftUrl', 'fitUrl')]
+    assert len(set(pages)) == 6 and d['contactUrl'] not in pages
