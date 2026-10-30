@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{# Homepage draft. The page is the React app in frontend/homepage-draft, built into
+   static/homepage-draft (`npm run build` there; the output is committed).
+
+   Same arrangement as the travel-insurance page: the site's own navbar and footer come from
+   base.html, and chrome=false tells the bundle not to draw a second set. Everything else it
+   needs -- the links to the app's other pages -- is handed over as window.__HOMEPAGE__. #}
+{% block title %}{{ meta.title }}{% endblock %}
+{% block meta_description %}{{ meta.description }}{% endblock %}
+
+{# A draft: kept out of search results until it replaces the live homepage. #}
+{% block extra_head %}<meta name="robots" content="noindex, nofollow"/>{% endblock %}
+
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500;1,9..144,600&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Caveat:wght@600&amp;display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='homepage-draft/homepage-draft.css') }}"/>
+{% endblock %}
+
+{% block content %}
+<script>
+  window.__HOMEPAGE__ = {{ links | tojson }};
+</script>
+<div id="root"></div>
+<script type="module" src="{{ url_for('static', filename='homepage-draft/homepage-draft.js') }}"></script>
+{% endblock %}

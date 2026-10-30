@@ -1608,6 +1608,14 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
         </button>
         <div class="svcsw-menu" role="menu" aria-label="Our services">
+          <div class="svcsw-head">NRI Parent Service</div>
+          {% for pg in PRODUCTS.pages() %}
+          <a class="svcsw-item{{ ' on' if pg.current }}" role="menuitem" href="{{ pg.url }}">
+            <svg class="svcsw-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="{{ pg.icon }}"/></svg>
+            <span><b>{{ pg.label }}</b><small>{{ pg.blurb }}</small></span>
+            {% if pg.current %}<svg class="svcsw-tick" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="{{ PRODUCTS.TICK }}"/></svg>{% endif %}
+          </a>
+          {% endfor %}
           <div class="svcsw-head">Switch service</div>
           {% for sv in PRODUCTS.menu() %}
           <a class="svcsw-item{{ ' on' if sv.current }}" role="menuitem" href="{{ sv.url }}">

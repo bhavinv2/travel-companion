@@ -127,13 +127,16 @@
             <div>
               <span class="cq-lbl">Sort</span>
               <select id="cqSort" class="cq-select" aria-label="Sort">
-                <option value="cover">Cover, low to high</option>
-                <option value="cover-desc">Cover, high to low</option>
-                <option value="price">Price, low to high</option>
+                <option value="cover">Lowest cover</option>
+                <option value="cover-desc">Highest cover</option>
+                <option value="price">Lowest price</option>
               </select>
             </div>
           </div>
+        </div>
 
+        {# its own box under the filters: what they picked and the one thing to do with it #}
+        <div class="cq-panel cq-picks-box">
           <div class="cq-picks" id="cqPicks">
             <div class="cq-picks-hd"><b>Your picks</b><span id="cqPickN">0</span></div>
             <ul id="cqPickList"></ul>
@@ -187,10 +190,10 @@
     </section>
   </div>
 
-  {# phones: the picks and the button stay in reach while scrolling the plans #}
+  {# while the picks box is off screen: the picks and the button stay in reach #}
   <div class="cq-bar" id="cqBar" hidden>
-    <span><b id="cqBarN">0</b> picked</span>
-    <button type="button" class="cq-cta cq-cta-sm" data-open-call>Call me back</button>
+    <button type="button" class="cq-bar-see" data-see-picks><b id="cqBarN">0</b> picked · see them</button>
+    <button type="button" class="cq-cta cq-cta-sm" data-open-call>Request a call back</button>
   </div>
 
   {# the call-back form #}

@@ -24,6 +24,7 @@
   // Table (a price grid per plan) on a desk, Cards on a phone; the visitor's own choice is remembered
   let savedView = null;
   try { savedView = window.localStorage.getItem('cq.view'); } catch (e) { savedView = null; }
+  let picksInView = false;          // the picks box is on screen: the bar at the bottom is not needed
   const state = {
     view: savedView === 'table' || savedView === 'cards' ? savedView : (window.innerWidth >= 1100 ? 'table' : 'cards'),
     product: usable(D.cover) ? D.cover : (PRODUCTS.find(usable) || D.cover || 'super_visa'),
@@ -275,7 +276,7 @@
     const rows = pickRows();
     $('#cqPickN').textContent = rows.length;
     $('#cqBarN').textContent = rows.length;
-    $('#cqBar').hidden = !rows.length;
+    $('#cqBar').hidden = !rows.length || picksInView;
     $('#cqPickEmpty').hidden = !!rows.length;
     $('#cqPickList').innerHTML = rows.map(({ k, p, r, b }) => {
       const lim = b && !b.error ? limitOf(p.product, p.plan, p.limit) : { label: p.limit };
@@ -586,6 +587,15 @@
       }
     });
   } catch (ex) { /* nothing kept */ }
+
+  // the bar at the bottom stands in for the picks box while that box is off screen, on any screen size
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(entries => {
+      picksInView = entries[0].isIntersecting;
+      $('#cqBar').hidden = !state.picks.size || picksInView;
+    }, { threshold: 0.25 }).observe($('.cq-picks-box'));
+  }
+  $('#cqBar [data-see-picks]').addEventListener('click', () => $('.cq-picks-box').scrollIntoView({ behavior: 'smooth', block: 'center' }));
 
   renderBenefits();
   render();

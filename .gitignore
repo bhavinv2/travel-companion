@@ -21,6 +21,9 @@ sessions/
 app/static/uploads/*
 !app/static/uploads/.gitkeep
 
+# --- node (each app under frontend/ installs its own) ------------------------
+node_modules/
+
 # --- python -----------------------------------------------------------------
 venv/
 .venv/

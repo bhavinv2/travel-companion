@@ -95,6 +95,14 @@
           <i class="fa-solid fa-chevron-down svc-sw-caret" aria-hidden="true"></i>
         </button>
         <div class="svc-sw-menu" id="svcSwMenu" role="menu" aria-label="Our services">
+          <div class="svc-sw-head">NRI Parent Service</div>
+          {% for pg in PRODUCTS.pages() %}
+          <a class="svc-sw-item{{ ' on' if pg.current }}" role="menuitem" href="{{ pg.url }}">
+            <svg class="svc-sw-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="{{ pg.icon }}"/></svg>
+            <span><b>{{ pg.label }}</b><small>{{ pg.blurb }}</small></span>
+            {% if pg.current %}<svg class="svc-sw-tick" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="{{ PRODUCTS.TICK }}"/></svg>{% endif %}
+          </a>
+          {% endfor %}
           <div class="svc-sw-head">{{ _('Switch service') }}</div>
           {% for sv in PRODUCTS.menu() %}
           <a class="svc-sw-item{{ ' on' if sv.current }}" role="menuitem" href="{{ sv.url }}">

@@ -35,6 +35,18 @@ PRODUCTS = [
      'icon': 'M12 3 2 11h3v10h6v-6h2v6h6V11h3L12 3zm1 7h2v2h-2v2h-2v-2H9v-2h2V8h2v2z'},
 ]
 
+# The group's own pages, listed above the products in the same menu: the homepage draft and its
+# About page (routes/homepage_draft.py). They are pages rather than products, so they are kept
+# out of PRODUCTS -- extras() and the products' own list should not start offering them.
+PAGES = [
+    {'key': 'home', 'label': 'Home', 'endpoint': 'homepage_draft.landing',
+     'blurb': 'NRI Parent Service',
+     'icon': 'M12 3 2 12h3v8h5v-6h4v6h5v-8h3L12 3z'},
+    {'key': 'about', 'label': 'About', 'endpoint': 'homepage_draft.about',
+     'blurb': 'Our story, mission and advisors',
+     'icon': 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z'},
+]
+
 # Drawn beside the product you are already on, and beside a link that leaves the site.
 TICK = 'M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z'
 EXTERNAL = 'M7 17 17 7M9 7h8v8'
@@ -45,13 +57,22 @@ BY_BLUEPRINT = {'insurance': 'insurance', 'sahayak': 'sahayak'}
 
 
 def current_key():
-    return BY_BLUEPRINT.get((request.blueprint or '').split('.')[0], 'companion')
+    page = next((p['key'] for p in PAGES if p['endpoint'] == request.endpoint), None)
+    return page or BY_BLUEPRINT.get((request.blueprint or '').split('.')[0], 'companion')
 
 
 def current_label():
-    """The name of the product this page belongs to -- the text under the logo."""
+    """The name of the product (or group page) this is -- the text under the logo."""
     key = current_key()
-    return next(p['label'] for p in PRODUCTS if p['key'] == key)
+    return next(p['label'] for p in PAGES + PRODUCTS if p['key'] == key)
+
+
+def pages():
+    """Home and About, with the current one marked -- drawn above the products."""
+    here = current_key()
+    return [{'key': p['key'], 'label': p['label'], 'icon': p['icon'], 'blurb': p['blurb'],
+             'current': p['key'] == here, 'url': urls.public_url(p['endpoint'])}
+            for p in PAGES]
 
 
 def menu():

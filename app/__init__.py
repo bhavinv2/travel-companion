@@ -515,6 +515,7 @@ def create_app(test_config=None):
     from app.routes.main import main_bp
     from app.routes.insurance import insurance_bp
     from app.routes.sahayak import sahayak_bp
+    from app.routes.homepage_draft import homepage_draft_bp
     from app.routes.auth import auth_bp
     from app.routes.trips import trips_bp
     from app.routes.chat import chat_bp
@@ -557,6 +558,7 @@ def create_app(test_config=None):
     app.register_blueprint(main_bp)
     app.register_blueprint(insurance_bp)
     app.register_blueprint(sahayak_bp)
+    app.register_blueprint(homepage_draft_bp)
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(trips_bp, url_prefix='/api')
     app.register_blueprint(chat_bp)

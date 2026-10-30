@@ -1,0 +1,345 @@
+import { useEffect, useRef } from 'react';
+import Icon from './Icon.jsx';
+import { site } from '../data/site.js';
+import { reduceMotion } from '../hooks.js';
+import companionStub from '../assets/photos/companion-stub.jpg';
+import tileParent from '../assets/photos/tile-parent.jpg';
+import sahayakPhoto from '../assets/photos/sahayak-photo.jpg';
+
+/* "Our services" as on the static page: a flight path drawn by scroll, stops alternating
+ * sides, each with a 3D object that turns as it passes, and the traveller on the path
+ * changing with the chapter. */
+
+const PLANE = 'M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z';
+const Check = ({ w = 3 }) => <Icon name="check" stroke={w} className="" />;
+
+function Chip({ cls, icon = 'check', stroke = 3, title, sub }) {
+  return (
+    <div className={`float-chip ${cls}`}>
+      <span className="ck"><Icon name={icon} stroke={stroke} className="" /></span>
+      <span>{title}<small>{sub}</small></span>
+    </div>
+  );
+}
+
+function Stub({ id, n, word, title, text }) {
+  return (
+    <div className="stub-wrap" id={id}>
+      <div className="stub" data-pt>
+        <div className="stub-a"><span className="num">{n}</span><div><span>Chapter {word}</span><h3>{title}</h3><p>{text}</p></div></div>
+      </div>
+    </div>
+  );
+}
+
+function Stop({ rev, n, title, text, link, primary, objClass = '', children }) {
+  const hid = `s${n}-h`;
+  return (
+    <article className={`stop${rev ? ' rev' : ''}`} aria-labelledby={hid}>
+      <span className="node" data-pt />
+      <div className="stop-txt">
+        <span className="stop-n">0{n}</span>
+        <h3 id={hid}>{title}</h3>
+        <p>{text}</p>
+        <a className={primary ? 'btn btn-a' : 'lnk'} href={link[1]}>{link[0]}<Icon name="arrow" /></a>
+      </div>
+      <div className={`obj ${objClass}`} aria-hidden="true">{children}</div>
+    </article>
+  );
+}
+
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+
+/* The static page's script, scoped to this section. */
+function useJourney(sectionRef) {
+  useEffect(() => {
+    const sec = sectionRef.current;
+    const body = sec.querySelector('.jr-body');
+    const svg = body.querySelector('.jr-path');
+    const trail = svg.querySelector('.trail');
+    const drawn = svg.querySelector('.drawn');
+    const plane = body.querySelector('.plane');
+    const rot = plane.querySelector('.rot');
+    const pts = Array.from(body.querySelectorAll('[data-pt]'));
+    const objs = Array.from(body.querySelectorAll('.obj'));
+    const stubs = Array.from(body.querySelectorAll('.stub-wrap'));
+    const chaps = Array.from(sec.querySelectorAll('.chap'));
+    const reduce = reduceMotion();
+    let samples = [], total = 0, ptY = [], ticking = false, raf = 0;
+
+    function build() {
+      const br = body.getBoundingClientRect();
+      const W = body.clientWidth, H = body.scrollHeight;
+      const mobile = window.innerWidth <= 760;
+      const cx = mobile ? 21 : W / 2;
+      svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+      const P = [[cx, 0]];
+      ptY = [];
+      pts.forEach((el) => {
+        const r = el.getBoundingClientRect();
+        let y = r.top - br.top + r.height / 2;
+        if (el.classList.contains('pin-pt')) y = r.top - br.top - 36;
+        P.push([cx, y]);
+        ptY.push(y);
+      });
+      const bulge = mobile ? 0 : Math.min(W * 0.05, 70);
+      let d = `M${P[0][0]} ${P[0][1]}`;
+      for (let i = 1; i < P.length; i++) {
+        const a = P[i - 1], b = P[i], s = i % 2 ? 1 : -1, dy = b[1] - a[1];
+        d += ` C${a[0] + s * bulge} ${a[1] + dy * 0.35} ${b[0] + s * bulge} ${a[1] + dy * 0.65} ${b[0]} ${b[1]}`;
+      }
+      trail.setAttribute('d', d);
+      drawn.setAttribute('d', d);
+      total = drawn.getTotalLength();
+      drawn.style.strokeDasharray = `${total} ${total}`;
+      samples = [];
+      const N = 600;
+      for (let k = 0; k <= N; k++) {
+        const L = (total * k) / N;
+        samples.push([L, drawn.getPointAtLength(L).y]);
+      }
+      update();
+    }
+
+    function lenAtY(y) {
+      if (!samples.length || y <= samples[0][1]) return 0;
+      for (let i = 1; i < samples.length; i++) {
+        if (samples[i][1] >= y) {
+          const a = samples[i - 1], b = samples[i];
+          const t = b[1] === a[1] ? 0 : (y - a[1]) / (b[1] - a[1]);
+          return a[0] + (b[0] - a[0]) * t;
+        }
+      }
+      return total;
+    }
+
+    function update() {
+      ticking = false;
+      if (!total) return;
+      const vh = window.innerHeight;
+      const br = body.getBoundingClientRect();
+      const target = vh * 0.55 - br.top;
+      const L = lenAtY(target);
+      drawn.style.strokeDashoffset = total - L;
+      const p1 = drawn.getPointAtLength(Math.max(0, L - 1));
+      const p2 = drawn.getPointAtLength(Math.min(total, L + 1));
+      const p = drawn.getPointAtLength(L);
+      let ang = (Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180) / Math.PI + 90;
+      if (!isFinite(ang) || (p1.x === p2.x && p1.y === p2.y)) ang = 180;
+      plane.style.transform = `translate(${p.x}px,${p.y}px)`;
+      // points: stub, stop, stop, stub, stop, stop, stub, stop, stop, pin
+      let mode = 'plane';
+      if (ptY.length >= 10) {
+        if (target >= (ptY[7] + ptY[8]) / 2) mode = 'fly';
+        else if (target >= ptY[6]) mode = 'gift';
+        else if (target >= (ptY[4] + ptY[5]) / 2) mode = 'help';
+        else if (target >= ptY[3]) mode = 'doc';
+      }
+      if (plane.getAttribute('data-mode') !== mode) {
+        plane.setAttribute('data-mode', mode);
+        plane.classList.remove('swap');
+        void plane.offsetWidth;
+        plane.classList.add('swap');
+      }
+      rot.style.transform = `rotate(${ang}deg)`;
+
+      pts.forEach((el, i) => {
+        if (el.classList.contains('node')) el.classList.toggle('passed', ptY[i] <= target + 1);
+      });
+
+      objs.forEach((o) => {
+        const r = o.getBoundingClientRect();
+        if (r.bottom < -200 || r.top > vh + 200) return;
+        const q = reduce ? 0 : clamp((r.top + r.height / 2 - vh / 2) / (vh * 0.75), -1, 1);
+        const pr = reduce ? 1 : clamp((vh * 0.92 - r.top) / (vh * 0.55), 0, 1);
+        o.style.setProperty('--q', q.toFixed(3));
+        o.style.setProperty('--pr', pr.toFixed(3));
+      });
+
+      let cur = 0;
+      stubs.forEach((s, i) => {
+        const r = s.getBoundingClientRect();
+        if (r.top < vh * 0.5) cur = i;
+      });
+      chaps.forEach((c, i) => {
+        c.classList.toggle('on', i === cur);
+        if (i === cur) c.setAttribute('aria-current', 'step'); else c.removeAttribute('aria-current');
+      });
+    }
+
+    const onScroll = () => { if (!ticking) { ticking = true; raf = requestAnimationFrame(update); } };
+    const rebuild = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(build); };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', rebuild);
+    window.addEventListener('load', rebuild);
+    const ro = window.ResizeObserver ? new ResizeObserver(rebuild) : null;
+    if (ro) ro.observe(body);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(rebuild);
+    build();
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', rebuild);
+      window.removeEventListener('load', rebuild);
+      if (ro) ro.disconnect();
+      cancelAnimationFrame(raf);
+    };
+  }, [sectionRef]);
+}
+
+export default function Journey() {
+  const ref = useRef(null);
+  useJourney(ref);
+
+  return (
+    <section className="jr" id="services" aria-labelledby="jr-h" ref={ref}>
+      <div className="wrap">
+        <div className="jr-head">
+          <span className="kick">Our services</span>
+          <h2 className="h2" id="jr-h">Every Step of Their Journey, <em>Taken Care Of</em></h2>
+          <span className="script-tag st-blue">Every step, cared for.</span>
+          <p className="lede">From the airport to their front door, here is how we support your parents in India.</p>
+        </div>
+
+        <nav className="chapnav" aria-label="Service chapters">
+          <div className="chapnav-in">
+            <a className="chap on" href="#ch-travel"><Icon name="plane" className="" /><b>01</b>Travel</a>
+            <a className="chap" href="#ch-care"><Icon name="home" className="" /><b>02</b>Care</a>
+            <a className="chap" href="#ch-health"><Icon name="health" className="" /><b>03</b>Health</a>
+          </div>
+        </nav>
+
+        <div className="jr-body">
+          <svg className="jr-path" aria-hidden="true"><path className="trail" d="" /><path className="drawn" d="" /></svg>
+          <div className="plane" data-mode="plane" aria-hidden="true">
+            <span className="ring" />
+            <span className="rot">
+              <span className="pi pi-plane"><svg viewBox="0 0 24 24" fill="currentColor"><path d={PLANE} /></svg></span>
+              <span className="pi pi-fly"><svg viewBox="0 0 24 24" fill="currentColor"><path d={PLANE} /></svg></span>
+            </span>
+            <span className="pi pi-doc"><Icon name="steth" className="" /></span>
+            <span className="pi pi-help">
+              <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="9.5" cy="6.5" r="2.6" /><path d="M10 9.6c-.6 3-.9 5.4-.5 8.4" /><path d="M9.5 18 7.5 27M9.5 18l2.5 9" /><path d="M9.8 12 6 14.5" /><path d="M6 14.5 4.8 27" /><circle cx="22" cy="5.5" r="2.6" /><path d="M22 8.6V18" /><path d="M22 18l-2 9M22 18l2 9" /><path d="M22 11.5 13 12.6" />
+              </svg>
+            </span>
+            <span className="pi pi-gift"><Icon name="gift" className="" /></span>
+            <span className="badge-ok"><Check w={3.4} /></span>
+          </div>
+
+          <Stub id="ch-travel" n="01" word="one" title="Travel" text="Safer, calmer journeys for your parents." />
+
+          <Stop n={1} title="Travel Companion" link={['Explore Travel Companion', site.companionUrl]}
+            text="Trusted assistance for elderly parents who need support before, during or after their journey.">
+            <div className="o3 bp3">
+              <div className="bp-card">
+                <div className="bp-main">
+                  <div className="bp-top"><span>Boarding pass · Travel Companion</span><Icon name="heart" className="" /></div>
+                  <div className="bp-route">
+                    <div><b>HYD</b><small>Hyderabad</small></div>
+                    <div className="fly"><i /><svg viewBox="0 0 24 24" fill="currentColor"><path d={PLANE} transform="rotate(90 12 12)" /></svg><i /></div>
+                    <div style={{ textAlign: 'right' }}><b>LHR</b><small>London</small></div>
+                  </div>
+                  <div className="bp-meta3">
+                    <div><span>Passengers</span><b>Amma &amp; Papa</b></div>
+                    <div><span>Companion</span><b>Sahayak</b></div>
+                    <div><span>Assistance</span><b>Door to door</b></div>
+                  </div>
+                </div>
+                <div className="bp-stub"><img src={companionStub} alt="" /><span>Travelling<br />together</span><i className="bar" /></div>
+              </div>
+              <Chip cls="c1" title="Companion assigned" sub="You get updates at every step" />
+            </div>
+          </Stop>
+
+          <Stop rev n={2} title="Travel Insurance" link={['Explore Travel Insurance', site.insuranceUrl]}
+            text="Protect your parents with travel insurance designed to support them throughout their journey.">
+            <div className="o3 ic3">
+              <div className="ic-front">
+                <div className="ic-hd"><span className="mk"><span><Icon name="heart" className="" /></span>NRI Parent Service</span><em>Travel Medical</em></div>
+                <div className="ic-body">
+                  <div className="ic-l">
+                    <div><span>Member name</span><b>[PARENT NAME]</b></div>
+                    <div><span>Effective date</span><b>[DD Month YYYY]</b></div>
+                    <div><span>Certificate #</span><b>XXXXXXXXX</b></div>
+                    <span className="fine">Sample card for illustration</span>
+                  </div>
+                  <div className="ic-r">
+                    <div><span>Member ID</span><b>•••• •••• ••••</b></div>
+                    <div><span>Plan</span><b>International Travel</b></div>
+                    <div><span>Group</span><b>NRI Parent Service</b></div>
+                    <div><span>Purchase via</span><b>Preventia360</b></div>
+                  </div>
+                </div>
+              </div>
+              <Chip cls="c1" icon="shield" stroke={2.6} title="Eligible medical emergencies" sub="Covered as per plan terms" />
+            </div>
+          </Stop>
+
+          <Stub id="ch-care" n="02" word="two" title="Care" text="Doctors and a helping hand, wherever you are." />
+
+          <Stop n={3} title="Virtual Doctor Consultation" link={['Book a Consultation', site.contactUrl]}
+            text="Video consultations with a doctor from home. You can join the call from abroad.">
+            <div className="o3 tb3">
+              <div className="tb-dev">
+                <div className="tb-scr">
+                  <div className="doc"><span className="av"><Icon name="steth" stroke={1.6} className="" /></span><b>Your doctor</b><small>Video consultation</small></div>
+                  <span className="live2"><i />Live · 12:04</span>
+                  <div className="tile t-parent"><img src={tileParent} alt="" /><span>Amma · Pune</span></div>
+                  <div className="tile t-you">R<span>You · Toronto</span></div>
+                  <div className="tb-ctl">
+                    <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M19 10a7 7 0 0 1-14 0M12 17v5" /></svg></i>
+                    <i><Icon name="video" className="" /></i>
+                    <i className="end"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" transform="rotate(135 12 12)" /></svg></i>
+                  </div>
+                </div>
+              </div>
+              <Chip cls="c1" title="Prescription shared" sub="Sent to you on WhatsApp" />
+            </div>
+          </Stop>
+
+          <Stop rev n={4} title="Sahayak" primary link={['Book a Sahayak', site.sahayakUrl]} objClass="tall"
+            text="A trusted helping hand for hospital visits, doctor appointments, healthcare needs and everyday assistance.">
+            <div className="o3 ph3">
+              <div className="lay ph-bk" />
+              <div className="ph-card"><img src={sahayakPhoto} alt="" /></div>
+              <Chip cls="c1" icon="calendar" stroke={2.4} title="Hospital visit" sub="Today, 10:30 AM" />
+            </div>
+          </Stop>
+
+          <Stub id="ch-health" n="03" word="three" title="Health" text="Proactive health support, arranged from abroad." />
+
+          <Stop n={5} title="Gift Health" link={['Ask about Gift Health', site.contactUrl]} objClass="tall"
+            text="Give your parents the gift of better health, care and proactive support — even from miles away.">
+            <div className="o3 gb3">
+              <div className="cube"><div className="in" /><div className="face b" /><div className="face l" /><div className="face r" /><div className="face f" /></div>
+              <div className="voucher"><span>Gift Health</span><b>A health checkup for Amma</b><small>With love, from Toronto</small></div>
+              <div className="lid"><div className="top" /><div className="face b" /><div className="face l" /><div className="face r" /><div className="face f" /><div className="bow" /></div>
+              <Chip cls="c1" icon="heart" stroke={2.4} title="Sent from abroad" sub="Received at home in India" />
+            </div>
+          </Stop>
+
+          <Stop rev n={6} title="Fit2Fly" link={['Ask about Fit2Fly', site.contactUrl]} objClass="tall"
+            text="Prepare your parents for safe and confident travel with the right health assessment before their journey.">
+            <div className="o3 ff3">
+              <div className="clip" />
+              <div className="paper">
+                <span className="t">Fit2Fly · Assessment</span>
+                <h4>Pre-travel health check</h4>
+                <div className="who2"><span>Passenger <b>Papa</b></span><span>Route <b>HYD → LHR</b></span></div>
+                {['Vitals reviewed', 'Doctor consultation', 'Travel medicines', 'Ready for the journey'].map((r) => (
+                  <div className="row" key={r}>{r}<i><Check w={3.4} /></i></div>
+                ))}
+              </div>
+              <div className="clip-top" />
+              <div className="stamp">Ready<br />to fly</div>
+            </div>
+          </Stop>
+
+          <div className="jr-end">
+            <span className="pin-pt" data-pt><Icon name="pin" className="" />Arrived <small>· Your parents, cared for</small></span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

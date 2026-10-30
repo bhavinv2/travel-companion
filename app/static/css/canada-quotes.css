@@ -198,7 +198,8 @@
 .cq-error { border-style: solid; border-color: var(--cq-warn); background: var(--cq-warn-soft); color: var(--cq-warn); }
 
 /* ---------- middle panel ---------- */
-.cq-mid { position: sticky; top: 88px; max-height: calc(100vh - 104px); overflow: auto; scrollbar-width: thin; border-radius: 22px; }
+/* the filters, then the picks in their own box under them: no fixed height, so no scrollbar inside the column */
+.cq-mid { display: grid; gap: 16px; align-content: start; }
 .cq-panel { background: var(--cq-card); border: 1px solid var(--cq-line); border-radius: 22px; box-shadow: var(--cq-shadow); padding: 18px; display: grid; gap: 16px; }
 .cq-panel-hd { display: flex; justify-content: space-between; align-items: center; }
 .cq-panel-hd h2 { font-size: 19px; margin: 0; }
@@ -206,6 +207,7 @@
 .cq-reset:focus-visible { outline: 2px solid var(--cq-amber); border-radius: 4px; }
 .cq-f { display: grid; gap: 8px; min-width: 0; }
 .cq-f-row { grid-template-columns: 1fr 1fr; gap: 12px; }
+.cq-f-row > * { min-width: 0; }
 .cq-lbl { font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--cq-soft); }
 .cq-seg { display: flex; background: var(--cq-line2); border-radius: 12px; padding: 4px; gap: 4px; }
 .cq-seg button { all: unset; flex: 1; text-align: center; cursor: pointer; border-radius: 9px; padding: 8px 6px; font-size: 13px; font-weight: 600; color: var(--cq-ink2); line-height: 1.2; }
@@ -231,17 +233,20 @@
 .cq-pre-row .cq-seg button { padding: 5px 4px; font-size: 12px; }
 .cq-select { width: 100%; border: 1.5px solid var(--cq-line); border-radius: 11px; padding: 8px 10px; background: var(--cq-card); color: var(--cq-ink); font: inherit; font-size: 13px; }
 
-.cq-picks { border-top: 1px solid var(--cq-line); padding-top: 14px; display: grid; gap: 10px; }
+.cq-picks { display: grid; gap: 10px; }
+.cq-picks-box { border-top: 4px solid var(--cq-amber); }
+.cq-picks-hd b { font-family: 'Fraunces', Georgia, serif; font-size: 18px; font-weight: 600; }
 .cq-picks-hd { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
 .cq-picks-hd span { min-width: 24px; height: 24px; border-radius: 999px; background: var(--cq-navy); color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 800; padding: 0 7px; }
 .cq-picks ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.cq-picks li { display: grid; grid-template-columns: 6px 1fr auto auto; gap: 10px; align-items: center; background: var(--cq-bg); border-radius: 12px; padding: 9px 10px; font-size: 12.5px; }
-.cq-picks li::before { content: ""; width: 6px; height: 100%; min-height: 30px; border-radius: 4px; background: var(--cq-std); }
+/* a pick: the plan and cover, what it is under it, the price on its own line -- no squeezing in a narrow column */
+.cq-picks li { display: grid; grid-template-columns: 5px minmax(0, 1fr) 24px; grid-template-rows: auto auto; gap: 3px 10px; align-items: center; background: var(--cq-bg); border-radius: 12px; padding: 10px 8px 10px 10px; font-size: 12.5px; }
+.cq-picks li::before { content: ""; grid-row: 1 / 3; align-self: stretch; width: 5px; border-radius: 4px; background: var(--cq-std); }
 .cq-picks li.e::before { background: var(--cq-enh); }
 .cq-picks li b { display: block; font-size: 13px; }
 .cq-picks li span { color: var(--cq-soft); }
-.cq-picks li .amt { font-weight: 800; font-variant-numeric: tabular-nums; }
-.cq-picks li button { all: unset; cursor: pointer; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: var(--cq-soft); font-size: 18px; }
+.cq-picks li .amt { grid-column: 2; grid-row: 2; font-weight: 800; font-size: 14.5px; color: var(--cq-ink); font-variant-numeric: tabular-nums; }
+.cq-picks li button { grid-column: 3; grid-row: 1 / 3; all: unset; cursor: pointer; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: var(--cq-soft); font-size: 18px; }
 .cq-picks li button:hover { background: var(--cq-line2); color: var(--cq-red); }
 .cq-picks-empty { margin: 0; font-size: 12.5px; color: var(--cq-soft); line-height: 1.5; }
 .cq-cta { all: unset; box-sizing: border-box; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; background: var(--cq-amber); color: #2B1A00; font-weight: 800; font-size: 15px; border-radius: 14px; padding: 13px 16px; box-shadow: 0 12px 24px -14px rgba(245, 166, 35, .9); transition: transform .12s, background .12s; }
@@ -298,6 +303,10 @@
 .cq-ok-ref { font-size: 13px; color: var(--cq-soft) !important; }
 
 .cq-bar { display: none; }
+.cq-bar:not([hidden]) { display: flex; position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px; z-index: 900; width: min(520px, calc(100% - 108px)); background: var(--cq-navy); color: #fff; border-radius: 18px; padding: 8px 8px 8px 18px; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 18px 40px -16px rgba(0, 0, 0, .6); font-size: 14px; }
+.cq-bar-see { all: unset; cursor: pointer; color: #fff; font-weight: 600; }
+.cq-bar-see:hover { text-decoration: underline; }
+.cq-bar-see:focus-visible { outline: 2px solid var(--cq-amber); outline-offset: 3px; border-radius: 4px; }
 
 /* ---------- narrower desks ---------- */
 @media (max-width: 1440px) {
@@ -314,7 +323,7 @@
 @media (max-width: 960px) {
   .cq-wrap { padding: 0 16px; }
   .cq-board { grid-template-columns: minmax(0, 1fr); gap: 14px; padding-top: 18px; }
-  .cq-mid { position: static; max-height: none; overflow: visible; order: 1; }
+  .cq-mid { order: 1; }
   .cq-tabs { order: 2; display: flex; background: var(--cq-card); border: 1px solid var(--cq-line); border-radius: 14px; padding: 4px; gap: 4px; position: sticky; top: 64px; z-index: 5; box-shadow: var(--cq-shadow); }
   .cq-tabs button { all: unset; flex: 1; text-align: center; cursor: pointer; border-radius: 10px; padding: 10px; font-weight: 700; font-size: 14px; color: var(--cq-ink2); }
   .cq-tabs button[data-tab="s"][aria-selected="true"] { background: var(--cq-std); color: #fff; }
@@ -324,8 +333,8 @@
   .cq-board[data-show="s"] .cq-enh, .cq-board[data-show="e"] .cq-std { display: none; }
   .cq-col-hd { grid-template-columns: 38px 1fr auto; }
   .cq-col-ic { width: 38px; height: 38px; }
-  /* right: room for the site's chat bubble, which sits in that corner */
-  .cq-bar:not([hidden]) { display: flex; position: fixed; left: 12px; right: 84px; bottom: 16px; z-index: 900; background: var(--cq-navy); color: #fff; border-radius: 18px; padding: 10px 10px 10px 18px; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 18px 40px -16px rgba(0, 0, 0, .6); font-size: 14px; }
+  /* phones: full width, leaving room for the site's chat bubble in the right-hand corner */
+  .cq-bar:not([hidden]) { left: 12px; right: 84px; width: auto; transform: none; bottom: 16px; }
   .cq-ben-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); font-size: 12.5px; gap: 8px; }
   .cq-benefits { padding: 16px; }
 }
