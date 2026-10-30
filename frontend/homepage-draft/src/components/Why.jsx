@@ -1,4 +1,5 @@
 import Bg from './Bg.jsx';
+import { Doodles, Note } from './Deco.jsx';
 import { useReveal } from '../hooks.js';
 import whyBg from '../assets/photos/ins-story-senior.jpg';
 import local from '../assets/photos/why-local.jpg';
@@ -25,6 +26,9 @@ export default function Why() {
   return (
     <section className="sc sc-dark why" id="why" aria-labelledby="why-h">
       <Bg src={whyBg} pos="center 35%" />
+      <Note at={{ top: '84px', left: 'max(24px, calc(50% - 640px))' }} rotate={-6} icon="heart">Families first</Note>
+      <Doodles items={[['users', { top: '12%', right: '4%', size: 34, rotate: 8, opacity: 0.22 }], ['shield', { top: '58%', left: '2.5%', size: 30, rotate: -8, opacity: 0.2 }],
+        ['heart', { top: '70%', right: '3%', size: 26, rotate: 10, opacity: 0.22 }]]} />
       <div className="wrap">
         <div className="sc-head center rv-up" ref={head}>
           <span className="kick">Why families choose us</span>

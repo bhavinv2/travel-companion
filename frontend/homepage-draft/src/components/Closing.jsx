@@ -1,10 +1,12 @@
 import Bg from './Bg.jsx';
+import { Doodles, Snap, Trail } from './Deco.jsx';
 import Icon from './Icon.jsx';
 import { Brand } from './Nav.jsx';
 import { site, talk, TALK } from '../data/site.js';
 import { useReveal, useScroll } from '../hooks.js';
 import ctaPhoto from '../assets/photos/cta-care.jpg';
 import landmarks from '../assets/photos/landmarks.webp';
+import snapAbroad from '../assets/photos/tc-l5.jpg';
 import coverUsa from '../assets/blog/travel-insurance-parents-usa.jpg';
 import coverClaim from '../assets/blog/claim-process.jpg';
 import coverAlone from '../assets/blog/parents-living-alone.jpg';
@@ -40,6 +42,8 @@ export function Blog() {
   return (
     <section className="sc sc-landmarks blog" id="resources" aria-labelledby="blog-h">
       <Bg src={landmarks} pos="center bottom" />
+      <Doodles items={[['globe', { top: '8%', right: '3%', size: 32, rotate: 10 }], ['pin', { top: '20%', left: '2.5%', size: 26, rotate: -8 }]]} />
+      <Trail at={{ top: '70px', right: 'max(200px, calc(50% - 420px))' }} width={170} />
       <div className="wrap">
         <div className="sec-h rv-up" ref={head}>
           <div>
@@ -69,9 +73,8 @@ export function Blog() {
   );
 }
 
-/* The travel-insurance page's "Ready to Travel With More Confidence?" panel
- * (frontend/insurance/src/components/FinalCTA.tsx): same photo, scrim, flight path and layout,
- * with this page's words and links. */
+/* The last word: one compact band -- the photo of a mother and her Sahayak, the promise, the two
+ * actions -- with a flight path from a snapshot of where you are to the photo of where they are. */
 export function FinalCTA({
   title = 'You May Be Miles Away. Your Care Doesn’t Have to Be.',
   lead = 'Give your parents the support they deserve, right here in India.',
@@ -79,20 +82,23 @@ export function FinalCTA({
 }) {
   const box = useReveal();
   return (
-    <section className="fcta-sec" id="book" aria-labelledby="final-h">
+    <section className="fcta2-sec" id="book" aria-labelledby="final-h">
       <div className="wrap rv-up" ref={box}>
-        <div className="fcta">
-          <img className="fcta-bg" src={ctaPhoto} loading="lazy" decoding="async"
-            alt="An elderly mother at home in India on a tablet video call, with her Sahayak beside her" />
-          <span className="fcta-scrim" aria-hidden="true" />
-          <span className="fcta-script">{script[0]}<br />{script[1]}</span>
-          <div className="fcta-copy">
-            <h2 className="fcta-h" id="final-h">{title}</h2>
-            <p className="fcta-lead">{lead}</p>
-            <div className="fcta-btns">
-              <a className="btn fcta-a" href={site.contactUrl} onClick={talk}>{TALK}</a>
-              <a className="btn fcta-b" href={site.sahayakUrl}>Book a Sahayak</a>
-            </div>
+        <div className="fcta2">
+          <Snap src={snapAbroad} caption="You, abroad" at={{ top: '-56px', right: '-40px' }} rotate={7} width={96} tone="amber" />
+          <Trail at={{ top: '-40px', right: '96px' }} width={260} flip />
+          <div className="fcta2-ph">
+            <img src={ctaPhoto} loading="lazy" decoding="async"
+              alt="An elderly mother at home in India on a tablet video call, with her Sahayak beside her" />
+          </div>
+          <div className="fcta2-copy">
+            <span className="fcta2-script">{script[0]} {script[1]}</span>
+            <h2 className="fcta2-h" id="final-h">{title}</h2>
+            <p className="fcta2-lead">{lead}</p>
+          </div>
+          <div className="fcta2-btns">
+            <a className="btn fcta-a" href={site.contactUrl} onClick={talk}>{TALK}</a>
+            <a className="btn fcta-b" href={site.sahayakUrl}>Book a Sahayak</a>
           </div>
         </div>
       </div>

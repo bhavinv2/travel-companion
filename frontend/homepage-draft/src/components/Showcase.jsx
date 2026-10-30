@@ -1,4 +1,5 @@
 import Bg from './Bg.jsx';
+import { Doodles, Note, Snap, Trail } from './Deco.jsx';
 import Rail from './Rail.jsx';
 import { site } from '../data/site.js';
 import { useReveal } from '../hooks.js';
@@ -52,6 +53,13 @@ import pManipal from '../assets/about/partner-manipal.png';
 import pMax from '../assets/about/partner-max.png';
 import pStari from '../assets/about/partner-stari.png';
 import pIcici from '../assets/about/partner-icicrelom.png';
+// snapshots for the empty spaces (Deco.jsx)
+import snapUk from '../assets/photos/tc-l6.jpg';
+import snapSydney from '../assets/photos/tc-l7.jpg';
+import snapVitals from '../assets/photos/sah-svc-vitals.jpg';
+import snapUpdate from '../assets/photos/why-updates.jpg';
+import snapWell from '../assets/photos/sah-svc-wellness.jpg';
+import snapWalk from '../assets/photos/ins-story-senior.jpg';
 
 /* The home page's four services, each drawn the way its own page draws it -- the same photos, the
  * same words, the same colours -- on a photo that runs edge to edge behind the section. What each
@@ -100,6 +108,12 @@ export function Companion() {
   return (
     <section className="sc sc-dark sc-tc" id="companion" aria-labelledby="tc-h">
       <Bg src={tcBg} pos="center 35%" />
+      <Doodles items={[
+        ['plane', { top: '6%', left: '2.5%', size: 32, rotate: -12, opacity: 0.22 }],
+        ['globe', { top: '44%', left: '2%', size: 30, rotate: 8, opacity: 0.18 }],
+        ['pin', { top: '8%', right: '3%', size: 28, rotate: 10, opacity: 0.2 }],
+        ['heart', { top: '60%', right: '2.5%', size: 26, rotate: -8, opacity: 0.2 }],
+      ]} />
       <div className="wrap sc-grid">
         <div>
           <Head kick="Travel Companion" id="tc-h" title="Their Journey, Our Support —" accent="a Safer, Happier Trip."
@@ -113,6 +127,8 @@ export function Companion() {
           </div>
         </div>
         <div className="sc-media rv-zoom" ref={media}>
+          <Note at={{ top: '-42px', right: '6%' }} rotate={-4} icon="plane">Same flight, same language</Note>
+          <Trail at={{ top: '-58px', left: '-150px' }} width={190} tone="amber" />
           <img className="sc-photo" src={tcPlane} loading="lazy" decoding="async"
             alt="An elderly couple on a flight, chatting with the travel companion beside them" />
           <div className="bpass" aria-hidden="true">
@@ -171,6 +187,14 @@ export function Insurance() {
           </div>
           {price && <p className="sc-price">Travel insurance: <b>{price}</b></p>}
         </div>
+        <div className="sc-collage" aria-hidden="true">
+          <Snap src={snapUk} caption="Covered every corner." at={{ top: '0%', right: '4%' }} rotate={5} width={170} tone="amber" />
+          <Trail at={{ top: '34%', left: '18%' }} width={200} flip />
+          <Snap src={snapSydney} caption="Protected every mile." at={{ top: '50%', left: '6%' }} rotate={-6} width={160} />
+          <Note at={{ bottom: '4%', right: '8%' }} rotate={-5} icon="plane" tone="blue">Insured before takeoff</Note>
+          <Doodles items={[['shield', { top: '8%', left: '20%', size: 34, rotate: -8, opacity: 0.2 }],
+            ['globe', { top: '62%', right: '14%', size: 30, rotate: 10, opacity: 0.2 }]]} />
+        </div>
       </div>
       <div className="wrap">
         <div className="tiles six rv-stagger" ref={tiles}>
@@ -220,6 +244,14 @@ export function Sahayak() {
           </div>
           {price && <p className="sc-price">Sahayak visits from <b>{price}</b></p>}
         </div>
+        <div className="sc-collage" aria-hidden="true">
+          <Snap src={snapVitals} caption="Vitals checked, 10:12" pos="100% 50%" at={{ top: '2%', left: '4%' }} rotate={-6} width={170} />
+          <Note at={{ top: '40%', left: '38%' }} rotate={-4} tone="blue">The same face each time</Note>
+          <Trail at={{ top: '54%', left: '10%' }} width={190} />
+          <Snap src={snapUpdate} caption="Update shared with you" pos="center 30%" at={{ bottom: '0%', right: '8%' }} rotate={5} width={165} tone="amber" />
+          <Doodles items={[['steth', { top: '12%', right: '16%', size: 34, rotate: 10, opacity: 0.2 }],
+            ['heart', { bottom: '18%', left: '14%', size: 28, rotate: -10, opacity: 0.22 }]]} />
+        </div>
       </div>
       <div className="wrap">
         <div className="tiles four rv-stagger" ref={grid}>
@@ -253,6 +285,11 @@ export function Health() {
   return (
     <section className="sc sc-dark sc-health" id="health" aria-labelledby="hl-h">
       <Bg src={hBg} pos="center 30%" />
+      <Snap src={snapWell} caption="Feeling well" pos="30% 50%" at={{ top: '70px', left: 'max(18px, calc(50% - 660px))' }} rotate={-6} width={150} />
+      <Snap src={snapWalk} caption="Out and about" pos="center 35%" at={{ top: '90px', right: 'max(18px, calc(50% - 660px))' }} rotate={5} width={140} />
+      <Doodles items={[['steth', { top: '46%', left: '2.5%', size: 32, rotate: -10, opacity: 0.2 }],
+        ['heart', { top: '50%', right: '2.5%', size: 28, rotate: 8, opacity: 0.2 }],
+        ['health', { top: '86%', left: '4%', size: 30, rotate: 6, opacity: 0.16 }]]} />
       <div className="wrap">
         <Head center kick="Health & Wellness" id="hl-h" title="Their Health," accent="Looked After From Abroad"
           script="Care that keeps them well."

@@ -1,10 +1,13 @@
 import Bg from './Bg.jsx';
+import { Doodles, Snap, Trail } from './Deco.jsx';
 import { site, talk, TALK } from '../data/site.js';
 import { useReveal } from '../hooks.js';
 import mapBg from '../assets/photos/ins-world-map.jpg';
 import askPhoto from '../assets/photos/support-agent.webp';
 import arrangePhoto from '../assets/photos/sah-svc-demo.jpg';
 import updatePhoto from '../assets/photos/why-updates.jpg';
+import youAbroad from '../assets/photos/tc-l4.jpg';
+import themAtHome from '../assets/photos/hero-parent-care.jpg';
 
 /* "How it works": the three steps from a first message to the updates, each with its own photo,
  * and the prices the service pages publish (routes/homepage_draft.py _prices) -- each shown only
@@ -25,6 +28,12 @@ export default function Steps() {
   return (
     <section className="sc sc-map how" id="how" aria-labelledby="how-h">
       <Bg src={mapBg} pos="center" />
+      <Snap src={youAbroad} caption="You, abroad" pos="center 60%" at={{ top: '64px', left: 'max(18px, calc(50% - 660px))' }} rotate={-6} width={150} />
+      <Trail at={{ top: '96px', left: 'max(180px, calc(50% - 500px))' }} width={150} />
+      <Trail at={{ top: '96px', right: 'max(180px, calc(50% - 500px))' }} width={150} flip />
+      <Snap src={themAtHome} caption="Them, at home" pos="70% 30%" at={{ top: '64px', right: 'max(18px, calc(50% - 660px))' }} rotate={5} width={150} tone="amber" />
+      <Doodles items={[['chat', { top: '58%', left: '2.5%', size: 30, rotate: -8 }], ['calendar', { top: '62%', right: '2.5%', size: 30, rotate: 8 }],
+        ['heart', { top: '90%', left: '6%', size: 26, rotate: 10 }]]} />
       <div className="wrap">
         <div className="sc-head center rv-up" ref={head}>
           <span className="kick">How it works</span>
