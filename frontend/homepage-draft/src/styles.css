@@ -26,10 +26,12 @@ html{scroll-behavior:smooth}
 @keyframes wiggle{0%,60%,100%{transform:rotate(0) scale(1)}70%{transform:rotate(-10deg) scale(1.08)}80%{transform:rotate(9deg) scale(1.08)}90%{transform:rotate(-5deg)}}
 @keyframes dlgIn{from{opacity:0;transform:translateY(24px) scale(.96)}to{opacity:1;transform:none}}
 @keyframes dlgBg{from{opacity:0}to{opacity:1}}
-@keyframes orbSpin{to{transform:rotate(360deg)}}
-@keyframes orbSpinRev{to{transform:rotate(-360deg)}}
+@property --turn{syntax:'<angle>';inherits:true;initial-value:0deg}
+@keyframes orbTurn{to{--turn:360deg}}
 @keyframes orbPulse{0%{transform:scale(1);opacity:.55}100%{transform:scale(1.45);opacity:0}}
 @keyframes drift{0%,100%{translate:0 0}50%{translate:0 -8px}}
+@keyframes hsvcIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes hsvcRun{from{width:0}to{width:100%}}
 @keyframes orbCard{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 
 .hpd{
@@ -111,62 +113,59 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .mmenu nav a{padding:14px 0;border-bottom:1px solid var(--line);color:var(--ink);font-weight:600;text-decoration:none;font-size:17px}
 .mmenu .mm-cta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
 
-/* ---------- hero (height matches the travel-insurance banner) ---------- */
-.hero{position:relative;background:var(--pn);color:#fff;overflow:hidden}
-.slides{position:relative;display:grid}
-.slide{grid-area:1/1;position:relative;inset:auto;display:flex;align-items:center;min-height:clamp(580px,52vw,700px);background:none;opacity:0;visibility:hidden;transition:opacity 1s ease,visibility 0s 1s}
-.slide.on{opacity:1;visibility:visible;transition:opacity 1s ease,visibility 0s}
-/* Photo on the right, shown clear: no zoom, no tint over it. The source photos are small
-   (the travel one is 632px wide), so the panel stays narrow enough not to stretch them soft.
-   Only its left edge fades, into the solid navy the text sits on. */
-.bg{position:absolute;top:0;right:0;bottom:0;width:56%;overflow:hidden;background:var(--pn)}
-.bg.narrow{width:46%}
-.bg img{width:100%;height:100%;object-fit:cover}
-.bg::before{content:"";position:absolute;top:0;bottom:0;left:0;z-index:1;width:28%;pointer-events:none;background:linear-gradient(90deg,#0F1C55,rgba(15,28,85,0))}
-.slide .wrap{position:relative;z-index:2;width:100%;padding-block:72px 120px}
-/* Parent Care and Health & Wellness: the travel-insurance banner's treatment
-   (frontend/insurance/src/styles/global.css .hero / .hero-bg) -- the people on the right, the
-   insurance navy behind the text on the left, the photo toned slightly, its navy fade from the
-   left and a second one top to bottom. Same values, same navy.
-   The photo is anchored to the right rather than stretched across: these two are small
-   (1040x809 and a 560x809 portrait), so at banner width they would be zoomed soft and the
-   people would land under the text. Sized like this, each shows at about its own size. */
-.slide.full{background:#011038}
-.slide.full::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(90deg,rgba(1,16,56,.80) 0%,rgba(1,16,56,.55) 36%,rgba(1,16,56,.18) 64%,rgba(1,16,56,.02) 100%)}
-.slide.full .bg{top:0;right:0;bottom:0;left:auto;width:62%;height:auto;background:#011038}
-.slide.full .bg.narrow{width:42%}
-.slide.full .bg img{filter:saturate(.84) brightness(.93) contrast(1.03)}
-.slide.full .bg::before{top:0;bottom:0;left:0;right:auto;width:38%;height:auto;background:linear-gradient(90deg,#011038,rgba(1,16,56,0))}
-.slide.full .bg::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(180deg,rgba(1,16,56,.34) 0%,rgba(1,16,56,.12) 34%,rgba(1,16,56,.55) 74%,#011038 100%)}
-.slide.full .hx{text-shadow:0 4px 24px rgba(1,16,56,.35)}
-.copy{max-width:600px}
-/* the outgoing slide's words leave at once, so two headlines never overlap while the photos cross-fade */
-.slide:not(.on) .copy{opacity:0;transition:opacity .25s}
-.tagline{display:block;font:600 30px/1.2 'Caveat','Segoe Script','Bradley Hand',cursive;color:#fff;margin:0 0 10px;transform:rotate(-2deg);transform-origin:left}
-.pill{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);font-size:13.5px;font-weight:700;color:#fff}
-.pill svg{width:16px;height:16px;color:#A9BBF5}
-.hx{font:800 62px/1.05 var(--body);letter-spacing:-.03em;margin:20px 0 20px;color:#fff;text-wrap:balance}
+/* ---------- hero: the care circle (Hero.jsx) ---------- */
+.hero2{position:relative;isolation:isolate;overflow:hidden;color:#fff;background:#011038;padding:56px 0 84px}
+.hero2 .secbg::after{background:linear-gradient(100deg,rgba(1,16,56,.96) 0%,rgba(1,16,56,.9) 40%,rgba(1,16,56,.74) 70%,rgba(1,16,56,.62) 100%)}
+.hero2-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.02fr);gap:40px;align-items:center}
+.hero2-copy{min-width:0}
+.tagline{display:block;font:600 30px/1.2 'Caveat','Segoe Script','Bradley Hand',cursive;color:#FFC56B;margin:0 0 8px;transform:rotate(-2deg);transform-origin:left}
+.hmsg{min-height:300px}
+.hpill{margin-bottom:4px;--c:#8DB0FF}
+.hx{font:800 50px/1.06 var(--body);letter-spacing:-.03em;margin:16px 0 14px;color:#fff;text-wrap:balance}
 .hx .w{display:inline-block;overflow:hidden;vertical-align:top;padding-bottom:.08em}
 .hx .w>span{display:inline-block;animation:wordUp .8s var(--ease) both;animation-delay:var(--d)}
-.s-p{font-size:19px;line-height:1.6;color:rgba(255,255,255,.9);margin:0 0 32px;max-width:540px}
-.s-ctas{display:flex;gap:12px;flex-wrap:wrap}
+.s-p{font-size:18px;line-height:1.6;color:rgba(255,255,255,.88);margin:0 0 22px;max-width:540px}
+.hmsg .tagline,.hmsg .hpill,.hmsg .s-p{animation:up .8s var(--ease) both}
+.hmsg .s-p{animation-delay:.45s}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:color-mix(in srgb,var(--c) 22%,transparent);border:1px solid color-mix(in srgb,var(--c) 55%,transparent);font-size:12.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#fff}
+.pill svg{width:15px;height:15px}
+/* the service in front: its photo and words, sliding in when it changes, a bar running to the next */
+.hsvc{position:relative;display:grid;grid-template-columns:132px minmax(0,1fr);gap:18px;align-items:center;max-width:560px;padding:14px 18px 14px 14px;border-radius:22px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);overflow:hidden;animation:hsvcIn .55s var(--ease)}
+.hsvc-ph img{width:132px;height:132px;border-radius:16px;object-fit:cover;box-shadow:0 0 0 3px var(--c)}
+.hsvc-b h2{margin:10px 0 6px;font:800 24px/1.15 var(--body);color:#fff;letter-spacing:-.01em}
+.hsvc-b p{margin:0;font-size:15px;line-height:1.55;color:rgba(255,255,255,.86)}
+.hsvc-bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.12)}
+.hsvc-bar i{display:block;height:100%;width:0;background:var(--c)}
+.hsvc-bar i.run{animation:hsvcRun 5s linear forwards}
+.s-ctas{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
 .btn-hero{background:#fff;color:var(--pd)}
 .btn-hero:hover{background:var(--pt);color:var(--pd);transform:translateY(-2px)}
 .btn-ghost{background:rgba(255,255,255,.08);color:#fff;border:1.5px solid rgba(255,255,255,.4)}
 .btn-ghost:hover{background:rgba(255,255,255,.16);border-color:#fff;color:#fff}
-.slide.on .tagline,.slide.on .pill,.slide.on .s-p,.slide.on .s-ctas{animation:up .9s var(--ease) both}
-.slide.on .pill{animation-delay:.06s}
-.slide.on .s-p{animation-delay:.5s}
-.slide.on .s-ctas{animation-delay:.62s}
-/* brand badge: the travel-insurance banner's, same mark and lockup */
-.hero-badge{position:absolute;z-index:3;right:max(40px,env(safe-area-inset-right,0px));bottom:110px;display:flex;align-items:center;gap:12px;background:#fff;border-radius:16px;padding:12px 20px 12px 14px;box-shadow:0 18px 40px rgba(1,16,56,.28);animation:bob 6s ease-in-out infinite}
-/* above the service cards that overlap the hero's foot */
-.hero-badge{bottom:160px}
-.hero-badge img{display:block;height:44px;width:auto;flex-shrink:0}
-.hero-badge-tx{display:flex;flex-direction:column;line-height:1.12}
-.hero-badge-tx b{font-family:var(--body);font-size:19px;font-weight:700;color:#011038;letter-spacing:-.01em}
-.hero-badge-tx b.hb-blue{color:#004EFE}
-.hero-badge-tx span{margin-top:3px;font-size:11.5px;font-weight:500;color:#5A6478;letter-spacing:.01em}
+/* the original hero's controls: labelled buttons with a line that fills for the one showing, and arrows */
+.hctrl{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px 20px;margin-top:26px;max-width:600px}
+.hdots{display:flex;gap:18px;flex-wrap:wrap}
+.hdots button{display:flex;flex-direction:column;gap:8px;min-width:96px;padding:0;border:0;background:none;color:rgba(255,255,255,.6);font:700 13px/1.2 var(--body);text-align:left;cursor:pointer;transition:color .3s}
+.hdots button i{display:block;height:3px;border-radius:3px;background:rgba(255,255,255,.22);overflow:hidden;position:relative}
+.hdots button i::after{content:"";position:absolute;inset:0;width:0;background:#FFC56B;transition:width .5s var(--ease)}
+.hdots button.on{color:#fff}
+.hdots button.on i::after{width:100%}
+.harrows{display:flex;align-items:center;gap:8px}
+.harr{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;padding:0;border:1.5px solid rgba(255,255,255,.35);background:rgba(255,255,255,.06);color:#fff;cursor:pointer;transition:background .2s,border-color .2s}
+.harr:hover{background:rgba(255,255,255,.16);border-color:#fff}
+.harr svg{width:18px;height:18px}
+.hsvc-stop{padding:6px 12px;border:1px solid rgba(255,255,255,.3);border-radius:999px;background:transparent;color:rgba(255,255,255,.8);font:700 12px/1 var(--body);cursor:pointer}
+.hsvc-stop:hover{color:#fff;border-color:#fff}
+/* the circle on the navy: sized by its own width, so it fits whatever column it is in */
+.hero2 .orbit{container-type:inline-size;width:min(580px,100%);--R:35cqw;--s:18cqw}
+.hero2 .orb-centre{width:30cqw;height:30cqw;margin:-15cqw 0 0 -15cqw}
+.hero2 .orb-track{stroke:rgba(255,255,255,.32)}
+.hero2 .orb-lines line{stroke:rgba(255,255,255,.18)}
+.hero2 .orb-centre img{box-shadow:0 0 0 4px #E4613F,0 26px 50px -20px rgba(0,0,0,.7)}
+.hero2 .dd{color:#BFD1FF}
+.hero2 .dk{z-index:3}
+.hero2 .note{color:#FFC56B}
+.hero2 .trail{color:#F5B642}
 
 /* ---------- sections on their own photos (Bg.jsx): the photo edge to edge, a shade over it ---------- */
 .sc{position:relative;isolation:isolate;overflow:hidden;padding-block:104px}
@@ -195,18 +194,18 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .sc-landmarks{background:#fff}
 .sc-landmarks .secbg img{position:absolute;left:0;bottom:0;height:240px;object-fit:cover;object-position:center bottom;opacity:.2}
 
-.sc-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:64px;align-items:center}
-.sc-flip>:first-child{grid-column:2}
 .sc-head.center{text-align:center;display:flex;flex-direction:column;align-items:center;margin-bottom:44px}
 .sc-head.center .lede{margin:0 auto;max-width:680px}
 /* ticks drawn in CSS, as on the product pages' lists */
-.sc-points{list-style:none;display:grid;gap:13px;margin:24px 0 30px}
-.sc-points li{position:relative;padding-left:34px;font-size:16.5px;font-weight:600;line-height:1.45}
-.sc-points li::before{content:"";position:absolute;left:0;top:1px;width:22px;height:22px;border-radius:50%;background:#004EFE;box-shadow:0 0 0 4px rgba(0,78,254,.14)}
-.sc-points li::after{content:"";position:absolute;left:7px;top:7px;width:9px;height:5px;border-left:2.2px solid #fff;border-bottom:2.2px solid #fff;transform:rotate(-45deg)}
 .sc-dark .sc-points li::before{background:#F5A623;box-shadow:0 0 0 4px rgba(245,166,35,.22)}
 .sc-dark .sc-points li::after{border-color:#011038}
 .sc-ctas{display:flex;flex-wrap:wrap;gap:12px}
+.sc-band{padding-block:92px}
+.sc-band .sc-head.center{margin-bottom:28px}
+.sc-ctas.center{justify-content:center;margin-top:40px}
+.sc-price.center{text-align:center}
+.chips.row{display:flex;flex-wrap:wrap;justify-content:center;max-width:none;margin:0 auto}
+.sc-dark .btn-w{border-color:rgba(255,255,255,.45)}
 .sc-price{margin:18px 0 0;font-size:15px;color:var(--mut)}
 .sc-price b{color:#011038;font-size:17px}
 .sc-sub{margin:64px 0 0;font-size:13px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#004EFE}
@@ -218,29 +217,8 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .btn-amber{background:#F5A623;color:#011038;font-weight:700;box-shadow:0 16px 30px -14px rgba(245,166,35,.9)}
 .btn-amber:hover{background:#FFB547;color:#011038;transform:translateY(-2px)}
 
-/* ---------- picks: a card per service under the hero ---------- */
-.picks-wrap{position:relative;z-index:5;margin-top:-84px;padding-bottom:8px}
-.picks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
-.pick{display:flex;gap:16px;align-items:stretch;padding:14px;border-radius:22px;background:#fff;text-decoration:none;color:var(--ink);box-shadow:0 30px 60px -28px rgba(1,16,56,.5);border:1px solid rgba(1,16,56,.06);transition:transform .3s var(--ease),box-shadow .3s}
-.pick:hover{transform:translateY(-4px);box-shadow:0 36px 70px -26px rgba(1,16,56,.55);color:var(--ink)}
-.pick img{flex:none;width:112px;height:112px;border-radius:16px;object-fit:cover}
-.pick-b{display:flex;flex-direction:column;gap:4px;min-width:0}
-.pick-b b{font-size:18px;font-weight:800;color:#011038}
-.pick-b small{font-size:14px;line-height:1.45;color:var(--mut)}
-.pick-go{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14.5px;font-weight:800;color:#004EFE}
-.pick-companion .pick-go{color:#B76C0C}
-.pick-go em{font-style:normal;font-size:12.5px;font-weight:700;color:var(--mut);background:#F1F5FD;padding:4px 9px;border-radius:999px;white-space:nowrap}
-
 /* ---------- travel companion: the companion page's serif accent and amber ---------- */
 .sc-tc .h2 em{font:italic 600 1em/1.1 var(--disp);color:#F5B642;letter-spacing:-.01em}
-.sc-media{position:relative}
-.sc-photo{width:100%;aspect-ratio:1/1;max-height:520px;object-fit:cover;border-radius:28px;border:6px solid rgba(255,255,255,.14);box-shadow:0 40px 80px -30px rgba(0,0,0,.65)}
-.bpass{position:absolute;left:-36px;bottom:40px;display:grid;gap:4px;min-width:230px;padding:16px 20px;border-radius:18px;background:#FFF8EA;color:#011038;box-shadow:0 26px 50px -20px rgba(0,0,0,.55);transform:rotate(-4deg)}
-.bp-k{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#B76C0C}
-.bpass b{font-size:18px}
-.bp-route{display:flex;align-items:center;gap:10px;font:800 26px/1 var(--body);letter-spacing:.02em}
-.bp-route i{flex:1;min-width:40px;height:2px;background:repeating-linear-gradient(90deg,#B76C0C 0 6px,transparent 6px 12px)}
-.bp-tag{justify-self:start;margin-top:6px;padding:5px 10px;border-radius:999px;background:#F5A623;color:#011038;font-size:12px;font-weight:800}
 .routes{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;margin-top:18px}
 .route{position:relative;display:block;aspect-ratio:4/5;border-radius:20px;overflow:hidden;isolation:isolate;color:#fff;text-decoration:none;box-shadow:0 26px 50px -30px rgba(0,0,0,.7)}
 .route img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .8s var(--ease)}
@@ -271,14 +249,6 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .chips li{padding:12px 14px;border-radius:12px;background:#fff;border:1px solid #DCE5FB;border-left:3px solid #004EFE;font-size:14.5px;font-weight:700;color:#011038;box-shadow:0 10px 22px -18px rgba(1,16,56,.45)}
 
 /* ---------- health: three photo cards ---------- */
-.hcards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
-.hcard{display:flex;flex-direction:column;border-radius:24px;overflow:hidden;background:#fff;color:var(--ink);box-shadow:0 30px 60px -30px rgba(0,0,0,.6);transition:transform .35s var(--ease)}
-.hcard:hover{transform:translateY(-6px)}
-.hcard img{width:100%;aspect-ratio:16/10;object-fit:cover}
-.hcard-b{display:flex;flex-direction:column;gap:10px;flex:1;padding:22px 24px 24px}
-.hcard h3{font:800 21px/1.2 var(--body);color:#011038}
-.hcard p{flex:1;font-size:15px;line-height:1.6;color:var(--mut)}
-.hcard .lnk{color:#004EFE}
 
 /* ---------- how it works: a photo per step ---------- */
 .how-steps{list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:26px;margin:0;padding:0}
@@ -305,6 +275,8 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .hfaq-q[open]{border-color:#B9CCF8;box-shadow:0 18px 34px -24px rgba(15,28,85,.45)}
 .hfaq-q summary{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 22px;font-weight:700;font-size:16px;cursor:pointer;list-style:none;color:#011038}
 .hfaq-q summary::-webkit-details-marker{display:none}
+.hfaq-qt{display:flex;flex-direction:column;gap:4px;min-width:0}
+.hfaq-qt small{font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#B76C0C}
 .hfaq-pm{position:relative;flex:none;width:28px;height:28px;border-radius:50%;background:#E8EFFF}
 .hfaq-pm::before,.hfaq-pm::after{content:"";position:absolute;left:50%;top:50%;width:12px;height:2px;margin:-1px 0 0 -6px;border-radius:2px;background:#004EFE;transition:transform .35s var(--ease)}
 .hfaq-pm::after{transform:rotate(90deg)}
@@ -313,16 +285,28 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 
 /* ---------- tablet and phone, for the sections above ---------- */
 @media (max-width:1100px){
+.hero2-grid{grid-template-columns:minmax(0,1fr);gap:28px}
+.hero2 .orbit{width:min(520px,100%)}
+.hsvc{max-width:none}
+}
+@media (max-width:760px){
+.hero2{padding:36px 0 64px}
+.hx{font-size:32px}
+.hmsg{min-height:0}
+.s-p{font-size:16px}
+.hdots{gap:12px}
+.hdots button{min-width:0}
+.tagline{font-size:25px}
+.hsvc{grid-template-columns:84px minmax(0,1fr);gap:14px;padding:12px}
+.hsvc-ph img{width:84px;height:84px}
+.hsvc-b h2{font-size:19px;margin-top:8px}
+.hsvc-b p{font-size:14px}
+.s-ctas .btn{width:100%}
+}
+@media (max-width:1100px){
 .tiles.six{grid-template-columns:repeat(3,minmax(0,1fr))}
-.pick img{width:84px;height:84px}
-.pick-go{flex-wrap:wrap}
-.bpass{left:12px}
 }
 @media (max-width:900px){
-.sc-grid{grid-template-columns:minmax(0,1fr);gap:40px}
-.sc-flip>:first-child{grid-column:auto}
-.picks{grid-template-columns:minmax(0,1fr)}
-.hcards{grid-template-columns:minmax(0,1fr);max-width:560px;margin:0 auto}
 .routes{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;margin-right:-24px;padding-right:24px}
 .routes::-webkit-scrollbar{display:none}
 .route{flex:0 0 40%;scroll-snap-align:start}
@@ -332,16 +316,12 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .sc-dark .secbg::after{background:rgba(1,16,56,.84)}
 .sc-light .secbg::after{background:rgba(255,255,255,.9)}
 .sc-soft .secbg::after{background:rgba(238,243,255,.9)}
-.picks-wrap{margin-top:-48px}
 .tiles{margin-top:40px;gap:12px}
 .tiles.six,.tiles.four{grid-template-columns:repeat(2,minmax(0,1fr))}
 .tile-b b{font-size:15px}
 .route{flex-basis:62%}
 .routes{margin-right:-18px;padding-right:18px}
 .chips{grid-template-columns:minmax(0,1fr)}
-.sc-photo{aspect-ratio:4/3}
-.bpass{left:10px;bottom:-24px;min-width:200px;padding:12px 16px}
-.bp-route{font-size:22px}
 .how-steps{grid-template-columns:minmax(0,1fr);gap:18px}
 .hfaq-in{grid-template-columns:minmax(0,1fr);gap:24px}
 .hfaq-head{position:static}
@@ -413,25 +393,6 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 
 /* 1. boarding pass */
 .bp3{width:440px;height:220px}
-.bp-card{position:absolute;inset:0;display:grid;grid-template-columns:1fr 120px;border-radius:22px;background:#fff;box-shadow:0 40px 70px -34px rgba(15,28,85,.6);overflow:hidden;transform:translateZ(0)}
-.bp-main{display:flex;flex-direction:column}
-.bp-top{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:var(--pn);color:#fff;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
-.bp-top svg{width:16px;height:16px;color:#A9BBF5}
-.bp-route{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 20px 6px}
-.bp-route div b{display:block;font:800 34px/1 var(--body);letter-spacing:.02em;color:var(--pn)}
-.bp-route div small{display:block;font-size:11.5px;color:var(--mut);margin-top:4px;font-weight:600}
-.bp-route .fly{flex:1;display:flex;align-items:center;gap:6px;color:var(--p)}
-.bp-route .fly i{flex:1;border-top:2px dashed #C3CDE8}
-.bp-route .fly svg{width:20px;height:20px}
-.bp-meta3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:10px 20px 16px;margin-top:auto}
-.bp-meta3 span{display:block;font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
-.bp-meta3 b{display:block;font-size:13px;margin-top:3px;color:var(--ink)}
-.bp-stub{position:relative;border-left:2px dashed var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:14px;background:var(--pt)}
-.bp-stub::before,.bp-stub::after{content:"";position:absolute;left:-12px;width:22px;height:22px;border-radius:50%;background:var(--g)}
-.bp-stub::before{top:-11px}
-.bp-stub::after{bottom:-11px}
-.bp-stub img{width:68px;height:68px;border-radius:50%;object-fit:cover;border:3px solid #fff;box-shadow:0 8px 16px -8px rgba(15,28,85,.5)}
-.bp-stub span{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--pd);text-align:center}
 .bar{width:82px;height:26px;background:repeating-linear-gradient(90deg,var(--pn) 0 2px,transparent 2px 4px,var(--pn) 4px 5px,transparent 5px 8px)}
 .bp3 .c1{left:-40px;bottom:-46px;transform:translateZ(90px)}
 
@@ -576,6 +537,59 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 @media (max-width:340px){.obj{--s:.38;margin-left:-62px}}
 @media (min-width:761px) and (max-width:900px){.obj{--s:.54}}
 
+/* ---------- care circle: the services orbiting the parents ---------- */
+/* the orbit: --R is the ring's radius, --s a service circle's size */
+.orbit{--R:210px;--s:112px;--spin:40s;position:relative;width:600px;max-width:100%;aspect-ratio:1;margin:0 auto}
+.orb-ring{position:absolute;inset:0;animation:orbTurn var(--spin) linear infinite}
+.orb-lines{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.orb-track{fill:none;stroke:#C3CDE8;stroke-width:2;stroke-dasharray:2 9;stroke-linecap:round}
+.orb-lines line{stroke:#D5DCEE;stroke-width:1.5;transition:stroke .3s,stroke-width .3s}
+.orb-lines line.on{stroke-width:3}
+/* each service sits on the ring at its own angle plus the turn so far, and is turned back by the
+   same so it stays upright; the lines between them turn inside their own drawing */
+.orb-slot{position:absolute;left:50%;top:50%;width:var(--s);height:var(--s);margin:calc(var(--s) / -2) 0 0 calc(var(--s) / -2);transform:rotate(calc(var(--a) + var(--turn))) translateY(calc(var(--R) * -1)) rotate(calc((var(--a) + var(--turn)) * -1))}
+.orb-spin{transform:rotate(var(--turn));transform-origin:0 0}
+.orb-item{position:relative;display:block;width:100%;height:100%;padding:0;border:0;background:none;cursor:pointer;font-family:var(--body)}
+.orb-ph{display:block;width:100%;height:100%;border-radius:50%;overflow:hidden;border:4px solid #fff;box-shadow:0 0 0 3px var(--c),0 16px 30px -14px rgba(15,28,85,.55);transition:transform .4s var(--spring),box-shadow .3s}
+.orb-ph img{width:100%;height:100%;object-fit:cover;transition:transform .6s var(--ease)}
+.orb-ic{position:absolute;right:-2px;top:-2px;width:36px;height:36px;border-radius:50%;background:var(--c);color:#fff;display:grid;place-items:center;border:3px solid #fff;box-shadow:0 6px 14px -6px rgba(15,28,85,.5)}
+.orb-ic svg{width:17px;height:17px}
+.orb-name{position:absolute;left:50%;top:calc(100% + 8px);transform:translateX(-50%);white-space:nowrap;padding:6px 12px;border-radius:999px;background:#fff;color:var(--ink);font-size:13px;font-weight:700;box-shadow:0 8px 18px -10px rgba(15,28,85,.45);transition:background .3s,color .3s}
+.orb-item:hover .orb-ph,.orb-item.on .orb-ph{transform:scale(1.12);box-shadow:0 0 0 4px var(--c),0 0 0 12px color-mix(in srgb,var(--c) 20%,transparent),0 20px 36px -14px rgba(15,28,85,.6)}
+.orb-item:hover .orb-ph img{transform:scale(1.08)}
+.orb-item.on .orb-name{background:var(--c);color:#fff}
+.orb-item:focus-visible{outline:none}
+.orb-item:focus-visible .orb-ph{outline:3px solid var(--c);outline-offset:6px}
+/* The orbit stops only while a mouse pointer is over it (hover:hover leaves out touch screens,
+   where a tap would otherwise leave a hover that never ends) or while the keyboard is tabbing
+   through it (:focus-visible, which a click or tap does not set). A click or tap just picks. */
+@media (hover:hover){.orbit:hover .orb-ring{animation-play-state:paused}}
+.orbit:has(.orb-item:focus-visible) .orb-ring{animation-play-state:paused}
+/* the parents at the centre */
+.orb-centre{position:absolute;left:50%;top:50%;width:210px;height:210px;margin:-105px 0 0 -105px;z-index:2}
+.orb-centre img{position:relative;z-index:1;width:100%;height:100%;border-radius:50%;object-fit:cover;object-position:50% 30%;border:6px solid #fff;box-shadow:0 0 0 4px #E4613F,0 26px 50px -20px rgba(15,28,85,.55)}
+.orb-pulse{position:absolute;inset:0;border-radius:50%;background:#E4613F;animation:orbPulse 2.4s ease-out infinite}
+.orb-label{position:absolute;z-index:2;left:50%;bottom:-16px;transform:translateX(-50%);display:inline-flex;align-items:center;gap:7px;white-space:nowrap;padding:8px 16px;border-radius:999px;background:linear-gradient(90deg,#E4613F,#F59A6B);color:#fff;font-size:14px;font-weight:800;box-shadow:0 10px 22px -10px rgba(194,65,42,.8)}
+.orb-label svg{width:16px;height:16px}
+/* the picked service */
+
+/* the care circle on a tablet and a phone; it stands still for anybody who asks for less motion */
+@media (max-width:1100px){
+}
+@media (max-width:760px){
+.orbit{container-type:inline-size;width:min(350px,100%);--R:39cqw;--s:18.5cqw}
+.orb-centre{width:29cqw;height:29cqw;margin:-14.5cqw 0 0 -14.5cqw}
+.orb-pulse{animation-name:none}
+.orb-centre img{border-width:4px}
+.orb-label{font-size:11.5px;padding:5px 10px;bottom:-12px}
+.orb-ic{width:26px;height:26px;border-width:2px}
+.orb-ic svg{width:13px;height:13px}
+.orb-name{font-size:10.5px;padding:4px 8px;top:calc(100% + 4px)}
+.orb-ph{border-width:3px}
+}
+@media (prefers-reduced-motion:reduce){.orb-ring,.orb-item,.orb-pulse{animation:none!important}}
+/* veil: the photo soft behind the care circle, so the circle stays the picture */
+
 /* ---------- the small things in the empty spaces (Deco.jsx), as on the insurance and companion pages ---------- */
 .sc>.wrap,.jr>.wrap{position:relative;z-index:1}
 .dk{position:absolute;z-index:0;display:block;pointer-events:none}
@@ -602,9 +616,6 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .note.blue{color:#004EFE}
 .sc-dark .note{color:#FFC56B}
 /* the empty half of the insurance and Sahayak sections, where their snapshots go */
-.sc-collage{position:relative;min-height:440px}
-.sc-collage .note,.sc-collage .snap-cap{text-shadow:0 0 2px #fff,0 0 10px #fff,0 0 18px rgba(255,255,255,.9)}
-.sc-flip .sc-collage{grid-column:1;grid-row:1}
 .hfaq-deco{position:relative;display:block;height:250px;margin-top:28px}
 
 /* ---------- the last word: a compact band (Closing.jsx FinalCTA) ---------- */
@@ -624,11 +635,9 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 
 @media (max-width:1100px){
 .dk,.hfaq-deco{display:none}
-.sc-collage{min-height:0}
 .fcta2{grid-template-columns:200px minmax(0,1fr);gap:28px}
 .fcta2-btns{grid-column:1/-1;flex-direction:row;justify-content:center}
 }
-@media (max-width:900px){.sc-collage{display:none}}
 @media (max-width:760px){
 .fcta2{grid-template-columns:minmax(0,1fr);gap:18px;padding:18px 18px 24px;text-align:center}
 .fcta2-ph>img{height:180px}
@@ -810,12 +819,7 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .burger{display:grid}
 .nav-cta .btn-o{display:none}
 .h2{font-size:38px}
-.bg,.bg.narrow{width:48%}
-.copy{max-width:min(600px,50vw)}
 .hx{font-size:48px}
-.hero-badge{padding:10px 16px 10px 12px;gap:10px;right:20px;bottom:150px}
-.hero-badge img{height:38px}
-.hero-badge-tx b{font-size:17px}
 .wgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
 .rv-rail>*{flex:0 0 calc((100% - 16px) / 2)}
 .foot-g{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -849,21 +853,10 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .h2{font-size:31px}
 .lede{font-size:16.5px}
 .sec-h{margin-bottom:28px}
-.slide{min-height:0;align-items:flex-end}
-.bg,.bg.narrow{left:0;right:0;top:0;width:100%;bottom:auto;height:330px}
-.bg::before{top:auto;right:0;width:auto;height:30%;background:linear-gradient(to top,#0F1C55,rgba(15,28,85,0))}
-.copy{max-width:none}
-.slide.full::before{display:none}
 /* on a phone these two take the same top band as the Travel slide, text below on navy */
-.slide.full .bg,.slide.full .bg.narrow{left:0;width:100%;bottom:auto;height:330px}
-.slide.full .bg::before{top:auto;right:0;width:auto;height:30%;background:linear-gradient(to top,#011038,rgba(1,16,56,0))}
-.slide.full .bg::after{display:none}
-.slide .wrap{padding-block:250px 104px}
 .tagline{font-size:25px}
 .hx{font-size:36px;margin:16px 0 14px}
-.s-p{font-size:16.5px;margin-bottom:24px}
 .s-ctas .btn{width:100%}
-.hero-badge{display:none}
 
 
 

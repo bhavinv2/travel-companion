@@ -30,7 +30,10 @@ export default function Faq() {
         <div className="hfaq-list rv-stagger" ref={list}>
           {site.faqs.map((f, i) => (
             <details className="hfaq-q" key={i} style={{ '--d': `${i * 60}ms` }}>
-              <summary>{f.question}<span className="hfaq-pm" aria-hidden="true" /></summary>
+              <summary>
+                <span className="hfaq-qt">{f.service && <small>{f.service}</small>}{f.question}</span>
+                <span className="hfaq-pm" aria-hidden="true" />
+              </summary>
               <p>{f.answer}</p>
             </details>
           ))}

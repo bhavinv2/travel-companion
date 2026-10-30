@@ -1,7 +1,7 @@
 import Bg from './Bg.jsx';
 import { Doodles, Note, Snap, Trail } from './Deco.jsx';
 import Rail from './Rail.jsx';
-import { site } from '../data/site.js';
+import { site, talk, TALK } from '../data/site.js';
 import { useReveal } from '../hooks.js';
 // Travel Companion: the companion page's own photos (static/img/landing)
 import tcBg from '../assets/photos/ins-cta-parents.jpg';
@@ -42,11 +42,8 @@ import sInpatient from '../assets/photos/sah-svc-inpatient.jpg';
 import sPharmacy from '../assets/photos/sah-svc-pharmacy.jpg';
 import sVirtual from '../assets/photos/sah-svc-virtual-consult.jpg';
 import sOther from '../assets/photos/sah-svc-other.jpg';
-// Health & wellness
+// Health: the hospitals on the About page
 import hBg from '../assets/photos/sah-svc-demo.jpg';
-import hDoctor from '../assets/photos/doctor-consultation.jpg';
-import hGift from '../assets/photos/cta-care.jpg';
-import hFit from '../assets/photos/health-hero.jpg';
 import pApollo from '../assets/about/partner-apollo.png';
 import pHealthcare from '../assets/about/partner-healthcare.png';
 import pManipal from '../assets/about/partner-manipal.png';
@@ -54,31 +51,26 @@ import pMax from '../assets/about/partner-max.png';
 import pStari from '../assets/about/partner-stari.png';
 import pIcici from '../assets/about/partner-icicrelom.png';
 // snapshots for the empty spaces (Deco.jsx)
-import snapUk from '../assets/photos/tc-l6.jpg';
 import snapSydney from '../assets/photos/tc-l7.jpg';
-import snapVitals from '../assets/photos/sah-svc-vitals.jpg';
 import snapUpdate from '../assets/photos/why-updates.jpg';
 import snapWell from '../assets/photos/sah-svc-wellness.jpg';
 import snapWalk from '../assets/photos/ins-story-senior.jpg';
 
-/* The home page's four services, each drawn the way its own page draws it -- the same photos, the
- * same words, the same colours -- on a photo that runs edge to edge behind the section. What each
- * says about itself is what its live page says. */
+/* After the journey has walked through all six services, a band for each with what the journey
+ * does not show: the routes companions fly, what visitor insurance covers and who writes it, what
+ * a Sahayak handles, and the hospitals we work with. Each on a photo edge to edge, in its own
+ * page's colours and words. */
 
-function Head({ kick, id, title, accent, script, lede, center }) {
+function Head({ kick, id, title, accent, script, lede }) {
   const ref = useReveal();
   return (
-    <div className={`sc-head rv-up${center ? ' center' : ''}`} ref={ref}>
+    <div className="sc-head center rv-up" ref={ref}>
       <span className="kick">{kick}</span>
       <h2 className="h2" id={id}>{title} <em>{accent}</em></h2>
       {script && <span className="script-tag">{script}</span>}
       {lede && <p className="lede">{lede}</p>}
     </div>
   );
-}
-
-function Points({ items }) {
-  return <ul className="sc-points">{items.map((t) => <li key={t}>{t}</li>)}</ul>;
 }
 
 function Logos({ label, logos }) {
@@ -93,6 +85,9 @@ function Logos({ label, logos }) {
   );
 }
 
+// flanking the heading, outside the content (Deco.jsx hides them on narrow screens)
+const LEFT = 'max(18px, calc(50% - 660px))';
+
 // ------------------------------------------------------------------------------------------- companion
 const ROUTES = [
   { to: 'USA', img: rUsa, pos: 'center 60%' },
@@ -103,43 +98,18 @@ const ROUTES = [
 ];
 
 export function Companion() {
-  const media = useReveal();
   const routes = useReveal(0.1);
   return (
-    <section className="sc sc-dark sc-tc" id="companion" aria-labelledby="tc-h">
+    <section className="sc sc-dark sc-tc sc-band" id="companion" aria-labelledby="tc-h">
       <Bg src={tcBg} pos="center 35%" />
-      <Doodles items={[
-        ['plane', { top: '6%', left: '2.5%', size: 32, rotate: -12, opacity: 0.22 }],
-        ['globe', { top: '44%', left: '2%', size: 30, rotate: 8, opacity: 0.18 }],
-        ['pin', { top: '8%', right: '3%', size: 28, rotate: 10, opacity: 0.2 }],
-        ['heart', { top: '60%', right: '2.5%', size: 26, rotate: -8, opacity: 0.2 }],
-      ]} />
-      <div className="wrap sc-grid">
-        <div>
-          <Head kick="Travel Companion" id="tc-h" title="Their Journey, Our Support —" accent="a Safer, Happier Trip."
-            script="Safer journeys, together."
-            lede="Send your parents across the world with someone beside them: a fellow traveller on the same flight, who speaks their language." />
-          <Points items={['A companion on the same flight, in their language', 'Help at check-in, immigration and transit',
-            'Visitor medical insurance for the unexpected', 'You stay the main contact, every step']} />
-          <div className="sc-ctas">
-            <a className="btn btn-amber" href={site.companionUrl}>Find a Companion</a>
-            <a className="btn btn-w" href={site.companionUrl}>Post a Trip for Your Parents</a>
-          </div>
-        </div>
-        <div className="sc-media rv-zoom" ref={media}>
-          <Note at={{ top: '-42px', right: '6%' }} rotate={-4} icon="plane">Same flight, same language</Note>
-          <Trail at={{ top: '-58px', left: '-150px' }} width={190} tone="amber" />
-          <img className="sc-photo" src={tcPlane} loading="lazy" decoding="async"
-            alt="An elderly couple on a flight, chatting with the travel companion beside them" />
-          <div className="bpass" aria-hidden="true">
-            <span className="bp-k">Passenger</span><b>Your parents</b>
-            <span className="bp-route">HYD <i /> LHR</span>
-            <span className="bp-tag">Matched on the same flight</span>
-          </div>
-        </div>
-      </div>
+      <Snap src={tcPlane} caption="Same flight, same language" pos="center 40%" at={{ top: '64px', left: LEFT }} rotate={-6} width={160} tone="amber" />
+      <Note at={{ top: '96px', right: LEFT }} rotate={5} icon="plane">Safer journeys, together</Note>
+      <Trail at={{ top: '150px', right: 'max(40px, calc(50% - 600px))' }} width={170} tone="amber" flip />
+      <Doodles items={[['globe', { top: '58%', left: '2%', size: 30, rotate: 8, opacity: 0.18 }],
+        ['pin', { top: '70%', right: '2.5%', size: 28, rotate: 10, opacity: 0.2 }]]} />
       <div className="wrap">
-        <p className="sc-sub">Popular routes</p>
+        <Head kick="Travel Companion" id="tc-h" title="Popular Routes for" accent="Parents Flying Out"
+          lede="A fellow traveller on the same flight, who speaks their language, on the routes families ask for most." />
         <div className="routes rv-stagger" ref={routes}>
           {ROUTES.map((r, i) => (
             <a className="route" href={site.companionUrl} key={r.to} style={{ '--d': `${i * 80}ms` }}>
@@ -147,6 +117,10 @@ export function Companion() {
               <span><small>India to</small><b>{r.to}</b></span>
             </a>
           ))}
+        </div>
+        <div className="sc-ctas center">
+          <a className="btn btn-amber" href={site.companionUrl}>Find a Companion</a>
+          <a className="btn btn-w" href={site.companionUrl}>Post a Trip for Your Parents</a>
         </div>
       </div>
     </section>
@@ -173,30 +147,18 @@ export function Insurance() {
   const tiles = useReveal(0.1);
   const price = site.prices.insurance;
   return (
-    <section className="sc sc-light sc-ins" id="insurance" aria-labelledby="ins-h">
+    <section className="sc sc-light sc-band sc-ins" id="insurance" aria-labelledby="ins-h">
       <Bg src={insBg} pos="70% center" />
-      <div className="wrap sc-grid">
-        <div>
-          <Head kick="Travel Insurance" id="ins-h" title="Visitor Insurance for" accent="Parents Visiting You"
-            script="Covered every corner."
-            lede="When your parents fly out to see you, visitor insurance helps protect them from unexpected medical expenses and travel emergencies." />
-          <Points items={['No medical exam required', 'Instant e-policy by email', 'Claims support in your language']} />
-          <div className="sc-ctas">
-            <a className="btn btn-p" href={site.insuranceUrl}>Get a Free Quote</a>
-            <a className="btn btn-o" href={site.insuranceUrl}>Compare 65+ A-rated plans</a>
-          </div>
-          {price && <p className="sc-price">Travel insurance: <b>{price}</b></p>}
-        </div>
-        <div className="sc-collage" aria-hidden="true">
-          <Snap src={snapUk} caption="Covered every corner." at={{ top: '0%', right: '4%' }} rotate={5} width={170} tone="amber" />
-          <Trail at={{ top: '34%', left: '18%' }} width={200} flip />
-          <Snap src={snapSydney} caption="Protected every mile." at={{ top: '50%', left: '6%' }} rotate={-6} width={160} />
-          <Note at={{ bottom: '4%', right: '8%' }} rotate={-5} icon="plane" tone="blue">Insured before takeoff</Note>
-          <Doodles items={[['shield', { top: '8%', left: '20%', size: 34, rotate: -8, opacity: 0.2 }],
-            ['globe', { top: '62%', right: '14%', size: 30, rotate: 10, opacity: 0.2 }]]} />
-        </div>
-      </div>
+      <Snap src={snapSydney} caption="Protected every mile." at={{ top: '64px', left: LEFT }} rotate={-6} width={160} />
+      <Note at={{ top: '100px', right: LEFT }} rotate={-5} icon="plane" tone="blue">Insured before takeoff</Note>
+      <Doodles items={[['shield', { top: '54%', left: '2.5%', size: 32, rotate: -8, opacity: 0.18 }],
+        ['globe', { top: '24%', right: '3%', size: 30, rotate: 10, opacity: 0.18 }]]} />
       <div className="wrap">
+        <Head kick="Travel Insurance" id="ins-h" title="What Visitor Insurance" accent="Covers"
+          script="Covered every corner." />
+        <ul className="chips row">
+          {['No medical exam required', 'Instant e-policy by email', 'Claims support in your language'].map((t) => <li key={t}>{t}</li>)}
+        </ul>
         <div className="tiles six rv-stagger" ref={tiles}>
           {BENEFITS.map((b, i) => (
             <a className="tile" href={site.insuranceUrl} key={b.title} style={{ '--d': `${i * 70}ms` }}>
@@ -207,6 +169,11 @@ export function Insurance() {
         </div>
         <p className="sc-sub center">Plans from leading insurers</p>
         <Logos label="insurers" logos={INSURERS} />
+        <div className="sc-ctas center">
+          <a className="btn btn-p" href={site.insuranceUrl}>Get a Free Quote</a>
+          <a className="btn btn-o" href={site.insuranceUrl}>Compare 65+ A-rated plans</a>
+        </div>
+        {price && <p className="sc-price center">Travel insurance: <b>{price}</b></p>}
       </div>
     </section>
   );
@@ -228,32 +195,18 @@ export function Sahayak() {
   const grid = useReveal(0.1);
   const price = site.prices.sahayak;
   return (
-    <section className="sc sc-soft sc-sah" id="sahayak" aria-labelledby="sah-h">
+    <section className="sc sc-soft sc-band sc-sah" id="sahayak" aria-labelledby="sah-h">
       <Bg src={sahBg} pos="20% center" />
-      <div className="wrap sc-grid sc-flip">
-        <div>
-          <Head kick="Sahayak" id="sah-h" title="A Health Professional With Your Parents," accent="Every Step"
-            script="Someone qualified, and a record you can read."
-            lede="Book a registered nurse to take your parents through whatever the health need is — the check, the test, the appointment, the hospital, the medicines — with every step recorded as it is done." />
-          <ul className="chips">
-            {['Registered, verified nurses', 'Care at home, no clinic queues', 'You stay informed', 'One-time or ongoing care'].map((t) => <li key={t}>{t}</li>)}
-          </ul>
-          <div className="sc-ctas">
-            <a className="btn btn-p" href={site.sahayakUrl}>Book a Sahayak</a>
-            <a className="btn btn-o" href={site.sahayakUrl}>Explore Sahayak Services</a>
-          </div>
-          {price && <p className="sc-price">Sahayak visits from <b>{price}</b></p>}
-        </div>
-        <div className="sc-collage" aria-hidden="true">
-          <Snap src={snapVitals} caption="Vitals checked, 10:12" pos="100% 50%" at={{ top: '2%', left: '4%' }} rotate={-6} width={170} />
-          <Note at={{ top: '40%', left: '38%' }} rotate={-4} tone="blue">The same face each time</Note>
-          <Trail at={{ top: '54%', left: '10%' }} width={190} />
-          <Snap src={snapUpdate} caption="Update shared with you" pos="center 30%" at={{ bottom: '0%', right: '8%' }} rotate={5} width={165} tone="amber" />
-          <Doodles items={[['steth', { top: '12%', right: '16%', size: 34, rotate: 10, opacity: 0.2 }],
-            ['heart', { bottom: '18%', left: '14%', size: 28, rotate: -10, opacity: 0.22 }]]} />
-        </div>
-      </div>
+      <Snap src={sVitals} caption="Vitals checked, 10:12" pos="100% 50%" at={{ top: '64px', left: LEFT }} rotate={-6} width={160} />
+      <Snap src={snapUpdate} caption="Update shared with you" pos="center 30%" at={{ top: '80px', right: LEFT }} rotate={5} width={155} tone="amber" />
+      <Doodles items={[['steth', { top: '56%', left: '2.5%', size: 32, rotate: 10, opacity: 0.2 }],
+        ['heart', { top: '64%', right: '3%', size: 28, rotate: -10, opacity: 0.22 }]]} />
       <div className="wrap">
+        <Head kick="Sahayak" id="sah-h" title="What a Sahayak" accent="Handles for Them"
+          script="Someone qualified, and a record you can read." />
+        <ul className="chips row">
+          {['Registered, verified nurses', 'Care at home, no clinic queues', 'You stay informed', 'One-time or ongoing care'].map((t) => <li key={t}>{t}</li>)}
+        </ul>
         <div className="tiles four rv-stagger" ref={grid}>
           {SERVICES.map((s, i) => (
             <a className="tile short" href={site.sahayakUrl} key={s.title} style={{ '--d': `${i * 60}ms` }}>
@@ -262,52 +215,37 @@ export function Sahayak() {
             </a>
           ))}
         </div>
+        <div className="sc-ctas center">
+          <a className="btn btn-p" href={site.sahayakUrl}>Book a Sahayak</a>
+          <a className="btn btn-o" href={site.sahayakUrl}>Explore Sahayak Services</a>
+        </div>
+        {price && <p className="sc-price center">Sahayak visits from <b>{price}</b></p>}
       </div>
     </section>
   );
 }
 
 // ------------------------------------------------------------------------------------------- health
-const HEALTH = [
-  { title: 'Virtual Doctor Consultation', img: hDoctor, pos: '35% 30%',
-    text: 'Video consultations with a doctor from home. You can join the call from abroad.', cta: 'Book a Consultation' },
-  { title: 'Gift Health', img: hGift, pos: '30% 40%',
-    text: 'Give your parents the gift of better health, care and proactive support — even from miles away.', cta: 'Ask about Gift Health' },
-  { title: 'Fit2Fly', img: hFit, pos: '70% center',
-    text: 'Prepare your parents for safe and confident travel with the right health assessment before their journey.', cta: 'Ask about Fit2Fly' },
-];
 // the About page's partners, under the names it gives them
 const HOSPITALS = [['Apollo', pApollo], ['Health Care', pHealthcare], ['Manipal Hospitals', pManipal],
   ['MAX Health Care', pMax], ['STARI Health Insurance', pStari], ['ICICRELom', pIcici]].map(([name, src]) => ({ name, src }));
 
 export function Health() {
-  const cards = useReveal(0.1);
   return (
-    <section className="sc sc-dark sc-health" id="health" aria-labelledby="hl-h">
+    <section className="sc sc-dark sc-band sc-health" id="health" aria-labelledby="hl-h">
       <Bg src={hBg} pos="center 30%" />
-      <Snap src={snapWell} caption="Feeling well" pos="30% 50%" at={{ top: '70px', left: 'max(18px, calc(50% - 660px))' }} rotate={-6} width={150} />
-      <Snap src={snapWalk} caption="Out and about" pos="center 35%" at={{ top: '90px', right: 'max(18px, calc(50% - 660px))' }} rotate={5} width={140} />
-      <Doodles items={[['steth', { top: '46%', left: '2.5%', size: 32, rotate: -10, opacity: 0.2 }],
-        ['heart', { top: '50%', right: '2.5%', size: 28, rotate: 8, opacity: 0.2 }],
-        ['health', { top: '86%', left: '4%', size: 30, rotate: 6, opacity: 0.16 }]]} />
+      <Snap src={snapWell} caption="Feeling well" pos="30% 50%" at={{ top: '56px', left: LEFT }} rotate={-6} width={150} />
+      <Snap src={snapWalk} caption="Out and about" pos="center 35%" at={{ top: '72px', right: LEFT }} rotate={5} width={140} />
+      <Doodles items={[['steth', { top: '62%', left: '2.5%', size: 32, rotate: -10, opacity: 0.2 }],
+        ['heart', { top: '66%', right: '2.5%', size: 28, rotate: 8, opacity: 0.2 }]]} />
       <div className="wrap">
-        <Head center kick="Health & Wellness" id="hl-h" title="Their Health," accent="Looked After From Abroad"
+        <Head kick="Health & Wellness" id="hl-h" title="Our Healthcare" accent="Partners"
           script="Care that keeps them well."
-          lede="Doctors, health checks and pre-travel assessments for your parents in India, arranged from wherever you are." />
-        <div className="hcards rv-stagger" ref={cards}>
-          {HEALTH.map((h, i) => (
-            <article className="hcard" key={h.title} style={{ '--d': `${i * 100}ms` }}>
-              <img src={h.img} alt="" loading="lazy" decoding="async" style={{ objectPosition: h.pos }} />
-              <div className="hcard-b">
-                <h3>{h.title}</h3>
-                <p>{h.text}</p>
-                <a className="lnk" href={site.contactUrl}>{h.cta}</a>
-              </div>
-            </article>
-          ))}
-        </div>
-        <p className="sc-sub center">Our healthcare partners</p>
+          lede="Doctor consultations, health checks and pre-travel assessments for your parents in India, with the hospitals and health partners we work with." />
         <Logos label="healthcare partners" logos={HOSPITALS} />
+        <div className="sc-ctas center">
+          <a className="btn btn-amber" href={site.contactUrl} onClick={talk}>{TALK}</a>
+        </div>
       </div>
     </section>
   );

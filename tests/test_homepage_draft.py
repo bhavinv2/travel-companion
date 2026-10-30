@@ -54,6 +54,11 @@ def test_approved_reviews_featured_first(app, client, user):
 def test_questions_prices_and_numbers_come_from_the_admin_screens(app, client):
     d = data(client)
     assert d['faqs'] and all(f['question'] and f['answer'] for f in d['faqs'])
+    asked = [(f['service'], f['question']) for f in d['faqs']]
+    assert ('Travel Companion', 'Can I request a companion for my parents?') in asked
+    assert ('Travel Insurance', 'Are pre-existing conditions covered?') in asked
+    assert not any(q == 'Is NRI Parent Service free?' for _s, q in asked)          # the community's, not ours
+    assert len(asked) == 7                                                          # Sahayak ships with none
     cheapest = min(int(s['price']) for s in sahayak.services())
     assert d['prices']['sahayak'] == '₹%d' % cheapest           # the cheapest in the Sahayak catalogue
     assert d['prices']['insurance'] == ''                       # nobody has set it: not shown

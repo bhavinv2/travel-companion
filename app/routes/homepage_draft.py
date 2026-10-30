@@ -37,10 +37,15 @@ PAGES = {
 
 
 REVIEWS_SHOWN = 9
-FAQS_PER_PRODUCT = 3
-# the paid services this page sells; the travel-companion community's own questions ("Is it free?"
-# -- yes, the community is) stay on its page, where they are true
-FAQ_PRODUCTS = ('sahayak', 'insurance')
+# The Help centre's questions a family asks before it starts, picked by id -- their words are edited
+# in the Help centre like any other. None: that product's first few, as published (Sahayak ships
+# with none, on purpose). The companion app's other questions are about using the app, and one --
+# "Is NRI Parent Service free?" -- is true of the community and not of this page's services, so
+# its picks never fall back to the rest.
+HOME_FAQS = (('sahayak', None),
+             ('companion', ('faq_start_parents', 'faq_match_how', 'faq_start_countries')),
+             ('insurance', ('faq_ins_08', 'faq_ins_04', 'faq_ins_02', 'faq_ins_06')))
+FAQS_FIRST = 3
 
 
 def _reviews():
@@ -61,10 +66,19 @@ def _reviews():
 
 
 def _faqs():
-    """A few of each product's questions from the Help centre, in its order."""
+    """The questions in HOME_FAQS, each with the service it is about."""
     from app.services import help_center
-    return [{'question': f['question'], 'answer': f['answer']}
-            for site in FAQ_PRODUCTS for f in help_center.faqs(site)[:FAQS_PER_PRODUCT]]
+    out = []
+    for site, ids in HOME_FAQS:
+        rows = help_center.faqs(site)
+        if ids is None:
+            picked = rows[:FAQS_FIRST]
+        else:
+            by_id = {f.get('id'): f for f in rows}
+            picked = [by_id[i] for i in ids if i in by_id]
+        out += [{'question': f['question'], 'answer': f['answer'], 'service': help_center.SITE_LABELS[site]}
+                for f in picked]
+    return out
 
 
 def _prices():
