@@ -113,68 +113,85 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .mmenu nav a{padding:14px 0;border-bottom:1px solid var(--line);color:var(--ink);font-weight:600;text-decoration:none;font-size:17px}
 .mmenu .mm-cta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
 
-/* ---------- hero: the care circle (Hero.jsx) ---------- */
-.hero3{position:relative;isolation:isolate;overflow:hidden;color:#fff;background:#011038;padding:60px 0 76px}
-.hero3 .secbg img{opacity:.16;filter:saturate(.6)}
-.hero3 .secbg::after{background:radial-gradient(ellipse at 20% 30%,rgba(22,43,110,.55) 0%,rgba(1,16,56,0) 55%),linear-gradient(180deg,rgba(1,16,56,.2) 0%,rgba(1,16,56,.65) 100%)}
-/* a soft light behind the circle in the front service's colour, easing from one to the next */
-.hero3-glow{position:absolute;z-index:-1;right:max(-80px,calc(50% - 720px));top:40px;width:640px;height:640px;border-radius:50%;background:var(--c);opacity:.32;filter:blur(110px);transition:background-color .9s ease;pointer-events:none}
-.hero3-grid{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);gap:40px;align-items:center}
-.hero3-copy{min-width:0}
-.tagline{display:block;font:600 30px/1.2 'Caveat','Segoe Script','Bradley Hand',cursive;color:#FFC56B;margin:0 0 6px;transform:rotate(-2deg);transform-origin:left}
-.hx{font:800 54px/1.05 var(--body);letter-spacing:-.03em;margin:0 0 26px;color:#fff;text-wrap:balance}
-.hx em{font-style:normal;color:#8DB0FF}
-/* the service in front, in a word: its group, its name, one line; a thin line runs to the next */
-.hnow{position:relative;max-width:540px;padding:16px 20px 18px 22px;border-radius:18px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-left:4px solid var(--c);overflow:hidden;animation:hnowIn .5s var(--ease)}
-.hnow-k{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:color-mix(in srgb,var(--c) 45%,#fff)}
-.hnow-k svg{width:15px;height:15px}
-.hnow b{display:block;margin:6px 0 4px;font-size:24px;font-weight:800;letter-spacing:-.01em;color:#fff}
-.hnow p{margin:0;font-size:15.5px;line-height:1.55;color:rgba(255,255,255,.84)}
-.hnow-bar{position:absolute;left:0;right:0;bottom:0;height:2px;background:rgba(255,255,255,.08)}
-.hnow-bar i{display:block;height:100%;width:0;background:var(--c)}
-.hnow-bar i.run{animation:hnowRun 4.5s linear forwards}
-/* the six as a legend: a name brings its photo forward in the circle */
-.hlegend{list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:18px 0 0;padding:0;max-width:560px}
-.hlegend button{width:100%;display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:rgba(255,255,255,.78);font:700 13.5px/1.2 var(--body);text-align:left;cursor:pointer;transition:background .3s,color .3s,border-color .3s}
-.hlegend button i{flex:none;width:9px;height:9px;border-radius:50%;background:var(--c);box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 30%,transparent)}
-.hlegend button:hover{color:#fff;border-color:rgba(255,255,255,.35)}
-.hlegend button.on{background:var(--c);border-color:var(--c);color:#fff}
-.hlegend button.on i{background:#fff;box-shadow:none}
-.s-ctas{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
-.btn-hero{background:#fff;color:var(--pd)}
-.btn-hero:hover{background:var(--pt);color:var(--pd);transform:translateY(-2px)}
-.btn-ghost{background:rgba(255,255,255,.08);color:#fff;border:1.5px solid rgba(255,255,255,.4)}
-.btn-ghost:hover{background:rgba(255,255,255,.16);border-color:#fff;color:#fff}
-/* the circle on the navy, sized by its own width */
-.hero3-circle{position:relative}
-.hero3 .orbit{container-type:inline-size;width:min(600px,100%);--R:35cqw;--s:18cqw}
-.hero3 .orb-centre{width:30cqw;height:30cqw;margin:-15cqw 0 0 -15cqw}
-.hero3 .orb-track{stroke:rgba(255,255,255,.28)}
-.hero3 .orb-lines line{stroke:rgba(255,255,255,.16)}
-.hero3 .orb-centre img{box-shadow:0 0 0 4px #E4613F,0 26px 50px -20px rgba(0,0,0,.7)}
-.hero3 .orb-name{background:rgba(255,255,255,.95)}
-.hero3 .dd{color:#BFD1FF}
-.hero3 .dk{z-index:3}
-.hero3 .note{color:#FFC56B}
-.hero3 .trail{color:#F5B642}
+/* ---------- hero: the promise and the care circle, on a light ground (Hero.jsx) ---------- */
+.hero4{position:relative;isolation:isolate;overflow:hidden;padding:56px 0 72px;background:linear-gradient(115deg,#FFF7EC 0%,#FFFCF7 36%,#F1F5FF 66%,#E5EDFF 100%)}
+/* a faint grid of dots on the circle's side, fading out towards the words */
+.hero4::before{content:"";position:absolute;z-index:-1;inset:0 0 0 46%;background:radial-gradient(circle,#C5D3F2 1.2px,transparent 1.7px) 0 0/22px 22px;-webkit-mask:radial-gradient(ellipse at 55% 50%,#000 0%,transparent 68%);mask:radial-gradient(ellipse at 55% 50%,#000 0%,transparent 68%)}
+.hero4-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:48px;align-items:center}
+.hero4-copy{min-width:0}
+.tagline{display:block;font:600 30px/1.2 'Caveat','Segoe Script','Bradley Hand',cursive;color:#C2412A;margin:0 0 8px;transform:rotate(-2deg);transform-origin:left}
+.h4x{font:800 54px/1.06 var(--body);letter-spacing:-.03em;margin:0 0 20px;color:#011038;text-wrap:balance}
+.h4x em{font:italic 600 1.04em/1.1 var(--disp);letter-spacing:-.015em;color:#2446B8}
+.h4-lede{margin:0;max-width:520px;font-size:18px;line-height:1.6;color:var(--mut)}
+.s-ctas{display:flex;gap:12px;flex-wrap:wrap;margin-top:30px}
+/* the six services' marks in a row, and what they add up to */
+.h4-trust{display:flex;align-items:center;gap:14px;margin-top:32px}
+.h4-marks{display:flex;flex:none}
+.h4-marks i{width:38px;height:38px;margin-left:-9px;border-radius:50%;display:grid;place-items:center;background:var(--c);color:#fff;border:3px solid #FFFAF3;box-shadow:0 6px 14px -8px rgba(15,28,85,.55)}
+.h4-marks i:first-child{margin-left:0}
+.h4-marks svg{width:16px;height:16px}
+.h4-trust b{display:block;font-size:15px;font-weight:800;color:#011038}
+.h4-trust small{display:block;font-size:13.5px;color:var(--mut)}
+/* the circle on a soft light, two small notes floating in its corners, the service in front under it */
+.hero4-art{position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:8px}
+.h4-stage{position:relative;width:min(520px,100%)}
+.h4-stage::before{content:"";position:absolute;inset:3%;border-radius:50%;background:radial-gradient(circle,#fff 0%,rgba(255,255,255,.92) 46%,rgba(255,255,255,0) 71%);pointer-events:none}
+.hero4 .orbit{container-type:inline-size;width:100%;--R:32cqw;--s:16cqw}
+.hero4 .orb-centre{width:28cqw;height:28cqw;margin:-14cqw 0 0 -14cqw}
+.hero4 .note{z-index:3}
+.hero4 .trail{color:#E09A2D}
+.h4-chip{position:absolute;z-index:4;display:flex;align-items:center;gap:10px;padding:9px 16px 9px 9px;border-radius:16px;background:#fff;box-shadow:0 18px 36px -18px rgba(15,28,85,.45),0 0 0 1px rgba(15,28,85,.05);animation:drift 8s ease-in-out infinite}
+.h4-chip i{flex:none;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;color:#fff}
+.h4-chip i svg{width:16px;height:16px}
+.h4-chip b{display:block;font-size:13.5px;font-weight:800;color:#011038;white-space:nowrap}
+.h4-chip small{display:block;font-size:12px;color:var(--mut);white-space:nowrap}
+.h4-chip.c1{top:-18px;right:-26px}
+.h4-chip.c1 i{background:#14946E}
+.h4-chip.c2{top:-18px;left:-30px;animation-delay:-4s}
+.h4-chip.c2 i{background:#5B4BD6}
+.h4-card{position:relative;z-index:2;display:grid;grid-template-columns:76px minmax(0,1fr);align-items:center;gap:16px;width:min(520px,100%);min-height:112px;padding:12px 16px 14px 12px;border-radius:22px;background:#fff;border:1px solid #E3E9F6;box-shadow:0 26px 50px -30px rgba(15,28,85,.5);color:inherit;text-decoration:none;overflow:hidden;animation:hnowIn .5s var(--ease);transition:border-color .3s}
+.h4-card:hover{border-color:color-mix(in srgb,var(--c) 45%,#E3E9F6)}
+.h4-card>img{width:76px;height:76px;border-radius:16px;object-fit:cover}
+.h4-card-b{min-width:0;display:flex;flex-direction:column;gap:2px}
+.h4-card-b small{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:color-mix(in srgb,var(--c) 78%,#000)}
+.h4-card-b small svg{width:14px;height:14px}
+.h4-card-b b{display:flex;align-items:center;gap:10px;font:800 19px/1.2 var(--body);letter-spacing:-.01em;color:#011038}
+.h4-card-b>span{font-size:14px;line-height:1.45;color:var(--mut);text-wrap:pretty}
+.h4-card-go{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--c);color:#fff;transition:transform .25s}
+.h4-card-go svg{width:14px;height:14px}
+.h4-card:hover .h4-card-go{transform:translateX(3px)}
+.h4-bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:color-mix(in srgb,var(--c) 14%,transparent)}
+.h4-bar i{display:block;height:100%;width:0;background:var(--c)}
+.h4-bar i.run{animation:hnowRun 4.5s linear forwards}
 @media (max-width:1100px){
-.hero3-grid{grid-template-columns:minmax(0,1fr);gap:24px}
-.hero3 .orbit{width:min(520px,100%)}
-.hero3-glow{right:50%;margin-right:-320px;top:auto;bottom:0}
-.hnow,.hlegend{max-width:none}
+.hero4-grid{grid-template-columns:minmax(0,1fr);gap:40px}
+.hero4-copy{display:flex;flex-direction:column;align-items:center;text-align:center}
+.tagline{transform-origin:center}
+.s-ctas{justify-content:center}
+.h4-trust{text-align:left}
+.hero4::before{inset:42% 0 0 0}
 }
 @media (max-width:760px){
-.hero3{padding:34px 0 60px}
-.hx{font-size:34px;margin-bottom:20px}
+.hero4{padding:32px 0 52px}
+.h4x{font-size:36px}
 .tagline{font-size:25px}
-.hnow b{font-size:20px}
-.hnow p{font-size:14.5px}
-.hlegend{grid-template-columns:repeat(2,minmax(0,1fr))}
-.hero3-glow{right:0;margin-right:0;width:100%;height:440px}
+.h4-lede{font-size:16px}
+.s-ctas{width:100%}
 .s-ctas .btn{width:100%}
+.h4-trust{margin-top:24px;flex-direction:column;gap:10px;text-align:center}
+.h4-marks i{width:32px;height:32px;margin-left:-8px}
+.h4-marks svg{width:14px;height:14px}
+.h4-chip{display:none}
+.h4-stage{width:min(360px,100%)}
+.hero4 .orbit{--R:36cqw;--s:18cqw}
+.hero4 .orb-centre{width:30cqw;height:30cqw;margin:-15cqw 0 0 -15cqw}
+.h4-card{grid-template-columns:58px minmax(0,1fr);gap:12px;padding:12px 14px 14px 12px;min-height:0}
+.h4-card>img{width:58px;height:58px;border-radius:14px}
+.h4-card-b b{font-size:17px}
+.h4-card-b>span{font-size:13.5px}
 }
 
-/* ---------- sections on their own photos (Bg.jsx): the photo edge to edge, a shade over it ---------- */
+/* ---------- sections: plain tints, and the two dark bands on their own photos (Bg.jsx) ---------- */
 .sc{position:relative;isolation:isolate;overflow:hidden;padding-block:104px}
 .secbg{position:absolute;inset:0;z-index:-1;pointer-events:none}
 .secbg img{width:100%;height:100%;object-fit:cover}
@@ -187,19 +204,10 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .sc-dark .kick{color:#FFB547}
 .sc-dark .lede{color:rgba(255,255,255,.86)}
 .sc-dark .script-tag{color:#FFC56B}
-/* light: white behind the words, the photo clear on the far side */
+/* the plain ones: white, the Sahayak page's pale blue, a warm cream */
 .sc-light{background:#fff}
-.sc-light .secbg::after{background:linear-gradient(90deg,#fff 0%,rgba(255,255,255,.97) 40%,rgba(255,255,255,.6) 64%,rgba(255,255,255,.1) 100%)}
-/* soft: the Sahayak page's pale blue, the photo clear on the left */
 .sc-soft{background:#EEF3FF}
-.sc-soft .secbg::after{background:linear-gradient(270deg,#EEF3FF 0%,rgba(238,243,255,.97) 42%,rgba(238,243,255,.6) 66%,rgba(238,243,255,.08) 100%)}
-/* map: the world map, faint, behind the steps */
-.sc-map{background:#F5F8FF}
-.sc-map .secbg img{opacity:.3;filter:saturate(.75)}
-.sc-map .secbg::after{background:radial-gradient(ellipse at center,rgba(245,248,255,.5) 0%,rgba(245,248,255,.9) 75%)}
-/* landmarks: the skyline along the foot of the blog */
-.sc-landmarks{background:#fff}
-.sc-landmarks .secbg img{position:absolute;left:0;bottom:0;height:240px;object-fit:cover;object-position:center bottom;opacity:.2}
+.sc-cream{background:#FFF8EE}
 
 .sc-head.center{text-align:center;display:flex;flex-direction:column;align-items:center;margin-bottom:44px}
 .sc-head.center .lede{margin:0 auto;max-width:680px}
@@ -302,8 +310,6 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 @media (max-width:760px){
 .sc{padding-block:64px}
 .sc-dark .secbg::after{background:rgba(1,16,56,.84)}
-.sc-light .secbg::after{background:rgba(255,255,255,.9)}
-.sc-soft .secbg::after{background:rgba(238,243,255,.9)}
 .tiles{margin-top:40px;gap:12px}
 .tiles.six,.tiles.four{grid-template-columns:repeat(2,minmax(0,1fr))}
 .tile-b b{font-size:15px}
@@ -414,9 +420,10 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .doc small{font-size:11.5px;color:var(--mut);margin-top:-6px}
 .live2{position:absolute;left:12px;top:12px;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(15,28,85,.75);color:#fff;font-size:11px;font-weight:700}
 .live2 i{width:7px;height:7px;border-radius:50%;background:#5BD69A;animation:ping2 1.8s infinite}
-.tile{position:absolute;border-radius:14px;overflow:hidden;border:3px solid #fff;box-shadow:0 14px 24px -12px rgba(15,28,85,.55);background:var(--pt)}
-.tile img{width:100%;height:100%;object-fit:cover}
-.tile span{position:absolute;left:6px;bottom:6px;padding:3px 7px;border-radius:6px;background:rgba(15,28,85,.75);color:#fff;font-size:10px;font-weight:700}
+/* the journey's video-call photos; only inside its pictures, never the service bands' photo tiles */
+.o3 .tile{position:absolute;border-radius:14px;overflow:hidden;border:3px solid #fff;box-shadow:0 14px 24px -12px rgba(15,28,85,.55);background:var(--pt)}
+.o3 .tile img{width:100%;height:100%;object-fit:cover}
+.o3 .tile span{position:absolute;left:6px;bottom:6px;padding:3px 7px;border-radius:6px;background:rgba(15,28,85,.75);color:#fff;font-size:10px;font-weight:700}
 .t-parent{right:12px;top:12px;width:120px;height:96px;transform:translateZ(30px)}
 .t-you{right:12px;top:118px;width:120px;height:80px;display:grid;place-items:center;background:var(--pd);color:#fff;font:600 26px/1 var(--disp)}
 .tb-ctl{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:flex;gap:8px;padding:7px;border-radius:999px;background:rgba(255,255,255,.85)}

@@ -177,7 +177,7 @@ def test_the_administrator_sees_every_section_in_order(app, admin_user):
     assert lines['messages'] == ['Quick replies & templates', 'Trip post texts & e-mails']
     assert lines['data'] == ['Import & export', 'Downloads'] and lines['security'] == ['Security']
     inbox = next(g for g in groups if g['key'] == 'inbox')
-    assert [i['label'] for i in inbox['items']][:4] == ['All conversations', 'WhatsApp chats', 'Live chat',
+    assert [i['label'] for i in inbox['items']][:5] == ['All conversations', 'WhatsApp chats', 'Live chat', 'Visitors',
                                                         'Half-hourly check']
     # Health first at Home; the reports a menu of their own (tests/test_health.py has the rest)
     home = [i['label'] for i in next(g for g in groups if g['key'] == 'home')['items']]

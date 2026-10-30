@@ -1,11 +1,9 @@
-import Bg from './Bg.jsx';
 import { Doodles, Snap, Trail } from './Deco.jsx';
 import Icon from './Icon.jsx';
 import { Brand } from './Nav.jsx';
 import { site, talk, TALK } from '../data/site.js';
 import { useReveal, useScroll } from '../hooks.js';
 import ctaPhoto from '../assets/photos/cta-care.jpg';
-import landmarks from '../assets/photos/landmarks.webp';
 import snapAbroad from '../assets/photos/tc-l5.jpg';
 import coverUsa from '../assets/blog/travel-insurance-parents-usa.jpg';
 import coverClaim from '../assets/blog/claim-process.jpg';
@@ -40,8 +38,7 @@ export function Blog() {
   const grid = useReveal(0.1);
   const posts = site.posts.length ? site.posts : FALLBACK;
   return (
-    <section className="sc sc-landmarks blog" id="resources" aria-labelledby="blog-h">
-      <Bg src={landmarks} pos="center bottom" />
+    <section className="sc sc-cream blog" id="resources" aria-labelledby="blog-h">
       <Doodles items={[['globe', { top: '8%', right: '3%', size: 32, rotate: 10 }], ['pin', { top: '20%', left: '2.5%', size: 26, rotate: -8 }]]} />
       <Trail at={{ top: '70px', right: 'max(200px, calc(50% - 420px))' }} width={170} />
       <div className="wrap">

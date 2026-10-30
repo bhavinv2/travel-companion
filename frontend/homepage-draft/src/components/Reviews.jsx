@@ -1,10 +1,8 @@
-import Bg from './Bg.jsx';
 import { Doodles } from './Deco.jsx';
 import { Star } from './Icon.jsx';
 import Rail from './Rail.jsx';
 import { site } from '../data/site.js';
 import { useReveal } from '../hooks.js';
-import reviewsBg from '../assets/photos/ins-story-families.jpg';
 
 /* Reviews real customers left and staff approved (routes/homepage_draft.py _reviews), the ones
  * picked for the home page first. None approved yet: no section -- the sample stories this page
@@ -15,7 +13,6 @@ export default function Reviews() {
   if (!site.reviews.length) return null;
   return (
     <section className="sc sc-soft reviews" id="reviews" aria-labelledby="test-h">
-      <Bg src={reviewsBg} pos="center 40%" />
       <Doodles items={[['heart', { top: '14%', right: '6%', size: 30, rotate: 10 }], ['chat', { top: '22%', left: '30%', size: 28, rotate: -8, opacity: 0.12 }],
         ['users', { top: '80%', right: '3%', size: 32, rotate: -6 }]]} />
       <div className="wrap">

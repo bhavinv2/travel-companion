@@ -399,8 +399,8 @@ def ping(data, ua, ip, now=None):
                 v.visit_at = now
             _close_page(v, now)
         v.browser, v.os, v.device = device_of(ua, touch=bool(data.get('touch')))
-        v.lang = _words(data.get('lang'), 20)
-        v.tz = _words(data.get('tz'), 64)
+        v.lang = _words(data.get('lang'), 20) or v.lang
+        v.tz = _words(data.get('tz'), 64) or v.tz
         _place(v, ip)
         v.page_url, v.page_title = page, _words(data.get('title'), 200)
         v.pages = (v.pages or 0) + 1

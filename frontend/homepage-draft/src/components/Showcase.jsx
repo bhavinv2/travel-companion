@@ -12,7 +12,6 @@ import rUk from '../assets/photos/tc-l6.jpg';
 import rAustralia from '../assets/photos/tc-l7.jpg';
 import rGermany from '../assets/photos/tc-l8.jpg';
 // Travel Insurance: the insurance page's own photos
-import insBg from '../assets/photos/ins-story-parents.jpg';
 import bMedical from '../assets/photos/ins-benefit-medical.jpg';
 import bHospital from '../assets/photos/ins-benefit-hospitalisation.jpg';
 import bEvacuation from '../assets/photos/ins-benefit-evacuation.jpg';
@@ -33,7 +32,6 @@ import cigna from '../assets/logos/cigna.png';
 import battleface from '../assets/logos/battleface.png';
 import hth from '../assets/logos/hth-worldwide.png';
 // Sahayak: the Sahayak page's own photos
-import sahBg from '../assets/photos/sah-family.jpg';
 import sWellness from '../assets/photos/sah-svc-wellness.jpg';
 import sLab from '../assets/photos/sah-svc-lab.jpg';
 import sVitals from '../assets/photos/sah-svc-vitals.jpg';
@@ -43,7 +41,6 @@ import sPharmacy from '../assets/photos/sah-svc-pharmacy.jpg';
 import sVirtual from '../assets/photos/sah-svc-virtual-consult.jpg';
 import sOther from '../assets/photos/sah-svc-other.jpg';
 // Health: the hospitals on the About page
-import hBg from '../assets/photos/sah-svc-demo.jpg';
 import pApollo from '../assets/about/partner-apollo.png';
 import pHealthcare from '../assets/about/partner-healthcare.png';
 import pManipal from '../assets/about/partner-manipal.png';
@@ -147,7 +144,6 @@ export function Insurance() {
   const tiles = useReveal(0.1);
   return (
     <section className="sc sc-light sc-band sc-ins" id="insurance" aria-labelledby="ins-h">
-      <Bg src={insBg} pos="70% center" />
       <Snap src={snapSydney} caption="Protected every mile." at={{ top: '64px', left: LEFT }} rotate={-6} width={160} />
       <Note at={{ top: '100px', right: LEFT }} rotate={-5} icon="plane" tone="blue">Insured before takeoff</Note>
       <Doodles items={[['shield', { top: '54%', left: '2.5%', size: 32, rotate: -8, opacity: 0.18 }],
@@ -193,7 +189,6 @@ export function Sahayak() {
   const grid = useReveal(0.1);
   return (
     <section className="sc sc-soft sc-band sc-sah" id="sahayak" aria-labelledby="sah-h">
-      <Bg src={sahBg} pos="20% center" />
       <Snap src={sVitals} caption="Vitals checked, 10:12" pos="100% 50%" at={{ top: '64px', left: LEFT }} rotate={-6} width={160} />
       <Snap src={snapUpdate} caption="Update shared with you" pos="center 30%" at={{ top: '80px', right: LEFT }} rotate={5} width={155} tone="amber" />
       <Doodles items={[['steth', { top: '56%', left: '2.5%', size: 32, rotate: 10, opacity: 0.2 }],
@@ -228,8 +223,7 @@ const HOSPITALS = [['Apollo', pApollo], ['Health Care', pHealthcare], ['Manipal 
 
 export function Health() {
   return (
-    <section className="sc sc-dark sc-band sc-health" id="health" aria-labelledby="hl-h">
-      <Bg src={hBg} pos="center 30%" />
+    <section className="sc sc-cream sc-band sc-health" id="health" aria-labelledby="hl-h">
       <Snap src={snapWell} caption="Feeling well" pos="30% 50%" at={{ top: '56px', left: LEFT }} rotate={-6} width={150} />
       <Snap src={snapWalk} caption="Out and about" pos="center 35%" at={{ top: '72px', right: LEFT }} rotate={5} width={140} />
       <Doodles items={[['steth', { top: '62%', left: '2.5%', size: 32, rotate: -10, opacity: 0.2 }],
@@ -240,7 +234,7 @@ export function Health() {
           lede="Doctor consultations, health checks and pre-travel assessments for your parents in India, with the hospitals and health partners we work with." />
         <Logos label="healthcare partners" logos={HOSPITALS} />
         <div className="sc-ctas center">
-          <a className="btn btn-amber" href={site.contactUrl} onClick={talk}>{TALK}</a>
+          <a className="btn btn-p" href={site.contactUrl} onClick={talk}>{TALK}</a>
         </div>
       </div>
     </section>

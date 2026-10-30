@@ -1,8 +1,6 @@
-import Bg from './Bg.jsx';
 import { Doodles, Snap, Trail } from './Deco.jsx';
 import { site, talk, TALK } from '../data/site.js';
 import { useReveal } from '../hooks.js';
-import mapBg from '../assets/photos/ins-world-map.jpg';
 import askPhoto from '../assets/photos/support-agent.webp';
 import arrangePhoto from '../assets/photos/sah-svc-demo.jpg';
 import updatePhoto from '../assets/photos/why-updates.jpg';
@@ -23,8 +21,7 @@ export default function Steps() {
   const head = useReveal();
   const list = useReveal(0.15);
   return (
-    <section className="sc sc-map how" id="how" aria-labelledby="how-h">
-      <Bg src={mapBg} pos="center" />
+    <section className="sc sc-light how" id="how" aria-labelledby="how-h">
       <Snap src={youAbroad} caption="You, abroad" pos="center 60%" at={{ top: '64px', left: 'max(18px, calc(50% - 660px))' }} rotate={-6} width={150} />
       <Trail at={{ top: '96px', left: 'max(180px, calc(50% - 500px))' }} width={150} />
       <Trail at={{ top: '96px', right: 'max(180px, calc(50% - 500px))' }} width={150} flip />

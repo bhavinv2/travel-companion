@@ -29,3 +29,5 @@ pypdf==5.1.0
 segno==1.6.1
 # A WhatsApp number the portal talks to itself (Set-up > Channels): its Meta token, sealed in the database
 cryptography==43.0.3
+# Where a website visitor is (Inbox › Visitors): reads DB-IP's free IP list, which the app downloads itself
+maxminddb==2.6.2

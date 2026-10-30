@@ -158,10 +158,11 @@
             <b>{{ v.person.name if (v.person and leads) else 'Visitor #%d'|format(v.id) }}</b>
             {% if r.chatted %}<span class="vz-chip chat"><i class="fa-regular fa-comment-dots" aria-hidden="true"></i> Chatted</span>{% endif %}
             {% if v.ip %}<small class="vz-ip">{{ V.show_ip(v.ip, masked) }}</small>{% endif %}
+            <small class="vz-ph-only">{{ v.visits }} visit{{ 's' if v.visits != 1 }} · {{ v.pages }} page{{ 's' if v.pages != 1 }}</small>
           </td>
-          <td><span class="vz-flag sm">{{ v.country_code or '··' }}</span> {{ r.place }}</td>
-          <td>{{ v.source or V.DIRECT }}{% if v.campaign %}<small class="vz-sub">{{ v.campaign }}</small>{% endif %}</td>
-          <td><i class="fa-solid {{ V.DEVICE_ICON.get(v.device, 'fa-desktop') }}" aria-hidden="true"></i> {{ v.browser or '—' }}<small class="vz-sub">{{ v.os or '' }}</small></td>
+          <td class="where"><span class="vz-flag sm">{{ v.country_code or '··' }}</span> {{ r.place }}</td>
+          <td class="src">{{ v.source or V.DIRECT }}{% if v.campaign %}<small class="vz-sub">{{ v.campaign }}</small>{% endif %}</td>
+          <td class="dev"><span class="vz-nowrap"><i class="fa-solid {{ V.DEVICE_ICON.get(v.device, 'fa-desktop') }}" aria-hidden="true"></i> {{ v.browser or '—' }}</span><small class="vz-sub">{{ v.os or '' }}</small></td>
           <td class="num">{{ v.visits }}</td>
           <td class="num">{{ v.pages }}</td>
           <td class="pg" title="{{ v.page_url or '' }}">{{ v.page_title or v.page_url or '—' }}</td>
@@ -185,9 +186,10 @@
       {% endif %}
     </section>
 
-    <p class="vz-credit">Where visitors are: <a href="{{ geo.credit[1] }}" target="_blank" rel="noopener">{{ geo.credit[0] }}</a>{% if geo.has %} · our copy: {{ geo.month or (geo.at|ist('%b %Y')) }}{% endif %}. Kept on our server; no visit is sent to anybody to look it up.</p>
+    <p class="vz-credit">Where visitors are: <a href="{{ geo.credit[1] }}" target="_blank" rel="noopener">{{ geo.credit[0] }}</a>{% if geo.has %} · our copy: {{ geo.month or (geo.at|istd('%b %Y')) }}{% endif %}. Kept on our server; no visit is sent to anybody to look it up.</p>
+    {# inside main: the console's tokens and buttons (.crm) reach it; showModal lifts it above the page anyway #}
+    <dialog class="vz-sheet" id="vz-sheet" aria-labelledby="vz-d-title"><div class="vz-sheet-in" data-visitor-in></div></dialog>
   </main>
 </div>
-<dialog class="vz-sheet" id="vz-sheet" aria-labelledby="vz-d-title"><div class="vz-sheet-in" data-visitor-in></div></dialog>
 {% endblock %}
 {% block extra_js %}<script src="{{ url_for('static', filename='js/visitors.js') }}" defer></script>{% endblock %}

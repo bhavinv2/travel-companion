@@ -29,8 +29,8 @@ a.vz-tile:hover { border-color: var(--c-blue); }
 @keyframes vz-pulse { 70% { box-shadow: 0 0 0 7px rgba(22, 163, 74, 0); } 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); } }
 @media (prefers-reduced-motion: reduce) { .vz-pulse { animation: none; } }
 
-/* now on the left, the last 7 days on the right */
-.vz-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 16px; align-items: start; margin-bottom: 16px; }
+/* now across the page, the last 7 days in a row under it */
+.vz-grid { display: grid; gap: 16px; margin-bottom: 16px; }
 .vz-sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .vz-sec-head h2 { display: flex; align-items: center; gap: 10px; }
 .vz-count { display: inline-grid; place-items: center; min-width: 28px; height: 26px; padding: 0 8px; border-radius: 99px;
@@ -67,7 +67,7 @@ a.vz-tile:hover { border-color: var(--c-blue); }
   color: var(--c-muted); background: var(--c-soft); }
 
 /* the last 7 days */
-.vz-side { display: grid; gap: 16px; }
+.vz-side { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; align-items: start; }
 .vz-box { padding: 16px 18px; }
 .vz-box h3 { font-size: 15px; margin-bottom: 10px; }
 .vz-box h3 .muted { font-weight: 500; font-size: 13px; }
@@ -101,7 +101,7 @@ a.vz-tile:hover { border-color: var(--c-blue); }
   background: #fff; color: var(--c-ink); min-width: 0; }
 .vz-search { position: relative; flex: 1 1 240px; display: flex; }
 .vz-search i { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--c-muted); font-size: 13px; }
-.vz-search input { width: 100%; padding-left: 32px; }
+.vz .vz-search input { width: 100%; padding-left: 34px; }
 .vz-table-wrap { overflow-x: auto; margin: 0 -4px; }
 .vz-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .vz-table th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--c-muted); font-weight: 700;
@@ -117,6 +117,9 @@ a.vz-tile:hover { border-color: var(--c-blue); }
 .vz-table .vz-ip, .vz-sub { display: block; margin-top: 2px; font-size: 12px; color: var(--c-muted); }
 .vz-table .pg { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--c-blue-dark); }
 .vz-table .when { white-space: nowrap; color: var(--c-muted); }
+.vz-nowrap { white-space: nowrap; }
+.vz-nowrap i { color: var(--c-muted); }
+.vz-ph-only { display: none; }
 .vz-now-word { color: #166534; font-weight: 700; }
 .vz-pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 14px; }
 .vz-credit { margin: 18px 0 0; font-size: 12.5px; color: var(--c-muted); }
@@ -160,22 +163,24 @@ a.vz-tile:hover { border-color: var(--c-blue); }
 .vz-trail a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vz-secs { font-size: 12px; color: var(--c-muted); white-space: nowrap; }
 
-@media (max-width: 1100px) {
-  .vz-grid { grid-template-columns: minmax(0, 1fr); }
-  .vz-side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
 @media (max-width: 720px) {
   .vz-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .vz-tile b { font-size: 24px; }
   .vz-side { grid-template-columns: minmax(0, 1fr); }
   .vz-cards { grid-template-columns: minmax(0, 1fr); }
+  /* a visitor is a small card: who and when, where, how they came and on what, the last page */
   .vz-table thead { display: none; }
-  .vz-table, .vz-table tbody, .vz-table tr, .vz-table td { display: block; }
-  .vz-table tr { padding: 10px 4px; border-bottom: 1px solid var(--c-line); }
-  .vz-table td { border: 0; padding: 2px 6px; }
-  .vz-table td.num { display: inline-block; text-align: left; }
-  .vz-table td.num:nth-of-type(5)::after { content: ' visits ·'; color: var(--c-muted); }
-  .vz-table td.num:nth-of-type(6)::after { content: ' pages'; color: var(--c-muted); }
+  .vz-table, .vz-table tbody { display: block; }
+  .vz-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; padding: 12px 6px;
+    border-bottom: 1px solid var(--c-line); }
+  .vz-table td { display: block; border: 0; padding: 0; min-width: 0; }
+  .vz-table td.who { grid-column: 1; grid-row: 1; min-width: 0; }
+  .vz-table td.when { grid-column: 2; grid-row: 1; text-align: right; }
+  .vz-table td.where, .vz-table td.pg { grid-column: 1 / -1; }
+  .vz-table td.src { grid-column: 1; }
+  .vz-table td.dev { grid-column: 2; text-align: right; }
+  .vz-table td.src .vz-sub, .vz-table td.dev .vz-sub, .vz-table td.num { display: none; }
+  .vz-ph-only { display: block; margin-top: 2px; font-size: 12px; color: var(--c-muted); }
   .vz-table .pg { max-width: none; }
   .vz-sheet { width: 100vw; border-radius: 0; }
   .vz-sheet-in { padding: 18px 16px 24px; }
