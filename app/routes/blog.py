@@ -161,6 +161,23 @@ def ago(when, now=None):
     return '%d %s%s ago' % (n, word, '' if n == 1 else 's')
 
 
+PLACEHOLDER = 'img/blog-placeholder.jpg'
+
+
+@blog_bp.app_template_global('blog_placeholder')
+def blog_placeholder():
+    """The one picture a post shows when it has none -- and, in the browser, when its own will not load
+    (_pic_fallback.html; the home page's cards do the same)."""
+    return url_for('static', filename=PLACEHOLDER)
+
+
+@blog_bp.app_template_filter('blog_pic')
+def blog_pic(src):
+    """A post's picture as a page addresses it (inside the app's prefix); no picture: the placeholder."""
+    from app.services.urls import app_url
+    return app_url(src) if src else blog_placeholder()
+
+
 @blog_bp.app_template_filter('blog_layout')
 def blog_layout(layout):
     """A post's layout as the classes its content wears (blog_posts.layout_classes)."""

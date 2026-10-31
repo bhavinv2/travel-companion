@@ -6,6 +6,8 @@
 # guides in there are tracked on purpose, and ignoring the folder would only hide new files
 # while leaving those committed.
 doc/SOCIAL_LOGIN_SETUP.md
+# Every Markdown file -- the README, set-up notes, deploy runbooks: kept on this computer, never pushed.
+*.md
 
 # --- local runtime state (never deployable) ---------------------------------
 instance/

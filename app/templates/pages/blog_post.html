@@ -14,12 +14,11 @@
    instead (the ones set to show on phones). The admin's Preview shows this page for a post not saved yet -- no
    address, maybe no author -- so nothing here may need them. #}
 {% if preview %}<div class="blog-preview-bar"><i class="fa-solid fa-eye"></i> Preview — this is how the post will look. {{ 'It is live.' if post.is_published else 'It is not published.' }}</div>{% endif %}
-{% set covers = ['l4.jpg','l5.jpg','l6.jpg','l7.jpg','l8.jpg','l9.jpg'] %}
 {% set who = post.author.full_name if post.author else 'NRI Parent Service' %}
 {% set cat = post.categories[0] if post.categories else none %}
 {% set S = side or {} %}
 {% set lay = post.layout|blog_layout %}
-{% set cover = app_url(post.cover_image_url) if post.cover_image_url else url_for('static', filename='img/landing/' ~ covers[post.id % 6]) %}
+{% set cover = post.cover_image_url|blog_pic %}
 <div class="bj-progress" aria-hidden="true"><i id="bjProgress"></i></div>
 <div class="bj-shell{{ ' has-left' if S.left }}{{ ' has-right' if S.right }}{{ ' is-wide' if 'lay-w-wide' in lay }}{{ ' is-narrow' if 'lay-w-narrow' in lay }}"
      {% if S.rails %}style="--rl: {{ S.rails.left.width }}px; --rr: {{ S.rails.right.width }}px"{% endif %}>
@@ -50,8 +49,8 @@
     </header>
     {# the cover whole, whatever its shape: a picture of another shape sits on a blurred copy of itself #}
     <figure class="bj-cover" data-fit>
-      <img class="bj-cover-bg" src="{{ cover }}" alt="" aria-hidden="true"/>
-      <img class="bj-cover-img" src="{{ cover }}" alt="{{ post.cover_alt or post.title }}" fetchpriority="high"/>
+      <img class="bj-cover-bg" src="{{ cover }}" alt="" aria-hidden="true" data-ph/>
+      <img class="bj-cover-img" src="{{ cover }}" alt="{{ post.cover_alt or post.title }}" fetchpriority="high" data-ph/>
     </figure>
     <div class="static-content blog-post-content bj-content {{ lay }}">
       {{ post.content|blog_html }}
@@ -86,7 +85,7 @@
   <div class="bj-next-row">
     {% for r in related %}
     <a href="{{ url_for('blog.blog_post', slug=r.slug) }}" class="bj-mini">
-      <span class="bj-mini-pic" data-fit><img src="{{ app_url(r.card_picture) if r.card_picture else url_for('static', filename='img/landing/' ~ covers[r.id % 6]) }}" alt="" loading="lazy"/></span>
+      <span class="bj-mini-pic" data-fit><img src="{{ r.card_picture|blog_pic }}" alt="" loading="lazy" data-ph/></span>
       <span class="bj-mini-words">{% if r.categories %}<small>{{ r.categories[0].name }}</small>{% endif %}<b>{{ r.title }}</b><em>{{ r.reading_minutes() }} min read · {{ r.published_at|ago }}</em></span>
     </a>
     {% endfor %}

@@ -28,6 +28,8 @@ export const site = {
   prices: injected.prices || {},
   // the WordPress blog's newest posts: {title, url, date, summary, img, label}
   posts: injected.posts || [],
+  // the one picture a post shows when it has none or its own will not load ('' standalone)
+  postPlaceholder: injected.postPlaceholder || '',
   // the published numbers ({label, display, digits}) and address
   phones: injected.phones || [],
   email: injected.email || '',

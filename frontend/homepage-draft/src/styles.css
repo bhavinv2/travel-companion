@@ -757,6 +757,8 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 /* the covers are tall infographic posters, their heading at the top */
 .wpost img{object-position:center top}
 .wpost-noimg{position:absolute;inset:0;background:linear-gradient(150deg,var(--p),var(--pn))}
+/* the placeholder: only its heart badge, fading into the card's blue -- its name line would sit on the post's title */
+.wpost img.is-ph{-webkit-mask-image:linear-gradient(#000 48%,transparent 60%);mask-image:linear-gradient(#000 48%,transparent 60%)}
 .wpost .wbody h3{font-size:18px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .wpost .wbody p b{font-weight:700;color:#fff}
 /* the posters are busy with their own text, so the fade under the title runs darker and higher */

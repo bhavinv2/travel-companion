@@ -42,7 +42,7 @@
         <span class="bj-ring"><span class="bj-all"><i class="fa-solid fa-bookmark"></i></span></span><b>Saved <span data-saved-n></span></b></a>
       {% for s in stories %}
       <a href="{{ url_for('blog.blog_term', kind='category', slug=s.term.slug) }}" class="bj-story{{ ' on' if term and term.id == s.term.id }}">
-        <span class="bj-ring"><img src="{{ app_url(s.cover) if s.cover else url_for('static', filename='img/landing/' ~ ['l4.jpg','l5.jpg','l6.jpg','l7.jpg','l8.jpg','l9.jpg'][s.term.id % 6]) }}" alt="" loading="lazy"/></span>
+        <span class="bj-ring"><img src="{{ s.cover|blog_pic }}" alt="" loading="lazy" data-ph/></span>
         <b>{{ s.term.name }}</b></a>
       {% endfor %}
     </nav>

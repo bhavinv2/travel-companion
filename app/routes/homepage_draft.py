@@ -116,10 +116,11 @@ def _posts():
     if not rows:
         return wp_blog.latest(POSTS_SHOWN)
     return [wp_blog.card(p.title, urls.public_url('blog.blog_post', slug=p.slug), p.published_at or p.created_at,
-                         p.summary or p.excerpt(400), p.thumb_url or p.cover_image_url) for p in rows]
+                         p.summary or p.excerpt(400), urls.app_url(p.card_picture)) for p in rows]
 
 
 def _render(page):
+    from app.routes.blog import blog_placeholder
     from app.services import nri_services
     home = page == 'home'
     seo = urls.site_page_seo('homepage_draft.landing' if home else 'homepage_draft.about')
@@ -130,6 +131,7 @@ def _render(page):
         'faqs': _faqs() if home else [],
         'prices': _prices() if home else {},
         'posts': _posts() if home else [],
+        'postPlaceholder': blog_placeholder(),
         'helpUrl': urls.public_url('main.help_page'),
         **_contacts(),
         'homeUrl': urls.public_url('homepage_draft.landing'),

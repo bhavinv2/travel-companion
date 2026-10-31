@@ -46,7 +46,7 @@
       <ul class="bsd-more">
         {% for p in more.get(c.id, []) %}
         <li><a href="{{ url_for('blog.blog_post', slug=p.slug) }}">
-          <img src="{{ app_url(p.card_picture) if p.card_picture else url_for('static', filename='img/landing/' ~ ['l4.jpg','l5.jpg','l6.jpg','l7.jpg','l8.jpg','l9.jpg'][p.id % 6]) }}" alt="" loading="lazy" decoding="async"/>
+          <img src="{{ p.card_picture|blog_pic }}" alt="" loading="lazy" decoding="async" data-ph/>
           <span><b>{{ p.title }}</b><em>{{ p.reading_minutes() }} min read</em></span></a></li>
         {% else %}
         <li class="bsd-dim">The newest posts of the post’s category show here.</li>

@@ -1,0 +1,7 @@
+{# A post's picture that will not load -- an upload the server no longer has, a site that is down -- turns into the one
+   placeholder (routes/blog.py blog_placeholder) instead of a broken-picture box. Pictures ask for it with data-ph.
+   In <head>, listening on the way down (an error does not bubble), so it is there before any picture fails. #}
+<script>document.addEventListener('error', function (e) {
+  var img = e.target, ph = {{ blog_placeholder()|tojson }};
+  if (img.tagName === 'IMG' && img.hasAttribute('data-ph') && img.getAttribute('src') !== ph) { img.removeAttribute('srcset'); img.src = ph; }
+}, true);</script>
