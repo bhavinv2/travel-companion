@@ -45,6 +45,20 @@ PAGES = {
     '/blog/': 'blog.blog_list',
     '/feed/': 'blog.blog_list',
 }
+# WordPress's posts that are on our blog under another address word (copied by hand before the
+# switch, so the slug differs). Old slug -> ours. A post whose slug is the same needs no entry.
+OLD_POSTS = {
+    'buy-travel-insurance-online-for-parents-travelling-to-the-usa-visitor-insurance-guide':
+        'buy-travel-insurance-online-for-parents-travelling-to-the-usa-visitor-insurance',
+    'travel-insurance-for-parents-travelling-to-usa':                       # WordPress's second copy of it
+        'buy-travel-insurance-online-for-parents-travelling-to-the-usa-visitor-insurance',
+    'how-to-buy-travel-insurance-for-parents-visiting-the-usa':
+        'how-to-buy-travel-insurance-for-parents-visiting-the-usa-2',
+    'living-abroad-heres-how-a-travel-companion-can-help-your-parents-travel-safely':
+        'living-abroad-here-s-how-a-travel-companion-can-help-your-parents-travel-safely',
+    'managing-elderly-care-from-abroad-what-nris-need-to-know-about-their-parents-healthcare':
+        'managing-elderly-care-from-abroad-what-nris-need-to-know-about-their-parents',
+}
 # WordPress's archives: a list of posts, which is our blog's list now
 ARCHIVES = ('author', 'page', 'feed', 'comments', 'date')
 # WordPress itself, which nobody should be sent anywhere for
@@ -77,9 +91,11 @@ def where(path):
     if parts[0] in ARCHIVES or parts[0].isdigit():
         return urls.public_url('blog.blog_list')
     if len(parts) == 1:
-        post = Blog.live().filter(Blog.slug == parts[0]).first()
-        if post is not None:
-            return urls.public_url('blog.blog_post', slug=post.slug)
+        slugs = [parts[0]] + ([OLD_POSTS[parts[0]]] if parts[0] in OLD_POSTS else [])
+        for slug in slugs:                                   # its own slug first; then the one it has here
+            post = Blog.live().filter(Blog.slug == slug).first()
+            if post is not None:
+                return urls.public_url('blog.blog_post', slug=post.slug)
     return None
 
 

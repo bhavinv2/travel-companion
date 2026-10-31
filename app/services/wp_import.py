@@ -10,8 +10,9 @@ Each published post becomes a published post on our blog with:
     the blog's sections, chosen on purpose).
 
 Pictures are copied, not linked: the WordPress server is going away. Nobody is told a post "went
-live" -- they are old posts. A post whose slug is already on our blog is left alone, so bringing
-them over twice brings nothing twice.
+live" -- they are old posts. A post that is already on our blog is left alone -- the same slug, the
+same title, or a slug old_site.OLD_POSTS says lives here under another one -- so bringing them over
+twice brings nothing twice, and the posts copied by hand before the switch are not copied again.
 
     fetch(site)              WordPress's published posts, newest first (raises WPError)
     bring_over(site, user)   {'added': [Blog], 'skipped': [(title, why)], 'pictures_failed': n}
@@ -25,7 +26,7 @@ from urllib.parse import urlparse
 import requests
 
 from app import db
-from app.services import blog_engine, blog_posts, wp_blog
+from app.services import blog_engine, blog_posts, old_site, wp_blog
 
 log = logging.getLogger(__name__)
 
@@ -115,9 +116,14 @@ def _terms(post):
     return cats, tags
 
 
+def _same(title):
+    return ' '.join((title or '').split()).casefold()
+
+
 def bring_over(site, user):
     from app.models import Blog
     added, skipped, failed = [], [], 0
+    titles = {_same(t) for (t,) in db.session.query(Blog.title)}
     for post in fetch(site):
         title = wp_blog._text((post.get('title') or {}).get('rendered'))[:300]
         slug = (post.get('slug') or '').strip()[:350]
@@ -127,6 +133,10 @@ def bring_over(site, user):
         if Blog.query.filter_by(slug=slug).first():
             skipped.append((title, 'a post at this address is already on our blog'))
             continue
+        if slug in old_site.OLD_POSTS or _same(title) in titles:
+            skipped.append((title, 'it is already on our blog, at another address'))
+            continue
+        titles.add(_same(title))
         content, missing = _copy_pictures((post.get('content') or {}).get('rendered'))
         failed += missing
         seo = post.get('yoast_head_json') or {}

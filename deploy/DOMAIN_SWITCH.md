@@ -1,3 +1,7 @@
+> **Superseded on 2026-10-31 by [DOMAIN_PLAN_A.md](DOMAIN_PLAN_A.md):** the app now answers at the bare
+> `nriparentservice.com` (Cloudflare kept only for DNS). This file stays for the WordPress, MilesWeb
+> and GoDaddy detail it holds.
+
 # Switch: our app to www.nriparentservice.com, WordPress to travel.nriparentservice.com, no Cloudflare
 
 ## The result

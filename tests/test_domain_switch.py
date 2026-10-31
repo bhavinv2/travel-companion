@@ -307,6 +307,19 @@ def test_a_wordpress_post_redirects_to_it_on_our_blog(dc):
     assert get(dc, '/never-was/').status_code == 404
 
 
+def test_a_wordpress_post_copied_here_under_another_slug_redirects_to_that(dc):
+    """Five posts were copied by hand before the switch and got a different slug (…-2, here-s …):
+    old_site.OLD_POSTS pairs each old address with ours."""
+    old, ours = 'how-to-buy-travel-insurance-for-parents-visiting-the-usa', 'how-to-buy-travel-insurance-for-parents-visiting-the-usa-2'
+    assert get(dc, '/%s/' % old).status_code == 404                     # nothing here yet
+    post(ours)
+    for path in ('/%s/' % old, '/%s' % old, '/blog/%s/' % old):
+        r = get(dc, path)
+        assert r.status_code == 301 and r.headers['Location'] == '/blog/' + ours, path
+    post(old)                                                          # the same slug goes live here: it wins
+    assert get(dc, '/%s/' % old).headers['Location'] == '/blog/' + old
+
+
 @pytest.mark.parametrize('path', ['/wp-login.php', '/wp-admin/', '/wp-content/uploads/2026/10/a.jpg',
                                   '/xmlrpc.php', '/wp-json/wp/v2/posts'])
 def test_wordpress_itself_is_gone(dc, path):
@@ -398,6 +411,21 @@ def test_the_wordpress_posts_are_brought_over_once(app, client, admin_user, monk
 
     client.post('/admin/blog/import/wordpress')                                        # twice: nothing twice
     assert Blog.query.count() == 2
+
+
+def test_posts_already_here_under_another_address_are_not_brought_over(app, client, admin_user, monkeypatch):
+    """The posts copied by hand before the switch: a different slug, the same title, or a slug in OLD_POSTS."""
+    from app.services import old_site
+    here = Blog(author_id=admin_user.id, title='Supporting  parents living alone', slug='parents-alone-here',
+                content='<p>Here.</p>', is_published=True, published_at=datetime.utcnow())
+    _db.session.add(here)
+    _db.session.commit()
+    renamed = dict(WP_POSTS[0], slug=next(iter(old_site.OLD_POSTS)))                  # known under another slug
+    _wordpress(monkeypatch, [renamed, WP_POSTS[1]])                                    # [1]: the same title as `here`
+    login(client, 'admin@test.com')
+    r = client.post('/admin/blog/import/wordpress', follow_redirects=True)
+    assert '0 posts brought over from WordPress and published. 2 already here, left alone.' in r.get_data(as_text=True)
+    assert Blog.query.count() == 1
 
 
 def test_nothing_is_brought_over_when_wordpress_is_gone(app, client, admin_user, monkeypatch):

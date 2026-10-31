@@ -45,7 +45,7 @@
      APP_ALIAS_PATHS = /travel-insurance,/sahayak,/contact-us   (also the built-in default)
 */
 
-const ORIGIN = "travel-companion-production-261c.up.railway.app";
+const ORIGIN = "nriparentservice.up.railway.app";
 const PREFIX = "/travel-companions";
 
 // Standalone pages beside the prefix. Keep in step with APP_ALIAS_PATHS on Railway AND with
