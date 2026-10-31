@@ -1,4 +1,5 @@
-import { Doodles, Snap, Trail } from './Deco.jsx';
+import { Doodles, Side, Snap, Trail } from './Deco.jsx';
+import sideMap from '../assets/photos/ins-world-map.jpg';
 import { site, talk, TALK } from '../data/site.js';
 import { useReveal } from '../hooks.js';
 import askPhoto from '../assets/photos/support-agent.webp';
@@ -26,7 +27,9 @@ export default function Steps() {
       <Trail at={{ top: '96px', left: 'max(180px, calc(50% - 500px))' }} width={150} />
       <Trail at={{ top: '96px', right: 'max(180px, calc(50% - 500px))' }} width={150} flip />
       <Snap src={themAtHome} caption="Them, at home" pos="70% 30%" at={{ top: '64px', right: 'max(18px, calc(50% - 660px))' }} rotate={5} width={150} tone="amber" />
-      <Doodles items={[['chat', { top: '58%', left: '2.5%', size: 30, rotate: -8 }], ['calendar', { top: '62%', right: '2.5%', size: 30, rotate: 8 }],
+      <Side img={sideMap} shape="blob" top="340px" tint="#2446B8"
+        icons={[['chat', '#14946E'], ['calendar', '#2446B8'], ['check', '#0F9D8C'], ['users', '#E4613F']]} />
+      <Doodles items={[['calendar', { top: '62%', right: '2.5%', size: 30, rotate: 8 }],
         ['heart', { top: '90%', left: '6%', size: 26, rotate: 10 }]]} />
       <div className="wrap">
         <div className="sc-head center rv-up" ref={head}>

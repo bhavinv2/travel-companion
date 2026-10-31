@@ -1,5 +1,9 @@
 import Bg from './Bg.jsx';
-import { Doodles, Note, Snap, Trail } from './Deco.jsx';
+import { Doodles, Note, Side, Snap, Trail } from './Deco.jsx';
+import { MARK } from '../data/services.js';
+import sideIns from '../assets/photos/ins-hero-banner.jpg';
+import sideSah from '../assets/photos/sah-why-community.jpg';
+import sideHealth from '../assets/photos/why-health.jpg';
 import Rail from './Rail.jsx';
 import { site, talk, TALK } from '../data/site.js';
 import { useReveal } from '../hooks.js';
@@ -146,8 +150,9 @@ export function Insurance() {
     <section className="sc sc-light sc-band sc-ins" id="insurance" aria-labelledby="ins-h">
       <Snap src={snapSydney} caption="Protected every mile." at={{ top: '64px', left: LEFT }} rotate={-6} width={160} />
       <Note at={{ top: '100px', right: LEFT }} rotate={-5} icon="plane" tone="blue">Insured before takeoff</Note>
-      <Doodles items={[['shield', { top: '54%', left: '2.5%', size: 32, rotate: -8, opacity: 0.18 }],
-        ['globe', { top: '24%', right: '3%', size: 30, rotate: 10, opacity: 0.18 }]]} />
+      <Side img={sideIns} shape="pill" top="330px" tint={MARK.insurance.color} pos="center 40%"
+        icons={[['shield', MARK.insurance.color], ['plane', MARK.companion.color], ['globe', '#0F9D8C'], ['check', '#14946E']]} />
+      <Doodles items={[['globe', { top: '24%', right: '3%', size: 30, rotate: 10, opacity: 0.18 }]]} />
       <div className="wrap">
         <Head kick="Travel Insurance" id="ins-h" title="What Visitor Insurance" accent="Covers"
           script="Covered every corner." />
@@ -191,8 +196,9 @@ export function Sahayak() {
     <section className="sc sc-soft sc-band sc-sah" id="sahayak" aria-labelledby="sah-h">
       <Snap src={sVitals} caption="Vitals checked, 10:12" pos="100% 50%" at={{ top: '64px', left: LEFT }} rotate={-6} width={160} />
       <Snap src={snapUpdate} caption="Update shared with you" pos="center 30%" at={{ top: '80px', right: LEFT }} rotate={5} width={155} tone="amber" />
-      <Doodles items={[['steth', { top: '56%', left: '2.5%', size: 32, rotate: 10, opacity: 0.2 }],
-        ['heart', { top: '64%', right: '3%', size: 28, rotate: -10, opacity: 0.22 }]]} />
+      <Side img={sideSah} shape="arch" top="330px" tint={MARK.sahayak.color} pos="center 40%"
+        icons={[['home', MARK.sahayak.color], ['steth', MARK.doctor.color], ['heart', '#E4613F'], ['calendar', '#2446B8']]} />
+      <Doodles items={[['heart', { top: '64%', right: '3%', size: 28, rotate: -10, opacity: 0.22 }]]} />
       <div className="wrap">
         <Head kick="Sahayak" id="sah-h" title="What a Sahayak" accent="Handles for Them"
           script="Someone qualified, and a record you can read." />
@@ -226,8 +232,9 @@ export function Health() {
     <section className="sc sc-cream sc-band sc-health" id="health" aria-labelledby="hl-h">
       <Snap src={snapWell} caption="Feeling well" pos="30% 50%" at={{ top: '56px', left: LEFT }} rotate={-6} width={150} />
       <Snap src={snapWalk} caption="Out and about" pos="center 35%" at={{ top: '72px', right: LEFT }} rotate={5} width={140} />
-      <Doodles items={[['steth', { top: '62%', left: '2.5%', size: 32, rotate: -10, opacity: 0.2 }],
-        ['heart', { top: '66%', right: '2.5%', size: 28, rotate: 8, opacity: 0.2 }]]} />
+      <Side img={sideHealth} shape="circle" top="300px" tint={MARK.gift.color} pos="center 35%"
+        icons={[['health', '#E4613F'], ['gift', MARK.gift.color], ['clip', MARK.fit.color], ['hospital', '#2446B8']]} />
+      <Doodles items={[['heart', { top: '66%', right: '2.5%', size: 28, rotate: 8, opacity: 0.2 }]]} />
       <div className="wrap">
         <Head kick="Health & Wellness" id="hl-h" title="Our Healthcare" accent="Partners"
           script="Care that keeps them well."

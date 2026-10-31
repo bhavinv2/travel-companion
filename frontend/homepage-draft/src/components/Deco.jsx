@@ -46,6 +46,26 @@ export function Snap({ src, caption, at, rotate = -5, width = 150, pos = 'center
   );
 }
 
+/* The empty band left of the content on a wide screen, filled: a photo cut to a shape (arch,
+ * circle, blob, pill, or `art` for a drawing with no frame), a tinted shape behind it, a dotted
+ * ring round it, and small icons in bubbles sitting on the ring. It takes the band's width
+ * (styles.css .side): where the band is too narrow for the photo only the icons stay, in a
+ * column, and where there is no band at all, nothing. `icons` are [name, colour]; `top` places
+ * it down its section. */
+export function Side({ img, pos = 'center', shape = 'arch', top, tint = '#2446B8', icons = [] }) {
+  return (
+    <span className={`dk side ${shape}`} aria-hidden="true" style={{ top, '--c': tint }}>
+      <span className="side-in">
+        {img && <span className="side-ring" />}
+        {img && <span className="side-ph"><img src={img} alt="" loading="lazy" decoding="async" style={{ objectPosition: pos }} /></span>}
+        {icons.map(([name, color], i) => (
+          <i key={name} className={`side-ic n${i}`} style={{ '--ic': color }}><Icon name={name} stroke={1.9} className="" /></i>
+        ))}
+      </span>
+    </span>
+  );
+}
+
 /* A handwritten note, with a small line icon after it. */
 export function Note({ children, at, rotate = -4, icon = 'heart', tone }) {
   return (

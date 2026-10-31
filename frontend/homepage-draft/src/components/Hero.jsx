@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Doodles, Trail } from './Deco.jsx';
+import { Doodles, Side, Trail } from './Deco.jsx';
 import Icon from './Icon.jsx';
 import { away, site, talk, TALK } from '../data/site.js';
 import { MARK } from '../data/services.js';
@@ -11,6 +11,7 @@ import imgDoctor from '../assets/photos/doctor-consultation.jpg';
 import imgSahayak from '../assets/photos/why-local.jpg';
 import imgGift from '../assets/photos/cta-care.jpg';
 import imgFit from '../assets/photos/health-hero.jpg';
+import landmarks from '../assets/photos/landmarks.webp';
 
 /* The hero: light and calm, no photo behind it. On the left, the promise -- "Your Parents Are in
  * India. Their Care Is With Us." -- one line about what we do, the two buttons and the six services'
@@ -67,7 +68,9 @@ export default function Hero() {
 
   return (
     <section className="hero4" id="hero" aria-labelledby="hero-h">
-      <Doodles items={[['plane', { top: '9%', left: '3%', size: 28, rotate: -14, opacity: 0.18 }],
+      <Side img={landmarks} shape="art" top="26%" icons={[['plane', MARK.companion.color], ['heart', '#E4613F'],
+        ['home', MARK.sahayak.color], ['video', MARK.doctor.color]]} />
+      <Doodles items={[
         ['heart', { bottom: '10%', left: '44%', size: 22, rotate: -10, opacity: 0.2 }],
         ['pin', { bottom: '6%', right: '2%', size: 26, rotate: 10, opacity: 0.18 }]]} />
       <Trail at={{ bottom: '24px', left: 'max(40px, calc(50% - 580px))' }} width={170} tone="amber" />

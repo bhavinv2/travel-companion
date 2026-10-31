@@ -13,7 +13,10 @@ import checkedPhoto from '../assets/photos/sah-svc-lab.jpg';
 import chTravel from '../assets/photos/tc-l3.jpg';
 import chCare from '../assets/photos/sah-finder-care.jpg';
 import chHealth from '../assets/photos/hero-parent-care.jpg';
-import { Doodles, Note, Snap, Trail } from './Deco.jsx';
+import { Doodles, Note, Side, Snap, Trail } from './Deco.jsx';
+import sideTravel from '../assets/photos/tc-l2.jpg';
+import sideCare from '../assets/photos/sahayak-photo.jpg';
+import sideHealth from '../assets/photos/sah-family.jpg';
 
 /* "Our services" as on the static page: a path drawn by scroll, stops alternating sides, each
  * with a 3D object that tilts as it passes. Each stop's service icon sits on the path at its
@@ -269,14 +272,16 @@ export default function Journey() {
 
   return (
     <section className="jr" id="services" aria-labelledby="jr-h" ref={ref}>
+      <Side img={sideTravel} shape="arch" top="15%" tint={MARK.companion.color} pos="center 40%"
+        icons={[['plane', MARK.companion.color], ['shield', MARK.insurance.color], ['pin', '#E4613F'], ['globe', '#0F9D8C']]} />
+      <Side img={sideCare} shape="blob" top="45%" tint={MARK.sahayak.color} pos="center 30%"
+        icons={[['steth', MARK.doctor.color], ['home', MARK.sahayak.color], ['video', '#2446B8'], ['heart', '#E4613F']]} />
+      <Side img={sideHealth} shape="circle" top="74%" tint={MARK.fit.color}
+        icons={[['gift', MARK.gift.color], ['clip', MARK.fit.color], ['health', '#E4613F'], ['calendar', '#2446B8']]} />
       <Doodles items={[
-        ['plane', { top: '2%', left: '3%', size: 34, rotate: -14, opacity: 0.14 }],
         ['globe', { top: '5%', right: '4%', size: 38, rotate: 8, opacity: 0.12 }],
-        ['pin', { top: '24%', left: '2.5%', size: 26, rotate: -6 }],
         ['heart', { top: '38%', right: '3%', size: 28, rotate: 10 }],
-        ['home', { top: '52%', left: '3%', size: 30, rotate: 6, opacity: 0.12 }],
         ['steth', { top: '66%', right: '3.5%', size: 32, rotate: -10 }],
-        ['gift', { top: '80%', left: '3%', size: 30, rotate: -8 }],
         ['shield', { top: '92%', right: '4%', size: 30, rotate: 6, opacity: 0.12 }],
       ]} />
       <div className="wrap">

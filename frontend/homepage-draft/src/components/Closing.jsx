@@ -1,4 +1,5 @@
-import { Doodles, Snap, Trail } from './Deco.jsx';
+import { Doodles, Side, Snap, Trail } from './Deco.jsx';
+import sideAirport from '../assets/photos/tc-l1.jpg';
 import Icon from './Icon.jsx';
 import { Brand } from './Nav.jsx';
 import { site, talk, TALK } from '../data/site.js';
@@ -39,7 +40,9 @@ export function Blog() {
   const posts = site.posts.length ? site.posts : FALLBACK;
   return (
     <section className="sc sc-cream blog" id="resources" aria-labelledby="blog-h">
-      <Doodles items={[['globe', { top: '8%', right: '3%', size: 32, rotate: 10 }], ['pin', { top: '20%', left: '2.5%', size: 26, rotate: -8 }]]} />
+      <Side img={sideAirport} shape="circle" top="24%" tint="#2446B8"
+        icons={[['mail', '#2446B8'], ['globe', '#0F9D8C'], ['sparkle', '#C98A12'], ['plane', '#E4613F']]} />
+      <Doodles items={[['globe', { top: '8%', right: '3%', size: 32, rotate: 10 }]]} />
       <Trail at={{ top: '70px', right: 'max(200px, calc(50% - 420px))' }} width={170} />
       <div className="wrap">
         <div className="sec-h rv-up" ref={head}>

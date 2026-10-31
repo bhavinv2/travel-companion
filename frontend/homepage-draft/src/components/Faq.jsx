@@ -1,4 +1,5 @@
-import { Doodles, Note, Snap } from './Deco.jsx';
+import { Doodles, Note, Side, Snap } from './Deco.jsx';
+import sideIndia from '../assets/photos/tc-l9.jpg';
 import helpPhoto from '../assets/photos/support-agent.webp';
 import { site } from '../data/site.js';
 import { useReveal } from '../hooks.js';
@@ -11,6 +12,8 @@ export default function Faq() {
   if (!site.faqs.length) return null;
   return (
     <section className="sc sc-light hfaq" id="faq" aria-labelledby="faq-h">
+      <Side img={sideIndia} shape="arch" top="14%" tint="#C98A12" pos="center 30%"
+        icons={[['chat', '#2446B8'], ['mail', '#E4613F'], ['pin', '#0F9D8C'], ['clock', '#C98A12']]} />
       <Doodles items={[['chat', { top: '10%', right: '4%', size: 30, rotate: 8 }], ['pin', { top: '84%', right: '8%', size: 26, rotate: -10 }]]} />
       <div className="wrap hfaq-in">
         <div className="hfaq-head rv-up" ref={head}>

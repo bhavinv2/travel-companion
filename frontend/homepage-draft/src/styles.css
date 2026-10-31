@@ -612,6 +612,57 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .note svg{width:18px;height:18px;flex:none}
 .note.blue{color:#004EFE}
 .sc-dark .note{color:#FFC56B}
+/* ---------- the band left of the content on a wide screen (Deco.jsx Side) ----------
+   As wide as the space between the window's edge and the content (less a margin), so it never
+   reaches the content: a photo cut to a shape with a tinted shape behind it, a dotted ring and
+   icons on the ring; in a narrower band the icons alone, in a column; with no band, nothing. */
+.side{left:0;width:clamp(0px,calc(50vw - 616px),380px);container-type:inline-size}
+.side-in{position:relative;display:block;width:min(220px,calc(100cqw - 92px));margin:0 auto}
+.side-ph{position:relative;z-index:1;display:block;overflow:hidden;background:#fff;border:6px solid #fff;box-shadow:0 34px 60px -30px rgba(15,28,85,.5),0 2px 6px rgba(15,28,85,.06)}
+.side-ph img{display:block;width:100%;height:100%;object-fit:cover}
+.side-in::before{content:"";position:absolute;inset:0;z-index:0;background:color-mix(in srgb,var(--c) 15%,transparent);transform:translate(18px,20px) rotate(5deg)}
+.side-ring{position:absolute;inset:-16px;z-index:0;border:1.6px dashed color-mix(in srgb,var(--c) 42%,transparent)}
+.side.arch .side-ph,.side.arch .side-ring,.side.arch .side-in::before{border-radius:999px 999px 26px 26px}
+.side.arch .side-ph{aspect-ratio:4/5}
+.side.circle .side-ph,.side.circle .side-ring,.side.circle .side-in::before{border-radius:50%}
+.side.circle .side-ph{aspect-ratio:1}
+.side.blob .side-ph,.side.blob .side-ring,.side.blob .side-in::before{border-radius:58% 42% 54% 46%/46% 56% 44% 54%}
+.side.blob .side-ph{aspect-ratio:1/1.06}
+.side.pill .side-in{width:min(180px,calc(100cqw - 92px))}
+.side.pill .side-ph,.side.pill .side-ring,.side.pill .side-in::before{border-radius:999px}
+.side.pill .side-ph{aspect-ratio:3/5}
+/* a drawing, not a photo: no frame, its ends fading into the page */
+.side.art .side-in{width:calc(100cqw - 28px)}
+.side.art .side-ph{border:0;background:none;box-shadow:none;opacity:.9;-webkit-mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent)}
+.side.art .side-ph img{height:auto}
+/* over the drawing, a dotted flight arc with the icons on it, and no ring */
+.side.art .side-ring{display:none}
+.side.art .side-in::before{left:5%;right:5%;top:-58px;bottom:auto;height:130px;background:none;transform:none;border:1.6px dashed color-mix(in srgb,var(--c) 40%,transparent);border-left-color:transparent;border-right-color:transparent;border-bottom-color:transparent;border-radius:50%}
+.side-ic{position:absolute;z-index:2;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:#fff;color:var(--ic);box-shadow:0 0 0 4px color-mix(in srgb,var(--ic) 14%,transparent),0 12px 22px -12px rgba(15,28,85,.5)}
+.side-ic svg{width:21px;height:21px}
+.side-ic.n0{top:-22px;right:4%}
+.side-ic.n1{top:44%;right:-38px}
+.side-ic.n2{bottom:-24px;left:14%}
+.side-ic.n3{top:18%;left:-38px}
+.side.art .side-ic.n0{top:-34px;right:auto;left:4%}
+.side.art .side-ic.n1{top:-80px;right:auto;left:calc(50% - 22px)}
+.side.art .side-ic.n2{bottom:auto;top:-34px;left:auto;right:4%}
+.side.art .side-ic.n3{top:calc(100% + 14px);left:calc(50% - 22px)}
+/* a middling band (a 1600px screen): a smaller photo, the icons tucked closer */
+@container (max-width:260px){
+.side-in,.side.pill .side-in{width:calc(100cqw - 64px)}
+.side-ic{width:38px;height:38px}
+.side-ic svg{width:18px;height:18px}
+.side-ic.n1{right:-26px}
+.side-ic.n3{left:-26px}
+}
+@container (max-width:160px){
+.side-ph,.side-ring,.side-in::before{display:none}
+.side-in,.side.pill .side-in,.side.art .side-in{width:44px;display:grid;gap:22px}
+.side-ic,.side.art .side-ic{position:static}
+}
+@container (max-width:64px){.side-in{display:none}}
+
 /* the empty half of the insurance and Sahayak sections, where their snapshots go */
 .hfaq-deco{position:relative;display:block;height:250px;margin-top:28px}
 
