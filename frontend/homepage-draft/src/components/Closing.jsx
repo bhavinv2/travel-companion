@@ -34,6 +34,17 @@ const POSTS = [
 
 const FALLBACK = POSTS.map((p) => ({ ...p, url: `https://nriparentservice.com/${p.slug}/`, summary: p.text }));
 
+/* A post's picture that will not load (an upload the server no longer has) becomes the site's one
+ * placeholder; with none (standalone) it steps aside for the card's own blue. */
+function noPicture(e) {
+  const img = e.currentTarget;
+  const ph = site.postPlaceholder;
+  if (ph && img.getAttribute('src') !== ph) {
+    img.src = ph;
+    img.classList.add('is-ph');
+  } else img.style.visibility = 'hidden';
+}
+
 export function Blog() {
   const head = useReveal();
   const grid = useReveal(0.1);
@@ -59,7 +70,9 @@ export function Blog() {
         <div className="wgrid rv-stagger" ref={grid}>
           {posts.map((p, i) => (
             <a className="wcard wpost" href={p.url} key={p.url} style={{ '--d': `${i * 100}ms` }}>
-              {p.img ? <img src={p.img} alt="" loading="lazy" decoding="async" /> : <span className="wpost-noimg" aria-hidden="true" />}
+              {p.img || site.postPlaceholder
+                ? <img src={p.img || site.postPlaceholder} className={p.img ? undefined : 'is-ph'} alt="" loading="lazy" decoding="async" onError={noPicture} />
+                : <span className="wpost-noimg" aria-hidden="true" />}
               <span className="wtag">{p.label}</span>
               <div className="wbody">
                 <h3>{p.title}</h3>
