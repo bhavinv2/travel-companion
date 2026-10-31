@@ -61,7 +61,9 @@ class PrefixMiddleware:
         self.site_pages = dict(site_pages or {})
         # whole sections of the site (/blog): every address under one is the app's route of that name
         self.site_sections = [('/' + s.strip('/')) for s in site_sections if s and s.strip('/')]
+        # the site's two spellings, whichever one is public: the other redirects to it (_tidy)
         bare = self.public_host.lower()
+        bare = bare[4:] if bare.startswith('www.') else bare
         self.hosts = {bare, 'www.' + bare} if bare else set()
 
     def _tidy(self, host, path, environ):
@@ -822,6 +824,7 @@ def create_app(test_config=None):
             # a mailbox nobody is watching.
             'CONTACT_EMAIL': offices.email,
             'here': urls.here,
+            'site_here': urls.here,                # the same, under a name no page passes its own value as
             'NRI_SOCIAL': nri_services.SOCIAL,
             'INSURANCE_PARTNER_NAME': nri_services.INSURANCE_PARTNER_NAME,
             'INSURANCE_PARTNER_URL': nri_services.INSURANCE_PARTNER_URL,

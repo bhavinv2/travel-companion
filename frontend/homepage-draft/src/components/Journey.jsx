@@ -272,9 +272,10 @@ export default function Journey() {
 
   return (
     <section className="jr" id="services" aria-labelledby="jr-h" ref={ref}>
-      <Side img={sideTravel} shape="arch" top="15%" tint={MARK.companion.color} pos="center 40%"
+      {/* A wide photo in a tall frame shows only its middle: each `pos` keeps the people in it whole. */}
+      <Side img={sideTravel} shape="blob" top="15%" tint={MARK.companion.color} pos="61% 40%"
         icons={[['plane', MARK.companion.color], ['shield', MARK.insurance.color], ['pin', '#E4613F'], ['globe', '#0F9D8C']]} />
-      <Side img={sideCare} shape="blob" top="45%" tint={MARK.sahayak.color} pos="center 30%"
+      <Side img={sideCare} shape="arch" top="45%" tint={MARK.sahayak.color} pos="center 20%"
         icons={[['steth', MARK.doctor.color], ['home', MARK.sahayak.color], ['video', '#2446B8'], ['heart', '#E4613F']]} />
       <Side img={sideHealth} shape="circle" top="74%" tint={MARK.fit.color}
         icons={[['gift', MARK.gift.color], ['clip', MARK.fit.color], ['health', '#E4613F'], ['calendar', '#2446B8']]} />

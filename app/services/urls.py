@@ -137,7 +137,11 @@ def here(with_query=True):
     bare '?' to every URL that has no query string, which then shows up in the address bar.
     """
     root = (request.script_root or '').rstrip('/')
-    url = to_site(root + request.path)          # a /blog page is at /blog, not inside the prefix
+    path = request.path
+    if root and any(path == a or path.startswith(a + '/') for a in _aliases()):
+        url = path                              # a front door (/travel-insurance) is known by its own address
+    else:
+        url = to_site(root + path)              # a /blog page is at /blog, not inside the prefix
     if with_query and request.query_string:
         url += '?' + request.query_string.decode('latin-1')
     return url

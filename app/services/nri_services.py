@@ -5,7 +5,8 @@ footer column. All of these live on other domains, so every link opens in a new 
 """
 
 SERVICES = [
-    ('Book a Sahayak', 'https://preventia360.com/book-a-sahayak/'),
+    # Ours too: /sahayak is where a Sahayak is booked now (sahayak/landing.html).
+    ('Book a Sahayak', None, 'sahayak.landing'),
     ('Fit2Fly', 'https://preventia360.com/fit2fly/'),
     ('Gift Health', 'https://preventia360.com/gift-health/'),
     ('Elder Care', 'https://preventia360.com/'),
@@ -27,8 +28,8 @@ def page_of(label):
 def resolved():
     """SERVICES with our own entries pointed at this app's routes.
 
-    Two of these are no longer somebody else's website: travel insurance is a page this app
-    serves. Linking to it by its production URL made every click a redirect (the address carried
+    Two of these are no longer somebody else's website: travel insurance and Sahayak are pages
+    this app serves. Linking to it by its production URL made every click a redirect (the address carried
     a trailing slash the app redirects away), sent staging and local traffic to the live site,
     and gave search engines an external link where an internal one belongs.
 

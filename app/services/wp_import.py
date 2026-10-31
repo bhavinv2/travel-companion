@@ -9,7 +9,9 @@ Each published post becomes a published post on our blog with:
   * its tags, and its categories where our blog has one of the same name (none is made: ours are
     the blog's sections, chosen on purpose).
 
-Pictures are copied, not linked: the WordPress server is going away. Nobody is told a post "went
+Pictures are copied, not linked: the WordPress server is going away. A link to one of its own pages
+(another post, the privacy policy, the blog ...) is pointed at where that page lives now (old_site.where),
+once every post is over, so posts that link to each other keep working. Nobody is told a post "went
 live" -- they are old posts. A post that is already on our blog is left alone -- the same slug, the
 same title, or a slug old_site.OLD_POSTS says lives here under another one -- so bringing them over
 twice brings nothing twice, and the posts copied by hand before the switch are not copied again.
@@ -24,6 +26,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 
 import requests
+from flask import current_app
 
 from app import db
 from app.services import blog_engine, blog_posts, old_site, wp_blog
@@ -36,6 +39,7 @@ PER_PAGE = 100
 NOTE = 'Brought over from WordPress'
 _IMG_RE = re.compile(r'<img\b[^>]*>', re.I)
 _SRC_RE = re.compile(r'\bsrc="([^"]+)"', re.I)
+_HREF_RE = re.compile(r'\bhref="([^"]+)"', re.I)
 
 
 class WPError(Exception):
@@ -98,6 +102,31 @@ def _copy_pictures(content):
     return _IMG_RE.sub(swap, content or ''), failed
 
 
+def _our_hosts(site):
+    """The names the WordPress site's own links may start with: where it is read from, and the domain."""
+    ours = (current_app.config.get('APP_PUBLIC_HOST') or '').strip().lower()
+    hosts = {(urlparse(site).hostname or '').lower()}
+    if ours:
+        hosts |= {ours, 'www.' + ours}
+    return {h for h in hosts if h}
+
+
+def _relink(content, hosts):
+    """The post's words with each link to one of the WordPress site's own pages pointed at where that page
+    lives now. A link old_site knows nothing about is left as it is."""
+    def swap(m):
+        parts = urlparse(html.unescape(m.group(1)))
+        if (parts.hostname or '').lower() not in hosts:
+            return m.group(0)
+        target = old_site.where(parts.path)
+        if not target or target == old_site.GONE:
+            return m.group(0)
+        target += ('?' + parts.query if parts.query else '') + ('#' + parts.fragment if parts.fragment else '')
+        return 'href="%s"' % html.escape(target, quote=True)
+
+    return _HREF_RE.sub(swap, content or '')
+
+
 def _when(post):
     try:
         return datetime.fromisoformat((post.get('date_gmt') or post.get('date') or '')[:19])
@@ -122,7 +151,7 @@ def _same(title):
 
 def bring_over(site, user):
     from app.models import Blog
-    added, skipped, failed = [], [], 0
+    added, skipped, failed, words = [], [], 0, {}
     titles = {_same(t) for (t,) in db.session.query(Blog.title)}
     for post in fetch(site):
         title = wp_blog._text((post.get('title') or {}).get('rendered'))[:300]
@@ -158,5 +187,9 @@ def bring_over(site, user):
         db.session.flush()
         blog_posts.remember(p, user, NOTE)
         added.append(p)
+        words[p.slug] = content
+    hosts = _our_hosts(site)
+    for p in added:                                          # now that every post is here, their links to each other
+        p.content = blog_engine.sanitize(_relink(words[p.slug], hosts))
     db.session.commit()
     return {'added': added, 'skipped': skipped, 'pictures_failed': failed}

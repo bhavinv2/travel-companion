@@ -56,15 +56,47 @@ EXTERNAL = 'M7 17 17 7M9 7h8v8'
 BY_BLUEPRINT = {'insurance': 'insurance', 'sahayak': 'sahayak'}
 
 
-# The group's privacy policy and terms (routes/main.py) are about every product, not the companion app
-# whose blueprint they sit in: they wear the home page's name.
-GROUP_ENDPOINTS = {'main.privacy_policy': 'home', 'main.terms_conditions': 'home'}
+# The group's privacy policy, terms and contact page (routes/main.py) are about every product, not the
+# companion app whose blueprint they sit in: they wear the home page's name. So does the blog, the site's
+# own at /blog.
+GROUP_ENDPOINTS = {'main.privacy_policy': 'home', 'main.terms_conditions': 'home',
+                   'main.contact_us': 'home', 'main.contact': 'home'}
+GROUP_BLUEPRINTS = ('blog',)
+
+
+def home_url():
+    """The site's home page: /home once the domain points at this app (a "direct" request). On the
+    Railway address and locally the domain's root is not ours, so home is the companion app's first page."""
+    if request.environ.get('app.direct'):
+        return urls.public_url('homepage_draft.landing')
+    return url_for('main.index')
+
+
+# The companion app's own front pages: on these the menu marks "Services", as on insurance and Sahayak.
+COMPANION_FRONT = ('main.index', 'main.all_trips', 'main.how_it_works')
+
+
+def section():
+    """Which item of the site's menu (base.html, landing.html) this page sits under, or ''."""
+    ep = request.endpoint or ''
+    if ep == 'homepage_draft.landing':
+        return 'home'
+    if ep == 'homepage_draft.about':
+        return 'about'
+    if (request.blueprint or '').split('.')[0] == 'blog':
+        return 'blog'
+    if ep in ('main.contact_us', 'main.contact'):
+        return 'contact'
+    if ep in COMPANION_FRONT or current_key() in BY_BLUEPRINT.values():
+        return 'services'
+    return ''
 
 
 def current_key():
+    bp = (request.blueprint or '').split('.')[0]
     page = next((p['key'] for p in PAGES if p['endpoint'] == request.endpoint), None)
-    page = page or GROUP_ENDPOINTS.get(request.endpoint or '')
-    return page or BY_BLUEPRINT.get((request.blueprint or '').split('.')[0], 'companion')
+    page = page or GROUP_ENDPOINTS.get(request.endpoint or '') or ('home' if bp in GROUP_BLUEPRINTS else None)
+    return page or BY_BLUEPRINT.get(bp, 'companion')
 
 
 def current_label():
@@ -98,8 +130,9 @@ def menu():
 
 def extras():
     """The group's other properties, minus anything this app already serves, so the menu does
-    not offer two different links called the same thing."""
+    not offer two different links called the same thing. Ours resolve to a path (Book a Sahayak is
+    /sahayak); theirs are full addresses on another domain."""
     from app.services import nri_services
     ours = {p['label'].lower() for p in PRODUCTS}
     return [(label, href) for label, href in nri_services.resolved()
-            if href and label.lower() not in ours]
+            if href and href.startswith('http') and label.lower() not in ours]

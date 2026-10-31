@@ -29,7 +29,7 @@
   <meta property="og:site_name" content="NRI Parent Service"/>
   <meta property="og:title" content="{{ self.title()|striptags|trim }}"/>
   <meta property="og:description" content="{{ self.meta_description()|striptags|trim }}"/>
-  <meta property="og:url" content="{{ canonical_url|default(request.host_url.rstrip('/') ~ here(False)) }}"/>
+  <meta property="og:url" content="{{ canonical_url|default(request.host_url.rstrip('/') ~ site_here(False)) }}"/>
   <meta property="og:locale" content="en_US"/>
   {% if _share %}
   <meta property="og:image" content="{{ _share }}"/>
@@ -77,7 +77,7 @@
        Home is the home page (/home) once the domain points at this app; until then the domain's home
        is WordPress's, and the logo stays on the companion app's own first page. #}
     <div class="nav-brand">
-      <a href="{{ staff_home(current_user) if is_staff else (public_url('homepage_draft.landing') if request.environ.get('app.direct') else url_for('main.index')) }}" class="nav-logo">
+      <a href="{{ staff_home(current_user) if is_staff else PRODUCTS.home_url() }}" class="nav-logo">
         <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt="NRI Parent Service" class="logo-img"/>
         <span class="logo-stack">
           <span class="logo-text">NRI <strong>Parent</strong> Service{% if is_staff %} <small class="staff-tag">{{ 'Admin' if current_user.is_admin else 'CS' }}</small>{% endif %}</span>
@@ -140,29 +140,28 @@
         <li><a href="{{ staff_home(current_user) }}"><i class="fa-solid fa-table-columns"></i> Console</a></li>
         {% endif %}
       {% else %}
-      {# No "Home" link while you are already home — the logo is the way back, same as the landing. #}
-      {% if request.endpoint != 'main.index' %}
-      <li><a href="{{ url_for('main.index') }}" title="{{ _('Post a trip, search, and see your matches') }}"><i class="fa-solid fa-house"></i> {{ _('Home') }}</a></li>
-      {% endif %}
-      {% if current_user.is_authenticated %}
-        <li><a href="{{ url_for('main.dashboard') }}" title="{{ _('Manage your trips, matches and profile') }}"><i class="fa-solid fa-gauge"></i> {{ _('My Dashboard') }}</a></li>
-      {% endif %}
-      <li><a href="{{ url_for('blog.blog_list') }}"><i class="fa-solid fa-newspaper"></i> {{ _('Traveller Blogs') }}</a></li>
-      {# Signed-out visitors are on (or one click from) the marketing landing, which has this
-         content inline -- scroll them there. Signed-in travellers see the functional home
-         instead, so they get the standalone walkthrough page. #}
-      <li><a href="{{ url_for('main.index') + '#how' if not current_user.is_authenticated else url_for('main.how_it_works') }}"><i class="fa-solid fa-circle-info"></i> {{ _('How It Works') }}</a></li>
-      {# The rest of the NRI Parent Service group. Most are on other domains and open in a new
-         tab; travel insurance is a page this app serves, so it is an ordinary internal link. #}
+      {# The site's menu, the same on every public page: Home is the site's home page (/home), not
+         the companion app's -- that is Services › Travel Companion. The page you are on is marked. #}
+      {% set _sec = PRODUCTS.section() %}
+      <li><a href="{{ PRODUCTS.home_url() }}"{% if _sec == 'home' %} class="active" aria-current="page"{% endif %}><i class="fa-solid fa-house"></i> {{ _('Home') }}</a></li>
+      {# Our three products, then the group's other sites (another domain: a new tab). #}
       <li class="nav-svc" id="navSvc">
-        <a href="#" id="navSvcBtn" aria-haspopup="true" aria-expanded="false"><i class="fa-solid fa-grip"></i> {{ _('Services') }} <i class="fa-solid fa-chevron-down nav-svc-caret"></i></a>
+        <a href="#" id="navSvcBtn" aria-haspopup="true" aria-expanded="false"{% if _sec == 'services' %} class="active"{% endif %}><i class="fa-solid fa-grip"></i> {{ _('Services') }} <i class="fa-solid fa-chevron-down nav-svc-caret"></i></a>
         <ul class="nav-svc-menu">
-          {% for label, href in NRI_SERVICES %}
-          {% set ext = href.startswith('http') %}
-          <li><a href="{{ href }}"{% if ext %} target="_blank" rel="noopener"{% endif %}>{{ _(label) }}{% if ext %} <i class="fa-solid fa-arrow-up-right-from-square"></i>{% endif %}</a></li>
+          {% for sv in PRODUCTS.menu() %}
+          <li><a href="{{ sv.url }}"{% if sv.current and _sec == 'services' %} class="on" aria-current="page"{% endif %}>{{ _(sv.label) }}</a></li>
+          {% endfor %}
+          {% for label, href in PRODUCTS.extras() %}
+          <li><a href="{{ href }}" target="_blank" rel="noopener">{{ _(label) }} <i class="fa-solid fa-arrow-up-right-from-square"></i></a></li>
           {% endfor %}
         </ul>
       </li>
+      {% if current_user.is_authenticated %}
+        <li><a href="{{ url_for('main.dashboard') }}" title="{{ _('Manage your trips, matches and profile') }}"{% if request.endpoint == 'main.dashboard' %} class="active" aria-current="page"{% endif %}><i class="fa-solid fa-gauge"></i> {{ _('My Dashboard') }}</a></li>
+      {% endif %}
+      <li><a href="{{ url_for('blog.blog_list') }}"{% if _sec == 'blog' %} class="active"{% endif %}><i class="fa-solid fa-newspaper"></i> {{ _('Blog') }}</a></li>
+      <li><a href="{{ public_url('homepage_draft.about') }}"{% if _sec == 'about' %} class="active" aria-current="page"{% endif %}><i class="fa-solid fa-circle-info"></i> {{ _('About Us') }}</a></li>
+      <li><a href="{{ public_url('main.contact_us') }}"{% if _sec == 'contact' %} class="active" aria-current="page"{% endif %}><i class="fa-solid fa-envelope"></i> {{ _('Contact Us') }}</a></li>
       {% if current_user.is_authenticated %}
         {% if current_user.is_cs %}
           <li><a href="{{ url_for('cs.home') }}"><i class="fa-solid fa-headset"></i> CS Console</a></li>
@@ -177,7 +176,7 @@
            somebody who signs in from the travel-insurance page is dropped on the companion home,
            which reads as having been sent to a different product. #}
         <li><a href="{{ url_for('auth.login', next=here()) }}" class="nav-signin"><i class="fa-solid fa-right-to-bracket"></i> {{ _('Sign In') }}</a></li>
-        <li><a href="{{ url_for('auth.register', next=here()) }}" class="highlight-link"><i class="fa-solid fa-user-plus"></i> {{ _('Join Desi Travellers') }}</a></li>
+        <li><a href="{{ url_for('auth.register', next=here()) }}" class="highlight-link"><i class="fa-solid fa-user-plus"></i> {{ _('Sign Up') }}</a></li>
       {% endif %}
       {% endif %}
     </ul>
@@ -416,7 +415,7 @@
               <a href="{{ url_for('my.favourites') }}"><i class="fa-solid fa-star"></i> Favourites &amp; views</a>
               <a href="{{ url_for('main.notification_settings') }}"><i class="fa-solid fa-bell"></i> {{ _('Notification settings') }}</a>
             {% else %}
-              <a href="{{ url_for('main.index') }}"><i class="fa-solid fa-house"></i> {{ _('Home') }}</a>
+              <a href="{{ url_for('main.index') }}"><i class="fa-solid fa-plane-up"></i> {{ _('Travel Companion') }}</a>
               <a href="{{ url_for('main.all_trips') }}"><i class="fa-solid fa-plane-departure"></i> {{ _('Desis on Move') }}</a>
               <a href="{{ url_for('main.dashboard') }}"><i class="fa-solid fa-suitcase"></i> {{ _('My Dashboard') }}</a>
               <a href="{{ url_for('chat.inbox') }}"><i class="fa-solid fa-inbox"></i> {{ _('Inbox') }}</a>

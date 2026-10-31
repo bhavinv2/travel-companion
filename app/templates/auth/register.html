@@ -92,7 +92,7 @@ body::before{content:"";position:fixed;right:-30px;bottom:-16px;width:min(560px,
 </head>
 <body>
 <div class="wrap">
-  <a class="back" href="{{ url_for('main.index') }}"><i class="fa-solid fa-arrow-left"></i> Back to NRI Parent Service</a>
+  <a class="back" href="{{ PRODUCTS.home_url() }}"><i class="fa-solid fa-arrow-left"></i> Back to NRI Parent Service</a>
   <div class="dlg">
     <div class="dlg-head">
       {{ sjt('head-sjt') }}

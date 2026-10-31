@@ -150,7 +150,8 @@ export function Insurance() {
     <section className="sc sc-light sc-band sc-ins" id="insurance" aria-labelledby="ins-h">
       <Snap src={snapSydney} caption="Protected every mile." at={{ top: '64px', left: LEFT }} rotate={-6} width={160} />
       <Note at={{ top: '100px', right: LEFT }} rotate={-5} icon="plane" tone="blue">Insured before takeoff</Note>
-      <Side img={sideIns} shape="pill" top="330px" tint={MARK.insurance.color} pos="center 40%"
+      {/* both parents, not the window beside them */}
+      <Side img={sideIns} shape="pill" top="330px" tint={MARK.insurance.color} pos="79% 40%"
         icons={[['shield', MARK.insurance.color], ['plane', MARK.companion.color], ['globe', '#0F9D8C'], ['check', '#14946E']]} />
       <Doodles items={[['globe', { top: '24%', right: '3%', size: 30, rotate: 10, opacity: 0.18 }]]} />
       <div className="wrap">
@@ -196,7 +197,8 @@ export function Sahayak() {
     <section className="sc sc-soft sc-band sc-sah" id="sahayak" aria-labelledby="sah-h">
       <Snap src={sVitals} caption="Vitals checked, 10:12" pos="100% 50%" at={{ top: '64px', left: LEFT }} rotate={-6} width={160} />
       <Snap src={snapUpdate} caption="Update shared with you" pos="center 30%" at={{ top: '80px', right: LEFT }} rotate={5} width={155} tone="amber" />
-      <Side img={sideSah} shape="arch" top="330px" tint={MARK.sahayak.color} pos="center 40%"
+      {/* the mother being served tea: the middle of this photo cut through both faces */}
+      <Side img={sideSah} shape="arch" top="330px" tint={MARK.sahayak.color} pos="100% 40%"
         icons={[['home', MARK.sahayak.color], ['steth', MARK.doctor.color], ['heart', '#E4613F'], ['calendar', '#2446B8']]} />
       <Doodles items={[['heart', { top: '64%', right: '3%', size: 28, rotate: -10, opacity: 0.22 }]]} />
       <div className="wrap">

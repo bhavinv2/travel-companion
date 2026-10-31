@@ -7,11 +7,11 @@
   <div class="wrap">
     <div class="ftr-grid">
       <div>
-        <a class="ftr-logo" href="{{ url_for('main.index') }}">
+        <a class="ftr-logo" href="{{ PRODUCTS.home_url() }}">
           <span class="ftr-logo-mark"><img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt=""/></span>
-          <span class="ftr-logo-stack"><span>NRI <b>Parent</b> Service</span><small>Connecting Desis</small></span>
+          <span class="ftr-logo-stack"><span>NRI <b>Parent</b> Service</span><small>{{ _('Your Parents, Our Priority') }}</small></span>
         </a>
-        <p class="ftr-brand-desc">{{ _('Your parents, our priority. A community for Desis to travel together, stay connected, and feel at home anywhere in the world.') }}</p>
+        <p class="ftr-brand-desc">{{ _('Travel companions, travel insurance and a Sahayak at home, for Indian parents and the NRI families who care for them.') }}</p>
         <div class="ftr-social">
           {% for label, href, icon in NRI_SOCIAL %}
           <a href="{{ href }}" target="_blank" rel="noopener" aria-label="{{ label }}" title="{{ label }}"><svg viewBox="0 0 24 24" fill="currentColor"><path d="{{ icon }}"/></svg></a>
@@ -20,39 +20,44 @@
         <div class="ftr-wa">{{ wa_button('wa-btn-sm') }}</div>
       </div>
       <div>
-        <h4>{{ _('Quick Links') }}</h4>
+        {# The site's own pages, as in the header menu. #}
+        <h4>{{ _('NRI Parent Service') }}</h4>
         <ul>
-          <li><a href="{{ url_for('main.index') }}">{{ _('Home') }}</a></li>
-          <li><a href="{{ url_for('main.index') + '#how' if not current_user.is_authenticated else url_for('main.how_it_works') }}">{{ _('How It Works') }}</a></li>
-          <li><a href="{{ url_for('main.all_trips') }}">{{ _('Desis on Move') }}</a></li>
+          <li><a href="{{ PRODUCTS.home_url() }}">{{ _('Home') }}</a></li>
+          <li><a href="{{ public_url('homepage_draft.about') }}">{{ _('About Us') }}</a></li>
+          <li><a href="{{ url_for('blog.blog_list') }}">{{ _('Blog') }}</a></li>
           <li><a href="{{ url_for('main.reviews') }}">{{ _('Reviews') }}</a></li>
-          <li><a href="{{ url_for('blog.blog_list') }}">{{ _('Traveller Blogs') }}</a></li>
-          {% if current_user.is_authenticated and not is_staff %}
-          <li><a href="{{ url_for('main.dashboard') }}">{{ _('My Dashboard') }}</a></li>
-          {% endif %}
+          <li><a href="{{ public_url('main.contact_us') }}">{{ _('Contact Us') }}</a></li>
         </ul>
       </div>
       <div>
-        {# The rest of the NRI Parent Service group — all on other domains, so all open in a new tab. #}
+        {# Our products, then the group's other sites (another domain: a new tab). #}
         <h4>{{ _('Our Services') }}</h4>
         <ul>
-          {% for label, href in NRI_SERVICES %}
-          <li><a href="{{ href }}"{% if href.startswith('http') %} target="_blank" rel="noopener"{% endif %}>{{ _(label) }}</a></li>
+          {% for sv in PRODUCTS.menu() %}
+          <li><a href="{{ sv.url }}">{{ _(sv.label) }}</a></li>
+          {% endfor %}
+          {% for label, href in PRODUCTS.extras() %}
+          <li><a href="{{ href }}" target="_blank" rel="noopener">{{ _(label) }}</a></li>
           {% endfor %}
         </ul>
       </div>
       <div>
-        <h4>{{ _('Support') }}</h4>
+        <h4>{{ _('Travel Companion') }}</h4>
         <ul>
-          <li><a href="{{ url_for('main.help_page') }}">{{ _('FAQs') }}</a></li>
+          <li><a href="{{ url_for('main.index') + '#how' if not current_user.is_authenticated else url_for('main.how_it_works') }}">{{ _('How It Works') }}</a></li>
+          <li><a href="{{ url_for('main.all_trips') }}">{{ _('Desis on Move') }}</a></li>
+          {% if current_user.is_authenticated and not is_staff %}
+          <li><a href="{{ url_for('main.dashboard') }}">{{ _('My Dashboard') }}</a></li>
+          {% endif %}
           <li><a href="{{ url_for('main.help_page') }}">{{ _('Safety Guidelines') }}</a></li>
-          <li><a href="{{ public_url('main.contact_us') }}">{{ _('Contact Us') }}</a></li>
           <li><a href="{{ public_url('main.contact_us') }}">{{ _('Report a User') }}</a></li>
         </ul>
       </div>
       <div>
-        <h4>{{ _('Legal') }}</h4>
+        <h4>{{ _('Help & Legal') }}</h4>
         <ul>
+          <li><a href="{{ url_for('main.help_page') }}">{{ _('Help Centre & FAQs') }}</a></li>
           <li><a href="{{ public_url('main.privacy_policy') }}">{{ _('Privacy Policy') }}</a></li>
           <li><a href="{{ public_url('main.terms_conditions') }}">{{ _('Terms and Conditions') }}</a></li>
         </ul>

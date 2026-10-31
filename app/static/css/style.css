@@ -1402,6 +1402,14 @@ body.ud-open { overflow: hidden; }
   color: #0F1F3D; font-size: 14px; font-weight: 500; padding: 9px 12px; border-radius: 8px; white-space: nowrap; }
 .nav-svc-menu a:hover { background: #FFF6EA; color: #0F1F3D; }
 .nav-svc-menu a i { display: inline-block; font-size: 10px; opacity: .5; }
+.nav-svc-menu a.on { background: #FFF6EA; font-weight: 700; }
+/* In the phone drawer the services are rows under "Services", not a floating card. */
+@media (max-width: 1140px) {
+  .nav-links.open .nav-svc-menu { position: static; box-shadow: none; background: transparent; padding: 0 0 4px 34px; min-width: 0; }
+  .nav-links.open .nav-svc-menu a { color: rgba(255,255,255,0.78); font-size: 14.5px; padding: 10px 14px; }
+  .nav-links.open .nav-svc-menu a:hover, .nav-links.open .nav-svc-menu a.on { background: rgba(255,255,255,0.1); color: #fff; }
+  .nav-links.open .nav-svc-menu a i { display: inline-block; width: auto; color: inherit; font-size: 10px; }
+}
 .btn-outline-nav { background: transparent; border: 1.5px solid rgba(255,255,255,0.45); color: #fff; border-radius: 999px; padding: 8px 20px; font-size: 13.5px; font-weight: 700; cursor: pointer; transition: all .15s; }
 .btn-outline-nav:hover { border-color: #fff; background: rgba(255,255,255,0.1); }
 .btn-primary-nav { background: #f0940a; border: 1.5px solid #f0940a; color: #fff; border-radius: 999px; padding: 8px 20px; font-size: 13.5px; font-weight: 700; transition: all .15s; box-shadow: 0 6px 16px rgba(240,148,10,0.35); }

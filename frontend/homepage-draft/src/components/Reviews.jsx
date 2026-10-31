@@ -14,7 +14,8 @@ export default function Reviews() {
   if (!site.reviews.length) return null;
   return (
     <section className="sc sc-soft reviews" id="reviews" aria-labelledby="test-h">
-      <Side img={sideFamilies} shape="pill" top="20%" tint="#E4613F" pos="center 40%"
+      {/* the grandparents, whole: the middle of this photo split them from the family */}
+      <Side img={sideFamilies} shape="pill" top="20%" tint="#E4613F" pos="14% 40%"
         icons={[['heart', '#E4613F'], ['chat', '#2446B8'], ['users', '#0F9D8C'], ['sparkle', '#C98A12']]} />
       <Doodles items={[['heart', { top: '14%', right: '6%', size: 30, rotate: 10 }], ['chat', { top: '22%', left: '30%', size: 28, rotate: -8, opacity: 0.12 }],
         ['users', { top: '80%', right: '3%', size: 32, rotate: -6 }]]} />

@@ -153,6 +153,8 @@ h3{font-size:20px;font-weight:600;font-family:var(--sans);letter-spacing:0}
 .svc-menu a{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-radius:8px;font-size:14px;color:var(--ink)}
 .svc-menu a:hover{background:var(--sand);color:var(--navy)}
 .svc-menu a svg{width:11px;height:11px;color:var(--muted);flex:none}
+.nav-svc>button.active{color:var(--amber)}
+.svc-menu a.on{background:var(--sand);font-weight:700}
 .hdr-right{display:flex;align-items:center;gap:12px}
 /* Support: same pill as the language control next to it, so the header utilities read as a set. */
 .hdr-support{display:inline-flex;align-items:center;gap:7px;border:1.5px solid rgba(255,255,255,.55);color:#fff;border-radius:var(--r-pill);padding:8px 14px;font-weight:600;font-size:14px;text-decoration:none;white-space:nowrap;transition:background .15s,border-color .15s}
@@ -1597,7 +1599,7 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
        menu is inside the burger. #}
     <div class="brandsw">
       {# the site's home page (/home) once the domain points at this app; before that, the top of this page #}
-      <a class="logo" href="{{ public_url('homepage_draft.landing') if request.environ.get('app.direct') else '#top' }}" aria-label="NRI Parent Service home">
+      <a class="logo" href="{{ PRODUCTS.home_url() if request.environ.get('app.direct') else '#top' }}" aria-label="NRI Parent Service home">
         <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt="" aria-hidden="true"/>
         <span class="logo-stack"><span>NRI <b>Parent</b> Service</span></span>
       </a>
@@ -1639,22 +1641,28 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
         </div>
       </div>
     </div>
+    {# The site's menu (as base.html: Home is the site's home page) with this product's Desis on Move.
+       How It Works is a section of this page, so it is only in the phone drawer: seven links do not fit
+       beside Support and Sign In. The insurance quote drawer still opens from its buttons further down. #}
     <nav class="nav" aria-label="Main">
-      <a href="{{ url_for('main.all_trips') }}">Desis on Move</a>
-      <a href="#how">How It Works</a>
-      <a href="#" onclick="openInsuranceDrawer();return false;">Travel Insurance</a>
-      <a href="{{ url_for('blog.blog_list') }}">Traveller Blogs</a>
+      <a href="{{ PRODUCTS.home_url() }}">Home</a>
       <div class="nav-svc" id="navSvc">
-        <button type="button" id="navSvcBtn" aria-haspopup="true" aria-expanded="false">Services
+        <button type="button" id="navSvcBtn" class="active" aria-haspopup="true" aria-expanded="false">Services
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
         <div class="svc-menu" role="menu">
-          {% for label, href in NRI_SERVICES %}
-          {% set ext = href.startswith('http') %}
-          <a href="{{ href }}"{% if ext %} target="_blank" rel="noopener"{% endif %} role="menuitem">{{ label }}
-            {% if ext %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg>{% endif %}</a>
+          {% for sv in PRODUCTS.menu() %}
+          <a href="{{ sv.url }}" role="menuitem"{% if sv.current %} class="on" aria-current="page"{% endif %}>{{ sv.label }}</a>
+          {% endfor %}
+          {% for label, href in PRODUCTS.extras() %}
+          <a href="{{ href }}" target="_blank" rel="noopener" role="menuitem">{{ label }}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
           {% endfor %}
         </div>
       </div>
+      <a href="{{ url_for('main.all_trips') }}">Desis on Move</a>
+      <a href="{{ url_for('blog.blog_list') }}">Blog</a>
+      <a href="{{ public_url('homepage_draft.about') }}">About Us</a>
+      <a href="{{ public_url('main.contact_us') }}">Contact Us</a>
     </nav>
     <div class="hdr-right">
       {# Opens the same popup as "Contact Us" in the "Here when you need us" section -- asking for
@@ -1689,16 +1697,20 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
   <!-- Mobile nav drawer: the burger above is decorative on desktop (nav shows inline) and this
        is what actually opens on phones/tablets, where .nav and Sign In are hidden. -->
   <nav class="mobile-drawer" id="mobileDrawer" aria-label="Mobile">
+    <a href="{{ PRODUCTS.home_url() }}">Home</a>
     <a href="{{ url_for('main.all_trips') }}">Desis on Move</a>
     <a href="#how">How It Works</a>
-    <a href="#" onclick="openInsuranceDrawer();return false;">Travel Insurance</a>
-    <a href="{{ url_for('blog.blog_list') }}">Traveller Blogs</a>
+    <a href="{{ url_for('blog.blog_list') }}">Blog</a>
+    <a href="{{ public_url('homepage_draft.about') }}">About Us</a>
+    <a href="{{ public_url('main.contact_us') }}">Contact Us</a>
     <a data-open-contact href="{{ url_for('main.help_page') }}">Support</a>
     <span class="md-heading">Our Services</span>
-    {% for label, href in NRI_SERVICES %}
-    {% set ext = href.startswith('http') %}
-    <a href="{{ href }}"{% if ext %} target="_blank" rel="noopener"{% endif %} class="md-svc">{{ label }}
-      {% if ext %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><path d="M7 17 17 7M9 7h8v8"/></svg>{% endif %}</a>
+    {% for sv in PRODUCTS.menu() %}
+    <a href="{{ sv.url }}" class="md-svc{{ ' on' if sv.current }}"{% if sv.current %} aria-current="page"{% endif %}>{{ sv.label }}</a>
+    {% endfor %}
+    {% for label, href in PRODUCTS.extras() %}
+    <a href="{{ href }}" target="_blank" rel="noopener" class="md-svc">{{ label }}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
     {% endfor %}
     <div class="mobile-drawer-actions">
       <button class="btn btn-outline" data-open="signin">Sign In</button>

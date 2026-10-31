@@ -138,6 +138,27 @@ def test_www_goes_to_the_bare_address(dc):
     assert r.headers['Location'] == 'https://nriparentservice.com/travel-insurance?utm_source=x'
 
 
+def test_with_www_as_the_public_host_the_bare_address_goes_to_www(tmp_path):
+    """The other way round (DOMAIN_WWW_GODADDY.md): the site's one address is www, and the bare name,
+    should it ever reach the app, redirects there."""
+    app = create_app({
+        'TESTING': True, 'WTF_CSRF_ENABLED': False, 'SQLALCHEMY_DATABASE_URI': 'sqlite://',
+        'UPLOAD_FOLDER': str(tmp_path / 'uploads'), 'PRIVATE_UPLOAD_FOLDER': str(tmp_path / 'private'),
+        'MAIL_PASSWORD': None, 'APP_URL_PREFIX': PREFIX, 'APP_PUBLIC_HOST': 'www.nriparentservice.com',
+    })
+    with app.app_context():
+        _db.create_all()
+        c = app.test_client()
+        r = c.get('/blog?x=1', base_url='https://nriparentservice.com')
+        assert r.status_code == 301 and r.headers['Location'] == 'https://www.nriparentservice.com/blog?x=1'
+        r = c.get('/', base_url='https://www.nriparentservice.com')
+        assert r.status_code == 301 and r.headers['Location'] == '/home'        # www is home: no redirect away
+        r = c.get('/sitemap.xml', base_url='https://www.nriparentservice.com')
+        assert 'https://www.nriparentservice.com/home' in r.get_data(as_text=True)
+        _db.session.remove()
+        _db.drop_all()
+
+
 def test_the_tidying_the_worker_did(dc):
     assert get(dc, PREFIX).headers['Location'] == PREFIX + '/'
     r = get(dc, '/travel-insurance/')
@@ -426,6 +447,29 @@ def test_posts_already_here_under_another_address_are_not_brought_over(app, clie
     r = client.post('/admin/blog/import/wordpress', follow_redirects=True)
     assert '0 posts brought over from WordPress and published. 2 already here, left alone.' in r.get_data(as_text=True)
     assert Blog.query.count() == 1
+
+
+def test_links_between_the_posts_brought_over_point_at_our_blog(app, client, admin_user, monkeypatch):
+    """WordPress's posts link to each other and to its pages (at either of its names): each link is pointed at
+    where that page lives now, even when the post it links to comes over in the same run."""
+    monkeypatch.setitem(app.config, 'APP_PUBLIC_HOST', 'nriparentservice.com')
+    monkeypatch.setenv('WP_SITE_URL', 'https://travel.nriparentservice.com')
+    linked = dict(WP_POSTS[0], content={'rendered': (
+        '<p><a href="https://travel.nriparentservice.com/parents-living-alone/">next</a> '
+        '<a href="https://nriparentservice.com/privacy-policy/?x=1#top">policy</a> '
+        '<a href="https://nriparentservice.com/wp-content/uploads/2026/10/a.pdf">pdf</a> '
+        '<a href="https://nriparentservice.com/travel-insurance">insurance</a> '
+        '<a href="https://example.com/parents-living-alone/">elsewhere</a></p>')})
+    asked = _wordpress(monkeypatch, [linked, WP_POSTS[1]])
+    login(client, 'admin@test.com')
+    client.post('/admin/blog/import/wordpress')
+    assert asked[0] == 'https://travel.nriparentservice.com/wp-json/wp/v2/posts'
+    body = Blog.query.filter_by(slug='how-to-buy-travel-insurance').one().content
+    assert 'href="/blog/parents-living-alone"' in body
+    assert 'href="/privacy-policy?x=1#top"' in body
+    assert 'href="https://nriparentservice.com/wp-content/uploads/2026/10/a.pdf"' in body     # gone: left as it was
+    assert 'href="https://nriparentservice.com/travel-insurance"' in body                     # not WordPress's: left
+    assert 'href="https://example.com/parents-living-alone/"' in body
 
 
 def test_nothing_is_brought_over_when_wordpress_is_gone(app, client, admin_user, monkeypatch):
