@@ -8,7 +8,9 @@
 #contactModal .dlg{background:#fff;border-radius:26px;width:100%;max-width:960px;max-height:92vh;max-height:92dvh;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;position:relative;margin:auto;box-shadow:0 40px 90px rgba(0,0,0,.4)}
 #contactModal .close{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.9);color:var(--navy);font-size:20px;display:grid;place-items:center;border:0;cursor:pointer;z-index:2;font-family:inherit;padding:0}
 #contactModal .close:hover{background:#fff}
-#contactModal .consult{display:grid;grid-template-columns:.8fr 1.4fr;overflow:hidden;border-radius:26px}
+/* margin and shadow reset: the site's own .consult card (style.css) has a 32px margin, which on
+   pages built on base.html left white bands above and below the panels inside this white dialog */
+#contactModal .consult{display:grid;grid-template-columns:.8fr 1.4fr;overflow:hidden;border-radius:26px;margin:0;box-shadow:none}
 #contactModal .consult-side{background:linear-gradient(160deg,var(--navy),#1B3A75);color:#fff;padding:44px 38px;position:relative;overflow:hidden}
 #contactModal .consult-side .ck{display:inline-block;background:var(--sky);color:var(--navy);font-size:12px;font-weight:700;border-radius:var(--r-pill);padding:5px 12px;margin-bottom:16px}
 #contactModal .consult-side h2{color:#fff;font-family:var(--serif);font-weight:500;font-size:32px;line-height:1.15;margin:0 0 10px}

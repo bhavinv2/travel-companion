@@ -18,15 +18,11 @@ html{scroll-behavior:smooth}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes ringOut{0%{box-shadow:0 0 0 0 rgba(36,70,184,.45)}100%{box-shadow:0 0 0 16px rgba(36,70,184,0)}}
 @keyframes ping2{0%{box-shadow:0 0 0 0 rgba(91,214,154,.6)}70%{box-shadow:0 0 0 7px rgba(91,214,154,0)}100%{box-shadow:0 0 0 0 rgba(91,214,154,0)}}
-@keyframes swap{0%{scale:1}40%{scale:1.14}100%{scale:1}}
-@keyframes softpulse{0%{box-shadow:0 0 0 0 rgba(36,70,184,.35)}100%{box-shadow:0 0 0 16px rgba(36,70,184,0)}}
-@keyframes heartbeat{0%{box-shadow:0 0 0 0 rgba(228,97,63,.45)}25%{box-shadow:0 0 0 8px rgba(228,97,63,.15)}35%{box-shadow:0 0 0 2px rgba(228,97,63,.4)}100%{box-shadow:0 0 0 18px rgba(228,97,63,0)}}
-@keyframes steth{0%,100%{transform:rotate(0)}50%{transform:rotate(-12deg)}}
-@keyframes walk{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
-@keyframes wiggle{0%,60%,100%{transform:rotate(0) scale(1)}70%{transform:rotate(-10deg) scale(1.08)}80%{transform:rotate(9deg) scale(1.08)}90%{transform:rotate(-5deg)}}
 @keyframes dlgIn{from{opacity:0;transform:translateY(24px) scale(.96)}to{opacity:1;transform:none}}
 @keyframes dlgBg{from{opacity:0}to{opacity:1}}
 @property --turn{syntax:'<angle>';inherits:true;initial-value:0deg}
+@keyframes nodePop{from{transform:scale(.5)}to{transform:none}}
+@keyframes nodeBurst{from{opacity:.6;transform:scale(1)}to{opacity:0;transform:scale(1.9)}}
 @keyframes orbTurn{to{--turn:360deg}}
 @keyframes orbPulse{0%{transform:scale(1);opacity:.55}100%{transform:scale(1.45);opacity:0}}
 @keyframes drift{0%,100%{translate:0 0}50%{translate:0 -8px}}
@@ -338,29 +334,11 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .jr-body{position:relative;margin-top:6px}
 .jr-path{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:0}
 .jr-path .trail{fill:none;stroke:#D5DCEE;stroke-width:2.5;stroke-dasharray:1 9;stroke-linecap:round}
-.jr-path .drawn{fill:none;stroke:var(--p);stroke-width:2.5;stroke-linecap:round}
-.plane{position:absolute;left:0;top:0;z-index:6;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:#fff;display:grid;place-items:center;color:var(--ad);box-shadow:0 10px 22px -10px rgba(15,28,85,.45);will-change:transform;pointer-events:none;overflow:visible;transition:background-color .5s ease,color .5s ease}
-.plane svg{width:22px;height:22px}
-.plane .rot{position:absolute;inset:0;display:block}
-.plane .pi{position:absolute;inset:0;display:grid;place-items:center;opacity:0;transform:scale(.55) rotate(-25deg);transition:opacity .45s ease,transform .6s cubic-bezier(.22,1,.36,1)}
-.plane .pi svg{width:24px;height:24px}
-.plane .pi-help svg{width:28px;height:28px}
-.plane[data-mode="plane"] .pi-plane,.plane[data-mode="fly"] .pi-fly,.plane[data-mode="doc"] .pi-doc,.plane[data-mode="help"] .pi-help,.plane[data-mode="gift"] .pi-gift{opacity:1;transform:none}
-.plane[data-mode="plane"]{color:var(--ad)}
-.plane[data-mode="doc"]{color:var(--p)}
-.plane[data-mode="help"]{color:var(--sagei)}
-.plane[data-mode="gift"]{color:var(--ad)}
-.plane[data-mode="fly"]{color:#1F6B57}
-.plane .ring{position:absolute;inset:-2px;border-radius:50%;pointer-events:none}
-.plane[data-mode="doc"] .ring,.plane[data-mode="help"] .ring{animation:softpulse 2.2s ease-out infinite}
-.plane[data-mode="gift"] .ring,.plane[data-mode="fly"] .ring{animation:heartbeat 1.3s ease-out infinite}
-.plane[data-mode="doc"] .pi-doc svg{animation:steth 1.6s ease-in-out infinite;transform-origin:50% 20%}
-.plane[data-mode="help"] .pi-help svg{animation:walk 1.2s ease-in-out infinite}
-.plane[data-mode="gift"] .pi-gift svg{animation:wiggle 1.3s ease-in-out infinite}
-.plane .badge-ok{position:absolute;right:-6px;top:-6px;width:20px;height:20px;border-radius:50%;background:#1F6B57;color:#fff;display:grid;place-items:center;border:2px solid #fff;opacity:0;transform:scale(0);transition:opacity .4s ease,transform .55s cubic-bezier(.22,1,.36,1)}
-.plane .badge-ok svg{width:10px;height:10px}
-.plane[data-mode="fly"] .badge-ok{opacity:1;transform:none}
-.plane.swap{animation:swap .7s cubic-bezier(.22,1,.36,1)}
+/* the line takes on each stop's colour as it goes (a gradient set down the page by the script) */
+.jr-path .drawn{fill:none;stroke:url(#jr-ink);stroke-width:3;stroke-linecap:round}
+/* the line's tip, the one thing that moves with the page: a small dot in the line's colour there.
+   It runs under the stops' icons, so each one lights as the tip slips beneath it. */
+.jr-tip{--c:#2446B8;position:absolute;left:0;top:0;z-index:0;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:var(--c);border:3px solid #fff;box-shadow:0 0 0 5px color-mix(in srgb,var(--c) 20%,transparent),0 4px 14px color-mix(in srgb,var(--c) 55%,transparent);will-change:transform;pointer-events:none}
 .jr-end{position:relative;z-index:2;display:flex;justify-content:center}
 .pin-pt{display:inline-flex;align-items:center;gap:10px;padding:12px 20px;border-radius:999px;background:#fff;border:1px solid var(--line);box-shadow:0 14px 30px -20px rgba(15,28,85,.4);font-size:14px;font-weight:700;color:var(--pd)}
 .pin-pt svg{width:18px;height:18px;color:var(--ad)}
@@ -368,8 +346,18 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 
 .stop{position:relative;z-index:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:140px;align-items:center;min-height:400px;padding-block:8px}
 .stop.rev .stop-txt{order:2;justify-self:start}
-.node{position:absolute;left:50%;top:50%;z-index:3;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:#fff;border:2px solid #C3CDE8;transition:border-color .5s ease,background-color .5s ease,transform .5s cubic-bezier(.22,1,.36,1)}
-.node.passed{border-color:var(--p);background:var(--p);transform:scale(1.15)}
+/* each stop's service icon, on the path: waiting in grey, then lit in the service's colour when the
+   line reaches it -- the colour fills in, the icon pops once and a ring spreads out once */
+.node{--c:var(--p);position:absolute;left:50%;top:50%;z-index:3;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;display:grid;place-items:center;background:#fff;color:#A3AECB;border:1.5px solid #D5DCEE;box-shadow:0 10px 22px -16px rgba(15,28,85,.45);transition:background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease}
+.node svg{width:22px;height:22px}
+.node::after{content:"";position:absolute;inset:-2px;border-radius:50%;border:2px solid var(--c);opacity:0;pointer-events:none}
+.node.lit{background:var(--c);color:#fff;border-color:var(--c);box-shadow:0 0 0 5px #fff,0 0 0 7px color-mix(in srgb,var(--c) 30%,transparent),0 16px 30px -14px color-mix(in srgb,var(--c) 70%,#000)}
+.node.lit svg{animation:nodePop .55s cubic-bezier(.34,1.56,.64,1)}
+.node.lit::after{animation:nodeBurst .8s cubic-bezier(.22,1,.36,1)}
+.pin-pt{transition:border-color .45s ease,box-shadow .45s ease}
+.pin-pt.lit{border-color:var(--c);box-shadow:0 0 0 4px color-mix(in srgb,var(--c) 14%,transparent),0 14px 30px -20px rgba(15,28,85,.4)}
+.pin-pt.lit svg{color:var(--c);animation:nodePop .55s cubic-bezier(.34,1.56,.64,1)}
+@media (prefers-reduced-motion:reduce){.node,.pin-pt{transition:none}.node.lit svg,.node.lit::after,.pin-pt.lit svg{animation:none}}
 .stop-txt{max-width:480px;justify-self:end}
 .stop-n{font:600 15px/1 var(--disp);letter-spacing:.04em;color:var(--a)}
 .stop-txt h3{font:600 42px/1.1 var(--disp);letter-spacing:-.018em;margin:10px 0 12px;text-wrap:balance;color:var(--ink)}
@@ -378,7 +366,7 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .obj{--q:0;--pr:1;--side:1;--s:1;position:relative;height:420px;display:grid;place-items:center;perspective:1300px;perspective-origin:50% 40%}
 .stop.rev .obj{--side:-1}
 .obj::after{content:"";position:absolute;left:50%;bottom:28px;width:62%;height:34px;margin-left:-31%;border-radius:50%;background:radial-gradient(closest-side,rgba(15,28,85,.28),transparent);filter:blur(4px);opacity:.6;transform:scale(calc(1 - var(--q) * var(--q) * .25));z-index:0}
-.o3{position:relative;z-index:1;transform-style:preserve-3d;transform:scale(var(--s)) translateY(calc(var(--q) * 46px)) rotateX(calc(10deg + var(--q) * 12deg)) rotateY(calc(var(--side) * (-16deg + var(--q) * -20deg))) rotateZ(calc(var(--side) * var(--q) * 3deg));will-change:transform}
+.o3{position:relative;z-index:1;transform-style:preserve-3d;transform:scale(var(--s)) translateY(calc(var(--q) * 22px)) rotateX(calc(5deg + var(--q) * 5deg)) rotateY(calc(var(--side) * (-8deg + var(--q) * -6deg)));will-change:transform}
 .lay{position:absolute;transform-style:preserve-3d}
 .float-chip{position:absolute;z-index:4;display:inline-flex;align-items:center;gap:10px;padding:12px 16px;border-radius:16px;background:#fff;box-shadow:0 14px 28px -16px rgba(15,28,85,.45);border:1px solid rgba(226,230,239,.9);font-size:13.5px;font-weight:700;white-space:nowrap;color:var(--ink);animation:bob 5s ease-in-out infinite}
 .float-chip .ck{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--sage);color:var(--sagei);flex:none}
@@ -446,14 +434,14 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 
 /* 5. gift box (CSS cube) */
 .gb3{width:240px;height:420px}
-.cube{position:absolute;left:20px;bottom:0;width:200px;height:180px;transform-style:preserve-3d;transform:rotateX(-24deg) rotateY(calc(-32deg + var(--q) * 40deg))}
+.cube{position:absolute;left:20px;bottom:0;width:200px;height:180px;transform-style:preserve-3d;transform:rotateX(-24deg) rotateY(calc(-30deg + var(--q) * 18deg))}
 .face{position:absolute;left:0;top:0;width:200px;height:180px;background:var(--ad);backface-visibility:hidden}
 .face.f{transform:translateZ(100px)}
 .face.b{transform:rotateY(180deg) translateZ(100px)}
 .face.r{transform:rotateY(90deg) translateZ(100px);background:#A9351F}
 .face.l{transform:rotateY(-90deg) translateZ(100px);background:#A9351F}
 .face::after{content:"";position:absolute;top:0;bottom:0;left:50%;width:30px;margin-left:-15px;background:#F2C46E}
-.lid{position:absolute;left:10px;bottom:170px;width:220px;height:50px;transform-style:preserve-3d;transform:translateY(calc(var(--pr) * -200px)) rotateZ(calc(var(--pr) * -9deg)) rotateX(-24deg) rotateY(calc(-32deg + var(--q) * 40deg))}
+.lid{position:absolute;left:10px;bottom:170px;width:220px;height:50px;transform-style:preserve-3d;transform:translateY(calc(var(--pr) * -200px)) rotateZ(calc(var(--pr) * -9deg)) rotateX(-24deg) rotateY(calc(-30deg + var(--q) * 18deg))}
 .lid .face.f,.lid .face.b,.lid .face.l,.lid .face.r{width:220px;height:50px;background:#D9502F}
 .lid .face.f{transform:translateZ(110px)}
 .lid .face.b{transform:rotateY(180deg) translateZ(110px)}
@@ -489,7 +477,7 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .stamp{position:absolute;right:-26px;bottom:44px;padding:10px 16px;border:4px solid #1F6B57;border-radius:12px;color:#1F6B57;font:800 18px/1.05 var(--body);letter-spacing:.06em;text-transform:uppercase;text-align:center;background:rgba(227,241,236,.85);transform:translateZ(60px) rotate(-12deg) scale(calc(2.2 - var(--pr) * 1.2));opacity:var(--pr)}
 
 /* chapter stubs */
-.stub-wrap{position:relative;z-index:2;display:flex;justify-content:center;padding-block:22px}
+.stub-wrap{position:relative;z-index:7;display:flex;justify-content:center;padding-block:22px}
 .stub-wrap[id]{scroll-margin-top:150px}
 .stub{--t:#2446B8;--ts:#E9EEFC;position:relative;display:flex;align-items:center;gap:18px;width:min(640px,100%);padding:10px 26px 10px 10px;border-radius:999px;background:#fff;border:1px solid #E3E9F6;box-shadow:0 22px 44px -26px rgba(15,28,85,.45),0 0 0 6px rgba(255,255,255,.6)}
 .stub.care{--t:#E4613F;--ts:#FDECE6}
@@ -520,18 +508,17 @@ background:var(--g);color:var(--ink);font-family:var(--body);font-size:16px;line
 .stop,.stop.rev{grid-template-columns:minmax(0,1fr);gap:4px;min-height:0;padding:22px 0 0 46px}
 .stop.rev .stop-txt{order:0}
 .stop-txt,.stop.rev .stop-txt{justify-self:start;max-width:none}
-.node{left:21px;top:38px}
+.node{left:21px;top:38px;width:36px;height:36px;margin:-18px 0 0 -18px}
+.node svg{width:17px;height:17px}
+.node.lit{box-shadow:0 0 0 3px #fff,0 0 0 4.5px color-mix(in srgb,var(--c) 30%,transparent),0 12px 22px -12px color-mix(in srgb,var(--c) 70%,#000)}
+.jr-tip{width:12px;height:12px;margin:-6px 0 0 -6px;border-width:2px}
 .stop-txt h3{font-size:30px}
 .stop-txt p{font-size:16px}
 .obj{--s:.6;height:250px;margin-left:-46px}
 .obj.tall{height:340px}
-.o3{transform:scale(var(--s)) translateY(calc(var(--q) * 30px)) rotateX(calc(8deg + var(--q) * 8deg)) rotateY(calc(var(--side) * (-10deg + var(--q) * -12deg)))}
+.o3{transform:scale(var(--s)) translateY(calc(var(--q) * 14px)) rotateX(calc(4deg + var(--q) * 3deg)) rotateY(calc(var(--side) * (-5deg + var(--q) * -4deg)))}
 .gb3 .c1,.sh3 .c1{display:none}
 .ic3 .c1{right:10px;top:-60px}
-.plane{width:34px;height:34px;margin:-17px 0 0 -17px}
-.plane .pi svg{width:18px;height:18px}
-.plane .pi-help svg{width:22px;height:22px}
-.plane .badge-ok{width:16px;height:16px;right:-5px;top:-5px}
 .stub-wrap{padding:18px 0 4px 46px}
 .stub{border-radius:22px;padding:10px 14px 10px 10px;gap:12px}
 .stub-ph{height:58px}

@@ -119,13 +119,16 @@
             {% if ps %}
             <ul class="caq-picks">
               {% for p in ps %}
-              <li class="{{ p.plan }}">{{ 'Super visa' if p.product == 'super_visa' else 'Visitor' }} · {{ p.plan_label }} · {{ p.limit_label }} · {{ p.deductible_label }}{% if p.pay == 'monthly' %} · monthly{% endif %}<br>
+              <li class="{{ p.plan }}">{% if p.traveller_label %}<b>{{ p.traveller_label }}</b>: {% endif %}{{ 'Super visa' if p.product == 'super_visa' else 'Visitor' }} · {{ p.plan_label }} · {{ p.limit_label }} · {{ p.deductible_label }}{% if p.pay == 'monthly' %} · monthly{% endif %}<br>
                 shown <b>{{ money(p.total) }}</b> →
                 {% if p.now is none %}<span class="now">today: cannot price</span>
                 {% elif p.same %}<span class="now same">today {{ money(p.now) }} ✓ same</span>
                 {% else %}<span class="now changed">today {{ money(p.now) }} ⚠ changed</span>{% endif %}</li>
               {% endfor %}
             </ul>
+            {% set mine = ps|selectattr('traveller', 'defined')|list %}
+            {% if mine|length > 1 %}<small>Together, as shown: <b>{{ money(mine|sum(attribute='total')) }}</b>
+              {%- if mine|length < iq.traveller_count %} · {{ iq.traveller_count - mine|length }} without a pick{% endif %}</small>{% endif %}
             {% elif iq.status == 'callback' %}<small>No pick: wants to talk it through</small>
             {% else %}<small>Nothing picked yet</small>{% endif %}
           </td>

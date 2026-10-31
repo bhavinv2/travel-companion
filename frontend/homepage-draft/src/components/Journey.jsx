@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import Icon from './Icon.jsx';
 import { away, site } from '../data/site.js';
+import { MARK, MARKS } from '../data/services.js';
 import { reduceMotion, useReveal } from '../hooks.js';
 import companionStub from '../assets/photos/companion-stub.jpg';
 import tileParent from '../assets/photos/tile-parent.jpg';
@@ -14,11 +15,17 @@ import chCare from '../assets/photos/sah-finder-care.jpg';
 import chHealth from '../assets/photos/hero-parent-care.jpg';
 import { Doodles, Note, Snap, Trail } from './Deco.jsx';
 
-/* "Our services" as on the static page: a flight path drawn by scroll, stops alternating
- * sides, each with a 3D object that turns as it passes, and the traveller on the path
- * changing with the chapter. */
+/* "Our services" as on the static page: a path drawn by scroll, stops alternating sides, each
+ * with a 3D object that tilts as it passes. Each stop's service icon sits on the path at its
+ * stop and lights up in the service's colour when the line reaches it; the line takes on each
+ * service's colour as it goes, and only its glowing tip moves with the page. */
 
 const PLANE = 'M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z';
+
+// the line's colour after the last stop, on the way to "Arrived"
+const ARRIVED = '#E4613F';
+const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+const mix = (a, b, t) => { const A = rgb(a), B = rgb(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`; };
 const Check = ({ w = 3 }) => <Icon name="check" stroke={w} className="" />;
 
 function Chip({ cls, icon = 'check', stroke = 3, title, sub }) {
@@ -47,12 +54,12 @@ function Stub({ id, n, word, title, text, tone, img, services, children }) {
   );
 }
 
-function Stop({ rev, n, title, text, link, primary, objClass = '', children }) {
+function Stop({ rev, n, mark, title, text, link, primary, objClass = '', children }) {
   const hid = `s${n}-h`;
   const txt = useReveal(0.25);
   return (
     <article className={`stop${rev ? ' rev' : ''}`} aria-labelledby={hid}>
-      <span className="node" data-pt />
+      <span className="node" data-pt style={{ '--c': mark.color }}><Icon name={mark.icon} stroke={2} className="" /></span>
       <div className="stop-txt rv-up" ref={txt}>
         <span className="stop-n">0{n}</span>
         <h3 id={hid}>{title}</h3>
@@ -66,13 +73,13 @@ function Stop({ rev, n, title, text, link, primary, objClass = '', children }) {
 
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 
-// How fast the traveller and the 3D objects catch up with the scroll: the share of the gap
+// How fast the line's tip and the 3D objects catch up with the scroll: the share of the gap
 // closed per 60 fps frame. A mouse wheel moves the page 100+ px at once; this turns that jump
-// into a glide of a few hundred milliseconds.
-const EASE = 0.14;
+// into a short glide instead of a hop.
+const EASE = 0.2;
 
-/* The static page's script, scoped to this section -- with the traveller, the drawn path and
- * the objects easing toward where the scroll says they should be, instead of jumping there. */
+/* The static page's script, scoped to this section -- with the line, its tip and the objects
+ * easing toward where the scroll says they should be, instead of jumping there. */
 function useJourney(sectionRef) {
   useEffect(() => {
     const sec = sectionRef.current;
@@ -80,27 +87,30 @@ function useJourney(sectionRef) {
     const svg = body.querySelector('.jr-path');
     const trail = svg.querySelector('.trail');
     const drawn = svg.querySelector('.drawn');
-    const plane = body.querySelector('.plane');
-    const rot = plane.querySelector('.rot');
+    const ink = svg.querySelector('linearGradient');
+    const head = body.querySelector('.jr-tip');
     const pts = Array.from(body.querySelectorAll('[data-pt]'));
+    const lamps = pts.filter((el) => el.classList.contains('node') || el.classList.contains('pin-pt'));
     const objs = Array.from(body.querySelectorAll('.obj'));
     const stubs = Array.from(body.querySelectorAll('.stub-wrap'));
     const chaps = Array.from(sec.querySelectorAll('.chap'));
     const ind = sec.querySelector('.chap-ind');
     const reduce = reduceMotion();
-    let samples = [], total = 0, ptY = [], raf = 0, running = false, last = 0;
-    let cur = null;                               // where the traveller is, as a length along the path
+    let samples = [], total = 0, raf = 0, running = false, last = 0;
+    let lampY = [];                               // where each stop's icon (and the pin) sits on the path
+    let inks = [];                                // [y, colour]: the line's colour down the page
+    let cur = null;                               // where the tip is, as a length along the path
     let chap = -1;
-    const eased = new Map();                      // each object's own {q, pr}, easing like the traveller
+    const eased = new Map();                      // each object's own {q, pr}, easing like the tip
 
     function build() {
       const br = body.getBoundingClientRect();
       const W = body.clientWidth, H = body.scrollHeight;
       const mobile = window.innerWidth <= 760;
       const cx = mobile ? 21 : W / 2;
+      const ptY = [];
       svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
       const P = [[cx, 0]];
-      ptY = [];
       pts.forEach((el) => {
         const r = el.getBoundingClientRect();
         let y = r.top - br.top + r.height / 2;
@@ -124,6 +134,17 @@ function useJourney(sectionRef) {
         const L = (total * k) / N;
         samples.push([L, drawn.getPointAtLength(L).y]);
       }
+      // the line's colours: each stop's own where its icon sits, blending from one stop to the next
+      lampY = lamps.map((el) => ptY[pts.indexOf(el)]);
+      const cols = lamps.map((el) => el.style.getPropertyValue('--c').trim() || ARRIVED);
+      inks = [[0, cols[0]], ...lampY.map((y, i) => [y, cols[i]])];
+      ink.setAttribute('y2', String(H));
+      ink.replaceChildren(...inks.map(([y, c]) => {
+        const s = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+        s.setAttribute('offset', String(clamp(y / H, 0, 1)));
+        s.setAttribute('stop-color', c);
+        return s;
+      }));
       cur = null;                                 // a new path: start where the scroll is, no glide
       moveMarker();
       kick();
@@ -141,36 +162,25 @@ function useJourney(sectionRef) {
       return total;
     }
 
-    // the traveller at length L: the path drawn up to it, its icon turned along the path, the
-    // stops it has passed lit, and its icon for the chapter it is in -- all from where it IS, so
-    // the icon changes exactly as it passes a stop
+    // the line's colour at height y: between two stops, part the one and part the next
+    function inkAt(y) {
+      for (let i = 1; i < inks.length; i++) {
+        if (y <= inks[i][0]) {
+          const [ya, ca] = inks[i - 1], [yb, cb] = inks[i];
+          return mix(ca, cb, yb === ya ? 1 : clamp((y - ya) / (yb - ya), 0, 1));
+        }
+      }
+      return inks.length ? inks[inks.length - 1][1] : ARRIVED;
+    }
+
+    // the line drawn down to length L, its tip there in the line's colour there, and every stop
+    // the tip has reached lit up (the tip slips under a stop's icon as it lights)
     function draw(L) {
       drawn.style.strokeDashoffset = total - L;
-      const p1 = drawn.getPointAtLength(Math.max(0, L - 1));
-      const p2 = drawn.getPointAtLength(Math.min(total, L + 1));
       const p = drawn.getPointAtLength(L);
-      let ang = (Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180) / Math.PI + 90;
-      if (!isFinite(ang) || (p1.x === p2.x && p1.y === p2.y)) ang = 180;
-      plane.style.transform = `translate3d(${p.x}px,${p.y}px,0)`;
-      rot.style.transform = `rotate(${ang}deg)`;
-      const y = p.y;
-      // points: stub, stop, stop, stub, stop, stop, stub, stop, stop, pin
-      let mode = 'plane';
-      if (ptY.length >= 10) {
-        if (y >= (ptY[7] + ptY[8]) / 2) mode = 'fly';
-        else if (y >= ptY[6]) mode = 'gift';
-        else if (y >= (ptY[4] + ptY[5]) / 2) mode = 'help';
-        else if (y >= ptY[3]) mode = 'doc';
-      }
-      if (plane.getAttribute('data-mode') !== mode) {
-        plane.setAttribute('data-mode', mode);
-        plane.classList.remove('swap');
-        void plane.offsetWidth;
-        plane.classList.add('swap');
-      }
-      pts.forEach((el, i) => {
-        if (el.classList.contains('node')) el.classList.toggle('passed', ptY[i] <= y + 1);
-      });
+      head.style.transform = `translate3d(${p.x}px,${p.y}px,0)`;
+      head.style.setProperty('--c', inkAt(p.y));
+      lamps.forEach((el, i) => el.classList.toggle('lit', lampY[i] <= p.y + 1));
     }
 
     // each 3D object turns and opens with the scroll, easing like the traveller; false once all
@@ -286,22 +296,11 @@ export default function Journey() {
         </nav>
 
         <div className="jr-body">
-          <svg className="jr-path" aria-hidden="true"><path className="trail" d="" /><path className="drawn" d="" /></svg>
-          <div className="plane" data-mode="plane" aria-hidden="true">
-            <span className="ring" />
-            <span className="rot">
-              <span className="pi pi-plane"><svg viewBox="0 0 24 24" fill="currentColor"><path d={PLANE} /></svg></span>
-              <span className="pi pi-fly"><svg viewBox="0 0 24 24" fill="currentColor"><path d={PLANE} /></svg></span>
-            </span>
-            <span className="pi pi-doc"><Icon name="steth" className="" /></span>
-            <span className="pi pi-help">
-              <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="9.5" cy="6.5" r="2.6" /><path d="M10 9.6c-.6 3-.9 5.4-.5 8.4" /><path d="M9.5 18 7.5 27M9.5 18l2.5 9" /><path d="M9.8 12 6 14.5" /><path d="M6 14.5 4.8 27" /><circle cx="22" cy="5.5" r="2.6" /><path d="M22 8.6V18" /><path d="M22 18l-2 9M22 18l2 9" /><path d="M22 11.5 13 12.6" />
-              </svg>
-            </span>
-            <span className="pi pi-gift"><Icon name="gift" className="" /></span>
-            <span className="badge-ok"><Check w={3.4} /></span>
-          </div>
+          <svg className="jr-path" aria-hidden="true">
+            <defs><linearGradient id="jr-ink" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1" /></defs>
+            <path className="trail" d="" /><path className="drawn" d="" stroke="url(#jr-ink)" />
+          </svg>
+          <span className="jr-tip" aria-hidden="true" style={{ '--c': MARKS[0].color }} />
 
           <Stub id="ch-travel" n="01" word="one" title="Travel" text="Safer, calmer journeys for your parents." tone="travel"
             img={chTravel} services={['Travel Companion', 'Travel Insurance']}>
@@ -310,7 +309,7 @@ export default function Journey() {
             <Trail at={{ top: '86px', right: '6%' }} width={170} flip />
           </Stub>
 
-          <Stop n={1} title="Travel Companion" link={['Explore Travel Companion', site.companionUrl]}
+          <Stop n={1} mark={MARK.companion} title="Travel Companion" link={['Explore Travel Companion', site.companionUrl]}
             text="Trusted assistance for elderly parents who need support before, during or after their journey.">
             <div className="o3 bp3">
               <div className="bp-card">
@@ -333,7 +332,7 @@ export default function Journey() {
             </div>
           </Stop>
 
-          <Stop rev n={2} title="Travel Insurance" link={['Explore Travel Insurance', site.insuranceUrl]}
+          <Stop rev n={2} mark={MARK.insurance} title="Travel Insurance" link={['Explore Travel Insurance', site.insuranceUrl]}
             text="Protect your parents with travel insurance designed to support them throughout their journey.">
             <div className="o3 ic3">
               <div className="ic-front">
@@ -364,7 +363,7 @@ export default function Journey() {
             <Snap src={tileParent} caption="Amma, at home" at={{ top: '-22px', right: '1%' }} rotate={5} width={140} />
           </Stub>
 
-          <Stop n={3} title="Virtual Doctor Consultation" link={['Book a Consultation', site.doctorUrl]}
+          <Stop n={3} mark={MARK.doctor} title="Virtual Doctor Consultation" link={['Book a Consultation', site.doctorUrl]}
             text="Video consultations with a doctor from home. You can join the call from abroad.">
             {/* the Call-ON-Doc page's own pictures: its hero, and its call screen in front of it */}
             <div className="o3 vd3">
@@ -374,7 +373,7 @@ export default function Journey() {
             </div>
           </Stop>
 
-          <Stop rev n={4} title="Sahayak" primary link={['Book a Sahayak', site.sahayakUrl]}
+          <Stop rev n={4} mark={MARK.sahayak} title="Sahayak" primary link={['Book a Sahayak', site.sahayakUrl]}
             text="A trusted helping hand for hospital visits, doctor appointments, healthcare needs and everyday assistance.">
             {/* the Sahayak page's hero picture, whole, framed as that page frames it */}
             <div className="o3 sh3">
@@ -390,7 +389,7 @@ export default function Journey() {
             <Snap src={checkedPhoto} caption="Tests done at home" at={{ top: '-20px', right: '1%' }} rotate={5} />
           </Stub>
 
-          <Stop n={5} title="Gift Health" link={['Explore Gift Health', site.giftUrl]} objClass="tall"
+          <Stop n={5} mark={MARK.gift} title="Gift Health" link={['Explore Gift Health', site.giftUrl]} objClass="tall"
             text="Give your parents the gift of better health, care and proactive support — even from miles away.">
             <div className="o3 gb3">
               <div className="cube"><div className="in" /><div className="face b" /><div className="face l" /><div className="face r" /><div className="face f" /></div>
@@ -400,7 +399,7 @@ export default function Journey() {
             </div>
           </Stop>
 
-          <Stop rev n={6} title="Fit2Fly" link={['Explore Fit2Fly', site.fitUrl]} objClass="tall"
+          <Stop rev n={6} mark={MARK.fit} title="Fit2Fly" link={['Explore Fit2Fly', site.fitUrl]} objClass="tall"
             text="Prepare your parents for safe and confident travel with the right health assessment before their journey.">
             <div className="o3 ff3">
               <div className="clip" />
@@ -418,7 +417,7 @@ export default function Journey() {
           </Stop>
 
           <div className="jr-end">
-            <span className="pin-pt" data-pt><Icon name="pin" className="" />Arrived <small>· Your parents, cared for</small></span>
+            <span className="pin-pt" data-pt style={{ '--c': ARRIVED }}><Icon name="pin" className="" />Arrived <small>· Your parents, cared for</small></span>
           </div>
         </div>
       </div>

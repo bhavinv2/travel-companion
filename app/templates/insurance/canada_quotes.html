@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {# Canada quotes: every option Secure Travel's calculators give these travellers, priced live
-   (services/canada_quotes.py), Standard on the left, Enhanced on the right, the filters, search and the
-   customer's picks in the middle. Step 2 is a call back from our team -- this page never sends anybody to a
+   (services/canada_quotes.py), Standard on the left, Enhanced on the right, the filters and search in the
+   middle, and over them the customer's picks, one per traveller. Step 2 is a call back from our team -- this page never sends anybody to a
    checkout. Everything the page draws comes from `page` (routes/insurance.py: canada_quotes), handed to
    static/js/canada-quotes.js as JSON; the server prices the picks again when the call back is asked for. #}
 {% block title %}Your Canada insurance quotes · {{ page.ref }}{% endblock %}
@@ -69,6 +69,25 @@
   </header>
 
   <div class="cq-wrap">
+    {# the whole width over the plans: one slot per traveller (each picks their own plan), what they add up
+       to, and the one thing to do with them #}
+    <section class="cq-picks-box" id="cqPicks" aria-labelledby="cqPicksH">
+      <div class="cq-picks-main">
+        <div class="cq-picks-hd">
+          <h2 id="cqPicksH">Your picks</h2><span id="cqPickN">0</span>
+          <p class="cq-picks-hint" id="cqPickHint">Tap any price in either plan to pick it.</p>
+        </div>
+        <ul class="cq-slots" id="cqPickList"></ul>
+      </div>
+      <div class="cq-picks-go">
+        <p class="cq-picks-total" id="cqPickTotal" hidden></p>
+        <button type="button" class="cq-cta" id="cqCall">Request a call back
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        <p class="cq-cta-note">No payment here. Our agent calls you, answers your questions and completes the application with you.</p>
+      </div>
+      <div class="cq-done" id="cqDone" hidden></div>
+    </section>
+
     <div class="cq-board" id="cqBoard" data-show="s">
       <section class="cq-col cq-std" aria-labelledby="cqStdH">
         <div class="cq-col-hd">
@@ -79,7 +98,7 @@
         <div class="cq-list" data-plan="s" aria-live="polite"></div>
       </section>
 
-      <aside class="cq-mid" id="cqMid" aria-label="Filters, search and your picks">
+      <aside class="cq-mid" id="cqMid" aria-label="Filters and search">
         <div class="cq-panel">
           <div class="cq-panel-hd"><h2>Find your plan</h2><button type="button" class="cq-reset" id="cqReset">Reset</button></div>
 
@@ -134,20 +153,6 @@
             </div>
           </div>
         </div>
-
-        {# its own box under the filters: what they picked and the one thing to do with it #}
-        <div class="cq-panel cq-picks-box">
-          <div class="cq-picks" id="cqPicks">
-            <div class="cq-picks-hd"><b>Your picks</b><span id="cqPickN">0</span></div>
-            <ul id="cqPickList"></ul>
-            <p class="cq-picks-empty" id="cqPickEmpty">Tap any price on the left or right to add it here. Pick one, or a few to talk through.</p>
-            <button type="button" class="cq-cta" id="cqCall">Request a call back
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
-            <p class="cq-cta-note">No payment here. Our agent calls you, answers your questions and completes the application with you.</p>
-          </div>
-
-          <div class="cq-done" id="cqDone" hidden></div>
-        </div>
       </aside>
 
       <div class="cq-tabs" id="cqTabs" role="tablist" aria-label="Plan">
@@ -183,7 +188,7 @@
       <ul>
         <li>Prices are estimates read live from Secure Travel’s published calculators (<a href="{{ page.source.super_visa }}" target="_blank" rel="noopener">super visa</a>, <a href="{{ page.source.visitors }}" target="_blank" rel="noopener">visitors</a>) for RIMI’s Visitors to Canada plan. The final premium is confirmed from each traveller’s date of birth when the policy is issued.</li>
         <li>Super visa cover is one full year (365 days) with at least $100,000 of emergency medical cover, as the super visa requires.</li>
-        <li>Each traveller is priced on their own; the totals add them up. A deductible is what you pay first on a claim: a bigger one lowers the price.</li>
+        <li>Each traveller is priced on their own and can have their own plan, limit and deductible; the total adds them up. A deductible is what you pay first on a claim: a bigger one lowers the price.</li>
         <li>Monthly payment is the yearly price spread over 12 months, plus Secure Travel’s one-time monthly option fee.</li>
         <li>Pre-existing conditions are covered when they have been stable for 90 days (under 70) or 180 days (70 to 84). Ages 85 to 89 with a pre-existing condition are not offered.</li>
       </ul>
@@ -192,9 +197,11 @@
 
   {# while the picks box is off screen: the picks and the button stay in reach #}
   <div class="cq-bar" id="cqBar" hidden>
-    <button type="button" class="cq-bar-see" data-see-picks><b id="cqBarN">0</b> picked · see them</button>
-    <button type="button" class="cq-cta cq-cta-sm" data-open-call>Request a call back</button>
+    <button type="button" class="cq-bar-see" data-see-picks><b id="cqBarN">0</b> picked<span> · see them</span></button>
+    <span class="cq-bar-who" id="cqBarWho"></span>
+    <button type="button" class="cq-cta cq-cta-sm" data-open-call><span class="cq-long">Request a call back</span><span class="cq-short">Call me back</span></button>
   </div>
+  <p class="cq-say" id="cqSay" role="status" hidden></p>
 
   {# the call-back form #}
   <div class="cq-ov" id="cqOv" hidden>

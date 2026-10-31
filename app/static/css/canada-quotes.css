@@ -1,6 +1,7 @@
 /* Canada quotes page (templates/insurance/canada_quotes.html, static/js/canada-quotes.js).
-   Three columns on a desk: Standard (blue) | the filters and picks (navy) | Enhanced (gold). On a phone the
-   panel comes first, the two plans become a switch, and a bar keeps "Request a call back" in reach. */
+   Your picks across the whole width (one slot per traveller), then three columns on a desk: Standard (blue) |
+   the filters (navy) | Enhanced (gold). On a phone the picks and the filters come first, the two plans become a
+   switch, and a bar keeps "Request a call back" in reach. */
 .cq {
   --cq-ink: #0F1F3D; --cq-ink2: #33415C; --cq-soft: #66728A; --cq-faint: #8A94A8;
   --cq-bg: #F8F5EF; --cq-card: #FFFFFF; --cq-line: #E7E1D6; --cq-line2: #F0EBE2;
@@ -233,28 +234,62 @@
 .cq-pre-row .cq-seg button { padding: 5px 4px; font-size: 12px; }
 .cq-select { width: 100%; border: 1.5px solid var(--cq-line); border-radius: 11px; padding: 8px 10px; background: var(--cq-card); color: var(--cq-ink); font: inherit; font-size: 13px; }
 
-.cq-picks { display: grid; gap: 10px; }
-.cq-picks-box { border-top: 4px solid var(--cq-amber); }
-.cq-picks-hd b { font-family: 'Fraunces', Georgia, serif; font-size: 18px; font-weight: 600; }
-.cq-picks-hd { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
-.cq-picks-hd span { min-width: 24px; height: 24px; border-radius: 999px; background: var(--cq-navy); color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 800; padding: 0 7px; }
-.cq-picks ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-/* a pick: the plan and cover, what it is under it, the price on its own line -- no squeezing in a narrow column */
-.cq-picks li { display: grid; grid-template-columns: 5px minmax(0, 1fr) 24px; grid-template-rows: auto auto auto; gap: 3px 10px; align-items: center; background: var(--cq-bg); border-radius: 12px; padding: 10px 8px 10px 10px; font-size: 12.5px; }
-.cq-picks li::before { content: ""; grid-row: 1 / 4; align-self: stretch; width: 5px; border-radius: 4px; background: var(--cq-std); }
-.cq-picks li.e::before { background: var(--cq-enh); }
-.cq-picks li b { display: block; font-size: 13px; }
-.cq-picks li span { color: var(--cq-soft); }
-.cq-picks li .amt { grid-column: 2; grid-row: 2; font-weight: 800; font-size: 14.5px; color: var(--cq-ink); font-variant-numeric: tabular-nums; }
-.cq-picks li .amt small { font-weight: 600; font-size: 11.5px; color: var(--cq-soft); margin-left: 4px; }
-/* what each traveller's share of the one price is */
-.cq-picks li .split { grid-column: 2; grid-row: 3; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 12px;
-  margin-top: 2px; padding-top: 5px; border-top: 1px dashed var(--cq-line2); font-size: 11.5px; }
-.cq-picks li .split i { font-style: normal; color: var(--cq-soft); }
-.cq-picks li .split b { display: block; font-size: 11.5px; color: var(--cq-ink); text-align: right; font-variant-numeric: tabular-nums; }
-.cq-picks li button { grid-column: 3; grid-row: 1 / 4; all: unset; cursor: pointer; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: var(--cq-soft); font-size: 18px; }
-.cq-picks li button:hover { background: var(--cq-line2); color: var(--cq-red); }
-.cq-picks-empty { margin: 0; font-size: 12.5px; color: var(--cq-soft); line-height: 1.5; }
+/* ---------- your picks: the whole width over the plans, one slot per traveller ---------- */
+.cq-picks-box { margin-top: 26px; background: var(--cq-card); border: 1px solid var(--cq-line); border-top: 4px solid var(--cq-amber); border-radius: 22px; box-shadow: var(--cq-shadow); padding: 18px 20px; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px 26px; align-items: start; }
+.cq-picks-main { display: grid; gap: 12px; min-width: 0; }
+.cq-picks-hd { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; }
+.cq-picks-hd h2 { font-size: 21px; margin: 0; }
+.cq-picks-hd > span { min-width: 24px; height: 24px; border-radius: 999px; background: var(--cq-navy); color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 800; padding: 0 9px; white-space: nowrap; }
+.cq-picks-hint { margin: 0 0 0 6px; flex: 1 1 300px; font-size: 13px; color: var(--cq-soft); line-height: 1.45; }
+.cq-slots { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.cq-slots.one { grid-template-columns: minmax(0, 520px); }
+.cq-slot { position: relative; border: 1.5px solid var(--cq-line); border-radius: 16px; background: var(--cq-bg); transition: border-color .15s, box-shadow .15s, background .15s; }
+.cq-slot.is-open { border-style: dashed; }
+.cq-slot.is-on { border: 1.5px solid var(--cq-amber); background: var(--cq-card); box-shadow: 0 0 0 3px rgba(245, 166, 35, .2); }
+/* the plan's colour down the left of a slot with a pick */
+.cq-slot.s::before, .cq-slot.e::before { content: ""; position: absolute; left: -1.5px; top: 14px; bottom: 14px; width: 4px; border-radius: 0 4px 4px 0; background: var(--cq-std); }
+.cq-slot.e::before { background: var(--cq-enh); }
+.cq-slot-pick { all: unset; box-sizing: border-box; cursor: pointer; width: 100%; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; grid-template-areas: "n who who" ". what amt"; gap: 6px 10px; align-items: center; padding: 12px 14px; border-radius: 15px; }
+.cq-slot-pick:focus-visible { outline: 2px solid var(--cq-amber); outline-offset: 2px; }
+.cq-slot .n { grid-area: n; width: 28px; height: 28px; border-radius: 50%; background: var(--cq-line2); color: var(--cq-ink2); display: grid; place-items: center; font-size: 13px; font-weight: 800; }
+.cq-slot.s .n { background: var(--cq-std); color: #fff; }
+.cq-slot.e .n { background: var(--cq-enh); color: #fff; }
+.cq-slot.is-on .n { box-shadow: 0 0 0 3px var(--cq-card), 0 0 0 5px var(--cq-amber); }
+.cq-slot.is-open.is-on .n { background: var(--cq-amber); color: #2B1A00; }
+.cq-slot .who { grid-area: who; min-width: 0; padding-right: 26px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.cq-slot .who b { font-size: 14px; color: var(--cq-ink); }
+.cq-slot .who small { font-size: 12px; color: var(--cq-soft); font-weight: 600; }
+.cq-slot .what { grid-area: what; min-width: 0; display: grid; gap: 1px; }
+.cq-slot .what b { font-size: 13.5px; color: var(--cq-ink); }
+.cq-slot .what span { font-size: 12px; color: var(--cq-soft); }
+.cq-slot.is-open .what span { font-size: 12.5px; }
+.cq-slot.is-open.is-on .what span { color: var(--cq-warn); font-weight: 700; }
+.cq-slot .amt { grid-area: amt; font-weight: 800; font-size: 17px; color: var(--cq-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cq-slot .amt small { font-size: 11.5px; font-weight: 600; color: var(--cq-soft); }
+.cq-slot-x { all: unset; cursor: pointer; position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: var(--cq-soft); font-size: 18px; }
+.cq-slot-x:hover { background: var(--cq-line2); color: var(--cq-red); }
+.cq-slot-x:focus-visible, .cq-slot-all:focus-visible { outline: 2px solid var(--cq-amber); }
+.cq-slot-all { all: unset; cursor: pointer; display: block; margin: -4px 0 0 52px; padding: 0 0 11px; font-size: 12px; font-weight: 700; color: var(--cq-std); }
+.cq-slot-all:hover { text-decoration: underline; }
+.cq-picks-go { display: grid; gap: 10px; align-content: start; }
+.cq-picks-total { margin: 0; display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 0 10px; background: var(--cq-bg); border: 1px solid var(--cq-line2); border-radius: 14px; padding: 10px 14px; }
+.cq-picks-total[hidden] { display: none; }
+.cq-picks-total span { font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--cq-soft); }
+.cq-picks-total b { font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.cq-picks-total small { flex-basis: 100%; font-size: 12px; color: var(--cq-soft); }
+.cq-picks-box .cq-done { grid-column: 1 / -1; }
+
+/* over each plan's prices, with several travellers: whose prices these are */
+.cq-for { margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; font-weight: 600; color: var(--cq-soft); }
+.cq-for b { color: var(--cq-ink); background: var(--cq-card); border: 1.5px solid var(--cq-amber); border-radius: 999px; padding: 4px 12px; font-size: 13.5px; }
+.cq-for-n { margin-left: auto; font-size: 12px; }
+.cq-for.is-new b { animation: cq-flash 1s ease-out; }
+@keyframes cq-flash { from { background: var(--cq-amber); color: #2B1A00; } }
+/* the other travellers who picked a price: their numbers on it */
+.cq-tags { position: absolute; top: 4px; right: 4px; display: flex; gap: 2px; }
+.cq-tags i { font-style: normal; width: 16px; height: 16px; border-radius: 50%; background: var(--cq-ink); color: var(--cq-card); font-size: 9.5px; font-weight: 800; display: grid; place-items: center; line-height: 1; }
+.cq-ded .cq-tags { position: static; display: inline-flex; margin-left: 6px; vertical-align: 1px; }
+.cq-cell.is-picked .cq-tags i { background: #fff; color: var(--cq-ink); }
 .cq-cta { all: unset; box-sizing: border-box; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; background: var(--cq-amber); color: #2B1A00; font-weight: 800; font-size: 15px; border-radius: 14px; padding: 13px 16px; box-shadow: 0 12px 24px -14px rgba(245, 166, 35, .9); transition: transform .12s, background .12s; }
 .cq-cta:hover { background: var(--cq-amber-dark); transform: translateY(-1px); }
 .cq-cta:focus-visible { outline: 3px solid var(--cq-navy2); outline-offset: 2px; }
@@ -313,6 +348,19 @@
 .cq-bar-see { all: unset; cursor: pointer; color: #fff; font-weight: 600; }
 .cq-bar-see:hover { text-decoration: underline; }
 .cq-bar-see:focus-visible { outline: 2px solid var(--cq-amber); outline-offset: 3px; border-radius: 4px; }
+.cq-bar:not([hidden]) { width: min(600px, calc(100% - 108px)); }
+.cq-bar-who { display: flex; gap: 4px; margin-left: auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.cq-bar-who button { flex: none; }
+.cq-bar .cq-cta { flex: none; white-space: nowrap; }
+.cq-short { display: none; }
+.cq-bar-who:empty { display: none; }
+.cq-bar-who button { all: unset; cursor: pointer; box-sizing: border-box; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #fff; border: 1.5px dashed rgba(255, 255, 255, .45); }
+.cq-bar-who button.has { border-style: solid; background: rgba(255, 255, 255, .16); }
+.cq-bar-who button[aria-pressed="true"] { background: var(--cq-amber); border: 1.5px solid var(--cq-amber); color: #2B1A00; }
+.cq-bar-who button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.cq-say { position: fixed; left: 50%; transform: translateX(-50%); bottom: 82px; z-index: 950; margin: 0; width: max-content; max-width: min(560px, calc(100% - 32px)); background: var(--cq-ink); color: var(--cq-card); border-radius: 12px; padding: 9px 14px; font-size: 13px; font-weight: 600; box-shadow: 0 14px 30px -14px rgba(0, 0, 0, .6); }
+.cq-say[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .cq-for.is-new b { animation: none; } }
 
 /* ---------- narrower desks ---------- */
 @media (max-width: 1440px) {
@@ -329,6 +377,8 @@
 @media (max-width: 960px) {
   .cq-wrap { padding: 0 16px; }
   .cq-board { grid-template-columns: minmax(0, 1fr); gap: 14px; padding-top: 18px; }
+  .cq-picks-box { grid-template-columns: minmax(0, 1fr); margin-top: 18px; padding: 16px; }
+  .cq-picks-hint { margin-left: 0; }
   .cq-mid { order: 1; }
   .cq-tabs { order: 2; display: flex; background: var(--cq-card); border: 1px solid var(--cq-line); border-radius: 14px; padding: 4px; gap: 4px; position: sticky; top: 64px; z-index: 5; box-shadow: var(--cq-shadow); }
   .cq-tabs button { all: unset; flex: 1; text-align: center; cursor: pointer; border-radius: 10px; padding: 10px; font-weight: 700; font-size: 14px; color: var(--cq-ink2); }
@@ -343,6 +393,15 @@
   .cq-bar:not([hidden]) { left: 12px; right: 84px; width: auto; transform: none; bottom: 16px; }
   .cq-ben-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); font-size: 12.5px; gap: 8px; }
   .cq-benefits { padding: 16px; }
+}
+@media (max-width: 520px) {
+  .cq-bar-see span { display: none; }
+  /* a phone's bar: the numbered travellers say who is picked, and the button says it short */
+  .cq-bar.many .cq-bar-see { display: none; }
+  .cq-bar.many .cq-bar-who { margin-left: 0; }
+  .cq-bar .cq-long { display: none; }
+  .cq-bar .cq-short { display: inline; }
+  .cq-slots { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 420px) {
   .cq-facts li { flex: 1 1 calc(50% - 10px); }

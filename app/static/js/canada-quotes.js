@@ -3,8 +3,10 @@
    Everything comes from #cqData, which the server built from Secure Travel's calculators a moment ago
    (routes/insurance.py: canada_quotes). Each traveller is priced for both answers to "pre-existing
    condition?", so changing one person's answer, a filter or the search re-draws the page without asking
-   the server. A pick is only a key (cover|plan|limit|deductible): the server prices it again when the call
-   back is requested, so what reaches our agent is never a number the browser made up. */
+   the server. Each traveller gets their own pick (one may want Standard, the other Enhanced): the tables show
+   the price of the traveller being picked for. A pick is only a key (cover|plan|limit|deductible): the server
+   prices it again for that traveller when the call back is requested, so what reaches our agent is never a
+   number the browser made up. */
 (function () {
   const dataEl = document.getElementById('cqData');
   if (!dataEl) return;
@@ -21,6 +23,7 @@
   const PRODUCTS = ['super_visa', 'visitors'].filter(p => books[p]);
   const usable = p => books[p] && !books[p].error;
   const people = (D.travellers || []).map(t => ({ age: +t.age }));
+  const many = people.length > 1;
   // Table (a price grid per plan) on a desk, Cards on a phone; the visitor's own choice is remembered
   let savedView = null;
   try { savedView = window.localStorage.getItem('cq.view'); } catch (e) { savedView = null; }
@@ -30,26 +33,37 @@
     product: usable(D.cover) ? D.cover : (PRODUCTS.find(usable) || D.cover || 'super_visa'),
     pre: (D.travellers || []).map(t => (t.pre === 'y' ? 'y' : 'n')),
     limits: new Set(), deds: new Set(), pay: 'once', sort: 'cover', q: '',
-    picks: new Map(),
+    picks: new Map(),               // traveller (0, 1, ...) -> {product, plan, limit, deductible}
+    who: 0,                         // the traveller being picked for: the tables show their prices
     callback: D.callback || null,
   };
   const key = (product, plan, limit, ded) => [product, plan, limit, ded].join('|');
-  (D.picks || []).forEach(p => state.picks.set(key(p.product, p.plan, p.limit, p.deductible),
-    { product: p.product, plan: p.plan, limit: String(p.limit), deductible: +p.deductible }));
+  const pickKey = p => key(p.product, p.plan, p.limit, p.deductible);
+  (D.picks || []).forEach(p => {
+    const pick = { product: p.product, plan: p.plan, limit: String(p.limit), deductible: +p.deductible };
+    // a pick saved before each traveller had their own was for everybody together
+    (p.traveller == null ? people.map((_, i) => i) : [+p.traveller])
+      .forEach(i => { if (i < people.length) state.picks.set(i, Object.assign({}, pick)); });
+  });
+  const firstOpen = () => people.findIndex((_, i) => !state.picks.has(i));
+  state.who = Math.max(firstOpen(), 0);
+  const isMine = k => state.picks.has(state.who) && pickKey(state.picks.get(state.who)) === k;
+  const pickedBy = k => [...state.picks.entries()].filter(([, p]) => pickKey(p) === k).map(([i]) => i);
 
   /* ------------------------------------------------------------------ prices */
-  function row(product, plan, lim, ded) {
+  /* `total` is everybody on this option together; `price` and `monthly` are traveller i's own. */
+  function row(product, plan, lim, ded, i) {
     const b = books[product];
-    const each = b.people.map((p, i) => {
-      const byPre = p.prices[state.pre[i] || 'n'] || {};
+    const each = b.people.map((p, j) => {
+      const byPre = p.prices[state.pre[j] || 'n'] || {};
       return (((byPre[plan] || {})[lim.code] || {})[String(ded.value)]);
     });
     const ok = each.every(x => x != null);
     const total = ok ? round2(each.reduce((a, x) => a + x, 0)) : null;
+    const price = each[i == null ? state.who : i];
     const monthlyOk = !!(b.monthly && b.monthly.limits.indexOf(lim.code) > -1);
-    const monthly = ok && monthlyOk ? round2(total / (b.monthly.months || 12)) : null;
-    const missing = each.map((x, i) => (x == null ? i : -1)).filter(i => i > -1);
-    return { each, total, monthlyOk, monthly, missing };
+    const monthly = price != null && monthlyOk ? round2(price / (b.monthly.months || 12)) : null;
+    return { each, total, price: price == null ? null : price, monthlyOk, monthly };
   }
 
   function limitOf(product, plan, code) {
@@ -62,11 +76,10 @@
   const dayWord = n => n + (n === 1 ? ' day' : ' days');
   const daysText = b => (b.product === 'super_visa' || b.days === 365 ? 'a year' : 'for ' + dayWord(b.days));
   const who = i => 'Traveller ' + (i + 1) + ' · ' + people[i].age;
-  // every price is for everybody on the quote together: one pick covers them all
-  const everyone = people.length === 2 ? 'for both' : 'for all ' + people.length;
-  const EMPTY = 'Tap any price on the left or right to add it here. Pick one, or a few to talk through.' +
-    (people.length > 1 ? ' Each price covers all ' + people.length + ' travellers, so one pick is enough for everyone.' : '');
-  $('#cqPickEmpty').textContent = EMPTY;
+  const allOn = people.length === 2 ? 'Both on this' : 'All ' + people.length + ' on this';
+  $('#cqPickHint').textContent = many
+    ? 'One pick for each traveller, and each can have a different plan. Choose a traveller, then tap a price in either plan.'
+    : 'Tap any price in either plan to pick it.';
 
   /* ------------------------------------------------------------------ search */
   function tokens() {
@@ -78,7 +91,7 @@
   function matches(toks, plan, lim, ded, r) {
     if (!toks.length) return true;
     const nums = [String(lim.amount), String(ded.value)];
-    if (r.total != null) nums.push(r.total.toFixed(2), String(Math.floor(r.total)));
+    if (r.price != null) nums.push(r.price.toFixed(2), String(Math.floor(r.price)));
     if (r.monthly != null) nums.push(r.monthly.toFixed(2));
     const words = [planLabel(plan), books[state.product].label, 'deductible', r.monthlyOk ? 'monthly' : '',
       lim.label, ded.label].join(' ').toLowerCase().replace(/[$,]/g, '');
@@ -103,28 +116,43 @@
     let cards = lims.map(lim => {
       const rows = deds.map(ded => Object.assign({ lim, ded }, row(state.product, plan, lim, ded)))
         .filter(r => matches(toks, plan, lim, r.ded, r));
-      const priced = rows.filter(r => r.total != null).map(r => r.total);
+      const priced = rows.filter(r => r.price != null).map(r => r.price);
       return { lim, rows, min: priced.length ? Math.min.apply(null, priced) : Infinity };
     }).filter(c => c.rows.length);
     if (state.sort === 'cover-desc') cards.reverse();
     if (state.sort === 'price') cards.sort((a, b2) => a.min - b2.min);
     const low = Math.min.apply(null, cards.map(c => c.min).concat([Infinity]));
-    const offered = cards.reduce((n, c) => n + c.rows.filter(r => r.total != null).length, 0);
+    const offered = cards.reduce((n, c) => n + c.rows.filter(r => r.price != null).length, 0);
     count.textContent = offered + (offered === 1 ? ' option' : ' options');
     if (!cards.length) {
       list.innerHTML = '<div class="cq-empty">Nothing matches these filters.<br><button type="button" class="cq-link" data-reset>Clear the filters</button></div>';
       return;
     }
-    list.innerHTML = cards.map(c => {
+    list.innerHTML = forWhom() + cards.map(c => {
       const hasLow = c.min === low && low !== Infinity;
       return '<article class="cq-card">' +
         '<div class="cq-card-hd"><span class="cq-limit">' + esc(c.lim.label) +
         '<small>Emergency medical · ' + esc(daysText(b)) + '</small></span><span class="cq-badges">' +
         (state.product === 'super_visa' ? '<span class="cq-badge sv">Super visa ready</span>' : '') +
         (hasLow ? '<span class="cq-badge low">Lowest price</span>' : '') + '</span></div>' +
-        '<div class="cq-rows">' + c.rows.map(r => rowHtml(b, plan, c.lim, r, r.total != null && r.total === low)).join('') + '</div>' +
+        '<div class="cq-rows">' + c.rows.map(r => rowHtml(b, plan, c.lim, r, r.price != null && r.price === low)).join('') + '</div>' +
         '</article>';
     }).join('');
+  }
+
+  /* Over each plan's prices: whose they are. With several travellers, the price a pick costs is that
+     traveller's own, so the page says whose prices these are where the eye is. */
+  function forWhom() {
+    if (!many) return '';
+    return '<p class="cq-for' + (whoMoved ? ' is-new' : '') + '"><span>Prices for</span><b>' + esc(who(state.who)) +
+      (state.pre[state.who] === 'y' ? ' · pre-existing' : '') + '</b><span class="cq-for-n">' +
+      'picking ' + (state.who + 1) + ' of ' + people.length + '</span></p>';
+  }
+
+  /* The travellers who picked this price, as small numbered marks on it (the one being picked for shows a tick). */
+  function tags(k) {
+    const by = many ? pickedBy(k).filter(i => i !== state.who) : [];
+    return by.length ? '<span class="cq-tags" aria-hidden="true">' + by.map(i => '<i>' + (i + 1) + '</i>').join('') + '</span>' : '';
   }
 
   /* The table: one row per policy limit, one column per deductible, every price at a glance. Filters take
@@ -139,93 +167,95 @@
         c.hit = matches(toks, plan, lim, ded, c);
         return c;
       });
-      const priced = cells.filter(c => c.total != null && c.hit).map(c => c.total);
+      const priced = cells.filter(c => c.price != null && c.hit).map(c => c.price);
       return { lim, cells, min: priced.length ? Math.min.apply(null, priced) : Infinity, any: cells.some(c => c.hit) };
     }).filter(r => r.any);
     if (state.sort === 'cover-desc') rows.reverse();
     if (state.sort === 'price') rows.sort((a, z) => a.min - z.min);
     const low = Math.min.apply(null, rows.map(r => r.min).concat([Infinity]));
-    const offered = rows.reduce((n, r) => n + r.cells.filter(c => c.total != null && c.hit).length, 0);
+    const offered = rows.reduce((n, r) => n + r.cells.filter(c => c.price != null && c.hit).length, 0);
     count.textContent = offered + (offered === 1 ? ' option' : ' options');
     if (!rows.length || !deds.length) {
       list.innerHTML = '<div class="cq-empty">Nothing matches these filters.<br><button type="button" class="cq-link" data-reset>Clear the filters</button></div>';
       return;
     }
     const unit = state.pay === 'monthly' ? 'a month' : (b.product === 'super_visa' || b.days === 365 ? 'a year' : dayWord(b.days));
-    list.innerHTML = '<div class="cq-tbl"><div class="cq-tbl-scroll"><table>' +
-      '<caption class="cq-tbl-cap">' + esc(planLabel(plan)) + ' plan prices, ' + esc(unit) + (people.length > 1 ? ', everyone together' : '') + '</caption>' +
+    list.innerHTML = forWhom() + '<div class="cq-tbl"><div class="cq-tbl-scroll"><table>' +
+      '<caption class="cq-tbl-cap">' + esc(planLabel(plan)) + ' plan prices, ' + esc(unit) + (many ? ', ' + esc(who(state.who)) : '') + '</caption>' +
       '<thead><tr><th scope="col" class="cq-tbl-corner"><span>Deductible</span><b>Cover</b></th>' +
       deds.map(d => '<th scope="col">' + esc(d.label) + '</th>').join('') + '</tr></thead><tbody>' +
       rows.map(r => '<tr><th scope="row"><b>' + esc(r.lim.label) + '</b>' +
         (state.product === 'super_visa' ? '<small>Super visa ready</small>' : '') + '</th>' +
-        r.cells.map(c => cellHtml(b, plan, r.lim, c, c.total != null && c.total === low && c.hit)).join('') + '</tr>').join('') +
+        r.cells.map(c => cellHtml(b, plan, r.lim, c, c.price != null && c.price === low && c.hit)).join('') + '</tr>').join('') +
       '</tbody></table></div><p class="cq-tbl-detail" data-detail="' + plan + '"></p></div>';
     showDetail(plan, null);
   }
 
   function cellHtml(b, plan, lim, c, isLow) {
     const k = key(state.product, plan, lim.code, c.ded.value);
-    if (c.total == null) {
-      return '<td><span class="cq-cell is-na" title="Not offered for ' +
-        esc(c.missing.map(i => who(i)).join(', ')) + '">—</span></td>';
+    if (c.price == null) {
+      return '<td><span class="cq-cell is-na" title="Not offered for ' + esc(who(state.who)) + '">—</span></td>';
     }
-    const picked = state.picks.has(k);
+    const picked = isMine(k);
     const monthly = state.pay === 'monthly';
-    const main = monthly ? (c.monthlyOk ? money(c.monthly) : money(c.total)) : money(c.total);
-    const sub = monthly ? (c.monthlyOk ? 'a month' : 'full price') : money(round2(c.total / b.days)) + '/day';
+    const main = monthly ? (c.monthlyOk ? money(c.monthly) : money(c.price)) : money(c.price);
+    const sub = monthly ? (c.monthlyOk ? 'a month' : 'full price') : money(round2(c.price / b.days)) + '/day';
     return '<td><button type="button" class="cq-cell' + (picked ? ' is-picked' : '') + (isLow ? ' is-low' : '') +
       (c.hit ? '' : ' is-dim') + '" data-key="' + esc(k) + '" aria-pressed="' + picked + '" aria-label="' +
-      esc(planLabel(plan) + ', ' + lim.label + ' cover, ' + c.ded.label + ' deductible: ' + money(c.total)) + '">' +
-      (isLow ? '<i class="cq-low">Lowest</i>' : '') + '<b>' + main + '</b><small>' + esc(sub) + '</small></button></td>';
+      esc(planLabel(plan) + ', ' + lim.label + ' cover, ' + c.ded.label + ' deductible: ' + money(c.price) +
+        (many ? ' for ' + who(state.who) : '')) + '">' +
+      (isLow ? '<i class="cq-low">Lowest</i>' : '') + tags(k) + '<b>' + main + '</b><small>' + esc(sub) + '</small></button></td>';
   }
 
-  /* Under each table: who pays what for the price under the pointer (or the last one picked). */
+  /* Under each table: the price under the pointer (or this traveller's pick), and with several travellers
+     what everybody on that same option would come to. */
   function showDetail(plan, k) {
     const el = $('[data-detail="' + plan + '"]');
     if (!el) return;
     if (!k) {
-      const mine = [...state.picks.keys()].filter(x => x.split('|')[0] === state.product && x.split('|')[1] === plan);
-      k = mine[mine.length - 1];
+      const mine = state.picks.get(state.who);
+      k = mine && mine.product === state.product && mine.plan === plan ? pickKey(mine) : '';
     }
     if (!k) {
-      el.innerHTML = '<span class="cq-tbl-hint">Tap a price to pick it. Point at one to see what each traveller pays.</span>';
+      el.innerHTML = '<span class="cq-tbl-hint">Tap a price to pick it' + (many ? ' for ' + esc(who(state.who)) : '') +
+        '. Point at one to see it in full.</span>';
       return;
     }
     const [product, p, limit, ded] = k.split('|');
     const b = books[product];
     const r = row(product, p, limitOf(product, p, limit), dedOf(product, ded));
-    if (r.total == null) { el.textContent = ''; return; }
+    if (r.price == null) { el.textContent = ''; return; }
     const head = '<b>' + esc(planLabel(p) + ' · ' + limitOf(product, p, limit).label + ' · ' + dedOf(product, ded).label + ' deductible') + '</b>';
-    const each = people.length > 1
-      ? r.each.map((x, i) => '<span>' + esc(who(i)) + ' <b>' + money(x) + '</b></span>').join('')
-      : '<span>' + money(round2(r.total / b.days)) + ' a day</span>';
+    const each = many
+      ? '<span>' + esc(who(state.who)) + '</span>' + (r.total != null ? '<span>' + allOn + ': <b>' + money(r.total) + '</b></span>' : '')
+      : '<span>' + money(round2(r.price / b.days)) + ' a day</span>';
     const monthly = r.monthlyOk ? '<span>or ' + money(r.monthly) + ' a month + ' + money(b.monthly.fee).replace('.00', '') + ' once</span>' : '';
-    el.innerHTML = head + '<span class="cq-tbl-total">' + money(r.total) + '</span>' + each + monthly;
+    el.innerHTML = head + '<span class="cq-tbl-total">' + money(r.price) + '</span>' + each + monthly;
   }
 
   function rowHtml(b, plan, lim, r, isLow) {
     const k = key(state.product, plan, lim.code, r.ded.value);
-    const picked = state.picks.has(k);
-    const na = r.total == null;
+    const picked = isMine(k);
+    const na = r.price == null;
     let price, each;
     if (na) {
       price = 'Not offered';
-      each = 'Not offered for ' + r.missing.map(i => who(i) + (state.pre[i] === 'y' ? ' with a pre-existing condition' : '')).join(', ') + '.';
+      each = 'Not offered for ' + who(state.who) + (state.pre[state.who] === 'y' ? ' with a pre-existing condition' : '') + '.';
     } else {
       if (state.pay === 'monthly') {
         price = r.monthlyOk ? money(r.monthly) + '<small>a month + ' + money(b.monthly.fee).replace('.00', '') + ' once</small>'
-                            : money(r.total) + '<small>monthly not offered</small>';
+                            : money(r.price) + '<small>monthly not offered</small>';
       } else {
-        price = money(r.total) + '<small>' + esc(daysText(b)) + (people.length > 1 ? ' · everyone' : '') + '</small>';
+        price = money(r.price) + '<small>' + esc(daysText(b)) + (many ? ' · traveller ' + (state.who + 1) : '') + '</small>';
       }
-      each = people.length > 1
-        ? r.each.map((x, i) => esc(who(i)) + ': <b>' + money(x) + '</b>').join(' · ')
-        : money(round2(r.total / b.days)) + ' a day';
+      each = many
+        ? esc(who(state.who)) + (r.total != null ? ' · ' + allOn + ': <b>' + money(r.total) + '</b>' : '')
+        : money(round2(r.price / b.days)) + ' a day';
     }
     return '<button type="button" class="cq-row' + (picked ? ' is-picked' : '') + (na ? ' is-na' : '') + (isLow ? ' is-low' : '') +
       '" data-key="' + esc(k) + '" aria-pressed="' + picked + '"' + (na ? ' aria-disabled="true"' : '') + '>' +
       '<span class="cq-tickbox" aria-hidden="true">' + TICK + '</span>' +
-      '<span class="cq-ded">' + esc(r.ded.label) + ' deductible' + (r.ded.value === 0 ? ' <small>· nothing to pay first</small>' : '') + '</span>' +
+      '<span class="cq-ded">' + esc(r.ded.label) + ' deductible' + (r.ded.value === 0 ? ' <small>· nothing to pay first</small>' : '') + tags(k) + '</span>' +
       '<span class="cq-amt">' + price + '</span>' +
       '<span class="cq-each">' + each + '</span></button>';
   }
@@ -269,32 +299,60 @@
     $$('#cqPay button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.pay === state.pay)));
   }
 
-  function pickRows() {
-    return [...state.picks.entries()].map(([k, p]) => {
-      const b = books[p.product];
-      if (!b || b.error) return { k, p, r: null, b };
-      return { k, p, b, r: row(p.product, p.plan, limitOf(p.product, p.plan, p.limit), dedOf(p.product, p.deductible)) };
-    });
+  /* Traveller i's pick, priced for them now: null when they have none. */
+  function pickOf(i) {
+    const p = state.picks.get(i);
+    if (!p) return null;
+    const b = books[p.product];
+    const r = b && !b.error ? row(p.product, p.plan, limitOf(p.product, p.plan, p.limit), dedOf(p.product, p.deductible), i) : null;
+    return { p, b, r, ok: !!(r && r.price != null) };
+  }
+  const amtOf = x => (state.pay === 'monthly' && x.r.monthlyOk ? money(x.r.monthly) + '<small>/mo</small>' : money(x.r.price));
+
+  /* One slot per traveller: who they are, what was picked for them and its price. The slot being picked for
+     is lit; choosing another slot moves the tables to that traveller's prices. */
+  function slotHtml(i) {
+    const x = pickOf(i);
+    const on = i === state.who;
+    const head = '<span class="n">' + (i + 1) + '</span><span class="who"><b>Traveller ' + (i + 1) + '</b><small>Age ' +
+      people[i].age + (state.pre[i] === 'y' ? ' · pre-existing' : '') + '</small></span>';
+    if (!x) {
+      return '<li class="cq-slot is-open' + (on ? ' is-on' : '') + '"><button type="button" class="cq-slot-pick" data-who="' + i +
+        '" aria-pressed="' + on + '">' + head + '<span class="what"><span>' +
+        (on ? 'Picking now: tap a price in either plan' : 'Not picked yet · choose to pick') + '</span></span></button></li>';
+    }
+    const { p, b } = x;
+    const lim = b && !b.error ? limitOf(p.product, p.plan, p.limit) : { label: p.limit };
+    return '<li class="cq-slot ' + p.plan + (on ? ' is-on' : '') + '"><button type="button" class="cq-slot-pick" data-who="' + i +
+      '" aria-pressed="' + on + '">' + head +
+      '<span class="what"><b>' + esc(planLabel(p.plan)) + ' · ' + esc(lim.label) + '</b><span>' +
+      esc(p.product === 'super_visa' ? 'Super visa' : 'Visitor') + ' · ' + esc(dedOf(p.product, p.deductible).label) + ' deductible</span></span>' +
+      '<span class="amt">' + (x.ok ? amtOf(x) : 'Not offered') + '</span></button>' +
+      (many ? '<button type="button" class="cq-slot-all" data-all="' + i + '">Same for everyone</button>' : '') +
+      '<button type="button" class="cq-slot-x" data-unpick="' + i + '" aria-label="Remove the pick for Traveller ' + (i + 1) + '">&times;</button></li>';
   }
 
   function renderPicks() {
-    const rows = pickRows();
-    $('#cqPickN').textContent = rows.length;
-    $('#cqBarN').textContent = rows.length;
-    $('#cqBar').hidden = !rows.length || picksInView;
-    $('#cqPickEmpty').hidden = !!rows.length;
-    $('#cqPickList').innerHTML = rows.map(({ k, p, r, b }) => {
-      const lim = b && !b.error ? limitOf(p.product, p.plan, p.limit) : { label: p.limit };
-      const ok = r && r.total != null;
-      const amt = !ok ? 'Not offered'
-        : (state.pay === 'monthly' && r.monthlyOk ? money(r.monthly) + '/mo' : money(r.total));
-      const many = ok && people.length > 1;
-      const split = many ? '<span class="split">' + r.each.map((x, i) => '<i>' + esc(who(i)) + '</i><b>' + money(x) + '</b>').join('') + '</span>' : '';
-      return '<li class="' + p.plan + (many ? ' many' : '') + '"><div><b>' + esc(planLabel(p.plan)) + ' · ' + esc(lim.label) + '</b>' +
-        '<span>' + esc(p.product === 'super_visa' ? 'Super visa' : 'Visitor') + ' · ' + esc(dedOf(p.product, p.deductible).label) + ' deductible</span></div>' +
-        '<span class="amt">' + amt + (many ? ' <small>' + everyone + '</small>' : '') + '</span>' + split +
-        '<button type="button" data-unpick="' + esc(k) + '" aria-label="Remove">&times;</button></li>';
-    }).join('');
+    const n = state.picks.size;
+    const got = people.map((_, i) => pickOf(i)).filter(Boolean);
+    $('#cqPickN').textContent = many ? n + ' of ' + people.length : String(n);
+    $('#cqBarN').textContent = many ? n + ' of ' + people.length : String(n);
+    $('#cqBarWho').innerHTML = many ? people.map((_, i) => '<button type="button" data-who="' + i + '" aria-pressed="' + (i === state.who) +
+      '" class="' + (state.picks.has(i) ? 'has' : '') + '" aria-label="Pick for ' + esc(who(i)) + '">' + (i + 1) + '</button>').join('') : '';
+    $('#cqBar').hidden = (!n && !many) || picksInView;
+    $('#cqBar').classList.toggle('many', many);
+    $('#cqPickList').classList.toggle('one', !many);
+    $('#cqPickList').innerHTML = people.map((_, i) => slotHtml(i)).join('');
+    // the picks together, once there are two or more to add up
+    const tot = $('#cqPickTotal');
+    const priced = got.filter(x => x.ok);
+    tot.hidden = priced.length < 2;
+    if (priced.length > 1) {
+      const sum = round2(priced.reduce((a, x) => a + x.r.price, 0));
+      const left = people.length - n;
+      tot.innerHTML = '<span>Together</span><b>' + money(sum) + '</b>' +
+        (left ? '<small>' + left + ' traveller' + (left === 1 ? '' : 's') + ' still to pick</small>' : '<small>' + (n === 2 ? 'both' : 'all ' + n) + ' travellers</small>');
+    }
     $('#cqCall').firstChild.textContent = state.callback ? 'Update my request ' : 'Request a call back ';
     renderDone();
   }
@@ -349,9 +407,13 @@
     $$('#cqView [data-view]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.view === state.view)));
   }
 
+  let drawnWho = null, whoMoved = false;
   function render() {
     renderView(); renderProducts(); renderPre(); renderFilters();
+    whoMoved = drawnWho !== null && drawnWho !== state.who;
+    drawnWho = state.who;
     renderPlan('s'); renderPlan('e');
+    whoMoved = false;
     renderPicks(); renderCheck();
   }
 
@@ -371,7 +433,9 @@
       return;
     }
     if (t.dataset.tab) { setTab(t.dataset.tab); return; }
-    if (t.dataset.unpick) { state.picks.delete(t.dataset.unpick); render(); return; }
+    if (t.dataset.who !== undefined) { pickFor(+t.dataset.who); return; }
+    if (t.dataset.all !== undefined) { sameForAll(+t.dataset.all); return; }
+    if (t.dataset.unpick !== undefined) { state.picks.delete(+t.dataset.unpick); state.who = +t.dataset.unpick; render(); return; }
     if (t.hasAttribute('data-reset') || t.id === 'cqReset') { resetFilters(); return; }
     if (t.classList.contains('cq-row') || t.classList.contains('cq-cell')) { togglePick(t); return; }
     if (t.id === 'cqCall' || t.hasAttribute('data-open-call')) { openCall(); return; }
@@ -391,21 +455,52 @@
     $('#cqBoard').dataset.show = tab;
     $$('#cqTabs [data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
   }
+  /* A price tapped: it becomes the pick of the traveller being picked for (tapping their pick again takes it
+     away), and the tables move on to the next traveller still without one. */
   function togglePick(btn) {
     if (btn.getAttribute('aria-disabled') === 'true') return;
     const k = btn.dataset.key;
-    if (state.picks.has(k)) state.picks.delete(k);
-    else {
-      if (state.picks.size >= (D.maxPicks || 6)) { flash('You can pick up to ' + (D.maxPicks || 6) + ' options.'); return; }
-      const [product, plan, limit, ded] = k.split('|');
-      state.picks.set(k, { product, plan, limit, deductible: +ded });
+    const i = state.who;
+    if (isMine(k)) { state.picks.delete(i); render(); return; }
+    const [product, plan, limit, ded] = k.split('|');
+    state.picks.set(i, { product, plan, limit, deductible: +ded });
+    const next = people.map((_, j) => (i + 1 + j) % people.length).find(j => !state.picks.has(j));
+    if (next != null) {
+      state.who = next;
+      say('Picked for ' + who(i) + '. Now picking for ' + who(next) + '.');
+    } else {
+      say(many ? 'Picked for ' + who(i) + '. Every traveller has a pick.' : '');
     }
-    renderPlan('s'); renderPlan('e'); renderPicks();
+    render();
   }
-  function flash(msg) {
-    const el = $('#cqPickEmpty');
-    el.hidden = false; el.textContent = msg;
-    setTimeout(() => { el.textContent = EMPTY; renderPicks(); }, 2600);
+  function pickFor(i) {
+    if (i < 0 || i >= people.length) return;
+    state.who = i;
+    render();
+    say('');
+  }
+  /* "Same for everyone": traveller i's pick for every other traveller it is offered to. */
+  function sameForAll(i) {
+    const p = state.picks.get(i);
+    if (!p) return;
+    const b = books[p.product];
+    const not = [];
+    people.forEach((_, j) => {
+      if (j === i) return;
+      const r = b && !b.error ? row(p.product, p.plan, limitOf(p.product, p.plan, p.limit), dedOf(p.product, p.deductible), j) : null;
+      if (r && r.price != null) state.picks.set(j, Object.assign({}, p)); else not.push(who(j));
+    });
+    render();
+    say(not.length ? 'Not offered for ' + not.join(', ') + ': pick something else for them.' : 'The same pick for every traveller.');
+  }
+  /* A short note at the foot of the screen (and read out) about what just happened: the picks may be off screen. */
+  let sayTimer;
+  function say(text) {
+    const el = $('#cqSay');
+    clearTimeout(sayTimer);
+    el.textContent = text;
+    el.hidden = !text;
+    if (text) sayTimer = setTimeout(() => { el.hidden = true; }, 4500);
   }
 
   ['mouseover', 'focusin'].forEach(ev => document.addEventListener(ev, e => {
@@ -449,7 +544,10 @@
   function openCall() {
     lastFocus = document.activeElement;
     const n = state.picks.size;
-    $('#cqFormWhat').textContent = n ? (n === 1 ? 'the option you picked' : 'the ' + n + ' options you picked') : 'your quotes';
+    $('#cqFormWhat').textContent = !n ? 'your quotes'
+      : !many ? 'the option you picked'
+      : n === people.length ? 'the plan you picked for each traveller'
+      : 'the plan you picked for ' + n + ' of your ' + people.length + ' travellers';
     form.hidden = false; okBox.hidden = true; err.hidden = true;
     drawCallChips();
     ov.hidden = false;
@@ -468,8 +566,8 @@
     if (!name) { err.textContent = 'Please tell us your name, so our agent knows who to ask for.'; err.hidden = false; $('#cqName').focus(); return; }
     const btn = $('#cqSend');
     btn.disabled = true; btn.textContent = 'Sending…'; err.hidden = true;
-    const picks = [...state.picks.values()].map(p => ({
-      product: p.product, plan: p.plan, limit: p.limit, deductible: p.deductible,
+    const picks = [...state.picks.entries()].sort((a, z) => a[0] - z[0]).map(([i, p]) => ({
+      traveller: i, product: p.product, plan: p.plan, limit: p.limit, deductible: p.deductible,
       pay: state.pay === 'monthly' ? 'monthly' : 'once',
     }));
     try {
@@ -577,7 +675,10 @@
       const d = await r.json().catch(() => ({}));
       if (!r.ok || !d.success) throw new Error(d.error || 'We could not update that just now. Please try again.');
       // the same page, priced for the new trip; the picks come along where they still exist
-      try { window.sessionStorage.setItem('cq.picks.' + D.ref, JSON.stringify([...state.picks.values()])); } catch (ex) { /* not kept */ }
+      try {
+        window.sessionStorage.setItem('cq.picks.' + D.ref,
+          JSON.stringify([...state.picks.entries()].map(([i, p]) => Object.assign({ traveller: i }, p))));
+      } catch (ex) { /* not kept */ }
       window.location.reload();
     } catch (ex) {
       fail(ex.message);
@@ -585,23 +686,25 @@
     }
   });
 
-  // picks carried over a "Change the trip" reload
+  // picks carried over a "Change the trip" reload: each stays with the traveller in the same place
   try {
     const kept = JSON.parse(window.sessionStorage.getItem('cq.picks.' + D.ref) || 'null');
     window.sessionStorage.removeItem('cq.picks.' + D.ref);
     (kept || []).forEach(p => {
       const b = books[p.product];
-      if (b && !b.error && (b.limits[p.plan] || []).some(l => l.code === String(p.limit))) {
-        state.picks.set(key(p.product, p.plan, p.limit, p.deductible), p);
+      const i = +p.traveller;
+      if (i >= 0 && i < people.length && b && !b.error && (b.limits[p.plan] || []).some(l => l.code === String(p.limit))) {
+        state.picks.set(i, { product: p.product, plan: p.plan, limit: String(p.limit), deductible: +p.deductible });
       }
     });
+    if (kept && kept.length) state.who = Math.max(firstOpen(), 0);
   } catch (ex) { /* nothing kept */ }
 
   // the bar at the bottom stands in for the picks box while that box is off screen, on any screen size
   if ('IntersectionObserver' in window) {
     new IntersectionObserver(entries => {
       picksInView = entries[0].isIntersecting;
-      $('#cqBar').hidden = !state.picks.size || picksInView;
+      $('#cqBar').hidden = (!state.picks.size && !many) || picksInView;
     }, { threshold: 0.25 }).observe($('.cq-picks-box'));
   }
   $('#cqBar [data-see-picks]').addEventListener('click', () => $('.cq-picks-box').scrollIntoView({ behavior: 'smooth', block: 'center' }));

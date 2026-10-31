@@ -278,6 +278,40 @@ def test_call_back_changed_pre_existing_answer_is_priced(client):
     assert q.travellers[1]['pre'] == 'y' and q.extra['picks'][0]['each'] == [1620.6, round(4.44 * 365, 2)]
 
 
+def test_call_back_one_pick_per_traveller_each_priced_for_them(client, admin_user, secure_travel):
+    q = _token(client)
+    mailer.OUTBOX.clear()
+    r = client.post('/travel-insurance/canada/quotes/%s/call-back' % q.token, json={
+        'name': 'Lakshmi', 'pre': ['n', 'n'], 'picks': [
+            {'traveller': 1, 'product': 'super_visa', 'plan': 'e', 'limit': '3', 'deductible': 1000},
+            {'traveller': 0, 'product': 'super_visa', 'plan': 's', 'limit': '3', 'deductible': 0},
+            {'traveller': 0, 'product': 'super_visa', 'plan': 'e', 'limit': '4', 'deductible': 0},   # a 2nd for the same person
+            {'traveller': 5, 'product': 'super_visa', 'plan': 's', 'limit': '3', 'deductible': 0}]})  # nobody
+    assert r.status_code == 200, r.get_json()
+    picks = _db.session.get(InsuranceQuote, q.id).extra['picks']
+    assert [(p['traveller'], p['plan']) for p in picks] == [(0, 's'), (1, 'e')]
+    assert picks[0]['total'] == 1620.6 and picks[0]['each'] == [1620.6]                # traveller 1 (66) alone
+    assert picks[1]['total'] == 1208.88 and picks[1]['each'] == [1208.88]              # traveller 2 (62): 4.14 x 365 x 0.8
+    assert picks[0]['traveller_label'] == 'Traveller 1 (age 66)'
+    lead = CrmLead.query.one()
+    body = ' '.join(t.body or '' for t in CrmTouchpoint.query.filter_by(lead_id=lead.id).all())
+    assert 'Traveller 2 (age 62): Super visa' in body and 'Together: $2,829.48' in body
+    assert any('Together: $2,829.48' in m['body'] for m in mailer.OUTBOX)
+    # the admin copy prices each pick for its own traveller again: the same, and the two added up
+    login(client, 'admin@test.com')
+    html = client.get('/admin/insurance/canada-quotes').data.decode()
+    assert html.count('✓ same') == 2 and 'Traveller 2 (age 62)' in html and '$2,829.48' in html
+
+
+def test_call_back_says_who_has_no_pick_yet(client):
+    q = _token(client)
+    client.post('/travel-insurance/canada/quotes/%s/call-back' % q.token, json={
+        'name': 'Lakshmi', 'picks': [{'traveller': 0, 'product': 'super_visa', 'plan': 's', 'limit': '3', 'deductible': 0}]})
+    lead = CrmLead.query.one()
+    body = ' '.join(t.body or '' for t in CrmTouchpoint.query.filter_by(lead_id=lead.id).all())
+    assert 'No pick yet for Traveller 2 (age 62)' in body and 'Together' not in body
+
+
 def test_call_back_needs_a_name_and_real_options(client):
     q = _token(client)
     url = '/travel-insurance/canada/quotes/%s/call-back' % q.token

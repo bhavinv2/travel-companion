@@ -20,9 +20,13 @@ STATUSES = {'callback': 'Asked for a call back', 'quoted': 'Only looked', 'faile
 
 
 def _repriced(quote, pick):
-    """Today's price for a pick: (total, same as shown?) or (None, None) when it cannot be priced now."""
+    """Today's price for a pick: (total, same as shown?) or (None, None) when it cannot be priced now. A pick
+    made for one traveller is priced for that traveller alone."""
+    travellers = quote.travellers or []
+    if pick.get('traveller') is not None:
+        travellers = travellers[int(pick['traveller']):int(pick['traveller']) + 1]
     try:
-        priced = canada_quotes.price_pick(pick['product'], quote.travellers or [], int(pick.get('days') or 365),
+        priced = canada_quotes.price_pick(pick['product'], travellers, int(pick.get('days') or 365),
                                           str(pick['plan']), str(pick['limit']), int(pick.get('deductible') or 0))
     except (canada_quotes.Unavailable, KeyError, ValueError, TypeError):
         return None, None

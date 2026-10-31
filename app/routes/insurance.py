@@ -421,10 +421,26 @@ def _canada_summary(quote):
 
 
 def _pick_line(p):
-    return '%s · %s · %s · %s%s' % (
+    return '%s%s · %s · %s · %s%s' % (
+        (p['traveller_label'] + ': ') if p.get('traveller_label') else '',
         canada_quotes.PRODUCTS.get(p['product'], {}).get('label', p['product']), p.get('plan_label', p['plan']),
         p.get('limit_label', p['limit']), p.get('deductible_label', '$%s deductible' % p['deductible']),
         (' · ' + canada_quotes.money(p['total'])) if p.get('total') is not None else '')
+
+
+def _picks_summary(picks, travellers):
+    """Under the picks: what one pick per traveller adds up to, and who has no pick yet ([] for one pick)."""
+    mine = [p for p in picks if p.get('traveller') is not None]
+    if not mine:
+        return []
+    out = ['Together: %s' % canada_quotes.money(round(sum(p['total'] for p in mine), 2))] if len(mine) > 1 else []
+    picked = {p['traveller'] for p in mine}
+    out += ['No pick yet for %s' % _traveller_label(travellers, i) for i in range(len(travellers)) if i not in picked]
+    return out
+
+
+def _traveller_label(travellers, i):
+    return 'Traveller %d (age %s)' % (i + 1, travellers[i].get('age'))
 
 
 def _in_background(fn, *args):
@@ -475,8 +491,9 @@ def _mail_quote(app, quote_id, kind, link):
                     lines.append('We could not read the prices just now. Open the link below in a little while, or '
                                  'reply to this e-mail and our team will call you with them.')
                 lines += ['', 'See every option, compare the Standard and Enhanced plans, and pick the one you want:',
-                          link, '', 'Pick one and press "Request a call back": our agent will call you and complete '
-                                    'the application with you.']
+                          link, '', ('Pick one for each traveller' if len(quote.travellers or []) > 1 else 'Pick one') +
+                          ' and press "Request a call back": our agent will call you and complete '
+                          'the application with you.']
             else:
                 cb = (quote.extra or {}).get('callback') or {}
                 subject = 'We will call you about your Canada insurance (%s)' % _canada_ref(quote)
@@ -484,8 +501,10 @@ def _mail_quote(app, quote_id, kind, link):
                           % (' on WhatsApp' if cb.get('how') == 'WhatsApp' else ' by phone',
                              (' (' + cb['best_time'].lower() + ')') if cb.get('best_time') and cb['best_time'] != 'Any time' else ''),
                           '', 'What you picked:']
-                for p in (quote.extra or {}).get('picks') or []:
+                picks = (quote.extra or {}).get('picks') or []
+                for p in picks:
                     lines.append('  • ' + _pick_line(p))
+                lines += ['  ' + x for x in _picks_summary(picks, quote.travellers or [])]
                 lines += ['', 'Cover:      %s' % s['cover'], 'Dates:      %s' % s['dates'],
                           'Travellers: %s' % s['travellers'], 'Reference:  %s' % _canada_ref(quote), '',
                           'Your quotes stay here: ' + link]
@@ -619,7 +638,7 @@ def canada_quotes_page(token):
         'tripUrl': url_for('insurance.canada_trip', token=quote.token),
         'today': date.today().isoformat(),
         'editUrl': urls.public_url('insurance.landing') + '#canada',
-        'callTimes': list(CALL_TIMES), 'callHow': list(CALL_HOW), 'maxPicks': MAX_PICKS,
+        'callTimes': list(CALL_TIMES), 'callHow': list(CALL_HOW),
         'phone': phone.pretty(quote.phone, quote.phone) if quote.phone else '', 'email': quote.email,
         'source': {k: v['url'] for k, v in canada_quotes.PRODUCTS.items()},
     }
@@ -680,22 +699,35 @@ def canada_callback(token):
                   for i, t in enumerate(quote.travellers or [])]
     extra = dict(quote.extra or {})
     raw = data.get('picks') if isinstance(data.get('picks'), list) else []
-    picks = []
-    for p in raw[:MAX_PICKS]:
+    # one pick per traveller (one parent may want Standard, the other Enhanced), each priced for that traveller
+    # alone; a pick that names no traveller is for everybody together, as the page made them before
+    picks, seen = [], set()
+    for p in raw[:max(MAX_PICKS, len(travellers))]:
         if not isinstance(p, dict) or p.get('product') not in canada_quotes.PRODUCTS:
             continue
+        who = p.get('traveller')
+        if who is not None:
+            try:
+                who = int(who)
+            except (TypeError, ValueError):
+                continue
+            if not 0 <= who < len(travellers) or who in seen:
+                continue
         product = p['product']
         days = 365 if product == 'super_visa' or extra.get('cover') == 'super_visa' else int(extra.get('days') or 365)
         try:
-            priced = canada_quotes.price_pick(product, travellers, days, str(p.get('plan')), str(p.get('limit')),
-                                              int(p.get('deductible') or 0))
+            priced = canada_quotes.price_pick(product, travellers if who is None else [travellers[who]], days,
+                                              str(p.get('plan')), str(p.get('limit')), int(p.get('deductible') or 0))
         except (canada_quotes.Unavailable, ValueError, TypeError):
             priced = None
         if priced is None:
             continue
         total, each, table = priced
         monthly = p.get('pay') == 'monthly' and table.monthly_ok(days, str(p.get('limit')))
-        picks.append({'product': product, 'plan': str(p['plan']), 'plan_label': table.plan_label(str(p['plan'])),
+        if who is not None:
+            seen.add(who)
+        picks.append({**({'traveller': who, 'traveller_label': _traveller_label(travellers, who)} if who is not None else {}),
+                      'product': product, 'plan': str(p['plan']), 'plan_label': table.plan_label(str(p['plan'])),
                       'limit': str(p['limit']), 'limit_label': table.limit_label(str(p['plan']), str(p['limit'])),
                       'deductible': int(p.get('deductible') or 0),
                       'deductible_label': '%s deductible' % dict(table.deductibles).get(int(p.get('deductible') or 0), ''),
@@ -705,6 +737,7 @@ def canada_callback(token):
                       'fingerprint': table.fingerprint, 'priced_at': datetime.utcnow().isoformat()})
     if raw and not picks:
         return _canada_err('Those options could not be priced just now. Please try again, or ask for a call without a pick.')
+    picks.sort(key=lambda p: -1 if p.get('traveller') is None else p['traveller'])
 
     extra.update({'picks': picks, 'callback': {'at': datetime.utcnow().isoformat(), 'name': name, 'best_time': best_time,
                                                'how': how, 'note': note}})
@@ -717,6 +750,7 @@ def canada_callback(token):
     lines = ['Asked for a call back (%s, %s) about their Canada quotes %s.' % (how, best_time.lower(), _canada_ref(quote))]
     lines += ['Picked: ' + _pick_line(p) + (' (monthly)' if p['pay'] == 'monthly' else '') for p in picks] or \
              ['No option picked: wants to talk it through.']
+    lines += _picks_summary(picks, travellers)
     if note:
         lines.append('Their note: ' + note)
     crm.capture_safely('ti-canada', name=name, phone=quote.phone, email=quote.email, product='TI',

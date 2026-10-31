@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Doodles, Trail } from './Deco.jsx';
 import Icon from './Icon.jsx';
 import { away, site, talk, TALK } from '../data/site.js';
+import { MARK } from '../data/services.js';
 import { reduceMotion } from '../hooks.js';
 import parents from '../assets/photos/parents-centre.jpg';
 import imgCompanion from '../assets/photos/why-travel.jpg';
@@ -23,22 +24,22 @@ import imgFit from '../assets/photos/health-hero.jpg';
 const NEXT_MS = 4500;
 
 const SERVICES = [
-  { key: 'companion', color: '#2446B8', icon: 'plane', img: imgCompanion, pos: '55% 35%', title: 'Travel Companion', group: 'Travel',
+  { ...MARK.companion, img: imgCompanion, pos: '55% 35%', group: 'Travel',
     text: 'Trusted assistance for elderly parents who need support before, during or after their journey.',
     cta: 'Explore Travel Companion', href: site.companionUrl },
-  { key: 'insurance', color: '#0F9D8C', icon: 'shield', img: imgInsurance, pos: '50% 35%', title: 'Travel Insurance', group: 'Travel',
+  { ...MARK.insurance, img: imgInsurance, pos: '50% 35%', group: 'Travel',
     text: 'Protect your parents with travel insurance designed to support them throughout their journey.',
     cta: 'Explore Travel Insurance', href: site.insuranceUrl },
-  { key: 'doctor', color: '#5B4BD6', icon: 'steth', img: imgDoctor, pos: '33% 30%', title: 'Virtual Doctor', group: 'Care',
+  { ...MARK.doctor, img: imgDoctor, pos: '33% 30%', group: 'Care',
     text: 'Video consultations with a doctor from home. You can join the call from abroad.',
     cta: 'Book a Consultation', href: site.doctorUrl },
-  { key: 'sahayak', color: '#E4613F', icon: 'home', img: imgSahayak, pos: '45% 35%', title: 'Sahayak', group: 'Care',
+  { ...MARK.sahayak, img: imgSahayak, pos: '45% 35%', group: 'Care',
     text: 'A trusted helping hand for hospital visits, doctor appointments, healthcare needs and everyday assistance.',
     cta: 'Book a Sahayak', href: site.sahayakUrl },
-  { key: 'gift', color: '#C98A12', icon: 'gift', img: imgGift, pos: '30% 40%', title: 'Gift Health', group: 'Health',
+  { ...MARK.gift, img: imgGift, pos: '30% 40%', group: 'Health',
     text: 'Give your parents the gift of better health, care and proactive support — even from miles away.',
     cta: 'Explore Gift Health', href: site.giftUrl },
-  { key: 'fit', color: '#14946E', icon: 'clip', img: imgFit, pos: '62% 40%', title: 'Fit2Fly', group: 'Health',
+  { ...MARK.fit, img: imgFit, pos: '62% 40%', group: 'Health',
     text: 'Prepare your parents for safe and confident travel with the right health assessment before their journey.',
     cta: 'Explore Fit2Fly', href: site.fitUrl },
 ];
