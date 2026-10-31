@@ -354,18 +354,16 @@ def staff_manifest():
 
 @main_bp.route('/robots.txt')
 def robots_txt():
-    from flask import Response, current_app
-    body = (
-        "User-agent: *\n"
-        "Allow: /\n"
-        "Disallow: /admin/\n"
-        "Disallow: /cs/\n"
-        "Disallow: /api/\n"
-        "Disallow: /dashboard\n"
-        "Disallow: /connections\n"
-        "Disallow: /settings/\n"
-        f"Sitemap: {current_app.config['SITE_URL']}/sitemap.xml\n"
-    )
+    """Read by search engines at the domain's root (APP_SITE_PAGES), so the screens they should
+    stay out of are named with the app's prefix."""
+    from flask import Response
+    from app.services.urls import public_absolute
+    root = (request.script_root or '').rstrip('/')
+    body = ("User-agent: *\n"
+            "Allow: /\n"
+            + ''.join('Disallow: %s%s\n' % (root, p)
+                      for p in ('/admin/', '/cs/', '/api/', '/dashboard', '/connections', '/settings/'))
+            + 'Sitemap: %s\n' % public_absolute('main.sitemap_xml'))
     return Response(body, mimetype='text/plain')
 
 
@@ -378,7 +376,12 @@ def sitemap_xml():
     from app.services.urls import public_absolute
     site = current_app.config['SITE_URL']
     today = date.today().isoformat()
-    urls = [
+    # the domain's own pages, once the domain points here (before that they are WordPress's)
+    urls = [(public_absolute(e), f, p, today)
+            for e, f, p in (('homepage_draft.landing', 'weekly', '1.0'), ('homepage_draft.about', 'monthly', '0.6'),
+                            ('main.privacy_policy', 'yearly', '0.3'), ('main.terms_conditions', 'yearly', '0.3'))
+            if request.environ.get('app.direct')]
+    urls += [
         (f'{site}/', 'daily', '1.0', today),
         (f'{site}/trips', 'hourly', '0.9', today),
         # The two standalone service pages. They answer beside the app's prefix rather than under
@@ -387,7 +390,7 @@ def sitemap_xml():
         (public_absolute('insurance.landing'), 'weekly', '0.9', today),
         (public_absolute('sahayak.landing'), 'weekly', '0.8', today),
         (public_absolute('main.contact_us'), 'monthly', '0.7', today),
-        (f'{site}/blog', 'daily', '0.7', today),
+        (public_absolute('blog.blog_list'), 'daily', '0.7', today),         # /blog once the domain is ours
         (f'{site}/reviews', 'daily', '0.6', today),
         (f'{site}/about', 'monthly', '0.5', today),
         (f'{site}/contact', 'monthly', '0.5', today),
@@ -398,12 +401,12 @@ def sitemap_xml():
     posts = Blog.live().order_by(Blog.published_at.desc()).limit(500).all()
     for p in posts:
         lastmod = (p.updated_at or p.published_at or p.created_at)
-        urls.append((f'{site}/blog/{p.slug}', 'monthly', '0.6',
+        urls.append((public_absolute('blog.blog_post', slug=p.slug), 'monthly', '0.6',
                     lastmod.date().isoformat() if lastmod else today))
     from app.services.blog_posts import live_terms
     for kind in ('category', 'tag'):
         for term, _n in live_terms(kind):
-            urls.append((f'{site}/blog/{kind}/{term.slug}', 'weekly', '0.4', today))
+            urls.append((public_absolute('blog.blog_term', kind=kind, slug=term.slug), 'weekly', '0.4', today))
     xml = ['<?xml version="1.0" encoding="UTF-8"?>',
           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for loc, freq, prio, lastmod in urls:
@@ -426,6 +429,27 @@ def terms():
 @main_bp.route('/privacy')
 def privacy():
     return render_template('pages/privacy.html')
+
+
+def _legal(template, endpoint):
+    from app.services import offices
+    from app.services.urls import site_page_seo
+    return render_template(template, legal_phones=offices.numbers('contact'), legal_hq=offices.headquarters(),
+                           **site_page_seo(endpoint))
+
+
+@main_bp.route('/privacy-policy')
+def privacy_policy():
+    """The group's privacy policy, for every service (WordPress's, brought over); at
+    nriparentservice.com/privacy-policy once the domain points here. /privacy is the Travel Companion
+    community's own notice."""
+    return _legal('pages/privacy_policy.html', 'main.privacy_policy')
+
+
+@main_bp.route('/terms-and-conditions')
+def terms_conditions():
+    """The group's terms, for every service, as privacy_policy. /terms is the community's own."""
+    return _legal('pages/terms_conditions.html', 'main.terms_conditions')
 
 
 def _validate_contact(form, need_phone=False):

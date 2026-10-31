@@ -1,0 +1,11 @@
+{# The "Contact Us" section of the privacy policy and the terms: what Admin publishes for the contact page (its
+   e-mail and numbers, the head office), so a changed number reaches the legal pages too. #}
+<p class="legal-contact">
+  <strong>NRI Parent Service</strong><br/>
+  <strong>Website:</strong> <a href="https://nriparentservice.com/">nriparentservice.com</a>
+  {%- if SUPPORT_EMAIL %}<br/><strong>Email:</strong> <a href="mailto:{{ SUPPORT_EMAIL }}">{{ SUPPORT_EMAIL }}</a>{% endif %}
+  {%- for p in legal_phones %}<br/><strong>{{ p.label }} helpline:</strong> <a href="tel:+{{ p.digits }}">{{ p.display }}</a>{% endfor %}
+</p>
+{% if legal_hq %}
+<p><strong>Headquarters:</strong><br/>{{ legal_hq.street }}{% for line in legal_hq.lines %}<br/>{{ line }}{% endfor %}</p>
+{% endif %}

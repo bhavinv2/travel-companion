@@ -56,8 +56,14 @@ EXTERNAL = 'M7 17 17 7M9 7h8v8'
 BY_BLUEPRINT = {'insurance': 'insurance', 'sahayak': 'sahayak'}
 
 
+# The group's privacy policy and terms (routes/main.py) are about every product, not the companion app
+# whose blueprint they sit in: they wear the home page's name.
+GROUP_ENDPOINTS = {'main.privacy_policy': 'home', 'main.terms_conditions': 'home'}
+
+
 def current_key():
     page = next((p['key'] for p in PAGES if p['endpoint'] == request.endpoint), None)
+    page = page or GROUP_ENDPOINTS.get(request.endpoint or '')
     return page or BY_BLUEPRINT.get((request.blueprint or '').split('.')[0], 'companion')
 
 

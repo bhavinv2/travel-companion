@@ -4,6 +4,7 @@ import CountrySelect, { DialSelect } from './CountrySelect';
 import { useQuote } from '../context/QuoteContext';
 import { openQuotes, planFor, requestQuote } from '../utils/quoteRequest';
 import { SCHENGEN } from '../data/countries';
+import { site } from '../data/site';
 
 /** Where a product here covers: the USA (Visitors), Canada (our own quotes page) and the Schengen area.
  *  Travel Medical for the rest of the world is no longer offered, so no other destination is listed. */
@@ -239,7 +240,8 @@ export default function QuoteModal() {
               </fieldset>
               <label className="consent">
                 <input type="checkbox" checked={form.consent} onChange={(e) => setForm({ consent: e.target.checked })} />
-                I agree to be contacted about my quote and accept the <a href="#about">Privacy Policy</a>.
+                {/* a new tab: following it here would close the quote half filled in */}
+                I agree to be contacted about my quote and accept the <a href={site.privacyUrl || '/privacy-policy'} target="_blank" rel="noopener">Privacy Policy</a>.
               </label>
               <label className="consent">
                 <input type="checkbox" checked={form.waConsent} onChange={(e) => setForm({ waConsent: e.target.checked })} />

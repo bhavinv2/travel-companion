@@ -322,7 +322,8 @@ MODULES = [
                                             'library, reusable blocks, saved versions.'),
          # Word documents in, draft posts out (services/blog_engine.py): whoever may write a post may
          # import one, so it comes with "New blog post" rather than being granted on its own
-         _page('blog_import', 'Import blog posts', 'fa-file-import', ['admin.blog_import', 'admin.blog_template'],
+         _page('blog_import', 'Import blog posts', 'fa-file-import',
+               ['admin.blog_import', 'admin.blog_template', 'admin.blog_from_wordpress'],
                admin='admin.blog_import', with_=('blog',),
                desc='Turn Word documents into draft blog posts.'),
          _page('help', 'Help & FAQ', 'fa-circle-question', ['admin.help_center_page'],

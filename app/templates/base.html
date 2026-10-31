@@ -29,7 +29,7 @@
   <meta property="og:site_name" content="NRI Parent Service"/>
   <meta property="og:title" content="{{ self.title()|striptags|trim }}"/>
   <meta property="og:description" content="{{ self.meta_description()|striptags|trim }}"/>
-  <meta property="og:url" content="{{ canonical_url|default(request.base_url) }}"/>
+  <meta property="og:url" content="{{ canonical_url|default(request.host_url.rstrip('/') ~ here(False)) }}"/>
   <meta property="og:locale" content="en_US"/>
   {% if _share %}
   <meta property="og:image" content="{{ _share }}"/>
@@ -73,9 +73,11 @@
     {# Brand, then the product. The logo itself stays a plain link home -- that is the one thing
        everybody already knows how to do with a logo, and a menu that swallowed it would take it
        away. The line underneath is the switcher: it says which product you are in, and opens to
-       let you leave it. Staff pages keep the plain line; the console has its own switcher. #}
+       let you leave it. Staff pages keep the plain line; the console has its own switcher.
+       Home is the home page (/home) once the domain points at this app; until then the domain's home
+       is WordPress's, and the logo stays on the companion app's own first page. #}
     <div class="nav-brand">
-      <a href="{{ staff_home(current_user) if is_staff else url_for('main.index') }}" class="nav-logo">
+      <a href="{{ staff_home(current_user) if is_staff else (public_url('homepage_draft.landing') if request.environ.get('app.direct') else url_for('main.index')) }}" class="nav-logo">
         <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt="NRI Parent Service" class="logo-img"/>
         <span class="logo-stack">
           <span class="logo-text">NRI <strong>Parent</strong> Service{% if is_staff %} <small class="staff-tag">{{ 'Admin' if current_user.is_admin else 'CS' }}</small>{% endif %}</span>

@@ -146,7 +146,9 @@ def _stored():
 
 
 # The pages whose own site key is not simply their blueprint's product.
-_SITE_BY_ENDPOINT = {'main.contact_us': 'contact'}
+_SITE_BY_ENDPOINT = {'main.contact_us': 'contact',
+                     # the group's legal pages print the contact page's details (pages/_legal_contact.html)
+                     'main.privacy_policy': 'contact', 'main.terms_conditions': 'contact'}
 
 
 def current_site():

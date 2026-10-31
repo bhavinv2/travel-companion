@@ -15,9 +15,47 @@ So: url_for for links within the app, public_url for a link TO one of these page
 With no prefix configured (local, tests) the two are identical, which is why this is easy to
 forget about until it is live.
 """
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit, urlunsplit
 
-from flask import current_app, request, url_for
+from flask import current_app, has_request_context, request, url_for
+
+
+def _prefix():
+    p = (current_app.config.get('APP_URL_PREFIX') or '').strip('/')
+    return '/' + p if p else ''
+
+
+def on_site(path):
+    """The address on the domain for a path inside the app (prefix removed), or None.
+
+    Once the domain points at this app (PrefixMiddleware's "direct" requests), its own pages and
+    sections live at the root: /home, /about-us ... (APP_SITE_PAGES) and everything under /blog
+    (APP_SITE_SECTIONS) -- never /travel-companions/blog. Before that (through the Worker, on
+    Railway's own address, locally) those root addresses are WordPress's or nobody's: None."""
+    if not (has_request_context() and request.environ.get('app.direct')):
+        return None
+    for public, inside in (current_app.config.get('APP_SITE_PAGES') or {}).items():
+        if path == inside:
+            return public
+    if any(path == s or path.startswith(s + '/') for s in (current_app.config.get('APP_SITE_SECTIONS') or ())):
+        return path
+    return None
+
+
+def to_site(url):
+    """An address the app built (url_for, absolute or not) with the prefix taken off when the domain
+    serves that page at its root (on_site). The app's link builder runs every address through this,
+    so templates keep writing url_for('blog.blog_post', ...) and get /blog/<slug>."""
+    prefix = _prefix()
+    if not prefix or not isinstance(url, str):
+        return url
+    parts = urlsplit(url)
+    if not parts.path.startswith(prefix + '/'):
+        return url
+    public = on_site(parts.path[len(prefix):])
+    if public is None:
+        return url
+    return urlunsplit((parts.scheme, parts.netloc, public, parts.query, parts.fragment))
 
 
 def _aliases():
@@ -36,6 +74,7 @@ def public_url(endpoint, **values):
     # the link would 404.
     if any(bare == a or bare.startswith(a + '/') for a in _aliases()):
         return bare
+    # (the domain's own pages and /blog come out of url_for at their root address already: to_site)
     return url
 
 
@@ -50,6 +89,15 @@ def site_link(endpoint, **values):
         return path
     site = urlparse(current_app.config.get('SITE_URL') or '')
     return ('%s://%s' % (site.scheme, site.netloc) if site.netloc else '') + path
+
+
+def site_page_seo(endpoint):
+    """For one of the domain's own pages (APP_SITE_PAGES): reached at its own address on the domain it
+    is the real page, {'live': True, 'canonical_url': ...}; at its route inside the app it is a copy of
+    what WordPress still serves there, {'live': False}, and its template keeps it out of search results."""
+    if request.environ.get('app.entry') == 'site-page':
+        return {'live': True, 'canonical_url': public_absolute(endpoint)}
+    return {'live': False}
 
 
 def public_absolute(endpoint, **values):
@@ -75,7 +123,9 @@ def app_url(path):
         return path
     root = (request.script_root or '').rstrip('/')
     if not root or path == root or path.startswith(root + '/'):
-        return path
+        return to_site(path) if root else path
+    if on_site(path.split('?', 1)[0].split('#', 1)[0]) is not None:
+        return path                    # /blog/... once the domain is ours: the root address is the page's
     return root + path
 
 
@@ -87,7 +137,7 @@ def here(with_query=True):
     bare '?' to every URL that has no query string, which then shows up in the address bar.
     """
     root = (request.script_root or '').rstrip('/')
-    url = root + request.path
+    url = to_site(root + request.path)          # a /blog page is at /blog, not inside the prefix
     if with_query and request.query_string:
         url += '?' + request.query_string.decode('latin-1')
     return url

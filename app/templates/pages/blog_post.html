@@ -4,6 +4,8 @@
 {% block meta_description %}{{ post.summary or post.excerpt(160) }}{% endblock %}
 {% block extra_css %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/blog-public.css') }}"/>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/blog-blocks.css') }}"/>{% endblock %}
+{# the post's one address (/blog/<slug> once the domain points at this app), whatever address brought somebody here #}
+{% block extra_head %}{{ super() }}{% if not preview and post.slug %}<link rel="canonical" href="{{ url_for('blog.blog_post', slug=post.slug, _external=True) }}"/>{% endif %}{% endblock %}
 {% block content %}
 {# One post: the reading bar across the top; the title, who wrote it, share / WhatsApp / save; the cover (all of it,
    whatever its shape); the words; "send it to family"; then what to read next (a row to swipe on a phone).

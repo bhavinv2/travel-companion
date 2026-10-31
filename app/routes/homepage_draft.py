@@ -1,5 +1,6 @@
-"""Homepage draft: the React rebuild of nri-parent-service-homepage.html, at /homepage-draft,
-and its About page at /about-us (the path the live site uses).
+"""The home page: the React rebuild of nri-parent-service-homepage.html, at /home (it was
+/homepage-draft while it was a draft; that address redirects), and its About page at /about-us
+(the path the live site uses).
 
 Both are the one React app in frontend/homepage-draft, built into static/homepage-draft and
 mounted by templates/homepage_draft/landing.html inside base.html, so they carry the site's own
@@ -10,10 +11,13 @@ bundle never hard-codes a path that the URL prefix would break.
 What the business publishes reaches the page from here too, never typed into the bundle:
 reviews staff approved (featured ones first), each product's questions from the Help centre, the
 "from" prices on the Sahayak and insurance pages, the published numbers and address, and the
-newest posts on the WordPress blog. Each may be empty, and its section then does not show: an
-empty section is honest, a filled one nobody wrote is not.
+newest posts on our blog (the WordPress blog's while ours has none). Each may be empty, and its
+section then does not show: an empty section is honest, a filled one nobody wrote is not.
 
-They are drafts: the template asks search engines not to index them.
+They are drafts until the domain points at this app (deploy/DOMAIN_SWITCH.md): then they answer
+at /home and /about-us on the domain (APP_SITE_PAGES), the domain's root sends visitors to /home
+(the first page, services/old_site.py), and they are indexed; at their address inside the app the
+template asks search engines to leave them out.
 """
 from flask import Blueprint, render_template
 
@@ -99,16 +103,33 @@ def _contacts():
             'email': offices.email()}
 
 
+POSTS_SHOWN = 4
+
+
+def _posts():
+    """The newest posts on our blog as the "Helpful Resources" cards; the WordPress blog's while ours has none."""
+    from app import db
+    from app.models import Blog
+    from app.services import wp_blog
+    rows = (Blog.live().order_by(db.func.coalesce(Blog.published_at, Blog.created_at).desc(), Blog.id.desc())
+            .limit(POSTS_SHOWN).all())
+    if not rows:
+        return wp_blog.latest(POSTS_SHOWN)
+    return [wp_blog.card(p.title, urls.public_url('blog.blog_post', slug=p.slug), p.published_at or p.created_at,
+                         p.summary or p.excerpt(400), p.thumb_url or p.cover_image_url) for p in rows]
+
+
 def _render(page):
-    from app.services import nri_services, wp_blog
+    from app.services import nri_services
     home = page == 'home'
-    return render_template('homepage_draft/landing.html', meta=PAGES[page], links={
+    seo = urls.site_page_seo('homepage_draft.landing' if home else 'homepage_draft.about')
+    return render_template('homepage_draft/landing.html', meta=PAGES[page], **seo, links={
         'chrome': False,
         'page': page,
         'reviews': _reviews() if home else [],
         'faqs': _faqs() if home else [],
         'prices': _prices() if home else {},
-        'posts': wp_blog.latest(4) if home else [],
+        'posts': _posts() if home else [],
         'helpUrl': urls.public_url('main.help_page'),
         **_contacts(),
         'homeUrl': urls.public_url('homepage_draft.landing'),
@@ -125,9 +146,17 @@ def _render(page):
     })
 
 
-@homepage_draft_bp.route('/homepage-draft')
+@homepage_draft_bp.route('/home')
 def landing():
     return _render('home')
+
+
+@homepage_draft_bp.route('/homepage-draft')
+def old_landing():
+    """The address the home page had while it was a draft: links to it (and bookmarks) still arrive."""
+    from flask import redirect, request
+    query = ('?' + request.query_string.decode('latin-1')) if request.query_string else ''
+    return redirect(urls.public_url('homepage_draft.landing') + query, 301)
 
 
 @homepage_draft_bp.route('/about-us')

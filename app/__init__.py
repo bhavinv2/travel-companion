@@ -38,9 +38,19 @@ class PrefixMiddleware:
     public_host: when the prefix is active, the request's host/scheme are set to the public site
     so that absolute URLs (OAuth redirect_uri, sitemap, e-mails) and Flask-WTF's Referer check
     use nriparentservice.com rather than whatever Host the proxy hop presented.
+
+    The domain itself: once nriparentservice.com points at this app rather than at the Worker
+    (deploy/DOMAIN_SWITCH.md), every address on it arrives here, not only the prefix and the front
+    doors -- the home page, the About page, robots.txt and the WordPress site's old addresses
+    too. Such a request is "direct": the public host, and no X-Forwarded-Prefix. site_pages names
+    the domain's own pages ({address on the site: the route inside the app that answers it}),
+    site_sections whole parts of it (/blog: every address under it is the app's route of the same
+    path); the rest of the root is the "site" door, which services/old_site.py answers. Until the switch every
+    request on the public host comes through the Worker, so none of this happens.
     """
 
-    def __init__(self, wsgi_app, prefix='', public_host='', public_scheme='https', aliases=()):
+    def __init__(self, wsgi_app, prefix='', public_host='', public_scheme='https', aliases=(), site_pages=None,
+                 site_sections=()):
         self.wsgi_app = wsgi_app
         self.prefix = ('/' + prefix.strip('/')) if prefix and prefix.strip('/') else ''
         self.public_host = (public_host or '').strip()
@@ -48,12 +58,45 @@ class PrefixMiddleware:
         # Public paths that sit BESIDE the prefix rather than inside it -- /travel-insurance is
         # its own product and reads wrong nested under /travel-companions. See __call__.
         self.aliases = [('/' + a.strip('/')) for a in aliases if a and a.strip('/')]
+        self.site_pages = dict(site_pages or {})
+        # whole sections of the site (/blog): every address under one is the app's route of that name
+        self.site_sections = [('/' + s.strip('/')) for s in site_sections if s and s.strip('/')]
+        bare = self.public_host.lower()
+        self.hosts = {bare, 'www.' + bare} if bare else set()
+
+    def _tidy(self, host, path, environ):
+        """Where a direct request should go instead, or None. The Worker used to do these."""
+        query = environ.get('QUERY_STRING') or ''
+        query = ('?' + query) if query else ''
+        if host != self.public_host.lower():                   # www: one address for the site
+            return '%s://%s%s%s' % (self.public_scheme, self.public_host, path, query)
+        if environ.get('REQUEST_METHOD') not in ('GET', 'HEAD'):
+            return None
+        if path == self.prefix:
+            return self.prefix + '/' + query
+        # a front door is an exact route, so a trailing slash (WordPress wrote them) would 404
+        if any(path == a + '/' for a in self.aliases):
+            return path.rstrip('/') + query
+        return None
 
     def __call__(self, environ, start_response):
         header = (environ.get('HTTP_X_FORWARDED_PREFIX') or '').strip()
         header = ('/' + header.strip('/')) if header.strip('/') else ''
+        if header and self.prefix and header != self.prefix:
+            # Only the Worker ever sent this, and only with our own prefix. With the domain pointing
+            # here directly anybody can send it, and it decides what every link on the page says.
+            header = ''
         prefix = header or self.prefix
         path = environ.get('PATH_INFO', '') or '/'
+        host = (environ.get('HTTP_HOST') or '').split(':')[0].lower()
+        direct = bool(self.prefix and not header and host in self.hosts)
+        environ['app.direct'] = direct
+        if direct:
+            moved = self._tidy(host, path, environ)
+            if moved:
+                from werkzeug.utils import redirect
+                code = 301 if environ.get('REQUEST_METHOD') in ('GET', 'HEAD') else 308
+                return redirect(moved, code)(environ, start_response)
         active = False
         # Which door this request came in by. Two of them land on byte-identical WSGI environs --
         # /travel-companions/travel-insurance and /travel-insurance both end up with PATH_INFO
@@ -75,6 +118,18 @@ class PrefixMiddleware:
             active = True
         elif header:
             environ['SCRIPT_NAME'] = (environ.get('SCRIPT_NAME') or '') + header
+            active = True
+        elif direct:
+            # The rest of the domain. Its links still keep the one prefix, like a front door's.
+            environ['SCRIPT_NAME'] = (environ.get('SCRIPT_NAME') or '') + prefix
+            inside = self.site_pages.get(path)
+            if inside is not None:
+                environ['PATH_INFO'] = inside
+                environ['app.entry'] = 'site-page'
+            elif any(path == s or path.startswith(s + '/') for s in self.site_sections):
+                environ['app.entry'] = 'site-page'
+            else:
+                environ['app.entry'] = 'site'
             active = True
         if active and self.public_host:
             environ['HTTP_HOST'] = self.public_host
@@ -128,8 +183,20 @@ class AppRequest(_FlaskRequest):
         return big if big else super().max_content_length
 
 
+class SiteFlask(Flask):
+    """Flask, whose url_for gives the domain's own pages their address on the domain: once the
+    domain points at this app, url_for('blog.blog_post', ...) is /blog/<slug> and the home page is
+    /home, though their routes live inside the prefix (services/urls.py to_site). Every template,
+    redirect and e-mail that already says url_for gets the short address with no change of its own;
+    before the switch nothing differs."""
+
+    def url_for(self, /, endpoint, **values):
+        from app.services.urls import to_site
+        return to_site(super().url_for(endpoint, **values))
+
+
 def create_app(test_config=None):
-    app = Flask(__name__)
+    app = SiteFlask(__name__)
     app.request_class = AppRequest
     # Optional subpath deployment (https://nriparentservice.com/travel-companions/): see PrefixMiddleware.
     app.config['APP_URL_PREFIX'] = os.environ.get('APP_URL_PREFIX', '').strip()
@@ -138,13 +205,25 @@ def create_app(test_config=None):
     # in front routes them here, so listing one costs nothing until that rule exists.
     app.config['APP_ALIAS_PATHS'] = [p for p in (
         os.environ.get('APP_ALIAS_PATHS', '/travel-insurance,/sahayak,/contact-us').split(',')) if p.strip()]
+    # The domain's own pages, once it points at this app itself (see PrefixMiddleware): {address on
+    # the site: the route inside the app that answers it}. The root itself is not one: it sends
+    # visitors to /home, the first page (services/old_site.py).
+    app.config['APP_SITE_PAGES'] = {'/home': '/home', '/about-us': '/about-us',
+                                    '/privacy-policy': '/privacy-policy',
+                                    '/terms-and-conditions': '/terms-and-conditions',
+                                    '/robots.txt': '/robots.txt', '/sitemap.xml': '/sitemap.xml'}
+    # ...and whole sections of it: every address under these is served at the root as it is
+    # (/blog, /blog/<post>, /blog/category/<x>), and never at /travel-companions/blog.
+    app.config['APP_SITE_SECTIONS'] = ('/blog',)
     if test_config:
         for k in ('APP_URL_PREFIX', 'APP_PUBLIC_HOST'):
             if k in test_config:
                 app.config[k] = test_config[k]
     app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=app.config['APP_URL_PREFIX'],
                                     public_host=app.config['APP_PUBLIC_HOST'],
-                                    aliases=app.config['APP_ALIAS_PATHS'])
+                                    aliases=app.config['APP_ALIAS_PATHS'],
+                                    site_pages=app.config['APP_SITE_PAGES'],
+                                    site_sections=app.config['APP_SITE_SECTIONS'])
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     is_production = os.environ.get('FLASK_ENV') == 'production'
@@ -402,6 +481,14 @@ def create_app(test_config=None):
                                      if request.query_string else '')
                     return redirect(target, code=301)
         return None
+
+    @app.before_request
+    def _the_whole_domain():
+        """The addresses on nriparentservice.com outside the app, once the domain points here
+        (services/old_site.py). Before the guards: an old WordPress address is a redirect, not a
+        page somebody needs to sign in for."""
+        from app.services import old_site
+        return old_site.answer()
 
     @app.after_request
     def _hsts(response):

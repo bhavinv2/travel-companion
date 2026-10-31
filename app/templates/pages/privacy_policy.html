@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{# The privacy policy for every NRI Parent Service service: the WordPress site's (last updated 22 August 2026), brought
+   over when the domain moved to this app. It answers at nriparentservice.com/privacy-policy (APP_SITE_PAGES); the
+   Travel Companion community's own notice on trip contact details is pages/privacy.html. To change the words, edit them here and move
+   the "Last updated" date. The contact block is the published one (_legal_contact.html). #}
+{% block title %}Privacy Policy – NRI Parent Service{% endblock %}
+{% block meta_description %}How NRI Parent Service collects, uses, shares and protects the information families share with us, across all our services.{% endblock %}
+{% block extra_head %}{% if live %}<link rel="canonical" href="{{ canonical_url }}"/>{% else %}<meta name="robots" content="noindex, nofollow"/>{% endif %}{% endblock %}
+{% block content %}
+<div class="static-page">
+  <div class="static-hero navy"><h1>Privacy Policy</h1><p>Last updated: August 22, 2026</p></div>
+  <div class="static-content legal">
+    <p class="legal-also">This policy covers every NRI Parent Service service. Using the Travel Companion community? How it shares trip contact details is in its own <a href="{{ url_for('main.privacy') }}">Travel Companion privacy notice</a>.</p>
+
+    <p>At <strong>NRI Parent Service</strong>, we respect your privacy and are committed to protecting the personal information you share with us. This Privacy Policy explains how we collect, use, store, and protect your information when you visit or use <a href="https://nriparentservice.com/">nriparentservice.com</a> and our related services.</p>
+    <p>By accessing or using our website and services, you agree to the practices described in this Privacy Policy.</p>
+
+    <h2 id="about-nri-parent-service">1. About NRI Parent Service</h2>
+    <p>NRI Parent Service provides support and assistance to NRI families whose parents and loved ones are living in India. Our services may include elderly care, home healthcare support, healthcare coordination, hospital assistance, wellness monitoring, emergency care coordination, travel assistance, health checkups, and other related support services.</p>
+    <p>Our objective is to help NRI families stay connected with and support the health, safety, comfort, and well-being of their parents.</p>
+
+    <h2 id="information-we-collect">2. Information We Collect</h2>
+    <p>We may collect personal information when you voluntarily provide it through our website, contact forms, phone calls, WhatsApp, email, service requests, or other communication channels.</p>
+    <p>This information may include:</p>
+    <ul>
+      <li>Name</li>
+      <li>Email address</li>
+      <li>Phone number</li>
+      <li>Country of residence</li>
+      <li>Parent or family member details</li>
+      <li>Location and address information</li>
+      <li>Service requirements</li>
+      <li>Healthcare-related information when required to provide requested services</li>
+      <li>Travel-related information</li>
+      <li>Emergency contact information</li>
+      <li>Payment or transaction information, where applicable</li>
+      <li>Any other information you choose to provide</li>
+    </ul>
+    <p>We may also automatically collect certain technical information, such as IP address, browser type, device information, pages visited, website usage data, and approximate location information.</p>
+
+    <h2 id="how-we-use-your-information">3. How We Use Your Information</h2>
+    <p>We may use the information collected to:</p>
+    <ul>
+      <li>Respond to your enquiries and requests</li>
+      <li>Provide and coordinate requested services</li>
+      <li>Communicate with you regarding your parents or family members</li>
+      <li>Coordinate healthcare, elderly care, hospital assistance, and related services</li>
+      <li>Provide service updates, notifications, and alerts</li>
+      <li>Arrange appointments, consultations, checkups, or other requested assistance</li>
+      <li>Process payments where applicable</li>
+      <li>Improve our website, services, and customer experience</li>
+      <li>Maintain service records and internal business operations</li>
+      <li>Prevent fraud, misuse, or unauthorized activities</li>
+      <li>Comply with applicable legal and regulatory requirements</li>
+    </ul>
+    <p>We will use your information only for legitimate business purposes and for providing the services you request.</p>
+
+    <h2 id="health-and-sensitive-information">4. Health and Sensitive Information</h2>
+    <p>Some of our services may require health or medical information relating to parents or family members.</p>
+    <p>Where such information is provided, we take reasonable steps to protect it and use it only for legitimate purposes connected with the requested service, including healthcare coordination, consultations, medical assistance, wellness monitoring, and emergency support.</p>
+    <p>We do not intend to sell sensitive personal information to third parties.</p>
+
+    <h2 id="sharing-of-information">5. Sharing of Information</h2>
+    <p>We may share relevant information with trusted third-party service providers, healthcare professionals, hospitals, laboratories, caregivers, travel service providers, insurance providers, technology providers, payment processors, or other partners when necessary to provide the requested service.</p>
+    <p>We may also disclose information:</p>
+    <ul>
+      <li>When you have given permission or requested us to do so</li>
+      <li>When required to provide a service</li>
+      <li>When required by law, court order, or government authority</li>
+      <li>To protect the rights, safety, security, or property of NRI Parent Service, our users, or others</li>
+      <li>To investigate suspected fraud or misuse</li>
+    </ul>
+    <p>We expect service providers who receive information on our behalf to handle it appropriately and only for authorized purposes.</p>
+
+    <h2 id="cookies-and-tracking-technologies">6. Cookies and Tracking Technologies</h2>
+    <p>Our website may use cookies and similar technologies to improve website functionality, understand visitor behavior, remember preferences, measure website performance, and support marketing or analytics activities.</p>
+    <p>You may be able to control or disable cookies through your browser settings. However, disabling certain cookies may affect some website functionality.</p>
+
+    <h2 id="third-party-websites-and-services">7. Third-Party Websites and Services</h2>
+    <p>Our website may contain links to third-party websites, applications, service providers, payment platforms, insurance services, healthcare services, travel services, or other external platforms.</p>
+    <p>NRI Parent Service is not responsible for the privacy practices, content, security, or policies of third-party websites.</p>
+    <p>We encourage users to review the privacy policies of third-party websites before providing them with personal information.</p>
+
+    <h2 id="data-security">8. Data Security</h2>
+    <p>We take reasonable administrative, technical, and organizational measures to protect personal information from unauthorized access, disclosure, alteration, loss, or misuse.</p>
+    <p>However, no website, electronic communication system, or method of data transmission can be guaranteed to be completely secure. Therefore, while we make reasonable efforts to protect your information, we cannot guarantee absolute security.</p>
+
+    <h2 id="data-retention">9. Data Retention</h2>
+    <p>We retain personal information only for as long as reasonably necessary to provide our services, maintain business records, fulfill legal obligations, resolve disputes, enforce agreements, and protect our legitimate business interests.</p>
+    <p>When information is no longer required, we may securely delete or anonymize it, subject to applicable legal requirements.</p>
+
+    <h2 id="childrens-privacy">10. Children’s Privacy</h2>
+    <p>Our website and services are primarily intended for adults, including NRI family members and individuals arranging services for their parents or loved ones.</p>
+    <p>We do not knowingly collect personal information directly from children without appropriate consent or authorization.</p>
+
+    <h2 id="your-privacy-choices">11. Your Privacy Choices</h2>
+    <p>Depending on applicable law, you may have rights regarding your personal information, including the ability to:</p>
+    <ul>
+      <li>Request access to personal information we hold about you</li>
+      <li>Request correction of inaccurate information</li>
+      <li>Request deletion of information where legally permitted</li>
+      <li>Withdraw consent where processing is based on consent</li>
+      <li>Ask questions about how your information is being used</li>
+      <li>Request information about third-party sharing where applicable</li>
+    </ul>
+    <p>To make a privacy-related request, please contact us using the details provided below.</p>
+
+    <h2 id="marketing-communications">12. Marketing Communications</h2>
+    <p>If you provide your contact information, we may contact you regarding services, enquiries, updates, offers, or other information that may be relevant to your request.</p>
+    <p>You may request to stop receiving promotional communications at any time by contacting us or using an available unsubscribe option.</p>
+    <p>Service-related communications may still be sent when necessary to provide a requested service or respond to an enquiry.</p>
+
+    <h2 id="international-data-transfers">13. International Data Transfers</h2>
+    <p>Because NRI Parent Service serves families living in different countries and may work with service providers located in different jurisdictions, your information may be processed or stored in countries other than the country where you reside.</p>
+    <p>Where required, we will take reasonable steps to ensure that applicable legal requirements relating to international data transfers are followed.</p>
+
+    <h2 id="changes-to-this-privacy-policy">14. Changes to This Privacy Policy</h2>
+    <p>We may update this Privacy Policy from time to time to reflect changes in our services, technology, business practices, or applicable laws.</p>
+    <p>Any updated Privacy Policy will be published on this page with a revised <strong>“Last Updated”</strong> date.</p>
+    <p>We encourage you to review this page periodically for the latest information about our privacy practices.</p>
+
+    <h2 id="contact-us">15. Contact Us</h2>
+    <p>If you have questions, concerns, or requests regarding this Privacy Policy or the handling of your personal information, please contact us.</p>
+    {% include 'pages/_legal_contact.html' %}
+
+  </div>
+</div>
+{% endblock %}

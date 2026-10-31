@@ -55,6 +55,18 @@
       </details>
     </form>
 
+    <form method="POST" action="{{ url_for('admin.blog_from_wordpress') }}" class="admin-card bs-upload" id="bs-wordpress"
+          onsubmit="this.querySelector('button').disabled = true; this.querySelector('button').textContent = 'Bringing them over…';">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <span class="bs-drop">
+        <i class="fa-brands fa-wordpress"></i>
+        <span><strong>From the old WordPress site</strong><small>Copies every post on the WordPress blog here — words, pictures,
+          dates and the same web address — and publishes them, so links to the old posts keep working. Do it once,
+          before WordPress is switched off. A post already here is left alone.</small></span>
+      </span>
+      <button type="submit" class="btn btn-primary"><i class="fa-solid fa-right-to-bracket"></i> Bring the WordPress posts over</button>
+    </form>
+
     {% if results %}
     <section class="bs-results" id="bs-results">
       <h2>What was imported</h2>

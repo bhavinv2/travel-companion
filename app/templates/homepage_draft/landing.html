@@ -8,8 +8,9 @@
 {% block title %}{{ meta.title }}{% endblock %}
 {% block meta_description %}{{ meta.description }}{% endblock %}
 
-{# A draft: kept out of search results until it replaces the live homepage. #}
-{% block extra_head %}<meta name="robots" content="noindex, nofollow"/>{% endblock %}
+{# At its own address on the domain (live) it is the home page; at its route inside the app it is a
+   draft, kept out of search results. #}
+{% block extra_head %}{% if live %}<link rel="canonical" href="{{ canonical_url }}"/>{% else %}<meta name="robots" content="noindex, nofollow"/>{% endif %}{% endblock %}
 
 {% block extra_css %}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>

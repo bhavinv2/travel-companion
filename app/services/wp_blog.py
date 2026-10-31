@@ -68,11 +68,16 @@ def _shape(post):
         return None
     try:
         when = datetime.fromisoformat(post.get('date') or '')
-        date = '%s %d, %d' % (when.strftime('%B'), when.day, when.year)
     except ValueError:
-        date = ''
-    return {'title': title, 'url': url, 'date': date, 'img': _image(post), 'label': _label(title),
-            'summary': _summary(_text((post.get('excerpt') or {}).get('rendered')))}
+        when = None
+    return card(title, url, when, _text((post.get('excerpt') or {}).get('rendered')), _image(post))
+
+
+def card(title, url, when, text, img):
+    """One card as the home page draws it -- for a WordPress post, or one on our own blog."""
+    date = '%s %d, %d' % (when.strftime('%B'), when.day, when.year) if when else ''
+    return {'title': title, 'url': url, 'date': date, 'img': img or '', 'label': _label(title),
+            'summary': _summary(text)}
 
 
 def latest(n=4):

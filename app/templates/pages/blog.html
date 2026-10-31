@@ -26,10 +26,10 @@
         {% endif %}
         <p class="bj-stat">{{ total }} {{ 'story' if total == 1 else 'stories' }}{% if q %} matching “{{ q }}”{% endif %}</p>
       </div>
-      <form class="bj-search" method="GET" action="{{ request.script_root }}{{ request.path }}" role="search">
+      <form class="bj-search" method="GET" action="{{ here(False) }}" role="search">
         <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
         <input type="search" name="q" value="{{ q }}" placeholder="Search stories" aria-label="Search the blog"/>
-        {% if q %}<a href="{{ request.script_root }}{{ request.path }}" class="bj-clear" aria-label="Clear the search"><i class="fa-solid fa-xmark"></i></a>{% endif %}
+        {% if q %}<a href="{{ here(False) }}" class="bj-clear" aria-label="Clear the search"><i class="fa-solid fa-xmark"></i></a>{% endif %}
       </form>
     </div>
   </header>

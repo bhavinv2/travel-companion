@@ -45,4 +45,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 </script>
 {% endif %}
 {% endif %}
-<meta name="google-site-verification" content="{{ GOOGLE_SITE_VERIFICATION }}"/>
+{# GOOGLE_SITE_VERIFICATION may hold several codes, comma-separated: one per Search Console owner who verifies
+   with this tag #}
+{% for code in GOOGLE_SITE_VERIFICATION.split(',') if code.strip() %}
+<meta name="google-site-verification" content="{{ code.strip() }}"/>
+{% endfor %}

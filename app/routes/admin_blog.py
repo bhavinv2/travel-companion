@@ -376,6 +376,29 @@ def blog_template():
                      download_name='nri-blog-template.docx')
 
 
+@admin_bp.route('/blog/import/wordpress', methods=['POST'])
+@login_required
+@admin_required
+def blog_from_wordpress():
+    """The WordPress blog's posts brought over (services/wp_import.py), once, before that site is switched off.
+    Always the site WP_SITE_URL names, never an address from the form: the server fetches it."""
+    from app.services import wp_blog, wp_import
+    try:
+        got = wp_import.bring_over(wp_blog._site(), current_user)
+    except wp_import.WPError as e:
+        flash('Nothing was brought over: %s' % e, 'danger')
+        return redirect(url_for('admin.blog_import') + '#bs-wordpress')
+    n = len(got['added'])
+    said = ['%d post%s brought over from WordPress and published.' % (n, '' if n == 1 else 's')]
+    if got['skipped']:
+        said.append('%d already here, left alone.' % len(got['skipped']))
+    if got['pictures_failed']:
+        said.append('%d picture%s could not be copied: open those posts and add them.' % (
+            got['pictures_failed'], '' if got['pictures_failed'] == 1 else 's'))
+    flash(' '.join(said), 'warning' if got['pictures_failed'] else 'success')
+    return redirect(url_for('admin.blog_list'))
+
+
 @admin_bp.route('/blog/new/word', methods=['POST'], defaults={'post_id': None})
 @admin_bp.route('/blog/<int:post_id>/word', methods=['POST'])
 @login_required

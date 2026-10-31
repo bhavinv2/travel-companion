@@ -1596,7 +1596,8 @@ input[data-cal]{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg x
        only visible route from here to Travel Insurance or Sahayak on a phone -- the Services
        menu is inside the burger. #}
     <div class="brandsw">
-      <a class="logo" href="#top" aria-label="NRI Parent Service home">
+      {# the site's home page (/home) once the domain points at this app; before that, the top of this page #}
+      <a class="logo" href="{{ public_url('homepage_draft.landing') if request.environ.get('app.direct') else '#top' }}" aria-label="NRI Parent Service home">
         <img src="{{ url_for('static', filename='img/logo-icon.png') }}" alt="" aria-hidden="true"/>
         <span class="logo-stack"><span>NRI <b>Parent</b> Service</span></span>
       </a>

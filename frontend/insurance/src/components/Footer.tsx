@@ -70,8 +70,8 @@ export default function Footer() {
             <div className="fh">Company</div>
             <a className="fl" href="#about">About Us</a>
             <a className="fl" href="#support">Contact</a>
-            <a className="fl" href="#about">Privacy Policy</a>
-            <a className="fl" href="#about">Terms &amp; Conditions</a>
+            <a className="fl" href={site.privacyUrl || '/privacy-policy'}>Privacy Policy</a>
+            <a className="fl" href={site.termsUrl || '/terms-and-conditions'}>Terms &amp; Conditions</a>
           </nav>
           <div id="support">
             <div className="fh">Support</div>
@@ -91,8 +91,8 @@ export default function Footer() {
             Insurance is the subject matter of solicitation.
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px 24px' }}>
-            <a className="fl" href="#about" style={{ fontSize: 14 }}>Privacy Policy</a>
-            <a className="fl" href="#about" style={{ fontSize: 14 }}>Terms &amp; Conditions</a>
+            <a className="fl" href={site.privacyUrl || '/privacy-policy'} style={{ fontSize: 14 }}>Privacy Policy</a>
+            <a className="fl" href={site.termsUrl || '/terms-and-conditions'} style={{ fontSize: 14 }}>Terms &amp; Conditions</a>
             <a className="fl" href="#about" style={{ fontSize: 14 }}>Sitemap</a>
           </div>
         </div>

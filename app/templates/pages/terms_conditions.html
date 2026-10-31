@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{# The terms and conditions for every NRI Parent Service service: the WordPress site's (last updated 22 August 2026), brought
+   over when the domain moved to this app. It answers at nriparentservice.com/terms-and-conditions (APP_SITE_PAGES); the
+   Travel Companion community's own terms is pages/terms.html. To change the words, edit them here and move
+   the "Last updated" date. The contact block is the published one (_legal_contact.html). #}
+{% block title %}Terms and Conditions – NRI Parent Service{% endblock %}
+{% block meta_description %}The terms for using the NRI Parent Service website and its services: Sahayak, travel insurance, travel companions and more.{% endblock %}
+{% block extra_head %}{% if live %}<link rel="canonical" href="{{ canonical_url }}"/>{% else %}<meta name="robots" content="noindex, nofollow"/>{% endif %}{% endblock %}
+{% block content %}
+<div class="static-page">
+  <div class="static-hero navy"><h1>Terms and Conditions</h1><p>Last updated: August 22, 2026</p></div>
+  <div class="static-content legal">
+    <p class="legal-also">These terms cover every NRI Parent Service service. The Travel Companion community also has its own <a href="{{ url_for('main.terms') }}">community terms</a>.</p>
+
+    <p>Welcome to <strong>NRI Parent Service</strong>. These Terms and Conditions (“Terms”) govern your access to and use of the website <strong>nriparentservice.com</strong>, its services, applications, and related platforms.</p>
+    <p>By accessing, browsing, registering on, or using our website or services, you acknowledge that you have read, understood, and agreed to be bound by these Terms. If you do not agree with any part of these Terms, please discontinue use of the website and services.</p>
+
+    <h2 id="about-nri-parent-service">1. About NRI Parent Service</h2>
+    <p>NRI Parent Service provides support solutions designed primarily for NRI families whose parents or loved ones reside in India, particularly Andhra Pradesh and Telangana.</p>
+    <p>Our services may include parent care support, elderly care coordination, home nursing assistance, healthcare coordination, medical appointment support, wellness monitoring, travel assistance, emergency coordination, travel insurance assistance, travel companion services, and other related services. The availability of individual services may vary depending on location, service provider availability, and applicable terms.</p>
+
+    <h2 id="eligibility">2. Eligibility</h2>
+    <p>By using this website, you confirm that:</p>
+    <ul>
+      <li>You are legally capable of entering into a binding agreement.</li>
+      <li>The information provided by you is accurate and complete.</li>
+      <li>You will use the website and services only for lawful purposes.</li>
+      <li>You will not use the website to violate any applicable law or regulation.</li>
+    </ul>
+    <p>If you are booking or requesting services on behalf of a parent, family member, or another individual, you confirm that you have the appropriate authority or consent to provide the required information and make the request.</p>
+
+    <h2 id="services">3. Services</h2>
+    <p>NRI Parent Service aims to connect customers with appropriate support and service solutions. Services may be provided directly by NRI Parent Service or through third-party professionals, hospitals, healthcare providers, insurance partners, transportation providers, or other service partners.</p>
+    <p>Service availability, pricing, schedules, locations, and scope may vary.</p>
+    <p>We reserve the right to modify, suspend, add, or discontinue any service without prior notice.</p>
+
+    <h2 id="healthcare-and-medical-disclaimer">4. Healthcare and Medical Disclaimer</h2>
+    <p>NRI Parent Service may facilitate healthcare coordination, consultations, home-care support, medical assistance, hospital coordination, wellness monitoring, and related services.</p>
+    <p>However, NRI Parent Service is <strong>not a substitute for a licensed doctor, hospital, emergency medical service, or other qualified healthcare professional</strong>.</p>
+    <p>Medical decisions, diagnosis, treatment, medication, procedures, and clinical recommendations remain the responsibility of the relevant healthcare professionals and service providers.</p>
+    <p>In the event of a medical emergency, users should immediately contact the appropriate local emergency medical services or hospital.</p>
+
+    <h2 id="emergency-services">5. Emergency Services</h2>
+    <p>Where emergency coordination is requested, NRI Parent Service may assist with contacting or coordinating with appropriate service providers, subject to availability and circumstances.</p>
+    <p>We do not guarantee a specific emergency response time, medical outcome, hospital admission, treatment result, or availability of a particular healthcare professional or facility.</p>
+
+    <h2 id="third-party-services">6. Third-Party Services</h2>
+    <p>Certain services may be provided by independent third parties or through partner platforms.</p>
+    <p>NRI Parent Service may assist users in accessing or coordinating such services but may not control the operations, availability, pricing, policies, professional decisions, or performance of independent third-party providers.</p>
+    <p>Users should review the applicable terms and conditions of third-party providers before purchasing or using their services.</p>
+
+    <h2 id="travel-insurance">7. Travel Insurance</h2>
+    <p>NRI Parent Service may provide access to travel or visitor insurance options through insurance partners.</p>
+    <p>Insurance products are subject to the terms, conditions, exclusions, eligibility requirements, premiums, and claim procedures specified by the applicable insurance provider.</p>
+    <p>NRI Parent Service does not guarantee the acceptance of an insurance application, approval of a claim, or payment of any insurance benefit.</p>
+    <p>Customers should carefully review the relevant policy documents before purchasing insurance.</p>
+
+    <h2 id="travel-companion-services">8. Travel Companion Services</h2>
+    <p>Travel companion or travel-support services may include assistance such as finding travel companions, journey coordination, sourcing medicines or documents, secure communication, journey tracking, and identity verification, depending on the applicable service.</p>
+    <p>NRI Parent Service does not guarantee the conduct, availability, identity, suitability, or performance of any independent travel companion or third-party participant.</p>
+    <p>Users are responsible for exercising reasonable care and judgment when interacting with other individuals through any travel-related service.</p>
+
+    <h2 id="user-information">9. User Information</h2>
+    <p>You agree to provide accurate, current, and complete information when requesting services.</p>
+    <p>You are responsible for ensuring that information relating to yourself, your parents, family members, medical requirements, travel plans, contact details, and emergency contacts is accurate.</p>
+    <p>Incorrect or incomplete information may affect our ability to provide or coordinate services.</p>
+
+    <h2 id="privacy">10. Privacy</h2>
+    <p>Your use of the website and services may involve the collection and processing of personal information.</p>
+    <p>NRI Parent Service will handle personal information in accordance with its applicable <a href="{{ public_url('main.privacy_policy') }}">Privacy Policy</a> and applicable laws.</p>
+    <p>By using our services, you acknowledge that certain information may need to be shared with relevant service providers where reasonably necessary to provide the requested service, subject to applicable law and our privacy practices.</p>
+
+    <h2 id="payments-and-fees">11. Payments and Fees</h2>
+    <p>Certain services may require payment of applicable fees, charges, premiums, or service costs.</p>
+    <p>Prices and charges may vary depending on the selected service, location, service provider, duration, and other applicable factors.</p>
+    <p>Any applicable taxes, processing charges, third-party charges, or additional expenses may be payable by the customer.</p>
+    <p>Where applicable, payment, cancellation, refund, and rescheduling conditions will be communicated before or during the booking process.</p>
+
+    <h2 id="cancellation-and-refunds">12. Cancellation and Refunds</h2>
+    <p>Cancellation and refund eligibility may vary depending on the service purchased and the applicable service provider or partner.</p>
+    <p>Some services may be non-refundable or may involve cancellation charges.</p>
+    <p>Where a third-party provider is responsible for the service, its cancellation and refund policy may apply.</p>
+    <p>Customers should review the applicable cancellation and refund terms before confirming a booking or purchase.</p>
+
+    <h2 id="intellectual-property">13. Intellectual Property</h2>
+    <p>All website content, including text, graphics, logos, images, icons, designs, trademarks, service names, and other materials, unless otherwise stated, is owned by or licensed to NRI Parent Service and is protected under applicable intellectual property laws.</p>
+    <p>You may not copy, reproduce, modify, distribute, publish, sell, or commercially exploit website content without prior written permission.</p>
+
+    <h2 id="prohibited-activities">14. Prohibited Activities</h2>
+    <p>Users must not:</p>
+    <ul>
+      <li>Use the website for unlawful or fraudulent purposes.</li>
+      <li>Provide false, misleading, or inaccurate information.</li>
+      <li>Attempt to gain unauthorized access to the website or its systems.</li>
+      <li>Introduce viruses, malware, or harmful code.</li>
+      <li>Interfere with the operation or security of the website.</li>
+      <li>Copy or reproduce website content without authorization.</li>
+      <li>Use the website to harass, threaten, abuse, or harm another person.</li>
+      <li>Misuse any communication, booking, or service platform provided by NRI Parent Service.</li>
+    </ul>
+    <h2 id="website-availability">15. Website Availability</h2>
+    <p>We aim to keep the website and services available and functional; however, we do not guarantee uninterrupted or error-free access.</p>
+    <p>The website may occasionally be unavailable because of maintenance, technical problems, third-party failures, internet connectivity issues, or circumstances beyond our reasonable control.</p>
+
+    <h2 id="limitation-of-liability">16. Limitation of Liability</h2>
+    <p>To the maximum extent permitted by applicable law, NRI Parent Service shall not be liable for indirect, incidental, special, consequential, or unforeseeable losses arising from the use of the website or services.</p>
+    <p>We are not responsible for the independent acts, omissions, professional decisions, negligence, delays, or performance of third-party service providers, healthcare professionals, hospitals, insurers, travel providers, or other independent partners, except to the extent liability cannot legally be excluded.</p>
+    <p>Nothing in these Terms is intended to exclude any liability that cannot legally be excluded under applicable law.</p>
+
+    <h2 id="indemnification">17. Indemnification</h2>
+    <p>You agree to indemnify and hold harmless NRI Parent Service, its affiliates, employees, representatives, partners, and service providers from claims, losses, liabilities, damages, costs, and expenses arising from:</p>
+    <ul>
+      <li>Your violation of these Terms.</li>
+      <li>Your misuse of the website or services.</li>
+      <li>Information or content submitted by you.</li>
+      <li>Your violation of another person’s rights.</li>
+      <li>Your unlawful or unauthorized use of the website or services.</li>
+    </ul>
+    <h2 id="links-to-third-party-websites">18. Links to Third-Party Websites</h2>
+    <p>Our website may contain links to third-party websites, platforms, applications, or services.</p>
+    <p>These links are provided for convenience. NRI Parent Service does not necessarily endorse or control the content, security, privacy practices, or availability of third-party websites.</p>
+    <p>Users should review the applicable terms and privacy policies of third-party websites before using them.</p>
+
+    <h2 id="changes-to-these-terms">19. Changes to These Terms</h2>
+    <p>NRI Parent Service reserves the right to update or modify these Terms at any time.</p>
+    <p>Changes will become effective when posted on this website unless otherwise stated.</p>
+    <p>Your continued use of the website after the Terms have been updated constitutes acceptance of the revised Terms.</p>
+
+    <h2 id="termination">20. Termination</h2>
+    <p>We may suspend or terminate access to the website or services if we reasonably believe that a user has violated these Terms, engaged in unlawful activity, misused the services, or created a risk to the website, service providers, or other users.</p>
+    <p>Users may discontinue using the website and services at any time, subject to any outstanding contractual or payment obligations.</p>
+
+    <h2 id="governing-law">21. Governing Law</h2>
+    <p>These Terms shall be governed by and interpreted in accordance with the applicable laws of the jurisdiction in which NRI Parent Service operates and any mandatory laws applicable to the user or transaction.</p>
+    <p>Any disputes shall be subject to the jurisdiction of the courts having appropriate legal jurisdiction, subject to applicable law.</p>
+
+    <h2 id="force-majeure">22. Force Majeure</h2>
+    <p>NRI Parent Service shall not be responsible for delays or failure to perform its obligations where such failure results from circumstances beyond reasonable control, including natural disasters, pandemics, epidemics, war, government restrictions, strikes, transportation disruptions, telecommunications failures, internet outages, technical failures, or other unforeseen events.</p>
+
+    <h2 id="contact-us">23. Contact Us</h2>
+    <p>If you have questions regarding these Terms and Conditions, please contact us:</p>
+    {% include 'pages/_legal_contact.html' %}
+
+    <h2 id="acceptance-of-terms">24. Acceptance of Terms</h2>
+    <p>By accessing or using the NRI Parent Service website and services, you acknowledge that you have read, understood, and agreed to these Terms and Conditions.</p>
+    <p>If you do not agree with these Terms, please do not use our website or services.</p>
+    <p><strong>NRI Parent Service — Care Knows No Distance.</strong></p>
+
+  </div>
+</div>
+{% endblock %}

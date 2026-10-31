@@ -68,6 +68,9 @@ export interface SiteData {
   /** Google Ads conversion actions, already as 'AW-account/label'. Empty when tracking is off,
    *  which is what makes the dev server and the test suite silent. */
   conversions?: Record<string, string>;
+  /** NRI Parent Service's privacy policy and terms, prefix handled by the server */
+  privacyUrl?: string;
+  termsUrl?: string;
 }
 
 declare global {

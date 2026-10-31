@@ -12,11 +12,11 @@ import coverAlone from '../assets/blog/parents-living-alone.jpg';
 
 /* Blog, final call to action, footer and the floating buttons: the bottom of the page. */
 
-/* The newest four posts on nriparentservice.com/blog, as WordPress lists them now (the server
- * asks it: services/wp_blog.py). POSTS is what the page shows when WordPress cannot be asked --
- * the four newest when this page was built, with their own titles, dates and covers. The site
- * has no categories, so the label just names the post's subject. */
-const BLOG_HOME = 'https://nriparentservice.com/blog/';
+/* The newest four posts on our blog, or on the WordPress blog while ours has none (the server
+ * picks: routes/homepage_draft.py). POSTS is what the page shows when neither can be asked --
+ * the four newest when this page was built, with their own titles, dates and covers, at their
+ * WordPress addresses (which redirect to our blog once the domain is ours). The label just names
+ * the post's subject. */
 const POSTS = [
   { slug: 'how-to-buy-travel-insurance-for-parents-visiting-the-usa', label: 'Travel Insurance', date: 'October 9, 2026', img: coverUsa,
     title: 'How to Buy Travel Insurance for Parents Visiting the USA?',
@@ -52,7 +52,7 @@ export function Blog() {
             <span className="script-tag">Guidance, made simple.</span>
             <p className="lede">Practical guidance on elderly care, healthcare, travel, wellness and supporting parents from abroad.</p>
           </div>
-          <a className="btn btn-o" href={BLOG_HOME}>View All Blogs</a>
+          <a className="btn btn-o" href={site.blogUrl}>View All Blogs</a>
         </div>
         {/* the "Why Choose" cards' format (.wgrid / .wcard), one row of four: the newest four
             posts; the rest are behind View All Blogs */}

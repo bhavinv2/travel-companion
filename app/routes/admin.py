@@ -1452,6 +1452,7 @@ def _notify_all_blog(post):
     """In-app notification for everyone; e-mail only to users who opted in (marketing_consent).
     Both go through the notification switches (category 'announcements')."""
     from app.services import notify, mailer
+    read_more = urls.site_link('blog.blog_post', slug=post.slug)     # /blog/<slug> once the domain is ours
     users = User.query.filter_by(is_active=True).all()
     for user in users:
         notify.push(user.id, 'blog', title=f'New Blog Post: {post.title}', body=post.excerpt(100),
@@ -1460,7 +1461,7 @@ def _notify_all_blog(post):
             mailer.send(
                 f"[NRI Parent Service] New Story: {post.title}", [user.email],
                 (f"Check out our latest blog post!\n\n{post.title}\n\n{post.excerpt(200)}\n\n"
-                 f"Read more: {current_app.config['SITE_URL']}/blog/{post.slug}\n\n"
+                 f"Read more: {read_more}\n\n"
                  f"You receive this because you opted in to updates. To stop, change your notification "
                  f"settings at {current_app.config['SITE_URL']}/settings/notifications."),
                 category='announcements',

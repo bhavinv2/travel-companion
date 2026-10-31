@@ -1,4 +1,4 @@
-"""The new home page (/homepage-draft): what the server hands the React bundle.
+"""The home page (/home): what the server hands the React bundle.
 
     content     approved reviews only (featured first), the Help centre's questions, the Sahayak and
                 insurance "from" prices, the published numbers -- each empty when nothing is
@@ -17,7 +17,7 @@ from app import db as _db
 from app.models import REVIEW_SITE_LABELS, Feedback
 from app.services import insurance_page, sahayak, wp_blog
 
-PAGE = '/homepage-draft'
+PAGE = '/home'
 BUNDLE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                       'app', 'static', 'homepage-draft', 'homepage-draft.js')
 

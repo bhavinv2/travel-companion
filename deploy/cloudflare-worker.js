@@ -1,4 +1,8 @@
-/* Cloudflare Worker: serve this Flask app at four paths on nriparentservice.com
+/* RETIRED by the domain switch (deploy/DOMAIN_SWITCH.md): nriparentservice.com now points at
+   Railway itself and the app answers the whole domain. Kept only to put back if the switch is
+   undone (that guide's "Going back" section); delete it once the switch has settled.
+
+   Cloudflare Worker: serve this Flask app at four paths on nriparentservice.com
    while the rest of the site stays on WordPress.
 
      https://nriparentservice.com/travel-companions/*   the companion app (every screen)
