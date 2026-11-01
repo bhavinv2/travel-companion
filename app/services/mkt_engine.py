@@ -264,19 +264,25 @@ def _age_band(age):
 
 
 class Measure:
-    """kind: count | sum (of a field) | avg (of a field) | ratio (sum of `field` / sum of `of`)."""
+    """kind: count | sum (of a field) | avg (of a field) | ratio (sum of `field` / sum of `of`) | distinct (how many
+    different `field`s there are: visitors, not the pages they opened). `ga`: a Google Analytics number GA's screens
+    show but its API does not give, worked out of two it does -- the first divided by the second."""
 
-    def __init__(self, key, label, kind='count', field=None, of=None, unit='count', additive=True, lower_better=False):
+    def __init__(self, key, label, kind='count', field=None, of=None, unit='count', additive=True, lower_better=False,
+                 ga=None):
         self.key, self.label, self.kind, self.field, self.of, self.unit = key, label, kind, field, of, unit
         self.additive = additive and kind in ('count', 'sum')
         # a smaller number is the good news (an average position, a bounce rate): the change is coloured the other way
         self.lower_better = lower_better
+        self.ga = tuple(ga) if ga else None
 
     def value(self, rows):
         if self.kind == 'count':
             return len(rows)
         if self.kind == 'sum':
             return sum((r.get(self.field) or 0) for r in rows)
+        if self.kind == 'distinct':
+            return len({r[self.field] for r in rows if r.get(self.field) is not None})
         if self.kind == 'avg':
             vals = [r[self.field] for r in rows if r.get(self.field) is not None]
             return round(sum(vals) / len(vals), 2) if vals else None
@@ -287,10 +293,12 @@ class Measure:
 
 class Dim:
     """fn(row) -> (sort key, label); `multi`: fn returns a list (a trip with two needs counts under each);
-    `ordered`: the groups keep their natural order instead of biggest first."""
+    `ordered`: the groups keep their natural order instead of biggest first; `fill`: the (sort, label)s always shown,
+    nought or not (every hour of the day)."""
 
-    def __init__(self, key, label, fn, multi=False, ordered=False):
+    def __init__(self, key, label, fn, multi=False, ordered=False, fill=None):
         self.key, self.label, self.fn, self.multi, self.ordered = key, label, fn, multi, ordered
+        self.fill = list(fill or ())
 
     def keys(self, row):
         out = self.fn(row)
@@ -313,8 +321,16 @@ class Source:
         self.staff_only = staff_only
 
     def fetch(self, period, date_field):
-        """Rows with '_when' (the India day of `date_field`) inside the period."""
-        return self._fetch(period, date_field)
+        """Rows with '_when' (the India day of `date_field`) inside the period. While a whole dashboard is drawn
+        (mkt_dashboards.render) its boxes share what they read: thirty boxes of visitors are one question."""
+        from flask import g, has_app_context
+        shared = g.get('_mkt_rows') if has_app_context() else None
+        if shared is None:
+            return self._fetch(period, date_field)
+        k = (self.key, period.start, period.end, date_field)
+        if k not in shared:
+            shared[k] = self._fetch(period, date_field)
+        return shared[k]
 
 
 def _when(v):
@@ -696,6 +712,112 @@ def _lead_dims():
     ]
 
 
+# ------------------------------------------------------------------------------------------------ our own visitors
+# What our chat bubble records of every browser on our websites (services/visitors.py, 2026-10-30): one row a page
+# opened, with the visitor's place, device and way in. The visitor's internet address is not a dimension here --
+# it is shown one visitor at a time, to staff, by the "Visitors one by one" box and Inbox › Visitors.
+
+HOURS = [(h, '%02d:00' % h) for h in range(24)]
+WEEKDAYS = ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')
+WEEKDAY_FILL = list(enumerate(WEEKDAYS))
+
+
+def _path(url):
+    """'/travel-insurance' of 'https://nriparentservice.com/travel-insurance?x=1'."""
+    from urllib.parse import urlparse
+    try:
+        p = urlparse(str(url or ''))
+    except ValueError:
+        return None
+    return (p.path or '/') if p.netloc else None
+
+
+def _host(url):
+    from urllib.parse import urlparse
+    try:
+        host = (urlparse(str(url or '')).hostname or '').lower()
+    except ValueError:
+        return None
+    return host[4:] if host.startswith('www.') else (host or None)
+
+
+def _fetch_visitors(period, date_field):
+    from app.models import CrmLiveChat, CrmVisitor as V, CrmVisitorPage as P
+    a, b = period.utc()
+    q = (db.session.query(P.visitor_id, P.at, P.url, P.title, P.visit, P.secs, P.came_from, V.country, V.region,
+                          V.city, V.device, V.browser, V.os, V.source, V.campaign, V.site, V.lang, V.tz, V.person_id)
+         .join(V, V.id == P.visitor_id).filter(P.at >= a, P.at < b).order_by(P.at, P.id).limit(ROW_LIMIT))
+    names = ('vid', 'at', 'url', 'title', 'visit', 'secs', 'came_from', 'country', 'region', 'city', 'device',
+             'browser', 'os', 'source', 'campaign', 'site', 'lang', 'tz', 'person')
+    rows = [dict(zip(names, r)) for r in q.all()]
+    ids = {r['vid'] for r in rows}
+    chatted = {i for (i,) in db.session.query(CrmLiveChat.visitor_id).filter(CrmLiveChat.visitor_id.in_(ids))
+               .distinct()} if ids else set()
+    landing, way_in = {}, {}
+    for r in rows:
+        k = (r['vid'], r['visit'])
+        # the first page of a visit says where the visit came from; a visit begun before these dates keeps its first
+        # page seen in them
+        if k not in landing or (r['came_from'] and not way_in.get(k)):
+            landing[k] = _path(r['url'])
+            way_in[k] = r['came_from']
+        local = r['at'] + IST
+        chat = r['person'] is not None or r['vid'] in chatted
+        r.update(_when=local.date(), visit_key=k, hour=local.hour, weekday=local.weekday(), path=_path(r['url']),
+                 host=_host(r['url']) or r['site'], first=r['visit'] == 1,
+                 new_vid=r['vid'] if r['visit'] == 1 else None, chat_vid=r['vid'] if chat else None, chat=chat)
+    for r in rows:
+        k = r['visit_key']
+        r['landing'] = landing.get(k)
+        r['way_in'] = way_in.get(k) or r['source']
+    return rows
+
+
+DEVICE_WORDS = {'phone': (0, 'Phone'), 'tablet': (1, 'Tablet'), 'computer': (2, 'Computer')}
+
+
+def _visitor_dims(live=False):
+    from app.services import visitors
+    out = [
+        Dim('country', 'Country', lambda r: _cat(r['country'])),
+        Dim('region', 'State or region', lambda r: _cat(r['region'])),
+        Dim('city', 'City', lambda r: _cat(r['city'])),
+        Dim('device', 'Device', lambda r: DEVICE_WORDS.get(r['device'], (10 ** 6, NOT_KNOWN)), ordered=True),
+        Dim('browser', 'Browser', lambda r: _cat(r['browser'])),
+        Dim('os', 'Operating system', lambda r: _cat(r['os'])),
+        Dim('page', 'Page', lambda r: _cat(r['path'])),
+        Dim('title', 'Page title', lambda r: _cat(r['title'])),
+        Dim('site', 'Website', lambda r: _cat(r['host'])),
+    ]
+    if live:
+        return out + [Dim('source', 'How they found us', lambda r: _cat(r['source'] or visitors.DIRECT))]
+    return out + [
+        Dim('source', 'How they found us (this visit)', lambda r: _cat(r['way_in'] or visitors.DIRECT)),
+        Dim('first_source', 'How they first found us', lambda r: _cat(r['source'] or visitors.DIRECT)),
+        Dim('campaign', 'Campaign (utm)', lambda r: _cat(r['campaign'])),
+        Dim('landing', 'Landing page (first page of the visit)', lambda r: _cat(r['landing'])),
+        Dim('returning', 'First visit or came back', lambda r: (0, 'First visit') if r['first'] else (1, 'Came back'),
+            ordered=True),
+        Dim('chat', 'Started a chat', lambda r: _yes(r['chat'], 'Started a chat', 'Did not chat'), ordered=True),
+        Dim('hour', 'Hour of the day (India time)', lambda r: HOURS[r['hour']], ordered=True, fill=HOURS),
+        Dim('weekday', 'Day of the week', lambda r: (r['weekday'], WEEKDAYS[r['weekday']]), ordered=True,
+            fill=WEEKDAY_FILL),
+        Dim('lang', 'Browser language', lambda r: _cat((r['lang'] or '').split('-')[0].lower() or None)),
+        Dim('tz', 'Time zone', lambda r: _cat(r['tz'])),
+    ]
+
+
+def _fetch_visitors_now(period, date_field):
+    from app.services import visitors
+    out = []
+    for row in visitors.now_list():
+        v = row['v']
+        out.append({'_when': today(), 'vid': v.id, 'country': v.country, 'region': v.region, 'city': v.city,
+                    'device': v.device, 'browser': v.browser, 'os': v.os, 'path': _path(v.page_url),
+                    'title': v.page_title, 'host': _host(v.page_url) or v.site, 'source': v.source})
+    return out
+
+
 # ------------------------------------------------------------------------------------------------ the website
 
 class GASource(Source):
@@ -707,7 +829,7 @@ class GASource(Source):
     def __init__(self, key, label, group, icon, says, metrics, dims, live=False):
         super().__init__(key, label, group, icon, says, metrics, [], [('visit', 'Visited')], None)
         self.ga_dims = OrderedDict(dims)
-        self.dims = OrderedDict((k, Dim(k, v[0], None)) for k, v in dims.items())
+        self.dims = OrderedDict((k, Dim(k, v[0], None, ordered=k in GA_ORDERED)) for k, v in dims.items())
         self.live = live
         if live:
             self.grains = ()
@@ -716,31 +838,75 @@ class GASource(Source):
 
 GA_GRAIN = {'day': 'date', 'week': 'isoYearIsoWeek', 'month': 'yearMonth', 'year': 'year'}
 
+# Everything Google Analytics' own screens show about a website (Reports: realtime, acquisition, engagement, user
+# attributes, tech, retention), in our words. `unit` 'decimal' is a number with a fraction (pages per visit).
 GA_METRICS = [
     Measure('activeUsers', 'Visitors', additive=False), Measure('newUsers', 'New visitors'),
+    Measure('totalUsers', 'Everybody who came (total users)', additive=False),
     Measure('sessions', 'Visits'), Measure('screenPageViews', 'Page views'),
     Measure('engagedSessions', 'Engaged visits'),
     Measure('engagementRate', 'Engagement rate', kind='avg', unit='pct', additive=False),
+    Measure('avgEngagement', 'Average time engaged per visitor', kind='avg', unit='seconds', additive=False,
+            ga=('userEngagementDuration', 'activeUsers')),
+    Measure('userEngagementDuration', 'Time engaged (all visitors together)', unit='seconds'),
     Measure('averageSessionDuration', 'Average visit length', kind='avg', unit='seconds', additive=False),
     Measure('bounceRate', 'Bounce rate', kind='avg', unit='pct', additive=False, lower_better=True),
+    Measure('screenPageViewsPerSession', 'Pages per visit', kind='avg', unit='decimal', additive=False),
+    Measure('screenPageViewsPerUser', 'Pages per visitor', kind='avg', unit='decimal', additive=False),
+    Measure('sessionsPerUser', 'Visits per visitor', kind='avg', unit='decimal', additive=False),
     Measure('keyEvents', 'Key events (conversions)'), Measure('eventCount', 'Events'),
+    Measure('eventsPerSession', 'Events per visit', kind='avg', unit='decimal', additive=False),
+    Measure('sessionKeyEventRate', 'Visits with a key event', kind='avg', unit='pct', additive=False),
+    Measure('userKeyEventRate', 'Visitors with a key event', kind='avg', unit='pct', additive=False),
+    Measure('scrolledUsers', 'Visitors who scrolled to the end', additive=False),
+    Measure('active1DayUsers', 'Daily active visitors', additive=False),
+    Measure('active7DayUsers', 'Weekly active visitors (7 days)', additive=False),
+    Measure('active28DayUsers', 'Monthly active visitors (28 days)', additive=False),
+    Measure('dauPerMau', 'Stickiness: daily ÷ monthly visitors', kind='avg', unit='pct', additive=False),
+    Measure('wauPerMau', 'Stickiness: weekly ÷ monthly visitors', kind='avg', unit='pct', additive=False),
 ]
 GA_DIMS = OrderedDict([
+    # where they are
     ('country', ('Country', 'country')), ('city', ('City', 'city')), ('region', ('State or region', 'region')),
-    ('device', ('Device', 'deviceCategory')), ('channel', ('Channel', 'sessionDefaultChannelGroup')),
+    ('continent', ('Continent', 'continent')), ('subcontinent', ('Part of the world', 'subContinent')),
+    ('language', ('Language', 'language')),
+    # how they found us: this visit, and their very first
+    ('channel', ('Channel', 'sessionDefaultChannelGroup')),
     ('source', ('Source', 'sessionSource')), ('medium', ('Medium', 'sessionMedium')),
     ('source_medium', ('Source / medium', 'sessionSourceMedium')), ('campaign', ('Campaign', 'sessionCampaignName')),
+    ('term', ('Ad keyword (utm_term)', 'sessionManualTerm')),
+    ('ad_content', ('Ad content (utm_content)', 'sessionManualAdContent')),
+    ('referrer', ('Page they came from', 'pageReferrer')),
+    ('first_channel', ("First visit's channel", 'firstUserDefaultChannelGroup')),
+    ('first_source', ("First visit's source", 'firstUserSource')),
+    ('first_medium', ("First visit's medium", 'firstUserMedium')),
+    ('first_campaign', ("First visit's campaign", 'firstUserCampaignName')),
+    # what they read and did
     ('landing', ('Landing page', 'landingPage')), ('page', ('Page', 'pagePath')), ('title', ('Page title', 'pageTitle')),
-    ('site', ('Website (host name)', 'hostName')), ('returning', ('New or returning', 'newVsReturning')),
+    ('full_page', ('Page with its query (?…)', 'pagePathPlusQueryString')),
+    ('site', ('Website (host name)', 'hostName')), ('event', ('Event', 'eventName')),
+    ('link', ('Link clicked to another site', 'linkUrl')), ('link_site', ('Site linked to', 'linkDomain')),
+    ('file', ('File downloaded', 'fileName')), ('search_term', ('Searched for on our site', 'searchTerm')),
+    ('video', ('Video watched', 'videoTitle')), ('scrolled', ('How far down they scrolled (%)', 'percentScrolled')),
+    # who they are (Google signals: shown only once enough people came)
+    ('returning', ('New or returning', 'newVsReturning')), ('age', ('Age', 'userAgeBracket')),
+    ('gender', ('Gender', 'userGender')), ('interests', ('Interests', 'brandingInterest')),
+    # their device
+    ('device', ('Device', 'deviceCategory')), ('platform', ('Platform', 'platform')),
     ('browser', ('Browser', 'browser')), ('os', ('Operating system', 'operatingSystem')),
-    ('language', ('Language', 'language')), ('first_channel', ("First visit's channel", 'firstUserDefaultChannelGroup')),
+    ('os_version', ('Operating system and version', 'operatingSystemWithVersion')),
+    ('screen', ('Screen size', 'screenResolution')), ('brand', ('Phone or computer make', 'mobileDeviceBranding')),
+    ('model', ('Device model', 'mobileDeviceModel')),
+    # when they come (the property's own time zone)
+    ('hour', ('Hour of the day', 'hour')), ('weekday', ('Day of the week', 'dayOfWeekName')),
 ])
+GA_ORDERED = ('hour', 'weekday', 'age', 'scrolled')
 GA_LIVE_METRICS = [Measure('activeUsers', 'People on the site', additive=False), Measure('screenPageViews', 'Page views'),
                    Measure('eventCount', 'Events'), Measure('keyEvents', 'Key events (conversions)')]
 GA_LIVE_DIMS = OrderedDict([
     ('country', ('Country', 'country')), ('city', ('City', 'city')), ('device', ('Device', 'deviceCategory')),
-    ('page', ('Page', 'unifiedScreenName')), ('minutes', ('Minutes ago', 'minutesAgo')),
-    ('audience', ('Audience', 'audienceName')),
+    ('page', ('Page', 'unifiedScreenName')), ('event', ('Event', 'eventName')), ('platform', ('Platform', 'platform')),
+    ('minutes', ('Minutes ago', 'minutesAgo')), ('audience', ('Audience', 'audienceName')),
 ])
 
 
@@ -753,7 +919,7 @@ class GSCSource(Source):
     def __init__(self, key, label, group, icon, says, metrics, dims):
         super().__init__(key, label, group, icon, says, metrics, [], [('search', 'Searched on')], None)
         self.gsc_dims = OrderedDict(dims)
-        self.dims = OrderedDict((k, Dim(k, v[0], None)) for k, v in dims.items())
+        self.dims = OrderedDict((k, Dim(k, v[0], None, ordered=k == 'band')) for k, v in dims.items())
 
 
 GSC_METRICS = [
@@ -761,13 +927,39 @@ GSC_METRICS = [
     Measure('ctr', 'Click rate', kind='avg', unit='pct', additive=False),
     Measure('position', 'Average position', kind='avg', unit='position', additive=False, lower_better=True),
 ]
+# 'type' and 'band' are ours: Search Console answers one kind of search per question (we ask for each and add them
+# up), and where we came is worked out from each search's (or page's) own average position.
 GSC_DIMS = OrderedDict([
     ('query', ('Words people searched', 'query')), ('page', ('Page Google showed', 'page')),
     ('country', ('Country', 'country')), ('device', ('Device', 'device')),
+    ('appearance', ('How Google showed it (search appearance)', 'searchAppearance')),
+    ('type', ('Kind of search (web, images, videos, news, Discover)', 'type')),
+    ('band', ('Where we came in the results', 'band')),
 ])
+GSC_TYPES = OrderedDict([('web', 'Web'), ('image', 'Images'), ('video', 'Videos'), ('news', 'News tab'),
+                         ('discover', 'Discover'), ('googleNews', 'Google News')])
+GSC_BANDS = ((3, 'Top 3'), (10, '4th to 10th (first page)'), (20, '11th to 20th (second page)'),
+             (50, '21st to 50th'), (None, 'Below 50th'))
+GSC_APPEARANCE = {'AMP_BLUE_LINK': 'AMP page', 'AMP_TOP_STORIES': 'Top stories (AMP)', 'TRANSLATED_RESULT':
+                  'Translated result', 'VIDEO': 'Video', 'RICHCARD': 'Rich result', 'REVIEW_SNIPPET': 'Review stars',
+                  'FAQ_RICH_RESULT': 'FAQ', 'PRODUCT_SNIPPETS': 'Product snippet', 'MERCHANT_LISTINGS':
+                  'Merchant listing', 'BREADCRUMB': 'Breadcrumb', 'SITELINKS': 'Sitelinks', 'WEBLITE': 'Web Light'}
 
 
 # ------------------------------------------------------------------------------------------------ the catalogue
+
+def _keep_days():
+    from app.services import visitors
+    return visitors.KEEP_DAYS
+
+
+def _live(src):
+    """A source of ours that tells what is so this minute: no dates and no time grains, like GA's realtime."""
+    src.live = True
+    src.grains = ()
+    src.dates = OrderedDict([('now', 'Now')])
+    return src
+
 
 def _sources():
     out = [
@@ -780,6 +972,22 @@ def _sources():
         GSCSource('search', 'Google search (Search Console)', 'Website', 'fa-magnifying-glass',
                   'How we do in Google search: the words people searched, the pages Google showed, how often they '
                   'clicked and how high we came. Two or three days behind; 16 months back.', GSC_METRICS, GSC_DIMS),
+        Source('visitors', 'Our visitors (our own record)', 'Website', 'fa-eye',
+               'Every page opened on our websites, as our chat bubble records it: where the visitor is, their '
+               'device, how they found us and how long they read. To the minute; kept %d days.' % _keep_days(),
+               [Measure('visitors', 'Visitors', kind='distinct', field='vid', additive=False),
+                Measure('visits', 'Visits', kind='distinct', field='visit_key', additive=False),
+                Measure('count', 'Pages opened'),
+                Measure('new', 'First-time visitors', kind='distinct', field='new_vid', additive=False),
+                Measure('secs', 'Average time on a page', kind='avg', field='secs', unit='seconds', additive=False),
+                Measure('time', 'Time spent reading (all together)', kind='sum', field='secs', unit='seconds'),
+                Measure('chatters', 'Visitors who started a chat', kind='distinct', field='chat_vid',
+                        additive=False)],
+               _visitor_dims(), [('visit', 'Visited')], _fetch_visitors),
+        _live(Source('visitors_now', 'Our visitors right now (our own record)', 'Website', 'fa-signal',
+                     'Who is on our websites this minute, as our chat bubble sees them.',
+                     [Measure('count', 'People on our websites')], _visitor_dims(live=True), [('now', 'Now')],
+                     _fetch_visitors_now)),
         Source('trips', 'Trips posted (Travel Companion)', 'Travel', 'fa-plane-departure',
                'Every trip posted: where from and to, India ↔ abroad, when, the airline, who and what help.',
                [Measure('count', 'Trips'), Measure('travellers', 'Travellers', kind='sum', field='n_travellers')],
@@ -846,8 +1054,17 @@ CHARTS = OrderedDict([
     ('donut', ('Donut', 'fa-circle-notch')), ('table', ('Table', 'fa-table')), ('live', ('Live counter', 'fa-signal')),
     ('text', ('Words (a heading or a note)', 'fa-font')), ('quotes', ('Published reviews to quote', 'fa-quote-left')),
     ('links', ('Pages to send people to', 'fa-link')),
+    ('people', ('Visitors one by one (staff only)', 'fa-users')),
+    ('sitemaps', ('Our sitemaps in Google', 'fa-sitemap')),
+    ('indexing', ("Our pages in Google's index", 'fa-list-check')),
+    ('retention', ('Who came back, week by week', 'fa-arrows-rotate')),
 ])
-NO_DATA_CHARTS = ('text', 'quotes', 'links')
+# boxes that are not numbers of a source: words, reviews, links -- and four made their own way (SPECIAL_CHARTS)
+NO_DATA_CHARTS = ('text', 'quotes', 'links', 'people', 'sitemaps', 'indexing', 'retention')
+SPECIAL_CHARTS = ('people', 'sitemaps', 'indexing', 'retention')
+# 'top' of a special box: visitors, pages, sitemaps -- and for 'retention' the weeks (each a row and a column)
+SPECIAL_TOP = {'people': (1, 50, 12), 'indexing': (1, 30, 12), 'sitemaps': (1, 50, 20), 'retention': (2, 12, 6)}
+RETENTION_OF = OrderedDict([('website', 'Google Analytics'), ('visitors', 'Our visitors')])
 TIME_CHARTS = ('line', 'area', 'bar', 'stacked', 'table', 'number')
 CAT_CHARTS = ('hbar', 'bar', 'stacked', 'pie', 'donut', 'table', 'number')
 COLOURS = ('brand', 'ocean', 'sunset', 'forest', 'berry', 'mono')
@@ -920,6 +1137,12 @@ def clean_box(raw):
         return box
     if chart in ('quotes', 'links'):
         box['top'] = _int(raw.get('top'), 1, 20, 6)
+        return box
+    if chart in SPECIAL_CHARTS:
+        lo, hi, default = SPECIAL_TOP[chart]
+        box['top'] = _int(raw.get('top'), lo, hi, default)
+        if chart == 'retention':
+            box['of'] = raw.get('of') if raw.get('of') in RETENTION_OF else 'website'
         return box
     metrics = raw.get('metrics')
     if not isinstance(metrics, list) or not metrics:
@@ -1004,6 +1227,11 @@ def _change(now, before):
 def run(box, period, viewer=None, compare=None):
     """The numbers of a cleaned box for `period` (the dashboard's dates, used when the box's range is 'page')."""
     from app.services import ga4
+    if box['chart'] in SPECIAL_CHARTS:
+        try:
+            return _run_special(box, viewer)
+        except ga4.GAError as e:
+            return {'ok': False, 'message': str(e), 'ga': True}
     if box['chart'] in NO_DATA_CHARTS:
         return {'ok': True, 'kind': box['chart']}
     p = period if box['range'] == 'page' else period_for(box['range'])
@@ -1015,13 +1243,17 @@ def run(box, period, viewer=None, compare=None):
     if grain:
         grain = fit_grain(p, grain)
     try:
-        parts = [{'ga': _run_ga, 'gsc': _run_gsc}.get(s.kind, _run_db)(s, m, box, p, grain, want_prev and not s.live)
-                 for s, m in zip(srcs, box['metrics'])]
+        parts = _parts(srcs, box, p, grain, want_prev)
     except ga4.GAError as e:
         return {'ok': False, 'message': str(e), 'ga': True}
     first = srcs[0].measures[box['metrics'][0]['measure']]
     out = {'ok': True, 'kind': 'data', 'unit': first.unit, 'time': bool(grain), 'grain': grain,
            'period': p.as_dict(), 'live': srcs[0].live, 'lower_better': first.lower_better, 'notes': []}
+    if srcs[0].live and srcs[0].kind == 'db':
+        from app.services import visitors
+        out['live_words'] = 'right now'
+        if box['chart'] == 'live':
+            out['minutes'] = visitors.minutes()
     for part in parts:
         out['notes'] += [n for n in part.get('notes', ()) if n not in out['notes']]
     if grain and box['group'] not in ('auto', grain):
@@ -1030,6 +1262,7 @@ def run(box, period, viewer=None, compare=None):
         part = parts[0]
         out.update(labels=part['labels'], series=part['series'], total=part['total'], prev=part['prev'],
                    change=_change(part['total'], part['prev']))
+        _row_change(out, part)
     else:
         labels = parts[0]['labels']
         if not grain:
@@ -1046,9 +1279,36 @@ def run(box, period, viewer=None, compare=None):
                            'unit': s.measures[m['measure']].unit})
         out.update(labels=labels, series=series, total=parts[0]['total'], prev=parts[0]['prev'],
                    change=_change(parts[0]['total'], parts[0]['prev']), multi=True)
+        if labels == parts[0]['labels']:
+            _row_change(out, parts[0])
     out['empty'] = not any(any(v for v in (s['data'] or []) if v) for s in out['series']) and not out['total']
     out['rows'] = _table_rows(out)
     return out
+
+
+def _parts(srcs, box, p, grain, want_prev):
+    """One part a number. Several numbers of one Google source with the same filters are one question to Google, so a
+    table's columns describe the same rows: the top pages by views, and those same pages' visitors."""
+    metrics, s0 = box['metrics'], srcs[0]
+    if (len(metrics) > 1 and s0.kind in _GOOGLE and all(s.key == s0.key for s in srcs)
+            and all(m['filters'] == metrics[0]['filters'] for m in metrics)):
+        return _GOOGLE[s0.kind](s0, metrics, box, p, grain, want_prev and not s0.live)
+    out = []
+    for s, m in zip(srcs, metrics):
+        if s.kind in _GOOGLE:
+            out += _GOOGLE[s.kind](s, [m], box, p, grain, want_prev and not s.live)
+        else:
+            out.append(_run_db(s, m, box, p, grain, want_prev and not s.live))
+    return out
+
+
+def _row_change(out, part):
+    """Each group's own change on the days before (the first number's): which pages, searches or countries grew."""
+    before = part.get('row_prev')
+    if before is None or not part['series']:
+        return
+    out['row_prev'] = before
+    out['row_change'] = [_change(v, b) for v, b in zip(part['series'][0]['data'], before)]
 
 
 def _staff(viewer):
@@ -1082,25 +1342,28 @@ def _group_rows(src, rows, key, grain, p):
 
 
 def _run_db(src, metric, box, p, grain, want_prev):
+    if src.live:
+        p = Period(today(), today(), 'now')          # what is so this minute, whatever the dashboard's dates
     span = Period(p.previous().start, p.end) if want_prev else p
     rows = [r for r in src.fetch(span, metric['date']) if _keep(src, r, metric['filters'])]
     cur = [r for r in rows if p.start <= r['_when'] <= p.end]
     m = src.measures[metric['measure']]
-    prev = None
+    prev = old = None
     if want_prev:
         pp = p.previous()
-        prev = m.value([r for r in rows if pp.start <= r['_when'] <= pp.end])
+        old = [r for r in rows if pp.start <= r['_when'] <= pp.end]
+        prev = m.value(old)
     total = m.value(cur)
     group = box['group']
     groups, order, name = _group_rows(src, cur, group if not grain else None, grain, p)
     d = src.dims.get(group) if group and not grain else None
     if order is None:
         if d is not None and d.ordered:
-            order = sorted(groups)
+            order = sorted(set(groups) | set(d.fill))
         else:
             order = sorted(groups, key=lambda k: (-(m.value(groups[k]) or 0), k[1]))
         top = box.get('top') or 0
-        if top and len(order) > top:
+        if top and len(order) > top and not (d is not None and d.fill):
             rest = [r for k in order[top:] for r in groups[k]]
             order = order[:top]
             if m.additive and box['chart'] in ('pie', 'donut', 'stacked') and rest:
@@ -1127,17 +1390,43 @@ def _run_db(src, metric, box, p, grain, want_prev):
             series.append({'name': OTHERS, 'data': data})
     else:
         series = [{'name': metric['label'] or m.label, 'data': [m.value(groups.get(k, [])) or 0 for k in order]}]
-    return {'labels': labels, 'series': series, 'total': total, 'prev': prev}
+    out = {'labels': labels, 'series': series, 'total': total, 'prev': prev}
+    if old is not None and d is not None and not split:
+        before = defaultdict(list)
+        for r in old:
+            for k in d.keys(r):
+                before[k].append(r)
+        out['row_prev'] = [None if k[1] == OTHERS else (m.value(before.get(k, [])) or 0) for k in order]
+    return out
+
+
+_NOT_SET = ('(not set)', '(other)', '', 'unknown', '(data not available)')
 
 
 def _ga_label(dim, value):
-    if value in ('(not set)', '(other)', ''):
+    if value in _NOT_SET or value is None:
         return NOT_KNOWN
-    if dim in ('deviceCategory',):
-        return value.capitalize()
+    if dim in ('deviceCategory', 'userGender', 'platform'):
+        return value.capitalize() if dim != 'platform' else value
     if dim == 'newVsReturning':
         return {'new': 'New visitors', 'returning': 'Returning visitors'}.get(value, value.capitalize())
+    if dim == 'hour':
+        try:
+            return HOURS[int(value)][1]
+        except (ValueError, IndexError):
+            return NOT_KNOWN
+    if dim == 'percentScrolled':
+        return '%s%%' % value
     return value
+
+
+def _ga_natural(group, keys):
+    """The groups of a dimension with an order of its own: every hour, every day of the week, ages youngest first."""
+    if group == 'hour':
+        return [lb for _, lb in HOURS]
+    if group == 'weekday':
+        return list(WEEKDAYS)
+    return sorted(keys, key=lambda k: (k == NOT_KNOWN, len(k) if group == 'scrolled' else 0, k))
 
 
 def _ga_bucket(grain, value):
@@ -1153,17 +1442,32 @@ def _ga_bucket(grain, value):
         return None
 
 
-def _run_ga(src, metric, box, p, grain, want_prev):
+def _ga_names(ms):
+    """The GA numbers to ask for: each measure's own, or the two a worked-out one is made of."""
+    return list(OrderedDict.fromkeys(n for m in ms for n in (m.ga or (m.key,))))
+
+
+def _ga_val(m, vals):
+    if not vals:
+        return 0
+    if m.ga:
+        num, den = vals.get(m.ga[0]) or 0, vals.get(m.ga[1]) or 0
+        return round(num / den, 4) if den else 0
+    return vals.get(m.key) or 0
+
+
+def _run_ga(src, metrics, box, p, grain, want_prev):
+    """Google Analytics: every number of the box in one report, so its columns describe the same rows."""
     from app.services import ga4
-    m = src.measures[metric['measure']]
-    filters = {src.ga_dims[k][1]: v for k, v in metric['filters'].items()}
+    ms = [src.measures[x['measure']] for x in metrics]
+    names = _ga_names(ms)
+    filters = {src.ga_dims[k][1]: v for k, v in metrics[0]['filters'].items()}
     group, split = box['group'], box.get('split')
+    cat = bool(group) and group not in GRAINS
     if src.live:
-        dims = [src.ga_dims[group][1]] if group and group not in GRAINS else []
-        if split:
-            dims.append(src.ga_dims[split][1])
-        data = ga4.realtime([m.key], dims, limit=250, filters=filters)
-        return _ga_shape(src, m, box, data, dims, None, None, None)
+        dims = ([src.ga_dims[group][1]] if cat else []) + ([src.ga_dims[split][1]] if split else [])
+        data = ga4.realtime(names, dims, limit=250, filters=filters)
+        return _ga_shape(src, ms, metrics, box, data, dims, names, None, None, None, False)
     dims = []
     if grain:
         dims.append(GA_GRAIN[grain])
@@ -1172,58 +1476,95 @@ def _run_ga(src, metric, box, p, grain, want_prev):
     if split:
         dims.append(src.ga_dims[split][1])
     top = box.get('top') or 0
-    limit = 10000 if (grain or split) else (max(top, 1) if top else 1000)
-    order = None if grain else ('metric', m.key, True)
-    data = ga4.report(p.start, p.end, [m.key], dims, limit=limit, order=order, filters=filters)
-    prev = None
+    natural = cat and src.dims[group].ordered
+    limit = 10000 if (grain or split or natural) else (max(top, 1) if top else 1000)
+    order = None if (grain or natural) else ('metric', names[0], True)
+    data = ga4.report(p.start, p.end, names, dims, limit=limit, order=order, filters=filters)
+    old, by_row = None, cat and not split
     if want_prev:
         pp = p.previous()
-        old = ga4.report(pp.start, pp.end, [m.key], [], limit=1, filters=filters)
-        prev = (old['totals'] or [r[-1] for r in old['rows']][:1] or [0])[0]
-    return _ga_shape(src, m, box, data, dims, grain, p, prev)
+        if by_row:
+            # the days before, by the same groups: each row's own change
+            old = ga4.report(pp.start, pp.end, names, dims, limit=max(limit, 250), order=order, filters=filters)
+        else:
+            old = ga4.report(pp.start, pp.end, names, [], limit=1, filters=filters)
+    return _ga_shape(src, ms, metrics, box, data, dims, names, grain, p, old, by_row)
 
 
-def _ga_shape(src, m, box, data, dims, grain, p, prev):
-    total = (data['totals'] or [None])[0]
-    if total is None:
-        total = sum(r[-1] for r in data['rows']) if m.additive else (data['rows'][0][-1] if data['rows'] else 0)
-    split = box.get('split')
-    gdim = dims[0] if dims and (grain or (box['group'] and box['group'] not in GRAINS)) else None
+def _ga_shape(src, ms, metrics, box, data, dims, names, grain, p, old, by_row):
+    group, split = box['group'], box.get('split')
+    nd = len(dims)
+    gdim = dims[0] if dims and (grain or (group and group not in GRAINS)) else None
     sdim = dims[-1] if split else None
-    cells = defaultdict(float)
-    gkeys, skeys, stot, gtot = [], [], defaultdict(float), defaultdict(float)
+    # what adds up when two of GA's rows land in one group of ours ("(not set)" and "" are both "Not known")
+    adds = {n for m in ms for n in (m.ga or ((m.key,) if m.additive else ()))}
+
+    def put(acc, vals, first):
+        for n, v in zip(names, vals):
+            if first or n in adds:
+                acc[n] = (0 if first else acc.get(n, 0)) + (v or 0)
+
+    cells, gsum, ssum = {}, {}, {}
+    gkeys, skeys = [], []
     for row in data['rows']:
-        val = row[-1]
         if gdim:
             gk = _ga_bucket(grain, row[0]) if grain else _ga_label(gdim, row[0])
             if gk is None:
                 continue
         else:
             gk = 'All'
-        sk = _ga_label(sdim, row[len(dims) - 1]) if sdim else None
-        if gk not in gtot:
+        sk = _ga_label(sdim, row[nd - 1]) if sdim else None
+        vals = row[nd:]
+        if gk not in gsum:
             gkeys.append(gk)
-        gtot[gk] += val
-        if sk is not None:
-            if sk not in stot:
-                skeys.append(sk)
-            stot[sk] += val
-        cells[(gk, sk)] += val
+        if sk is not None and sk not in ssum:
+            skeys.append(sk)
+        for store, k in ((cells, (gk, sk)), (gsum, gk)) + (((ssum, sk),) if sk is not None else ()):
+            first = k not in store
+            put(store.setdefault(k, {}), vals, first)
+
+    def whole(d):
+        if d and d.get('totals'):
+            return dict(zip(names, d['totals']))
+        acc = {}
+        for i, row in enumerate((d or {}).get('rows') or []):
+            put(acc, row[len(row) - len(names):], i == 0)
+        return acc
+    totals = [_ga_val(m, whole(data)) for m in ms]
+    prevs = [_ga_val(m, whole(old)) for m in ms] if old is not None else [None] * len(ms)
     if grain:
         order = buckets(p, grain)
         labels = [bucket_label(k, grain) for k in order]
     else:
-        order = sorted(gkeys, key=lambda k: -gtot[k]) if gkeys else (['All'] if not gdim else [])
-        top = box.get('top') or 0
-        if top and len(order) > top:
-            order = order[:top]
+        if gdim and src.dims[group].ordered:
+            order = _ga_natural(group, gkeys)
+        else:
+            order = sorted(gkeys, key=lambda k: -(_ga_val(ms[0], gsum[k]) or 0)) if gkeys else ([] if gdim else ['All'])
+            top = box.get('top') or 0
+            if top and len(order) > top:
+                order = order[:top]
         labels = list(order)
     if split:
-        skeys = sorted(skeys, key=lambda k: -stot[k])[:MAX_SPLITS]
-        series = [{'name': sk, 'data': [_round(cells.get((gk, sk), 0)) for gk in order]} for sk in skeys]
-    else:
-        series = [{'name': m.label, 'data': [_round(cells.get((gk, None), 0)) for gk in order]}]
-    return {'labels': labels, 'series': series, 'total': _round(total), 'prev': _round(prev)}
+        m = ms[0]
+        skeys = sorted(skeys, key=lambda k: -(_ga_val(m, ssum[k]) or 0))[:MAX_SPLITS]
+        series = [{'name': sk, 'data': [_round(_ga_val(m, cells.get((gk, sk)))) for gk in order]} for sk in skeys]
+        return [{'labels': labels, 'series': series, 'total': _round(totals[0]), 'prev': _round(prevs[0])}]
+    before = None
+    if by_row and old is not None:
+        before = {}
+        for row in old['rows']:
+            k = _ga_label(gdim, row[0])
+            first = k not in before
+            put(before.setdefault(k, {}), row[nd:], first)
+    parts = []
+    for i, (m, x) in enumerate(zip(ms, metrics)):
+        part = {'labels': labels, 'total': _round(totals[i]), 'prev': _round(prevs[i]),
+                'series': [{'name': x['label'] or m.label,
+                            'data': [_round(_ga_val(m, cells.get((gk, None)))) for gk in order]}]}
+        if before is not None:
+            part['row_prev'] = [_round(_ga_val(m, before.get(gk))) for gk in order]
+        parts.append(part)
+    return parts
 
 
 class _Acc:
@@ -1250,12 +1591,25 @@ class _Acc:
         return round(self.pos_w / self.shown, 1)
 
 
+GSC_BAND_ORDER = {label: i for i, (_, label) in enumerate(GSC_BANDS)}
+
+
+def _gsc_band(position):
+    for edge, label in GSC_BANDS:
+        if edge is None or (position or 0) <= edge:
+            return label
+    return GSC_BANDS[-1][1]
+
+
 def _gsc_label(dim, value):
     if dim == 'country':
         code = str(value or '').upper()
         return _iso3_names().get(code) or code or NOT_KNOWN
     if dim == 'device':
         return str(value or '').capitalize() or NOT_KNOWN
+    if dim == 'searchAppearance':
+        v = str(value or '')
+        return GSC_APPEARANCE.get(v) or v.replace('_', ' ').capitalize() or NOT_KNOWN
     return value or NOT_KNOWN
 
 
@@ -1266,10 +1620,89 @@ def _gsc_values(dim, values):
         return [codes.get(v.lower(), v.lower()) for v in values]
     if dim == 'device':
         return [v.upper() for v in values]
+    if dim == 'searchAppearance':
+        codes = {label.lower(): code for code, label in GSC_APPEARANCE.items()}
+        return [codes.get(v.lower(), v.upper().replace(' ', '_')) for v in values]
     return list(values)
 
 
-def _run_gsc(src, metric, box, p, grain, want_prev):
+def _gsc_ask(src, raw, group, split, grain):
+    """What to ask Search Console: the request's dimensions and filters, the kinds of search, the position bands."""
+    ours = ('type', 'band')
+    filters = {src.gsc_dims[k][1]: _gsc_values(src.gsc_dims[k][1], v) for k, v in raw.items() if k not in ours}
+    chosen = raw.get('type') or ()
+    if chosen:
+        types = [k for k, lb in GSC_TYPES.items() if lb in chosen] or ['web']
+    elif 'type' in (group, split):
+        types = list(GSC_TYPES)
+    else:
+        types = ['web']
+    bands = set(raw.get('band') or ())
+    keys = []
+    if grain:
+        keys.append('date')
+    elif group and group not in ours:
+        keys.append(src.gsc_dims[group][1])
+    if split and split not in ours:
+        keys.append(src.gsc_dims[split][1])
+    want_band = 'band' in (group, split) or bool(bands)
+    if want_band and not {'query', 'page'} & set(keys):
+        keys.append('query')          # a band is where one search came; days or countries have no place of their own
+    return {'keys': keys, 'filters': filters, 'types': types, 'bands': bands, 'band': want_band}
+
+
+def _gsc_collect(src, q, ask, group, split, grain, rows=True):
+    """Search Console's answers for one period, added up by the box's groups: {'cells', 'g', 's', 'whole', 'notes'}."""
+    from app.services import ga4, gsc
+    keys, bands = ask['keys'], ask['bands']
+    cells, gacc, sacc, whole = defaultdict(_Acc), defaultdict(_Acc), defaultdict(_Acc), _Acc()
+    missing = []
+    need_rows = bool(keys) and (rows or bands)
+    for kind in ask['types']:
+        try:
+            got = gsc.query(q.start, q.end, keys, ask['filters'], limit=gsc.MAX_ROWS, kind=kind) if need_rows else []
+            tot = [] if bands else gsc.query(q.start, q.end, [], ask['filters'], limit=1, kind=kind)
+        except ga4.GAError:
+            if len(ask['types']) == 1:
+                raise
+            missing.append(GSC_TYPES[kind])
+            continue
+        for r in tot:
+            whole.add(*r[-3:])
+        if not rows and not bands:
+            continue
+        kind_label = GSC_TYPES[kind]
+        for row in (got if keys else tot):
+            vals = dict(zip(keys, row[:len(keys)]))
+            band = _gsc_band(row[-1]) if ask['band'] else None
+            if bands and band not in bands:
+                continue
+
+            def key_of(k):
+                if k == 'type':
+                    return kind_label
+                if k == 'band':
+                    return band
+                name = src.gsc_dims[k][1]
+                return _gsc_label(name, vals.get(name))
+            if grain:
+                try:
+                    gk = bucket(datetime.strptime(vals['date'], '%Y-%m-%d').date(), grain)
+                except (ValueError, KeyError):
+                    continue
+            else:
+                gk = key_of(group) if group else 'All'
+            sk = key_of(split) if split else None
+            accs = [cells[(gk, sk)], gacc[gk]] + ([sacc[sk]] if split else []) + ([whole] if bands else [])
+            for acc in accs:
+                acc.add(*row[-3:])
+    notes = ['Google has no numbers for: %s.' % ', '.join(missing)] if missing else []
+    return {'cells': cells, 'g': gacc, 's': sacc, 'whole': whole, 'notes': notes}
+
+
+def _run_gsc(src, metrics, box, p, grain, want_prev):
+    """Google Search Console: every number of the box from the same answers (clicks, times shown and position come
+    together), added up here by day, week or month, kind of search and where we came."""
     from app.services import gsc
     t = today()
     oldest = t - timedelta(days=gsc.KEEPS_DAYS - 1)
@@ -1277,61 +1710,156 @@ def _run_gsc(src, metric, box, p, grain, want_prev):
     q = Period(max(p.start, oldest), max(min(p.end, t), oldest), p.key)
     if p.start < oldest:
         notes.append('Google keeps 16 months of search numbers: these start on %s.' % day_range(q.start, q.start))
-    mk = metric['measure']
-    m = src.measures[mk]
-    filters = {src.gsc_dims[k][1]: _gsc_values(src.gsc_dims[k][1], v) for k, v in metric['filters'].items()}
+    ms = [src.measures[x['measure']] for x in metrics]
+    mk0 = ms[0].key
     group, split = box['group'], box.get('split')
-    dims = ['date'] if grain else ([src.gsc_dims[group][1]] if group else [])
-    if split:
-        dims.append(src.gsc_dims[split][1])
-    totals = gsc.query(q.start, q.end, [], filters, limit=1)
-    rows = gsc.query(q.start, q.end, dims, filters, limit=gsc.MAX_ROWS) if dims else totals
-    whole = _Acc()
-    for r in totals:
-        whole.add(*r[-3:])
-    prev = None
+    ask = _gsc_ask(src, metrics[0]['filters'], group, split, grain)
+    now = _gsc_collect(src, q, ask, group, split, grain)
+    notes += now['notes']
+    by_row = bool(group) and group not in GRAINS and not split
+    before = None
     if want_prev:
         pp = q.previous()
         if pp.end >= oldest:
-            before = _Acc()
-            for r in gsc.query(max(pp.start, oldest), pp.end, [], filters, limit=1):
-                before.add(*r[-3:])
-            prev = before.value(mk)
-    cells, gacc, sacc = defaultdict(_Acc), defaultdict(_Acc), defaultdict(_Acc)
-    for row in rows:
-        keys = row[:len(dims)]
-        if grain:
-            try:
-                gk = bucket(datetime.strptime(keys[0], '%Y-%m-%d').date(), grain)
-            except (ValueError, IndexError):
-                continue
-        else:
-            gk = _gsc_label(dims[0], keys[0]) if group else 'All'
-        sk = _gsc_label(dims[-1], keys[-1]) if split else None
-        for acc in (cells[(gk, sk)], gacc[gk]) + ((sacc[sk],) if split else ()):
-            acc.add(*row[-3:])
+            before = _gsc_collect(src, Period(max(pp.start, oldest), pp.end), ask, group, split, grain, rows=by_row)
 
     # biggest first; a rate or a position is ranked by how often Google showed the group
     def rank(accs):
-        return lambda k: (-(accs[k].value(mk) or 0) if m.additive else -accs[k].shown, str(k))
+        return lambda k: (-(accs[k].value(mk0) or 0) if ms[0].additive else -accs[k].shown, str(k))
+    gacc, cells = now['g'], now['cells']
     if grain:
         order = buckets(p, grain)
         labels = [bucket_label(k, grain) for k in order]
     elif group:
-        order = sorted(gacc, key=rank(gacc))
-        top = box.get('top') or 0
-        order = order[:top] if top else order
+        if group == 'band':
+            order = sorted(gacc, key=lambda k: GSC_BAND_ORDER.get(k, 99))
+        else:
+            order = sorted(gacc, key=rank(gacc))
+            top = box.get('top') or 0
+            order = order[:top] if top else order
         labels = list(order)
     else:
         order, labels = ['All'], ['All']
-    if split:
-        skeys = sorted(sacc, key=rank(sacc))[:MAX_SPLITS]
-        series = [{'name': sk, 'data': [cells[(gk, sk)].value(mk) or 0 for gk in order]} for sk in skeys]
-    else:
-        series = [{'name': metric['label'] or m.label, 'data': [cells[(gk, None)].value(mk) or 0 for gk in order]}]
     if q.end >= t - timedelta(days=2):
         notes.append("Google's newest two or three days are still coming in.")
-    return {'labels': labels, 'series': series, 'total': whole.value(mk), 'prev': prev, 'notes': notes}
+    if split:
+        skeys = sorted(now['s'], key=rank(now['s']))[:MAX_SPLITS]
+        series = [{'name': sk, 'data': [cells[(gk, sk)].value(mk0) or 0 for gk in order]} for sk in skeys]
+        return [{'labels': labels, 'series': series, 'total': now['whole'].value(mk0),
+                 'prev': before['whole'].value(mk0) if before else None, 'notes': notes}]
+    parts = []
+    for m, x in zip(ms, metrics):
+        part = {'labels': labels, 'notes': notes, 'total': now['whole'].value(m.key),
+                'prev': before['whole'].value(m.key) if before else None,
+                'series': [{'name': x['label'] or m.label,
+                            'data': [cells[(gk, None)].value(m.key) or 0 for gk in order]}]}
+        if before is not None and by_row:
+            part['row_prev'] = [before['g'][gk].value(m.key) if gk in before['g'] else 0 for gk in order]
+        parts.append(part)
+    return parts
+
+
+_GOOGLE = {'ga': _run_ga, 'gsc': _run_gsc}
+
+
+# ================================================================================================ the lists
+
+def _ist_text(dt):
+    return (dt + IST).strftime('%d %b, %H:%M').lstrip('0') if dt else ''
+
+
+def _run_special(box, viewer):
+    from app.services import gsc
+    if box['chart'] == 'people':
+        return _run_people(box, viewer)
+    if box['chart'] == 'sitemaps':
+        return {'ok': True, 'kind': 'sitemaps', 'rows': gsc.sitemaps()[:box.get('top') or 20]}
+    if box['chart'] == 'retention':
+        return _run_retention(box)
+    return dict(gsc.indexing(box.get('top') or 12), ok=True, kind='indexing')
+
+
+def _run_retention(box):
+    """Google Analytics' Retention report: of the people who first came in each of the last weeks, how many came
+    again in each week after. Of the website (Google's weeks begin on Sunday, as its own report's) or of our own
+    visitors (Monday, as the rest of the dashboard's weeks)."""
+    weeks, of, t = box.get('top') or 6, box.get('of') or 'website', today()
+    back = (t.weekday() + 1) % 7 if of == 'website' else t.weekday()
+    starts = [t - timedelta(days=back) - timedelta(weeks=n) for n in range(weeks - 1, -1, -1)]
+    if of == 'visitors':
+        found = _visitor_cohorts(starts)
+    else:
+        from app.services import ga4
+        found = ga4.cohorts(starts, weeks)
+    rows, kept, came = [], [0] * (weeks - 1), [0] * (weeks - 1)
+    for s in starts:
+        size, active = found.get(s, (0, {}))
+        cells = []
+        for n in range(1, weeks):
+            if s + timedelta(weeks=n) > t:             # that week has not begun
+                cells.append(None)
+                continue
+            a = active.get(n, 0)
+            cells.append({'n': a, 'pct': round(a * 100.0 / size, 1) if size else None})
+            if size:
+                kept[n - 1] += size
+                came[n - 1] += a
+        rows.append({'label': '%d %s' % (s.day, s.strftime('%b')), 'start': s.isoformat(), 'size': size,
+                     'cells': cells})
+    while len(rows) > 1 and not rows[0]['size']:      # weeks before anybody was recorded (our own began 2026-10)
+        rows.pop(0)
+    average = [round(c * 100.0 / k, 1) if k else None for c, k in zip(came, kept)]
+    return {'ok': True, 'kind': 'retention', 'of': of, 'weeks': weeks, 'rows': rows, 'average': average,
+            'size': sum(r['size'] for r in rows), 'starts_on': 'Sunday' if of == 'website' else 'Monday',
+            'empty': not any(r['size'] for r in rows)}
+
+
+def _visitor_cohorts(starts):
+    """{week's Monday: (visitors first seen that week, {n: of them, those who opened a page n weeks later})}, our
+    own visitors (India time). A browser is a visitor, as everywhere on the dashboard."""
+    from app.models import CrmVisitor as V, CrmVisitorPage as P
+    since = datetime.combine(starts[0], datetime.min.time()) - IST
+    first = {vid: bucket((at + IST).date(), 'week') for vid, at in
+             db.session.query(V.id, V.first_at).filter(V.first_at >= since).limit(ROW_LIMIT)}
+    sizes, active = defaultdict(int), defaultdict(lambda: defaultdict(set))
+    for c in first.values():
+        sizes[c] += 1
+    q = (db.session.query(P.visitor_id, P.at).join(V, V.id == P.visitor_id)
+         .filter(V.first_at >= since, P.at >= since).limit(ROW_LIMIT))
+    for vid, at in q:
+        c = first.get(vid)
+        if c is not None:
+            active[c][((at + IST).date() - c).days // 7].add(vid)
+    return {c: (sizes[c], {n: len(v) for n, v in active[c].items()}) for c in starts}
+
+
+def _run_people(box, viewer):
+    """Visitors one by one -- those on the site now, then the latest -- for staff: where they are, their device, how
+    they found us, the page they are on. Their internet address is shown in part to a role that masks contact
+    details; never a name, even of a visitor who chatted."""
+    from flask import url_for
+    from app.services import access, role_rights, visitors
+    if not _staff(viewer):
+        return {'ok': False, 'hidden': True, 'message': 'Only staff see visitors one by one.'}
+    now = datetime.utcnow()
+    masked = role_rights.masks(viewer)
+    top = box.get('top') or 12
+    here = visitors.now_list(now)
+    rows = here[:top] + visitors.latest(top - len(here[:top]), [r['v'].id for r in here], now)
+    page = url_for('messaging.visitors_page') if access.can(viewer, 'web_visitors') else None
+    out = []
+    for r in rows:
+        v = r['v']
+        out.append({'id': v.id, 'ip': visitors.show_ip(v.ip, masked), 'code': v.country_code or '',
+                    'place': r['place'], 'device': visitors.DEVICE_WORD.get(v.device, 'Computer'),
+                    'icon': visitors.DEVICE_ICON.get(v.device, 'fa-desktop'), 'browser': v.browser or '',
+                    'os': v.os or '', 'source': v.source or visitors.DIRECT, 'campaign': v.campaign or '',
+                    'page': v.page_title or _path(v.page_url) or '', 'url': v.page_url or '', 'visits': v.visits,
+                    'pages': v.pages, 'here': r['here'], 'chatted': r['chatted'],
+                    'on_for': visitors.secs_words(r['on_for']) if r['on_for'] is not None else '',
+                    'seen': _ist_text(v.last_at), 'open': ('%s?v=%d' % (page, v.id)) if page else None})
+    return {'ok': True, 'kind': 'people', 'rows': out, 'now': len(here), 'masked': masked, 'all_url': page,
+            'live': True}
 
 
 def _round(v):
@@ -1353,6 +1881,10 @@ def options(source_key, dim_key, limit=100):
     p = period_for('last_365')
     if s.kind == 'gsc':
         from app.services import gsc
+        if dim_key == 'type':
+            return list(GSC_TYPES.values())
+        if dim_key == 'band':
+            return [label for _, label in GSC_BANDS]
         name = s.gsc_dims[dim_key][1]
         rows = gsc.query(today() - timedelta(days=89), today(), [name], limit=limit)
         return [_gsc_label(name, r[0]) for r in sorted(rows, key=lambda r: -r[1])]

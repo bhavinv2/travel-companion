@@ -1,9 +1,11 @@
 """Promotion dashboards: the built-in Overview and the ones a Marketing head designs (2026-10-29).
 
     OVERVIEW                  the Overview's boxes (the first tab of the Promotion dashboard, for everybody)
+    BOARDS                    the built-in tabs: the Overview, Google Analytics in full, Google search in full and
+                              our own visitors (2026-11-01)
     SUGGESTIONS               ready-made boxes the designer offers ("Add a ready-made box")
-    tabs(user)                the dashboards this person sees: the Overview, then every published one for them
-    boxes_for(dash, draft)    a dashboard's cleaned boxes (`dash` None: the Overview)
+    tabs(user)                the dashboards this person sees: the built-in ones, then every published one for them
+    boxes_for(dash, draft, board)   a dashboard's cleaned boxes (`dash` None: the built-in `board`)
     render(boxes, period, user)   each box with its numbers -- or `async` for website boxes, which the page's script
                               asks for (marketing.box) so one slow answer from Google does not hold the page
     create / save / publish / unpublish / duplicate / delete / move   the designer's buttons
@@ -12,6 +14,7 @@
 A dashboard keeps two copies of its boxes: `draft`, what the designer is changing, and `published`, what people see.
 Publish copies one onto the other, so a half-made change is never on anyone's screen.
 """
+from collections import OrderedDict
 from datetime import datetime
 
 from app import db
@@ -19,7 +22,7 @@ from app.models import MktDashboard
 from app.services import mkt_engine as eng
 
 NAME_MAX = 80
-MAX_BOXES = 40
+MAX_BOXES = 70
 MAX_DASHBOARDS = 30
 AUDIENCES = {'all': 'Everyone who has the Promotion dashboard', 'designers': 'Only the people who design dashboards'}
 
@@ -36,10 +39,13 @@ def _m(source, measure='count', filters=None, date=None, label=''):
 
 
 def _box(i, title, chart, x, y, w, h, metrics=(), group='', split='', rng='page', top=10, colour='brand', note='',
-         empty='', compare=True, body=''):
-    return {'id': 'o%d' % i, 'title': title, 'chart': chart, 'x': x, 'y': y, 'w': w, 'h': h,
-            'metrics': list(metrics), 'group': group, 'split': split, 'range': rng, 'top': top, 'colour': colour,
-            'note': note, 'empty': empty, 'compare': compare, 'body': body}
+         empty='', compare=True, body='', of=None):
+    out = {'id': 'o%d' % i, 'title': title, 'chart': chart, 'x': x, 'y': y, 'w': w, 'h': h,
+           'metrics': list(metrics), 'group': group, 'split': split, 'range': rng, 'top': top, 'colour': colour,
+           'note': note, 'empty': empty, 'compare': compare, 'body': body}
+    if of:
+        out['of'] = of                  # a 'retention' box: whose visitors
+    return out
 
 
 FROM_INDIA = {'direction': ['India → abroad']}
@@ -181,6 +187,56 @@ SUGGESTIONS = [
                                                      [_m('search', 'position')], group='auto')),
     ('Search', 'Searches from India', _box(0, 'What people in India search for', 'table', 0, 0, 6, 5,
                                            [_m('search', 'clicks', filters={'country': ['India']})], group='query')),
+    ('Website', 'Time engaged per visitor', _box(0, 'Time engaged per visitor', 'number', 0, 0, 3, 2,
+                                                 [_m('website', 'avgEngagement')], group='auto')),
+    ('Website', 'Pages: views, visitors, time', _box(0, 'Pages', 'table', 0, 0, 12, 7,
+                                                     [_m('website', 'screenPageViews', label='Views'),
+                                                      _m('website', 'activeUsers', label='Visitors'),
+                                                      _m('website', 'avgEngagement', label='Time engaged')],
+                                                     group='page', top=20)),
+    ('Website', 'Source / medium', _box(0, 'Source / medium', 'table', 0, 0, 6, 6,
+                                        [_m('website', 'sessions', label='Visits'),
+                                         _m('website', 'keyEvents', label='Key events')], group='source_medium')),
+    ('Website', 'Events', _box(0, 'Events', 'table', 0, 0, 6, 6, [_m('website', 'eventCount')], group='event')),
+    ('Website', 'Age', _box(0, 'Age', 'bar', 0, 0, 4, 5, [_m('website', 'activeUsers')], group='age')),
+    ('Website', 'Gender', _box(0, 'Gender', 'donut', 0, 0, 4, 5, [_m('website', 'activeUsers')], group='gender')),
+    ('Website', 'Hour of the day', _box(0, 'Visits by hour of the day', 'bar', 0, 0, 6, 5,
+                                        [_m('website', 'sessions')], group='hour', compare=False)),
+    ('Website', 'Screen sizes', _box(0, 'Screen sizes', 'hbar', 0, 0, 4, 5, [_m('website', 'activeUsers')],
+                                     group='screen')),
+    ('Search', 'Nearly on the first page', _box(0, 'Nearly on the first page (11th to 20th)', 'table', 0, 0, 6, 6,
+                                                [_m('search', 'impressions', label='Shown',
+                                                    filters={'band': ['11th to 20th (second page)']}),
+                                                 _m('search', 'position', label='Position',
+                                                    filters={'band': ['11th to 20th (second page)']})],
+                                                group='query')),
+    ('Search', 'Where we come in Google', _box(0, 'Where we come in Google', 'bar', 0, 0, 6, 5,
+                                               [_m('search', 'impressions')], group='band', top=0)),
+    ('Search', 'Kind of search', _box(0, 'Kind of search', 'table', 0, 0, 6, 4, [_m('search', 'clicks')],
+                                      group='type', top=0)),
+    ('Search', "Pages in Google's index", _box(0, "Our pages in Google's index", 'indexing', 0, 0, 12, 8, top=12)),
+    ('Search', 'Our sitemaps', _box(0, 'Our sitemaps in Google', 'sitemaps', 0, 0, 12, 4)),
+    ('Visitors', 'On our websites now', _box(0, 'On our websites now', 'live', 0, 0, 4, 5, [_m('visitors_now')],
+                                             group='country')),
+    ('Visitors', 'Visitors one by one', _box(0, 'Who is on the site now, and lately', 'people', 0, 0, 8, 8, top=12)),
+    ('Visitors', 'Who came back (ours)', _box(0, 'Who came back, week by week', 'retention', 0, 0, 12, 6, top=8,
+                                              of='visitors')),
+    ('Website', 'Who came back (Google)', _box(0, 'Who came back, week by week', 'retention', 0, 0, 12, 6, top=6,
+                                               of='website')),
+    ('Visitors', 'Visitors over time', _box(0, 'Our visitors', 'area', 0, 0, 6, 5,
+                                            [_m('visitors', 'visitors', label='Visitors'),
+                                             _m('visitors', 'visits', label='Visits')], group='auto')),
+    ('Visitors', 'Countries', _box(0, 'Visitors by country', 'hbar', 0, 0, 4, 5, [_m('visitors', 'visitors')],
+                                   group='country')),
+    ('Visitors', 'Indian cities', _box(0, 'Visitors from Indian cities', 'hbar', 0, 0, 4, 5,
+                                       [_m('visitors', 'visitors', filters={'country': ['India']})], group='city')),
+    ('Visitors', 'How they found us', _box(0, 'How visitors found us', 'donut', 0, 0, 4, 5, [_m('visitors', 'visits')],
+                                           group='source')),
+    ('Visitors', 'Most read pages', _box(0, 'Most read pages', 'table', 0, 0, 6, 6,
+                                         [_m('visitors', 'count', label='Opened'),
+                                          _m('visitors', 'secs', label='Time on it')], group='page')),
+    ('Visitors', 'Hour of the day', _box(0, 'Pages opened by hour (India time)', 'bar', 0, 0, 6, 5,
+                                         [_m('visitors', 'count')], group='hour', compare=False)),
     ('Growth', 'Our growth', _box(0, 'Our growth', 'line', 0, 0, 8, 5,
                                   [_m('enquiries', label='Enquiries'), _m('trips', label='Trips posted'),
                                    _m('insurance', label='Insurance quotes'), _m('signups', label='Sign-ups')],
@@ -202,6 +258,253 @@ SUGGESTIONS = [
 ]
 
 
+# ================================================================================================ the built-in boards
+# Besides the Overview, three dashboards everybody with the Promotion dashboard has, ready-made: Google Analytics in
+# full, Google search in full, and our own visitors -- what one would otherwise go to Google for, box by box, here.
+
+def _b(title, chart, w, h, metrics=(), at=None, **kw):
+    """A box of a board laid out by _flow: `at` puts it at that column instead of after the one before."""
+    b = _box(0, title, chart, 0, 0, w, h, metrics, **kw)
+    if at is not None:
+        b['_at'] = at
+    return b
+
+
+def _head(text):
+    return _b('', 'text', 12, 1, body=text)
+
+
+def _flow(prefix, rows):
+    """Boxes laid out a row at a time, left to right, each row as tall as its tallest box (clean_boxes then lets a
+    box rise into any space left above it)."""
+    out, y, n = [], 0, 0
+    for row in rows:
+        x = 0
+        for b in row:
+            n += 1
+            b = dict(b)
+            x = b.pop('_at', x)
+            out.append(dict(b, id='%s%d' % (prefix, n), x=x, y=y))
+            x += b['w']
+        y += max(b['h'] for b in row)
+    return out
+
+
+W, L, S, V, VN = 'website', 'website_now', 'search', 'visitors', 'visitors_now'
+
+
+def _n(title, source, measure, w=2, colour='brand', **kw):
+    return _b(title, 'number', w, 2, [_m(source, measure)], group='auto', colour=colour, **kw)
+
+
+def _ms(source, *pairs, **kw):
+    return [_m(source, measure, label=label, **kw) for measure, label in pairs]
+
+
+SIGNALS = 'Google shows ages, gender and interests only with Google signals switched on, and only once enough people came.'
+EVENT_EMPTY = 'None in these dates. Google Analytics records it with Enhanced measurement switched on.'
+
+GOOGLE_FULL = _flow('g', [
+    [_head('Right now')],
+    [_b('On the website right now', 'live', 4, 4, [_m(L, 'activeUsers')], group='device'),
+     _b('Pages being read now', 'hbar', 4, 4, [_m(L, 'activeUsers')], group='page', top=6),
+     _b('Where they are now', 'hbar', 4, 4, [_m(L, 'activeUsers')], group='country', top=6)],
+    [_head('Who came')],
+    [_n('Visitors', W, 'activeUsers'), _n('New visitors', W, 'newUsers'), _n('Visits', W, 'sessions'),
+     _n('Page views', W, 'screenPageViews'), _n('Time engaged per visitor', W, 'avgEngagement', colour='ocean'),
+     _n('Engagement rate', W, 'engagementRate', colour='forest')],
+    [_n('Bounce rate', W, 'bounceRate', colour='sunset'), _n('Pages per visit', W, 'screenPageViewsPerSession'),
+     _n('Visits per visitor', W, 'sessionsPerUser'), _n('Key events', W, 'keyEvents', colour='berry'),
+     _n('Events', W, 'eventCount'), _n('Scrolled to the end', W, 'scrolledUsers', colour='ocean')],
+    [_b('Visitors, new visitors and visits', 'line', 8, 5,
+        _ms(W, ('activeUsers', 'Visitors'), ('newUsers', 'New visitors'), ('sessions', 'Visits')), group='auto'),
+     _b('New or returning', 'donut', 4, 5, [_m(W, 'activeUsers')], group='returning')],
+    [_head('How they find us')],
+    [_b('Visits by channel', 'table', 6, 6,
+        _ms(W, ('sessions', 'Visits'), ('activeUsers', 'Visitors'), ('engagementRate', 'Engagement'),
+            ('avgEngagement', 'Time engaged'), ('keyEvents', 'Key events')), group='channel', top=0),
+     _b('Channels over time', 'stacked', 6, 6, [_m(W, 'sessions')], group='auto', split='channel', compare=False)],
+    [_b('Source / medium', 'table', 6, 7,
+        _ms(W, ('sessions', 'Visits'), ('activeUsers', 'Visitors'), ('newUsers', 'New'),
+            ('engagementRate', 'Engagement'), ('keyEvents', 'Key events')), group='source_medium', top=20),
+     _b('How new visitors first found us', 'hbar', 6, 7, [_m(W, 'newUsers')], group='first_channel', top=0,
+        compare=False)],
+    [_b('Campaigns', 'table', 6, 5, _ms(W, ('sessions', 'Visits'), ('newUsers', 'New'), ('keyEvents', 'Key events')),
+        group='campaign', top=10),
+     _b('Sites that send us visitors', 'hbar', 6, 5, [_m(W, 'sessions', filters={'medium': ['referral']})],
+        group='source', top=10, empty='No visits from links on other sites in these dates.')],
+    [_b("First visit's source", 'hbar', 4, 5, [_m(W, 'newUsers')], group='first_source', top=8, compare=False),
+     _b('Ad keywords (utm_term)', 'table', 4, 5, [_m(W, 'sessions')], group='term', top=10, compare=False),
+     _b('Pages they came from', 'table', 4, 5, [_m(W, 'screenPageViews')], group='referrer', top=10, compare=False)],
+    [_head('What they read and do')],
+    [_b('Pages', 'table', 12, 8,
+        _ms(W, ('screenPageViews', 'Views'), ('activeUsers', 'Visitors'), ('avgEngagement', 'Time engaged'),
+            ('eventCount', 'Events'), ('keyEvents', 'Key events')), group='page', top=25)],
+    [_b('Landing pages', 'table', 6, 7,
+        _ms(W, ('sessions', 'Visits'), ('newUsers', 'New'), ('engagementRate', 'Engagement'),
+            ('bounceRate', 'Bounce'), ('keyEvents', 'Key events')), group='landing', top=15),
+     _b('Page titles', 'table', 6, 7, _ms(W, ('screenPageViews', 'Views'), ('activeUsers', 'Visitors')),
+        group='title', top=15)],
+    [_b('Events', 'table', 6, 6, _ms(W, ('eventCount', 'Times'), ('activeUsers', 'Visitors')), group='event', top=20),
+     _b('Key events (conversions)', 'hbar', 6, 6, [_m(W, 'keyEvents')], group='event', top=10,
+        empty='No key events yet: mark an event as key in Google Analytics › Admin › Events.')],
+    [_b('Links clicked to other sites', 'table', 4, 5, [_m(W, 'eventCount', filters={'event': ['click']})],
+        group='link', top=10, empty=EVENT_EMPTY, compare=False),
+     _b('Files downloaded', 'table', 4, 5, [_m(W, 'eventCount', filters={'event': ['file_download']})],
+        group='file', top=10, empty=EVENT_EMPTY, compare=False),
+     _b('Searched for on our site', 'table', 4, 5, [_m(W, 'eventCount', filters={'event': ['view_search_results']})],
+        group='search_term', top=10, empty=EVENT_EMPTY, compare=False)],
+    [_b('Time engaged per visitor', 'area', 6, 5, [_m(W, 'avgEngagement')], group='auto', colour='ocean'),
+     _b('Engagement and bounce rate', 'line', 6, 5,
+        _ms(W, ('engagementRate', 'Engagement rate'), ('bounceRate', 'Bounce rate')), group='auto',
+        colour='forest')],
+    [_head('Where they are')],
+    [_b('Countries', 'table', 6, 7,
+        _ms(W, ('activeUsers', 'Visitors'), ('newUsers', 'New'), ('sessions', 'Visits'),
+            ('engagementRate', 'Engagement'), ('keyEvents', 'Key events')), group='country', top=15),
+     _b('Cities', 'hbar', 6, 7, [_m(W, 'activeUsers')], group='city', top=15)],
+    [_b('Indian states', 'hbar', 4, 6, [_m(W, 'activeUsers', filters={'country': ['India']})], group='region',
+        top=12, compare=False),
+     _b('Cities in the United States', 'hbar', 4, 6, [_m(W, 'activeUsers', filters={'country': ['United States']})],
+        group='city', top=10, compare=False),
+     _b('Parts of the world', 'donut', 4, 6, [_m(W, 'activeUsers')], group='subcontinent', compare=False)],
+    [_b('Languages', 'donut', 4, 5, [_m(W, 'activeUsers')], group='language', top=8, compare=False),
+     _b('Age', 'bar', 4, 5, [_m(W, 'activeUsers')], group='age', note=SIGNALS, compare=False),
+     _b('Gender', 'donut', 4, 5, [_m(W, 'activeUsers')], group='gender', note=SIGNALS, compare=False)],
+    [_b('Interests', 'hbar', 12, 5, [_m(W, 'activeUsers')], group='interests', top=12, note=SIGNALS, compare=False)],
+    [_head('Their devices')],
+    [_b('Devices', 'donut', 4, 5, [_m(W, 'activeUsers')], group='device'),
+     _b('Operating systems', 'hbar', 4, 5, [_m(W, 'activeUsers')], group='os', top=8, compare=False),
+     _b('Browsers', 'hbar', 4, 5, [_m(W, 'activeUsers')], group='browser', top=8, compare=False)],
+    [_b('Screen sizes', 'hbar', 4, 6, [_m(W, 'activeUsers')], group='screen', top=10, compare=False),
+     _b('Phone and computer makes', 'hbar', 4, 6, [_m(W, 'activeUsers')], group='brand', top=10, compare=False),
+     _b('Device models', 'table', 4, 6, [_m(W, 'activeUsers')], group='model', top=12, compare=False)],
+    [_b('Devices over time', 'stacked', 12, 5, [_m(W, 'activeUsers')], group='auto', split='device', compare=False)],
+    [_head('When they come')],
+    [_b('Visits by hour of the day', 'bar', 6, 5, [_m(W, 'sessions')], group='hour', compare=False,
+        note="In Google Analytics' own time zone (Admin › Property details)."),
+     _b('Visits by day of the week', 'bar', 6, 5, [_m(W, 'sessions')], group='weekday', compare=False)],
+    [_head('Coming back')],
+    [_b('Daily, weekly and monthly active visitors', 'line', 8, 5,
+        _ms(W, ('active1DayUsers', 'Daily'), ('active7DayUsers', 'Weekly'), ('active28DayUsers', 'Monthly')),
+        group='day', compare=False),
+     _n('Stickiness: daily ÷ monthly', W, 'dauPerMau', w=4, colour='berry')],
+    [_n('Stickiness: weekly ÷ monthly', W, 'wauPerMau', w=4, colour='berry', at=8)],
+    [_b('Who came back, week by week', 'retention', 12, 6, top=6, of=W,
+        note="Google Analytics' Retention report. Its weeks begin on Sunday.")],
+])
+
+BAND_2 = {'band': ['11th to 20th (second page)']}
+BAND_1 = {'band': ['4th to 10th (first page)']}
+SEARCH_COLS = (('clicks', 'Clicks'), ('impressions', 'Shown'), ('ctr', 'Click rate'), ('position', 'Position'))
+
+SEARCH_FULL = _flow('s', [
+    [_n('Clicks from Google', S, 'clicks', w=3, colour='forest'), _n('Times shown in Google', S, 'impressions', w=3),
+     _n('Click rate', S, 'ctr', w=3, colour='ocean'), _n('Average position', S, 'position', w=3, colour='sunset')],
+    [_b('Clicks and times shown', 'line', 8, 5, _ms(S, ('clicks', 'Clicks'), ('impressions', 'Times shown')),
+        group='auto', colour='forest'),
+     _b('Average position over time', 'line', 4, 5, [_m(S, 'position')], group='auto', colour='sunset',
+        note='Lower is better: 1 is the top of the page.')],
+    [_head('What people search for')],
+    [_b('Searches', 'table', 12, 8, _ms(S, *SEARCH_COLS), group='query', top=25)],
+    [_b('Nearly on the first page (we come 11th to 20th)', 'table', 6, 7,
+        _ms(S, ('impressions', 'Shown'), ('clicks', 'Clicks'), ('position', 'Position'), filters=BAND_2),
+        group='query', top=15, note='A little work on these pages can bring them onto the first page.',
+        empty='None in these dates.'),
+     _b('On the first page (we come 4th to 10th)', 'table', 6, 7,
+        _ms(S, ('impressions', 'Shown'), ('clicks', 'Clicks'), ('position', 'Position'), filters=BAND_1),
+        group='query', top=15, note='Shown often, clicked less than the top three: better titles help.',
+        empty='None in these dates.')],
+    [_b('Where we come in Google', 'bar', 6, 5, _ms(S, ('impressions', 'Times shown'), ('clicks', 'Clicks')),
+        group='band', top=0, note='Each search counted at its own average position.'),
+     _b('Searches in India', 'table', 6, 5,
+        _ms(S, ('clicks', 'Clicks'), ('impressions', 'Shown'), ('position', 'Position'),
+            filters={'country': ['India']}), group='query', top=10)],
+    [_b('Searches in the United States', 'table', 6, 6,
+        _ms(S, ('clicks', 'Clicks'), ('impressions', 'Shown'), ('position', 'Position'),
+            filters={'country': ['United States']}), group='query', top=10),
+     _b('Searches in Canada', 'table', 6, 6,
+        _ms(S, ('clicks', 'Clicks'), ('impressions', 'Shown'), ('position', 'Position'),
+            filters={'country': ['Canada']}), group='query', top=10)],
+    [_head('Our pages in Google')],
+    [_b('Pages', 'table', 12, 8, _ms(S, *SEARCH_COLS), group='page', top=25)],
+    [_b('Pages nearly on the first page', 'table', 6, 6,
+        _ms(S, ('impressions', 'Shown'), ('position', 'Position'), filters=BAND_2), group='page', top=12,
+        empty='None in these dates.'),
+     _b('How Google showed us', 'table', 6, 6, _ms(S, ('clicks', 'Clicks'), ('impressions', 'Shown')),
+        group='appearance', top=0, empty='Google showed plain results only in these dates.')],
+    [_b("Our pages in Google's index", 'indexing', 12, 8, top=12)],
+    [_b('Our sitemaps in Google', 'sitemaps', 12, 4)],
+    [_head('Where and how people search')],
+    [_b('Countries', 'table', 6, 7, _ms(S, *SEARCH_COLS), group='country', top=15),
+     _b('Clicks by country', 'hbar', 6, 7, [_m(S, 'clicks')], group='country', top=12, compare=False)],
+    [_b('Devices', 'table', 6, 4, _ms(S, *SEARCH_COLS), group='device', top=0),
+     _b('Kind of search', 'table', 6, 4, _ms(S, ('clicks', 'Clicks'), ('impressions', 'Shown')), group='type',
+        top=0, note='Web, Images, Videos, the News tab, Discover and Google News.')],
+    [_b('Clicks by device over time', 'stacked', 12, 5, [_m(S, 'clicks')], group='auto', split='device',
+        compare=False)],
+])
+
+VISITORS_FULL = _flow('v', [
+    [_b('On our websites now', 'live', 4, 5, [_m(VN)], group='country'),
+     _b('Who is on the site now, and lately', 'people', 8, 9, top=12)],
+    [_n('Visitors', V, 'visitors'), _n('Visits', V, 'visits')],
+    [_n('Pages opened', V, 'count'), _n('Time on a page', V, 'secs', colour='ocean')],
+    [_n('First-time visitors', V, 'new', w=4), _n('Started a chat', V, 'chatters', w=4, colour='berry'),
+     _n('Time spent reading', V, 'time', w=4, colour='ocean')],
+    [_b('Visitors, visits and pages', 'line', 8, 5,
+        _ms(V, ('visitors', 'Visitors'), ('visits', 'Visits'), ('count', 'Pages opened')), group='auto'),
+     _b('First visit or came back', 'donut', 4, 5, [_m(V, 'visitors')], group='returning')],
+    [_head('Where they are')],
+    [_b('Countries', 'table', 6, 7,
+        _ms(V, ('visitors', 'Visitors'), ('visits', 'Visits'), ('count', 'Pages'), ('secs', 'Time on a page')),
+        group='country', top=15),
+     _b('Cities', 'hbar', 6, 7, [_m(V, 'visitors')], group='city', top=15)],
+    [_b('Indian states', 'hbar', 6, 6, [_m(V, 'visitors', filters={'country': ['India']})], group='region', top=12),
+     _b('Time zones', 'hbar', 6, 6, [_m(V, 'visitors')], group='tz', top=10)],
+    [_head('How they found us')],
+    [_b('How they found us', 'donut', 4, 6, [_m(V, 'visits')], group='source', top=8),
+     _b('Campaigns', 'table', 4, 6, _ms(V, ('visits', 'Visits'), ('visitors', 'Visitors')), group='campaign', top=10,
+        empty='No visits with utm_ words in their address in these dates.'),
+     _b('How they first found us', 'hbar', 4, 6, [_m(V, 'visitors')], group='first_source', top=8)],
+    [_b('Ways in over time', 'stacked', 12, 5, [_m(V, 'visits')], group='auto', split='source', compare=False)],
+    [_head('What they read')],
+    [_b('Most read pages', 'table', 6, 8,
+        _ms(V, ('count', 'Opened'), ('visitors', 'Visitors'), ('secs', 'Time on it')), group='page', top=20),
+     _b('Landing pages', 'table', 6, 8, _ms(V, ('visits', 'Visits'), ('visitors', 'Visitors')), group='landing',
+        top=20)],
+    [_head('Their devices, and when they come')],
+    [_b('Devices', 'donut', 4, 5, [_m(V, 'visitors')], group='device'),
+     _b('Browsers', 'hbar', 4, 5, [_m(V, 'visitors')], group='browser', top=8),
+     _b('Operating systems', 'hbar', 4, 5, [_m(V, 'visitors')], group='os', top=8)],
+    [_b('Pages opened by hour of the day (India time)', 'bar', 6, 5, [_m(V, 'count')], group='hour', compare=False),
+     _b('Visits by day of the week', 'bar', 6, 5, [_m(V, 'visits')], group='weekday', compare=False)],
+    [_b('Started a chat', 'donut', 4, 5, [_m(V, 'visitors')], group='chat'),
+     _b('Websites', 'donut', 4, 5, [_m(V, 'visitors')], group='site'),
+     _b('Browser languages', 'donut', 4, 5, [_m(V, 'visitors')], group='lang', top=8)],
+    [_head('Coming back')],
+    [_b('Who came back, week by week', 'retention', 12, 6, top=8, of=V,
+        note='A browser is a visitor: the same person on a phone and a computer is two.')],
+])
+
+BOARDS = OrderedDict([
+    ('overview', {'label': 'Overview', 'icon': 'fa-chart-simple', 'boxes': OVERVIEW, 'title': 'How things are going',
+                  'lead': 'The website right now, our growth and where people travel.'}),
+    ('google', {'label': 'Google Analytics', 'icon': 'fa-chart-line', 'boxes': GOOGLE_FULL,
+                'title': 'The website, in full',
+                'lead': 'Everything Google Analytics knows about the website: who came, how they found us, what '
+                        'they read and did, where they are, their devices, when they come and who comes back.'}),
+    ('search', {'label': 'Google search', 'icon': 'fa-magnifying-glass', 'boxes': SEARCH_FULL,
+                'title': 'Google search, in full',
+                'lead': 'Everything Search Console knows about us in Google: the searches, the pages, where we come, '
+                        "which pages are in Google's index and our sitemaps."}),
+    ('visitors', {'label': 'Our visitors', 'icon': 'fa-eye', 'boxes': VISITORS_FULL,
+                  'title': 'Our visitors, as we record them',
+                  'lead': 'Every visitor our chat bubble saw on our websites: where they are, how they found us, '
+                          'what they read, when, and who comes back.'}),
+])
+
+
 # ================================================================================================ who
 
 def can_design(user):
@@ -219,9 +522,10 @@ def _query():
 
 
 def tabs(user):
-    """[{'key', 'label', 'icon', 'draft'}]: the Overview, then every published dashboard this person may see -- and,
-    for the people who design them, the ones never published yet (their drafts), so the switcher shows them all."""
-    out = [{'key': 'overview', 'label': 'Overview', 'icon': 'fa-chart-simple', 'dash': None, 'draft': False}]
+    """[{'key', 'label', 'icon', 'draft'}]: the built-in boards, then every published dashboard this person may see --
+    and, for the people who design them, the ones never published yet (their drafts), so the switcher shows them all."""
+    out = [{'key': k, 'label': b['label'], 'icon': b['icon'], 'dash': None, 'draft': False, 'board': True}
+           for k, b in BOARDS.items()]
     designer = can_design(user)
     for d in _query().all():
         if d.published is not None and (d.audience != 'designers' or designer):
@@ -288,9 +592,15 @@ def overview():
     return clean_boxes([dict(b) for b in OVERVIEW])
 
 
-def boxes_for(dash, draft=False):
+def board(key):
+    """A built-in board's cleaned boxes ('overview', 'google', 'search', 'visitors'); the Overview for any other key."""
+    b = BOARDS.get(key) or BOARDS['overview']
+    return clean_boxes([dict(x) for x in b['boxes']])
+
+
+def boxes_for(dash, draft=False, key='overview'):
     if dash is None:
-        return overview()
+        return board(key)
     raw = dash.draft if draft else (dash.published or [])
     try:
         return clean_boxes(raw or [])
@@ -306,14 +616,19 @@ def boxes_for(dash, draft=False):
 
 
 def is_async(box):
-    """Website and Google search boxes are asked for by the page's script, after it has drawn."""
+    """Website and Google search boxes are asked for by the page's script, after it has drawn -- and so are the boxes
+    that show what is so this minute, which it asks for again every 30 seconds."""
+    if box['chart'] in eng.SPECIAL_CHARTS:
+        return True
     return box['chart'] not in eng.NO_DATA_CHARTS and any(
-        eng.source(m['source']).kind in ('ga', 'gsc') for m in box.get('metrics') or ())
+        eng.source(m['source']).kind in ('ga', 'gsc') or eng.source(m['source']).live for m in box.get('metrics') or ())
 
 
 def render(boxes, period, user):
     """[{'box', 'title', 'result', 'async'}] -- the numbers of every box that is not the website's."""
+    from flask import g
     out = []
+    g._mkt_rows = {}            # the boxes of one page share what they read from our tables
     for b in boxes:
         item = {'box': b, 'title': eng.describe(b), 'async': is_async(b), 'result': None}
         if b['chart'] == 'quotes':
@@ -325,6 +640,7 @@ def render(boxes, period, user):
         elif not item['async'] and b['chart'] != 'text':
             item['result'] = eng.run(b, period, user)
         out.append(item)
+    g.pop('_mkt_rows', None)
     return out
 
 
@@ -346,8 +662,8 @@ def create(user, name, start='blank'):
     if MktDashboard.query.count() >= MAX_DASHBOARDS:
         raise DashError('There are already %d dashboards. Delete one you no longer use first.' % MAX_DASHBOARDS)
     boxes = []
-    if start == 'overview':
-        boxes = overview()
+    if start in BOARDS:
+        boxes = board(start)
     elif start not in ('', 'blank', None):
         src = find(start)
         if src is not None:

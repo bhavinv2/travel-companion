@@ -14,7 +14,7 @@
 .vz-note code { word-break: break-all; }
 
 /* the figures */
-.vz-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+.vz-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin: 18px 0; }
 .vz-tile { display: flex; flex-direction: column; gap: 6px; padding: 14px 18px; border: 1px solid var(--c-line); border-radius: 14px;
   background: var(--c-card); text-decoration: none; color: inherit; box-shadow: var(--shadow-card); }
 a.vz-tile:hover { border-color: var(--c-blue); }
@@ -186,4 +186,27 @@ a.vz-tile:hover { border-color: var(--c-blue); }
   .vz-sheet-in { padding: 18px 16px 24px; }
   .vz-facts { grid-template-columns: minmax(0, 1fr); }
   .vz-filters select { flex: 1 1 45%; }
+}
+
+/* 2026-11-01: the list's three views, any dates, the charts link and "also from this internet address" */
+.vz-tile b { overflow-wrap: anywhere; }
+.vz-board { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: -6px 0 18px; font-size: 13.5px; }
+.vz-views { margin-bottom: 10px; flex-wrap: wrap; }
+.vz-views a i { margin-right: 4px; opacity: .8; }
+.vz-when-words { font-weight: 500; font-size: 14px; }
+.vz-dates { display: inline-flex; gap: 6px; align-items: center; }
+.vz-dates[hidden] { display: none; }
+.vz-dates input { border: 1px solid var(--c-line); border-radius: 10px; padding: 7px 8px; font: inherit; font-size: 14px; }
+.vz-ip-big { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13.5px; }
+.vz-same { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.vz-same-btn { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+  padding: 8px 10px; border: 1px solid var(--c-line); border-radius: 10px; background: none; font: inherit; cursor: pointer;
+  color: inherit; }
+.vz-same-btn:hover { border-color: var(--c-primary, #1f6fd6); }
+.vz-same-btn .muted { font-size: 12.5px; }
+@media (max-width: 640px) {
+  .vz-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .vz-dates { flex: 1 1 100%; }
+  .vz-dates input { flex: 1; min-width: 0; }
 }

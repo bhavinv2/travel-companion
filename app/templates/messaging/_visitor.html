@@ -25,6 +25,20 @@
   <div><dt>First page</dt><dd>{% if v.landing_url %}<a href="{{ v.landing_url }}" target="_blank" rel="noopener">{{ v.landing_url|replace('https://', '')|truncate(48, True) }}</a>{% else %}—{% endif %}</dd></div>
 </dl>
 
+{% if same %}
+<section class="vz-d-sec">
+  <h3><i class="fa-solid fa-network-wired" aria-hidden="true"></i> Also from this internet address</h3>
+  <p class="muted small">One office or one home can be several browsers. {{ same|length }} other{{ 's' if same|length != 1 }} seen:</p>
+  <ul class="vz-same">
+    {% for o in same %}
+    <li><button type="button" class="vz-same-btn" data-visitor="{{ o.id }}">
+      <b>{{ o.person.name if (o.person and leads) else 'Visitor #%d'|format(o.id) }}</b>
+      <span class="muted">{{ V.DEVICE_WORD.get(o.device, 'Computer') }} · {{ o.browser or '—' }} · {{ o.visits }} visit{{ 's' if o.visits != 1 }} · last {{ o.last_at|ist('%d %b, %H:%M') }}</span></button></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
 {% if d.chats %}
 <section class="vz-d-sec">
   <h3><i class="fa-regular fa-comment-dots" aria-hidden="true"></i> Chats</h3>

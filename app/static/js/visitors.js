@@ -86,4 +86,19 @@
   main.querySelectorAll('[data-autosubmit]').forEach(function (sel) {
     sel.addEventListener('change', function () { sel.form.submit(); });
   });
+
+  // "Choose dates": the two dates appear among the filters, and Search shows those days
+  var opener = main.querySelector('[data-dates-open]');
+  if (opener) {
+    opener.addEventListener('click', function (e) {
+      var box = main.querySelector('[data-dates]');
+      if (!box) return;
+      e.preventDefault();
+      box.hidden = false;
+      box.querySelector('[data-dates-when]').disabled = false;
+      var kept = main.querySelector('[data-when-kept]');
+      if (kept) kept.disabled = true;
+      box.querySelector('input[type=date]').focus();
+    });
+  }
 })();

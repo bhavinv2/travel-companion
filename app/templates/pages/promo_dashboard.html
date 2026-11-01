@@ -36,15 +36,18 @@
     <div class="wrap">
       <div class="pm-hero-tx">
         <span class="pm-kick">Promotion{% if dash %} &middot; {{ 'Draft' if is_draft else 'Dashboard' }}{% endif %}</span>
-        <h1>{{ dash.name if dash else 'How things are going' }}</h1>
+        <h1>{{ dash.name if dash else board.title }}</h1>
         <p class="pm-lead">{% if dash %}{{ dash.description ~ ' ' if dash.description }}Shown for {{ when }},
-          compared with the {{ period.days }} days before.{% else %}The website right now, our growth and where
-          people travel, for {{ when }}, compared with the {{ period.days }} days before.{% endif %} Nothing here
-          identifies anyone who wrote in &mdash; the reviews shown are the ones already published on the site.</p>
-        {% if designer %}
+          compared with the {{ period.days }} days before.{% else %}{{ board.lead }} Shown for {{ when }}, compared
+          with the {{ period.days }} days before.{% endif %}
+          {% if here == 'visitors' %}Visitors one by one, with their internet address, are for staff only.{% else %}Nothing
+          here identifies anyone who wrote in &mdash; the reviews shown are the ones already published on the site.{% endif %}</p>
+        {% if designer or (here == 'visitors' and visitors_page) %}
         <p class="mk-hero-acts">
-          <a class="mk-btn primary" href="{{ url_for('marketing.designer_edit', dash_id=dash.id) if dash else url_for('marketing.designer') }}">
-            <i class="fa-solid fa-table-cells-large" aria-hidden="true"></i> {{ 'Change this dashboard' if dash else 'Design dashboards' }}</a>
+          {% if designer %}<a class="mk-btn primary" href="{{ url_for('marketing.designer_edit', dash_id=dash.id) if dash else url_for('marketing.designer') }}">
+            <i class="fa-solid fa-table-cells-large" aria-hidden="true"></i> {{ 'Change this dashboard' if dash else 'Design dashboards' }}</a>{% endif %}
+          {% if here == 'visitors' and visitors_page %}<a class="mk-btn" href="{{ visitors_page }}">
+            <i class="fa-solid fa-eye" aria-hidden="true"></i> Every visitor, page by page</a>{% endif %}
         </p>
         {% endif %}
       </div>
@@ -106,7 +109,8 @@
 
     <p class="pm-foot">This dashboard only reads: there is nothing on it that changes anything, and nothing on it that
       names a customer. Website and search numbers come from Google and are a little behind; the rest are ours, to
-      the minute.</p>
+      the minute{% if here == 'visitors' %} &mdash; our visitors are recorded by our own chat bubble and kept
+      {{ keep_days }} days{% endif %}.</p>
   </div>
 </div>
 {% if staff %}</main></div>{% endif %}

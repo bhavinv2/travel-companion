@@ -6,9 +6,13 @@
 {% block content %}
 {# Inbox › Visitors (messaging.visitors_page, services/visitors.py, 2026-10-30): who is on our websites -- tawk.to's
    Visitors list, kept by us. Recorded by our own chat bubble, placed by our own copy of DB-IP's free list. "On the site
-   now" swaps itself every 10 seconds (visitors_now); a visitor opens in the side sheet (visitor). visitors.js. #}
+   now" swaps itself every 10 seconds (visitors_now); a visitor opens in the side sheet (visitor). visitors.js.
+   2026-11-01: the list below shows each visitor, each internet address or each page opened, for any dates kept; the
+   charts of the same numbers are the Promotion dashboard's "Our visitors" board (`board`). #}
 {% set base_args = {'when': f.when if f.when != 'week' else None, 'country': f.country or None, 'source': f.source or None,
-                    'device': f.device or None, 'chat': f.chat or None, 'q': f.q or None} %}
+                    'device': f.device or None, 'chat': f.chat or None, 'q': f.q or None,
+                    'view': f.view if f.view != 'visitors' else None,
+                    'from': f['from'].isoformat() if f['from'] else None, 'to': f['to'].isoformat() if f['to'] else None} %}
 <div class="admin-page">
   {% include 'admin/_sidebar.html' %}
   <main class="admin-main crm vz" data-now-url="{{ url_for('messaging.visitors_now') }}"
@@ -55,8 +59,15 @@
       <div class="vz-tile now"><span class="vz-tile-k"><i class="vz-pulse" aria-hidden="true"></i> On the site now</span><b data-now-count>{{ sums.now }}</b></div>
       <a class="vz-tile" href="{{ url_for('messaging.visitors_page', when='day') }}#vz-all"><span class="vz-tile-k">Last 24 hours</span><b>{{ sums.day }}</b></a>
       <a class="vz-tile" href="{{ url_for('messaging.visitors_page') }}#vz-all"><span class="vz-tile-k">Last 7 days</span><b>{{ sums.week }}</b></a>
+      <a class="vz-tile" href="{{ url_for('messaging.visitors_page', when='month') }}#vz-all"><span class="vz-tile-k">Last 30 days</span><b>{{ sums.month }}</b></a>
+      <a class="vz-tile" href="{{ url_for('messaging.visitors_page', view='addresses') }}#vz-all"><span class="vz-tile-k">Internet addresses · 7 days</span><b>{{ sums.addresses_week }}</b></a>
+      <a class="vz-tile" href="{{ url_for('messaging.visitors_page', view='pages') }}#vz-all"><span class="vz-tile-k">Pages opened · 7 days</span><b>{{ sums.pages_week }}</b></a>
+      <div class="vz-tile"><span class="vz-tile-k">Time on a page · 7 days</span><b>{{ V.secs_words(sums.secs_week) }}</b></div>
+      <div class="vz-tile"><span class="vz-tile-k">Came back · 7 days</span><b>{{ sums.back_week }}</b></div>
       <a class="vz-tile" href="{{ url_for('messaging.visitors_page', chat='yes') }}#vz-all"><span class="vz-tile-k">Started a chat · 7 days</span><b>{{ sums.chats }}</b></a>
     </section>
+    {% if board %}<p class="vz-board"><a class="cb sm" href="{{ board }}"><i class="fa-solid fa-chart-column" aria-hidden="true"></i> Charts of our visitors</a>
+      <span class="muted">countries, cities, ways in, pages, devices and hours, for any dates, on the Promotion dashboard</span></p>{% endif %}
 
     <div class="vz-grid">
       <section class="card vz-now" aria-labelledby="vz-now-h">
@@ -111,19 +122,36 @@
 
     <section class="card vz-all" id="vz-all" aria-labelledby="vz-all-h">
       <header class="vz-sec-head">
-        <h2 id="vz-all-h">All visitors</h2>
-        <span class="muted">{{ found.total }} visitor{{ 's' if found.total != 1 }}{% if f.active %} match{% endif %}</span>
+        <h2 id="vz-all-h">{{ {'visitors': 'Every visitor', 'addresses': 'By internet address', 'pages': 'Every page opened'}[f.view] }}
+          <span class="muted vz-when-words">· {{ when_words }}</span></h2>
+        <span class="muted">{{ found.total }} {{ {'visitors': 'visitor', 'addresses': 'address', 'pages': 'page'}[f.view] }}{{ ('es' if f.view == 'addresses' else 's') if found.total != 1 }}{% if f.active %} match{% endif %}</span>
       </header>
-      <nav class="seg vz-when" aria-label="When">
-        {% for key, words, _span in V.PERIODS %}
-        {% set a = dict(base_args) %}{% set _ = a.update({'when': key if key != 'week' else None}) %}
-        <a href="{{ url_for('messaging.visitors_page', **a) }}#vz-all" class="{{ 'on' if f.when == key }}"{% if f.when == key %} aria-current="page"{% endif %}>{{ words }}</a>
+      {# which list: each browser, each internet address (an office or a home can be several browsers), each page #}
+      <nav class="seg vz-views" aria-label="Show">
+        {% for key, words, icon in V.VIEWS %}
+        {% set a = dict(base_args) %}{% set _ = a.update({'view': key if key != 'visitors' else None}) %}
+        <a href="{{ url_for('messaging.visitors_page', **a) }}#vz-all" class="{{ 'on' if f.view == key }}"{% if f.view == key %} aria-current="page"{% endif %}>
+          <i class="fa-solid {{ icon }}" aria-hidden="true"></i> {{ words }}</a>
         {% endfor %}
       </nav>
+      <nav class="seg vz-when" aria-label="When">
+        {% for key, words, _span in V.PERIODS %}
+        {% set a = dict(base_args) %}{% set _ = a.update({'when': key if key != 'week' else None, 'from': None, 'to': None}) %}
+        <a href="{{ url_for('messaging.visitors_page', **a) }}#vz-all" class="{{ 'on' if f.when == key }}"{% if f.when == key %} aria-current="page"{% endif %}>{{ words }}</a>
+        {% endfor %}
+        <a href="#vz-dates" class="{{ 'on' if f.when == 'custom' }}" data-dates-open{% if f.when == 'custom' %} aria-current="page"{% endif %}>Choose dates</a>
+      </nav>
       <form class="vz-filters" method="GET" action="{{ url_for('messaging.visitors_page') }}#vz-all">
-        {% if f.when != 'week' %}<input type="hidden" name="when" value="{{ f.when }}"/>{% endif %}
+        {% if f.view != 'visitors' %}<input type="hidden" name="view" value="{{ f.view }}"/>{% endif %}
+        <span class="vz-dates" id="vz-dates"{% if f.when != 'custom' %} hidden{% endif %} data-dates>
+          <label><span class="sr-only">From</span><input type="date" name="from" value="{{ f['from'].isoformat() if f['from'] else '' }}" min="{{ day_min }}" max="{{ day_max }}"/></label>
+          <span aria-hidden="true">to</span>
+          <label><span class="sr-only">To</span><input type="date" name="to" value="{{ f['to'].isoformat() if f['to'] else '' }}" min="{{ day_min }}" max="{{ day_max }}"/></label>
+          <input type="hidden" name="when" value="custom"{% if f.when != 'custom' %} disabled{% endif %} data-dates-when/>
+        </span>
+        {% if f.when not in ('week', 'custom') %}<input type="hidden" name="when" value="{{ f.when }}" data-when-kept/>{% endif %}
         <label class="vz-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-          <input type="search" name="q" value="{{ f.q }}" placeholder="City, address, page or name" aria-label="Search visitors"/></label>
+          <input type="search" name="q" value="{{ f.q }}" placeholder="Internet address, city, page or name" aria-label="Search visitors"/></label>
         <select name="country" aria-label="Country" data-autosubmit>
           <option value="">Every country</option>
           {% for code, name in opts.countries %}<option value="{{ code }}"{{ ' selected' if f.country == code }}>{{ name }}</option>{% endfor %}
@@ -142,14 +170,16 @@
           <option value="no"{{ ' selected' if f.chat == 'no' }}>Never chatted</option>
         </select>
         <button class="cb sm">Search</button>
-        {% if f.active %}<a class="cb sm quiet" href="{{ url_for('messaging.visitors_page', when=f.when if f.when != 'week' else None) }}#vz-all">Clear</a>{% endif %}
+        {% if f.active %}{% set a = dict(base_args) %}{% set _ = a.update({'country': None, 'source': None, 'device': None, 'chat': None, 'q': None}) %}
+        <a class="cb sm quiet" href="{{ url_for('messaging.visitors_page', **a) }}#vz-all">Clear</a>{% endif %}
       </form>
 
-      {% if found.rows %}
+      {% if found.rows and f.view == 'visitors' %}
       <div class="vz-table-wrap">
       <table class="vz-table">
         <thead><tr><th scope="col">Visitor</th><th scope="col">Where</th><th scope="col">Came from</th><th scope="col">Device</th>
-          <th scope="col" class="num">Visits</th><th scope="col" class="num">Pages</th><th scope="col">Last page</th><th scope="col">Last seen <span class="muted">{{ TZ() }}</span></th></tr></thead>
+          <th scope="col" class="num">Visits</th><th scope="col" class="num">Pages</th><th scope="col">Last page</th>
+          <th scope="col">Last seen <span class="muted">{{ TZ() }}</span></th></tr></thead>
         <tbody>
         {% for r in found.rows %}{% set v = r.v %}
         <tr data-visitor="{{ v.id }}" tabindex="0" aria-label="Open visitor {{ v.id }}">
@@ -161,28 +191,78 @@
             <small class="vz-ph-only">{{ v.visits }} visit{{ 's' if v.visits != 1 }} · {{ v.pages }} page{{ 's' if v.pages != 1 }}</small>
           </td>
           <td class="where"><span class="vz-flag sm">{{ v.country_code or '··' }}</span> {{ r.place }}</td>
-          <td class="src">{{ v.source or V.DIRECT }}{% if v.campaign %}<small class="vz-sub">{{ v.campaign }}</small>{% endif %}</td>
-          <td class="dev"><span class="vz-nowrap"><i class="fa-solid {{ V.DEVICE_ICON.get(v.device, 'fa-desktop') }}" aria-hidden="true"></i> {{ v.browser or '—' }}</span><small class="vz-sub">{{ v.os or '' }}</small></td>
+          <td class="src">{{ v.source or V.DIRECT }}{% if v.campaign %}<small class="vz-sub">{{ v.campaign }}</small>{% endif %}
+            {% if v.landing_url %}<small class="vz-sub" title="{{ v.landing_url }}">First page: {{ v.landing_url|replace('https://', '')|replace('www.', '')|replace('nriparentservice.com', '')|truncate(28, True) or '/' }}</small>{% endif %}</td>
+          <td class="dev"><span class="vz-nowrap"><i class="fa-solid {{ V.DEVICE_ICON.get(v.device, 'fa-desktop') }}" aria-hidden="true"></i> {{ v.browser or '—' }}</span><small class="vz-sub">{{ v.os or '' }}{% if v.lang %} · {{ v.lang }}{% endif %}</small></td>
           <td class="num">{{ v.visits }}</td>
           <td class="num">{{ v.pages }}</td>
           <td class="pg" title="{{ v.page_url or '' }}">{{ v.page_title or v.page_url or '—' }}</td>
-          <td class="when">{% if r.here %}<span class="vz-now-word">Now</span>{% else %}{{ v.last_at|istd('%d %b, %H:%M') }}{% endif %}</td>
+          <td class="when">{% if r.here %}<span class="vz-now-word">Now</span>{% if r.on_for %}<small class="vz-sub">for {{ V.secs_words(r.on_for) }}</small>{% endif %}{% else %}{{ v.last_at|istd('%d %b, %H:%M') }}{% endif %}
+            <small class="vz-sub">first {{ v.first_at|istd('%d %b') }}</small></td>
         </tr>
         {% endfor %}
         </tbody>
       </table>
       </div>
-      {% if found.pages > 1 %}
-      <nav class="vz-pager" aria-label="Pages of visitors">
+      {% elif found.rows and f.view == 'addresses' %}
+      <div class="vz-table-wrap">
+      <table class="vz-table">
+        <thead><tr><th scope="col">Internet address</th><th scope="col">Where</th><th scope="col" class="num">Browsers</th>
+          <th scope="col" class="num">Visits</th><th scope="col" class="num">Pages</th><th scope="col">First seen</th>
+          <th scope="col">Last seen <span class="muted">{{ TZ() }}</span></th><th scope="col"><span class="sr-only">Its visitors</span></th></tr></thead>
+        <tbody>
+        {% for r in found.rows %}
+        {% set a = dict(base_args) %}{% set _ = a.update({'view': None, 'q': r.ip}) %}
+        <tr>
+          <td class="who">{% if r.here %}<i class="vz-dot" title="On the site now" aria-label="On the site now"></i>{% endif %}
+            {% if r.ip %}<b class="vz-ip-big">{{ V.show_ip(r.ip, masked) }}</b>{% else %}<b>No address</b><small class="vz-sub">Came through the forwarder, so it was not kept</small>{% endif %}
+            {% if r.chatted %}<span class="vz-chip chat"><i class="fa-regular fa-comment-dots" aria-hidden="true"></i> Chatted</span>{% endif %}</td>
+          <td class="where"><span class="vz-flag sm">{{ r.code or '··' }}</span> {{ r.place }}</td>
+          <td class="num">{{ r.browsers }}</td>
+          <td class="num">{{ r.visits }}</td>
+          <td class="num">{{ r.pages }}</td>
+          <td class="when">{{ r.first|istd('%d %b, %H:%M') }}</td>
+          <td class="when">{% if r.here %}<span class="vz-now-word">Now</span>{% else %}{{ r.last|istd('%d %b, %H:%M') }}{% endif %}</td>
+          <td>{% if r.ip and not masked %}<a class="cb sm quiet" href="{{ url_for('messaging.visitors_page', **a) }}#vz-all">Its visitors</a>{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% elif found.rows %}
+      <div class="vz-table-wrap">
+      <table class="vz-table">
+        <thead><tr><th scope="col">When <span class="muted">{{ TZ() }}</span></th><th scope="col">Page</th><th scope="col" class="num">Read for</th>
+          <th scope="col">Came from</th><th scope="col">Visitor</th><th scope="col">Where</th><th scope="col">Device</th></tr></thead>
+        <tbody>
+        {% for r in found.rows %}{% set p, v = r.p, r.v %}
+        <tr data-visitor="{{ v.id }}" tabindex="0" aria-label="Open visitor {{ v.id }}">
+          <td class="when">{{ p.at|istd('%d %b, %H:%M') }}</td>
+          <td class="pg" title="{{ p.url or '' }}"><a href="{{ p.url }}" target="_blank" rel="noopener">{{ p.title or p.url or '—' }}</a>
+            <small class="vz-sub">{{ (p.url or '')|replace('https://', '')|truncate(48, True) }}</small></td>
+          <td class="num">{{ V.secs_words(p.secs) }}</td>
+          <td class="src">{% if p.came_from %}{{ p.came_from }}<small class="vz-sub">Visit {{ p.visit }} began here</small>{% else %}<span class="muted">Visit {{ p.visit }}</span>{% endif %}</td>
+          <td class="who"><b>{{ v.person.name if (v.person and leads) else 'Visitor #%d'|format(v.id) }}</b>
+            {% if v.ip %}<small class="vz-ip">{{ V.show_ip(v.ip, masked) }}</small>{% endif %}</td>
+          <td class="where"><span class="vz-flag sm">{{ v.country_code or '··' }}</span> {{ r.place }}</td>
+          <td class="dev"><i class="fa-solid {{ V.DEVICE_ICON.get(v.device, 'fa-desktop') }}" aria-hidden="true"></i> {{ v.browser or '—' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% endif %}
+      {% if found.rows and found.pages > 1 %}
+      <nav class="vz-pager" aria-label="Pages of the list">
         {% set a = dict(base_args) %}
         {% if found.n > 1 %}{% set _ = a.update({'n': found.n - 1}) %}<a class="cb sm" href="{{ url_for('messaging.visitors_page', **a) }}#vz-all">← Newer</a>{% endif %}
         <span class="muted">Page {{ found.n }} of {{ found.pages }}</span>
         {% if found.n < found.pages %}{% set _ = a.update({'n': found.n + 1}) %}<a class="cb sm" href="{{ url_for('messaging.visitors_page', **a) }}#vz-all">Older →</a>{% endif %}
       </nav>
       {% endif %}
-      {% else %}
+      {% if not found.rows %}
       <p class="vz-empty"><i class="fa-regular fa-eye-slash" aria-hidden="true"></i>
-        {% if f.active %}No visitor matches. <a href="{{ url_for('messaging.visitors_page', when=f.when if f.when != 'week' else None) }}#vz-all">Clear the filters</a>{% else %}No visitors in this time yet.{% endif %}</p>
+        {% if f.active %}{% set a = dict(base_args) %}{% set _ = a.update({'country': None, 'source': None, 'device': None, 'chat': None, 'q': None}) %}Nothing matches. <a href="{{ url_for('messaging.visitors_page', **a) }}#vz-all">Clear the filters</a>{% else %}No visitors in these dates yet.{% endif %}</p>
       {% endif %}
     </section>
 

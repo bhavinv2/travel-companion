@@ -374,14 +374,17 @@ def test_website_boxes_read_google_analytics(client, app, admin_user, monkeypatc
             rows = [('mobile', 7), ('desktop', 5)] if dims == ['deviceCategory'] else []
             return {'rows': [{'dimensionValues': [{'value': a}], 'metricValues': [{'value': str(n)}]} for a, n in rows],
                     'totals': [{'metricValues': [{'value': '12'}]}]}
+        # the days before: the 30 days that end a month ago
+        before = body['dateRanges'][0]['endDate'] < eng.period_for('last_30').start.isoformat()
         if dims == ['country']:
-            rows = [('India', 120), ('United States', 80), ('(not set)', 3)]
+            rows = [('India', 100), ('United States', 50)] if before else [('India', 120), ('United States', 80),
+                                                                           ('(not set)', 3)]
         elif dims == ['date']:
             rows = [((eng.today() - timedelta(days=i)).strftime('%Y%m%d'), 10 + i) for i in range(3)]
         else:
             rows = []
         return {'rows': [{'dimensionValues': [{'value': a}], 'metricValues': [{'value': str(n)}]} for a, n in rows],
-                'totals': [{'metricValues': [{'value': '190' if dims else '150'}]}]}
+                'totals': [{'metricValues': [{'value': '150' if before else '190'}]}]}
     monkeypatch.setattr(ga4, '_post', fake_post)
     with app.test_request_context('/'):
         ga4.save('412345678', json.dumps(key), by=admin_user)
@@ -390,6 +393,8 @@ def test_website_boxes_read_google_analytics(client, app, admin_user, monkeypatc
                           admin_user)
         assert _by_label(by_country) == {'India': 120, 'United States': 80, 'Not known': 3}
         assert by_country['total'] == 190 and by_country['prev'] == 150
+        # each country against its own days before, from one more question by country
+        assert by_country['row_change'] == [20.0, 60.0, None]
         flt = calls[0][1]['dimensionFilter']['filter']
         assert flt == {'fieldName': 'deviceCategory', 'inListFilter': {'values': ['mobile']}}
         line = _run({'chart': 'line', 'metrics': [{'source': 'website', 'measure': 'activeUsers'}], 'group': 'day'},

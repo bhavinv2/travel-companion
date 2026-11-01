@@ -16,6 +16,8 @@
     mono: ['#0f2340', '#475569', '#94a3b8', '#334155', '#64748b', '#cbd5e1', '#1e293b', '#e2e8f0', '#0b1220']
   };
   var REFRESH_MS = 30000;
+  var LISTS = ['people', 'sitemaps', 'indexing', 'retention'];
+  var AT_ONCE = 3;       // boxes asked for at the same time: Google answers ten questions of a property at once
   var charts = new WeakMap();
 
   function esc(s) {
@@ -29,7 +31,10 @@
     var n = Number(v);
     if (isNaN(n)) return String(v);
     if (unit === 'pct') return (n * 100).toFixed(1) + '%';
-    if (unit === 'seconds') { var m = Math.floor(n / 60); return m + 'm ' + String(Math.round(n % 60)).padStart(2, '0') + 's'; }
+    if (unit === 'seconds') {
+      if (n >= 3600) return Math.floor(n / 3600) + 'h ' + String(Math.floor((n % 3600) / 60)).padStart(2, '0') + 'm';
+      var m = Math.floor(n / 60); return m + 'm ' + String(Math.round(n % 60)).padStart(2, '0') + 's';
+    }
     if (unit === 'rating' || unit === 'position') return n.toFixed(1);
     if (short && Math.abs(n) >= 10000) {
       return (Math.abs(n) >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : (n / 1e3).toFixed(Math.abs(n) >= 1e5 ? 0 : 1) + 'k');
@@ -68,16 +73,128 @@
     return '';
   }
 
+  // a group's own change on the days before: green when it is the good news
+  function rowChange(r, i) {
+    var c = r.row_change && r.row_change[i];
+    if (c === null || c === undefined) {
+      var was = r.row_prev && r.row_prev[i], now = r.rows[i] && r.rows[i].values[0];
+      return '<td class="mk-rc">' + (was === 0 && now ? '<span class="mk-chg up">New</span>' : '<span class="muted">—</span>') + '</td>';
+    }
+    var good = (c > 0) !== !!r.lower_better;
+    return '<td class="mk-rc"><span class="mk-chg ' + (c === 0 ? 'flat' : (good ? 'up' : 'down')) + '">' +
+      (c > 0 ? '+' : '') + c + '%</span></td>';
+  }
+
   function tableHtml(r, hidden) {
     var h = '<div class="mk-tablewrap' + (hidden ? ' sr-only' : '') + '"><table class="mk-table"><thead><tr><th scope="col"></th>';
     (r.series || []).forEach(function (s) { h += '<th scope="col">' + esc(s.name) + '</th>'; });
+    if (r.row_change) h += '<th scope="col" class="mk-rc" title="Against the same number of days just before">vs before</th>';
     h += '</tr></thead><tbody>';
-    (r.rows || []).forEach(function (row) {
+    (r.rows || []).forEach(function (row, n) {
       h += '<tr><th scope="row">' + esc(row.label) + '</th>';
       row.values.forEach(function (v, i) { h += '<td>' + fmt(v, (r.series[i] && r.series[i].unit) || r.unit) + '</td>'; });
+      if (r.row_change) h += rowChange(r, n);
       h += '</tr>';
     });
     return h + '</tbody></table></div>';
+  }
+
+  // ------------------------------------------------------------------------------------------- the three lists
+  // visitors one by one (ours), our sitemaps in Google and our pages in Google's index (Search Console)
+
+  function noHost(url) { return String(url || '').replace(/^https?:\/\/[^/]+/, '') || '/'; }
+
+  function peopleHtml(r) {
+    var rows = r.rows || [];
+    if (!rows.length) return '<p class="mk-empty"><i class="fa-regular fa-eye-slash" aria-hidden="true"></i> No visitors recorded yet.</p>';
+    var h = '<p class="mk-ppl-sum"><span class="mk-pulse" aria-hidden="true"></span><b>' + fmt(r.now, 'count') + '</b> on the site now' +
+      (r.all_url ? ' · <a href="' + esc(r.all_url) + '">Every visitor</a>' : '') + '</p><ul class="mk-ppl">';
+    rows.forEach(function (p) {
+      var inner = '<span class="mk-ppl-flag" title="' + esc(p.place) + '">' + esc(p.code || '··') + '</span>' +
+        '<span class="mk-ppl-main"><b>' + esc(p.place) + '</b>' + (p.ip ? ' <code>' + esc(p.ip) + '</code>' : '') +
+        '<small><i class="fa-solid ' + esc(p.icon) + '" aria-hidden="true"></i> ' + esc(p.browser || p.device) +
+        (p.os ? ' · ' + esc(p.os) : '') + ' · from ' + esc(p.source) + (p.campaign ? ' (' + esc(p.campaign) + ')' : '') + '</small>' +
+        '<small class="mk-ppl-pg" title="' + esc(p.url) + '">' + esc(p.page) + '</small></span>' +
+        '<span class="mk-ppl-when">' + (p.here ? '<b class="mk-ppl-now">Now</b>' + (p.on_for ? '<small>' + esc(p.on_for) + '</small>' : '')
+          : '<small>' + esc(p.seen) + '</small>') +
+        '<small>' + p.visits + ' visit' + (p.visits === 1 ? '' : 's') + ' · ' + p.pages + ' page' + (p.pages === 1 ? '' : 's') + '</small>' +
+        (p.chatted ? '<small class="mk-ppl-chat"><i class="fa-regular fa-comment-dots" aria-hidden="true"></i> Chatted</small>' : '') + '</span>';
+      h += '<li class="' + (p.here ? 'here' : '') + '">' + (p.open ? '<a href="' + esc(p.open) + '">' + inner + '</a>' : inner) + '</li>';
+    });
+    return h + '</ul>';
+  }
+
+  function sitemapsHtml(r) {
+    var rows = r.rows || [];
+    if (!rows.length) return '<p class="mk-empty">Google has no sitemap of the site. Send one in Search Console › Sitemaps.</p>';
+    var h = '<div class="mk-tablewrap"><table class="mk-table mk-list"><thead><tr><th scope="col">Sitemap</th><th scope="col">Addresses</th>' +
+      '<th scope="col">Sent</th><th scope="col">Google read it</th><th scope="col">Problems</th></tr></thead><tbody>';
+    rows.forEach(function (m) {
+      var bad = m.errors ? m.errors + ' error' + (m.errors === 1 ? '' : 's') : '';
+      if (m.warnings) bad += (bad ? ', ' : '') + m.warnings + ' warning' + (m.warnings === 1 ? '' : 's');
+      h += '<tr><th scope="row"><a href="' + esc(m.path) + '" target="_blank" rel="noopener">' + esc(noHost(m.path)) + '</a>' +
+        '<small class="muted"> ' + esc(m.kind) + (m.pending ? ' · waiting for Google' : '') + '</small></th>' +
+        '<td>' + fmt(m.urls, 'count') + '</td><td>' + esc(m.submitted || '—') + '</td><td>' + esc(m.read || '—') + '</td>' +
+        '<td>' + (bad ? '<span class="mk-chg down">' + esc(bad) + '</span>' : '<span class="mk-chg up">None</span>') + '</td></tr>';
+    });
+    return h + '</tbody></table></div>';
+  }
+
+  function indexingHtml(r) {
+    var rows = r.rows || [];
+    if (!rows.length) return '<p class="mk-empty">No pages to check yet.</p>';
+    var h = '<p class="mk-ix-sum"><span class="mk-chg up"><b>' + r.indexed + '</b> in Google</span> ' +
+      (r.not ? '<span class="mk-chg down"><b>' + r.not + '</b> not in Google</span>' : '') +
+      ' <small class="muted">of the ' + r.checked + ' pages Google showed most in the last 28 days</small></p>' +
+      '<div class="mk-tablewrap"><table class="mk-table mk-list"><thead><tr><th scope="col">Page</th><th scope="col">In Google?</th>' +
+      '<th scope="col">What Google says</th><th scope="col">Last read</th><th scope="col">Rich results</th></tr></thead><tbody>';
+    rows.forEach(function (x) {
+      var ok = x.verdict === 'PASS';
+      h += '<tr><th scope="row"><a href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(noHost(x.url)) + '</a>' +
+        (x.canonical && x.canonical !== x.url ? '<small class="muted"> Google uses ' + esc(noHost(x.canonical)) + '</small>' : '') + '</th>' +
+        '<td><span class="mk-chg ' + (ok ? 'up' : 'down') + '">' + esc(x.state) + '</span></td>' +
+        '<td>' + esc(x.coverage || '—') + (x.robots && x.robots !== 'Allowed' ? '<small class="muted"> · robots.txt: ' + esc(x.robots) + '</small>' : '') + '</td>' +
+        '<td>' + esc(x.crawled || '—') + (x.crawled_as ? '<small class="muted"> as a ' + esc(x.crawled_as) + '</small>' : '') + '</td>' +
+        '<td>' + (x.rich && x.rich.length ? esc(x.rich.join(', ')) : '<span class="muted">—</span>') + '</td></tr>';
+    });
+    h += '</tbody></table></div>';
+    if (r.note) h += '<p class="mk-notes">' + esc(r.note) + '</p>';
+    return h;
+  }
+
+  // who came back: a row a week people first came, a column each week after, darker the more of them came again
+  function retentionHtml(r) {
+    var rows = r.rows || [];
+    if (r.empty) return '<p class="mk-empty"><i class="fa-regular fa-folder-open" aria-hidden="true"></i> Nobody came in these weeks yet.</p>';
+    var top = Math.max.apply(null, (r.average || []).concat([1]).map(function (v) { return v || 0; }));
+    rows.forEach(function (row) { row.cells.forEach(function (c) { if (c && c.pct > top) top = c.pct; }); });
+    var cell = function (pct, title) {
+      if (pct === null || pct === undefined) return '<td class="mk-ret-none"><span class="muted">—</span></td>';
+      var heat = pct ? Math.max(0.08, pct / top) : 0;
+      return '<td class="' + (heat > 0.6 ? 'hot' : '') + '" style="--heat:' + Math.round(heat * 85) + '%" title="' + esc(title) + '">' + pct + '%</td>';
+    };
+    var h = '<div class="mk-tablewrap"><table class="mk-table mk-ret"><thead><tr>' +
+      '<th scope="col">First came, week of</th><th scope="col">People</th>';
+    for (var n = 1; n < r.weeks; n++) h += '<th scope="col">Week ' + n + '</th>';
+    h += '</tr></thead><tbody><tr class="mk-ret-all"><th scope="row">All these weeks</th><td>' + fmt(r.size, 'count') + '</td>';
+    (r.average || []).forEach(function (v, i) { h += cell(v, 'On average, came again in week ' + (i + 1)); });
+    h += '</tr>';
+    rows.forEach(function (row) {
+      h += '<tr><th scope="row">' + esc(row.label) + '</th><td>' + fmt(row.size, 'count') + '</td>';
+      row.cells.forEach(function (c, i) {
+        h += c ? cell(c.pct, c.n + ' of ' + row.size + ' came again in week ' + (i + 1)) : cell(null);
+      });
+      h += '</tr>';
+    });
+    return h + '</tbody></table></div><p class="mk-notes">Week 1 is the week after their first. Weeks begin on ' + esc(r.starts_on) +
+      '; this week is not over yet.</p>';
+  }
+
+  function minutesHtml(list, words) {
+    var max = Math.max.apply(null, (list || []).concat([1]));
+    return (list || []).map(function (n, i) {
+      return '<i style="height:' + Math.max(6, Math.round(100 * n / max)) + '%" title="' + n + ' ' + words + ' · ' + (list.length - 1 - i) + ' min ago"></i>';
+    }).join('');
   }
 
   function bodyHtml(cfg, r) {
@@ -86,10 +203,14 @@
       return '<p class="mk-msg"><i class="fa-solid ' + (r.hidden ? 'fa-lock' : 'fa-circle-exclamation') +
         '" aria-hidden="true"></i> ' + esc(r.message || r.error || 'These numbers could not be fetched.') + '</p>';
     }
+    if (cfg.chart === 'people') return peopleHtml(r);
+    if (cfg.chart === 'sitemaps') return sitemapsHtml(r);
+    if (cfg.chart === 'indexing') return indexingHtml(r);
+    if (cfg.chart === 'retention') return retentionHtml(r);
     if (cfg.chart === 'live') {
       var h = '<div class="mk-live"><div class="mk-live-n"><span class="mk-pulse" aria-hidden="true"></span>' +
         '<b class="mk-n" data-n="' + (r.total || 0) + '">' + fmt(r.total, r.unit) + '</b><small>' +
-        esc((r.series[0] && r.series[0].name) || 'people') + ' in the last 30 minutes</small></div>';
+        esc((r.series[0] && r.series[0].name) || 'people') + ' ' + esc(r.live_words || 'in the last 30 minutes') + '</small></div>';
       if (r.labels && r.labels.length && r.labels[0] !== 'All') {
         h += '<ul class="mk-live-list">';
         r.labels.slice(0, 5).forEach(function (lb, i) {
@@ -97,6 +218,8 @@
         });
         h += '</ul>';
       }
+      // our own visitors bring their minutes with them; Google's come from /promotion/live (liveMinutes)
+      if (r.minutes) return h + '<div class="mk-live-min own" aria-hidden="true">' + minutesHtml(r.minutes, 'pages opened') + '</div></div>';
       return h + '<div class="mk-live-min" aria-hidden="true"></div></div>';
     }
     if (cfg.chart === 'number') {
@@ -208,7 +331,7 @@
     var n = body.querySelector('.mk-n');
     if (n) { n.setAttribute('data-unit', r.unit || 'count'); if (!opts.noCount) countUp(n, opts.from); }
     if (cfg.chart === 'number') { spark(body.querySelector('.mk-spark canvas'), cfg, r); return; }
-    if (cfg.chart === 'live' || cfg.chart === 'table' || r.empty) return;
+    if (LISTS.indexOf(cfg.chart) >= 0 || cfg.chart === 'live' || cfg.chart === 'table' || r.empty) return;
     chart(body.querySelector('.mk-chart canvas'), cfg, r);
   }
 
@@ -235,6 +358,19 @@
 
   var reg = {};          // box id -> {el, cfg, r}: every box, its settings and its numbers once they are here
   var focused = null;    // the box opened big, if any
+
+  // a board of fifty boxes asks for them a few at a time, top first, so Google is never asked too much at once
+  var queue = [], busy = 0;
+  function ask(entry, quiet) {
+    return new Promise(function (done) { queue.push([entry, quiet, done]); pump(); });
+  }
+  function pump() {
+    while (busy < AT_ONCE && queue.length) {
+      var job = queue.shift();
+      busy += 1;
+      fetchBox(job[0], job[1]).then(job[2], job[2]).then(function () { busy -= 1; pump(); });
+    }
+  }
 
   function fetchBox(entry, quiet) {
     var boxEl = entry.el, cfg = entry.cfg;
@@ -314,6 +450,18 @@
       if (s0.data[best]) facts.push([r.time ? 'The busiest' : 'The most', r.labels[best] + ' (' + fmt(s0.data[best], r.unit) + ')']);
     }
     if (r.multi) (r.series || []).forEach(function (s) { facts.push([s.name, fmt(s.total, s.unit || r.unit)]); });
+    if (r.row_change) {
+      // the group that grew most and the one that fell most against the days before
+      var up = -1, down = -1;
+      r.row_change.forEach(function (c, i) {
+        if (c === null || c === undefined) return;
+        var good = (c > 0) !== !!r.lower_better;
+        if (good && c !== 0 && (up < 0 || Math.abs(c) > Math.abs(r.row_change[up]))) up = i;
+        if (!good && c !== 0 && (down < 0 || Math.abs(c) > Math.abs(r.row_change[down]))) down = i;
+      });
+      if (up >= 0) facts.push(['Did best', r.labels[up] + ' (' + (r.row_change[up] > 0 ? '+' : '') + r.row_change[up] + '%)']);
+      if (down >= 0) facts.push(['Did worst', r.labels[down] + ' (' + (r.row_change[down] > 0 ? '+' : '') + r.row_change[down] + '%)']);
+    }
     var h = '<div class="mk-more"><dl class="mk-facts">' + facts.map(function (f) {
       return '<div><dt>' + esc(f[0]) + '</dt><dd>' + esc(f[1]) + '</dd></div>';
     }).join('') + '</dl>';
@@ -328,7 +476,7 @@
     for (k in entry.cfg) cfg[k] = entry.cfg[k];
     if (cfg.chart === 'number' && entry.r.time) cfg.chart = 'area';     // a big number opens as its line
     render(entry.el, cfg, entry.r, { noCount: true });
-    if (!entry.r.ok || entry.r.empty) return;
+    if (!entry.r.ok || entry.r.empty || LISTS.indexOf(cfg.chart) >= 0) return;
     entry.el.querySelector('.mk-box-b').insertAdjacentHTML('beforeend', moreHtml(entry.cfg, entry.r));
     if (cfg.chart === 'live') liveMinutes();
   }
@@ -393,16 +541,13 @@
 
   // the last 30 minutes, minute by minute, under every live counter
   function liveMinutes() {
-    var holders = root.querySelectorAll('.mk-live-min');
+    var holders = root.querySelectorAll('.mk-live-min:not(.own)');
     if (!holders.length) return;
     fetch(root.getAttribute('data-live-url'), { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
       .then(function (res) { return res.json(); })
       .then(function (d) {
         if (!d.ok) return;
-        var max = Math.max.apply(null, d.minutes.concat([1]));
-        var bars = d.minutes.map(function (n, i) {
-          return '<i style="height:' + Math.max(6, Math.round(100 * n / max)) + '%" title="' + n + ' · ' + (29 - i) + ' min ago"></i>';
-        }).join('');
+        var bars = minutesHtml(d.minutes, 'people');
         holders.forEach(function (h) { h.innerHTML = bars; });
       }).catch(function () {});
   }
@@ -423,8 +568,8 @@
     }
     if (!cfg) return;
     if (boxEl.hasAttribute('data-async')) {
-      fetchBox(entry).then(function () { if (cfg.chart === 'live') liveMinutes(); });
-      if (cfg.chart === 'live') lives.push(entry);
+      ask(entry).then(function () { if (cfg.chart === 'live') liveMinutes(); });
+      if (cfg.chart === 'live' || cfg.chart === 'people') lives.push(entry);
       return;
     }
     entry.r = readJson(boxEl, 'mk-json');

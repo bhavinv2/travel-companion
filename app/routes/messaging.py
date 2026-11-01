@@ -15,7 +15,7 @@ Screens that moved into the portal (contacts, pipelines, the dashboard...) are r
 WhatsApp CRM: it tells the frame, and the frame moves the whole window to sso?go=<key> (contract
 15), which opens the portal's own page.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
 
 from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
@@ -729,10 +729,18 @@ def visitors_page():
         return redirect(access.home_url(current_user))
     now = datetime.utcnow()
     f = visitors.filters(request.args)
-    return render_template('messaging/visitors.html', f=f, found=visitors.find(f, request.args.get('n', type=int) or 1, now),
+    n = request.args.get('n', type=int) or 1
+    # the list below the figures: each visitor, each internet address (one office, one home: several browsers), or
+    # each page opened -- for any dates the addresses are kept
+    lister = {'visitors': visitors.find, 'addresses': visitors.by_address, 'pages': visitors.page_log}[f['view']]
+    return render_template('messaging/visitors.html', f=f, found=lister(f, n, now),
                            now_rows=visitors.now_list(now), sums=visitors.summary(now), opts=visitors.choices(now),
                            geo=visitors.geo_status(), cfg=livechat.config(), ping=visitors.ping_url(),
-                           open_id=request.args.get('v', type=int), **_visitors_ctx(now))
+                           open_id=request.args.get('v', type=int), when_words=visitors.when_words(f),
+                           day_min=((now + visitors.IST).date() - timedelta(days=visitors.KEEP_DAYS)).isoformat(),
+                           day_max=(now + visitors.IST).date().isoformat(),
+                           board=url_for('main.promo_dashboard', d='visitors') if access.can(current_user, 'promo')
+                           else None, **_visitors_ctx(now))
 
 
 @messaging_bp.route('/visitors/now')
@@ -756,7 +764,8 @@ def visitor(visitor_id):
         abort(403)
     v = db.session.get(CrmVisitor, visitor_id) or abort(404)
     now = datetime.utcnow()
-    return render_template('messaging/_visitor.html', d=visitors.detail(v, now), **_visitors_ctx(now))
+    return render_template('messaging/_visitor.html', d=visitors.detail(v, now), same=visitors.same_address(v),
+                           **_visitors_ctx(now))
 
 
 @messaging_bp.route('/visitors/ip-list', methods=['POST'])

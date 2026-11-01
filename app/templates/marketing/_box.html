@@ -6,6 +6,7 @@
 {% macro fmt(v, unit) -%}
 {%- if v is none -%}—
 {%- elif unit == 'pct' -%}{{ '%.1f'|format(v * 100) }}%
+{%- elif unit == 'seconds' and v >= 3600 -%}{{ (v // 3600)|int }}h {{ '%02d'|format(((v % 3600) // 60)|int) }}m
 {%- elif unit == 'seconds' -%}{{ (v // 60)|int }}m {{ '%02d'|format((v % 60)|int) }}s
 {%- elif unit in ('rating', 'position') -%}{{ '%.1f'|format(v) }}
 {%- elif v is number -%}{{ '{:,}'.format(v|round|int) if v == v|round else '{:,.1f}'.format(v) }}
@@ -41,10 +42,15 @@
 {% if b.chart != 'table' %}<div class="mk-chart"><canvas role="img" aria-label="{{ b.title }}"></canvas></div>{% endif %}
 <div class="mk-tablewrap{{ ' sr-only' if b.chart != 'table' }}">
   <table class="mk-table">
-    <thead><tr><th scope="col"></th>{% for s in r.series %}<th scope="col">{{ s.name }}</th>{% endfor %}</tr></thead>
+    <thead><tr><th scope="col"></th>{% for s in r.series %}<th scope="col">{{ s.name }}</th>{% endfor %}
+      {%- if r.row_change %}<th scope="col" class="mk-rc" title="Against the same number of days just before">vs before</th>{% endif %}</tr></thead>
     <tbody>
-      {% for row in r.rows %}
-      <tr><th scope="row">{{ row.label }}</th>{% for v in row['values'] %}<td>{{ fmt(v, r.series[loop.index0].unit or r.unit) }}</td>{% endfor %}</tr>
+      {% for row in r.rows %}{% set n = loop.index0 %}
+      <tr><th scope="row">{{ row.label }}</th>{% for v in row['values'] %}<td>{{ fmt(v, r.series[loop.index0].unit or r.unit) }}</td>{% endfor %}
+        {%- if r.row_change %}{% set c = r.row_change[n] %}<td class="mk-rc">
+          {%- if c is not none %}<span class="mk-chg {{ 'flat' if c == 0 else ('up' if (c > 0) != (r.lower_better or false) else 'down') }}">{{ '+' if c > 0 }}{{ '%g'|format(c) }}%</span>
+          {%- elif r.row_prev[n] == 0 and row['values'][0] %}<span class="mk-chg up">New</span>
+          {%- else %}<span class="muted">—</span>{% endif %}</td>{% endif %}</tr>
       {% endfor %}
     </tbody>
   </table>
@@ -86,7 +92,7 @@
       </ul>
     {%- else %}
       {{ body(b, item.result) }}
-      <script type="application/json" class="mk-cfg">{{ {'chart': b.chart, 'colour': b.colour, 'empty': b.empty, 'title': item.title, 'range': b.range}|tojson }}</script>
+      <script type="application/json" class="mk-cfg">{{ {'chart': b.chart, 'colour': b.colour, 'empty': b.empty or '', 'title': item.title, 'range': b.range or 'page'}|tojson }}</script>
       {% if item.result and item.result.ok %}<script type="application/json" class="mk-json">{{ item.result|tojson }}</script>{% endif %}
     {%- endif %}
   </div>

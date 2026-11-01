@@ -23,13 +23,13 @@
   <div class="dzl-cards">
     <section class="dzl-card">
       <h3><i class="fa-solid fa-plus" aria-hidden="true"></i> New dashboard</h3>
-      <p>Start empty, from a copy of the Overview, or from a copy of one below.</p>
+      <p>Start empty, from a copy of a built-in board, or from a copy of one below.</p>
       <form class="dzl-new" method="post" action="{{ url_for('marketing.designer_new') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <input type="text" name="name" placeholder="e.g. Diwali campaign" maxlength="80" required aria-label="Name"/>
         <select name="start" aria-label="Start from">
           <option value="blank">Empty</option>
-          <option value="overview">A copy of the Overview</option>
+          {% for k, b in boards.items() %}<option value="{{ k }}">A copy of the {{ b.label }}{{ ' board' if k != 'overview' }}</option>{% endfor %}
           {% for d in rows %}<option value="{{ d.id }}">A copy of "{{ d.name }}"</option>{% endfor %}
         </select>
         <button type="submit" class="mk-btn primary">Create</button>

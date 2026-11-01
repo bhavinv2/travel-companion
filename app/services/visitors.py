@@ -513,15 +513,61 @@ def _global(ip):
         return False
 
 
+VIEWS = (('visitors', 'Visitors', 'fa-user'), ('addresses', 'By internet address', 'fa-network-wired'),
+         ('pages', 'Every page opened', 'fa-file-lines'))
+VIEW_KEYS = tuple(k for k, _w, _i in VIEWS)
+IST = timedelta(hours=5, minutes=30)
+
+
+def _day(v):
+    try:
+        return datetime.strptime(str(v or '').strip(), '%Y-%m-%d').date()
+    except ValueError:
+        return None
+
+
 def filters(args):
-    f = {'when': args.get('when') if args.get('when') in PERIOD_SPAN else 'week',
+    when = args.get('when')
+    f = {'when': when if when in PERIOD_SPAN or when == 'custom' else 'week',
+         'view': args.get('view') if args.get('view') in VIEW_KEYS else 'visitors',
          'country': (args.get('country') or '').strip().upper()[:2],
          'source': (args.get('source') or '').strip()[:60],
          'device': args.get('device') if args.get('device') in DEVICE_WORD else '',
          'chat': args.get('chat') if args.get('chat') in ('yes', 'no') else '',
-         'q': ' '.join((args.get('q') or '').split())[:80]}
+         'q': ' '.join((args.get('q') or '').split())[:80],
+         'from': None, 'to': None}
+    if f['when'] == 'custom':
+        # India dates, both ends included, no older than the addresses are kept
+        today = (datetime.utcnow() + IST).date()
+        oldest = today - timedelta(days=KEEP_DAYS)
+        a, b = _day(args.get('from')), _day(args.get('to'))
+        if a is None and b is None:
+            f['when'] = 'week'
+        else:
+            a, b = a or b, b or today
+            a, b = sorted((min(max(a, oldest), today), min(max(b, oldest), today)))
+            f['from'], f['to'] = a, b
     f['active'] = any(f[k] for k in ('country', 'source', 'device', 'chat', 'q'))
     return f
+
+
+
+def window(f, now=None):
+    """[since, until) in UTC: the filters' dates."""
+    now = now or datetime.utcnow()
+    if f['when'] == 'custom' and f.get('from'):
+        return (datetime.combine(f['from'], datetime.min.time()) - IST,
+                datetime.combine(f['to'] + timedelta(days=1), datetime.min.time()) - IST)
+    return _since(f['when'], now), now + timedelta(seconds=1)
+
+
+def when_words(f):
+    if f['when'] == 'custom' and f.get('from'):
+        a, b = f['from'], f['to']
+        if a == b:
+            return a.strftime('%d %b %Y').lstrip('0')
+        return '%s – %s' % (a.strftime('%d %b').lstrip('0'), b.strftime('%d %b %Y').lstrip('0'))
+    return next((w for k, w, _s in PERIODS if k == f['when']), '')
 
 
 def _since(when, now):
@@ -534,10 +580,15 @@ def _chatted_ids(ids):
     return {i for (i,) in db.session.query(CrmLiveChat.visitor_id).filter(CrmLiveChat.visitor_id.in_(ids)).distinct()}
 
 
-def find(f, n=1, now=None):
-    """The visitors the filters pick, last seen first: {'rows', 'total', 'n', 'pages'}."""
-    now = now or datetime.utcnow()
-    q = CrmVisitor.query.filter(CrmVisitor.last_at >= _since(f['when'], now))
+def _query(f, now):
+    """The visitors the filters pick: seen in their dates, and of their country, way in, device, chats and words."""
+    since, until = window(f, now)
+    q = CrmVisitor.query
+    if f['when'] == 'custom':
+        q = q.filter(CrmVisitor.id.in_(select(CrmVisitorPage.visitor_id)
+                                       .where(CrmVisitorPage.at >= since, CrmVisitorPage.at < until)))
+    else:
+        q = q.filter(CrmVisitor.last_at >= since)
     if f['when'] == 'now':
         q = q.filter(CrmVisitor.gone_at.is_(None))
     if f['country']:
@@ -558,11 +609,70 @@ def find(f, n=1, now=None):
                          CrmVisitor.country.ilike(like), CrmVisitor.page_url.ilike(like),
                          CrmVisitor.page_title.ilike(like), CrmVisitor.landing_url.ilike(like),
                          CrmVisitor.person_id.in_(named)))
-    total = q.count()
+    return q
+
+
+def _pager(total, n):
     pages = max(1, -(-total // PER_PAGE))
-    n = min(max(1, n), pages)
+    return min(max(1, n), pages), pages
+
+
+def find(f, n=1, now=None):
+    """The visitors the filters pick, last seen first: {'rows', 'total', 'n', 'pages'}."""
+    now = now or datetime.utcnow()
+    q = _query(f, now)
+    total = q.count()
+    n, pages = _pager(total, n)
     rows = q.order_by(CrmVisitor.last_at.desc(), CrmVisitor.id.desc()).offset((n - 1) * PER_PAGE).limit(PER_PAGE).all()
     return {'rows': _rows(rows, now), 'total': total, 'n': n, 'pages': pages}
+
+
+def by_address(f, n=1, now=None):
+    """The filters' visitors put together by internet address -- one office or one home can be several browsers:
+    {'rows': [{'ip', 'code', 'place', 'browsers', 'visits', 'pages', 'first', 'last', 'here', 'chatted'}], ...}."""
+    now = now or datetime.utcnow()
+    ids = _query(f, now).with_entities(CrmVisitor.id).statement
+    grouped = (db.session.query(CrmVisitor.ip, func.max(CrmVisitor.country_code), func.max(CrmVisitor.country),
+                                func.max(CrmVisitor.region), func.max(CrmVisitor.city), func.count(CrmVisitor.id),
+                                func.sum(CrmVisitor.visits), func.sum(CrmVisitor.pages), func.min(CrmVisitor.first_at),
+                                func.max(CrmVisitor.last_at))
+               .filter(CrmVisitor.id.in_(ids)).group_by(CrmVisitor.ip))
+    total = grouped.count()
+    n, pages = _pager(total, n)
+    found = (grouped.order_by(func.max(CrmVisitor.last_at).desc()).offset((n - 1) * PER_PAGE).limit(PER_PAGE).all())
+    ips = [r[0] for r in found if r[0]]
+    here, chatted = set(), set()
+    if ips:
+        for v in CrmVisitor.query.filter(CrmVisitor.ip.in_(ips), CrmVisitor.last_at >= now - HERE_FOR,
+                                         CrmVisitor.gone_at.is_(None)):
+            here.add(v.ip)
+        talked = select(CrmLiveChat.visitor_id).where(CrmLiveChat.visitor_id.isnot(None))
+        for (ip,) in (db.session.query(CrmVisitor.ip).filter(CrmVisitor.ip.in_(ips))
+                      .filter(or_(CrmVisitor.person_id.isnot(None), CrmVisitor.id.in_(talked))).distinct()):
+            chatted.add(ip)
+    rows = []
+    for ip, code, country, region, city, browsers, visits, pgs, first, last in found:
+        bits = [b for b in (city, region, country) if b]
+        if city and region and city.startswith(region):
+            bits.remove(region)
+        place_ = ', '.join(dict.fromkeys(bits)) or ('Local network' if ip and not _global(ip) else 'Not known yet')
+        rows.append({'ip': ip, 'code': code or '', 'place': place_, 'browsers': browsers, 'visits': int(visits or 0),
+                     'pages': int(pgs or 0), 'first': first, 'last': last, 'here': ip in here,
+                     'chatted': ip in chatted})
+    return {'rows': rows, 'total': total, 'n': n, 'pages': pages}
+
+
+def page_log(f, n=1, now=None):
+    """Every page the filters' visitors opened in their dates, the newest first: {'rows': [(page, visitor)], ...}."""
+    now = now or datetime.utcnow()
+    since, until = window(f, now)
+    ids = _query(f, now).with_entities(CrmVisitor.id).statement
+    q = (db.session.query(CrmVisitorPage, CrmVisitor).join(CrmVisitor, CrmVisitor.id == CrmVisitorPage.visitor_id)
+         .filter(CrmVisitorPage.visitor_id.in_(ids), CrmVisitorPage.at >= since, CrmVisitorPage.at < until))
+    total = q.count()
+    n, pages = _pager(total, n)
+    rows = q.order_by(CrmVisitorPage.at.desc(), CrmVisitorPage.id.desc()).offset((n - 1) * PER_PAGE).limit(PER_PAGE).all()
+    return {'rows': [{'p': p, 'v': v, 'place': place(v)} for p, v in rows], 'total': total, 'n': n, 'pages': pages}
 
 
 def _rows(visitors, now):
@@ -578,6 +688,36 @@ def now_list(now=None, limit=200):
     rows = (CrmVisitor.query.filter(CrmVisitor.last_at >= now - HERE_FOR, CrmVisitor.gone_at.is_(None))
             .order_by(CrmVisitor.visit_at.asc(), CrmVisitor.id.asc()).limit(limit).all())
     return _rows(rows, now)
+
+
+def latest(limit, exclude=(), now=None):
+    """The visitors seen last, but for `exclude` (those listed already as on the site now)."""
+    if limit <= 0:
+        return []
+    now = now or datetime.utcnow()
+    q = CrmVisitor.query
+    if exclude:
+        q = q.filter(~CrmVisitor.id.in_(list(exclude)))
+    return _rows(q.order_by(CrmVisitor.last_at.desc(), CrmVisitor.id.desc()).limit(limit).all(), now)
+
+
+def minutes(now=None, n=30):
+    """Pages opened on our websites in each of the last `n` minutes, the oldest first (the live box's bars)."""
+    now = now or datetime.utcnow()
+    out = [0] * n
+    for (at,) in db.session.query(CrmVisitorPage.at).filter(CrmVisitorPage.at >= now - timedelta(minutes=n)):
+        i = n - 1 - int((now - at).total_seconds() // 60)
+        if 0 <= i < n:
+            out[i] += 1
+    return out
+
+
+def same_address(v, limit=10):
+    """The other browsers seen at this visitor's internet address, last seen first."""
+    if not v.ip:
+        return []
+    return (CrmVisitor.query.filter(CrmVisitor.ip == v.ip, CrmVisitor.id != v.id)
+            .order_by(CrmVisitor.last_at.desc()).limit(limit).all())
 
 
 def _top(column, since, n=6):
@@ -607,7 +747,14 @@ def summary(now=None):
               .order_by(func.count(CrmVisitorPage.id).desc()).limit(6))]
     unplaced = (CrmVisitor.query.filter(CrmVisitor.last_at >= now - timedelta(days=1), CrmVisitor.ip.is_(None))
                 .count())
+    opened, secs = (db.session.query(func.count(CrmVisitorPage.id), func.avg(CrmVisitorPage.secs))
+                    .filter(CrmVisitorPage.at >= week).one())
+    addresses = (db.session.query(func.count(func.distinct(CrmVisitor.ip)))
+                 .filter(CrmVisitor.last_at >= week, CrmVisitor.ip.isnot(None)).scalar() or 0)
+    back = CrmVisitor.query.filter(CrmVisitor.last_at >= week, CrmVisitor.visits > 1).count()
     return {'now': len(now_list(now)), 'day': count(now - timedelta(days=1)), 'week': count(week), 'chats': chats,
+            'month': count(now - timedelta(days=30)), 'pages_week': opened or 0, 'secs_week': int(secs or 0),
+            'addresses_week': addresses, 'back_week': back,
             'countries': countries, 'sources': sources, 'pages': pages,
             'devices': [(k, DEVICE_WORD[k], DEVICE_ICON[k], devices.get(k, 0)) for k, _w, _i in DEVICES],
             'no_address_day': unplaced}

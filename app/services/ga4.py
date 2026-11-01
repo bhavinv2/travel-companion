@@ -4,6 +4,7 @@ for again through the Analytics Data API so the Promotion dashboard can show the
     connected()                       is a property id and a service-account key set (here or on the server)
     report(start, end, metrics, dims, limit, order, filters)   {'rows': [(dims..., metrics...)], 'totals': [...]}
     realtime(metrics, dims, limit)    the last 30 minutes, the same shape
+    cohorts(starts, weeks)            who came back, week by week (the Retention report)
     status()                          what the connection page shows: property, the key's e-mail, where it is set
     save(property_id, key_json, by)   the connection page's Save; the key is sealed (services/secretbox)
     test()                            a small real report, for the page's "Test the connection"
@@ -24,7 +25,7 @@ import json
 import os
 import threading
 import time
-from datetime import date
+from datetime import date, timedelta
 
 import requests
 
@@ -282,7 +283,7 @@ def _cached(key, ttl, make):
             return hit[1]
     value = make()
     with _lock:
-        if len(_cache) > 500:
+        if len(_cache) > 3000:
             _cache.clear()
         _cache[key] = (now + ttl, value)
     return value
@@ -318,6 +319,33 @@ def realtime(metrics=('activeUsers',), dims=(), limit=50, filters=None):
         body['dimensionFilter'] = flt
     ck = ('rt', pid, json.dumps(body, sort_keys=True))
     return _cached(ck, REALTIME_TTL, lambda: _rows(_post(pid, 'runRealtimeReport', body, key), len(dims)))
+
+
+def cohorts(starts, weeks):
+    """GA4's cohort report (its Retention report): of the people whose first visit was in the week from each date of
+    `starts`, how many were active each week after. {start: (people, {n: active in week n})}, week 0 their first."""
+    pid, key, _ = _config()
+    if not pid:
+        raise GAError('Google Analytics is not connected yet.')
+    body = {'dimensions': [{'name': 'cohort'}, {'name': 'cohortNthWeek'}],
+            'metrics': [{'name': 'cohortActiveUsers'}, {'name': 'cohortTotalUsers'}],
+            'cohortSpec': {'cohorts': [{'name': _iso(s), 'dimension': 'firstSessionDate',
+                                        'dateRange': {'startDate': _iso(s), 'endDate': _iso(s + timedelta(days=6))}}
+                                       for s in starts],
+                           'cohortsRange': {'granularity': 'WEEKLY', 'startOffset': 0, 'endOffset': int(weeks) - 1}},
+            'limit': 1000}
+    ck = ('c', pid, json.dumps(body, sort_keys=True))
+    found = _cached(ck, REPORT_TTL, lambda: _rows(_post(pid, 'runReport', body, key), 2))['rows']
+    out = {s: (0, {}) for s in starts}
+    by_name = {_iso(s): s for s in starts}
+    for name, nth, active, total in found:
+        s = by_name.get(name)
+        if s is None:
+            continue
+        size, weeks_of = out[s]
+        weeks_of[int(nth or 0)] = int(active)
+        out[s] = (max(size, int(total)), weeks_of)
+    return out
 
 
 def _iso(d):

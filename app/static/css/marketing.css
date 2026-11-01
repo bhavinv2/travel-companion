@@ -356,3 +356,54 @@
   .mk-box.focus { grid-column: 1 / -1; }
   .mk-box.focus .mk-box-b { grid-template-columns: 1fr; }
 }
+
+/* ===== the three lists (2026-11-01): visitors one by one, our sitemaps and our pages in Google's index ===== */
+.mk-table .mk-rc { white-space: nowrap; }
+.mk-table td.mk-rc .mk-chg { font-size: 12.5px; }
+.mk-table .muted, .mk-list .muted { color: var(--mk-muted); font-weight: 400; }
+.mk-list th:first-child { max-width: 340px; }
+.mk-list th small { display: block; font-size: 11.5px; }
+.mk-list td, .mk-list thead th { text-align: left; }
+.mk-list a { color: var(--mk-primary); text-decoration: none; }
+.mk-list a:hover { text-decoration: underline; }
+/* who came back: the more of a week's people came again, the deeper the box's own colour */
+.mk-ret td, .mk-ret thead th { text-align: center; }
+.mk-ret thead th + th { white-space: nowrap; }
+.mk-ret thead th:first-child, .mk-ret th[scope=row] { text-align: left; white-space: nowrap; }
+.mk-ret td { font-variant-numeric: tabular-nums; border-radius: 6px;
+  background: color-mix(in srgb, var(--c1) var(--heat, 0%), transparent); }
+.mk-ret td.hot { color: #fff; font-weight: 700; }
+.mk-ret td:nth-child(2) { background: none; color: var(--mk-muted); }
+.mk-ret td.mk-ret-none { background: none; }
+.mk-ret tr.mk-ret-all th, .mk-ret tr.mk-ret-all td { font-weight: 800; border-bottom: 2px solid var(--mk-line); }
+.mk-ret { border-collapse: separate; border-spacing: 2px; }
+.mk-ix-sum, .mk-ppl-sum { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 8px;
+  font-size: 13.5px; color: var(--mk-muted); }
+.mk-ppl-sum b { color: var(--mk-ink); font-size: 15px; }
+.mk-ppl-sum a { color: var(--mk-primary); font-weight: 600; text-decoration: none; }
+.mk-ppl { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; min-height: 0; }
+.mk-ppl li { border-bottom: 1px solid var(--mk-line); }
+.mk-ppl li > a, .mk-ppl li > span { display: flex; gap: 10px; align-items: flex-start; padding: 8px 4px; color: inherit;
+  text-decoration: none; border-radius: 8px; }
+.mk-ppl li > a:hover { background: var(--mk-soft); }
+.mk-ppl li.here .mk-ppl-flag { box-shadow: 0 0 0 2px #22c55e; }
+.mk-ppl-flag { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--mk-soft); color: var(--mk-ink); font: 700 11px/1 var(--font-body, sans-serif); letter-spacing: .02em; }
+.mk-ppl-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; font-size: 13.5px; }
+.mk-ppl-main b { font-weight: 600; }
+.mk-ppl-main code { font-size: 12px; color: var(--mk-muted); background: var(--mk-soft); padding: 0 5px; border-radius: 5px;
+  align-self: flex-start; }
+.mk-ppl-main small, .mk-ppl-when small { color: var(--mk-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.mk-ppl-pg { color: var(--mk-ink) !important; }
+.mk-ppl-when { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; text-align: right; }
+.mk-ppl-now { color: #16a34a; font-size: 13px; }
+.mk-ppl-chat { color: var(--mk-primary) !important; }
+.mk-box.k-people .mk-box-b, .mk-box.k-indexing .mk-box-b, .mk-box.k-sitemaps .mk-box-b,
+.mk-box.k-retention .mk-box-b { display: flex; flex-direction: column; min-height: 0; }
+.mk-box.k-indexing .mk-tablewrap, .mk-box.k-sitemaps .mk-tablewrap,
+.mk-box.k-retention .mk-tablewrap { flex: 1; min-height: 0; overflow: auto; }
+@media (max-width: 600px) {
+  .mk-ppl-when small:last-child { display: none; }
+  .mk-list th:first-child { max-width: 180px; }
+}

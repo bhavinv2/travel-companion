@@ -60,16 +60,17 @@ def _deny_design():
 # ================================================================================================ the dashboard
 
 def _which(tabs, key, draft):
-    """The tab asked for (`d`), and the boxes to show: a designer may look at a draft (`draft=1`)."""
-    dash = None
-    if key and key != 'overview':
-        dash = md.find(key)
-        if dash is not None and (draft or dash.published is None) and md.can_design(current_user):
-            return dash, md.boxes_for(dash, draft=True), True
-        if dash is None or not any(t['key'] == str(dash.id) and not t['draft'] for t in tabs):
-            return None, md.overview(), False
-        return dash, md.boxes_for(dash), False
-    return None, md.overview(), False
+    """The tab asked for (`d`): (the dashboard or None, its boxes, a draft?, its key). A built-in board's key is its
+    name ('google'); a designer may look at a draft (`draft=1`)."""
+    if key in md.BOARDS or not key:
+        key = key or 'overview'
+        return None, md.board(key), False, key
+    dash = md.find(key)
+    if dash is not None and (draft or dash.published is None) and md.can_design(current_user):
+        return dash, md.boxes_for(dash, draft=True), True, str(dash.id)
+    if dash is None or not any(t['key'] == str(dash.id) and not t['draft'] for t in tabs):
+        return None, md.board('overview'), False, 'overview'
+    return dash, md.boxes_for(dash), False, str(dash.id)
 
 
 def page():
@@ -78,11 +79,14 @@ def page():
     if denied:
         return denied
     tabs = md.tabs(current_user)
-    dash, boxes, is_draft = _which(tabs, request.args.get('d'), request.args.get('draft') == '1')
+    dash, boxes, is_draft, here = _which(tabs, request.args.get('d'), request.args.get('draft') == '1')
     period = _period(request.args, default=(dash.range_key if dash is not None else 'last_30'))
     items = md.render(boxes, period, current_user)
     from app.services import promo
-    return render_template('pages/promo_dashboard.html', tabs=tabs, here=str(dash.id) if dash else 'overview',
+    from app.services import visitors
+    return render_template('pages/promo_dashboard.html', tabs=tabs, here=here, board=md.BOARDS.get(here),
+                           visitors_page=(url_for('messaging.visitors_page') if access.can(current_user, 'web_visitors')
+                                          else None), keep_days=visitors.KEEP_DAYS,
                            reach=promo.reach(),
                            dash=dash, items=items, period=period, ranges=eng.PAGE_RANGES, is_draft=is_draft,
                            designer=md.can_design(current_user), ga=ga4.status(),
@@ -97,7 +101,7 @@ def box():
     if denied:
         return denied
     tabs = md.tabs(current_user)
-    _, boxes, _ = _which(tabs, request.args.get('d'), request.args.get('draft') == '1')
+    _, boxes, _, _ = _which(tabs, request.args.get('d'), request.args.get('draft') == '1')
     found = next((b for b in boxes if b['id'] == request.args.get('b')), None)
     if found is None:
         return _json_error('That box is not on this dashboard any more. Reload the page.', 404)
@@ -140,7 +144,8 @@ def designer():
         return denied
     from app.models import MktDashboard
     rows = MktDashboard.query.order_by(MktDashboard.position, MktDashboard.id).all()
-    return render_template('marketing/designer_list.html', rows=rows, ga=ga4.status(), audiences=md.AUDIENCES)
+    return render_template('marketing/designer_list.html', rows=rows, ga=ga4.status(), audiences=md.AUDIENCES,
+                           boards=md.BOARDS)
 
 
 @marketing_bp.route('/designer/new', methods=['POST'])

@@ -351,6 +351,19 @@
       h += sec('reviews', 'Reviews', field('How many reviews', '<input type="number" data-k="top" min="1" max="20" value="' + (b.top || 6) + '"/>', 'The newest published reviews with words in them.'), true);
     } else if (b.chart === 'links') {
       h += sec('links', 'Pages', '<p class="dz-none">The public address of each service, to put in a post or under a video.</p>', true);
+    } else if (b.chart === 'people') {
+      h += sec('people', 'Visitors', field('How many visitors', '<input type="number" data-k="top" min="1" max="50" value="' + (b.top || 12) + '"/>',
+        'Those on the site now first, then the latest. Staff only; a role that masks contact details sees the internet address in part.'), true);
+    } else if (b.chart === 'indexing') {
+      h += sec('indexing', 'Pages', field('How many pages to check', '<input type="number" data-k="top" min="1" max="30" value="' + (b.top || 12) + '"/>',
+        'The pages Google showed most in the last 28 days, checked one by one with Search Console (kept for 12 hours).'), true);
+    } else if (b.chart === 'retention') {
+      h += sec('retention', 'Who came back', field('Whose visitors', '<select data-k="of">' + opt('website', 'The website, from Google Analytics', b.of !== 'visitors') +
+        opt('visitors', 'Our own visitors (our chat bubble)', b.of === 'visitors') + '</select>') +
+        field('How many weeks', '<input type="number" data-k="top" min="2" max="12" value="' + (b.top || 6) + '"/>',
+          'A row for each week people first came, and a column for each week after: how many of them came again.'), true);
+    } else if (b.chart === 'sitemaps') {
+      h += sec('sitemaps', 'Sitemaps', '<p class="dz-none">Every sitemap Search Console has of the site: when it was sent, when Google last read it and any problems.</p>', true);
     } else {
       var src = srcOf(b);
       var count = b.metrics.map(function (m, i) { return metricHtml(b, m, i); }).join('');
@@ -435,7 +448,12 @@
 
   function setChart(b, chart) {
     var src = srcOf(b);
-    if (noData(chart)) { b.chart = chart; if (chart === 'text' && !b.body) b.body = b.title || 'A heading'; return; }
+    if (noData(chart)) {
+      b.chart = chart;
+      if (chart === 'text' && !b.body) b.body = b.title || 'A heading';
+      if (chart === 'retention' && !(b.top >= 2 && b.top <= 12)) b.top = 6;
+      return;
+    }
     if (!b.metrics || !b.metrics.length) b.metrics = [defaultMetric('trips')];
     src = srcOf(b);
     if (chart === 'live' && !src.live) { b.metrics = [defaultMetric('website_now')]; b.group = 'device'; b.split = ''; src = srcOf(b); }
@@ -517,13 +535,16 @@
       b.split = t.value;
       if (b.split && (b.chart === 'pie' || b.chart === 'donut')) b.chart = 'stacked';
       changed(b, true);
+    } else if (k === 'of') {
+      b.of = t.value; changed(b, true);
     } else if (k === 'range' || k === 'colour') {
       b[k] = t.value;
       changed(b, k === 'colour');
     } else if (k === 'compare') {
       b.compare = t.checked; changed(b, false);
     } else if (k === 'top') {
-      b.top = clamp(t.value, b.chart === 'quotes' ? 1 : 0, b.chart === 'quotes' ? 20 : 50); changed(b, false);
+      var lim = { quotes: [1, 20], people: [1, 50], indexing: [1, 30], sitemaps: [1, 50], retention: [2, 12] }[b.chart] || [0, 50];
+      b.top = clamp(t.value, lim[0], lim[1]); changed(b, false);
     } else if (k === 'x' || k === 'y' || k === 'w' || k === 'h') {
       if (k === 'x') b.x = clamp(t.value - 1, 0, 11);
       if (k === 'y') b.y = clamp(t.value - 1, 0, 400);
