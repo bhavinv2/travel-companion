@@ -670,6 +670,8 @@
   {% endblock %}
   {# the chat bubble, for visitors and travellers (never on a staff page: staff answer the chats) #}
   {% if not is_staff %}{% include '_site_chat.html' %}{% endif %}
+  {# the "Get our apps" tab on the left (not on the traveller's own chat screen, which needs the whole width) #}
+  {% if not is_staff and not hide_chat_bubble %}{% include '_get_app.html' %}{% endif %}
   <script src="{{ url_for('static', filename='js/insurance.js') }}"></script>
   <script src="{{ url_for('static', filename='js/contact-modal.js') }}"></script>
   {# Hard delete, for admins only: the type-DELETE dialog once per page and the one script every

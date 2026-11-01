@@ -142,6 +142,7 @@ def _render(page):
         'companionUrl': urls.public_url('main.index'),
         'blogUrl': urls.public_url('blog.blog_list'),
         # the services the group runs on its other site: each one's own page
+        'groupUrl': nri_services.GROUP_URL,
         'doctorUrl': nri_services.CALL_ON_DOC_URL,
         'giftUrl': nri_services.page_of('Gift Health'),
         'fitUrl': nri_services.page_of('Fit2Fly'),

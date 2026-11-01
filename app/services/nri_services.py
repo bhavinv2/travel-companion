@@ -15,6 +15,9 @@ SERVICES = [
     ]
 
 
+# The group itself: what "Powered by Preventia360" links to (the home page's hero, the "Get our apps" box).
+GROUP_URL = 'https://preventia360.com/'
+
 # Virtual doctor consultations are the group's Call-ON-Doc. The menu above does not list it (the
 # live site's does not either), but a page that tells somebody about the service links here.
 CALL_ON_DOC_URL = 'https://preventia360.com/call-on-doc/'

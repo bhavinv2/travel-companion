@@ -870,6 +870,17 @@ def api_insurance_quote():
     return jsonify({'success': False, 'error': text}), 400
 
 
+@main_bp.route('/get-app/<key>')
+def get_app(key):
+    """Where a "Get our apps" QR code goes: the store of the phone that scanned it (services/store_apps.py)."""
+    from flask import abort
+    from app.services import store_apps
+    url = store_apps.store_url(key, request.user_agent.string)
+    if not url:
+        abort(404)
+    return redirect(url)
+
+
 @main_bp.route('/help')
 def help_page():
     """Topic index. Each category links to its own page rather than filtering in place.

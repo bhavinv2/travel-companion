@@ -1,0 +1,6 @@
+{# "Get our apps": a tab on the left edge of every public page -- base.html for anybody who is not staff, and the
+   standalone landing.html -- that opens a box with the group's two phone apps (services/store_apps.py). The box also
+   opens by itself 10 seconds into a visit, once a visit, and not for three days after somebody closes it.
+   static/js/get-app.js draws both, in a shadow root so no page's styles reach them. #}
+<script type="application/json" id="getAppData">{{ GET_APPS()|tojson }}</script>
+<script src="{{ url_for('static', filename='js/get-app.js') }}" defer></script>

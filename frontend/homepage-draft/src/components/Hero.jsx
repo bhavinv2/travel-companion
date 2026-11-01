@@ -89,7 +89,9 @@ export default function Hero() {
             <span className="h4-marks" aria-hidden="true">
               {SERVICES.map((sv) => <i key={sv.key} style={{ '--c': sv.color }}><Icon name={sv.icon} /></i>)}
             </span>
-            <span><b>Six services, one team</b><small>Updates on WhatsApp at every step</small></span>
+            <span><b>Six services, one caring team</b>
+              <small>Powered by <a href={site.groupUrl} target="_blank" rel="noopener">Preventia360</a>, with doctors
+                and care partners across India</small></span>
           </div>
         </div>
 

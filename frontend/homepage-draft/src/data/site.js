@@ -16,7 +16,8 @@ export const site = {
   companionUrl: injected.companionUrl || '/',
   blogUrl: injected.blogUrl || '/blog',
   helpUrl: injected.helpUrl || '/help',
-  // the services' own pages on the group's other site
+  // the group (the hero's "Powered by Preventia360") and the services' own pages on its site
+  groupUrl: injected.groupUrl || 'https://preventia360.com/',
   doctorUrl: injected.doctorUrl || 'https://preventia360.com/call-on-doc/',
   giftUrl: injected.giftUrl || 'https://preventia360.com/gift-health/',
   fitUrl: injected.fitUrl || 'https://preventia360.com/fit2fly/',
