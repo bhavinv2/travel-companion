@@ -7,6 +7,12 @@
    looked at every inbox". Then the inboxes that tick themselves, the day as a strip per inbox (earlier half hours
    today can still be ticked), and the last seven days. #}
 {% macro hm(dt) -%}{{ LOCAL(dt).strftime('%H:%M') if dt else '' }}{%- endmacro %}
+{# an inbox's new leads of the day, as a link to them on Leads (its lead source; the day) #}
+{% macro leads_link(name, n, cls, short=false) -%}
+{%- set words = (n ~ ' lead' ~ ('' if n == 1 else 's')) if short else (n ~ ' new lead' ~ ('' if n == 1 else 's')) -%}
+{%- if inbox_src.get(name) -%}<a class="{{ cls }}" href="{{ leads_url(src=inbox_src[name]) }}" title="Open the leads that came in {{ 'today' if day == today else 'that day' }} from {{ name }}">{{ words }} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
+{%- else %}<span class="{{ cls }}">{{ words }}</span>{%- endif -%}
+{%- endmacro %}
 {% block crm %}
 {{ page_head('Half-hourly check', 'fa-solid fa-clipboard-check',
              ('Every half hour, day and night' if all_day else 'From 7:00 to midnight') ~ ', look at each inbox and tick it. Connected inboxes tick themselves.',
@@ -49,13 +55,16 @@
   <div class="hc-tiles">
     {% for ch in channels %}
     {% set t = ticks.get((now_slot, ch)) %}
-    <button type="button" class="hc-tile{{ ' on' if t }}" data-tick data-tile data-slot="{{ now_slot }}" data-channel="{{ ch }}" aria-pressed="{{ 'true' if t else 'false' }}"
+    {% set nl = leads_by.get(ch) %}
+    <div class="hc-tile-w">
+    <button type="button" class="hc-tile{{ ' on' if t }}{{ ' has-leads' if nl }}" data-tick data-tile data-slot="{{ now_slot }}" data-channel="{{ ch }}" aria-pressed="{{ 'true' if t else 'false' }}"
             title="{{ 'Ticked — tap to undo' if t else 'Tap when you have looked at ' ~ ch }}">
       <span class="hc-ic"><i class="{{ icons.get(ch, 'fa-solid fa-inbox') }}" aria-hidden="true"></i></span>
       <span class="hc-name">{{ ch }}</span>
       <span class="hc-state">{% if t %}<i class="fa-solid fa-check"></i> {{ t.user.first_name or t.user.username if t.user else 'Ticked' }}{% if t.checked_at %} · {{ hm(t.checked_at) }}{% endif %}{% else %}Tap when looked at{% endif %}</span>
-      {% if leads_by.get(ch) %}<span class="hc-leads" title="Leads that came in today from {{ ch }}">{{ leads_by[ch] }} new lead{{ '' if leads_by[ch] == 1 else 's' }}</span>{% endif %}
     </button>
+    {% if nl %}{{ leads_link(ch, nl, 'hc-leads') }}{% endif %}
+    </div>
     {% endfor %}
   </div>
 </section>
@@ -73,7 +82,7 @@
     {% for item in auto %}
     <div class="hc-auto-item{{ ' waiting' if item.n }}">
       <span class="hc-ic"><i class="{{ item.icon }}" aria-hidden="true"></i></span>
-      <div><b>{{ item.row.name }}</b>
+      <div><b>{{ item.row.name }}</b>{% if leads_by.get(item.row.name) %} {{ leads_link(item.row.name, leads_by[item.row.name], 'hc-leads-s') }}{% endif %}
         {% if item.n %}<span class="hc-wait">{{ item.n }} waiting for a reply:
           {% for w in item.waiting[:5] %}<a href="{{ w.url }}">{{ w.short }}</a>{{ ', ' if not loop.last }}{% endfor %}{% if item.n > 5 %} +{{ item.n - 5 }}{% endif %}</span>
         {% else %}<span class="hc-ok"><i class="fa-solid fa-circle-check"></i> nobody waiting</span>{% endif %}
@@ -92,7 +101,45 @@
     <small>{% if gap and gap[2] > 1 %}longest gap {{ gap[0] }}–{{ gap[1] }}{% elif report.gap_count %}none longer than one{% else %}none so far{% endif %}</small></div>
   <div class="hc-stat{{ ' warn' if report.late }}"><span>Ticked late</span><b>{{ report.late }}</b><small>after the half hour was over</small></div>
   <div class="hc-stat"><span>People checking</span><b>{{ report.checking }}</b><small>ticked at least once</small></div>
-  <div class="hc-stat"><span>New leads</span><b>{{ leads_by.values()|sum if leads_by else 0 }}</b><small>from the checked inboxes</small></div>
+  <a class="hc-stat link" href="{{ leads_url() }}"><span>New leads</span><b>{{ new.total }}</b><small>{{ 'see them' if new.total else 'none yet' if day == today else 'none' }} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></small></a>
+</section>
+
+{# ---------------------------------------------------------------- the day's new leads, by product and where from #}
+<section class="card hc-new" id="new-leads">
+  <div class="card-head">
+    <div class="t"><span class="ico"><i class="fa-solid fa-user-plus"></i></span>
+      <div><h2>New leads {{ 'today' if day == today else 'on ' ~ day.strftime('%d %B') }}</h2>
+        <p class="muted small">{% if new.total %}Tap a number to open those leads.{% else %}Leads that come in show here, by product and by where they came from.{% endif %}</p></div></div>
+    {% if new.total %}<a class="cb sm primary" href="{{ leads_url() }}">See all {{ new.total }} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>{% endif %}
+  </div>
+  {% if new.total %}
+  <div class="hc-new-cols">
+    <div class="hc-new-col">
+      <h3>By product</h3>
+      <ul class="hc-nl">
+        {% for code, n in new.products %}
+        <li><a href="{{ leads_url(prd=code) }}"><span class="hc-nl-n"><i class="fa-solid {{ CRM_PRODUCT_ICON(code) }}" aria-hidden="true"></i> {{ PRODUCTS.get(code, code) }}</span>
+          <i class="hc-nl-bar" style="--p:{{ (100 * n / new.total)|round|int }}%" aria-hidden="true"></i><b>{{ n }}</b></a></li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="hc-new-col">
+      <h3>By where they came from</h3>
+      <ul class="hc-nl">
+        {% for g in new.groups %}
+        <li class="grp">{% if g.link %}<a href="{{ leads_url(src='g:' ~ g.key) }}">{% else %}<span class="hc-nl-row">{% endif %}
+          <span class="hc-nl-n"><i class="fa-solid {{ g.icon }}" aria-hidden="true"></i> {{ g.name }}</span>
+          <i class="hc-nl-bar" style="--p:{{ (100 * g.n / new.total)|round|int }}%" aria-hidden="true"></i><b>{{ g.n }}</b>{% if g.link %}</a>{% else %}</span>{% endif %}
+          <span class="hc-nl-src">{% for x in g.sources %}<a href="{{ leads_url(src=x.src.id) }}">{{ x.label or SOURCE_NAME(x.src.name) }} <b>{{ x.n }}</b></a>{% endfor %}</span></li>
+        {% endfor %}
+        {% if new.none %}
+        <li class="grp"><a href="{{ leads_url(src='none') }}"><span class="hc-nl-n"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Not known</span>
+          <i class="hc-nl-bar" style="--p:{{ (100 * new.none / new.total)|round|int }}%" aria-hidden="true"></i><b>{{ new.none }}</b></a></li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+  {% endif %}
 </section>
 
 {% if editable and report.gaps %}
@@ -130,7 +177,7 @@
       {% set ib = report.inboxes[loop.index0] %}
       {% set lt = last.get(ch) %}
       <tr><th class="hc-who" scope="row"><span class="hc-who-n"><i class="{{ icons.get(ch, 'fa-solid fa-inbox') }}" aria-hidden="true"></i> {{ ch }}</span>
-        <small class="hc-who-s">{% if ib.due %}<i class="hc-bar" style="--p:{{ (100 * ib.done / ib.due)|round|int }}%"></i> {{ (100 * ib.done / ib.due)|round|int }}%{% endif %}{% if lt %} · last {{ hm(lt.checked_at) }}{% if lt.user %} {{ lt.user.first_name or lt.user.username }}{% endif %}{% endif %}{% if leads_by.get(ch) %} · {{ leads_by[ch] }} lead{{ '' if leads_by[ch] == 1 else 's' }}{% endif %}</small></th>
+        <small class="hc-who-s">{% if ib.due %}<i class="hc-bar" style="--p:{{ (100 * ib.done / ib.due)|round|int }}%"></i> {{ (100 * ib.done / ib.due)|round|int }}%{% endif %}{% if lt %} · last {{ hm(lt.checked_at) }}{% if lt.user %} {{ lt.user.first_name or lt.user.username }}{% endif %}{% endif %}{% if leads_by.get(ch) %} · {{ leads_link(ch, leads_by[ch], 'hc-leads-s', short=true) }}{% endif %}</small></th>
         {% for s in slots %}
         {% set t = ticks.get((s, ch)) %}
         {% set open = editable and can_tick(day, s) %}

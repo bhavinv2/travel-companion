@@ -194,7 +194,9 @@ def _sales(r):
     names = crm_products.labels()
     rows = (db.session.query(L.product, func.count(L.id)).filter(L.created_at >= r.since)
             .group_by(L.product).order_by(func.count(L.id).desc()).all())
-    products = _bars([(names.get(code, code or 'Not known'), n, None) for code, n in rows])
+    products = _bars([(names.get(code, code or 'Not known'), n,
+                       r.url('crm_board', prd=code, **dict(board, **came)) if code in names else None)
+                      for code, n in rows])
 
     # how they came: by themselves, added by us, brought in from a list
     rows = (db.session.query(L.imported, L.created_by_id, func.count(L.id)).filter(L.created_at >= r.since)

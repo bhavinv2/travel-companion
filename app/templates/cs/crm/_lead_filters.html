@@ -5,7 +5,7 @@
    "More filters" button counts them. The server checks every word again. #}
 {% set date_on = more.dt or 'created' %}
 {% set date_set = 'ahead' if date_on in ('close', 'travel') else 'past' %}
-{% set more_on = pills.keys()|select('in', ('follow', 'chat', 'lk', 'src', 'how', 'money'))|list|length %}
+{% set more_on = pills.keys()|select('in', ('follow', 'chat', 'lk', 'src', 'how', 'prd', 'money'))|list|length %}
 
 {% macro pill(key, label, icon, wide=false) -%}
 {%- set on = pills.get(key) -%}
@@ -128,6 +128,15 @@
       {% for k, word, says, icon in ORIGINS() %}
       <label class="fp-o" title="{{ says }}"><input type="radio" name="how" value="{{ k }}"{{ ' checked' if more.how == k }}/><span><i class="fa-solid {{ icon }}" aria-hidden="true"></i> {{ word }}</span></label>
       {% endfor %}
+    {% endcall %}
+
+    {% call pill('prd', 'Product', 'fa-tag') %}
+      {{ opt('prd', '', 'Any product', not more.prd) }}
+      <div class="fp-scroll">
+      {% for code, label in PRODUCTS.items() %}
+      <label class="fp-o"><input type="radio" name="prd" value="{{ code }}"{{ ' checked' if more.prd == code }}/><span><i class="fa-solid {{ CRM_PRODUCT_ICON(code) }}" aria-hidden="true"></i> {{ label }}</span></label>
+      {% endfor %}
+      </div>
     {% endcall %}
 
     {% call pill('money', 'Money', 'fa-indian-rupee-sign') %}

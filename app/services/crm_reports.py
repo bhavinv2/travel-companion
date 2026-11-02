@@ -348,6 +348,48 @@ def leads_by_inbox(day, rows):
     return {name: counts.get(ids.get(key), 0) for name, key in keys.items()}
 
 
+def inbox_sources(rows):
+    """{inbox name: the id of the lead source it watches}, for the links from the check to that source's leads."""
+    from app.models import CrmSource
+    from app.services import crm_sources
+    keys = {r['name']: crm_sources.canonical(r['source_key']) for r in rows if r.get('source_key')}
+    if not keys:
+        return {}
+    ids = {s.key: s.id for s in CrmSource.query.filter(CrmSource.key.in_(set(keys.values()))).all()}
+    return {name: ids[key] for name, key in keys.items() if key in ids}
+
+
+def new_leads(day):
+    """The leads that came in on `day` (India time), counted with Leads' own query (crm.lead_filter), so each number
+    is what its link's list shows: {'total', 'products': [(code, n)], 'groups': [{'key', 'name', 'icon', 'n', 'link',
+    'sources': [{'src', 'label', 'n'}]}], 'none'}. A group's `link` is False for sources not on the list (Leads has
+    no filter for those as a group); `label` is None for them too, and the screen names them itself."""
+    from app.models import CrmSource
+    from app.services import crm, crm_sources
+    q = crm.lead_filter(closed_days=None, date_on='created', date_from=day, date_until=day + timedelta(days=1))
+    total = q.count()
+    out = {'total': total, 'products': [], 'groups': [], 'none': 0}
+    if not total:
+        return out
+    n = func.count(CrmLead.id)
+    out['products'] = q.with_entities(CrmLead.product, n).group_by(CrmLead.product).order_by(n.desc()).all()
+    by_src = dict(q.with_entities(CrmLead.source_id, n).group_by(CrmLead.source_id).all())
+    out['none'] = by_src.pop(None, 0)
+    sources = CrmSource.query.filter(CrmSource.id.in_(list(by_src))).all() if by_src else []
+    for g, name, icon, rows in crm_sources.grouped(sources):
+        items = []
+        for s in rows:
+            found = crm_sources.item(s.key)
+            # inside its group an item reads short ("Search quote"), unless that is shared by several sites
+            label = (found[1].name if found[1].sub else found[1].short) if found else None
+            items.append({'src': s, 'label': label, 'n': by_src[s.id]})
+        out['groups'].append({'key': g, 'name': name, 'icon': icon, 'n': sum(x['n'] for x in items),
+                              'link': g in crm_sources.GROUP_NAMES,
+                              'sources': sorted(items, key=lambda x: -x['n'])})
+    out['groups'].sort(key=lambda x: -x['n'])
+    return out
+
+
 def last_ticks(ticks, channels):
     """{inbox: its latest tick of the day} from grid(day)."""
     out = {}

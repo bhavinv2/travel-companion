@@ -483,7 +483,8 @@ def board():
     owner_default = 'all' if access.can(current_user, 'crm_insights') else 'mine'
     defaults = (not only_ids and owner == owner_default and not chat
                 and win == '30' and not q and not stage_id and not money_filter and not extra.get('status')
-                and not follow and not quoted and not (more['dr'] or more['src'] or more['lk'] or more['how']))
+                and not follow and not quoted and not (more['dr'] or more['src'] or more['lk'] or more['how']
+                                                       or more['prd']))
     # every filter that is on, as (its pill on the filter bar, what it says, the link that takes it off)
     chips = []
     if q:
@@ -513,6 +514,9 @@ def board():
     if more['how']:
         from app.services import crm_sources
         chips.append(('how', 'How it came: ' + crm_sources.ORIGIN[more['how']][0], link(how=None, page=None)))
+    if more['prd']:
+        chips.append(('prd', 'Product: ' + crm_products.labels().get(more['prd'], more['prd']),
+                      link(prd=None, page=None)))
     if closes:
         chips.append(('closes', 'Closes in ' + (crm_money.month_label(closes) if crm_money.PERIOD_RE.match(closes) else closes.upper()),
                       link(closes=None, page=None)))
@@ -536,7 +540,7 @@ def board():
     pills = {}
     for key, text, href in chips:
         pill = pills.setdefault(key, {'text': [], 'off': href})
-        pill['text'].append(text.split(': ', 1)[1] if key in ('owner', 'stage', 'src', 'how') else text)
+        pill['text'].append(text.split(': ', 1)[1] if key in ('owner', 'stage', 'src', 'how', 'prd') else text)
     if 'follow' in pills:
         pills['follow']['off'] = link(follow=None, quoted=None, page=None)
     if 'money' in pills:
@@ -2427,7 +2431,17 @@ def checks():
     # the day in numbers and by person (as Team analysis counts it), each inbox's leads and last look, and whether
     # every lead source people write or call us on is on the check
     report = crm_reports.check_report(day, crm_reports.visible_staff(current_user, _staff()), channels)
+    came = {'dr': 'today'} if day == today else {'dr': 'custom', 'd1': day.isoformat(), 'd2': day.isoformat()}
+
+    def leads_url(**narrow):
+        """Leads › List: the leads that came in on this day, narrowed by `narrow` (src, prd). Leads remembers each
+        person's product, owner and chat filter, so the link names every one (chat='' is "any"): the list then
+        shows what the number on the check counts."""
+        return crm_url('board', view='list', p='all', owner='all', chat='', **came, **narrow)
+
     return render_template('cs/crm/checks.html', day=day, today=today, now_slot=now_slot, auto=auto,
+                           new=crm_reports.new_leads(day), leads_url=leads_url,
+                           inbox_src=crm_reports.inbox_sources(rows),
                            channels=channels, ticks=ticks, slots=crm_reports.slots(day), report=report,
                            leads_by=crm_reports.leads_by_inbox(day, rows), last=crm_reports.last_ticks(ticks, channels),
                            gap=crm_reports.longest_gap(day, channels, ticks), sources_cover=crm_sources.check_coverage(rows),

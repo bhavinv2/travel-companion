@@ -2306,7 +2306,45 @@ a.cal-card:hover { box-shadow: 0 3px 10px rgba(15, 35, 64, .14); }
   padding: 6px 10px; border: 1px solid var(--c-line); border-radius: 999px; background: var(--c-card); }
 .hc-remind input { width: 15px; height: 15px; margin: 0; accent-color: var(--c-blue); }
 .hc-remind:has(input:checked) { color: var(--c-blue-dark); border-color: var(--c-blue); background: var(--c-blue-soft); }
-.hc-leads { grid-column: 2; font-size: 11.5px; font-weight: 700; color: var(--c-blue-dark); }
+/* an inbox's new leads, as a link to them on Leads (the tile is a button, so the link sits beside it, over its foot) */
+.hc-tile-w { position: relative; display: grid; }
+.hc-tile.has-leads { padding-bottom: 34px; }
+.crm a.hc-leads { position: absolute; left: 62px; bottom: 9px; display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px;
+  border-radius: 999px; background: #fff; border: 1px solid #cfe0f7; font-size: 12px; font-weight: 700; color: var(--c-blue-dark);
+  text-decoration: none; white-space: nowrap; }
+span.hc-leads { position: absolute; left: 62px; bottom: 11px; font-size: 12px; font-weight: 700; color: var(--c-blue-dark); }
+.crm a.hc-leads:hover, .crm a.hc-leads:focus-visible { background: var(--c-blue); border-color: var(--c-blue); color: #fff; }
+.hc-leads i, .hc-leads-s i { font-size: 10px; }
+.crm a.hc-leads-s { font-weight: 700; color: var(--c-blue-dark); text-decoration: none; white-space: nowrap; }
+.crm a.hc-leads-s:hover { text-decoration: underline; }
+.hc-auto-item .hc-leads-s { font-size: 12.5px; margin-left: 4px; }
+.crm a.hc-stat { color: var(--c-ink); text-decoration: none; transition: border-color .12s, box-shadow .12s; }
+.crm a.hc-stat:hover { border-color: var(--c-blue); box-shadow: 0 0 0 3px var(--c-blue-soft); }
+.crm a.hc-stat small { color: var(--c-blue-dark); font-weight: 600; }
+/* the day's new leads by product and by where they came from: every row and chip opens those leads */
+.hc-new-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); gap: 12px 28px; }
+.hc-new-col h3 { margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--c-muted); }
+.hc-nl { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.hc-nl li > a, .hc-nl-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(40px, 110px) 34px; gap: 12px; align-items: center;
+  padding: 8px 10px; border-radius: 10px; text-decoration: none; }
+.crm .hc-nl li > a { color: var(--c-ink); }
+.crm .hc-nl li > a:hover, .crm .hc-nl li > a:focus-visible { background: var(--c-blue-soft); }
+.hc-nl-n { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hc-nl-n i { width: 18px; margin-right: 4px; text-align: center; color: var(--c-blue-dark); }
+.hc-nl-bar { display: block; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--c-blue) var(--p), var(--c-soft) 0); }
+.hc-nl li > a > b, .hc-nl-row > b { text-align: right; font-size: 16px; }
+.hc-nl-src { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px 8px 42px; }
+.hc-nl-src:empty { display: none; }
+.crm .hc-nl-src a { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--c-line);
+  background: var(--c-soft); font-size: 12px; font-weight: 600; color: var(--c-blue-dark); text-decoration: none; }
+.hc-nl-src a b { color: var(--c-ink); }
+.crm .hc-nl-src a:hover, .crm .hc-nl-src a:focus-visible { border-color: var(--c-blue); background: var(--c-blue-soft); }
+@media (max-width: 760px) {
+  .crm a.hc-leads, span.hc-leads { left: 10px; }
+  .hc-new-cols { grid-template-columns: minmax(0, 1fr); }
+  .hc-nl li > a, .hc-nl-row { grid-template-columns: minmax(0, 1fr) 44px 28px; gap: 8px; padding: 8px 6px; }
+  .hc-nl-src { padding-left: 6px; }
+}
 .hc-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-bottom: 16px; }
 .hc-stat { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--c-line);
   border-top: 4px solid var(--c-line); background: var(--c-card); }

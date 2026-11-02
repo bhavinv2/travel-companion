@@ -4399,7 +4399,7 @@ def lead_more_words(a, now=None):
     ({word: value or None}, the lead_filter() arguments they make). dt: which date (LEAD_DATES; 'created' is
     left out); dr: a range of that date's set, or 'custom' with d1 / d2 (YYYY-MM-DD, either may be blank);
     src: a lead source id, 'g:<group>' (a group of the lead sources' list) or 'none'; lk: how likely
-    (CRM_LIKELIHOOD); how: how it came (crm_sources.ORIGINS: organic, manual, imported)."""
+    (CRM_LIKELIHOOD); how: how it came (crm_sources.ORIGINS: organic, manual, imported); prd: a product code."""
     from app.models import CRM_LIKELIHOOD
     now = now or datetime.utcnow()
     dt = a.get('dt') if a.get('dt') in dict(LEAD_DATES) else 'created'
@@ -4420,12 +4420,14 @@ def lead_more_words(a, now=None):
     src = src if src == 'none' or (src.isdigit() and len(src) < 10) or src[2:] in crm_sources.GROUP_NAMES else ''
     lk = a.get('lk') if a.get('lk') in CRM_LIKELIHOOD else ''
     how = a.get('how') if a.get('how') in crm_sources.ORIGIN else ''
+    prd = (a.get('prd') or '').upper()
+    prd = prd if prd in crm_products.codes() else ''
     words = {'dt': dt if dt != 'created' else None, 'dr': dr or None,
              'd1': d1.isoformat() if d1 else None, 'd2': d2.isoformat() if d2 else None,
-             'src': src or None, 'lk': lk or None, 'how': how or None}
+             'src': src or None, 'lk': lk or None, 'how': how or None, 'prd': prd or None}
     args = {'date_on': dt if dr else None, 'date_from': start, 'date_until': until,
             'source': (int(src) if src.isdigit() else src) if src else None, 'likelihood': lk or None,
-            'how': how or None}
+            'how': how or None, 'product': prd or None}
     return words, args
 
 
@@ -4447,7 +4449,7 @@ def date_words_text(words):
 def lead_filter(pipeline=None, owner_id=None, q=None, chat=None, stage_id=None, closed_days=30,
                 follow=None, now=None, closes=None, forecast=None, no_value=False, no_close=False,
                 status=None, ids=None, quoted=None, date_on=None, date_from=None, date_until=None,
-                source=None, likelihood=None, how=None):
+                source=None, likelihood=None, how=None, product=None):
     """The leads Leads shows, as a query (none runs here): one pipeline (None: every pipeline -- the
     list only); whose (a user id, 'none' for Not given to anyone, None for anyone); a search; the chat
     filter ('waiting' | 'open' | 'nochat'); one stage; finished leads only from the last
@@ -4455,7 +4457,7 @@ def lead_filter(pipeline=None, owner_id=None, q=None, chat=None, stage_id=None, 
     'none': still open with no follow-up planned; quoted='week': a quote was sent in the last 7 days (the
     "Quote sent" line or a quote marked as sent); date_on (LEAD_DATES) between India days date_from and
     date_until (the day after the last; either may be None); source: a lead source id, 'g:<group>' or 'none';
-    likelihood; how: organic, manual or imported (services/crm_sources.origin)."""
+    likelihood; how: organic, manual or imported (services/crm_sources.origin); product: a product code."""
     from app.services import crm_metrics
     now = now or datetime.utcnow()
     query = CrmLead.query.join(CrmPerson, CrmPerson.id == CrmLead.person_id)
@@ -4504,8 +4506,9 @@ def lead_filter(pipeline=None, owner_id=None, q=None, chat=None, stage_id=None, 
         query = query.filter(CrmLead.source_id.is_(None))
     elif isinstance(source, str) and source.startswith('g:'):
         from app.services import crm_sources
-        ids = [s.id for s in CrmSource.query.all() if crm_sources.group_of(s) == source[2:]]
-        query = query.filter(CrmLead.source_id.in_(ids or [0]))
+        # not `ids`: that is the "only these leads" argument, read further down
+        in_group = [s.id for s in CrmSource.query.all() if crm_sources.group_of(s) == source[2:]]
+        query = query.filter(CrmLead.source_id.in_(in_group or [0]))
     elif source:
         query = query.filter(CrmLead.source_id == source)
     if how == 'imported':
@@ -4521,6 +4524,8 @@ def lead_filter(pipeline=None, owner_id=None, q=None, chat=None, stage_id=None, 
                              else or_(CrmLead.created_by_id.is_(None), ~made_by_staff))
     if likelihood:
         query = query.filter(CrmLead.likelihood == likelihood)
+    if product:
+        query = query.filter(CrmLead.product == product)
     if quoted == 'week':
         from app.models import CrmQuote
         since = now - timedelta(days=7)
