@@ -10,6 +10,7 @@
 <title>Travel Companion | Find a Trusted Travel Buddy Online</title>
 <meta name="description" content="Help your loved ones travel with confidence. Find a trusted travel companion online for safe, caring and comfortable journeys, with support every step of the way.">
 <meta name="app-root" content="{{ request.script_root }}">
+{% if request.environ.get('app.direct') %}<meta name="app-mounts" content='{{ config.APP_STAFF_MOUNTS|tojson }}'/>{% endif %}
 <script src="{{ url_for('static', filename='js/app-root.js') }}"></script>
 <script src="{{ url_for('static', filename='js/crm-src.js') }}" defer></script>
 {% include '_pic_fallback.html' %}

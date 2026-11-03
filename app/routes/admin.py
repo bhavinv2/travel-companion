@@ -1316,7 +1316,7 @@ def listings():
                     e['best'] = max(e['best'], m.score or 0)
     return render_template('admin/listings.html', trips=trips, page=page, pages=pages, total=total,
                            match_info=match_info, q=q, sort=sort,
-                           filter_groups=post_filters.GROUPS, filter_values=active,
+                           filter_groups=post_filters.groups(), filter_values=active,
                            filter_chips=post_filters.chips(active), SORTS=post_filters.SORTS,
                            saved_views=saved_filters.for_user(current_user),
                            saved_listing='admin',

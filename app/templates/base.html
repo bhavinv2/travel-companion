@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   {# URL prefix for the browser side (subpath deployment) — must precede every other script #}
   <meta name="app-root" content="{{ request.script_root }}"/>
+  {% if request.environ.get('app.direct') %}<meta name="app-mounts" content='{{ config.APP_STAFF_MOUNTS|tojson }}'/>{% endif %}
   <script src="{{ url_for('static', filename='js/app-root.js') }}"></script>
   <script src="{{ url_for('static', filename='js/crm-src.js') }}" defer></script>
   {% include '_pic_fallback.html' %}

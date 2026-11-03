@@ -6,6 +6,7 @@ from flask import (Blueprint, render_template, request, redirect, url_for, flash
                    current_app, abort)
 from flask_login import login_required, current_user
 from sqlalchemy import func, or_
+from sqlalchemy.orm import joinedload
 from werkzeug.datastructures import MultiDict
 
 from app import db
@@ -694,7 +695,8 @@ def posts():
     query = post_filters.sort_query(query, sort)
 
     total = query.count()
-    items = query.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE).all()
+    items = (query.options(joinedload(CompanionRequest.created_by))      # the Created column, one query
+             .offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE).all())
     pages = max((total + PAGE_SIZE - 1) // PAGE_SIZE, 1)
     # live (non-dismissed) matches per listed post, so the table can flag matched rows at a glance
     from app.models import Match
@@ -712,7 +714,7 @@ def posts():
     template = 'cs/_posts_results.html' if request.args.get('partial') else 'cs/posts.html'
     return render_template(template, posts=items, total=total, page=page, pages=pages,
                            match_info=match_info, filters=dict(q=q, sort=sort),
-                           filter_groups=post_filters.GROUPS, filter_values=active,
+                           filter_groups=post_filters.groups(), filter_values=active,
                            filter_chips=post_filters.chips(active),
                            saved_views=saved_filters.for_user(current_user),
                            saved_listing='cs',

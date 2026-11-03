@@ -50,7 +50,7 @@ class PrefixMiddleware:
     """
 
     def __init__(self, wsgi_app, prefix='', public_host='', public_scheme='https', aliases=(), site_pages=None,
-                 site_sections=()):
+                 site_sections=(), mounts=()):
         self.wsgi_app = wsgi_app
         self.prefix = ('/' + prefix.strip('/')) if prefix and prefix.strip('/') else ''
         self.public_host = (public_host or '').strip()
@@ -61,6 +61,9 @@ class PrefixMiddleware:
         self.site_pages = dict(site_pages or {})
         # whole sections of the site (/blog): every address under one is the app's route of that name
         self.site_sections = [('/' + s.strip('/')) for s in site_sections if s and s.strip('/')]
+        # parts of the app served at another address on the site: [(public, inside)], the longer public first
+        self.mounts = sorted(((('/' + a.strip('/')), ('/' + b.strip('/'))) for a, b in mounts or ()),
+                             key=lambda m: -len(m[0]))
         # the site's two spellings, whichever one is public: the other redirects to it (_tidy)
         bare = self.public_host.lower()
         bare = bare[4:] if bare.startswith('www.') else bare
@@ -76,6 +79,12 @@ class PrefixMiddleware:
             return None
         if path == self.prefix:
             return self.prefix + '/' + query
+        # the staff console's old address inside the prefix: where it is now (mounts)
+        if path.startswith(self.prefix + '/'):
+            inner = path[len(self.prefix):]
+            for public, inside in sorted(self.mounts, key=lambda m: -len(m[1])):
+                if inner == inside or inner.startswith(inside + '/'):
+                    return public + inner[len(inside):] + query
         # a front door is an exact route, so a trailing slash (WordPress wrote them) would 404
         if any(path == a + '/' for a in self.aliases):
             return path.rstrip('/') + query
@@ -125,7 +134,11 @@ class PrefixMiddleware:
             # The rest of the domain. Its links still keep the one prefix, like a front door's.
             environ['SCRIPT_NAME'] = (environ.get('SCRIPT_NAME') or '') + prefix
             inside = self.site_pages.get(path)
-            if inside is not None:
+            mount = next(((pub, ins) for pub, ins in self.mounts if path == pub or path.startswith(pub + '/')), None)
+            if mount is not None:
+                environ['PATH_INFO'] = mount[1] + path[len(mount[0]):]
+                environ['app.entry'] = 'site-page'
+            elif inside is not None:
                 environ['PATH_INFO'] = inside
                 environ['app.entry'] = 'site-page'
             elif any(path == s or path.startswith(s + '/') for s in self.site_sections):
@@ -217,6 +230,11 @@ def create_app(test_config=None):
     # ...and whole sections of it: every address under these is served at the root as it is
     # (/blog, /blog/<post>, /blog/category/<x>), and never at /travel-companions/blog.
     app.config['APP_SITE_SECTIONS'] = ('/blog',)
+    # ...and the staff console, at the root rather than inside the prefix (2026-11-03): {address on the site: the
+    # routes inside the app it stands for}, the longer first. /admin/cs/crm/ is the app's /cs/crm/, /admin/health
+    # its /admin/health. The old /travel-companions/cs/... and /travel-companions/admin/... addresses redirect
+    # there (GET); a POST to them (a webhook written down somewhere) is still answered where it is.
+    app.config['APP_STAFF_MOUNTS'] = (('/admin/cs', '/cs'), ('/admin', '/admin'))
     if test_config:
         for k in ('APP_URL_PREFIX', 'APP_PUBLIC_HOST'):
             if k in test_config:
@@ -225,7 +243,8 @@ def create_app(test_config=None):
                                     public_host=app.config['APP_PUBLIC_HOST'],
                                     aliases=app.config['APP_ALIAS_PATHS'],
                                     site_pages=app.config['APP_SITE_PAGES'],
-                                    site_sections=app.config['APP_SITE_SECTIONS'])
+                                    site_sections=app.config['APP_SITE_SECTIONS'],
+                                    mounts=app.config['APP_STAFF_MOUNTS'])
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     is_production = os.environ.get('FLASK_ENV') == 'production'
@@ -758,7 +777,8 @@ def create_app(test_config=None):
         from flask_login import current_user
         from app.services import (access, ads, analytics, contact_form, cs_access,
                                   insurance_countries, livechat, nav_badges, nri_services, offices, phone,
-                                  portals, products, share_pics, store_apps, tawk, urls, wacrm_team,
+                                  portals, post_filters, products, share_pics, store_apps, tawk, urls,
+                                  wacrm_team,
                                   whats_new)
         return {
             # Site-wide GA4 / GTM / second Ads account / Search Console verification -- see
@@ -780,6 +800,8 @@ def create_app(test_config=None):
             'GET_APPS': store_apps.for_page,
             # the picture a shared link to a public page shows when the page names none (base.html, services/share_pics)
             'SHARE_PIC': share_pics.for_page,
+            # a trip post's "Created by" words in the post listings (cs/_macros.html)
+            'POST_CREATED_BY': post_filters.created_by_text,
             # Templates use this for "today" in date inputs. Between 18:30 and 00:00 IST,
             # utcnow() is still yesterday in India, which would let somebody pick a date that
             # has already gone or block one that has not.

@@ -354,6 +354,16 @@ def _lead_sources(pipe, chosen=None):
     return sorted(CrmSource.query.filter(cond).all(), key=lambda s: source_name(s.name).lower())
 
 
+def _owner_default():
+    """Who Leads shows first: everybody's for those who see the team's results; for somebody who sees only their own
+    (or their team's) leads, 'all' too -- for them that is theirs plus the ones nobody looks after yet, which somebody
+    has to pick up (crm_access); 'mine' for the rest."""
+    from app.services import access
+    if access.can(current_user, 'crm_insights') or crm_access.scope_of(current_user) != 'all':
+        return 'all'
+    return 'mine'
+
+
 @crm_bp.route('/')
 @cs_required
 def board():
@@ -402,9 +412,10 @@ def board():
 
     staff = _staff()
     staff_ids = {u.id for u in staff}
-    owner = a.get('owner') or prefs.get('owner') or ('all' if access.can(current_user, 'crm_insights') else 'mine')
+    owner_default = _owner_default()
+    owner = a.get('owner') or prefs.get('owner') or owner_default
     if not (owner in ('mine', 'all', 'none') or (owner.isdigit() and int(owner) in staff_ids)):
-        owner = 'all' if access.can(current_user, 'crm_insights') else 'mine'
+        owner = owner_default
     owner_id = current_user.id if owner == 'mine' else ('none' if owner == 'none' else (int(owner) if owner.isdigit() else None))
     chat = a.get('chat', prefs.get('chat', ''))
     chat = chat if chat in {k for k, _ in CHAT_FILTERS} else ''
@@ -480,7 +491,6 @@ def board():
     export_args = dict(view_params, ids=','.join(map(str, only_ids)) if only_ids else None)
     export_args.pop('view', None)
 
-    owner_default = 'all' if access.can(current_user, 'crm_insights') else 'mine'
     defaults = (not only_ids and owner == owner_default and not chat
                 and win == '30' and not q and not stage_id and not money_filter and not extra.get('status')
                 and not follow and not quoted and not (more['dr'] or more['src'] or more['lk'] or more['how']

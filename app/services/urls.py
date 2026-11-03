@@ -29,8 +29,9 @@ def on_site(path):
     """The address on the domain for a path inside the app (prefix removed), or None.
 
     Once the domain points at this app (PrefixMiddleware's "direct" requests), its own pages and
-    sections live at the root: /home, /about-us ... (APP_SITE_PAGES) and everything under /blog
-    (APP_SITE_SECTIONS) -- never /travel-companions/blog. Before that (through the Worker, on
+    sections live at the root: /home, /about-us ... (APP_SITE_PAGES), everything under /blog
+    (APP_SITE_SECTIONS) -- never /travel-companions/blog -- and the staff console (APP_STAFF_MOUNTS:
+    /cs/crm/ is /admin/cs/crm/, /admin/health is /admin/health). Before that (through the Worker, on
     Railway's own address, locally) those root addresses are WordPress's or nobody's: None."""
     if not (has_request_context() and request.environ.get('app.direct')):
         return None
@@ -39,7 +40,25 @@ def on_site(path):
             return public
     if any(path == s or path.startswith(s + '/') for s in (current_app.config.get('APP_SITE_SECTIONS') or ())):
         return path
+    for public, inside in _mounts():
+        if path == inside or path.startswith(inside + '/'):
+            return public + path[len(inside):]
     return None
+
+
+def _mounts():
+    return [('/' + a.strip('/'), '/' + b.strip('/')) for a, b in (current_app.config.get('APP_STAFF_MOUNTS') or ())]
+
+
+def from_site(path):
+    """The other way: the route inside the app for an address on the site's staff console (/admin/cs/crm/ ->
+    /cs/crm/), or the path as it is."""
+    if not (has_request_context() and request.environ.get('app.direct')):
+        return path
+    for public, inside in sorted(_mounts(), key=lambda m: -len(m[0])):
+        if path == public or path.startswith(public + '/'):
+            return inside + path[len(public):]
+    return path
 
 
 def to_site(url):
@@ -124,8 +143,10 @@ def app_url(path):
     root = (request.script_root or '').rstrip('/')
     if not root or path == root or path.startswith(root + '/'):
         return to_site(path) if root else path
-    if on_site(path.split('?', 1)[0].split('#', 1)[0]) is not None:
-        return path                    # /blog/... once the domain is ours: the root address is the page's
+    bare = path.split('?', 1)[0].split('#', 1)[0]
+    public = on_site(bare)
+    if public is not None:
+        return public + path[len(bare):]   # /blog/..., /admin/cs/... once the domain is ours: the page's root address
     return root + path
 
 

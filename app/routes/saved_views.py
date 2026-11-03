@@ -44,7 +44,7 @@ def manage():
         describe=saved_filters.describe, is_relative=saved_filters.is_relative,
         query_string=saved_filters.query_string,
         max_per_user=saved_filters.MAX_PER_USER,
-        filter_groups=post_filters.GROUPS, SORTS=post_filters.SORTS)
+        filter_groups=post_filters.groups(), SORTS=post_filters.SORTS)
 
 
 @saved_bp.route('/open/<int:filter_id>')

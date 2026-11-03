@@ -343,7 +343,8 @@ def staff_manifest():
               'type': 'image/png', 'purpose': 'any'} for n in (192, 512)]
     body = {
         'id': start, 'name': STAFF_APP_NAME, 'short_name': 'CRM', 'start_url': start,
-        'scope': url_for('main.index'), 'display': 'standalone',
+        # the whole site once the staff console is at its root (/admin/cs/...): the start page must be in scope
+        'scope': '/' if request.environ.get('app.direct') else url_for('main.index'), 'display': 'standalone',
         'theme_color': STAFF_APP_THEME, 'background_color': STAFF_APP_BACKGROUND,
         'icons': icons,
     }
@@ -356,13 +357,16 @@ def staff_manifest():
 def robots_txt():
     """Read by search engines at the domain's root (APP_SITE_PAGES), so the screens they should
     stay out of are named with the app's prefix."""
-    from flask import Response
+    from flask import Response, current_app
     from app.services.urls import public_absolute
     root = (request.script_root or '').rstrip('/')
+    # the staff console at the root too (APP_STAFF_MOUNTS: /admin/cs/..., /admin/...)
+    staff_tops = sorted({m[0].strip('/').split('/')[0] for m in current_app.config.get('APP_STAFF_MOUNTS') or ()})
     body = ("User-agent: *\n"
             "Allow: /\n"
             + ''.join('Disallow: %s%s\n' % (root, p)
                       for p in ('/admin/', '/cs/', '/api/', '/dashboard', '/connections', '/settings/'))
+            + ''.join('Disallow: /%s/\n' % top for top in staff_tops if root)
             + 'Sitemap: %s\n' % public_absolute('main.sitemap_xml'))
     return Response(body, mimetype='text/plain')
 

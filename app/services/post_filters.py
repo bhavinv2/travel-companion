@@ -168,13 +168,13 @@ def _field(key, label, kind, sql, choices=None, parse=None, placeholder=None, wi
 GROUPS = [
     {
         'title': 'When',
-        'hint': 'Departure and return read the trip; posted reads when it reached us.',
+        'hint': 'Departure and return read the trip; created reads when the post reached us.',
         'fields': [
             _daterange('dep', 'Departure', CompanionRequest.from_date, 'dep_from', 'dep_to',
                        DEPARTURE_PRESETS),
             _daterange('ret', 'Return', CompanionRequest.to_date, 'ret_from', 'ret_to',
                        RETURN_PRESETS, hint='Round trips only — one-way posts have no return date.'),
-            _daterange('posted', 'Posted to us', CompanionRequest.created_at, 'posted_from',
+            _daterange('posted', 'Created', CompanionRequest.created_at, 'posted_from',
                        'posted_to', POSTED_PRESETS, is_datetime=True),
             _field('flex', 'Dates flexible', 'bool',
                    sql=lambda q, v: q.filter(or_(CompanionRequest.from_date_flexible.is_(True),
@@ -231,6 +231,11 @@ GROUPS = [
                                              else CompanionRequest.claimed_at.is_(None))),
             _field('anon', 'Posted anonymously', 'bool',
                    sql=lambda q, v: _bool(q, v, CompanionRequest.is_anonymous)),
+            # who made the post: its traveller on the site, an import, or one of us (choices filled per request:
+            # groups(), the people who have made posts)
+            _field('created_by', 'Created by', 'select', choices=None,
+                   parse=lambda r: r if r in ('self', 'import') or (r.isdigit() and len(r) < 10) else None,
+                   sql=lambda q, v: _created_by(q, v)),
         ],
     },
     {
@@ -269,6 +274,46 @@ GROUPS = [
 ]
 
 FIELDS = {f['key']: f for g in GROUPS for f in g['fields']}
+CREATED_SELF, CREATED_IMPORT = 'The traveller, on the site', 'Imported from a sheet'
+
+
+def _created_by(q, v):
+    if v == 'self':
+        return q.filter(CompanionRequest.created_by_id.is_(None), CompanionRequest.import_key.is_(None))
+    if v == 'import':
+        return q.filter(CompanionRequest.import_key.isnot(None))
+    return q.filter(CompanionRequest.created_by_id == int(v), CompanionRequest.import_key.is_(None))
+
+
+def creator_choices():
+    """"Created by": the traveller themselves, an import, then everybody of ours who has made a post, by name."""
+    from app import db
+    from app.models import User
+    ids = [i for (i,) in db.session.query(CompanionRequest.created_by_id)
+           .filter(CompanionRequest.created_by_id.isnot(None), CompanionRequest.import_key.is_(None)).distinct()]
+    people = sorted(((str(u.id), u.full_name or u.username) for u in User.query.filter(User.id.in_(ids))),
+                    key=lambda c: c[1].lower()) if ids else []
+    return [('self', CREATED_SELF), ('import', CREATED_IMPORT)] + people
+
+
+def groups():
+    """GROUPS with the choices that depend on the data filled in -- what a filter drawer shows."""
+    out = []
+    for g in GROUPS:
+        fields = [dict(f, choices=creator_choices()) if f['key'] == 'created_by' else f for f in g['fields']]
+        out.append(dict(g, fields=fields))
+    return out
+
+
+def created_by_text(trip):
+    """The listing's "Created by" words for a post."""
+    who = trip.created_by
+    name = (who.full_name or who.username) if who is not None else None
+    if trip.import_key:
+        return '%s (import)' % name if name else 'an import'
+    if name:
+        return name
+    return 'the traveller' if trip.user_id else '—'
 
 
 def preset_range(field, preset_id, today=None):
@@ -385,6 +430,8 @@ def _label_for(field, value):
         return ('from %s' % lo.strftime('%d %b %Y')) if lo else ('until %s' % hi.strftime('%d %b %Y'))
     if field['kind'] == 'bool':
         return 'Yes' if value == 'yes' else 'No'
+    if field['key'] == 'created_by':
+        return dict(creator_choices()).get(str(value), 'Someone removed')
     for v, label in (field['choices'] or []):
         if v == str(value):
             return label

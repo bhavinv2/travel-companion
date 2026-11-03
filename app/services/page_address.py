@@ -88,6 +88,9 @@ def parse(address):
     root = (request.script_root or '').rstrip('/')
     if root and (path == root or path.startswith(root + '/')):
         path = path[len(root):] or '/'
+    else:
+        from app.services.urls import from_site
+        path = from_site(path)              # the staff console's address on the site (/admin/cs/crm/)
     if not path.startswith('/') or path.startswith('//'):
         return None
     got = _match(path)

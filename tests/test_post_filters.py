@@ -269,6 +269,7 @@ def test_every_declared_filter_builds_runnable_sql(app, db):
         'pref_gender': {'pref_gender': 'female'}, 'need': {'need': 'wheelchair'},
         'language': {'language': 'Telugu'}, 'on_behalf': {'on_behalf': 'mother'},
         'contact_type': {'contact_type': 'whatsapp'}, 'consent': {'consent': 'yes'},
+        'created_by': {'created_by': 'self'},
     }
     assert set(samples) == set(post_filters.FIELDS), 'a filter was added without a sample here'
 
@@ -313,3 +314,25 @@ def test_sorting_covers_every_offered_option(app, db):
         post_filters.sort_query(CompanionRequest.query, value).count()
     # an unknown sort falls back rather than failing
     post_filters.sort_query(CompanionRequest.query, 'sideways').count()
+
+
+def test_created_by_filter_and_column(client, cs_user, posts):
+    """Who made each post and when it reached us: a column on the list, and a filter -- the traveller themselves, an
+    import, or one of us by name (only the people who have made posts are offered)."""
+    ravi = CompanionRequest.query.filter_by(poster_name='Ravi').one()
+    lakshmi = CompanionRequest.query.filter_by(poster_name='Lakshmi').one()
+    ravi.created_by_id = cs_user.id
+    lakshmi.import_key = 'sheet-1'
+    _db.session.commit()
+    login(client, 'cs@test.com')
+    html = client.get('/cs/posts').data.decode()
+    assert '<th>Created</th>' in html and 'by %s' % cs_user.full_name in html and 'by an import' in html
+    assert 'value="%d"' % cs_user.id in html.split('name="created_by"', 1)[1].split('</select>', 1)[0]
+    assert '>Created<' in html                                  # the "Created" date range, once "Posted to us"
+    mine = client.get('/cs/posts?created_by=%d' % cs_user.id).data.decode()
+    assert '#%d<' % ravi.id in mine and '#%d<' % lakshmi.id not in mine
+    assert 'Created by' in mine and cs_user.full_name in mine     # the chip names the person
+    imported = client.get('/cs/posts?created_by=import').data.decode()
+    assert '#%d<' % lakshmi.id in imported and '#%d<' % ravi.id not in imported
+    nobody = client.get('/cs/posts?created_by=self').data.decode()
+    assert '#%d<' % ravi.id not in nobody and '#%d<' % lakshmi.id not in nobody

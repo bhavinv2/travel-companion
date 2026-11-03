@@ -65,6 +65,10 @@
       <small class="muted">best {{ mi.best }}%</small>
     {% else %}<span class="muted">—</span>{% endif %}
   </td>
+  {# when the post reached us (the header's clock) and who made it: the traveller, an import, or one of us #}
+  {% set made = LOCAL(trip.created_at) if trip.created_at else None %}
+  <td class="nowrap" data-label="Created">{% if made %}{{ made.strftime('%d %b' if made.year == now().year else '%d %b %Y') }}<small class="muted"> {{ made.strftime('%H:%M') }}</small>{% else %}—{% endif %}
+    <br/><small class="muted">by {{ POST_CREATED_BY(trip) }}</small></td>
   {% if show_status %}<td data-label="Status">{{ status_chip(trip) }}</td>{% endif %}
   {# the row's actions as symbols -- open, edit, delete -- each named in its tooltip and for a screen reader #}
   <td class="row-actions ra-icons nowrap">
@@ -81,10 +85,10 @@
 {% if can_delete and bulk %}{{ bulk_bar('post', 'posts') }}{% endif %}
 <div class="table-wrap">
 <table class="admin-table stack-mobile">
-  <thead><tr>{% if can_delete and bulk %}<th class="hd-pick">{{ select_all('post') }}</th>{% endif %}<th>ID</th><th>Person</th><th>Route</th><th>Departs</th><th>Role</th><th>Source</th><th>Contact</th><th>Matches</th>{% if show_status %}<th>Status</th>{% endif %}<th></th></tr></thead>
+  <thead><tr>{% if can_delete and bulk %}<th class="hd-pick">{{ select_all('post') }}</th>{% endif %}<th>ID</th><th>Person</th><th>Route</th><th>Departs</th><th>Role</th><th>Source</th><th>Contact</th><th>Matches</th><th>Created</th>{% if show_status %}<th>Status</th>{% endif %}<th></th></tr></thead>
   <tbody>
     {% for t in trips %}{{ post_row(t, show_status, tree, can_delete, bulk) }}{% else %}
-    <tr><td colspan="{{ 11 if (can_delete and bulk) else 10 }}" class="muted">{{ empty }}</td></tr>
+    <tr><td colspan="{{ 12 if (can_delete and bulk) else 11 }}" class="muted">{{ empty }}</td></tr>
     {% endfor %}
   </tbody>
 </table>

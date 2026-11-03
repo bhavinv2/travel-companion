@@ -174,7 +174,8 @@ def test_a_forged_prefix_header_is_not_believed(dc):
 
 def test_robots_and_the_sitemap_at_the_root(dc):
     body = get(dc, '/robots.txt').get_data(as_text=True)
-    assert 'Disallow: %s/admin/' % PREFIX in body and 'Disallow: /admin/' not in body
+    assert 'Disallow: %s/admin/' % PREFIX in body
+    assert 'Disallow: /admin/\n' in body                     # the staff console at the root (APP_STAFF_MOUNTS)
     assert 'Sitemap: https://nriparentservice.com/sitemap.xml' in body
     xml = get(dc, '/sitemap.xml').get_data(as_text=True)
     assert '<loc>https://nriparentservice.com/home</loc>' in xml
