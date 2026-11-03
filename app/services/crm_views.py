@@ -25,7 +25,7 @@ from sqlalchemy import or_
 
 from app import db
 from app.models import CRM_FORECASTS, CRM_LIKELIHOOD, CrmView
-from app.services import crm, crm_money, team_share
+from app.services import crm, crm_money, crm_products, team_share
 
 LEADS, CONTACTS = 'crm_leads', 'crm_contacts'
 SCOPES = (LEADS, CONTACTS)
@@ -71,12 +71,18 @@ def _leads_checks():
             'view': _word(('board', 'list')), 'owner': _owner, 'chat': _word([k for k, _ in CHAT_FILTERS]),
             'win': _word(('30', 'all')), 'stage': _digits, 'q': _text(80), 'closes': _closes,
             'forecast': _word(tuple(CRM_FORECASTS)), 'no_value': _word(('1',)), 'no_close': _word(('1',)),
-            'status': _word(('open', 'won', 'lost')), 'follow': _word([k for k, _ in crm.FOLLOW_FILTERS]),
+            'status': _word(('open', 'won', 'lost', 'new')), 'follow': _word([k for k, _ in crm.FOLLOW_FILTERS]),
             'quoted': _word(('week',)),
-            # the filter panel's: which date and its range (a ready-made range stays rolling), source, how likely
+            # the filter panel's: which date and its range (a ready-made range stays rolling), source, how likely,
+            # how it came, product
             'dt': _word([k for k, _ in crm.LEAD_DATES]), 'dr': _word(sorted(ranges)), 'd1': _day, 'd2': _day,
             'src': _source, 'lk': _word(tuple(CRM_LIKELIHOOD)),
-            'how': _word(('organic', 'manual', 'imported'))}
+            'how': _word(('organic', 'manual', 'imported')), 'prd': _product}
+
+
+def _product(v):
+    v = (v or '').upper()
+    return v if v in crm_products.codes() else None
 
 
 def _source(v):

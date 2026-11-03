@@ -1151,7 +1151,9 @@ def notification_settings():
     from app.models import USER_PREF_CATEGORIES, NOTIFY_CATEGORY_LABELS
     from app.services import notify, settings as app_settings
     if request.method == 'POST':
-        prefs = {'muted': request.form.get('muted') == 'on', 'email': request.form.get('email') == 'on'}
+        # what else is kept there stays (the half-hour sound, services/check_sound.py)
+        prefs = dict(current_user.notify_prefs or {})
+        prefs.update({'muted': request.form.get('muted') == 'on', 'email': request.form.get('email') == 'on'})
         for c in USER_PREF_CATEGORIES:
             prefs[c] = request.form.get(f'cat_{c}') == 'on'
         current_user.notify_prefs = prefs

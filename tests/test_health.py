@@ -388,8 +388,8 @@ def test_the_check_shows_the_day_in_numbers_catch_up_who_checked_and_leads_per_i
     assert 'longest gap 07:30–09:00' in text
     assert 'Catch up' in text and html.count('data-tick-all data-slot="1') >= 3            # 07:30, 08:00, 08:30
     assert 'Who checked' in text and cs_user.full_name in text and '1 half hour' in text
-    assert re.search(r'Tawk</span>\s*<small class="hc-who-s">.*?1 lead', html, re.S)
-    assert 'Remind me each half hour' in text
+    assert re.search(r'Tawk</span>\s*<small class="hc-who-s">.*?1 new', html, re.S)       # still a cold lead
+    assert 'Sound: Off' in text                                                            # the half-hour sound
 
 
 def test_the_trackers_say_what_the_check_missed_and_which_lead_sources_nobody_checks(app, client, admin_user, monkeypatch):

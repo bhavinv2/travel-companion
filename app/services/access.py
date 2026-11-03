@@ -544,6 +544,8 @@ STAFF_ANY = {
     # one's own favourites and saved views, and the tour guide (routes/favourites.py)
     'my.favourites', 'my.fav_add', 'my.fav_remove', 'my.fav_rename', 'my.fav_move', 'my.view_star', 'my.view_save',
     'my.view_edit', 'my.view_delete', 'my.tours', 'my.tour_answer', 'my.tour_done',
+    # one's own half-hour sound (it checks the half-hourly check is theirs itself)
+    'my.sound_save', 'my.sound_now',
 }
 
 PAGES = {}

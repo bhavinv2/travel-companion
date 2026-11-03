@@ -1,0 +1,80 @@
+{# The half-hour sound (services/check_sound.py, static/js/check-sound.js): its settings window, opened by any
+   [data-sound-open] button -- the speaker in the header, "Sound" on the half-hourly check -- and the script that rings
+   at the start of every half hour on whatever staff page is open. Saved for the person, so it follows them to any
+   computer; their own sound file stays in this browser. Only for people who may open the check (CHECK_SOUND). #}
+{% set snd = CHECK_SOUND() %}
+{% if snd %}
+{% set c = snd.cfg %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/check-sound.css') }}"/>
+<dialog class="snd" id="sndDialog" aria-labelledby="sndTitle">
+  <form method="dialog" class="snd-in" data-snd-form novalidate>
+    <header class="snd-head">
+      <span class="snd-ico" aria-hidden="true"><i class="fa-solid fa-bell"></i></span>
+      <div><h2 id="sndTitle">Half-hour sound</h2>
+        <p>A sound at the start of every half hour, on whatever page you have open: time to look at each inbox and tick it.</p></div>
+      <button type="button" class="snd-x" data-snd-close aria-label="Close"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+    </header>
+
+    <label class="snd-switch">
+      <input type="checkbox" name="snd_on"{{ ' checked' if c.on }}/>
+      <span class="snd-track" aria-hidden="true"><i></i></span>
+      <span class="snd-switch-t"><b>Sound on</b><small>Turn it off any time, here or with the speaker at the top of every page.</small></span>
+    </label>
+
+    <div class="snd-body" data-snd-body>
+      <fieldset class="snd-set">
+        <legend>When</legend>
+        <label class="snd-radio"><input type="radio" name="snd_all_day" value="1"{{ ' checked' if c.all_day }}/> Every half hour, day and night</label>
+        <label class="snd-radio snd-hours"><input type="radio" name="snd_all_day" value="0"{{ ' checked' if not c.all_day }}/> Only from
+          <input type="time" name="snd_from" value="{{ c['from'] }}" aria-label="From"/> to <input type="time" name="snd_to" value="{{ c.to }}" aria-label="To"/></label>
+        <div class="snd-days" role="group" aria-label="On these days">
+          {% for d in snd.days %}<label><input type="checkbox" name="snd_days" value="{{ loop.index0 }}"{{ ' checked' if loop.index0 in c.days }}/><span>{{ d }}</span></label>{% endfor %}
+        </div>
+        <p class="snd-note">India time, as the half-hourly check. A shift past midnight works too (from 22:00 to 06:00).</p>
+      </fieldset>
+
+      <fieldset class="snd-set">
+        <legend>Sound</legend>
+        <div class="snd-sounds">
+          {% for key, label in snd.sounds %}
+          <div class="snd-pick{{ ' own' if key == 'own' }}">
+            <label><input type="radio" name="snd_sound" value="{{ key }}"{{ ' checked' if c.sound == key }}/><span>{{ label }}</span></label>
+            <button type="button" class="snd-play" data-snd-play="{{ key }}" title="Play {{ label }}" aria-label="Play {{ label }}"><i class="fa-solid fa-play" aria-hidden="true"></i></button>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="snd-own" data-snd-own>
+          <input type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a" data-snd-file hidden/>
+          <button type="button" class="snd-btn" data-snd-choose><i class="fa-solid fa-upload" aria-hidden="true"></i> Choose my own sound…</button>
+          <span class="snd-own-name" data-snd-own-name>No file chosen on this computer</span>
+        </div>
+        <p class="snd-note">Your own sound: MP3, WAV, OGG or M4A, up to 1 MB; it plays for at most 10 seconds. It stays in this browser: on another computer, choose it there too.</p>
+        <label class="snd-vol"><span>Loudness</span>
+          <input type="range" name="snd_volume" min="5" max="100" step="5" value="{{ c.volume }}"/>
+          <button type="button" class="snd-btn" data-snd-test><i class="fa-solid fa-volume-high" aria-hidden="true"></i> Test</button></label>
+      </fieldset>
+
+      <fieldset class="snd-set">
+        <legend>More</legend>
+        <label class="snd-sel"><span>Ring again</span>
+          <select name="snd_again">
+            {% for m in snd.again %}<option value="{{ m }}"{{ ' selected' if c.again == m }}>{{ 'No' if not m else 'After %d minutes, if the inboxes are not all ticked' % m }}</option>{% endfor %}
+          </select></label>
+        <label class="snd-check"><input type="checkbox" name="snd_notice"{{ ' checked' if c.notice }}/>
+          <span>Also show a desktop notice <small>It plays your computer's own sound too, even when this window is behind another one.</small></span></label>
+      </fieldset>
+    </div>
+
+    <p class="snd-next" data-snd-next aria-live="polite"></p>
+    <p class="snd-err" data-snd-err role="alert" hidden></p>
+    <footer class="snd-foot">
+      <p class="snd-note">Browsers play a sound only after you click somewhere on the page once; until then a note shows at the bottom of the page{{ ' and the desktop notice still comes' if c.notice }}.</p>
+      <div class="snd-btns"><button type="button" class="snd-btn" data-snd-close>Cancel</button>
+        <button type="submit" class="snd-btn primary">Save</button></div>
+    </footer>
+  </form>
+</dialog>
+<script src="{{ url_for('static', filename='js/check-sound.js') }}" data-cfg='{{ c|tojson }}'
+        data-save="{{ url_for('my.sound_save') }}" data-now="{{ url_for('my.sound_now') }}"
+        data-check="{{ crm_url('checks') }}" defer></script>
+{% endif %}

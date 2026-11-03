@@ -4457,7 +4457,8 @@ def lead_filter(pipeline=None, owner_id=None, q=None, chat=None, stage_id=None, 
     'none': still open with no follow-up planned; quoted='week': a quote was sent in the last 7 days (the
     "Quote sent" line or a quote marked as sent); date_on (LEAD_DATES) between India days date_from and
     date_until (the day after the last; either may be None); source: a lead source id, 'g:<group>' or 'none';
-    likelihood; how: organic, manual or imported (services/crm_sources.origin); product: a product code."""
+    likelihood; how: organic, manual or imported (services/crm_sources.origin); product: a product code; status:
+    open / won / lost, or 'new' (still_new: nobody moved it on yet)."""
     from app.services import crm_metrics
     now = now or datetime.utcnow()
     query = CrmLead.query.join(CrmPerson, CrmPerson.id == CrmLead.person_id)
@@ -4535,6 +4536,8 @@ def lead_filter(pipeline=None, owner_id=None, q=None, chat=None, stage_id=None, 
             CrmLead.id.in_(select(CrmQuote.lead_id).where(CrmQuote.sent_at >= since))))
     if status in ('open', 'won', 'lost'):
         query = query.filter(CrmLead.status == status)
+    elif status == 'new':
+        query = query.filter(still_new())
     if ids:
         query = query.filter(CrmLead.id.in_(list(ids)[:200]))
     if closes or forecast or no_value or no_close:
@@ -4837,6 +4840,15 @@ def stage_role(stage):
     """cold / prospect / pipeline / customer / lost -- the pipeline symbol shown everywhere. From "This
     stage means"; worked out from where it sits for a stage saved without one."""
     return 'new' if stage is None else stage.role
+
+
+def still_new():
+    """The leads nobody has moved on yet, as a condition: open, and not routed or still in a cold stage (Cold lead).
+    Moving one to Prospect -- or a reply moving it there -- and it is no longer new. What the half-hourly check and
+    Leads' "Still new" count."""
+    from app.services import crm_kpi
+    cold = [sid for sid, role in crm_kpi.stage_roles().items() if role == 'cold']
+    return and_(CrmLead.status == 'open', or_(CrmLead.stage_id.is_(None), CrmLead.stage_id.in_(cold or [0])))
 
 
 def derive_means(stage):

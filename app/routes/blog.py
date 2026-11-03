@@ -127,14 +127,31 @@ def related(post, n=3):
 
 
 def share_card(post):
-    """The cover as the picture WhatsApp and Facebook show when the post is shared (base.html)."""
-    if not post.cover_image_url:
-        return {}
+    """The picture WhatsApp and Facebook show when the post is shared (base.html): its card picture (1200x630) or
+    its cover -- one that is really there and small enough for WhatsApp's fetcher. An upload kept on the server's
+    own disk can be gone after a deploy, and a missing or too big picture previews as a bare logo; with none, the
+    page gets the blog's own picture (services/share_pics)."""
     from app.services.blog_engine import site_url
-    url = site_url(post.cover_image_url)
-    if url.startswith('/'):
-        url = request.host_url.rstrip('/') + url
-    return {'share_image': url, 'share_image_alt': post.cover_alt or post.title}
+    for src in (post.thumb_url, post.cover_image_url):
+        if not src or not _shareable(src):
+            continue
+        url = site_url(src)
+        if url.startswith('/'):
+            url = request.host_url.rstrip('/') + url
+        return {'share_image': url, 'share_image_alt': post.cover_alt or post.title}
+    return {}
+
+
+def _shareable(src):
+    """A picture a link preview can show: an upload on this server's disk that is there and under share_pics.TOO_BIG;
+    anything stored elsewhere (S3, another site) is taken as it is."""
+    import os
+    from flask import current_app
+    from app.services import share_pics
+    if not src.startswith('/static/uploads/'):
+        return True
+    path = os.path.join(os.path.abspath(current_app.config['UPLOAD_FOLDER']), src[len('/static/uploads/'):])
+    return os.path.isfile(path) and os.path.getsize(path) <= share_pics.TOO_BIG
 
 
 @blog_bp.app_template_filter('ago')

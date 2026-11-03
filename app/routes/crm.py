@@ -429,7 +429,7 @@ def board():
     if only_ids:
         extra['ids'] = only_ids              # "3 not moved: they need a value" links to exactly those leads
         closed_days = None
-    if a.get('status') in ('open', 'won', 'lost'):
+    if a.get('status') in ('open', 'won', 'lost', 'new'):
         extra['status'] = a.get('status')
 
     prefs.update(p=p_key, view=view, owner=owner, chat=chat, win=win)
@@ -534,7 +534,7 @@ def board():
     if quoted:
         chips.append(('follow', 'Quote sent this week', link(quoted=None, page=None)))
     if extra.get('status'):
-        chips.append(('status', {'open': 'Still open', 'won': 'Won', 'lost': 'Lost'}[extra['status']],
+        chips.append(('status', {'open': 'Still open', 'new': 'Still new', 'won': 'Won', 'lost': 'Lost'}[extra['status']],
                       link(status=None, page=None)))
     # the filter bar: each pill that is on says what it holds and has one link that takes it all off
     pills = {}

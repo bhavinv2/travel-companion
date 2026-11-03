@@ -91,13 +91,64 @@ def test_the_image_url_is_absolute(client, db):
 # The rest of the site
 # ---------------------------------------------------------------------------
 
-def test_a_page_with_no_image_says_so(client, db):
-    """A large card with a hole in it looks broken; a small one does not. Sahayak's page has no
-    photograph on it at all, so there is nothing honest to put here yet."""
-    html = client.get('/sahayak').data.decode()
-    assert meta(html, 'og:title'), 'it should still have a title and a description'
+PUBLIC = {'/home': 'home.jpg', '/about-us': 'about.jpg', '/contact-us': 'home.jpg', '/privacy-policy': 'home.jpg',
+          '/terms-and-conditions': 'home.jpg', '/sahayak': 'sahayak.jpg', '/blog': 'blog.jpg',
+          '/reviews': 'companion.jpg', '/about': 'companion.jpg', '/help': 'home.jpg'}
+
+
+def test_every_public_page_offers_its_sections_picture(client, db):
+    """The home page previewed as a bare logo: it named no picture, and WhatsApp then shows the site's icon. Every
+    public page now names one -- its own, or its section's (services/share_pics.py)."""
+    for path, picture in PUBLIC.items():
+        r = client.get(path, follow_redirects=True)
+        assert r.status_code == 200, path
+        html = r.data.decode()
+        assert re.match(r'https?://', meta(html, 'og:image') or ''), path
+        assert 'img/share/' + picture in meta(html, 'og:image'), (path, meta(html, 'og:image'))
+        assert meta(html, 'twitter:card') == 'summary_large_image', path
+        assert meta(html, 'twitter:image') == meta(html, 'og:image'), path
+
+
+def test_every_share_picture_is_fetchable_and_the_declared_size(client, db):
+    pytest.importorskip('PIL')
+    from PIL import Image
+    from app.services import share_pics
+    for rel in share_pics.PICTURES.values():
+        path = os.path.join(ROOT, 'app', 'static', rel)
+        assert os.path.getsize(path) // 1024 <= BUDGET_KB, rel
+        with Image.open(path) as im:
+            assert im.size == (1200, 630), rel
+            assert im.format == 'JPEG', rel                              # base.html says image/jpeg
+
+
+def test_staff_pages_send_none(client, db, cs_user):
+    from conftest import login
+    login(client, cs_user.email)
+    html = client.get('/cs/crm/today').data.decode()
     assert meta(html, 'og:image') is None
-    assert meta(html, 'twitter:card') == 'summary'
+
+
+def test_a_post_whose_picture_is_gone_shows_the_blogs(app, client, db, admin_user):
+    """Uploads on the server's own disk are lost on a deploy: every post on the live site pointed its preview at a
+    picture that answered 404. A missing or too big picture gives way to the blog's own; one that is there is used."""
+    from datetime import datetime, timedelta
+    from app.models import Blog
+    then = datetime.utcnow() - timedelta(hours=1)
+    folder = os.path.abspath(app.config['UPLOAD_FOLDER'])
+    os.makedirs(folder, exist_ok=True)
+    with open(os.path.join(folder, 'share-test-small.jpg'), 'wb') as f:
+        f.write(b'\xff\xd8' + b'0' * 2000)
+    gone = Blog(author_id=admin_user.id, title='Gone picture', slug='gone-picture', content='<p>Hi</p>', is_published=True,
+                published_at=then, cover_image_url='/static/uploads/not-here.jpg')
+    there = Blog(author_id=admin_user.id, title='Has picture', slug='has-picture', content='<p>Hi</p>', is_published=True,
+                 published_at=then, cover_image_url='/static/uploads/not-here.jpg',
+                 thumb_url='/static/uploads/share-test-small.jpg')
+    db.session.add_all([gone, there])
+    db.session.commit()
+    html = client.get('/blog/gone-picture').data.decode()
+    assert 'img/share/blog.jpg' in meta(html, 'og:image')
+    html = client.get('/blog/has-picture').data.decode()
+    assert meta(html, 'og:image').split('?')[0].endswith('/static/uploads/share-test-small.jpg')
 
 
 def test_the_companion_landing_still_has_its_own(client, db):

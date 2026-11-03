@@ -1,5 +1,6 @@
-"""Favourites, saved views of any staff page, and the tour guide (2026-10-27). The work is in services/favourites.py,
-services/crm_views.py (the one table of saved views), services/team_share.py and services/tours.py.
+"""Favourites, saved views of any staff page, the tour guide (2026-10-27) and the half-hour sound (2026-11-02). The
+work is in services/favourites.py, services/crm_views.py (the one table of saved views), services/team_share.py,
+services/tours.py and services/check_sound.py.
 
 Every staff member has these, whatever their role, so the endpoints are access.STAFF_ANY: personal shortcuts, not
 pages a role grants. What a favourite or a view OPENS is still a screen the page guard checks as always.
@@ -12,12 +13,13 @@ from flask_login import current_user
 
 from app import db
 from app.routes.cs import cs_required
-from app.services import access, crm_views, favourites, page_address, team_share, tours, urls
+from app.services import access, check_sound, crm_views, favourites, page_address, team_share, tours, urls
 
 my_bp = Blueprint('my', __name__, url_prefix='/my')
 
 ENDPOINTS = ('my.favourites', 'my.fav_add', 'my.fav_remove', 'my.fav_rename', 'my.fav_move', 'my.view_star',
-             'my.view_save', 'my.view_edit', 'my.view_delete', 'my.tours', 'my.tour_answer', 'my.tour_done')
+             'my.view_save', 'my.view_edit', 'my.view_delete', 'my.tours', 'my.tour_answer', 'my.tour_done',
+             'my.sound_save', 'my.sound_now')
 
 
 def _back():
@@ -72,6 +74,17 @@ def fav_here():
 @my_bp.app_template_global('TOUR_ASK')
 def _tour_ask():
     return bool(getattr(current_user, 'is_authenticated', False)) and tours.should_ask(current_user)
+
+
+@my_bp.app_template_global('CHECK_SOUND')
+def _check_sound():
+    """This person's half-hour sound -- {'cfg': their settings, 'says': them in words, and the choices} -- or None for
+    somebody who may not open the half-hourly check."""
+    if not getattr(current_user, 'is_authenticated', False) or not access.can(current_user, 'crm_checks'):
+        return None
+    s = check_sound.of(current_user)
+    return {'cfg': s, 'says': check_sound.says(s), 'sounds': check_sound.SOUNDS, 'days': check_sound.DAYS,
+            'again': check_sound.AGAIN}
 
 
 # ------------------------------------------------------------------------------------------------ favourites
@@ -219,3 +232,29 @@ def tour_answer():
 def tour_done():
     key = str((request.get_json(silent=True) or {}).get('key') or request.form.get('key') or '')[:80]
     return jsonify({'ok': tours.finished(current_user, key)})
+
+
+# ------------------------------------------------------------------------------------------------ the half-hour sound
+
+@my_bp.route('/check-sound', methods=['POST'])
+@cs_required
+def sound_save():
+    if not access.can(current_user, 'crm_checks'):
+        return jsonify({'error': 'The half-hour sound is for people who do the half-hourly check.'}), 403
+    try:
+        s = check_sound.save(current_user, request.get_json(silent=True) or {})
+    except ValueError as exc:
+        db.session.rollback()
+        return jsonify({'error': str(exc)}), 400
+    db.session.commit()
+    return jsonify({'ok': True, 'settings': s, 'says': check_sound.says(s)})
+
+
+@my_bp.route('/check-sound/now')
+@cs_required
+def sound_now():
+    """Is every inbox ticked for this half hour? The sound rings again when not."""
+    if not access.can(current_user, 'crm_checks'):
+        return jsonify({'error': 'Not for you.'}), 403
+    from app.services import crm, crm_reports
+    return jsonify({'done': crm_reports.current_slot_done(crm.crm_settings()['check_channels'])})

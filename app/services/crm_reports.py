@@ -332,20 +332,22 @@ def check_report(day, users, channels, sheet=None, names=None):
 
 
 def leads_by_inbox(day, rows):
-    """{inbox name: leads that came in on `day` (India) from the lead source the inbox watches} -- two inboxes on
-    one source (Messenger and Instagram on Meta) both say that source's number."""
+    """{inbox name: {'n': leads that came in on `day` (India) from the lead source the inbox watches, 'new': how many
+    of them are still new (crm.still_new: nobody moved them on)}} -- only inboxes with leads; two inboxes on one
+    source (Messenger and Instagram on Meta) both say that source's numbers."""
     from app.models import CrmSource
-    from app.services import crm_sources
+    from app.services import crm, crm_sources
     keys = {r['name']: crm_sources.canonical(r['source_key']) for r in rows if r.get('source_key')}
     if not keys:
         return {}
     ids = {s.key: s.id for s in CrmSource.query.filter(CrmSource.key.in_(set(keys.values()))).all()}
     start, end = day_bounds(day)
-    counts = dict(db.session.query(CrmLead.source_id, func.count(CrmLead.id))
-                  .filter(CrmLead.created_at >= start, CrmLead.created_at < end,
-                          CrmLead.source_id.in_(list(ids.values()) or [0]))
-                  .group_by(CrmLead.source_id).all())
-    return {name: counts.get(ids.get(key), 0) for name, key in keys.items()}
+    q = db.session.query(CrmLead.source_id, func.count(CrmLead.id)).filter(
+        CrmLead.created_at >= start, CrmLead.created_at < end, CrmLead.source_id.in_(list(ids.values()) or [0]))
+    came = dict(q.group_by(CrmLead.source_id).all())
+    fresh = dict(q.filter(crm.still_new()).group_by(CrmLead.source_id).all())
+    return {name: {'n': came[ids[key]], 'new': fresh.get(ids[key], 0)}
+            for name, key in keys.items() if came.get(ids.get(key))}
 
 
 def inbox_sources(rows):
@@ -361,20 +363,30 @@ def inbox_sources(rows):
 
 def new_leads(day):
     """The leads that came in on `day` (India time), counted with Leads' own query (crm.lead_filter), so each number
-    is what its link's list shows: {'total', 'products': [(code, n)], 'groups': [{'key', 'name', 'icon', 'n', 'link',
-    'sources': [{'src', 'label', 'n'}]}], 'none'}. A group's `link` is False for sources not on the list (Leads has
-    no filter for those as a group); `label` is None for them too, and the screen names them itself."""
+    is what its link's list shows -- and of those, how many are still new now (Leads' status 'new', crm.still_new:
+    nobody moved them on). {'total', 'new', 'products': [{'code', 'n', 'new'}], 'groups': [{'key', 'name', 'icon',
+    'n', 'new', 'link', 'sources': [{'src', 'label', 'n', 'new'}]}], 'none', 'none_new'}. A group's `link` is False
+    for sources not on the list (Leads has no filter for those as a group); `label` is None for them too, and the
+    screen names them itself."""
     from app.models import CrmSource
     from app.services import crm, crm_sources
     q = crm.lead_filter(closed_days=None, date_on='created', date_from=day, date_until=day + timedelta(days=1))
     total = q.count()
-    out = {'total': total, 'products': [], 'groups': [], 'none': 0}
+    out = {'total': total, 'new': 0, 'products': [], 'groups': [], 'none': 0, 'none_new': 0}
     if not total:
         return out
+    fresh_q = q.filter(crm.still_new())
+    out['new'] = fresh_q.count()
     n = func.count(CrmLead.id)
-    out['products'] = q.with_entities(CrmLead.product, n).group_by(CrmLead.product).order_by(n.desc()).all()
-    by_src = dict(q.with_entities(CrmLead.source_id, n).group_by(CrmLead.source_id).all())
-    out['none'] = by_src.pop(None, 0)
+
+    def by(col):
+        return (dict(q.with_entities(col, n).group_by(col).all()),
+                dict(fresh_q.with_entities(col, n).group_by(col).all()) if out['new'] else {})
+    came, fresh = by(CrmLead.product)
+    out['products'] = [{'code': code, 'n': k, 'new': fresh.get(code, 0)}
+                       for code, k in sorted(came.items(), key=lambda x: -x[1])]
+    by_src, fresh = by(CrmLead.source_id)
+    out['none'], out['none_new'] = by_src.pop(None, 0), fresh.get(None, 0)
     sources = CrmSource.query.filter(CrmSource.id.in_(list(by_src))).all() if by_src else []
     for g, name, icon, rows in crm_sources.grouped(sources):
         items = []
@@ -382,9 +394,9 @@ def new_leads(day):
             found = crm_sources.item(s.key)
             # inside its group an item reads short ("Search quote"), unless that is shared by several sites
             label = (found[1].name if found[1].sub else found[1].short) if found else None
-            items.append({'src': s, 'label': label, 'n': by_src[s.id]})
+            items.append({'src': s, 'label': label, 'n': by_src[s.id], 'new': fresh.get(s.id, 0)})
         out['groups'].append({'key': g, 'name': name, 'icon': icon, 'n': sum(x['n'] for x in items),
-                              'link': g in crm_sources.GROUP_NAMES,
+                              'new': sum(x['new'] for x in items), 'link': g in crm_sources.GROUP_NAMES,
                               'sources': sorted(items, key=lambda x: -x['n'])})
     out['groups'].sort(key=lambda x: -x['n'])
     return out

@@ -7,11 +7,25 @@
    looked at every inbox". Then the inboxes that tick themselves, the day as a strip per inbox (earlier half hours
    today can still be ticked), and the last seven days. #}
 {% macro hm(dt) -%}{{ LOCAL(dt).strftime('%H:%M') if dt else '' }}{%- endmacro %}
-{# an inbox's new leads of the day, as a link to them on Leads (its lead source; the day) #}
-{% macro leads_link(name, n, cls, short=false) -%}
-{%- set words = (n ~ ' lead' ~ ('' if n == 1 else 's')) if short else (n ~ ' new lead' ~ ('' if n == 1 else 's')) -%}
-{%- if inbox_src.get(name) -%}<a class="{{ cls }}" href="{{ leads_url(src=inbox_src[name]) }}" title="Open the leads that came in {{ 'today' if day == today else 'that day' }} from {{ name }}">{{ words }} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
-{%- else %}<span class="{{ cls }}">{{ words }}</span>{%- endif -%}
+{# an inbox's leads of the day (leads_by: {'n', 'new'}), as a link to them on Leads (its lead source; the day): the
+   ones still new while there are any -- a cold lead nobody moved on; moved to Prospect, it is not new any more --
+   else all of them, said as moved on #}
+{% macro leads_link(name, nl, cls, short=false) -%}
+{%- set when = 'today' if day == today else 'that day' -%}
+{%- if nl.new -%}
+{%- set words = (nl.new ~ ' new') if short else (nl.new ~ ' new lead' ~ ('' if nl.new == 1 else 's')) -%}
+{%- set tip = nl.new ~ ' of the ' ~ nl.n ~ ' that came in ' ~ when ~ ' from ' ~ name ~ (' is' if nl.new == 1 else ' are') ~ ' still a cold lead: nobody moved ' ~ ('it' if nl.new == 1 else 'them') ~ ' on yet' -%}
+{%- else -%}
+{%- set words = nl.n ~ ' moved on' if short or nl.n == 1 else 'All ' ~ nl.n ~ ' moved on' -%}
+{%- set tip = 'The ' ~ ('lead' if nl.n == 1 else nl.n ~ ' leads') ~ ' that came in ' ~ when ~ ' from ' ~ name ~ ': none is a cold lead any more' -%}
+{%- endif -%}
+{%- set icon = '' if nl.new else '<i class="fa-solid fa-check" aria-hidden="true"></i> ' -%}
+{%- if inbox_src.get(name) -%}<a class="{{ cls }}{{ ' done' if not nl.new }}" href="{{ leads_url(src=inbox_src[name], status='new') if nl.new else leads_url(src=inbox_src[name]) }}" title="{{ tip }}">{{ icon|safe }}{{ words }} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
+{%- else %}<span class="{{ cls }}{{ ' done' if not nl.new }}" title="{{ tip }}">{{ icon|safe }}{{ words }}</span>{%- endif -%}
+{%- endmacro %}
+{# a row's still-new leads, beside it on the card: a link to just those #}
+{% macro new_badge(k, href) -%}
+{%- if k %}<a class="hc-nl-new" href="{{ href }}" title="{{ k }} still {{ 'is a cold lead' if k == 1 else 'are cold leads' }}: nobody moved {{ 'it' if k == 1 else 'them' }} on yet">{{ k }} new</a>{% endif -%}
 {%- endmacro %}
 {% block crm %}
 {{ page_head('Half-hourly check', 'fa-solid fa-clipboard-check',
@@ -30,8 +44,9 @@
     <a class="cb sm ghost" href="{{ crm_url('checks') }}">Today</a>{% endif %}
   </form>
   <div class="hc-nav-r">
-    {% if editable %}<label class="hc-remind" title="A browser notice at the start of every half hour while this page is open">
-      <input type="checkbox" data-hc-remind/> <i class="fa-solid fa-bell"></i> Remind me each half hour</label>{% endif %}
+    {% set snd = CHECK_SOUND() %}
+    {% if snd %}<button type="button" class="hc-remind {{ 'on' if snd.cfg.on else 'off' }}" data-sound-open title="A sound at the start of every half hour, on any page you have open: on or off, your hours, the sound">
+      <i class="fa-solid {{ 'fa-volume-high' if snd.cfg.on else 'fa-volume-xmark' }}" aria-hidden="true"></i> Sound: <span data-sound-says>{{ snd.says }}</span></button>{% endif %}
     {% if CAN('crm_team') %}<a class="cb sm quiet" href="{{ crm_url('team_analysis', tab='checks') }}"><i class="fa-solid fa-people-arrows"></i> Team analysis</a>{% endif %}
   </div>
 </div>
@@ -101,25 +116,27 @@
     <small>{% if gap and gap[2] > 1 %}longest gap {{ gap[0] }}–{{ gap[1] }}{% elif report.gap_count %}none longer than one{% else %}none so far{% endif %}</small></div>
   <div class="hc-stat{{ ' warn' if report.late }}"><span>Ticked late</span><b>{{ report.late }}</b><small>after the half hour was over</small></div>
   <div class="hc-stat"><span>People checking</span><b>{{ report.checking }}</b><small>ticked at least once</small></div>
-  <a class="hc-stat link" href="{{ leads_url() }}"><span>New leads</span><b>{{ new.total }}</b><small>{{ 'see them' if new.total else 'none yet' if day == today else 'none' }} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></small></a>
+  <a class="hc-stat link{{ ' warn' if new.new }}" href="{{ leads_url(status='new') if new.new else leads_url() }}" title="Leads that came in {{ 'today' if day == today else 'that day' }} and are still cold leads: nobody moved them on yet"><span>Still new</span><b>{{ new.new }}</b><small>{% if new.total %}of {{ new.total }} that came in{% else %}none came in{{ ' yet' if day == today }}{% endif %} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></small></a>
 </section>
 
-{# ---------------------------------------------------------------- the day's new leads, by product and where from #}
+{# ---------------------------------------------------------------- the day's leads, by product and where from #}
 <section class="card hc-new" id="new-leads">
   <div class="card-head">
     <div class="t"><span class="ico"><i class="fa-solid fa-user-plus"></i></span>
-      <div><h2>New leads {{ 'today' if day == today else 'on ' ~ day.strftime('%d %B') }}</h2>
-        <p class="muted small">{% if new.total %}Tap a number to open those leads.{% else %}Leads that come in show here, by product and by where they came from.{% endif %}</p></div></div>
-    {% if new.total %}<a class="cb sm primary" href="{{ leads_url() }}">See all {{ new.total }} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>{% endif %}
+      <div><h2>Leads that came in {{ 'today' if day == today else 'on ' ~ day.strftime('%d %B') }}</h2>
+        <p class="muted small">{% if new.total %}{{ new.total }} came in · {% if new.new %}<b class="hc-new-say">{{ new.new }} still new</b> (cold leads nobody moved on yet){% else %}all moved on{% endif %}. Tap a number to open those leads.{% else %}Leads that come in show here, by product and by where they came from.{% endif %}</p></div></div>
+    {% if new.total %}<div class="hc-new-btns">
+      {% if new.new %}<a class="cb sm primary" href="{{ leads_url(status='new') }}">Still new {{ new.new }} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>{% endif %}
+      <a class="cb sm{{ '' if new.new else ' primary' }}" href="{{ leads_url() }}">See all {{ new.total }} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a></div>{% endif %}
   </div>
   {% if new.total %}
-  <div class="hc-new-cols">
+  <div class="hc-new-cols{{ ' has-new' if new.new }}">
     <div class="hc-new-col">
       <h3>By product</h3>
       <ul class="hc-nl">
-        {% for code, n in new.products %}
-        <li><a href="{{ leads_url(prd=code) }}"><span class="hc-nl-n"><i class="fa-solid {{ CRM_PRODUCT_ICON(code) }}" aria-hidden="true"></i> {{ PRODUCTS.get(code, code) }}</span>
-          <i class="hc-nl-bar" style="--p:{{ (100 * n / new.total)|round|int }}%" aria-hidden="true"></i><b>{{ n }}</b></a></li>
+        {% for p in new.products %}
+        <li><a href="{{ leads_url(prd=p.code) }}"><span class="hc-nl-n"><i class="fa-solid {{ CRM_PRODUCT_ICON(p.code) }}" aria-hidden="true"></i> {{ PRODUCTS.get(p.code, p.code) }}</span>
+          <i class="hc-nl-bar" style="--p:{{ (100 * p.n / new.total)|round|int }}%" aria-hidden="true"></i><b>{{ p.n }}</b></a>{{ new_badge(p.new, leads_url(prd=p.code, status='new')) }}</li>
         {% endfor %}
       </ul>
     </div>
@@ -130,11 +147,12 @@
         <li class="grp">{% if g.link %}<a href="{{ leads_url(src='g:' ~ g.key) }}">{% else %}<span class="hc-nl-row">{% endif %}
           <span class="hc-nl-n"><i class="fa-solid {{ g.icon }}" aria-hidden="true"></i> {{ g.name }}</span>
           <i class="hc-nl-bar" style="--p:{{ (100 * g.n / new.total)|round|int }}%" aria-hidden="true"></i><b>{{ g.n }}</b>{% if g.link %}</a>{% else %}</span>{% endif %}
-          <span class="hc-nl-src">{% for x in g.sources %}<a href="{{ leads_url(src=x.src.id) }}">{{ x.label or SOURCE_NAME(x.src.name) }} <b>{{ x.n }}</b></a>{% endfor %}</span></li>
+          {%- if g.link %}{{ new_badge(g.new, leads_url(src='g:' ~ g.key, status='new')) }}{% endif %}
+          <span class="hc-nl-src">{% for x in g.sources %}<a href="{{ leads_url(src=x.src.id) }}">{{ x.label or SOURCE_NAME(x.src.name) }} <b>{{ x.n }}</b>{% if x.new %} <em>· {{ x.new }} new</em>{% endif %}</a>{% endfor %}</span></li>
         {% endfor %}
         {% if new.none %}
         <li class="grp"><a href="{{ leads_url(src='none') }}"><span class="hc-nl-n"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Not known</span>
-          <i class="hc-nl-bar" style="--p:{{ (100 * new.none / new.total)|round|int }}%" aria-hidden="true"></i><b>{{ new.none }}</b></a></li>
+          <i class="hc-nl-bar" style="--p:{{ (100 * new.none / new.total)|round|int }}%" aria-hidden="true"></i><b>{{ new.none }}</b></a>{{ new_badge(new.none_new, leads_url(src='none', status='new')) }}</li>
         {% endif %}
       </ul>
     </div>

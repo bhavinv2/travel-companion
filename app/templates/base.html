@@ -23,9 +23,10 @@
      file. WhatsApp's preview fetcher skips images past roughly 300KB, which is why pointing
      this at a full-size hero is a tag that quietly does nothing: the shared crops in
      static/img/share are 1200x630 and around 160KB, which is the size the one working preview
-     on this site already had. A page with no share image says so by sending a small card rather
-     than a large one with a hole in it. #}
-  {% set _share = share_image|default('') %}
+     on this site already had. A public page that passes none gets its section's picture
+     (SHARE_PIC, services/share_pics.py): with no og:image at all WhatsApp shows the site's logo.
+     Staff pages are never previewed, so they send none. #}
+  {% set _share = share_image|default('') or ('' if is_staff else SHARE_PIC()) %}
   <meta property="og:type" content="website"/>
   <meta property="og:site_name" content="NRI Parent Service"/>
   <meta property="og:title" content="{{ self.title()|striptags|trim }}"/>
@@ -356,6 +357,11 @@
         {% if CAN('crm_calendar') %}
         <a href="{{ crm_url('calendar', view='week') }}" class="notif-btn nav-cal{{ ' active' if request.endpoint in ('crm.calendar', 'admin_crm.calendar') }}" title="Calendar: tasks, calls, meetings and follow-ups" aria-label="Calendar"><i class="fa-solid fa-calendar-days"></i></a>
         {% endif %}
+        {# the half-hour sound: on, off and its settings (_check_sound.html) #}
+        {% set snd_hd = CHECK_SOUND() %}
+        {% if snd_hd %}
+        <button type="button" class="notif-btn nav-sound {{ 'on' if snd_hd.cfg.on else 'off' }}" data-sound-open title="Half-hour sound: {{ snd_hd.says }}" aria-label="Half-hour sound: {{ snd_hd.says }}"><i class="fa-solid {{ 'fa-volume-high' if snd_hd.cfg.on else 'fa-volume-xmark' }}"></i></button>
+        {% endif %}
       {% endif %}
       {% if current_user.is_authenticated %}
         <!-- Notifications -->
@@ -684,6 +690,7 @@
   <script src="{{ url_for('static', filename='js/notify.js') }}" data-api="{{ url_for('notifications.list_notifications') }}" defer></script>
   {% endif %}
   {% if is_staff and (CAN('crm_people') or CAN('crm_board') or CAN('crm_today')) %}<script src="{{ url_for('static', filename='js/find-person.js') }}" defer></script>{% endif %}
+  {% if is_staff %}{% include '_check_sound.html' %}{% endif %}
   {% if is_staff %}
   {# The tour guide (services/tours.py, static/js/tour.js): the round button at the bottom left of every staff page
      opens tours for this person's role, the common places and every screen they may open; ten seconds after landing

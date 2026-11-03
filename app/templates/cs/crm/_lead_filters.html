@@ -73,7 +73,8 @@
     {% endcall %}
 
     {% call pill('status', 'Status', 'fa-flag') %}
-      {% for k, label in (('', 'Any'), ('open', 'Still open'), ('won', 'Won'), ('lost', 'Lost')) %}{{ opt('status', k, label, (status or '') == k) }}{% endfor %}
+      {% for k, label in (('', 'Any'), ('open', 'Still open'), ('new', 'Still new'), ('won', 'Won'), ('lost', 'Lost')) %}{{ opt('status', k, label, (status or '') == k) }}{% endfor %}
+      <p class="fp-note">Still new: a cold lead nobody has moved on yet.</p>
       <label class="fp-sel"><span>Won and lost from</span>
         <select name="win" aria-label="Won and lost from">
           <option value="30"{{ ' selected' if win == '30' }}>The last 30 days</option>
